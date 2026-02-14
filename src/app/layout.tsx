@@ -20,6 +20,10 @@ export const metadata: Metadata = {
   title: "KasiAI | AI Solutions for Your Business",
   description:
     "We build WhatsApp chatbots, AI voice agents, and smart automations that handle your customer inquiries, bookings, and admin.",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default async function RootLayout({

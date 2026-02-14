@@ -9,8 +9,11 @@ const links = [
 export default function Navbar() {
   return (
     <nav className="fixed top-0 z-100 w-full flex items-center justify-between px-8 py-4 bg-bg/85 backdrop-blur-xl border-b border-border max-sm:px-4">
-      <a href="#" className="font-serif text-2xl text-text tracking-tight no-underline">
-        Kasi<span className="text-accent">AI</span>
+      <a href="/" className="flex items-center gap-2 no-underline">
+        <img src="/logo.png" alt="KasiAI" className="h-8 w-8" />
+        <span className="font-serif text-2xl text-text tracking-tight">
+          Kasi<span className="text-accent">AI</span>
+        </span>
       </a>
 
       <div className="hidden md:flex items-center gap-8">
