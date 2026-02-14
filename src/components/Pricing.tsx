@@ -1,46 +1,44 @@
 const plans = [
   {
     tier: "Starter",
-    name: "Smart Assistant",
-    price: "From R8,000 setup + R3,000/month",
+    name: "WhatsApp Chatbot",
+    setup: "R2,500",
+    monthly: "R300/mo",
     features: [
-      "WhatsApp chatbot with FAQ & booking",
-      "Up to 500 conversations/month",
+      "AI-powered WhatsApp chatbot",
+      "FAQ & booking automation",
       "Business hours auto-responder",
-      "Basic analytics dashboard",
+      "Lead capture & notifications",
       "Email support",
     ],
-    cta: "Get Started",
     featured: false,
   },
   {
     tier: "Most Popular",
-    name: "Growth Engine",
-    price: "From R20,000 setup + R6,000/month",
+    name: "Growth",
+    setup: "R5,000",
+    monthly: "R600/mo",
     features: [
-      "WhatsApp + website chatbot",
+      "Everything in Starter",
+      "Website chatbot included",
       "CRM & calendar integration",
-      "Lead qualification & routing",
-      "Automated follow-ups & reminders",
-      "Quote/invoice automation",
+      "Automated follow-ups",
       "Priority support",
     ],
-    cta: "Get Started",
     featured: true,
   },
   {
-    tier: "Enterprise",
+    tier: "Premium",
     name: "Full AI Suite",
-    price: "From R50,000 setup + R10,000/month",
+    setup: "R12,000",
+    monthly: "R1,200/mo",
     features: [
       "Everything in Growth",
       "AI voice agent",
-      "Custom AI agents for operations",
-      "Staff knowledge base",
-      "Advanced reporting & insights",
+      "Advanced automations",
+      "Custom integrations",
       "Dedicated account manager",
     ],
-    cta: "Let's Talk",
     featured: false,
   },
 ];
@@ -55,10 +53,11 @@ export default function Pricing() {
         Pricing
       </div>
       <h2 className="font-serif text-[clamp(2rem,4vw,3rem)] tracking-tight mb-4 font-normal">
-        Simple, transparent pricing
+        Simple, affordable pricing
       </h2>
       <p className="text-text-muted max-w-[550px] mb-14 text-lg leading-relaxed">
-        No hidden fees. No surprises. Just clear value for your investment.
+        Flexible plans that grow with your business. Setup fees quoted
+        separately based on your needs.
       </p>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-5 max-sm:grid-cols-1">
@@ -81,8 +80,12 @@ export default function Pricing() {
             <h3 className="font-serif text-2xl mb-1 font-normal">
               {plan.name}
             </h3>
-            <div className="text-sm text-text-muted mb-6">{plan.price}</div>
-            <ul className="list-none mb-6 space-y-1">
+            <div className="mb-6">
+              <span className="font-serif text-[clamp(1.5rem,3vw,2rem)] tracking-tight">{plan.setup}</span>
+              <span className="text-sm text-text-muted ml-1">once-off</span>
+              <div className="text-sm text-text-muted mt-1">then {plan.monthly} after setup</div>
+            </div>
+            <ul className="list-none mb-8 space-y-1">
               {plan.features.map((feature) => (
                 <li
                   key={feature}
@@ -92,16 +95,24 @@ export default function Pricing() {
                 </li>
               ))}
             </ul>
-            <a
-              href="#contact"
-              className={`block text-center py-3 rounded-full font-semibold text-sm no-underline transition-all ${
-                plan.featured
-                  ? "bg-accent text-bg border border-accent"
-                  : "border border-border-light text-text"
-              }`}
-            >
-              {plan.cta}
-            </a>
+            <div className="flex gap-3">
+              <a
+                href="/get-quote"
+                className={`flex-1 block text-center py-3 rounded-full font-semibold text-sm no-underline transition-all ${
+                  plan.featured
+                    ? "bg-accent text-bg border border-accent"
+                    : "border border-border-light text-text"
+                }`}
+              >
+                Get a Quote
+              </a>
+              <a
+                href="https://wa.me/27731231909?text=Hi%20KasiAI%2C%20I'm%20interested%20in%20the%20${encodeURIComponent(plan.name)}%20plan"
+                className="flex-1 block text-center py-3 rounded-full font-semibold text-sm no-underline border border-border-light text-text-muted transition-all hover:border-text-muted"
+              >
+                Contact Us
+              </a>
+            </div>
           </div>
         ))}
       </div>

@@ -20,16 +20,16 @@ export default function Hero() {
 
       <div className="flex gap-4 flex-wrap max-sm:flex-col">
         <a
-          href="#contact"
+          href="/get-quote"
           className="bg-accent text-bg px-8 py-3.5 rounded-full font-semibold text-base no-underline inline-flex items-center gap-2 transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_30px_rgba(196,240,77,0.3)] max-sm:text-center max-sm:justify-center"
         >
-          Book a Free Discovery Call
+          Get a Free Quote &rarr;
         </a>
         <a
-          href="#services"
-          className="bg-transparent text-text px-8 py-3.5 rounded-full font-medium text-base no-underline border border-border-light transition-all hover:border-text-muted max-sm:text-center max-sm:justify-center"
+          href="https://wa.me/27731231909?text=Hi%20KasiAI%2C%20I'm%20interested%20in%20AI%20automation%20for%20my%20business"
+          className="bg-transparent text-text px-8 py-3.5 rounded-full font-medium text-base no-underline border border-border-light transition-all hover:border-text-muted inline-flex items-center gap-2 max-sm:text-center max-sm:justify-center"
         >
-          See What We Build
+          Chat on WhatsApp
         </a>
       </div>
     </div>

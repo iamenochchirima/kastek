@@ -3,6 +3,7 @@ const links = [
   { label: "Industries", href: "#industries" },
   { label: "Process", href: "#process" },
   { label: "Pricing", href: "#pricing" },
+  { label: "FAQ", href: "#faq" },
 ];
 
 export default function Navbar() {
@@ -24,12 +25,20 @@ export default function Navbar() {
         ))}
       </div>
 
-      <a
-        href="#contact"
-        className="bg-accent text-bg px-6 py-2.5 rounded-full font-semibold text-sm no-underline transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(196,240,77,0.25)]"
-      >
-        Let&apos;s Talk &rarr;
-      </a>
+      <div className="flex items-center gap-3">
+        {/* <a
+          href="/login"
+          className="text-sm text-text-muted no-underline transition-colors hover:text-text"
+        >
+          Log In
+        </a> */}
+        <a
+          href="/get-quote"
+          className="bg-accent text-bg px-6 py-2.5 rounded-full font-semibold text-sm no-underline transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(196,240,77,0.25)]"
+        >
+          Get a Quote &rarr;
+        </a>
+      </div>
     </nav>
   );
 }

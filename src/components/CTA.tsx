@@ -15,12 +15,20 @@ export default function CTA() {
           Book a free 20-minute discovery call. We&apos;ll show you exactly
           where AI can save you time and money. No strings attached.
         </p>
-        <a
-          href="https://wa.me/27731231909?text=Hi%20KasiAI%2C%20I'm%20interested%20in%20AI%20automation%20for%20my%20business"
-          className="inline-flex items-center gap-2 bg-accent text-bg px-8 py-3.5 rounded-full font-semibold text-base no-underline transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_30px_rgba(196,240,77,0.3)]"
-        >
-          Chat on WhatsApp &rarr;
-        </a>
+        <div className="flex flex-wrap justify-center gap-4">
+          <a
+            href="/get-quote"
+            className="inline-flex items-center gap-2 bg-accent text-bg px-8 py-3.5 rounded-full font-semibold text-base no-underline transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_30px_rgba(196,240,77,0.3)]"
+          >
+            Get a Free Quote &rarr;
+          </a>
+          <a
+            href="https://wa.me/27731231909?text=Hi%20KasiAI%2C%20I'm%20interested%20in%20AI%20automation%20for%20my%20business"
+            className="inline-flex items-center gap-2 border border-border-light text-text px-8 py-3.5 rounded-full font-medium text-base no-underline transition-all hover:border-text-muted"
+          >
+            Or Chat on WhatsApp
+          </a>
+        </div>
       </div>
     </section>
   );
