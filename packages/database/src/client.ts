@@ -1,10 +1,8 @@
-import { PrismaClient } from "@/generated/prisma/client";
+import { PrismaClient } from "./generated/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
 
-// Neon serverless driver uses WebSocket (port 443) instead of TCP (port 5432)
-// Node.js needs the ws package to provide WebSocket support
 neonConfig.webSocketConstructor = ws;
 
 const globalForPrisma = globalThis as unknown as {

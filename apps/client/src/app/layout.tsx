@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans, Instrument_Serif } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/auth";
+import ChatWidget from "@/components/chat-widget";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -38,7 +39,10 @@ export default async function RootLayout({
       <body
         className={`${dmSans.variable} ${instrumentSerif.variable} font-sans antialiased`}
       >
-        <SessionProvider session={session}>{children}</SessionProvider>
+        <SessionProvider session={session}>
+          {children}
+          <ChatWidget />
+        </SessionProvider>
       </body>
     </html>
   );

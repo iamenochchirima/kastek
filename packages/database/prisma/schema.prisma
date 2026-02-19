@@ -1,13 +1,13 @@
 generator client {
   provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  output   = "../src/generated"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-// ─── Auth.js Required Tables ───────────────────────────────
+// ─── Auth.js Required Tables (Client App) ─────────────────
 
 model User {
   id            String    @id @default(cuid())
@@ -63,6 +63,21 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ─── Admin Users (Separate from Client Users) ─────────────
+
+model AdminUser {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("admin") // superadmin | admin | viewer
+
+  assignedLeads QuoteRequest[] @relation("AssignedLeads")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ─── KasiAI Domain Tables ──────────────────────────────────
@@ -144,7 +159,21 @@ model QuoteRequest {
   businessType  String
   services      String[]
   description   String?  @db.Text
-  status        String   @default("new")
+
+  // Lead management fields
+  source        String   @default("website") // website | facebook | linkedin | cold_email | referral | whatsapp | walk_in
+  status        String   @default("new")     // new | contacted | interested | quoted | won | lost
+  quoteAmount   Float?
+  followUpDate  DateTime?
+  notes         Json     @default("[]")      // Array of {text, timestamp, adminUserId, adminUserName}
+
+  assignedToId  String?
+  assignedTo    AdminUser? @relation("AssignedLeads", fields: [assignedToId], references: [id])
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([source])
+  @@index([assignedToId])
 }
