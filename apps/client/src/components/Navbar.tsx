@@ -2,7 +2,7 @@ const links = [
   { label: "Services", href: "#services" },
   { label: "Industries", href: "#industries" },
   { label: "Process", href: "#process" },
-  { label: "Pricing", href: "#pricing" },
+  { label: "Pricing", href: "/pricing" },
   { label: "FAQ", href: "#faq" },
 ];
 

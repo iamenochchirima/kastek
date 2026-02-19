@@ -62,3 +62,13 @@ export type OnboardingConversation = Prisma.OnboardingConversationModel
  * 
  */
 export type QuoteRequest = Prisma.QuoteRequestModel
+/**
+ * Model Conversation
+ * 
+ */
+export type Conversation = Prisma.ConversationModel
+/**
+ * Model Message
+ * 
+ */
+export type Message = Prisma.MessageModel

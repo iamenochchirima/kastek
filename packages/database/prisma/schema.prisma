@@ -177,3 +177,34 @@ model QuoteRequest {
   @@index([source])
   @@index([assignedToId])
 }
+
+// ─── Chatbot Conversations ───────────────────────────────────
+
+model Conversation {
+  id                 String   @id @default(cuid())
+  channel            String   // whatsapp | website
+  customerIdentifier String   // phone number or session ID
+  customerName       String?
+  status             String   @default("active") // active | closed
+  lastMessageAt      DateTime @default(now())
+
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([channel, customerIdentifier])
+  @@index([channel])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         String       // customer | bot
+  content        String       @db.Text
+  timestamp      DateTime     @default(now())
+
+  @@index([conversationId])
+}

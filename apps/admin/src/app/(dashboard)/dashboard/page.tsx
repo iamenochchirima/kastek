@@ -11,7 +11,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const [total, byStatus, bySource, recentLeads] = await Promise.all([
+  const [total, byStatus, bySource, recentLeads, recentConversations, conversationCount] = await Promise.all([
     prisma.quoteRequest.count(),
     prisma.quoteRequest.groupBy({
       by: ["status"],
@@ -25,6 +25,17 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
+    prisma.conversation.findMany({
+      orderBy: { lastMessageAt: "desc" },
+      take: 5,
+      include: {
+        messages: {
+          orderBy: { timestamp: "desc" },
+          take: 1,
+        },
+      },
+    }),
+    prisma.conversation.count(),
   ]);
 
   const statusMap = Object.fromEntries(
@@ -47,11 +58,12 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatCard label="Total Leads" value={total} color="bg-surface-raised border border-border text-text" />
         <StatCard label="New" value={statusMap.new || 0} color="bg-blue-500/10 border border-blue-500/20 text-blue-400" />
         <StatCard label="Interested" value={statusMap.interested || 0} color="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400" />
         <StatCard label="Won" value={statusMap.won || 0} color="bg-green-500/10 border border-green-500/20 text-green-400" />
+        <StatCard label="Conversations" value={conversationCount} color="bg-purple-500/10 border border-purple-500/20 text-purple-400" />
       </div>
 
       {/* Two column layout */}
@@ -132,6 +144,48 @@ export default async function DashboardPage() {
                 </span>
               </Link>
             ))}
+          </div>
+        )}
+      </div>
+      {/* Recent Conversations */}
+      <div className="bg-surface-raised rounded-xl border border-border p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-text">Recent Conversations</h2>
+          <Link href="/conversations" className="text-primary text-sm font-medium hover:underline">
+            View all
+          </Link>
+        </div>
+        {recentConversations.length === 0 ? (
+          <p className="text-text-faint text-sm">No conversations yet.</p>
+        ) : (
+          <div className="space-y-1">
+            {recentConversations.map((conv) => {
+              const lastMsg = conv.messages[0];
+              return (
+                <Link
+                  key={conv.id}
+                  href={`/conversations/${conv.id}`}
+                  className="flex items-center justify-between p-3 rounded-lg hover:bg-surface-overlay transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-lg">{conv.channel === "whatsapp" ? "💬" : "🌐"}</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm text-text truncate">
+                        {conv.customerName || conv.customerIdentifier}
+                      </p>
+                      {lastMsg && (
+                        <p className="text-text-faint text-xs truncate">
+                          {lastMsg.content}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-text-faint shrink-0 ml-2">
+                    {conv.lastMessageAt.toLocaleDateString()}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>

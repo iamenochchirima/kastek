@@ -59,7 +59,9 @@ export const ModelName = {
   BusinessProfile: 'BusinessProfile',
   BotConfiguration: 'BotConfiguration',
   OnboardingConversation: 'OnboardingConversation',
-  QuoteRequest: 'QuoteRequest'
+  QuoteRequest: 'QuoteRequest',
+  Conversation: 'Conversation',
+  Message: 'Message'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -220,6 +222,31 @@ export const QuoteRequestScalarFieldEnum = {
 } as const
 
 export type QuoteRequestScalarFieldEnum = (typeof QuoteRequestScalarFieldEnum)[keyof typeof QuoteRequestScalarFieldEnum]
+
+
+export const ConversationScalarFieldEnum = {
+  id: 'id',
+  channel: 'channel',
+  customerIdentifier: 'customerIdentifier',
+  customerName: 'customerName',
+  status: 'status',
+  lastMessageAt: 'lastMessageAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ConversationScalarFieldEnum = (typeof ConversationScalarFieldEnum)[keyof typeof ConversationScalarFieldEnum]
+
+
+export const MessageScalarFieldEnum = {
+  id: 'id',
+  conversationId: 'conversationId',
+  sender: 'sender',
+  content: 'content',
+  timestamp: 'timestamp'
+} as const
+
+export type MessageScalarFieldEnum = (typeof MessageScalarFieldEnum)[keyof typeof MessageScalarFieldEnum]
 
 
 export const SortOrder = {

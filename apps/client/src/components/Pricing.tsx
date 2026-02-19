@@ -2,8 +2,8 @@ const plans = [
   {
     tier: "Starter",
     name: "WhatsApp Chatbot",
-    setup: "R2,500",
-    monthly: "R300/mo",
+    setup: "From R1,500",
+    monthly: "R150 – R300/mo",
     features: [
       "AI-powered WhatsApp chatbot",
       "FAQ & booking automation",
@@ -16,13 +16,13 @@ const plans = [
   {
     tier: "Most Popular",
     name: "Growth",
-    setup: "R5,000",
-    monthly: "R600/mo",
+    setup: "From R3,000",
+    monthly: "R300 – R500/mo",
     features: [
-      "Everything in Starter",
-      "Website chatbot included",
+      "WhatsApp + Website chatbot",
       "CRM & calendar integration",
       "Automated follow-ups",
+      "Lead qualification",
       "Priority support",
     ],
     featured: true,
@@ -30,13 +30,13 @@ const plans = [
   {
     tier: "Premium",
     name: "Full AI Suite",
-    setup: "R12,000",
-    monthly: "R1,200/mo",
+    setup: "From R7,000",
+    monthly: "R500 – R1,000/mo",
     features: [
       "Everything in Growth",
       "AI voice agent",
-      "Advanced automations",
-      "Custom integrations",
+      "Custom workflows & integrations",
+      "Analytics dashboard",
       "Dedicated account manager",
     ],
     featured: false,
@@ -55,10 +55,16 @@ export default function Pricing() {
       <h2 className="font-serif text-[clamp(2rem,4vw,3rem)] tracking-tight mb-4 font-normal">
         Simple, affordable pricing
       </h2>
-      <p className="text-text-muted max-w-[550px] mb-14 text-lg leading-relaxed">
+      <p className="text-text-muted max-w-[550px] mb-6 text-lg leading-relaxed">
         Flexible plans that grow with your business. Setup fees quoted
         separately based on your needs.
       </p>
+      <a
+        href="/pricing"
+        className="text-accent text-sm font-semibold no-underline hover:underline mb-14 inline-block"
+      >
+        View full pricing details &rarr;
+      </a>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-5 max-sm:grid-cols-1">
         {plans.map((plan) => (
