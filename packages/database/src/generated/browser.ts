@@ -63,6 +63,21 @@ export type OnboardingConversation = Prisma.OnboardingConversationModel
  */
 export type QuoteRequest = Prisma.QuoteRequestModel
 /**
+ * Model OutreachCampaign
+ * 
+ */
+export type OutreachCampaign = Prisma.OutreachCampaignModel
+/**
+ * Model OutreachLead
+ * 
+ */
+export type OutreachLead = Prisma.OutreachLeadModel
+/**
+ * Model WebServiceLead
+ * 
+ */
+export type WebServiceLead = Prisma.WebServiceLeadModel
+/**
  * Model Conversation
  * 
  */

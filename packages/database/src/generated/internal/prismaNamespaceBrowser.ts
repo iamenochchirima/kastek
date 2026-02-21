@@ -60,6 +60,9 @@ export const ModelName = {
   BotConfiguration: 'BotConfiguration',
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
+  OutreachCampaign: 'OutreachCampaign',
+  OutreachLead: 'OutreachLead',
+  WebServiceLead: 'WebServiceLead',
   Conversation: 'Conversation',
   Message: 'Message'
 } as const
@@ -222,6 +225,64 @@ export const QuoteRequestScalarFieldEnum = {
 } as const
 
 export type QuoteRequestScalarFieldEnum = (typeof QuoteRequestScalarFieldEnum)[keyof typeof QuoteRequestScalarFieldEnum]
+
+
+export const OutreachCampaignScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  category: 'category',
+  status: 'status',
+  totalLeads: 'totalLeads',
+  emailsSent: 'emailsSent',
+  replies: 'replies',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OutreachCampaignScalarFieldEnum = (typeof OutreachCampaignScalarFieldEnum)[keyof typeof OutreachCampaignScalarFieldEnum]
+
+
+export const OutreachLeadScalarFieldEnum = {
+  id: 'id',
+  campaignId: 'campaignId',
+  businessName: 'businessName',
+  website: 'website',
+  address: 'address',
+  bizbayUrl: 'bizbayUrl',
+  category: 'category',
+  phone: 'phone',
+  emailStatus: 'emailStatus',
+  emailAddress: 'emailAddress',
+  emailSentAt: 'emailSentAt',
+  emailTemplate: 'emailTemplate',
+  followUpCount: 'followUpCount',
+  lastFollowUp: 'lastFollowUp',
+  nextFollowUp: 'nextFollowUp',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OutreachLeadScalarFieldEnum = (typeof OutreachLeadScalarFieldEnum)[keyof typeof OutreachLeadScalarFieldEnum]
+
+
+export const WebServiceLeadScalarFieldEnum = {
+  id: 'id',
+  businessName: 'businessName',
+  website: 'website',
+  address: 'address',
+  category: 'category',
+  bizbayUrl: 'bizbayUrl',
+  phone: 'phone',
+  email: 'email',
+  callStatus: 'callStatus',
+  notes: 'notes',
+  callbackDate: 'callbackDate',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WebServiceLeadScalarFieldEnum = (typeof WebServiceLeadScalarFieldEnum)[keyof typeof WebServiceLeadScalarFieldEnum]
 
 
 export const ConversationScalarFieldEnum = {

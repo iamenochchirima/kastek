@@ -1,0 +1,1876 @@
+{
+  "category": "Holiday-Accommodation",
+  "count": 204,
+  "listings": [
+    {
+      "name": "Dreams",
+      "website": "https://www.daydreams.co.za",
+      "address": "685 Bernard Road Pringle Bay, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dreams"
+    },
+    {
+      "name": "Cape Luxury Acommodation",
+      "website": "https://www.capeluxuryaccommodation.com",
+      "address": "Kloof Rd Cape Town, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Luxury-Acommodation"
+    },
+    {
+      "name": "The Victoria Lodge Group",
+      "website": "https://www.viclodge.co.za",
+      "address": "21 Bell Grove, Berea Durban, Kwazulu-nata",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Victoria-Lodge-Group"
+    },
+    {
+      "name": "Crooked Tree Cottage B&amp;B/Self catering",
+      "website": "https://www.crookedtreecottage.co.za",
+      "address": "39 Hilken Drive, Umhlanga, Durban Umhlanga Kwazulu Natal, Kwazulu-nata",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Crooked-Tree-Cottage-B-B-Self-catering"
+    },
+    {
+      "name": "Russel Hotel",
+      "website": "https://www.russelhotel.co.za",
+      "address": "Graham Street Knysna, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Russel-Hotel"
+    },
+    {
+      "name": "ATKV Buffelspoort",
+      "website": "https://www.buffelspoort.co.za",
+      "address": "On R104, Marikana District Mooinooi, North West",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ATKV-Buffelspoort"
+    },
+    {
+      "name": "Jean Lee B&amp;B",
+      "website": "https://www.jeanlee.co.za",
+      "address": "93 Durban Road [alan Paton Avenue], Scottsville Pietermaritzburg, Kwazulu-nata",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jean-Lee-B-B"
+    },
+    {
+      "name": "Hildesheim Guest House",
+      "website": "https://www.hildesheim.co.za",
+      "address": "3 Kerk Street, Hoekwil Wilderness, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hildesheim-Guest-House_512275"
+    },
+    {
+      "name": "Horizon Holiday Cottages",
+      "website": "https://www.horizoncottages.co.za",
+      "address": "9 Sea Cottage Drive Noordhoek, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Horizon-Holiday-Cottages"
+    },
+    {
+      "name": "GOLDEN CANDLE BED AND BREAKFAST",
+      "website": "https://www.goldencandle.co.za",
+      "address": null,
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/GOLDEN-CANDLE-BED-AND-BREAKFAST"
+    },
+    {
+      "name": "LEW HARRIS SAFARIS",
+      "website": "https://www.lhsafaris.com",
+      "address": "15 Tom Smith Ave, Roodewal, 9326 Bloemfontein, Free State",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/LEW-HARRIS-SAFARIS"
+    },
+    {
+      "name": "Freedom &quot;O&quot; Clock Mdumbi River Mouth Ac…",
+      "website": "https://www.freedomoclock.co.za",
+      "address": "Mdumbi River Mouth Mdumbi River Mouth, Eastern Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Freedom-O-Clock-Mdumbi-River-Mouth-Accommodation"
+    },
+    {
+      "name": "The Farm Inn",
+      "website": "https://www.farminn.co.za",
+      "address": "Plot 26 Zwartkoppies, Silverlakes Road, Off Lynnwod Road Pretoria, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Farm-Inn"
+    },
+    {
+      "name": "Seekers Lara Travel (Pty) Ltd",
+      "website": "https://www.laratravel.co.za",
+      "address": "Shop U13, The Glen Shopping Centre, Cnr Letaba & Orpen Rd Oakdene, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Seekers-Lara-Travel"
+    },
+    {
+      "name": "A Little Paradise Guest House &amp; Confere…",
+      "website": "https://www.alittleparadise.co.za",
+      "address": "82 Tamboti Road Blue Hills Midrand, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/A-Little-Paradise-Guest-House-Conference-Venue"
+    },
+    {
+      "name": "Susan Deacon Property Group",
+      "website": "https://www.susandeacon.co.za",
+      "address": "66 Courtenay Street George, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Susan-Deacon-Property-Group"
+    },
+    {
+      "name": "Ipe Tombe Guest Lodge",
+      "website": "https://www.ipetombelodge.co.za",
+      "address": "63 Kingwillow Crescent Randjesfontein Midrand, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ipe-Tombe-Guest-Lodge"
+    },
+    {
+      "name": "Kaapsepracht",
+      "website": "https://www.kaapsepracht.co.za",
+      "address": "12 De Villiers Street Somerset West, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kaapsepracht"
+    },
+    {
+      "name": "Brazier",
+      "website": "https://www.brazier.co.za",
+      "address": "Unit 7 Haryn Park, 13 Mocke Road Diep River, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Brazier"
+    },
+    {
+      "name": "Neon Leisure Marketing",
+      "website": "https://www.nlm.co.za",
+      "address": "Windsor Road Garsfontein, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Neon-Leisure-Marketing"
+    },
+    {
+      "name": "Duck Inn",
+      "website": "https://www.duckinn.co.za",
+      "address": "3 Dageraad Meerensee, Kwazulu Natal",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Duck-Inn"
+    },
+    {
+      "name": "Waterfront Village",
+      "website": "https://www.waterfrontvillage.com",
+      "address": "Mind Pearl House, West Quay Road, V & A Waterfront Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Waterfront-Village"
+    },
+    {
+      "name": "Centwise Event &amp; Promotional Solutions …",
+      "website": "https://www.centwise.co.za",
+      "address": "Suite 168 Postnet Olivedale, Private Bag X1, Jukskei Park Johannesburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Centwise-Event-Promotional-Solutions-cc"
+    },
+    {
+      "name": "Bokkom.co.za",
+      "website": "https://www.bokkom.co.za",
+      "address": "3thera Drive, Calypso Beach Langebaan, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bokkom-co-za"
+    },
+    {
+      "name": "HoneyPot B&amp;B",
+      "website": "https://www.honeypotguesthouse.co.za",
+      "address": "11 Hilken Drive, Umhlanga Rocks Umhlanga Rocks, Kwazulu-nata",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/HoneyPot-B-B"
+    },
+    {
+      "name": "Uyaphi Safaris",
+      "website": "https://www.uyaphi.com",
+      "address": "150 Main Road, Muizenberg Cape Town, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Uyaphi-Safaris"
+    },
+    {
+      "name": "KDR Travel &amp; Tours",
+      "website": "https://www.kdrtravel.co.za",
+      "address": null,
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/KDR-Travel-Tours"
+    },
+    {
+      "name": "Wannado",
+      "website": "https://www.wannado.co.za",
+      "address": "1259, Prospect Street, Hatfield Pretoria, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wannado"
+    },
+    {
+      "name": "Heavenly Guesthouse and Restaurant",
+      "website": "https://wheretostay.co.za",
+      "address": "7 Vos Street Trompsburg, Free State",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Heavenly-Guesthouse-and-Restaurant"
+    },
+    {
+      "name": "Umkomaas Guest House",
+      "website": "https://www.umkomaasguesthouse.com",
+      "address": "30 Crompton Street Umkomaas Kwazulu Natal, Kwazulu-nata",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Umkomaas-Guest-House"
+    },
+    {
+      "name": "Valentina accommodation",
+      "website": "https://sites.google.com/site/accommodation27valentina",
+      "address": "27 General Hertzog Str., Dan Pienaar Bloemfontein, Free State",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Valentina-accommodation"
+    },
+    {
+      "name": "Barry&#39;s Holiday Accommodation",
+      "website": "https://www.witsand.co.za",
+      "address": "189 Main Road Witsand, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Barrys-Holiday-Accommodation"
+    },
+    {
+      "name": "Vakansietyd",
+      "website": "https://www.vacationtime.co.za",
+      "address": "4 Gregor Str., Witpoortjie, Roodepoort Roodepoort, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vakansietyd"
+    },
+    {
+      "name": "Ezakwantu Events &amp; Travel",
+      "website": "https://www.ezakwantu.co.za",
+      "address": "Table View, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ezakwantu-Events-Travel"
+    },
+    {
+      "name": "Cape Life",
+      "website": "https://www.capelife.co.za",
+      "address": "179 Waterkant St Cape Town, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Life"
+    },
+    {
+      "name": "Frail care services",
+      "website": "https://www.frailcareservices.co.za",
+      "address": "40 Elgin Rd Bryanston, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Frail-care-services"
+    },
+    {
+      "name": "Kosmos Manor Guest House",
+      "website": "https://www.kosmosmanor.co.za",
+      "address": "107 Simon Bekker Drive Hartebeespoort Dam, North West Province",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kosmos-Manor-Guest-House"
+    },
+    {
+      "name": "Engel &amp; Volkers",
+      "website": "https://www.engelvoelkers.co.za",
+      "address": "Sandra Ballito, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Engel-Volkers"
+    },
+    {
+      "name": "Kulula.com",
+      "website": "https://www.kulula.com",
+      "address": "Po Box 7015 Bonaero Park",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kulula-com"
+    },
+    {
+      "name": "Yes Please",
+      "website": "https://www.yesplease.co.za",
+      "address": "Chapman Street, Scottsville Pietermaritzburg, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Yes-Please"
+    },
+    {
+      "name": "Classic Hospitality",
+      "website": "https://www.classichospitality.co.za",
+      "address": "The Nicol, 38 Hobart Rd, Bryanston Sandton, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Classic-Hospitality"
+    },
+    {
+      "name": "THE MOM &amp; BABY HOUSE",
+      "website": "https://www.babyhouse.co.za",
+      "address": "5 Bayview Road Somerset West, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/THE-MOM-BABY-HOUSE"
+    },
+    {
+      "name": "Travellers Lodge",
+      "website": "https://www.travellerslodge.co.za",
+      "address": "30 Albany Road, Po Box 536 Port Alfred, Eastern Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Travellers-Lodge_412080"
+    },
+    {
+      "name": "Horizon Cottages",
+      "website": "https://www.horizoncottages.co.za",
+      "address": "9 Sea Cottage Drive, Noordhoek, Noordhoek Cape Town, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Horizon-Cottages"
+    },
+    {
+      "name": "On Golden Pond",
+      "website": "https://www.ongoldenpond.co.za",
+      "address": "R512 Mount Amanzi Hartbeespoort, North West Province",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 202,
+      "bizbayUrl": "https://bizbay.co.za/Company/On-Golden-Pond"
+    },
+    {
+      "name": "Dive Travel",
+      "website": "https://www.divetravel.co.za",
+      "address": "Shop 11 Link Hills Shopping Centre, Inanda Road, Waterfall Durban, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dive-Travel"
+    },
+    {
+      "name": "One On Hely",
+      "website": "https://www.oneonhely.co.za",
+      "address": "1 Hely Hutchinson Steet Mtunzini, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/One-On-Hely"
+    },
+    {
+      "name": "Glitter Bay",
+      "website": "https://www.glitterbay.co.za",
+      "address": "10 Hastula Way Sunset Beach, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Glitter-Bay"
+    },
+    {
+      "name": "PROPERTY MAX - Property for sale throug…",
+      "website": "https://www.propertymax.co.za",
+      "address": "34 Parklands, Little Falls, Na Roodepoort, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/PROPERTY-MAX-Property-for-sale-throughout-South-Africa"
+    },
+    {
+      "name": "SKYDIVE TANDEM",
+      "website": "https://www.skydivetandem.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/SKYDIVE-TANDEM"
+    },
+    {
+      "name": "PROPERTY MAX - Property for sale",
+      "website": "https://www.propertymax.co.za",
+      "address": "44 Generaal Pienaar Str, Witpoortjie, Na Roodepoort, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/PROPERTY-MAX-Property-for-sale"
+    },
+    {
+      "name": "Delphinus Health Spa &amp; Hair Design.",
+      "website": "https://www.healthandwellness.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Delphinus-Health-Spa-Hair-Design"
+    },
+    {
+      "name": "Bultrading cc",
+      "website": "https://www.bultrading.co.za",
+      "address": "1 Falcon Rd Cape Town, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bultrading-cc"
+    },
+    {
+      "name": "Victoria Falls Guide",
+      "website": "https://www.victoriafalls-guide.net",
+      "address": "Pietermaritzburg, Kwazulu-nata",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Victoria-Falls-Guide"
+    },
+    {
+      "name": "Heaton Cottage",
+      "website": "https://www.heatoncottage.co.za",
+      "address": "Cowies Hill, Kwazulu-nata",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Heaton-Cottage"
+    },
+    {
+      "name": "Ganora Guestfarm &amp; Excursions",
+      "website": "https://www.ganora.co.za",
+      "address": "Graaff-reinet, Eastern Cape",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ganora-Guestfarm-Excursions"
+    },
+    {
+      "name": "Royal",
+      "website": "https://www.theroyal.co.za",
+      "address": "267 Smith Street, Po Box Durban",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Royal"
+    },
+    {
+      "name": "St Bernard&#39;s Peak Mountain Lodge",
+      "website": "https://www.stbernardspeak.com",
+      "address": "Middle Valley Farm, D 609 Swatberg, Kwazulu Natal",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/St-Bernards-Peak-Mountain-Lodge"
+    },
+    {
+      "name": "Bigsixtoursafaris",
+      "website": "https://www.bigsixtoursafaris.com",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bigsixtoursafaris"
+    },
+    {
+      "name": "Sunny Rock",
+      "website": "https://www.sunny-rock.co.za",
+      "address": "513 Mendip Rd Southbroom, Kwazulu-nata",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sunny-Rock"
+    },
+    {
+      "name": "Mitras Amenities CC",
+      "website": "https://www.mitras.co.za",
+      "address": "5 Heron Park, 80 Corobrik Road, Riverhorse Valley Effingham, Kwazulu Natal",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mitras-Amenities-CC"
+    },
+    {
+      "name": "Insukamini",
+      "website": "https://www.insukamini.co.za",
+      "address": "3 Lees Street, Wynburg Johannesburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Insukamini"
+    },
+    {
+      "name": "Greenlea Guest House and Conferenc Cent…",
+      "website": "https://www.greenlea.co.za",
+      "address": "41 Krige Lane, Irene, Centurion Pretoria, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Greenlea-Guest-House-and-Conferenc-Centre"
+    },
+    {
+      "name": "Broadwater River Beach",
+      "website": "https://www.broadwater.co.za",
+      "address": "R357 From Kimberley To Douglas Douglas, Northern Cape",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Broadwater-River-Beach"
+    },
+    {
+      "name": "Coral Tree Colony B&amp;B",
+      "website": "https://www.thecoraltree.com",
+      "address": "593 Mandy Road Southbroom, Kwazulu-nata",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Coral-Tree-Colony-B-B"
+    },
+    {
+      "name": "Flyways Aircharter services",
+      "website": "https://www.flyways.co.za",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Flyways-Aircharter-services"
+    },
+    {
+      "name": "The Elephant Hills",
+      "website": "https://www.elephanthillsbnb.com",
+      "address": "12 Marlynhoek, Meerensee Richards Bay, Kwazulu-nata",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Elephant-Hills"
+    },
+    {
+      "name": "Le Cozmo Guesthouse",
+      "website": "https://www.lecozmo.co.za",
+      "address": "101 Hart Avenue Cnr Hennie Alberts, Meyersdal, Alberton Alberton, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Le-Cozmo-Guesthouse"
+    },
+    {
+      "name": "Maphela",
+      "website": "https://www.maphela.com",
+      "address": "1 Radon Park, 379 Bergvlei St, Wadeville Ext 4 Johannesburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Maphela"
+    },
+    {
+      "name": "Weekend Getaways",
+      "website": "https://www.weekendgetaways.co.za",
+      "address": "Hout Bay, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Weekend-Getaways"
+    },
+    {
+      "name": "Pets Welcome SA",
+      "website": "https://www.petfriendly.co.za",
+      "address": "116 Main Road, Diep River Cape Town, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pets-Welcome-SA"
+    },
+    {
+      "name": "Cheerio Trout Fishing and Holiday Resort",
+      "website": "https://www.cheerio.co.za",
+      "address": "L 4.1 Road, Off R71, Magoebaskloof Haenertsburg, Limpopo",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cheerio-Trout-Fishing-and-Holiday-Resort"
+    },
+    {
+      "name": "ADEK",
+      "website": "https://www.adek.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ADEK"
+    },
+    {
+      "name": "Exclusive Serenity",
+      "website": "https://www.exclusive-serenity.com",
+      "address": "148 Circle Road, Table View Cape Town, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Exclusive-Serenity"
+    },
+    {
+      "name": "Kwalata Wilderness",
+      "website": "https://www.kwalata.com",
+      "address": "604lr Blinkwater Farm Lephalale, Limpopo",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kwalata-Wilderness"
+    },
+    {
+      "name": "Mamagalie Mountain Lodge",
+      "website": "https://www.mamagalie.co.za",
+      "address": "Portion 468 Jq Buffelshoek . Mooinooi, North West Province",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mamagalie-Mountain-Lodge"
+    },
+    {
+      "name": "Tsiba Tsiba Wine Tours &amp; Travel",
+      "website": "https://www.tsibatsiba.co.za",
+      "address": "2 Old Traffrord, Schroder Street Stellenbosch, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Tsiba-Tsiba-Wine-Tours-Travel"
+    },
+    {
+      "name": "Unlimited Destinations",
+      "website": "https://www.unlimiteddestinations.co.za",
+      "address": "50 Marili Street, Val De Grace Pretoria, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Unlimited-Destinations"
+    },
+    {
+      "name": "Zuikerkop Country Game Lodge",
+      "website": "https://www.zuikerkop.co.za",
+      "address": "Zuikerkop Farm Clocolan, Free State",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Zuikerkop-Country-Game-Lodge"
+    },
+    {
+      "name": "ngiri safaris",
+      "website": "https://www.ngirisafaris.co.za",
+      "address": "39 Laksman Street, Welgevonden, Gauteng Hammanskraal, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ngiri-safaris_533220"
+    },
+    {
+      "name": "Nepal Environmental Treks &amp; Expedition …",
+      "website": "https://environmentaltrekking.com",
+      "address": "Thamel, Kathmandu, Nepal, Tridevi Marg, Thamel Kathmandu, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Nepal-Environmental-Treks-Expedition-Pvt"
+    },
+    {
+      "name": "Radium Hall Guest House",
+      "website": "https://www.radiumhall.com",
+      "address": "45 Burnside Road, Tamboerskloof Cape Town, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Radium-Hall-Guest-House"
+    },
+    {
+      "name": "Khaya Umdani Guest Houses",
+      "website": "https://www.khayaumdani.com",
+      "address": "Korhaan 2907, Marloth Park Marloth Park, Mpumalanga",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Khaya-Umdani-Guest-Houses"
+    },
+    {
+      "name": "Acorns on 8th",
+      "website": "https://www.acorns.co.za",
+      "address": "12 Eighth Avenue, Parktown North Johannesburg, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Acorns-on-8th"
+    },
+    {
+      "name": "Vrede Huis Guest House",
+      "website": "https://www.vredehuis.co.za",
+      "address": "4 Clairvaux Road, Kalk Bay, Cape Town Kalk Bay, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vrede-Huis-Guest-House"
+    },
+    {
+      "name": "Auberge Rozendal Winefarm",
+      "website": "https://www.Rozendal.co.za",
+      "address": "Omega Road, Rozendal Farm Stellenbosch, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Auberge-Rozendal-Winefarm"
+    },
+    {
+      "name": "Marloth Bush Retreat",
+      "website": "https://www.marlothbushretreat.com",
+      "address": "Po Box 1299 Komatipoort, Sekelbos Street 2215 Marloth Park, Mpumalanga",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Marloth-Bush-Retreat"
+    },
+    {
+      "name": "Elma&#39;s Accommodation",
+      "website": "https://www.bushmanland.co.za",
+      "address": "Main Street Kenhardt 1125 Kenhardt, Northern Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Elmas-Accommodation"
+    },
+    {
+      "name": "Sekala Private Game Lodge",
+      "website": "https://www.sekala.com",
+      "address": "Site 17, Welgevonden Private Game Reserve Vaalwater, Limpopo",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sekala-Private-Game-Lodge"
+    },
+    {
+      "name": "Sugar Rush",
+      "website": "https://www.sugarrush.co.za",
+      "address": "Ballito, Kwazulu-nata",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sugar-Rush"
+    },
+    {
+      "name": "MolenVliet Wine &amp; Guest Estate",
+      "website": "https://www.molenvliet.co.za",
+      "address": "Hellshoogte Road, Banghoek Valley Stellenbosch, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/MolenVliet-Wine-Guest-Estate"
+    },
+    {
+      "name": "One Stop Hospitality Supplies",
+      "website": "https://www.onestophospitality.co.za",
+      "address": "One Stop Hospitality Supplies Pretoria, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/One-Stop-Hospitality-Supplies"
+    },
+    {
+      "name": "Steenberg Property Sales &amp; Rentals Offi…",
+      "website": "https://www.steenbergproperty.com",
+      "address": "11128 Steenberg Estate, Tokai Road Tokai, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Steenberg-Property-Sales-Rentals-Office"
+    },
+    {
+      "name": "Hawkeye Safaris",
+      "website": "https://www.hawkeyesafaris.com",
+      "address": "5 Marian Rd, Craighall Johannesburg, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hawkeye-Safaris_537390"
+    },
+    {
+      "name": "JA Property Investment and Management (…",
+      "website": "https://www.stayincapetown.co.za",
+      "address": "1 Atalanta Court, Marine Rd, Sea Point Cape Town, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/JA-Property-Investment-and-Management-Self-Catering-Property-Rentals"
+    },
+    {
+      "name": "Mocarmi Travel",
+      "website": "https://www.mocarmitravel.co.za",
+      "address": "Seadoone Mall Shop H3, 21-37 Seadoone Road, Doonside Amanzimtoti, Kwazulu Natal",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mocarmi-Travel"
+    },
+    {
+      "name": "River Tours and Safari&#39;s",
+      "website": "https://www.hiside.co.za",
+      "address": "19, Rembrandt Paulshof, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/River-Tours-and-Safaris_538002"
+    },
+    {
+      "name": "Venture Inn Hotel Conferencing and Esta…",
+      "website": "https://www.wheretostay.co.za/ventureinn",
+      "address": "20 Commercial Road Umtentweni 4235 Umtentweni, Kwazulu-nata",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Venture-Inn-Hotel-Conferencing-and-Estate"
+    },
+    {
+      "name": "African KnottedRoots GuestLodge",
+      "website": "https://sleeping-out.co.za/africaknottedroots",
+      "address": "52 Rietspruit Farm, Lindequesdrift Road, Vanderbijlpark Vanderbijlpark, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/African-KnottedRoots-GuestLodge"
+    },
+    {
+      "name": "DURBAN ACOMODACAO FRENTE PRAIA NA MARIN…",
+      "website": "https://www.holidayflatsdbn.co.za",
+      "address": "Marine Parade Durban, Kwazulu Natal",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/DURBAN-ACOMODACAO-FRENTE-PRAIA-NA-MARINA-CENTRAL"
+    },
+    {
+      "name": "golden crest guesthouse",
+      "website": "https://www.goldencrest.co.za",
+      "address": "524 Ontdekkers Road Florida, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/golden-crest-guesthouse"
+    },
+    {
+      "name": "Die Rots Guesthouse",
+      "website": "https://www.sa-venues.com/visit/dierots",
+      "address": "N4 Schoemanskloof, Mpumalanga, Plaas In-de-middel Nelspruit , Mpumalanga",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Die-Rots-Guesthouse"
+    },
+    {
+      "name": "Belmonte Guesthouse",
+      "website": "https://www.belmonteguesthouse.co.za",
+      "address": "Upper Mill Street, Belmonte Estate, Bo Meul Street Paarl, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Belmonte-Guesthouse"
+    },
+    {
+      "name": "Stonehaven on Vaal",
+      "website": "https://www.stonehaven.co.za",
+      "address": "Vaal River, Vanderbijlpark Vanderbijlpark, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Stonehaven-on-Vaal"
+    },
+    {
+      "name": "Littlefields Luxury Suite",
+      "website": "https://www.wheretostay.co.za/littlefields",
+      "address": "26 Benjamin Street, Oliedale Ext 2 Johannesburg, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Littlefields-Luxury-Suite"
+    },
+    {
+      "name": "Roads to Roam",
+      "website": "https://www.roadstoroam.co.za",
+      "address": "39 Heide Avenue Khyber Rock, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Roads-to-Roam"
+    },
+    {
+      "name": "Star Nation Art Studio &amp; Gallery",
+      "website": "https://www.starnationart.co.za",
+      "address": "11 A Van Riebeeck Street Heidelberg Wc, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Star-Nation-Art-Studio-Gallery"
+    },
+    {
+      "name": "Complete Coast Properties",
+      "website": "https://www.completecoast.com",
+      "address": "Atlantic Beach Estate Melkbosstrand, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Complete-Coast-Properties"
+    },
+    {
+      "name": "Sakabula Safaris &amp; Tours",
+      "website": "https://www.sakabula.com",
+      "address": "P.o. Box 1541 Brooklyn Square 0075 Pretoria Pretoria, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sakabula-Safaris-Tours"
+    },
+    {
+      "name": "GEARUP 4X4 OFFROAD DRIVER TRAINING",
+      "website": "https://www.gearup4x4.co.za",
+      "address": "P.o.box 500 Simon's Town, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/GEARUP-4X4-OFFROAD-DRIVER-TRAINING"
+    },
+    {
+      "name": "accommodation-northerncape",
+      "website": "https://www.broadwater.co.za",
+      "address": "Douglas, Northern Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/accommodation-northerncape"
+    },
+    {
+      "name": "Rosebank Travel Service (Pty) Ltd",
+      "website": "https://www.rosebanktravel.com",
+      "address": "8 Arnold Road Rosebank, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rosebank-Travel-Service"
+    },
+    {
+      "name": "Hotel Spec",
+      "website": "https://www.hotelspec.com",
+      "address": "9 Percy Osborne Rd, Morningside Durban , Kwazulu Natal",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hotel-Spec"
+    },
+    {
+      "name": "Tambarina Restaurant and Guesthouse",
+      "website": "https://www.wheretostay.co.za",
+      "address": "77 Rissik Street, Komatipoort, 1340 Komatipoort, Mpumalanga",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Tambarina-Restaurant-and-Guesthouse"
+    },
+    {
+      "name": "Aquila D&#39;oro Coffee and Roastery",
+      "website": "https://www.agl-unl.co.za",
+      "address": "Unit 7 Bolt Park 11 Bolt Avenue Cape Town, Western Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Aquila-D-oro-Coffee-and-Roastery"
+    },
+    {
+      "name": "Somewhere SOUTH - Hospitality Marketing…",
+      "website": "https://www.somewheresouth.co.za",
+      "address": "28 Fairways Close Tableview Cape Town, Western Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Somewhere-SOUTH-Hospitality-Marketing-Solutions"
+    },
+    {
+      "name": "Brooklands House",
+      "website": "https://www.brooklands-guesthouse.co.za",
+      "address": "3 Surbiton Road Rosebank Rondebosch Cape Town, Western Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Brooklands-House"
+    },
+    {
+      "name": "Claus Inn",
+      "website": "https://www.clausinn.co.za",
+      "address": "15 Bodmin Street New Redruth Alberton, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Claus-Inn"
+    },
+    {
+      "name": "Ebuhleni Tours",
+      "website": "https://Ebuhlenitours.co.za",
+      "address": "23 Dormehl Street, The Reeds x5 , 0158 Centurion, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ebuhleni-Tours"
+    },
+    {
+      "name": "Habibia Travel and Tours",
+      "website": "https://www.habibiatravels.co.za",
+      "address": "111 Amlock Drive Parlock Durban, KwaZulu-Nata",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Habibia-Travel-and-Tours"
+    },
+    {
+      "name": "Accommodation 2010",
+      "website": "https://www.availabed.co.za",
+      "address": "6th Aven no 164 Boknesstrand Port Alfred, Eastern Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Accommodation-2010"
+    },
+    {
+      "name": "iGo Travel",
+      "website": "https://www.igotravel.co.za",
+      "address": null,
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/iGo-Travel"
+    },
+    {
+      "name": "Quatermain&#39;s Camp",
+      "website": "https://www.haggardandbrand.com",
+      "address": "Amakhala Game Reserve Paterson 6130 Paterson, Eastern Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Quatermains-Camp"
+    },
+    {
+      "name": "Mountain Dew Guest House",
+      "website": "https://www.mountaindew.co.za",
+      "address": "19 Caledon street George, Western Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mountain-Dew-Guest-House"
+    },
+    {
+      "name": "Hopefield Country House",
+      "website": "https://www.hopefield.co.za",
+      "address": "Hopefield Farm off R 336 Sundays River Valley Addo, Eastern Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hopefield-Country-House"
+    },
+    {
+      "name": "Engel &amp; V&#246;lkers Potchefstroom",
+      "website": "https://www.engelvoelkers.co.za/potchefstroom",
+      "address": "65 Retief Street Potchefstroom, North West",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Engel-V%C3%B6lkers-Potchefstroom"
+    },
+    {
+      "name": "Hephzibah holiday village",
+      "website": "https://www.hephzibah.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hephzibah-holiday-village"
+    },
+    {
+      "name": "Elephant Hide of Knysna Accommodation",
+      "website": "https://www.elephanthide.co.za",
+      "address": "Cherry Lane Welbedacht Lane Knysna , Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Elephant-Hide-of-Knysna-Accommodation"
+    },
+    {
+      "name": "Mosate Guest House Lephalale",
+      "website": "https://www.mosate.co.za",
+      "address": "17 Skadukant Street Onverwacht Lephalale, Limpopo",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mosate-Guest-House-Lephalale"
+    },
+    {
+      "name": "Felchow Bed and Breakfast",
+      "website": "https://www.durbandirect.co.za",
+      "address": "23 Munro Avenue Margate, KwaZulu-Nata",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Felchow-Bed-and-Breakfast"
+    },
+    {
+      "name": "Ons Plek",
+      "website": "https://www.onsplek.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ons-Plek"
+    },
+    {
+      "name": "Loerie&#39;s Call",
+      "website": "https://www.loeriescall.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Loeries-Call"
+    },
+    {
+      "name": "Blue Marlin Hotel",
+      "website": "https://www.bluemarlin.co.za",
+      "address": "180 Scott Street Scottburgh PO Box 24 Scottburgh KwaZulu Natal",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Marlin-Hotel"
+    },
+    {
+      "name": "Ballito Accommodation",
+      "website": "https://www.ballitoaccommodation.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ballito-Accommodation"
+    },
+    {
+      "name": "Merry Pebbles Resort",
+      "website": "https://www.merrypebbles.co.za",
+      "address": "old lydenburg road family holiday resort p o box 131 sabie",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Merry-Pebbles-Resort"
+    },
+    {
+      "name": "Beach Cottage",
+      "website": "https://www.beachcottage.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Beach-Cottage"
+    },
+    {
+      "name": "Wheretostayonline",
+      "website": "https://www.wheretostayonline.com",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wheretostayonline"
+    },
+    {
+      "name": "Resq Rent A Car",
+      "website": "https://www.resqrentacar.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Resq-Rent-A-Car"
+    },
+    {
+      "name": "Paarl Tourism",
+      "website": "https://www.paarlonline.com",
+      "address": "216 Main Road Paarl, Western Cape",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Paarl-Tourism"
+    },
+    {
+      "name": "Unwind",
+      "website": "https://www.unwind.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Unwind"
+    },
+    {
+      "name": "Knysna Elephant Park",
+      "website": "https://www.knysnaelephantpark.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Knysna-Elephant-Park"
+    },
+    {
+      "name": "African Overland",
+      "website": "https://www.africanoverland.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Overland"
+    },
+    {
+      "name": "Somerset Lodge",
+      "website": "https://www.somersetlodge.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Somerset-Lodge_400059"
+    },
+    {
+      "name": "Kersefontein Guest Farm",
+      "website": "https://www.kersefontein.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kersefontein-Guest-Farm"
+    },
+    {
+      "name": "Cloudbase Paragliding",
+      "website": "https://www.cloudbase-paragliding.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cloudbase-Paragliding"
+    },
+    {
+      "name": "Die Oog",
+      "website": "https://www.dieoog.co.za",
+      "address": "take the n1 toll-road direction pietersburg",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Die-Oog"
+    },
+    {
+      "name": "Abangane Guest Lodge",
+      "website": "https://www.abangane.com",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Abangane-Guest-Lodge"
+    },
+    {
+      "name": "Paradise Found",
+      "website": "https://www.paradisefound.co.za",
+      "address": "30km 25 minutes storms river and tsitsikamma national park 95km",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Paradise-Found"
+    },
+    {
+      "name": "Dimalachite",
+      "website": "https://dimalachite.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dimalachite"
+    },
+    {
+      "name": "On The Cliff Guest House",
+      "website": "https://www.onthecliffs.co.za",
+      "address": "42 westcliff road hermanus",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/On-The-Cliff-Guest-House"
+    },
+    {
+      "name": "The Bay Hotel",
+      "website": "https://www.thebay.co.za",
+      "address": "69 victoria road camps bay cape town",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Bay-Hotel_400475"
+    },
+    {
+      "name": "Colesview Guest House",
+      "website": "https://www.colesview.co.za",
+      "address": "37 Torenberg Street Colesberg, Free State",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Colesview-Guest-House"
+    },
+    {
+      "name": "Edenwood Guest House",
+      "website": "https://www.edenwood.co.za",
+      "address": "9 Hammerkop Street Eden George",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Edenwood-Guest-House"
+    },
+    {
+      "name": "Ski",
+      "website": "https://www.ski.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ski"
+    },
+    {
+      "name": "George Dore Properties",
+      "website": "https://www.woodbridgeisland.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/George-Dore-Properties"
+    },
+    {
+      "name": "Hermanus Beach Club",
+      "website": "https://www.hermanusbeachclub.co.za",
+      "address": "after the 4th stop street follow the road",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hermanus-Beach-Club"
+    },
+    {
+      "name": "Sports Ventures",
+      "website": "https://sportsventures.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sports-Ventures_400562"
+    },
+    {
+      "name": "Windsor Hotel",
+      "website": "https://www.windsorhotel.co.za",
+      "address": "49 marine drive hermanus, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Windsor-Hotel_400564"
+    },
+    {
+      "name": "Old Mill Lodge",
+      "website": "https://www.accommodation-springbok.co.za",
+      "address": "69 van riebeeck street springbok, northern cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Old-Mill-Lodge_400584"
+    },
+    {
+      "name": "Shakespeare Inn",
+      "website": "https://www.shakespeare.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Shakespeare-Inn"
+    },
+    {
+      "name": "Balfour Place",
+      "website": "https://www.balfour-place.com",
+      "address": "19 blinkwater road camps bay",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Balfour-Place"
+    },
+    {
+      "name": "Stonehaven",
+      "website": "https://www.stonehaven.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Stonehaven"
+    },
+    {
+      "name": "Bantry Bay International Vacation Resort",
+      "website": "https://www.bantrybayinternational.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bantry-Bay-International-Vacation-Resort"
+    },
+    {
+      "name": "Pakamisa",
+      "website": "https://www.pakamisa.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pakamisa"
+    },
+    {
+      "name": "Jongensfontein",
+      "website": "https://www.jongensfontein.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jongensfontein"
+    },
+    {
+      "name": "Two Oaks",
+      "website": "https://www.twooaks.co.za",
+      "address": "travel 1 5 kilometers",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Two-Oaks"
+    },
+    {
+      "name": "Vaal Meander",
+      "website": "https://www.vaalmeander.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vaal-Meander_400721"
+    },
+    {
+      "name": "Ballito Agencies",
+      "website": "https://www.ballitoagencies.co.za",
+      "address": "21 sandra road ballito",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ballito-Agencies"
+    },
+    {
+      "name": "South Coast Directory",
+      "website": "https://www.southcoastdirectory.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/South-Coast-Directory"
+    },
+    {
+      "name": "Fun Time Tours",
+      "website": "https://www.funtimetours.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fun-Time-Tours_400767"
+    },
+    {
+      "name": "Living Hotels",
+      "website": "https://www.livinghotels.co.za",
+      "address": null,
+      "page": 1,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Living-Hotels"
+    },
+    {
+      "name": "Azure View",
+      "website": "https://www.azureview.co.za",
+      "address": "13 Victory Way Simon's Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Azure-View"
+    },
+    {
+      "name": "KL Project Management",
+      "website": "https://www.klprojects.co.za",
+      "address": "Po Box 40378, Redhill Durban, Kwazulu Natal",
+      "page": 2,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/KL-Project-Management"
+    },
+    {
+      "name": "Gannaga Lodge",
+      "website": "https://www.gannaga.com",
+      "address": "Agterkop, Po Box 8 Middelpos, Northern Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gannaga-Lodge"
+    },
+    {
+      "name": "Bushwise Safaris",
+      "website": "https://www.bushwisesafaris.com",
+      "address": "2821 Njala Street, Marloth Park Marloth Park, Mpumalanga",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bushwise-Safaris"
+    },
+    {
+      "name": "Copacopa Luxury Lodge and Conference Ce…",
+      "website": "https://www.copacopa.co.za",
+      "address": "Lambani, Thulamela Thohoyandou, Limpopo",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Copacopa-Luxury-Lodge-and-Conference-Centre"
+    },
+    {
+      "name": "Mountain Rose",
+      "website": "https://www.mountainrose.co.za/index.htm",
+      "address": "Brenton-on-sea, Po Box 918 Knysna",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mountain-Rose"
+    },
+    {
+      "name": "Garden Route Photography",
+      "website": "https://gardenroutephotography.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Garden-Route-Photography"
+    },
+    {
+      "name": "Bums On Beds",
+      "website": "https://www.bumsonbeds.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bums-On-Beds"
+    },
+    {
+      "name": "Arch Rock",
+      "website": "https://www.archrock.co.za",
+      "address": "Main Street, Keurboomstrand Plettenberg Bay, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Arch-Rock"
+    },
+    {
+      "name": "Cheap Hotels",
+      "website": "https://www.hotels2stay.net",
+      "address": "Zamdela, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cheap-Hotels"
+    },
+    {
+      "name": "AFRICAN WELCOME SAFARIS",
+      "website": "https://www.africanwelcome.com",
+      "address": "12 Smithers Rd Cape Town, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/AFRICAN-WELCOME-SAFARIS_429668"
+    },
+    {
+      "name": "Big Time Travel",
+      "website": "https://www.bigtimetravel.co.za",
+      "address": "389 Theuns Van Niekerk, Wierdapark, Centurion Pretoria, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Big-Time-Travel"
+    },
+    {
+      "name": "Blue Note Events",
+      "website": "https://www.bluenoteevents.com",
+      "address": "2 Donnington Park, Albertyn Road, Vorna Valley Kyalami, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Note-Events"
+    },
+    {
+      "name": "Totonga Travel",
+      "website": "https://www.totongatravel.com",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Totonga-Travel"
+    },
+    {
+      "name": "Etango Game Lodge",
+      "website": "https://www.etango.co.za",
+      "address": "Etango Private Game Reserve, Mabula District Bela-bela, Limpopo",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Etango-Game-Lodge_429964"
+    },
+    {
+      "name": "BizAdMag Online cc",
+      "website": "https://www.bizadmag.co.za",
+      "address": "Head Office, 22a Palm Street West, Edenglen Edenvale, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/BizAdMag-Online-cc"
+    },
+    {
+      "name": "World Cup Accommodation 2010",
+      "website": "https://www.worldcupaccommodation2010.com",
+      "address": "Van Wouw Street, Groenkloof Pretoria, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/World-Cup-Accommodation-2010"
+    },
+    {
+      "name": "Holiday Houses-SA",
+      "website": "https://www.holidayhouses-sa.co.za",
+      "address": "16a Fourie Street, Corner Of Main And Fourie Hermanus, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Holiday-Houses-SA"
+    },
+    {
+      "name": "ILIOS Travel Pty Ltd",
+      "website": "https://www.ilios.co.za",
+      "address": "Crawford, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/ILIOS-Travel"
+    },
+    {
+      "name": "SA Soccer Accommodation",
+      "website": "https://www.sa-soccer-accommodation.co.za",
+      "address": "P.o.box 1441, White River White River, Mpumalanga",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Soccer-Accommodation_430389"
+    },
+    {
+      "name": "NOREL Properties / Eiendomme",
+      "website": "https://sites.norelprop.com/norel",
+      "address": "9 Wouterroad, 9 Wouterweg, Retiefspark Lichtenburg, North West Province",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/NOREL-Properties-Eiendomme"
+    },
+    {
+      "name": "Stonehaven Lodge and Conference Centre",
+      "website": "https://www.stonehavenlodge.co.za",
+      "address": "Mt. West, Curry's Post Road, Nottingham Road Nottingham Road, Kwazulu-nata",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Stonehaven-Lodge-and-Conference-Centre"
+    },
+    {
+      "name": "Seppie&#39;s Tours And Transfers",
+      "website": "https://www.seppiestours.co.za",
+      "address": "6m Le Parc, De Grendel Road Bothasig, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Seppies-Tours-And-Transfers"
+    },
+    {
+      "name": "Idube Elihle Tours",
+      "website": "https://www.idubeelihle.co.za",
+      "address": "Reiger Avenue, Randburg, Bloubosrand, Randburg Johannesburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Idube-Elihle-Tours"
+    },
+    {
+      "name": "Hamilton Travel",
+      "website": "https://www.hamilton-travel.com",
+      "address": "Po Box 921, Milnerton, South Africa Milnerton, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hamilton-Travel"
+    },
+    {
+      "name": "VisitSouthAfrica.com",
+      "website": "https://www.visitsouthafrica.com",
+      "address": "Paarl, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/VisitSouthAfrica-com"
+    },
+    {
+      "name": "Sungulwane Hills Game Lodge",
+      "website": "https://www.sungulwane.co.za",
+      "address": "Sungulwane Conservancy, Bayala Hluhluwe, Kwazulu-nata",
+      "page": 7,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sungulwane-Hills-Game-Lodge"
+    },
+    {
+      "name": "Wild Card",
+      "website": "https://www.wildcard.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wild-Card"
+    },
+    {
+      "name": "Equilibrate-Nutrition for the Balanced …",
+      "website": "https://www.horsenutrition.co.za",
+      "address": "Great Brak River Mosselbay, Western Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Equilibrate-Nutrition-for-the-Balanced-Horse"
+    },
+    {
+      "name": "Knysna Accommodation",
+      "website": "https://www.zauberberg.co.za",
+      "address": "28 Ridge Drive Paradise Knysna, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Knysna-Accommodation_786708"
+    },
+    {
+      "name": "Park Inn Greenmarket Square Hotel",
+      "website": "https://capetown.rezidorparkinn.com",
+      "address": "10 greenmarket square road cape town po box 1215",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Park-Inn-Greenmarket-Square-Hotel"
+    },
+    {
+      "name": "Coral Tree Cottages",
+      "website": "https://www.coraltree.net",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Coral-Tree-Cottages"
+    },
+    {
+      "name": "Waterkloof Properties",
+      "website": "https://www.waterkloofproperties.co.za",
+      "address": "369 Lois Avenue Pretoria",
+      "page": 17,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Waterkloof-Properties_400698"
+    }
+  ]
+}

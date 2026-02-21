@@ -1,0 +1,2854 @@
+{
+  "category": "Marketing-Services",
+  "count": 306,
+  "listings": [
+    {
+      "name": "Eiledon Solutions Web Design",
+      "website": "https://www.eiledon.co.za",
+      "address": "Sir Lowry Rd Cape Town, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Eiledon-Solutions-Web-Design"
+    },
+    {
+      "name": "Distributors Choice Marketing Services",
+      "website": "https://www.dcms.co.za",
+      "address": "6 Esso Road, 9 Raciti Park, Montague Gardens Cape Town, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Distributors-Choice-Marketing-Services"
+    },
+    {
+      "name": "DRAGAN GRAFIX, Creative Advertising Sol…",
+      "website": "https://www.dragangrafix.co.za",
+      "address": "60 Courtney Place, Panther Road, Boskruin Randburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/DRAGAN-GRAFIX-Creative-Advertising-Solutions-AD-Agency-SA-Branding-Graphic-Design-Website-Design"
+    },
+    {
+      "name": "IGNITION MARKETING",
+      "website": "https://www.ignitionmarketing.co.za",
+      "address": "Unit 1 Block D Lonehill Business Park, Lone Close Lonehill, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/IGNITION-MARKETING"
+    },
+    {
+      "name": "Design Master",
+      "website": "https://www.designmaster.co.za",
+      "address": "Unit 3 Leogem Commercial Park, 16/48 Richards Drive Halfway House, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Design-Master"
+    },
+    {
+      "name": "LAB22 - Design for Web",
+      "website": "https://www.lab22.net",
+      "address": "3 Peninsula Heights, Persse Avenue Somerset West, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/LAB22-Design-for-Web"
+    },
+    {
+      "name": "Pylogen",
+      "website": "https://www.pylogen.com",
+      "address": "6 De Jager Street Bloemfontein, Free State",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pylogen"
+    },
+    {
+      "name": "Deschan Marketing and Promotions",
+      "website": "https://www.deschanmarketing.co.za",
+      "address": "15, Truter Road, Parkdene Boksburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Deschan-Marketing-and-Promotions"
+    },
+    {
+      "name": "FGX Studios",
+      "website": "https://www.fgx.co.za",
+      "address": "Sinosteel Plaza, 159 Rivonia Road Sandton, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/FGX-Studios"
+    },
+    {
+      "name": "OTB MEDIA MANAGEMENT",
+      "website": "https://www.otbmedia.co.za",
+      "address": "27 Robert Herrick Avenue, Chiltern Heights Westville, Kwazulu Natal",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/OTB-MEDIA-MANAGEMENT"
+    },
+    {
+      "name": "Personal Touch Conferencing &amp; Marketing…",
+      "website": "https://www.personal-touch.co.za",
+      "address": "Durban, Kwazulu Natal",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Personal-Touch-Conferencing-Marketing-cc"
+    },
+    {
+      "name": "Prosperosa",
+      "website": "https://www.prosperosa.co.za",
+      "address": null,
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Prosperosa"
+    },
+    {
+      "name": "SEO Cowboy",
+      "website": "https://seocowboy.co.za",
+      "address": "P.o.box 23 Witkoppen, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/SEO-Cowboy"
+    },
+    {
+      "name": "Hostology",
+      "website": "https://www.hostology.co.za",
+      "address": "35 Compass Close, Bloubergsands Cape Town, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hostology"
+    },
+    {
+      "name": "Maraschino Media &amp; Marketing",
+      "website": "https://www.maraschino.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Maraschino-Media-Marketing"
+    },
+    {
+      "name": "Slalom Marketing Consulting",
+      "website": "https://www.slalom.co.za",
+      "address": "Avalon Crescent, Magaliessig Johannesburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Slalom-Marketing-Consulting"
+    },
+    {
+      "name": "IVOK STUDIO - Home Of Photo",
+      "website": "https://www.ivok.co.za",
+      "address": "207 Surrey Ave, Ferndale Ridge Randburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/IVOK-STUDIO-Home-Of-Photo_396649"
+    },
+    {
+      "name": "Media Mosaics Marketing Communications",
+      "website": "https://www.mediamosaics.co.za",
+      "address": "274 Waterkloof Ave, Brooklyn Pretoria, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Media-Mosaics-Marketing-Communications"
+    },
+    {
+      "name": "Visual Projects",
+      "website": "https://www.visualprojects.co.za",
+      "address": null,
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Visual-Projects"
+    },
+    {
+      "name": "Silver Cube Promotions",
+      "website": "https://www.silvercube.co.za",
+      "address": "400 Voortrekker Road, Maitland Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Silver-Cube-Promotions"
+    },
+    {
+      "name": "KASHAN COMMUNICATIONS",
+      "website": "https://www.kashan.co.za",
+      "address": "345 Festival Street, Cnr Arcadia Street, Hatfield Pretoria, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/KASHAN-COMMUNICATIONS"
+    },
+    {
+      "name": "Terranova Marketing Design Events",
+      "website": "https://www.terranova.co.za",
+      "address": "The Mojo Precinct, 65 Bram Fischer Drive, Robindale Randburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Terranova-Marketing-Design-Events"
+    },
+    {
+      "name": "Cyd Marketing",
+      "website": "https://www.cydteam.co.za",
+      "address": "3 Kok Rd Mulbarton, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cyd-Marketing"
+    },
+    {
+      "name": "Rbj Marketing Solutions",
+      "website": "https://www.rbjmarketing.com",
+      "address": "Suite 1, 62 Gemsbok Street Monument Park, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rbj-Marketing-Solutions"
+    },
+    {
+      "name": "Banners &amp; Flags",
+      "website": "https://www.bannersandflags.co.za",
+      "address": "Gelofte Str 15 Warmbaths, Limpopo",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Banners-Flags"
+    },
+    {
+      "name": "Mr Plastic",
+      "website": "https://www.mrplastic.com",
+      "address": "13 Geldenhuis Road, Malvern East / Bedfordview Johannesburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mr-Plastic"
+    },
+    {
+      "name": "Sesalos",
+      "website": "https://www.sesalos.com",
+      "address": "6 Stratford Place Westville, Kwazulu-nata",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sesalos"
+    },
+    {
+      "name": "AtripleA Recruitment",
+      "website": "https://www.aaaa.co.za",
+      "address": "50 Alcade Street, Lynnwood Glenn Pretoria, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/AtripleA-Recruitment"
+    },
+    {
+      "name": "ROLLOR MARKETING",
+      "website": "https://www.rollor.co.za",
+      "address": "25 George Barrel Street, Hadison Park Kimberley, Northern Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ROLLOR-MARKETING"
+    },
+    {
+      "name": "EasyDirect - Joburg",
+      "website": "https://www.easydirect.co.za",
+      "address": "P.o. Box 508, Mondeor Johannesburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/EasyDirect-Joburg"
+    },
+    {
+      "name": "Fine and Country Realty",
+      "website": "https://www.fineandcountry.com",
+      "address": "Shop 5, Winston Place, 65 Main Road, Green Point Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fine-and-Country-Realty"
+    },
+    {
+      "name": "Curve Concepts",
+      "website": "https://www.curveconcepts.co.za",
+      "address": "Jacaranda Avenue Randburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Curve-Concepts"
+    },
+    {
+      "name": "WSI Internet Marketing",
+      "website": "https://www.wsiuniquewebdesign.co.za",
+      "address": "149 Goodwood Street Kyalami Estate, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/WSI-Internet-Marketing"
+    },
+    {
+      "name": "Websites R Us",
+      "website": "https://www.websitesrus.co.za",
+      "address": "043 Perel Str Krugersdorp, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Websites-R-Us"
+    },
+    {
+      "name": "Lesedi Business Solutions and Accountin…",
+      "website": "https://www.lesedisolutions.com",
+      "address": "260 Church Stree, Randburg Jukskei Park, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Lesedi-Business-Solutions-and-Accounting-Services-cc"
+    },
+    {
+      "name": "eleven24",
+      "website": "https://www.1124.co.za",
+      "address": "11c Shamrock Sands, Hillcrest Drive, Beacon Bay East London, Eastern Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/eleven24"
+    },
+    {
+      "name": "Revaro (Pty) Ltd",
+      "website": "https://www.revaro.co.za",
+      "address": "1 Sundowner Plaza, Cor Taurus And Apollo Roads, Sundowner Randburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Revaro"
+    },
+    {
+      "name": "Nangamso Technologies",
+      "website": "https://www.brandmax.co.za",
+      "address": "349 Karl Kling Bldg, Vermeulen Street, Pretoria Pretoria, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Nangamso-Technologies"
+    },
+    {
+      "name": "Branded Water",
+      "website": "https://www.brandedwater.co.za",
+      "address": "10 George Mann Str, Towerby Johannesburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Branded-Water"
+    },
+    {
+      "name": "Grey Matters Marketing &amp; Communications",
+      "website": "https://www.greymattersmarketing.co.za",
+      "address": "Ashby Road Pietermaritzburg, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Grey-Matters-Marketing-Communications"
+    },
+    {
+      "name": "Quality Designs",
+      "website": "https://www.qualitydesigns.co.za",
+      "address": "511 Point Parkade, Mahatma Ghandi Road Durban, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Quality-Designs"
+    },
+    {
+      "name": "Outrageous Graphics &amp; technologies",
+      "website": "https://www.ogtech.co.za",
+      "address": "Three Rivers Vereeniging, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Outrageous-Graphics-technologies"
+    },
+    {
+      "name": "Torquil Strategic Marketing",
+      "website": "https://www.torquil.co.za",
+      "address": "35 Alexandra Ave Oranjezicht, Cape Town, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Torquil-Strategic-Marketing"
+    },
+    {
+      "name": "Chocolate Shoebox",
+      "website": "https://www.chocolateshoebox.co.za",
+      "address": "2 Campbell Street Waverley, Johannesburg, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Chocolate-Shoebox"
+    },
+    {
+      "name": "Web-smart",
+      "website": "https://www.web-smart.co.za",
+      "address": "114 Beyers Naude Drive Roosevelt Park, Northcliff Johannesburg, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Web-smart"
+    },
+    {
+      "name": "Fine Women Business Network",
+      "website": "https://www.finewomen.co.za",
+      "address": "17 Willow Road, Newslands Cape Town, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fine-Women-Business-Network"
+    },
+    {
+      "name": "Thinktank",
+      "website": "https://www.thinktank.co.za",
+      "address": "The Village, Block D, Cnr Glenwood And Oberon, Faerie Glen Pretoria, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Thinktank"
+    },
+    {
+      "name": "Dezina Web Advertising",
+      "website": "https://www.dweb.co.za",
+      "address": "14 8th Avenue, Northmead Benoni, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dezina-Web-Advertising_401324"
+    },
+    {
+      "name": "Gcwanini Consulting (PTY)Ltd",
+      "website": "https://www.gcwanini.co.za",
+      "address": "Taaraq Crescent,30 Jellicoe Avenue Rosebank, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gcwanini-Consulting"
+    },
+    {
+      "name": "Launchit marketing &amp; branding",
+      "website": "https://www.launchit.co.za",
+      "address": "Polo Crescent, Woodmead Drive Woodmead , Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Launchit-marketing-branding"
+    },
+    {
+      "name": "STRANG IT CONSULTING",
+      "website": "https://www.strang.co.za",
+      "address": "21 Madeira Villas, Pier Street, South End Port Elizabeth, Eastern Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/STRANG-IT-CONSULTING"
+    },
+    {
+      "name": "Netkonect",
+      "website": "https://www.netkonect.co.za",
+      "address": "82 Main Road, Paarl South Paarl, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Netkonect"
+    },
+    {
+      "name": "Pixelweb",
+      "website": "https://www.pixelweb.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pixelweb"
+    },
+    {
+      "name": "J9 Designs",
+      "website": "https://www.j9designs.co.za",
+      "address": "D.j. Theron Cres, Meyerdal, Alberton Alberton, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/J9-Designs"
+    },
+    {
+      "name": "Boomerang",
+      "website": "https://www.boomerang.co.za",
+      "address": "3 Athlone House, Henley Road Muizenberg, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Boomerang"
+    },
+    {
+      "name": "Anything Creative",
+      "website": "https://www.anythingcreative.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Anything-Creative"
+    },
+    {
+      "name": "1 To 1 Digital Print",
+      "website": "https://www.1to1digitalprint.co.za",
+      "address": "Victory Park, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/1-To-1-Digital-Print"
+    },
+    {
+      "name": "Graphicom",
+      "website": "https://www.graphicom.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Graphicom"
+    },
+    {
+      "name": "Core Drilling",
+      "website": "https://www.core-drilling.co.za",
+      "address": "286 Walmer Boulevard Walmer, Eastern Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Core-Drilling"
+    },
+    {
+      "name": "Latitude Zero",
+      "website": "https://www.latitudezero.co.za",
+      "address": "Glencairn, Cape Town",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Latitude-Zero"
+    },
+    {
+      "name": "ENAV8 Field Marketing Services",
+      "website": "https://www.enav8.co.za",
+      "address": "95 Boeing Road East Bedfordview, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ENAV8-Field-Marketing-Services"
+    },
+    {
+      "name": "Cre8tive Junction",
+      "website": "https://www.cre8tivejunction.co.za",
+      "address": "9 Kamassi Street, Old Place Knysna, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cre8tive-Junction"
+    },
+    {
+      "name": "Multi Media Productions (MMP)",
+      "website": "https://www.mmponline.co.za",
+      "address": "31 Danie Joubert Street White River, Mpumalanga",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Multi-Media-Productions-MMP"
+    },
+    {
+      "name": "bodypaint.co.za",
+      "website": "https://www.bodypaint.co.za",
+      "address": "Pretoria, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/bodypaint-co-za"
+    },
+    {
+      "name": "Webhosting | Webdesign",
+      "website": "https://www.hosting-webdesign.co.za",
+      "address": "50 4th Ave, Northmead Benoni, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Webhosting-Webdesign"
+    },
+    {
+      "name": "Web Artist - Brand And Business Solutio…",
+      "website": "https://www.webartist.co.za",
+      "address": "Dublin Street Noordheuwel - Krugersdorp, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Web-Artist-Brand-And-Business-Solutions"
+    },
+    {
+      "name": "Re-Fresh Design",
+      "website": "https://www.re-fresh.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Re-Fresh-Design"
+    },
+    {
+      "name": "Double-U Design",
+      "website": "https://www.doubleudesign.co.za",
+      "address": "Beatrix Street Centurion, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Double-U-Design"
+    },
+    {
+      "name": "AirIT Media",
+      "website": "https://www.airit.co.za",
+      "address": "Durban, Kwazulu-nata",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/AirIT-Media"
+    },
+    {
+      "name": "Info4u CC",
+      "website": "https://www.info4u.co.za",
+      "address": "Lot 55d, Mtubatuba, Kzn South Africa Mtubatuba, Kwazulu-nata",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Info4u-CC"
+    },
+    {
+      "name": "Dowhile",
+      "website": "https://www.dowhile.co.za",
+      "address": "51 Crn Harrison And Prichtard Street Jhb Johannesburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dowhile"
+    },
+    {
+      "name": "Specilink Specifying cc",
+      "website": "https://www.specilink.co.za",
+      "address": "Bedfordview, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Specilink-Specifying-cc"
+    },
+    {
+      "name": "Browncow",
+      "website": "https://browncow.tumblr.com",
+      "address": "2 Maple Avenue, Gardens Cape Town, Western Cape",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Browncow"
+    },
+    {
+      "name": "Babantle IT solutions &amp; Projects",
+      "website": "https://www.babantle.co.za",
+      "address": "85 Eloff Street, Office 209, Royal House Johannesburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Babantle-IT-solutions-Projects"
+    },
+    {
+      "name": "Cantaloupe web design and email marketi…",
+      "website": "https://www.cantaloupe.co.za",
+      "address": "Douglasdale, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cantaloupe-web-design-and-email-marketing"
+    },
+    {
+      "name": "Database 360",
+      "website": "https://database360.co.za",
+      "address": "4th Floor Wale Street Chambers Sea Point , Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Database-360"
+    },
+    {
+      "name": "MARKETING SUPPORT SERVICES",
+      "website": "https://www.marketingss.co.za",
+      "address": "7 Lower Terrace Street Menlo Park, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/MARKETING-SUPPORT-SERVICES_497820"
+    },
+    {
+      "name": "Vaal Info",
+      "website": "https://www.vaalio.co.za",
+      "address": "C/o Umgeni & Bashee Street Vereeniging, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vaal-Info"
+    },
+    {
+      "name": "Rox Bradnick - Freelance Copywriter",
+      "website": "https://www.roxb.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rox-Bradnick-Freelance-Copywriter"
+    },
+    {
+      "name": "Gmail",
+      "website": "https://www.gmail.co.za",
+      "address": "21a Thor Circle, Thornton Cape Town, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gmail"
+    },
+    {
+      "name": "Silverweb",
+      "website": "https://www.silverweb.co.za",
+      "address": "25 Reid, Rynfield Benoni, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Silverweb"
+    },
+    {
+      "name": "Syneco Business It Solutions",
+      "website": "https://syneco.co.za",
+      "address": "Centurion, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Syneco-Business-It-Solutions"
+    },
+    {
+      "name": "P O Box 751886Thetaware",
+      "website": "https://www.thetaware.co.za",
+      "address": "Gardenview Johannesburg, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/P-O-Box-751886Thetaware"
+    },
+    {
+      "name": "Fax Ad",
+      "website": "https://www.faxad.co.za",
+      "address": "26 Van Dyk Road Benoni, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fax-Ad"
+    },
+    {
+      "name": "Bullion PR &amp; Communication",
+      "website": "https://www.bullionpr.com",
+      "address": "Duxbury House, Sunninghill Business Park, 15 Tana Rd Sunninghill , Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bullion-PR-Communication"
+    },
+    {
+      "name": "iOpen Group",
+      "website": "https://www.iopen.co.za",
+      "address": "Suite 375, Private Bag X153, Bryanston, 2021 Bryanston, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/iOpen-Group"
+    },
+    {
+      "name": "Yoola Web Development",
+      "website": "https://www.yoola.co.za",
+      "address": "3 Allied Building Sasolburg , Free State",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Yoola-Web-Development"
+    },
+    {
+      "name": "IT Probsolve",
+      "website": "https://www.wistec.co.za",
+      "address": "80 General Louis Botha Bronkhorstspruit, Mpumalanga",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/IT-Probsolve"
+    },
+    {
+      "name": "Office Management Support",
+      "website": "https://virtualassistant4u.co.za",
+      "address": "9 Braemar Crescent Howick, Kwazulu-nata",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Office-Management-Support"
+    },
+    {
+      "name": "T &amp; T Consultants CC",
+      "website": "https://www.tomthumb.co.za",
+      "address": "15 Valley Drive Kloof, Kwazulu-nata",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/T-T-Consultants-CC"
+    },
+    {
+      "name": "Brandesign",
+      "website": "https://www.brandesign.co.za",
+      "address": "Suite 102, The Kenya Buildings, 49 Main Road Bergvleit, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Brandesign"
+    },
+    {
+      "name": "Redo IT",
+      "website": "https://www.redoit.co.za",
+      "address": "460 Langalibalele Street Pietermaritzburg, Kwazulu-nata",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Redo-IT"
+    },
+    {
+      "name": "Web &amp; IT Solutions International",
+      "website": "https://www.wisi.co.za",
+      "address": "Haymeadow Crescent, Faerie Glen Pretoria, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Web-IT-Solutions-International"
+    },
+    {
+      "name": "RealSimple Marketing",
+      "website": "https://www.realsimplemarketing.co.za",
+      "address": "Unit 18, Sandton Commercial Village, 15th Street, Eastgate Ext Marlboro, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/RealSimple-Marketing"
+    },
+    {
+      "name": "Ask Answer Media",
+      "website": "https://www.askanswermedia.com",
+      "address": "1. Floor Helderberg Village Walk, Caledon Street Somerset West, Cape Town",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ask-Answer-Media"
+    },
+    {
+      "name": "Quadrivium Solutions",
+      "website": "https://www.qss.co.za",
+      "address": "3rd Floor, Old Mutual Building, Hill Street Kroonstad, Free State",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Quadrivium-Solutions_512605"
+    },
+    {
+      "name": "FIVE STAR SERVICE",
+      "website": "https://www.fivestarservice.co.za",
+      "address": "30 Conrad Street, Albertynshof Kimberley, Northern Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/FIVE-STAR-SERVICE"
+    },
+    {
+      "name": "compleTECH",
+      "website": "https://www.completech.co.za",
+      "address": "25 Ingwe Road, Sebenza Sebenza, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/compleTECH"
+    },
+    {
+      "name": "Panda Beanbags",
+      "website": "https://www.panda-beanbags.co.za",
+      "address": "7 Consalves Road, Eastleigh, Edenvale Edenvale, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Panda-Beanbags_514863"
+    },
+    {
+      "name": "P Le Grange &amp; Sons",
+      "website": "https://www.plegrange.co.za",
+      "address": "11 Jones Street Parow, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/P-Le-Grange-Sons"
+    },
+    {
+      "name": "CommCentrix",
+      "website": "https://www.commcentrix.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/CommCentrix"
+    },
+    {
+      "name": "SiteMeUp",
+      "website": "https://www.sitemeup.co.za",
+      "address": "93 Tynemouth Rd, Plumstead Cape Town, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/SiteMeUp"
+    },
+    {
+      "name": "Resolution Films",
+      "website": "https://www.resolutionfilms.co.za",
+      "address": "Low Street Observatory Cape Town, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Resolution-Films"
+    },
+    {
+      "name": "Webcycle",
+      "website": "https://www.webcycle.co.za",
+      "address": "268 Surrey Avenue Randburg, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Webcycle"
+    },
+    {
+      "name": "PeriExpo",
+      "website": "https://www.periexpo.co.za",
+      "address": "2 Periwinkle Lane, Schoenmakerskop Port Elizabeth, Eastern Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/PeriExpo"
+    },
+    {
+      "name": "Web Design South Africa",
+      "website": "https://www.promatix.co.za",
+      "address": "Fourways, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Web-Design-South-Africa"
+    },
+    {
+      "name": "GFX Design",
+      "website": "https://www.gfxdesign.co.za",
+      "address": "7 Ruby Street, Rosettenville Johannesburg, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/GFX-Design"
+    },
+    {
+      "name": "Equadoor Web Design &amp; Marketing Service…",
+      "website": "https://www.equadoor.com",
+      "address": "Farm Kromkloof Nylstroom, Limpopo",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Equadoor-Web-Design-Marketing-Services-CC"
+    },
+    {
+      "name": "Panda Beanbags",
+      "website": "https://www.panda-beanbags.co.za",
+      "address": "6 Mackenzie Rd, Simmerfield, Germiston Germiston, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Panda-Beanbags_514863"
+    },
+    {
+      "name": "creative i freelance graphic designer",
+      "website": "https://www.eye.za.net",
+      "address": "Musgrave Durban, Kwazulu-nata",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/creative-i-freelance-graphic-designer"
+    },
+    {
+      "name": "The Right Media",
+      "website": "https://www.therightmedia.co.za",
+      "address": "11 Olympia Court, Durban Road, Mowbray Cape Town, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Right-Media"
+    },
+    {
+      "name": "Syncrony Web Design",
+      "website": "https://www.syncrony.com",
+      "address": "Duiker Close, Riverclub Sandton, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Syncrony-Web-Design"
+    },
+    {
+      "name": "T - Host IT",
+      "website": "https://www.thost.co.za",
+      "address": "Pretoria East, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/T-Host-IT"
+    },
+    {
+      "name": "Webdesign Warehouse",
+      "website": "https://www.webdesignwarehouse.co.za",
+      "address": "31 Bayside Terrace Raats Drive, Table View Cape Town, Western Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Webdesign-Warehouse"
+    },
+    {
+      "name": "Kavonic Hone",
+      "website": "https://www.kavonichone.co.za",
+      "address": "No 4 8th Street Orange grove Jhb 2192 Johannesburg, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kavonic-Hone"
+    },
+    {
+      "name": "Raw Design",
+      "website": "https://www.rawdesign.co.za",
+      "address": "Hillensburg Alpine Way Lynnwood Pretoria, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Raw-Design"
+    },
+    {
+      "name": "umAfrika Project Specialist",
+      "website": "https://www.umafrika.com",
+      "address": null,
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/umAfrika-Project-Specialist"
+    },
+    {
+      "name": "Optimus01",
+      "website": "https://www.optimus01.co.za",
+      "address": "18 Daniel Street Bryanston Johannesburg, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Optimus01"
+    },
+    {
+      "name": "BusinessBrief",
+      "website": "https://www.bbrief.co.za",
+      "address": "57a Second Avenue Inanda Sandton, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/BusinessBrief"
+    },
+    {
+      "name": "BrandtoWeb",
+      "website": "https://www.brandtoweb.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/BrandtoWeb"
+    },
+    {
+      "name": "PrizeVoucher.com",
+      "website": "https://www.prizevoucher.com",
+      "address": "1462 Wind Jammer Laser Park Honeydew, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/PrizeVoucher-com"
+    },
+    {
+      "name": "MindTrust Marketing",
+      "website": "https://www.jacquesdevilliers.com",
+      "address": "51 Linden Street Strathavon, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/MindTrust-Marketing"
+    },
+    {
+      "name": "Vert Marketing",
+      "website": "https://www.vertgroup.co.za",
+      "address": "1141 Sheldon Place Sherwood Village Dainfern, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vert-Marketing"
+    },
+    {
+      "name": "Teams in Motion",
+      "website": "https://www.teamsinmotion.co.za",
+      "address": "68 Stonecrest Republic Road Cresta Johannesburg, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Teams-in-Motion"
+    },
+    {
+      "name": "Black Current Visual Media Solutions",
+      "website": "https://www.black-current.co.za",
+      "address": "28th Fourth Avenue, Newton Park Port Elizabeth, Eastern Cape",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Black-Current-Visual-Media-Solutions"
+    },
+    {
+      "name": "Tradepage",
+      "website": "https://www.tradepage.co.za",
+      "address": "4 Avocet Close Bromhof Randburg, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Tradepage_399765"
+    },
+    {
+      "name": "Blast Off Brand Media Solutions",
+      "website": "https://www.blastoff.co.za",
+      "address": "Roodepoort, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Blast-Off-Brand-Media-Solutions"
+    },
+    {
+      "name": "Palma Online Solutions",
+      "website": "https://www.palmaonlinesolutions.co.za",
+      "address": "340 Kent Close Randburg Kent kent Randburg, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Palma-Online-Solutions"
+    },
+    {
+      "name": "Business Modelling",
+      "website": "https://www.businessmodelling.com",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Business-Modelling_543580"
+    },
+    {
+      "name": "Brainworx Graphics",
+      "website": "https://www.brainworx.co.za",
+      "address": "28 Crypto Maria st kemtonpark, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Brainworx-Graphics"
+    },
+    {
+      "name": "STUDIO AZUL",
+      "website": "https://www.studioazul.co.za",
+      "address": "25 Steynsrust Road Somerset West Somerset West, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/STUDIO-AZUL"
+    },
+    {
+      "name": "Brainwave",
+      "website": "https://www.siobhan.co.za",
+      "address": "4 Promenade Road Lakeside Cape Town, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Brainwave"
+    },
+    {
+      "name": "Firetower Internet Marketing",
+      "website": "https://www.firetower.co.za",
+      "address": "30 Waterkant Street Cape Town, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Firetower-Internet-Marketing"
+    },
+    {
+      "name": "Mobiclicks",
+      "website": "https://www.mobiclicks.co.za",
+      "address": "Randburg, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mobiclicks"
+    },
+    {
+      "name": "BYTECODE CONSULTING",
+      "website": "https://www.bytecode.co.za",
+      "address": "278 SCHOEMAN STREET PRETORIA Pretoria, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/BYTECODE-CONSULTING"
+    },
+    {
+      "name": "a-mix",
+      "website": "https://www.a-com.co.za",
+      "address": "unit 12a oval park 17ave kensington Cape Town, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/a-mix"
+    },
+    {
+      "name": "Swift Designs",
+      "website": "https://www.swiftdesigns.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Swift-Designs"
+    },
+    {
+      "name": "Creative i - Freelance Graphic Design",
+      "website": "https://www.eye.za.net",
+      "address": "Musgrave Durban, KwaZulu-Nata",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Creative-i-Freelance-Graphic-Design"
+    },
+    {
+      "name": "ISMAILS",
+      "website": "https://www.ismails.co.za",
+      "address": "27 Louis Trichardt Alberton, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ISMAILS_546672"
+    },
+    {
+      "name": "LynxMail",
+      "website": "https://www.lynxmail.co.za",
+      "address": "Four Ways, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/LynxMail"
+    },
+    {
+      "name": "bleet.co.za",
+      "website": "https://www.bleet.co.za",
+      "address": "Summerstrand Port Elizabeth, Eastern Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/bleet-co-za"
+    },
+    {
+      "name": "Skytouch Media",
+      "website": "https://www.skytouchmedia.co.za",
+      "address": "71 Buitengracht Street Heritage Square Cape Town, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Skytouch-Media"
+    },
+    {
+      "name": "Arctica Design",
+      "website": "https://www.kyacom.com",
+      "address": "1 Kyalami Boulevard Kyalami Business Park Kyalami Johannesburg, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Arctica-Design"
+    },
+    {
+      "name": "10/4 Creative Studios",
+      "website": "https://www.104studios.co.za",
+      "address": "4 Klapper Avenue Weltevreden Park, Johannesburg, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/10-4-Creative-Studios"
+    },
+    {
+      "name": "Affinity Data",
+      "website": "https://www.affinitydata.co.za",
+      "address": "Nelson Mandela Square Johannesburg, Gauteng",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Affinity-Data"
+    },
+    {
+      "name": "Mindseed Design",
+      "website": "https://mindseed.co.za",
+      "address": "Centurion, Gauteng",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mindseed-Design"
+    },
+    {
+      "name": "Insight Solutions",
+      "website": "https://www.insight-solutions.co.za",
+      "address": "20 Owerbosch Owerbosch Close Bloubergstrand Cape Town, Western Cape",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Insight-Solutions_561403"
+    },
+    {
+      "name": "Sitala Market",
+      "website": "https://www.sitalamarket.com",
+      "address": "Mikro Street Parow North Cape Town, Western Cape",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sitala-Market"
+    },
+    {
+      "name": "Tisco Media",
+      "website": "https://www.tiscomedia.co.za",
+      "address": "N2 national Road Far Hills Hote Suite 1 Wilderness George, Western Cape",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Tisco-Media"
+    },
+    {
+      "name": "Otjiwarongo Marketing And Advertising",
+      "website": "https://www.otjiwarongo.co.za",
+      "address": "1 Gladstone Street EAST LONDON, Eastern Cape",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Otjiwarongo-Marketing-And-Advertising"
+    },
+    {
+      "name": "The ProduXion House",
+      "website": "https://www.pxhouse.co.za",
+      "address": "147 Bram Fischer Randburg, Gauteng",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-ProduXion-House"
+    },
+    {
+      "name": "Yellow Lizard Design",
+      "website": "https://www.yellowlizard.com",
+      "address": "19 Stanley Street Richmond Hill Port Elizabeth, Eastern Cape",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Yellow-Lizard-Design"
+    },
+    {
+      "name": "Logogog CC",
+      "website": "https://www.logogog.com",
+      "address": "Esther Road Sandown, Gauteng",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Logogog-CC"
+    },
+    {
+      "name": "Brand Aktiv",
+      "website": "https://www.brandaktiv.co.za",
+      "address": "761 18th avenue South Africa- Pretoria, Gauteng",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Brand-Aktiv"
+    },
+    {
+      "name": "Delecta Fruit",
+      "website": "https://www.delecta.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Delecta-Fruit_399317"
+    },
+    {
+      "name": "The Pixel Zoo",
+      "website": "https://www.pixelzoo.co.za",
+      "address": "51 oxford rd saxonwold johannesburg",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 202,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Pixel-Zoo"
+    },
+    {
+      "name": "Webgrafika",
+      "website": "https://www.webgrafika.co.za",
+      "address": "26 Kok Street Philippolis, Free State",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Webgrafika"
+    },
+    {
+      "name": "Wcic",
+      "website": "https://www.wack.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wcic"
+    },
+    {
+      "name": "Astral Studios",
+      "website": "https://www.astralstudios.co.za",
+      "address": "43 thembi place calderwood rd lonehill",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Astral-Studios_399504"
+    },
+    {
+      "name": "Dot Slash",
+      "website": "https://www.dotslash.co.za",
+      "address": "Atterbury Court 669 Plettenberg Street Faerie Glen, Gauteng",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dot-Slash_399511"
+    },
+    {
+      "name": "Montague Gardens",
+      "website": "https://www.idsonline.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Montague-Gardens"
+    },
+    {
+      "name": "Hitech Marketing",
+      "website": "https://www.hitechmarketing.co.za",
+      "address": "42 belladonna rd roodekrans johannesburg",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hitech-Marketing_399638"
+    },
+    {
+      "name": "Netgold Productions",
+      "website": "https://www.netgold.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Netgold-Productions"
+    },
+    {
+      "name": "Thirsty&#39;s",
+      "website": "https://www.thirstys.co.za",
+      "address": "15 carlton street johannesburg north",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Thirstys_401603"
+    },
+    {
+      "name": "The Forge Web Creations",
+      "website": "https://www.theforge.co.za",
+      "address": "30 cook road claremont, Western Cape",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Forge-Web-Creations"
+    },
+    {
+      "name": "Tradepage",
+      "website": "https://www.tradepage.co.za",
+      "address": "6 blair road pinetown kwa-zulu natal click here to view map",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Tradepage_399765"
+    },
+    {
+      "name": "Plettrealestate.com",
+      "website": "https://www.plettrealestate.com",
+      "address": "PO Box Plettenberg Bay6600 Main Street Plettenberg Bay",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Plettrealestate-com"
+    },
+    {
+      "name": "Volt Developments",
+      "website": "https://www.volt.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Volt-Developments"
+    },
+    {
+      "name": "Synch.cc",
+      "website": "https://www.synch.cc",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Synch-cc"
+    },
+    {
+      "name": "See-it Technologies",
+      "website": "https://www.see-it.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/See-it-Technologies"
+    },
+    {
+      "name": "Linx",
+      "website": "https://www.linx.co.za/shumba",
+      "address": "211 Beckett Street Corner Church Arcadia Pretoria",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Linx"
+    },
+    {
+      "name": "Memeworx",
+      "website": "https://www.memeworx.co.za",
+      "address": "45 tennant road claremont cape town, Western Cape",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Memeworx"
+    },
+    {
+      "name": "Symbiosys Consulting",
+      "website": "https://www.symbiosys.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Symbiosys-Consulting"
+    },
+    {
+      "name": "Evan Tomas Industries",
+      "website": "https://www.engraveit.co.za",
+      "address": "29A van Riebeeck Ave Alberton North Alberton",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Evan-Tomas-Industries"
+    },
+    {
+      "name": "Greycell.co.za",
+      "website": "https://www.greycell.co.za",
+      "address": "Greycell House 22 Lindup Rd Pietermaritzburg, Scottsville",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Greycell-co-za"
+    },
+    {
+      "name": "Gnu World",
+      "website": "https://www.gnuworld.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gnu-World"
+    },
+    {
+      "name": "Web360",
+      "website": "https://www.web360.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Web360"
+    },
+    {
+      "name": "Figure8 Information Studio",
+      "website": "https://www.figure8.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Figure8-Information-Studio"
+    },
+    {
+      "name": "Thirstys",
+      "website": "https://www.thirstys.co.za",
+      "address": "thirsty's cc 15 carlton street johannesburg north",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Thirstys_401603"
+    },
+    {
+      "name": "Riso Digital Printers",
+      "website": "https://www.risosa.co.za",
+      "address": "27 de beer street braamfontein",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Riso-Digital-Printers"
+    },
+    {
+      "name": "Siteworx",
+      "website": "https://www.siteworx.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Siteworx_401642"
+    },
+    {
+      "name": "Itt Connect",
+      "website": "https://www.ittconnect.co.za",
+      "address": "18 blackbird road noordhoek cape town",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Itt-Connect"
+    },
+    {
+      "name": "Scharrer Advertising",
+      "website": "https://www.scharrer.co.za",
+      "address": "132 Seventh Street Parkmore Sandton",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Scharrer-Advertising_401688"
+    },
+    {
+      "name": "Edot Web Technologies",
+      "website": "https://www.edot.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Edot-Web-Technologies"
+    },
+    {
+      "name": "Aboutit",
+      "website": "https://www.aboutitweb.co.za",
+      "address": "po box 26869 monument park",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Aboutit"
+    },
+    {
+      "name": "Zawebs",
+      "website": "https://www.zawebs.com",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Zawebs"
+    },
+    {
+      "name": "Application Frameworks",
+      "website": "https://www.appframeworks.com",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Application-Frameworks_401854"
+    },
+    {
+      "name": "Summit Software",
+      "website": "https://www.summitsoftware.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Summit-Software"
+    },
+    {
+      "name": "1021 Media And Design",
+      "website": "https://www.1021.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/1021-Media-And-Design"
+    },
+    {
+      "name": "Jkb",
+      "website": "https://www.jkb.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jkb"
+    },
+    {
+      "name": "Interapp",
+      "website": "https://www.interapp.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Interapp"
+    },
+    {
+      "name": "Peronii",
+      "website": "https://www.peronii.co.za",
+      "address": "61 Shortmarket Street Cape Town, Western Cape",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Peronii"
+    },
+    {
+      "name": "Green It Services",
+      "website": "https://www.greenit.co.za",
+      "address": "103 mahomedeya centre 263 sparks road sydenham durban",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Green-It-Services"
+    },
+    {
+      "name": "Website Marketing",
+      "website": "https://www.websitemarketing.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Website-Marketing"
+    },
+    {
+      "name": "Portfolio Property Investments",
+      "website": "https://www.portfolio-property.com",
+      "address": "50 kensington drive durban north",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Portfolio-Property-Investments"
+    },
+    {
+      "name": "Aj Personnel",
+      "website": "https://www.ajpersonnel.co.za",
+      "address": "116 kayburne avenue randparkridge",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Aj-Personnel"
+    },
+    {
+      "name": "Hostworx",
+      "website": "https://www.hostworx.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hostworx"
+    },
+    {
+      "name": "Exhibitor",
+      "website": "https://www.exhibitor.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Exhibitor"
+    },
+    {
+      "name": "Coffeebean Web Designs",
+      "website": "https://www.coffeebean.co.za",
+      "address": "8 peperboom street heidelberg",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Coffeebean-Web-Designs"
+    },
+    {
+      "name": "E-traffic",
+      "website": "https://www.etraffic.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/E-traffic"
+    },
+    {
+      "name": "Options",
+      "website": "https://www.options.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Options_402630"
+    },
+    {
+      "name": "Sahostplus",
+      "website": "https://www.sahostplus.com",
+      "address": "505 chartwell center chartwell drive umhlanga rocks durban",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sahostplus"
+    },
+    {
+      "name": "Fyre Interactive",
+      "website": "https://www.fyre.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fyre-Interactive"
+    },
+    {
+      "name": "Webfactory South Africa",
+      "website": "https://www.webfactory.co.za",
+      "address": "no 22 is on your left on the corner of queens and salmon st",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Webfactory-South-Africa"
+    },
+    {
+      "name": "Active Ice",
+      "website": "https://www.activeice.co.za",
+      "address": "Time Business Park 37 Blaauwberg Rd Blaauwberg Strand Cape Town",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Active-Ice"
+    },
+    {
+      "name": "Mammoth Solutions",
+      "website": "https://www.mammothsolutions.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mammoth-Solutions"
+    },
+    {
+      "name": "Keyline",
+      "website": "https://www.keyline.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Keyline"
+    },
+    {
+      "name": "Digital Academy",
+      "website": "https://www.digitalacademy.co.za",
+      "address": "po box 2289 parklands",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Digital-Academy"
+    },
+    {
+      "name": "Jm Grafixx - Web Site And Graphic Design",
+      "website": "https://www.graphicart.co.za",
+      "address": "20 perry joynt street tzaneen aqua park",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jm-Grafixx-Web-Site-And-Graphic-Design"
+    },
+    {
+      "name": "Customer Diagnostics",
+      "website": "https://www.customerdiagnostics.com",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Customer-Diagnostics"
+    },
+    {
+      "name": "Azure Designs",
+      "website": "https://www.azuredesigns.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Azure-Designs"
+    },
+    {
+      "name": "Fruitways",
+      "website": "https://www.fruitways.com",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fruitways"
+    },
+    {
+      "name": "CopyWrite",
+      "website": "https://www.copywrite.co.za",
+      "address": "Wattle Grove, West Riding Durban, Kwazulu Natal",
+      "page": 1,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/CopyWrite"
+    },
+    {
+      "name": "ADSLVOXSMART",
+      "website": "https://www.adslvoxsmart.co.za",
+      "address": "45 Matheran Road, Avoca Durban North, Kwazulu-nata",
+      "page": 1,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/ADSLVOXSMART"
+    },
+    {
+      "name": "Experimental Products And Designs",
+      "website": "https://www.experimentalpro.com",
+      "address": "74 2nd Avenue Claremont, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Experimental-Products-And-Designs"
+    },
+    {
+      "name": "Clear Design The Perspex workshop",
+      "website": "https://www.cleardesign.co.za",
+      "address": "3 Prestige Park, 410 Voortrekker Road Maitland, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Clear-Design-The-Perspex-workshop"
+    },
+    {
+      "name": "Web Guru Design",
+      "website": "https://www.web-guru.co.za",
+      "address": "Postnet Suite 179, Private Bag X1, Edenglen Edenvale, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Web-Guru-Design"
+    },
+    {
+      "name": "Leegra",
+      "website": "https://www.leegra.co.za",
+      "address": "Unit 7 Bond Street Business Park, Cnr Kent & Bond Street Randburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Leegra"
+    },
+    {
+      "name": "Thinklogic New Media",
+      "website": "https://www.thinklogic.co.za",
+      "address": "Bedfordview Johannesburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Thinklogic-New-Media"
+    },
+    {
+      "name": "Incredible Software Solutions",
+      "website": "https://www.incrediblesoftwaresolutions.com",
+      "address": "Blaauberg Road Cape Town, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Incredible-Software-Solutions"
+    },
+    {
+      "name": "Vet Directory",
+      "website": "https://www.vetdirectory.co.za",
+      "address": "252 Barry Hertzog Avenue, Greenside Greenside, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vet-Directory"
+    },
+    {
+      "name": "Synchronised Marketing &amp; Event Agency",
+      "website": "https://www.synchronised.co.za",
+      "address": null,
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Synchronised-Marketing-Event-Agency"
+    },
+    {
+      "name": "Xpect Media Solutions",
+      "website": "https://www.xpectonline.co.za",
+      "address": null,
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Xpect-Media-Solutions"
+    },
+    {
+      "name": "Pixelmash Design",
+      "website": "https://www.pixelmash.co.za",
+      "address": "Na Johannesburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pixelmash-Design"
+    },
+    {
+      "name": "The Bidding Gallery",
+      "website": "https://www.thebiddinggallery.co.za",
+      "address": "Blaauwklip Office Park, Webersvalley Road, Jamestown Stellenbosch, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Bidding-Gallery_395988"
+    },
+    {
+      "name": "Pollock&#39;s Copy Design Print",
+      "website": "https://www.pollocks.co.za",
+      "address": "Cnr Pearce Street And 4th Avernue, Berea East London, Eastern Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pollocks-Copy-Design-Print"
+    },
+    {
+      "name": "Pescii Computer Solutions",
+      "website": "https://www.pescii.com",
+      "address": "We Come To You Durban, Kwazulu-nata",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pescii-Computer-Solutions"
+    },
+    {
+      "name": "AlterSage Consultants",
+      "website": "https://www.altersage.com",
+      "address": "18 Roeland Street, First Floor, Gardens Cape Town, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/AlterSage-Consultants"
+    },
+    {
+      "name": "Village Square Marketing",
+      "website": "https://www.villagesquaremarketing.co.za",
+      "address": null,
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Village-Square-Marketing"
+    },
+    {
+      "name": "Host Direct",
+      "website": "https://www.hostdirect.co.za",
+      "address": "Weaver Avenue, Mackenzie Park Benoni, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Host-Direct"
+    },
+    {
+      "name": "H&amp;M Fast print and Marketing",
+      "website": "https://www.hmfastprint.co.za",
+      "address": "Jan Van Rooyen, Witpoortjie Roodepoort, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/H-M-Fast-print-and-Marketing"
+    },
+    {
+      "name": "IVOK STUDIO - Home Of Photo",
+      "website": "https://www.ivok.co.za",
+      "address": "207 Surrey Ave, Ferndale Ridge Randburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/IVOK-STUDIO-Home-Of-Photo_396649"
+    },
+    {
+      "name": "About Marketing",
+      "website": "https://www.aboutmarketing.co.za",
+      "address": "40 Erasmus Rd Edenvale, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/About-Marketing"
+    },
+    {
+      "name": "Domino Grafix",
+      "website": "https://www.dgrafix.netii.net",
+      "address": "Bellville, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Domino-Grafix"
+    },
+    {
+      "name": "PPE Direct Marketing",
+      "website": "https://www.clawboots.co.za",
+      "address": "36 Alexander Rd, Westmead Pinetown Kwazulu Natal, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/PPE-Direct-Marketing"
+    },
+    {
+      "name": "MBark Productions Marketing",
+      "website": "https://www.mbark.co.za",
+      "address": "367 Brooklyn Road, Brooklyn Pretoria, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/MBark-Productions-Marketing"
+    },
+    {
+      "name": "Axis Marketing",
+      "website": "https://www.axismarketing.co.za",
+      "address": "Po Box 46050 Durbanville, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Axis-Marketing"
+    },
+    {
+      "name": "SWS - Sustainable Web Solutions",
+      "website": "https://www.swsolutions.co.za",
+      "address": "14 Meerlust, Kleinbosch, Parow Cape Town, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/SWS-Sustainable-Web-Solutions"
+    },
+    {
+      "name": "Imsyser Marketing Pty Ltd",
+      "website": "https://www.imsyser.co.za",
+      "address": "Postnet Suite 305, Pb X15 Somerset West, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Imsyser-Marketing"
+    },
+    {
+      "name": "Beyond Commerce",
+      "website": "https://www.bcom.co.za",
+      "address": "Rodger Place Gillitts, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Beyond-Commerce"
+    },
+    {
+      "name": "Web Design By Tanya",
+      "website": "https://www.webdesignbytanya.co.za",
+      "address": "Woodbridge Drive, Woodbridge Island Milnerton, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Web-Design-By-Tanya"
+    },
+    {
+      "name": "Lime Tree Consulting Solutions cc",
+      "website": "https://www.limetree.co.za",
+      "address": "Postnet Suite 153, Private Bag X13 Brackenfell, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Lime-Tree-Consulting-Solutions-cc"
+    },
+    {
+      "name": "ALLSA Internet Marketing",
+      "website": "https://www.webxpert.co.za",
+      "address": "Po Box 316, Sea Point Cape Town, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/ALLSA-Internet-Marketing"
+    },
+    {
+      "name": "Blackindex Websites",
+      "website": "https://www.blackindex.co.za",
+      "address": "13 End Street Johannesburg , Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Blackindex-Websites"
+    },
+    {
+      "name": "Idea-Catalyst.co.za",
+      "website": "https://www.idea-catalyst.co.za",
+      "address": "Unit 2, 117 Roeland Street Zonnebloem, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Idea-Catalyst-co-za"
+    },
+    {
+      "name": "Sapphire Dawn",
+      "website": "https://www.sapphiredawn.co.za",
+      "address": "229 High Level Road, Sea Point Cape Town, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sapphire-Dawn"
+    },
+    {
+      "name": "Kosla Technologies",
+      "website": "https://www.kosla.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kosla-Technologies"
+    },
+    {
+      "name": "Geoff Louw Graphic Design",
+      "website": "https://www.the-ad-man.co.za",
+      "address": "City Bowl Cape Town, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Geoff-Louw-Graphic-Design"
+    },
+    {
+      "name": "Graffic Hub Visual Networks",
+      "website": "https://www.visualnetworks.co.za",
+      "address": "140 Gerard Moerdyk Street Pretoria, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Graffic-Hub-Visual-Networks"
+    },
+    {
+      "name": "Optimize IT",
+      "website": "https://www.optimizeit4u.co.za",
+      "address": "1 Cilliers Street, Cinderella Boksburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Optimize-IT"
+    },
+    {
+      "name": "Protocol In Practice",
+      "website": "https://protocolinpractice.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Protocol-In-Practice"
+    },
+    {
+      "name": "Helium Design",
+      "website": "https://www.heliumdesign.co.za",
+      "address": "47 Milton Rd Lombardy East, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Helium-Design"
+    },
+    {
+      "name": "Crimson Room Communications",
+      "website": "https://www.crimsonroom.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Crimson-Room-Communications"
+    },
+    {
+      "name": "Failsafe Systems",
+      "website": "https://failsafe.co.za",
+      "address": "10 Meriden, 226 Clark Road Durban, Kwazulu-nata",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Failsafe-Systems"
+    },
+    {
+      "name": "KL Project Management",
+      "website": "https://www.klprojects.co.za",
+      "address": "Po Box 40378, Redhill Durban, Kwazulu Natal",
+      "page": 7,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/KL-Project-Management"
+    },
+    {
+      "name": "Nook Digital CC",
+      "website": "https://www.nookdigital.com",
+      "address": "7 Crown Street, Observatory Cape Town, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Nook-Digital-CC"
+    },
+    {
+      "name": "Red Ninja Design Studio",
+      "website": "https://www.redninja.co.za",
+      "address": "215 Clifton Ave, No 12 Hi-veld Lyttelton, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Red-Ninja-Design-Studio"
+    },
+    {
+      "name": "Student Brands CC",
+      "website": "https://www.studentbrands.co.za",
+      "address": "12 Gemmil Street Linksfield, Club Street Johannesburg, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Student-Brands-CC"
+    },
+    {
+      "name": "Avenue Brand Communication &amp; Design",
+      "website": "https://www.avenuebrands.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Avenue-Brand-Communication-Design"
+    },
+    {
+      "name": "AMF Typing Services",
+      "website": "https://www.amftyping.co.za",
+      "address": "14 Roodekrans Manor, 9 Ouklip Road Roodekrans, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/AMF-Typing-Services_513362"
+    },
+    {
+      "name": "Versatile Marketing &amp; Design",
+      "website": "https://www.vdesigns.co.za",
+      "address": "Pietermaritzburg, Kwazulu-nata",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Versatile-Marketing-Design"
+    },
+    {
+      "name": "Vinix",
+      "website": "https://www.vinix.co.za",
+      "address": "West Street Centurion, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vinix"
+    },
+    {
+      "name": "Hosting Team",
+      "website": "https://www.hostingteam.co.za",
+      "address": "29 Caversham Road Pinetown Pinetown, KwaZulu-Nata",
+      "page": 10,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hosting-Team"
+    },
+    {
+      "name": "ExpandSEO",
+      "website": "https://www.expandseo.com",
+      "address": "15 Carter Drive Athlone PIETERMARITZBURG, KwaZulu-Nata",
+      "page": 10,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/ExpandSEO"
+    },
+    {
+      "name": "Chris Calitz",
+      "website": "https://chriscalitz.com",
+      "address": "Pretoria, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Chris-Calitz"
+    },
+    {
+      "name": "3d Advertising And Marketing Innovations",
+      "website": "https://www.3dami.com",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/3d-Advertising-And-Marketing-Innovations"
+    },
+    {
+      "name": "Editing Proofreading Copywriting",
+      "website": "https://www.barefootteacher.co.za",
+      "address": "Southfield Cape Town, Western Cape",
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Editing-Proofreading-Copywriting"
+    },
+    {
+      "name": "Somewhere SOUTH - Hospitality Marketing…",
+      "website": "https://www.somewheresouth.co.za",
+      "address": "28 Fairways Close Tableview Cape Town, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Somewhere-SOUTH-Hospitality-Marketing-Solutions"
+    },
+    {
+      "name": "Bizland",
+      "website": "https://www.bizland.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bizland"
+    },
+    {
+      "name": "Nettcom Internet Solutions",
+      "website": "https://www.nettcom.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Nettcom-Internet-Solutions"
+    },
+    {
+      "name": "Web Guise",
+      "website": "https://www.webguise.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Web-Guise_399639"
+    },
+    {
+      "name": "Webadz",
+      "website": "https://www.webadz.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Webadz"
+    },
+    {
+      "name": "hero",
+      "website": "https://www.hero.co.za",
+      "address": "4th floor icon building lower long street cape town Johannesburg",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/hero"
+    },
+    {
+      "name": "Camsoft Solutions",
+      "website": "https://www.camsoft.co.za",
+      "address": "40 Bayview Road Wynberg, Western Cape",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Camsoft-Solutions"
+    },
+    {
+      "name": "Tls It Services",
+      "website": "https://www.intranet.co.za",
+      "address": "17 silverstone albertyn road kyalami hills midrand",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Tls-It-Services"
+    },
+    {
+      "name": "72tec",
+      "website": "https://www.72tec.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/72tec"
+    },
+    {
+      "name": "Reds Communications",
+      "website": "https://www.redscomm.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Reds-Communications"
+    },
+    {
+      "name": "The Bishops&#39; Court",
+      "website": "https://www.thebishopscourt.com",
+      "address": "18 hillwood ave bishopscourt cape town, Western Cape",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Bishops-Court_400836"
+    },
+    {
+      "name": "Warthog Web Design",
+      "website": "https://www.warthog.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Warthog-Web-Design"
+    },
+    {
+      "name": "Doorway Internet Services",
+      "website": "https://www.dis.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Doorway-Internet-Services"
+    },
+    {
+      "name": "Easimail",
+      "website": "https://www.easimail.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Easimail"
+    },
+    {
+      "name": "Web Devils",
+      "website": "https://www.webdevils.co.za",
+      "address": "we are located at 122 willem botha ave",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Web-Devils"
+    },
+    {
+      "name": "White Wall Web",
+      "website": "https://www.whitewallweb.com",
+      "address": "block b 3 eglin road sunninghill johannesburg",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/White-Wall-Web"
+    },
+    {
+      "name": "Terri Love Designs",
+      "website": "https://www.terrilove.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Terri-Love-Designs"
+    },
+    {
+      "name": "Bp Oil And Lubricants",
+      "website": "https://www.bpoil.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bp-Oil-And-Lubricants"
+    },
+    {
+      "name": "21 Digital Web Solutions",
+      "website": "https://www.21digital.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/21-Digital-Web-Solutions"
+    },
+    {
+      "name": "Spot That Zebra",
+      "website": "https://www.spotthatzebra.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Spot-That-Zebra"
+    },
+    {
+      "name": "Gigtech Development",
+      "website": "https://www.gigtech.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gigtech-Development"
+    },
+    {
+      "name": "Staff Wise",
+      "website": "https://www.staffwise.org.za",
+      "address": "87 hatfield street cape town donations",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Staff-Wise"
+    },
+    {
+      "name": "Intdev Internet Technologies (pty",
+      "website": "https://www.indigochild.co.za",
+      "address": "bus factory 1 president street newtown jozi and featuring",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Intdev-Internet-Technologies"
+    },
+    {
+      "name": "Eisp",
+      "website": "https://www.eisp.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Eisp"
+    },
+    {
+      "name": "O Donoghue And Associates",
+      "website": "https://www.odonoghue.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/O-Donoghue-And-Associates"
+    },
+    {
+      "name": "Screenfast",
+      "website": "https://www.screenfast.co.za",
+      "address": "35 columbine place ring road industrial park avoca durban",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Screenfast_401068"
+    },
+    {
+      "name": "Enyuka Internet Access",
+      "website": "https://www.enyuka.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Enyuka-Internet-Access"
+    },
+    {
+      "name": "Loremedia",
+      "website": "https://www.loremedia.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Loremedia"
+    },
+    {
+      "name": "Mziwethu Holdings",
+      "website": "https://www.mziwethu.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mziwethu-Holdings"
+    },
+    {
+      "name": "Development Marketing Specialists",
+      "website": "https://www.dmsdevelopments.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Development-Marketing-Specialists"
+    },
+    {
+      "name": "Jh Design",
+      "website": "https://www.jhdesign.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jh-Design"
+    },
+    {
+      "name": "Ukubona",
+      "website": "https://www.ukubona.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ukubona"
+    },
+    {
+      "name": "Dezina Web Advertising",
+      "website": "https://www.dweb.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dezina-Web-Advertising_401324"
+    },
+    {
+      "name": "Eiledon Solutions",
+      "website": "https://www.eiledon.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Eiledon-Solutions"
+    },
+    {
+      "name": "Syscom Internet Solutions",
+      "website": "https://www.syscom.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Syscom-Internet-Solutions"
+    },
+    {
+      "name": "Indusquip Marketing",
+      "website": "https://www.indusquip.co.za",
+      "address": "28 Rail Road Roodekop Germiston",
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Indusquip-Marketing"
+    },
+    {
+      "name": "Agora Internet",
+      "website": "https://agora.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Agora-Internet"
+    },
+    {
+      "name": "Umlungu",
+      "website": "https://www.umlungu.com/umlungu.aspx?name=umlungu&topic=about",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Umlungu"
+    },
+    {
+      "name": "Luminate",
+      "website": "https://www.luminate.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Luminate"
+    }
+  ]
+}

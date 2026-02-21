@@ -178,6 +178,77 @@ model QuoteRequest {
   @@index([assignedToId])
 }
 
+// ─── Outreach / Cold Email Campaigns ─────────────────────────
+
+model OutreachCampaign {
+  id         String   @id @default(cuid())
+  name       String   // e.g. "Restaurants Feb 2026"
+  category   String   // bizbay category slug
+  status     String   @default("draft") // draft | active | paused | completed
+  totalLeads Int      @default(0)
+  emailsSent Int      @default(0)
+  replies    Int      @default(0)
+
+  leads OutreachLead[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OutreachLead {
+  id         String           @id @default(cuid())
+  campaignId String
+  campaign   OutreachCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  businessName String
+  website      String?
+  address      String?
+  bizbayUrl    String?
+  category     String
+
+  phone         String?
+
+  // Email outreach tracking
+  emailStatus   String    @default("pending") // pending | sent | replied | interested | not_interested | bounced
+  emailAddress  String?
+  emailSentAt   DateTime?
+  emailTemplate String?
+  followUpCount Int       @default(0)
+  lastFollowUp  DateTime?
+  nextFollowUp  DateTime?
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([campaignId])
+  @@index([emailStatus])
+}
+
+// ─── Web Services Leads (Cold Call) ──────────────────────────
+
+model WebServiceLead {
+  id           String   @id @default(cuid())
+  businessName String
+  website      String?
+  address      String?
+  category     String
+  bizbayUrl    String?
+  phone        String?
+  email        String?
+
+  callStatus   String   @default("pending") // pending | called | interested | not_interested | no_answer | callback
+  notes        String?  @db.Text
+  callbackDate DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([callStatus])
+  @@index([category])
+}
+
 // ─── Chatbot Conversations ───────────────────────────────────
 
 model Conversation {

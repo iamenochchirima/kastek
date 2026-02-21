@@ -1,0 +1,4425 @@
+{
+  "category": "Security",
+  "count": 452,
+  "listings": [
+    {
+      "name": "Electro Gate &amp; Fence",
+      "website": "https://www.electrogate.sinthasite.com",
+      "address": "Shop 3, Old Main Road, Kroondal Rustenburg, North West",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Electro-Gate-Fence"
+    },
+    {
+      "name": "Magnacorp",
+      "website": "https://MAGNACORP.yolasite.com",
+      "address": "22 Stamvrug Singel, Onverwacht Ellisras, Limpopo",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Magnacorp"
+    },
+    {
+      "name": "Bar Of Gold Fencing",
+      "website": "https://www.barofgoldfencing.co.za",
+      "address": "53 Hill Street, Kraaifontein-noord Kraaifontein, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bar-Of-Gold-Fencing"
+    },
+    {
+      "name": "Glimmer International",
+      "website": "https://www.glimmerinternational.com",
+      "address": "Centurion, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Glimmer-International"
+    },
+    {
+      "name": "M43 Security &amp; IT Services CC",
+      "website": "https://www.m43security.co.za",
+      "address": "251b Nyangwa Street, Mofolo Village, P.o. Dube Soweto, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/M43-Security-IT-Services-CC"
+    },
+    {
+      "name": "Oc2Tech Solutions",
+      "website": "https://www.oc2tech.co.za",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Oc2Tech-Solutions"
+    },
+    {
+      "name": "Command Security Services",
+      "website": "https://www.command.co.za",
+      "address": "Command House, 394, Voortrekker Road Maitland, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Command-Security-Services_548441"
+    },
+    {
+      "name": "DYCO TECH Security Solutions",
+      "website": "https://www.dycosecurity.co.za",
+      "address": "Fifth Avenue, Marlands Germiston, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/DYCO-TECH-Security-Solutions"
+    },
+    {
+      "name": "B Secure",
+      "website": "https://www.b-secure.co.za",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/B-Secure"
+    },
+    {
+      "name": "ETA Security Solutions",
+      "website": "https://www.etasecurity.co.za",
+      "address": "84 Phyllite Street, Zwartkops X5 Centurion, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/ETA-Security-Solutions"
+    },
+    {
+      "name": "AMB GROUP SECURITY SERVICES",
+      "website": "https://www.ambgroup.co.za",
+      "address": "Somerset West Cape Town South Africa Somerset West, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/AMB-GROUP-SECURITY-SERVICES"
+    },
+    {
+      "name": "Wireless Alarm",
+      "website": "https://www.securitywireless.co.za",
+      "address": "98 Golf Avenue, Clubview Centurion, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wireless-Alarm"
+    },
+    {
+      "name": "Security Nerds - Kempton Park - Benoni …",
+      "website": "https://www.securitynerds.co.za",
+      "address": "P.o.box 14997, Bredell East Rand, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Security-Nerds-Kempton-Park-Benoni-Boksburg-Edenvale"
+    },
+    {
+      "name": "Elite SA Security Solutions",
+      "website": "https://www.elitesasecurity.co.za",
+      "address": "Unit 7a, Cnr Stanger & Estcourt Wierdapark, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Elite-SA-Security-Solutions"
+    },
+    {
+      "name": "Absolute Security",
+      "website": "https://www.absolute-security.co.za",
+      "address": "Ibis Road Muldersdrif, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Absolute-Security_512710"
+    },
+    {
+      "name": "Sure Security Seals",
+      "website": "https://www.sureseals.co.za",
+      "address": "6 Kayburn Avenue, Randparkridge Johanneburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sure-Security-Seals"
+    },
+    {
+      "name": "Shuttersafe",
+      "website": "https://www.shuttersafe.co.za",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shuttersafe"
+    },
+    {
+      "name": "VISION SYSTEMS SA - SALTO access contro…",
+      "website": "https://www.visionsystemssa.co.za",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/VISION-SYSTEMS-SA-SALTO-access-control-systems"
+    },
+    {
+      "name": "Technivision SA",
+      "website": "https://www.technivision.co.za",
+      "address": "Po Box 20307, Big Bay Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Technivision-SA"
+    },
+    {
+      "name": "Security Risk Management",
+      "website": "https://secriskmanagement.bravehost.com",
+      "address": "Pretoria, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Security-Risk-Management"
+    },
+    {
+      "name": "plastic card printers security printing",
+      "website": "https://www.securedocumentsolutions.co.za",
+      "address": "Johannesburg Winchester Hills, 36 The Summit Winchester Hills Jhb, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/plastic-card-printers-security-printing"
+    },
+    {
+      "name": "SIVOLINE DOMESTIC AGENCY",
+      "website": "https://www.sivolinedomesticagency.webs.com",
+      "address": "166,hendrick Verwoerd Drive . Randburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SIVOLINE-DOMESTIC-AGENCY"
+    },
+    {
+      "name": "Godzilla Security Services",
+      "website": "https://www.godzillasecurity.co.za",
+      "address": "No.60-tenth Ave Orange Grove, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Godzilla-Security-Services"
+    },
+    {
+      "name": "U-NameIt",
+      "website": "https://www.u-nameit.co.za",
+      "address": "77 Fleet Street Ferndale, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/U-NameIt"
+    },
+    {
+      "name": "wiseguards security services",
+      "website": "https://www.wiseguard.co.za",
+      "address": "151 Louis Botha Avenue Orange Grove, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/wiseguards-security-services_885152"
+    },
+    {
+      "name": "BIOMETRIC SIMPLE SECURITIES",
+      "website": "https://www.biosimplesecurities.webs.com",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BIOMETRIC-SIMPLE-SECURITIES"
+    },
+    {
+      "name": "Control Fire Security (Pty) Ltd",
+      "website": "https://www.controlfiresecurity.co.za",
+      "address": "Corner Kinross & Queen Street Germiston South, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Control-Fire-Security"
+    },
+    {
+      "name": "Cape Southern Security Cochrane ClearVu…",
+      "website": "https://www.cochranesteel.co",
+      "address": "34d, Fish Eagle Park, Kommetjie Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Southern-Security-Cochrane-ClearVu-Security-Fencing-Cape"
+    },
+    {
+      "name": "Sensis Technologies",
+      "website": "https://www.sensis.co.za",
+      "address": "75 Bram Fischer Drive, Robindale Randburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sensis-Technologies"
+    },
+    {
+      "name": "Tisa Security",
+      "website": "https://www.tisasolutions.co.za",
+      "address": "62 Lower Germiston Rd, Herriotdale Germiston, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tisa-Security"
+    },
+    {
+      "name": "SEE MORE SECURITY PE",
+      "website": "https://www.seemore.co.za",
+      "address": "77 3rd Ave, Newton Park Port Elizabeth, Eastern Cape",
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/SEE-MORE-SECURITY-PE"
+    },
+    {
+      "name": "GAT SECURITY cc",
+      "website": "https://www.gatsecurty.synthasite.com",
+      "address": "146b Main Street, Cnr Von Weilligh Street Johannesburg , Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/GAT-SECURITY-cc"
+    },
+    {
+      "name": "Phase IV Protection Services",
+      "website": "https://www.phaseivprotection.co.za",
+      "address": "Kempton Park, Kempton Park, 1619 Kempton Park, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Phase-IV-Protection-Services"
+    },
+    {
+      "name": "Overland Power Fencing",
+      "website": "https://www.overlandpowerfencing.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Overland-Power-Fencing"
+    },
+    {
+      "name": "Hlongwane Security &amp; Projects cc",
+      "website": "https://[email&#160;protected]",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hlongwane-Security-Projects-cc"
+    },
+    {
+      "name": "P&amp;P CAR SOUND SPECIALISTS CC",
+      "website": "https://www.ppcarsound.co.za",
+      "address": "128 Rietfontein Road, Jansen Park Boksburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/P-P-CAR-SOUND-SPECIALISTS-CC"
+    },
+    {
+      "name": "Die Hoewes Self Catering in Centurion",
+      "website": "https://www.idealstay.com",
+      "address": "276 Von Willich Ave, Units 89 & 121 Centurion, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Die-Hoewes-Self-Catering-in-Centurion"
+    },
+    {
+      "name": "Starnex",
+      "website": "https://www.starnex.co.za",
+      "address": "122 Kirby Beller Road, Glenvista Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Starnex"
+    },
+    {
+      "name": "atbase",
+      "website": "https://www.atbase.co.za",
+      "address": "8 Walder Street Paarl, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/atbase"
+    },
+    {
+      "name": "Netcomm CCTV &amp; Access Control Systems",
+      "website": "https://www.netcommcctv.co.za",
+      "address": "Bloemfontein, Northern Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Netcomm-CCTV-Access-Control-Systems"
+    },
+    {
+      "name": "King Pigeon Hi-Tech.Co.,Ltd.",
+      "website": "https://www.gsmalarmsystem.com",
+      "address": "No.20,liuxiandong Industry Zone Aberdeen, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/King-Pigeon-Hi-Tech-Co"
+    },
+    {
+      "name": "SMC - Security Management Consultants",
+      "website": "https://www.smc.co.za",
+      "address": "2 Sycamore Street Randburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/SMC-Security-Management-Consultants_536786"
+    },
+    {
+      "name": "RQ SECURITY",
+      "website": "https://www.rqsecurity.co.za",
+      "address": "Security Building Occ Mine Gate, Nababeep Springbok, Northern Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/RQ-SECURITY"
+    },
+    {
+      "name": "BRETTROW PROTECTION SERVICES",
+      "website": "https://www.brettrow.co.za",
+      "address": "Pretoria & Durban, Port Elizabeth, Cape Town Pretoria, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BRETTROW-PROTECTION-SERVICES_544882"
+    },
+    {
+      "name": "C M P Concrete Walling",
+      "website": "https://www.cmpwalling.com",
+      "address": "Cnr Ossewa & Element Str Kempton Park, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/C-M-P-Concrete-Walling"
+    },
+    {
+      "name": "A.P. ELECTRICAL - SECURITY SERVICES",
+      "website": "https://www.apelectrical.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-P-ELECTRICAL-SECURITY-SERVICES"
+    },
+    {
+      "name": "Aspen Steelworx",
+      "website": "https://www.aspensteel.co.za",
+      "address": "Strand, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aspen-Steelworx"
+    },
+    {
+      "name": "delcor security",
+      "website": "https://www.delcorsecurity.com",
+      "address": "3 Victor Ave, Rossburgh Durban, Kwazulu Natal",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/delcor-security_795730"
+    },
+    {
+      "name": "SECUR - A - FIX",
+      "website": "https://www.asecurafix.com",
+      "address": "29 Jerlings Place, Dewet Street, 7 Th Street Krugersdorp, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SECUR-A-FIX"
+    },
+    {
+      "name": "M4D Security Services",
+      "website": "https://www.m4dsecurities.co.za",
+      "address": "54 Marapo Street, Capital Park, Pretoria, 54 Marapo Street Capital Park, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/M4D-Security-Services_859655"
+    },
+    {
+      "name": "Hermes Mobile Security",
+      "website": "https://www.hermesmobilesecurity.co.za",
+      "address": "3 Boom Street, Parys, Free State Parys, Free State",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hermes-Mobile-Security"
+    },
+    {
+      "name": "ITS Security",
+      "website": "https://www.its-security.co.za",
+      "address": "718 Platinum Street, Elarduspark Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ITS-Security_860444"
+    },
+    {
+      "name": "Total Security Services",
+      "website": "https://www.totalsecurityservices.co.za",
+      "address": "76 Woodside Avenue, Cowies Hill, Pinetown Durban, Kwazulu Natal",
+      "page": 3,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Total-Security-Services"
+    },
+    {
+      "name": "Check Set Security Services",
+      "website": "https://www.checksetsecurity.co.za",
+      "address": "Bloemfontein, Free State",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Check-Set-Security-Services_862211"
+    },
+    {
+      "name": "apatame security and cleaning services",
+      "website": "https://www.apatamesecurity.co.za",
+      "address": "Eersterive, Forest Drive, Hindle Road Blue Downs, Cape Town",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/apatame-security-and-cleaning-services_862665"
+    },
+    {
+      "name": "Doltech Security Solutions",
+      "website": "https://doltech.webs.com/",
+      "address": "10 Avondale Terrace Diepriver, Cape Town",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Doltech-Security-Solutions_863531"
+    },
+    {
+      "name": "GM2 Neighbourhood Watch Security / Arme…",
+      "website": "https://www.gm2.co.za",
+      "address": "132 Monument Road, 215 Aston House Kempton Park, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/GM2-Neighbourhood-Watch-Security-Armed-Response-Security"
+    },
+    {
+      "name": "GLC SECURITY SERVICES",
+      "website": "https://www.glcsecurity.co.za",
+      "address": "27 8th Ave , Lambton, Germiston, 27 8th Ave, Lambton Germiston, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/GLC-SECURITY-SERVICES"
+    },
+    {
+      "name": "Independent Design Safety Security Solu…",
+      "website": "https://www.safetysecuritysolutions.co.za",
+      "address": "P.o.box 56 Durban, Kwazulu Natal",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Independent-Design-Safety-Security-Solutions"
+    },
+    {
+      "name": "Fusion Security",
+      "website": "https://www.fusionsecurity.co.za",
+      "address": "Oak Ave, Randburg Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fusion-Security"
+    },
+    {
+      "name": "Chase Security",
+      "website": "https://www.chasesecurity.org",
+      "address": "Alberton, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chase-Security_864631"
+    },
+    {
+      "name": "Delta One Security",
+      "website": "https://www.deltaone.co.za",
+      "address": "Glenhove Road Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Delta-One-Security"
+    },
+    {
+      "name": "Security Viewer",
+      "website": "https://www.securityviewer.co.za",
+      "address": "977 Schoeman Street, Arcadia Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Security-Viewer"
+    },
+    {
+      "name": "ECONOWALL",
+      "website": "https://www.econowall.co.za",
+      "address": "Brackenfell, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/ECONOWALL"
+    },
+    {
+      "name": "Security South Africa",
+      "website": "https://www.securitysa.org",
+      "address": "Centurion, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Security-South-Africa"
+    },
+    {
+      "name": "CTS security Solutions",
+      "website": "https://ctsecurity.co.za",
+      "address": "167 Blaauwberg Rd Table View, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CTS-security-Solutions"
+    },
+    {
+      "name": "Safe Tec",
+      "website": "https://www.wix.com/safetec2010/safe-tec",
+      "address": "712 Daphne Ave, Suiderberg Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Safe-Tec"
+    },
+    {
+      "name": "Ideal Security",
+      "website": "https://www.idealsecurity.moonfruit.com",
+      "address": "East Rand, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ideal-Security"
+    },
+    {
+      "name": "Spike King",
+      "website": "https://www.spike-king.co.za",
+      "address": "Po Box 15764 Panarama Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Spike-King"
+    },
+    {
+      "name": "crime stop johannesburg",
+      "website": "https://www.crimejhb.co.za",
+      "address": "14 Forest Street, Turf Club Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/crime-stop-johannesburg"
+    },
+    {
+      "name": "A - Tack Security",
+      "website": "https://www.tacksecurity.blogspot.com",
+      "address": "Kloof Road Bedfordview, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-Tack-Security"
+    },
+    {
+      "name": "B5 SECURITY AND CREATIONS CC",
+      "website": "https://www.b5security.co.za",
+      "address": "64 Lanhamstreet Bronkhorstspruit, Mpumalanga",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/B5-SECURITY-AND-CREATIONS-CC"
+    },
+    {
+      "name": "Nyoni Security",
+      "website": "https://www.nyonisecurity.co.za",
+      "address": "Office Number 21, Cnr Mentz Booysens Road Booysens , Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nyoni-Security_867076"
+    },
+    {
+      "name": "Sizondo Security Systems",
+      "website": "https://www.sizondosec.co.za",
+      "address": "3713 Olifantsfontein, Midrand Olifantsfontein, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sizondo-Security-Systems"
+    },
+    {
+      "name": "Securi-Sym cc",
+      "website": "https://www.securi-sym.co.za",
+      "address": "171 Monkey Thorn Close, Bushwillow Park Greenstone Hill, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Securi-Sym-cc"
+    },
+    {
+      "name": "Carony security systems",
+      "website": "https://www.carony.co.za",
+      "address": "Cctv,alarms,electric Fence,gate Motors Midrand, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Carony-security-systems"
+    },
+    {
+      "name": "Intellotech",
+      "website": "https://www.intellotech.co.za",
+      "address": "Sandton, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Intellotech"
+    },
+    {
+      "name": "MyAfricanDream",
+      "website": "https://www.s4s.co.za",
+      "address": "27 Saxenburgh Crescent, Onverwacht Strand, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/MyAfricanDream"
+    },
+    {
+      "name": "Alexa Security Solutions",
+      "website": "https://www.alexasecurity.co.za",
+      "address": "4 Queens Park Avenue Salt River, Cape Town",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alexa-Security-Solutions"
+    },
+    {
+      "name": "iSTORM Security cc",
+      "website": "https://www.istormsecurity.co.za",
+      "address": "69 Wenden Ave Brakpan, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/iSTORM-Security-cc"
+    },
+    {
+      "name": "Crime Stop Germiston",
+      "website": "https://www.crimegermiston.co.za",
+      "address": "Kell Ann Heights, President Street, Oosthuizen Street Germiston, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Crime-Stop-Germiston"
+    },
+    {
+      "name": "ProVision Security Solutions",
+      "website": "https://www.eagleshield.co.za",
+      "address": "3rd Floor, Amicussa House, 1 Beverley Street Athlone, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ProVision-Security-Solutions"
+    },
+    {
+      "name": "Executive Security Solutions",
+      "website": "https://www.executivesecuritysolutions.co.za",
+      "address": "57 Bertha Street Turffontein, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Executive-Security-Solutions"
+    },
+    {
+      "name": "Risk Control SA",
+      "website": "https://www.riskcontrol.co.za",
+      "address": "George, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Risk-Control-SA"
+    },
+    {
+      "name": "Securashutter",
+      "website": "https://www.securashutter.co.za",
+      "address": "8 Parin Road, Parow Industria Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Securashutter"
+    },
+    {
+      "name": "Protector Internal",
+      "website": "https://www.protectorinternational.co.za",
+      "address": "10 Beacon Road, Ruimsig Randburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Protector-Internal"
+    },
+    {
+      "name": "MRSI Security Services",
+      "website": "https://www.mrsi.co.za",
+      "address": "45 - 4th Street, Wynberg Sandton, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/MRSI-Security-Services"
+    },
+    {
+      "name": "123 Electronic Security / ADT Authorise…",
+      "website": "https://www.adtalarms.co.za",
+      "address": "Edenvale, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/123-Electronic-Security-ADT-Authorised-Dealer"
+    },
+    {
+      "name": "TSS Security Group",
+      "website": "https://www.tssecurity.co.za",
+      "address": "Hibiscus,jacaranda Street Craigavon, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/TSS-Security-Group"
+    },
+    {
+      "name": "6th Sense security",
+      "website": "https://www.6thsense.org.za",
+      "address": "Po Box 26 Greymont , Jhb, 2035, 28 Sydney Carter Street Roosevelt Park, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/6th-Sense-security_889259"
+    },
+    {
+      "name": "Appelcryn Security Training Academy",
+      "website": "https://www.appelcryn.co.za",
+      "address": null,
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Appelcryn-Security-Training-Academy"
+    },
+    {
+      "name": "PTC Security Solutions",
+      "website": "https://www.ptc-ss.co.za",
+      "address": "1177 Opera Rd Radiokop, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/PTC-Security-Solutions"
+    },
+    {
+      "name": "PABC Corporate Security",
+      "website": "https://www.pabccorporatesecurity.co.za",
+      "address": "Constancia Park, [email&#160;protected] Pretoria, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/PABC-Corporate-Security"
+    },
+    {
+      "name": "Xtreme Auto Edenvale / Vehicle Protecti…",
+      "website": "https://www.xtremeautoedenvale.co.za",
+      "address": "Cnr Andries Pretorius & De Wet Street Edenvale, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xtreme-Auto-Edenvale-Vehicle-Protection-Smash-Grab-security"
+    },
+    {
+      "name": "DMS Security CC",
+      "website": "https://www.dunravenms.co.za",
+      "address": "Heritage Square, Cecil Knight Street, Krugersdorp Krugersdorp , Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/DMS-Security-CC"
+    },
+    {
+      "name": "Securelink",
+      "website": "https://www.securelink.co.za",
+      "address": "73 Old Main Road Bothas Hill, Kwazulu-nata",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Securelink"
+    },
+    {
+      "name": "Topcat Security Solutions",
+      "website": "https://www.topcatsecurity.co.za",
+      "address": "Tiati Rd, Sunninghill Sandton, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Topcat-Security-Solutions"
+    },
+    {
+      "name": "Deposit Manager",
+      "website": "https://www.depositmanager.co.za",
+      "address": "Unit 1, Falcon House, 10 Lanner Road New Germany, Kwazulu Natal",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 503,
+      "error": "HTTP 503",
+      "bizbayUrl": "https://bizbay.co.za/Company/Deposit-Manager"
+    },
+    {
+      "name": "Traceline Signwriters and Locksmiths",
+      "website": "https://www.tracelineCT.co.za",
+      "address": "Shop 10b, N1 Motorcity, Joe Hattingh Street Goodwood, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Traceline-Signwriters-and-Locksmiths"
+    },
+    {
+      "name": "A-Logic Business Computing",
+      "website": "https://www.alogic.co.za",
+      "address": "8 Brands Hatch Close, Killarney Gardes, Blaauwnerg Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-Logic-Business-Computing"
+    },
+    {
+      "name": "iSheriff",
+      "website": "https://isheriffsa.yolasite.com",
+      "address": "Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/iSheriff"
+    },
+    {
+      "name": "Securinet",
+      "website": "https://www.a-design.co.za",
+      "address": "P.o.box 357 Bela Bela, Limpopo",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Securinet"
+    },
+    {
+      "name": "Ntsimbi Steel - Gates - Carports etc",
+      "website": "https://www.steelprojects.co.za",
+      "address": "1 Fountain Rd Edenvale , Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ntsimbi-Steel-Gates-Carports-etc"
+    },
+    {
+      "name": "Kalmia",
+      "website": "https://www.kalmiatek.co.za",
+      "address": "8 View Avenue, Athlone Pietermaritzburg, Kwazulu Natal",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 503,
+      "error": "HTTP 503",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kalmia"
+    },
+    {
+      "name": "TRELLIDOR",
+      "website": "https://www.trellidor.co.za",
+      "address": "20 Aberdare Drive, Phoenix Industrial Park Durban, Kwazulu Natal",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/TRELLIDOR"
+    },
+    {
+      "name": "InfoDurban",
+      "website": "https://www.infodurban.co.za",
+      "address": "157 Sparfield Avenue, Newlands West Earlsfield, Kwazulu-nata",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/InfoDurban"
+    },
+    {
+      "name": "Shockem Security",
+      "website": "https://www.shockemsecurity.co.za",
+      "address": "8 Althea, Weltevreden Park Weltevreden Park, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shockem-Security_429784"
+    },
+    {
+      "name": "Mat Technologies Jhb branch",
+      "website": "https://www.mat.co.za",
+      "address": "73 A, Rigger Rd Spartan, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mat-Technologies-Jhb-branch"
+    },
+    {
+      "name": "R S &amp; Associates Loss Control Service",
+      "website": "https://www.rsasecurity.co.org",
+      "address": "Unit 5,bridge Street, Plankenberg Stellenbosch, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/R-S-Associates-Loss-Control-Service"
+    },
+    {
+      "name": "South African Bodyguard Services",
+      "website": "https://www.sabodyguards.co.za",
+      "address": "63 Rifle Range Road Ridgeway, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/South-African-Bodyguard-Services"
+    },
+    {
+      "name": "CSS Security &amp; Technology Centre",
+      "website": "https://www.communitysafety.co.za",
+      "address": "1 Tokai Road, Main Road, Tokai Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CSS-Security-Technology-Centre"
+    },
+    {
+      "name": "Myertal Tactical Security",
+      "website": "https://www.myertal.co.za",
+      "address": "Po Box 20 Paarden Eiland Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Myertal-Tactical-Security"
+    },
+    {
+      "name": "Itronics",
+      "website": "https://www.itronicsol.com",
+      "address": "Strutt Street, Honeydew Ridge Roodepoort, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Itronics"
+    },
+    {
+      "name": "Impi Security",
+      "website": "https://www.motionize.co.za",
+      "address": "San Antonio, Devon Valley Way Table View, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Impi-Security_543695"
+    },
+    {
+      "name": "Grand Vision cc",
+      "website": "https://www.grandvision.co.za",
+      "address": "Randburg, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Grand-Vision-cc"
+    },
+    {
+      "name": "A - Tack Security",
+      "website": "https://www.tacksecurity.blogspot.com",
+      "address": "Konig Rd Boksburg, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-Tack-Security"
+    },
+    {
+      "name": "Blue. Steel Fabricators",
+      "website": "https://www.bluesteelfab.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Steel-Fabricators"
+    },
+    {
+      "name": "WTZ Secure It",
+      "website": "https://www.wtzsecureit.webs.com",
+      "address": "P O Box 60265 Pierre Van Ryneveld, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/WTZ-Secure-It"
+    },
+    {
+      "name": "VAN SAFES &amp; SOLUTIONS",
+      "website": "https://vansafes.co.za",
+      "address": "85 Gordon Road, Nortcliff Ext 19 Florida, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/VAN-SAFES-SOLUTIONS"
+    },
+    {
+      "name": "Crime Stop Secunda",
+      "website": "https://www.crimesecunda.co.za",
+      "address": "17 Harlem Str Secunda, Mpumalanga",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Crime-Stop-Secunda"
+    },
+    {
+      "name": "Total Security Services",
+      "website": "https://www.totalsecurityservices.co.za",
+      "address": "76 Woodside Avenue Cowies Hill , Kwazulu-nata",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Total-Security-Services"
+    },
+    {
+      "name": "WILPRO SECURITY SOLUTIONS",
+      "website": "https://www.wilprosecurity.co.za",
+      "address": "New Redruth Alberton, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/WILPRO-SECURITY-SOLUTIONS"
+    },
+    {
+      "name": "FR Security Solutions",
+      "website": "https://www.frss.webs.com",
+      "address": "Po Box 21647 Gauteng, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/FR-Security-Solutions_553568"
+    },
+    {
+      "name": "FBS Security Services (Pty) Ltd",
+      "website": "https://www.fbs-security.com",
+      "address": "Bellville, 6 Hugenoot Street Bellville, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/FBS-Security-Services_578197"
+    },
+    {
+      "name": "Automation Africa",
+      "website": "https://www.automationafrica.co.za",
+      "address": "Unit 14, Trade Link Park, Potgieter Street Strand, Cape Town",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Automation-Africa"
+    },
+    {
+      "name": "Dynamic Security Distributors DSD",
+      "website": "https://www.dsdsecurity.co.za",
+      "address": "5 Migmatite St, Swartkops Centurion, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dynamic-Security-Distributors-DSD"
+    },
+    {
+      "name": "Austen Security Services",
+      "website": "https://www.austen-security.co.za",
+      "address": "Pretoria East, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Austen-Security-Services"
+    },
+    {
+      "name": "R.I.O.T. PRODUCTS (RP)",
+      "website": "https://www.riot-products.co.za",
+      "address": "38 Celtis Rd Pinetown, Kwazulu Natal",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/R-I-O-T-PRODUCTS-RP"
+    },
+    {
+      "name": "IPS Security",
+      "website": "https://www.protectionservices.co.za",
+      "address": "Po Box 30530, Mayville Durban, Kwazulu Natal",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/IPS-Security"
+    },
+    {
+      "name": "afivegroup",
+      "website": "https://www.afivegroup.co.za",
+      "address": "1 Eagle Close, During Street, Honeydew Roodepoort, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/afivegroup"
+    },
+    {
+      "name": "Xore Recruitment, Cleaning and Security…",
+      "website": "https://www.xoreservices.co.za",
+      "address": "H/o 2 Leslie Street, Vereeniging Vereeniging, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xore-Recruitment-Cleaning-and-Security-Services"
+    },
+    {
+      "name": "OCP Security",
+      "website": "https://www.ocpsecurity.co.za",
+      "address": "50a Louis Thaibault Drive Edgemead, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/OCP-Security"
+    },
+    {
+      "name": "MultiSafe Security",
+      "website": "https://www.multisafe.co.za",
+      "address": "4 Stockenstroom Prince Albert, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MultiSafe-Security"
+    },
+    {
+      "name": "Elite Security Projects",
+      "website": "https://www.elitesecurityprojects.webs.com",
+      "address": "Cape Town Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Elite-Security-Projects"
+    },
+    {
+      "name": "Trellidor East London",
+      "website": "https://www.trellidor.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-East-London"
+    },
+    {
+      "name": "Trellidor Bethlehem",
+      "website": "http://www.trellidor.co.za",
+      "address": "18 President Brand Street Free State",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Bethlehem"
+    },
+    {
+      "name": "Trellidor Vereeniging",
+      "website": "http://www.trellidor.co.za",
+      "address": "6 Assegai Street, Three Rivers Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Vereeniging"
+    },
+    {
+      "name": "Trellidor Kimberley",
+      "website": "http://www.trellidor.co.za",
+      "address": "14 Belding Street, New Park Northern Cape",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Kimberley"
+    },
+    {
+      "name": "Trellidor Kuruman",
+      "website": "http://www.trellidor.co.za",
+      "address": "96 Main Street Northern Cape",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Kuruman"
+    },
+    {
+      "name": "Trellidor Lenasia",
+      "website": "http://www.trellidor.co.za",
+      "address": "Freeway Plaza, Nirvana Drive, Opposite Trade Route Mall Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Lenasia"
+    },
+    {
+      "name": "Trellidor Krugersdorp",
+      "website": "http://www.trellidor.co.za",
+      "address": "8 Noordheuwel Mews, Cnr. Robert Broom @ Van Oordt St, Noordheuwel Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Krugersdorp"
+    },
+    {
+      "name": "Trellidor Midrand",
+      "website": "http://www.trellidor.co.za",
+      "address": "Unit C4 Kyalami Shopping Centre, Barbaque Downs, Kyalami. Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Midrand"
+    },
+    {
+      "name": "Trellidor Bedfordview",
+      "website": "http://www.trellidor.co.za",
+      "address": "11 Sunrock Close, Sunnyrock, Ext 2, Germiston Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Bedfordview"
+    },
+    {
+      "name": "Trellidor Johannesburg South",
+      "website": "http://www.trellidor.co.za",
+      "address": "74 Michelle Avenue, Randhart, Alberton Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Johannesburg-South"
+    },
+    {
+      "name": "Trellidor Fourways",
+      "website": "http://www.trellidor.co.za",
+      "address": "8 Northriding Commercial Park, Aintree Avenue, Northriding Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Fourways"
+    },
+    {
+      "name": "Trellidor Randburg",
+      "website": "http://www.trellidor.co.za",
+      "address": "Unit 10 Strydom Commercial Park, Tungsten Road, Strydom Park Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Randburg"
+    },
+    {
+      "name": "Trellidor Upington",
+      "website": "http://www.trellidor.co.za",
+      "address": "19 Mark Street Northern Cape",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Upington"
+    },
+    {
+      "name": "Trellidor Kempton Park/Edenvale",
+      "website": "http://www.trellidor.co.za",
+      "address": "48 Dann Road, Aston Manor Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Kempton-Park-Edenvale"
+    },
+    {
+      "name": "Trellidor Benoni/Springs",
+      "website": "http://www.trellidor.co.za",
+      "address": "18 Fifth Avenue, Northmead Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Benoni-Springs"
+    },
+    {
+      "name": "Trellidor Welkom",
+      "website": "http://www.trellidor.co.za",
+      "address": "1 Adastreet, Adamayview Free State",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Welkom"
+    },
+    {
+      "name": "Trellidor Soweto",
+      "website": "http://www.trellidor.co.za",
+      "address": "Freeway Plaza, Nirvana Drive, Opposite Trade Route Mall Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Soweto"
+    },
+    {
+      "name": "Trellidor Hartebeestpoort",
+      "website": "http://www.trellidor.co.za",
+      "address": "Shop 6 Crossroads Centre, Verdi Street, Schoemansville North West",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Hartebeestpoort"
+    },
+    {
+      "name": "Trellidor Roodepoort",
+      "website": "http://www.trellidor.co.za",
+      "address": "8 Noordheuwel Mall, C/o Van Oordt & Robert Broom Street, Noordheuwel Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Roodepoort"
+    },
+    {
+      "name": "Trellidor Bloemfontein",
+      "website": "http://www.trellidor.co.za",
+      "address": "10 Mackenzie Street, Old Industrial Area Free State",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Bloemfontein"
+    },
+    {
+      "name": "Trellidor Pretoria East",
+      "website": "http://www.trellidor.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Pretoria-East"
+    },
+    {
+      "name": "Trellidor Pretoria North",
+      "website": "http://www.trellidor.co.za",
+      "address": "Unit 3 Calliandra Place, Calliandra Street, Montana Park Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Pretoria-North"
+    },
+    {
+      "name": "Trellidor Centurion",
+      "website": "http://www.trellidor.co.za",
+      "address": "Unit 3 The Corner, Cnr Hilda & Theuns St, Hennopspark Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Centurion"
+    },
+    {
+      "name": "Trellidor Akasia",
+      "website": "http://www.trellidor.co.za",
+      "address": "Unit 3 Calliandra Place, Calliandra Street, Montana Park Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Akasia"
+    },
+    {
+      "name": "Trellidor PTA Central &amp; West",
+      "website": "http://www.trellidor.co.za",
+      "address": "Shop 18 Eastwood Village , Cnr Eastwood And Pretoruis Street, Arcadia Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-PTA-Central-West"
+    },
+    {
+      "name": "Trellidor Pietermaritzburg",
+      "website": "http://www.trellidor.co.za",
+      "address": "174 Boom Street Kwazulu Natal",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Pietermaritzburg"
+    },
+    {
+      "name": "Trellidor Empangeni",
+      "website": "http://www.trellidor.co.za",
+      "address": "Shop 9b Bullion Boulevard Kwazulu Natal",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Empangeni"
+    },
+    {
+      "name": "Trellidor Durban Central",
+      "website": "http://www.trellidor.co.za",
+      "address": "58 Botanic Gardens Road Berea Kwazulu Natal",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Durban-Central"
+    },
+    {
+      "name": "Trellidor Durban North",
+      "website": "http://www.trellidor.co.za",
+      "address": "Unit 4 20 Morelands Drive, Redhill Industrial Park Kwazulu Natal",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Durban-North"
+    },
+    {
+      "name": "Trellidor Vryheid",
+      "website": "http://www.trellidor.co.za",
+      "address": "278 Heeren Street Kwazulu Natal",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Vryheid"
+    },
+    {
+      "name": "Trellidor Margate",
+      "website": "http://www.trellidor.co.za",
+      "address": "Lot 1012 Marine Drive, Shelley Drive Kwazulu Natal",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Margate"
+    },
+    {
+      "name": "Trellidor Ladysmith",
+      "website": "http://www.trellidor.co.za",
+      "address": "19a Murchison Street Kwazulu Natal",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Ladysmith"
+    },
+    {
+      "name": "Trellidor Newcastle",
+      "website": "http://www.trellidor.co.za",
+      "address": "22 Kirkland Street Kwazulu Natal",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Newcastle"
+    },
+    {
+      "name": "Trellidor Ballito",
+      "website": "http://www.trellidor.co.za",
+      "address": "Shop 1 Home & Décor Centre, Douglas Crowe Drive Kwazulu Natal",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Ballito"
+    },
+    {
+      "name": "Trellidor Durban West",
+      "website": "http://www.trellidor.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Durban-West"
+    },
+    {
+      "name": "Trellidor Highway",
+      "website": "http://www.trellidor.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Highway"
+    },
+    {
+      "name": "Trellidor Nelspruit",
+      "website": "http://www.trellidor.co.za",
+      "address": "Unit 4 Edwaleni Place, Rapid Falls Street, Waterfall Industrial Park Mpumalanga",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Nelspruit"
+    },
+    {
+      "name": "Trellidor Middleburg",
+      "website": "http://www.trellidor.co.za",
+      "address": "16a Sadc Street Mpumalanga",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Middleburg"
+    },
+    {
+      "name": "Trellidot Louis Trichardt",
+      "website": "http://www.trellidor.co.za",
+      "address": "53 Meyer Street Limpopo",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidot-Louis-Trichardt"
+    },
+    {
+      "name": "Trellidor Tzaneen",
+      "website": "http://www.trellidor.co.za",
+      "address": "34 Skirving Street, 1st Floor Veritas Building Limpopo",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Tzaneen"
+    },
+    {
+      "name": "Trellidor Lydenburg",
+      "website": "http://www.trellidor.co.za",
+      "address": "48 Voortrekker Street, Shop 4 Mpumalanga",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Lydenburg"
+    },
+    {
+      "name": "Trellidor Thabazimbi",
+      "website": "http://www.trellidor.co.za",
+      "address": "67 Van Der Bijl Limpopo",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Thabazimbi"
+    },
+    {
+      "name": "Trellidor Ellisras",
+      "website": "http://www.trellidor.co.za",
+      "address": "3 Louis Botha Avenue Limpopo",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Ellisras"
+    },
+    {
+      "name": "Trellidor Rustenburg",
+      "website": "http://www.trellidor.co.za",
+      "address": "60 Boom Street North West",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Rustenburg"
+    },
+    {
+      "name": "Trellidor Mafikeng",
+      "website": "http://www.trellidor.co.za",
+      "address": "21 Molopo Road North West",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Mafikeng"
+    },
+    {
+      "name": "Trellidor White River",
+      "website": "http://www.trellidor.co.za",
+      "address": "14a Peter Graham Street Mpumalanga",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-White-River"
+    },
+    {
+      "name": "Trellidor Nylstroom",
+      "website": "http://www.trellidor.co.za",
+      "address": "Shop No 12 Maranatha Building, Nelson Mandela Drive Limpopo",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Nylstroom"
+    },
+    {
+      "name": "Trellidor Transkei",
+      "website": "http://www.trellidor.co.za",
+      "address": "70 Owens Street Eastern Cape",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Transkei"
+    },
+    {
+      "name": "Trellidor King Williams Town",
+      "website": "http://www.trellidor.co.za",
+      "address": "35 Leopold Street Eastern Cape",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-King-Williams-Town"
+    },
+    {
+      "name": "Trellidor Queenstown",
+      "website": "http://www.trellidor.co.za",
+      "address": "2b Catcart Road Eastern Cape",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Queenstown"
+    },
+    {
+      "name": "Trellidor CPT South",
+      "website": "http://www.trellidor.co.za",
+      "address": "Unit E14 Prime Park, Mocke Road, Diep River Cape Town",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-CPT-South"
+    },
+    {
+      "name": "Trellidor Kysna",
+      "website": "http://www.trellidor.co.za",
+      "address": "66 Main Street, Knysna Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Kysna"
+    },
+    {
+      "name": "Trellidor Hermanus",
+      "website": "http://www.trellidor.co.za",
+      "address": "Unit 5 Mink Business Park, Corner Mimose & Steenbras, Hermanus Ind Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Hermanus"
+    },
+    {
+      "name": "Trellidor West Coast",
+      "website": "http://www.trellidor.co.za",
+      "address": "7 Veldrif Road Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-West-Coast"
+    },
+    {
+      "name": "Trellidor Somerset West",
+      "website": "http://www.trellidor.co.za",
+      "address": "26 Grant Centre, Off Gerber Boulevard Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Somerset-West"
+    },
+    {
+      "name": "Trellidor Port Elizabeth North",
+      "website": "http://www.trellidor.co.za",
+      "address": "14-20 Pickering Street, Pickering Park, Newton Park Eastern Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Port-Elizabeth-North"
+    },
+    {
+      "name": "Trellidor Milnerton",
+      "website": "http://www.trellidor.co.za",
+      "address": "1 Woodbridge Business Park, Koeberg Road Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Milnerton"
+    },
+    {
+      "name": "Trellidor Durbanville",
+      "website": "http://www.trellidor.co.za",
+      "address": "5 Marais Street Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Durbanville"
+    },
+    {
+      "name": "Trellidor Bellville",
+      "website": "http://www.trellidor.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Bellville"
+    },
+    {
+      "name": "Trellidor Lansdowne",
+      "website": "http://www.trellidor.co.za",
+      "address": "1a Dermar Place, 7 Wetwyn Road Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Lansdowne"
+    },
+    {
+      "name": "Trellidor George",
+      "website": "http://www.trellidor.co.za",
+      "address": "55 Albert Street, George Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-George"
+    },
+    {
+      "name": "Trellidor Atlantic City Bowl",
+      "website": "http://www.trellidor.co.za",
+      "address": "4 Loop Street, Cape Town Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Atlantic-City-Bowl"
+    },
+    {
+      "name": "Trellidor False Bay",
+      "website": "http://www.trellidor.co.za",
+      "address": "32 Main Road, Fish Hoek Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-False-Bay"
+    },
+    {
+      "name": "Trellidor Port Alfred",
+      "website": "http://www.trellidor.co.za",
+      "address": "88 Road, Port Alfred Kwazulu Natal",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Port-Alfred"
+    },
+    {
+      "name": "Trellidor Port Elizabeth South",
+      "website": "http://www.trellidor.co.za",
+      "address": "Shop 4, 17th Quarter, William Moffet Express, Walmer Eastern Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Port-Elizabeth-South"
+    },
+    {
+      "name": "Rhino Door Security Gates &amp; Burglar Bars",
+      "website": "https://www.rhinodoor.co.za",
+      "address": "The Crest, Durbanville Cape Town, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rhino-Door-Security-Gates-Burglar-Bars"
+    },
+    {
+      "name": "Webber Security Consultants",
+      "website": "https://www.webbersecurity.co.za",
+      "address": "Unit 2a Willow Crest Office Park, Van Der Kloof Str Ruimsig, Roodepoort, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Webber-Security-Consultants"
+    },
+    {
+      "name": "Intricate Steel",
+      "website": "https://www.intricatesteel.co.za",
+      "address": "135 Richmond Street Vrijzee, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Intricate-Steel"
+    },
+    {
+      "name": "Inso Secure",
+      "website": "https://www.insosecure.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Inso-Secure"
+    },
+    {
+      "name": "LUTHO Security Solutions",
+      "website": "https://www.lutho-tech.co.za",
+      "address": "Loubser Street, Brackenfell Western Cape, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/LUTHO-Security-Solutions"
+    },
+    {
+      "name": "EDP Communications",
+      "website": "https://www.avtech.co.za",
+      "address": "Plot 150, Tiegerpoort Pretoria, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/EDP-Communications"
+    },
+    {
+      "name": "Panic Buddy",
+      "website": "https://www.autodial.co.za",
+      "address": "86 Aspen Cresent, Zwartkop X 4 Centurion, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Panic-Buddy"
+    },
+    {
+      "name": "Bodyguard Services",
+      "website": "https://www.gettinghome.co.za",
+      "address": "Po Box 12811, Mill Street Southern Africa, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bodyguard-Services"
+    },
+    {
+      "name": "Luger Security",
+      "website": "https://www.lugersecurity.co.za",
+      "address": "Braam Fisher Drive, Old Mutal Building, K2 Evander, Mpumalanga",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Luger-Security"
+    },
+    {
+      "name": "Vixion Safety &amp; Security Products",
+      "website": "https://www.vixion.co.za",
+      "address": "Elm Street Edenvale, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vixion-Safety-Security-Products"
+    },
+    {
+      "name": "Zero13 Technologies",
+      "website": "https://www.zero13.co.za",
+      "address": "4222 Phase 4, Hlalanikahle, Emalahleni Witbank, Mpumalanga",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zero13-Technologies"
+    },
+    {
+      "name": "JCB STEELWORKS",
+      "website": "https://www.jcbsteelworks.co.za",
+      "address": "Moreleta Street, Cornerstone College Silverton, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/JCB-STEELWORKS"
+    },
+    {
+      "name": "PHEZILE SECURITY SERVICES",
+      "website": "https://[email&#160;protected]",
+      "address": "Janelea Street Cyrildene 2198 Johannesburg, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/PHEZILE-SECURITY-SERVICES_508908"
+    },
+    {
+      "name": "Camspec",
+      "website": "https://www.cctvsapro.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Camspec"
+    },
+    {
+      "name": "SEE DRIVE",
+      "website": "https://www.seedrive.co.za",
+      "address": "Port Elizabeth, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SEE-DRIVE"
+    },
+    {
+      "name": "Intelligent Installation Systems",
+      "website": "https://www.iisys.co.za",
+      "address": "6 Unitas Cross Randburg, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Intelligent-Installation-Systems"
+    },
+    {
+      "name": "I-Secure",
+      "website": "https://www.isecureit.co.za",
+      "address": "Unit 234, Santa Augusta, Olivia Rd Everleigh, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/I-Secure_513465"
+    },
+    {
+      "name": "SonicWALL Solutions",
+      "website": "https://www.SonicWALLSolutions.com",
+      "address": "PO Box 546 Somerset West Mall Somerset West, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/SonicWALL-Solutions"
+    },
+    {
+      "name": "Homeguru",
+      "website": "https://www.homeguru.co.za",
+      "address": "Vereeniging, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Homeguru"
+    },
+    {
+      "name": "KIMOS CUSTOM AUDIO",
+      "website": "https://www.kimos.co.za",
+      "address": "46 VOORTREKKER STR Vereeniging, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/KIMOS-CUSTOM-AUDIO"
+    },
+    {
+      "name": "Pro Active Security &amp; Steelworks",
+      "website": "https://www.proactivesecurity.synthasite.com",
+      "address": "Republic Rd Randburg Republic Road Reanburg, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pro-Active-Security-Steelworks_552548"
+    },
+    {
+      "name": "CENSOR SECURITY AND POLYGRAPH SERVICES",
+      "website": "https://censor.look4.co.za",
+      "address": "Montello Square 4 Frans Street Fransville Witbank, Mpumalanga",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CENSOR-SECURITY-AND-POLYGRAPH-SERVICES"
+    },
+    {
+      "name": "Quik Securities (Pty)Ltd",
+      "website": "https://www.quiksecurities.com",
+      "address": "First Floor, Silverstone Way, Douglass Crowe Ave Ballito , KwaZulu-Nata",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Quik-Securities"
+    },
+    {
+      "name": "A1 Protect",
+      "website": "https://www.a1protect.co.za",
+      "address": "48 Berg Street Rosettenville, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/A1-Protect"
+    },
+    {
+      "name": "TNH Fencing",
+      "website": "https://www.tnhfencing.com",
+      "address": "Postnet Suite 24 Private Bag X 6625 Thabazimbi, Limpopo",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/TNH-Fencing"
+    },
+    {
+      "name": "X - Services &amp; Maintenance",
+      "website": "https://www.banditsecurity.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/X-Services-Maintenance"
+    },
+    {
+      "name": "Premo Security Products",
+      "website": "https://www.SecurityProducts.co.za",
+      "address": "Broadacres, Fourways Sandton, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Premo-Security-Products"
+    },
+    {
+      "name": "Development Research Africa",
+      "website": "https://www.dra.co.za",
+      "address": "2nd Floor 356 Rivonia Boulevard Rivonia Johannesburg, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Development-Research-Africa"
+    },
+    {
+      "name": "CHEETAH SECURITY",
+      "website": "https://www.cityinfo.co.za security-cheetah",
+      "address": "337 MAIN STREET JEPPESTOWN KARL STR Johannesburg, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://www.cityinfo.co.za security-cheetah",
+      "bizbayUrl": "https://bizbay.co.za/Company/CHEETAH-SECURITY"
+    },
+    {
+      "name": "Natural Food Foundation (Pty) Ltd",
+      "website": "https://www.natfood.ning.com",
+      "address": "Marina da Gama Cape Town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Natural-Food-Foundation"
+    },
+    {
+      "name": "Can-Comp Industrial Technologies",
+      "website": "https://www.can-compit.co.za",
+      "address": "5 Nettleton Street Dan Pienaarville Krugersdorp, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Can-Comp-Industrial-Technologies"
+    },
+    {
+      "name": "Atmo Technologies (Pty) Ltd",
+      "website": "https://www.atmotechnologies.com",
+      "address": "1st Floor 15 Bree Street Cape Town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Atmo-Technologies"
+    },
+    {
+      "name": "Asset Maintenance and Construction",
+      "website": "https://www.am-c.co.za",
+      "address": "Willowbrook Office Park B14 Van Hoof street Willowbrook Roodepoort, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Asset-Maintenance-and-Construction"
+    },
+    {
+      "name": "eTrust",
+      "website": "https://www.etrust.co.za",
+      "address": "4 Belloy Avenue Cape Town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/eTrust_543551"
+    },
+    {
+      "name": "CWA Comstronical Electrical",
+      "website": "https://www.cwacomstronical.webs.com",
+      "address": "90 Van Riebeek Road Modimolle, Limpopo",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CWA-Comstronical-Electrical"
+    },
+    {
+      "name": "CelTrac Vehicle Tracking &amp; Fleet Manage…",
+      "website": "https://www.celtrac.co.za",
+      "address": "Head Office, 563 Old Pretoria Road Midrand, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CelTrac-Vehicle-Tracking-Fleet-Management"
+    },
+    {
+      "name": "The Transporter",
+      "website": "https://[email&#160;protected]",
+      "address": "randburg 190 jan smuts Johannesburg, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Transporter_544999"
+    },
+    {
+      "name": "Meluluntu Security &amp; Cleaning Services",
+      "website": "https://www.meluluntu.com",
+      "address": "23 Simon Street West End Port Elizabeth, Eastern Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Meluluntu-Security-Cleaning-Services"
+    },
+    {
+      "name": "north west polygraph services",
+      "website": "https://www.polygraphnw.co.za",
+      "address": "24 A Heystek St rustenburg, North West",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/north-west-polygraph-services_545849"
+    },
+    {
+      "name": "Secure Chauffeurs",
+      "website": "https://www.securechauffeurs.co.za",
+      "address": "21 Kestrel Crescent, Yellowwood Park, Durban Durban, KwaZulu-Nata",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Secure-Chauffeurs"
+    },
+    {
+      "name": "Sky Vision Corporation",
+      "website": "https://www.skyvisioncorp.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sky-Vision"
+    },
+    {
+      "name": "Safety and Security Management services",
+      "website": "https://www.safetymanagementservices.co.za",
+      "address": "3 D Hildebrandt Str, Helderkruin, Roodepoort Roodepoort, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Safety-and-Security-Management-services"
+    },
+    {
+      "name": "Wired-Up Fencing",
+      "website": "https://www.wiredupfencing.co.za",
+      "address": "36 Alexander Rd Westmead Pinetown, KwaZulu Natal",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wired-Up-Fencing"
+    },
+    {
+      "name": "TESC",
+      "website": "https://www.dahua-dvr.co.za",
+      "address": "1 Watt Rd, Hillary, Durban Watt Rd Hillary bellair, KwaZulu-Nata",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/TESC"
+    },
+    {
+      "name": "Xhanti Secirity and Cleaning Services",
+      "website": "https://www.xhanti.co.za",
+      "address": "P.O Box 51840 Waterfront Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xhanti-Secirity-and-Cleaning-Services"
+    },
+    {
+      "name": "GSS Security",
+      "website": "https://www.gsssecurity.co.za",
+      "address": "VIVEKA HOUSE Parklands Main Table View, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/GSS-Security_547515"
+    },
+    {
+      "name": "Dira Di Nhloile Security &amp; Projects",
+      "website": "https://www.diraprojects.co.za",
+      "address": "1834 Sobukwe Street Protea North Johannesburg, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dira-Di-Nhloile-Security-Projects"
+    },
+    {
+      "name": "Surrtech - Computers &amp; Surveillance",
+      "website": "https://www.surrtech.co.za",
+      "address": "170 Partridge street Wierdaglenn Rooihuiskraal, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Surrtech-Computers-Surveillance"
+    },
+    {
+      "name": "2010 World Cup Soccer Camp",
+      "website": "https://www.2010campsite.co.za",
+      "address": "34 Godlonton Avenue Miramar Port Elizabeth, Eastern Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/2010-World-Cup-Soccer-Camp"
+    },
+    {
+      "name": "Mega fire security",
+      "website": "https://www.megafiresecurity.co.za",
+      "address": "Portion 17of MT 254, Punda Maria road Muledane Thohoyandou Thohoyandou, Limpopo",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mega-fire-security"
+    },
+    {
+      "name": "Ukhetsha Security Services",
+      "website": "https://www.ukhetshasecurity.co.za",
+      "address": "6 Fairview Crescent, Milnerton Ridge Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ukhetsha-Security-Services"
+    },
+    {
+      "name": "Trac on time (Pty) Ltd",
+      "website": "https://www.tracontime.com",
+      "address": "P.O.Box 65 Newlands 7725 Cape Town, Cape Town",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trac-on-time_550738"
+    },
+    {
+      "name": "LAZER Security Solutions",
+      "website": "https://lazersecurity.co.za",
+      "address": "Anreith Corner Hans Strijdom Ave Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/LAZER-Security-Solutions"
+    },
+    {
+      "name": "Securi-Sym cc",
+      "website": "https://www.securi-sym.co.za",
+      "address": "PO Box 16313 Dowerglen Edenvale, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Securi-Sym-cc"
+    },
+    {
+      "name": "Cell Rescue",
+      "website": "https://www.cellrescue.net",
+      "address": "208 Seaview drive Zimbali, KwaZulu-Nata",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cell-Rescue"
+    },
+    {
+      "name": "FBS Security Services Pty Ltd",
+      "website": "https://www.fbs-security.com",
+      "address": "6 Hugenoot Street Bellville Bellville, Cape Town",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/FBS-Security-Services"
+    },
+    {
+      "name": "Pro Active Security &amp; Steelworks",
+      "website": "https://www.proactivesecurity.synthasite.com",
+      "address": "PO BOX 3850 Cresta 2118 Randburg, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pro-Active-Security-Steelworks_552548"
+    },
+    {
+      "name": "S.THABETHE SECURITY AND CLEANING",
+      "website": "https://www.sthabethe.co.za",
+      "address": "77 Harrison Street Bree street Johannesburg , Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/S-THABETHE-SECURITY-AND-CLEANING_552685"
+    },
+    {
+      "name": "FDP Security cc",
+      "website": "https://www.fdpsecurity.co.za",
+      "address": "1241 Barret Street Queenswood Pretoria, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/FDP-Security-cc"
+    },
+    {
+      "name": "Mr Spike Security Services",
+      "website": "https://www.mrspike.com",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/MR-SPIKE-SECURITY-SERVICES_793942"
+    },
+    {
+      "name": "Greenville Trading 37 cc",
+      "website": "https://www.greenville37.co.za",
+      "address": "MONTANA OFFICE PARK 1 CALLIANDRA STREET MONTANA Pretoria, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Greenville-Trading-37-cc"
+    },
+    {
+      "name": "Teltrasa-Nibgm Trading",
+      "website": "https://www.teltrasa-nibgm.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Teltrasa-Nibgm-Trading"
+    },
+    {
+      "name": "OCP Security",
+      "website": "https://www.ocpsecurity.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/OCP-Security"
+    },
+    {
+      "name": "Wilfat Security",
+      "website": "https://www.wilfatsecurity.co.za",
+      "address": "19 Troupand avenue Fourways, Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wilfat-Security"
+    },
+    {
+      "name": "TCA",
+      "website": "https://www.collectiveadvisory.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/TCA"
+    },
+    {
+      "name": "JC Security",
+      "website": "https://www.jcsecurity.co.za",
+      "address": "231 Ontdekkers Road Horizon Roodepoort Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/JC-Security"
+    },
+    {
+      "name": "Rabbit Microsystems",
+      "website": "https://www.rabbitmicrosystems.com",
+      "address": "40 Assagay Assagay, KwaZulu Natal",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rabbit-Microsystems_858762"
+    },
+    {
+      "name": "Nightshift Events",
+      "website": "https://www.nightshiftevents.co.za",
+      "address": "Shop 18, Big Tree Mall, Moloto Rd R573 Moloto, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nightshift-Events"
+    },
+    {
+      "name": "Vcam Security JHB",
+      "website": "https://www.vcam.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vcam-Security-JHB"
+    },
+    {
+      "name": "Maxsec Security Systems",
+      "website": "https://www.maxsec.co.za",
+      "address": "38 Tuscany Manor Sjampanje Avenue Strubens Valley, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maxsec-Security-Systems"
+    },
+    {
+      "name": "Safecom Defense Security Cc",
+      "website": "https://www.safecomsecurity.co.za",
+      "address": "8 Avignon Somerset West Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Safecom-Defense-Security-Cc"
+    },
+    {
+      "name": "Austen Security",
+      "website": "https://www.austen-security.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Austen-Security_579900"
+    },
+    {
+      "name": "CVN Security Solutions",
+      "website": "https://www.cvnsecuritysolutions.com",
+      "address": "41 Wandel Ave Hamberg Roodepoort, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CVN-Security-Solutions"
+    },
+    {
+      "name": "Alarms",
+      "website": "https://www.tsecurity.co.za",
+      "address": "161 alexander str Pretoria, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alarms_580480"
+    },
+    {
+      "name": "Madolo Security &amp; Cleaning Services",
+      "website": "https://www.madolosecurity.co.za",
+      "address": "Traco Building NO: 52 Sprigg Street Office 209 Mthatha, Eastern Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Madolo-Security-Cleaning-Services"
+    },
+    {
+      "name": "Intellepark &amp; Security (PTY) Ltd",
+      "website": "https://www.intellepark.co.za",
+      "address": "1 Belgrave Road, Bryanston Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Intellepark-Security"
+    },
+    {
+      "name": "Intrepid Security Consulting cc",
+      "website": "https://www.intrepid-consulting.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Intrepid-Security-Consulting-cc_581251"
+    },
+    {
+      "name": "Computer IT Support",
+      "website": "https://www.ComputerITSupport.co.za",
+      "address": "Orange St Gardens Cape Town",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Computer-IT-Support"
+    },
+    {
+      "name": "Tack Security Systems",
+      "website": "https://www.tacksecurity.blogspot.com",
+      "address": "Great North Road, Benoni Benoni, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tack-Security-Systems"
+    },
+    {
+      "name": "SMS-A-CURE",
+      "website": "https://www.smsacure.co.za",
+      "address": "25 Kruger road Kiblerpark, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SMS-A-CURE"
+    },
+    {
+      "name": "QFix",
+      "website": "https://www.QFix.co.za",
+      "address": "Emerald Parkway Johannesburg Johannesburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/QFix"
+    },
+    {
+      "name": "Kaufela Solutions",
+      "website": "https://www.kaufela.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kaufela-Solutions"
+    },
+    {
+      "name": "Security Gates",
+      "website": "https://www.security-gates.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Security-Gates"
+    },
+    {
+      "name": "Secutronix and AHM Security sys cc",
+      "website": "https://www.secutronixaccess.co.za",
+      "address": "28 Midrand mews 12 Impala Ave clayville east, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Secutronix-and-AHM-Security-sys-cc"
+    },
+    {
+      "name": "MR SPIKE SECURITY SERVICES",
+      "website": "https://www.mrspike.com",
+      "address": "11 KOMMANDEUR RD WELGEMOED 11 KOMMANDEUR RD WELGEMOED CAPE TOWN, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/MR-SPIKE-SECURITY-SERVICES_793942"
+    },
+    {
+      "name": "Automatic security",
+      "website": "https://www.repairman.yolasite.com",
+      "address": "po box 146 ferndale randburg Johannesburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Automatic-security"
+    },
+    {
+      "name": "seedrive",
+      "website": "https://www.seedrive.co.za",
+      "address": "77 3RD AVENUE NEWTON PARK Port Elizabeth, Eastern Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/seedrive"
+    },
+    {
+      "name": "Swamara Hauliers",
+      "website": "https://www.swamara.co.za",
+      "address": "52A St Michael street New Redruth Alberton, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Swamara-Hauliers"
+    },
+    {
+      "name": "HALT Defensive Solutions",
+      "website": "https://www.haltds.co.za",
+      "address": "10 Trig Road Glen Marais Kempton Park, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/HALT-Defensive-Solutions"
+    },
+    {
+      "name": "Fortress Security",
+      "website": "https://www.fortresssecurity.co.za",
+      "address": "Bristow Street Constantia Kloof Roodepoort Johannesburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fortress-Security_794948"
+    },
+    {
+      "name": "Sinqobile Equestrian Security Services",
+      "website": "https://sinqobileequestriansecurityservices.yolasite.com/",
+      "address": "100 Market street, Boksburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sinqobile-Equestrian-Security-Services_795457"
+    },
+    {
+      "name": "SAISG",
+      "website": "https://www.saisg.co.za",
+      "address": "900 Fiver Street Wilgeheuwel Roodepoort, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SAISG"
+    },
+    {
+      "name": "Rabbit Microsystems",
+      "website": "https://www.rabbitmicrosystems.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rabbit-Microsystems_858762"
+    },
+    {
+      "name": "RS Online",
+      "website": "https://www.lightbars.co.za",
+      "address": "6 Kelnerstreet Westdene Bloemfontein, Free State",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/RS-Online"
+    },
+    {
+      "name": "Protech Polygraph",
+      "website": "https://www.protechpolygraph.co.za",
+      "address": "Kloof, KwaZulu Natal",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Protech-Polygraph"
+    },
+    {
+      "name": "Recon",
+      "website": "https://www.recon.limewebs.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Recon"
+    },
+    {
+      "name": "Falcon Electric Fence",
+      "website": "https://www.falconfence.co.za",
+      "address": "POBox 478 Pyramid Pretoria, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Falcon-Electric-Fence"
+    },
+    {
+      "name": "Mykatrade 355 cc t/a Hatchala Chadasha …",
+      "website": "https://www.hcbt.co.za",
+      "address": "7 Troost Street Vereeniging, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mykatrade-355-cc-Hatchala-Chadasha-IT-Services"
+    },
+    {
+      "name": "One-Click.co.za Business Directory",
+      "website": "https://one-click.co.za",
+      "address": "1026 Beryl Ave Die Hoewes Centurion, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/One-Click-co-za-Business-Directory"
+    },
+    {
+      "name": "FIRE DETECTION SYSTEMS | VIP TECHNOLOGY…",
+      "website": "https://www.viptechnology.co.za/fire_detection_systems.html",
+      "address": "MONTAGUE GARDENS, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/FIRE-DETECTION-SYSTEMS-VIP-TECHNOLOGY-CAPE-TOWN"
+    },
+    {
+      "name": "SECURITY SOLUTIONS (SECURITY SHOP)",
+      "website": "https://www.securitysolutions247.co.za",
+      "address": "250 COWEN NTULI STREET SHOP 12 EASTDENE CENTRE Middelburg, Mpumalanga",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SECURITY-SOLUTIONS-SECURITY-SHOP"
+    },
+    {
+      "name": "Gadgets123",
+      "website": "https://www.gadgets123.co.za",
+      "address": "Steynsrus, Free State",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gadgets123"
+    },
+    {
+      "name": "Mini Maxi Electrical cc",
+      "website": "https://[email&#160;protected]",
+      "address": "30 Piet Joubert Avenue Krugersdorp, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mini-Maxi-Electrical-cc"
+    },
+    {
+      "name": "ChaseWaterford (Pty) Ltd",
+      "website": "https://www.chasewaterfordgroup.com",
+      "address": "2 Bell House, Bell Crescent, Westlake Business Park Cape Town, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ChaseWaterford_865425"
+    },
+    {
+      "name": "Safety and Security Storage (Pty) Ltd",
+      "website": "https://safetysecuritystorage.com/",
+      "address": "1C The Avenues Parklands, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Safety-and-Security-Storage"
+    },
+    {
+      "name": "Telstar Systems",
+      "website": "https://www.telstarsystems.co.za",
+      "address": "225 Roestoff Street Silverton X8 Pretoria, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Telstar-Systems"
+    },
+    {
+      "name": "Trellidor Jeffreys Bay",
+      "website": "https://www.trellidor.co.za",
+      "address": "21 Protea Street Jeffreys Bay, Eastern Cape",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trellidor-Jeffreys-Bay"
+    },
+    {
+      "name": "Silknet",
+      "website": "https://www.igain.co.za",
+      "address": "Parklands Blouberg Cape Town, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Silknet"
+    },
+    {
+      "name": "Electric Fence Security",
+      "website": "https://www.electric-fence-security.co.za",
+      "address": "Elizabeth Fry St Vorna Valley, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Electric-Fence-Security"
+    },
+    {
+      "name": "security solutions",
+      "website": "https://www.efdsa.co.za",
+      "address": "mondeor, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/security-solutions_884884"
+    },
+    {
+      "name": "CLIFF&#39;S ELECTRONICS AND SECURITY SYSTEMS",
+      "website": "https://www.cliffssecurity.co.za",
+      "address": "130 FOX STREET INNER CITY JOHANNESBURG CBD, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CLIFFs-ELECTRONICS-AND-SECURITY-SYSTEMS"
+    },
+    {
+      "name": "Miracle Adverts",
+      "website": "https://miracleads.co.za",
+      "address": "3 Cade Southcrest/alberton, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Miracle-Adverts_885866"
+    },
+    {
+      "name": "E-Style",
+      "website": "https://www.e-gates.co.za",
+      "address": "Kya Sands, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/E-Style"
+    },
+    {
+      "name": "Gate Automations-Gate Motors-Automation…",
+      "website": "https://www.lmplumbbuild.co.za",
+      "address": "185 Shannon Road Bredell Kempton Park, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gate-Automations-Gate-Motors-Automations-Alarm-and-Security-Alarm-Systems"
+    },
+    {
+      "name": "Videofied - Wireless, Video Alarm",
+      "website": "https://www.videoalarm.co.za",
+      "address": "256 Danie Theron street Pretoria North, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Videofied-Wireless-Video-Alarm"
+    },
+    {
+      "name": "Couchpotatoe",
+      "website": "https://www.couchpotatoe.co.za",
+      "address": "Centurion, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Couchpotatoe"
+    },
+    {
+      "name": "Home Security Made Easy",
+      "website": "https://www.home-security-made-easy.com",
+      "address": "88 Kingsway, Corner Jones Benoni East, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Home-Security-Made-Easy"
+    },
+    {
+      "name": "FORT LOCKS",
+      "website": "https://www.fortlocks.webs.com",
+      "address": "40 school avenue Germiston, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/FORT-LOCKS"
+    },
+    {
+      "name": "Nightwatcher",
+      "website": "https://www.nightwatcher.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nightwatcher"
+    },
+    {
+      "name": "Designer Steel",
+      "website": "https://www.designersteel.co.za",
+      "address": "78 10th Avenue, Retreat Cape Town, Western Cape",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Designer-Steel"
+    },
+    {
+      "name": "JIMTECH SECURITY AND TRAINING CC",
+      "website": "https://www.jimtech.co.za",
+      "address": "No 8 Luttig Street Office 202 2nd Floor City Centre Offices Roodepoort, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/JIMTECH-SECURITY-AND-TRAINING-CC"
+    },
+    {
+      "name": "Xalindri Electric Fencing",
+      "website": "https://www.xalindrfencing.co.za",
+      "address": "14D Lindleystreet Bethlehem, Free State",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xalindri-Electric-Fencing"
+    },
+    {
+      "name": "IHMS Renovations &amp; Handyman",
+      "website": "https://www.ihms.co.za",
+      "address": "20 Osacr Rd Valhalla Pretoria, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/IHMS-Renovations-Handyman"
+    },
+    {
+      "name": "Mjayeli Security Services",
+      "website": "https://www.mjayelisecurityservices.co.za",
+      "address": "No. 82 6th Avenue Cnr Rabie Street Fontainebleau Randburg, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mjayeli-Security-Services"
+    },
+    {
+      "name": "Barrier Angelucci",
+      "website": "https://www.barrierangelucci.co.za",
+      "address": "130 Terrace Road Sebenza Edenvale",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Barrier-Angelucci_399338"
+    },
+    {
+      "name": "Atlantic Beach Accommodation",
+      "website": "https://www.atlanticbeachaccommodation.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Atlantic-Beach-Accommodation"
+    },
+    {
+      "name": "Hba Online",
+      "website": "https://www.hbaonline.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hba-Online"
+    },
+    {
+      "name": "Allways Guest House",
+      "website": "https://www.allwaysguesthouse.co.za",
+      "address": "33 Gainsborough Street De La Haye Bellville",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Allways-Guest-House"
+    },
+    {
+      "name": "Netsoft",
+      "website": "https://www.netsoft.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Netsoft"
+    },
+    {
+      "name": "Cacell",
+      "website": "https://www.cacell.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cacell"
+    },
+    {
+      "name": "Hudson And Cray",
+      "website": "https://www.hudsoncray.co.za",
+      "address": "303 main street garankuwa, north west province",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hudson-And-Cray_400871"
+    },
+    {
+      "name": "Samgeo Security",
+      "website": "https://www.c9web.co.za/samgeo/index.htm",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Samgeo-Security"
+    },
+    {
+      "name": "Chasewaterford Personnel",
+      "website": "https://www.chasewaterfordpersonnel.com",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chasewaterford-Personnel"
+    },
+    {
+      "name": "Saunderson Security",
+      "website": "https://www.saundersonsecurity.co.za",
+      "address": "unit 5 schenk park 3 schenk road pinetown phone",
+      "page": 16,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Saunderson-Security_402222"
+    },
+    {
+      "name": "Tscm Services",
+      "website": "https://www.tscm.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tscm-Services"
+    },
+    {
+      "name": "Key Sentry",
+      "website": "https://www.keysentry.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Key-Sentry"
+    },
+    {
+      "name": "Tscm",
+      "website": "https://www.tscm.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tscm"
+    },
+    {
+      "name": "Paramount Group",
+      "website": "https://www.paramountgroup.biz",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Paramount-Group"
+    },
+    {
+      "name": "Company Clothing",
+      "website": "https://www.companyclothing.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Company-Clothing"
+    },
+    {
+      "name": "Pastel Netpay",
+      "website": "https://www.pastelmypaycheck.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pastel-Netpay"
+    },
+    {
+      "name": "Germiston Patrols",
+      "website": "https://www.germistonpatrols.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Germiston-Patrols"
+    },
+    {
+      "name": "Swarm Reaction",
+      "website": "https://swarmreaction.co.za",
+      "address": "unit 3 45 piet retief road queensmead industrial park queensburgh",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Swarm-Reaction"
+    },
+    {
+      "name": "Joint Force",
+      "website": "https://www.jointforce.co.za",
+      "address": "no 5 bell street mayekiso building",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Joint-Force"
+    },
+    {
+      "name": "Genser Marketing",
+      "website": "https://www.gensermarketing.co.za",
+      "address": "u65 15-25 mallinson road overport durban",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Genser-Marketing"
+    },
+    {
+      "name": "Corporate Confidential Solutions",
+      "website": "https://www.c-c-s.co.za",
+      "address": "279 kent avenue first floor process house randburg",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Corporate-Confidential-Solutions"
+    },
+    {
+      "name": "Indico Risk Services",
+      "website": "https://www.indicorisk.co.za",
+      "address": "unit 21 fairlands centre 44 johannes street fairlands johannesburg, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Indico-Risk-Services"
+    },
+    {
+      "name": "Marumofase Security",
+      "website": "https://marumofasesecurity.co.za",
+      "address": "zone 6 industrial park seshego",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marumofase-Security_405114"
+    },
+    {
+      "name": "Secucor Security Services",
+      "website": "https://secucor.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Secucor-Security-Services"
+    },
+    {
+      "name": "Informa Collection",
+      "website": "https://www.informacollection.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Informa-Collection"
+    },
+    {
+      "name": "Tst Solutions",
+      "website": "https://www.tstsolutions.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tst-Solutions"
+    },
+    {
+      "name": "Hurlingham Manor",
+      "website": "https://www.hurlinghammanor.co.za",
+      "address": "2 street names and continual maintenance of the park perimeter log fencing",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hurlingham-Manor"
+    },
+    {
+      "name": "Computer Power",
+      "website": "https://www.computerpower.co.za",
+      "address": "w32/bagle-zip w32/poebot-jt w32/brontok-bu w32/mobler-c",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Computer-Power"
+    },
+    {
+      "name": "Sandown Bay Security CC ( [email&#160;protected]…",
+      "website": null,
+      "address": "44, Main Road, ( R 44 ) Kleinmond, Western Cape",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sandown-Bay-Security-CC-sbs-intekom-co-za"
+    },
+    {
+      "name": "EVOCATUS SECURITY SERVICES",
+      "website": null,
+      "address": "122, Willem Botha Avenue Centurion, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/EVOCATUS-SECURITY-SERVICES"
+    },
+    {
+      "name": "PROTECTIVE ARMOR SECURITY",
+      "website": null,
+      "address": "58 Marshal Street,marshl Town Johannesburg, Gauteng",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/PROTECTIVE-ARMOR-SECURITY"
+    },
+    {
+      "name": "Vision Eye Security &amp; Project",
+      "website": null,
+      "address": "24 Parkhart, General Alberts, Alberton Alberton, Gauteng",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vision-Eye-Security-Project"
+    },
+    {
+      "name": "Beyond Technology",
+      "website": null,
+      "address": "268 Fleming Street, Meadowdale, Johannesburg Edenvale, Gauteng",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Beyond-Technology_859707"
+    },
+    {
+      "name": "Crime Hawk Security",
+      "website": null,
+      "address": "11 Selywn Court, 177 Lawn Street Rosettenville, Gauteng",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Crime-Hawk-Security"
+    },
+    {
+      "name": "Magni Security",
+      "website": null,
+      "address": "Plot 94, Valentines Road, Zandspruit Honeydew, Gauteng",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Magni-Security"
+    },
+    {
+      "name": "Guardarm Security",
+      "website": null,
+      "address": "31 Kremetart Road Springs, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Guardarm-Security"
+    },
+    {
+      "name": "Smhart security",
+      "website": null,
+      "address": "Da Gama Str, Absa Building Jeffreys Bay, Eastern Cape",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Smhart-security"
+    },
+    {
+      "name": "SIYABUYA SECURITY CC",
+      "website": null,
+      "address": "49 Oldmission Road Bluff, Kwazulu Natal",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SIYABUYA-SECURITY-CC"
+    },
+    {
+      "name": "Humbanathi Risk Management",
+      "website": null,
+      "address": "Isandovale, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Humbanathi-Risk-Management"
+    },
+    {
+      "name": "Lurco Fencing (PTY) Ltd",
+      "website": null,
+      "address": "Turf Street Wingate Park, Pretoria, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lurco-Fencing"
+    },
+    {
+      "name": "Quantum Fire and Access",
+      "website": null,
+      "address": "Block B - Unit 104b, Tokai Village, Vans Road Tokai, Western Cape",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Quantum-Fire-and-Access"
+    },
+    {
+      "name": "Siba Security Services",
+      "website": null,
+      "address": "141 Sanridge, Pavarotti Road, Midridge Midrand, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Siba-Security-Services"
+    },
+    {
+      "name": "Crisis Solutions",
+      "website": null,
+      "address": "58 Heine Rd, Lombardy East Johannesburg, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Crisis-Solutions"
+    },
+    {
+      "name": "Shakinah Cleaning and Security Services…",
+      "website": null,
+      "address": "41taaibos Street, Lentegeur, Mitchells Plain Cape Town, Cape Town",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shakinah-Cleaning-and-Security-Servicescc"
+    },
+    {
+      "name": "Golden Rewards Security 1895 C.C",
+      "website": null,
+      "address": "505, 5th Floor, Tulbagh Center, Hans Strydom Avenue Cape Town, Western Cape",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Golden-Rewards-Security-1895-C-C"
+    },
+    {
+      "name": "Integ Electronic Security Solutions",
+      "website": null,
+      "address": "8 Samuel Street Randhart Alberton Alberton, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Integ-Electronic-Security-Solutions"
+    },
+    {
+      "name": "Vunwe Security Services",
+      "website": null,
+      "address": "Office No 1, Songozii Street Louis Trichardt, Limpopo",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vunwe-Security-Services"
+    },
+    {
+      "name": "MADUDULA CONSTRACTION AND CLEANING",
+      "website": null,
+      "address": "P.box 81 Melmoth 3835, Kwanicho Street, R66 Durban, Kwazulu Natal",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MADUDULA-CONSTRACTION-AND-CLEANING"
+    },
+    {
+      "name": "E.L.N. Security Service",
+      "website": null,
+      "address": "Kneen Road Pretoria, Centurion, , Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/E-L-N-Security-Service"
+    },
+    {
+      "name": "butrak security",
+      "website": null,
+      "address": "22 Glenwood Crt, Cnr Oak And Blockhouse Kempton Park, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/butrak-security"
+    },
+    {
+      "name": "Security Contact",
+      "website": null,
+      "address": "6 Le Niche, Amberfield, Centurion Centurion, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Security-Contact"
+    },
+    {
+      "name": "Ihlokohloko Security Services",
+      "website": null,
+      "address": "111a Union Club Building, 353 Smith Street Durban Central, Kwazulu Natal",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ihlokohloko-Security-Services_858469"
+    },
+    {
+      "name": "Matla Asset Protection .",
+      "website": null,
+      "address": "34 Market Street, Braamfontein Gauteng, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Matla-Asset-Protection"
+    },
+    {
+      "name": "SouthCoast Crime Prevention &amp; Trading cc",
+      "website": null,
+      "address": "Umzinto Mosque, Main Road Umzinto, Kwazulu Natal",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SouthCoast-Crime-Prevention-Trading-cc"
+    },
+    {
+      "name": "Digimation",
+      "website": null,
+      "address": "36 Bodenstein Street Krugersdorp North, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Digimation_858866"
+    },
+    {
+      "name": "popwin security and building cc",
+      "website": null,
+      "address": null,
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/popwin-security-and-building-cc"
+    },
+    {
+      "name": "Security Solutions Consultants",
+      "website": null,
+      "address": "P O Box 73097, Lynnwood Ridge Pretoria, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Security-Solutions-Consultants"
+    },
+    {
+      "name": "K T S Communications",
+      "website": null,
+      "address": "44 Lorraine Srteet, Van Riebeeck Park Kempton Park, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/K-T-S-Communications"
+    },
+    {
+      "name": "Security Welding",
+      "website": null,
+      "address": null,
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Security-Welding"
+    },
+    {
+      "name": "All Security Needs",
+      "website": null,
+      "address": "Nelson Mandela, Or Thambo Witbank, Mpumalanga",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/All-Security-Needs"
+    },
+    {
+      "name": "green platoon security",
+      "website": null,
+      "address": "66 A Eden On The Bay , Big Bay Bloubergstrand, Cape Town",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/green-platoon-security"
+    },
+    {
+      "name": "mwale security service",
+      "website": null,
+      "address": "142 Mohwelere Crec, Lotus Garden X2 Pretoria, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/mwale-security-service"
+    },
+    {
+      "name": "JARK Guarding and Event Security cc",
+      "website": null,
+      "address": "12 Amstelhof Avenue Paarl, Western Cape",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/JARK-Guarding-and-Event-Security-cc"
+    },
+    {
+      "name": "Jomeg Security Services",
+      "website": null,
+      "address": "Colliers Business Park, Consani Road, Elsies River Cape Town, Western Cape",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jomeg-Security-Services"
+    },
+    {
+      "name": "JDB SECURITY PROJECTS",
+      "website": null,
+      "address": "Pretoria, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/JDB-SECURITY-PROJECTS"
+    },
+    {
+      "name": "Isandla Soluntu Cleaning &amp; Security Ser…",
+      "website": null,
+      "address": "16 Spice Street,bardale Village,blue Downs Kuilsriver, Cape Town",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Isandla-Soluntu-Cleaning-Security-Services_862856"
+    },
+    {
+      "name": "IDS SOLUTIONS CC",
+      "website": null,
+      "address": "Po Box 21569, Valhalla, 0137 Pretoria, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/IDS-SOLUTIONS-CC"
+    },
+    {
+      "name": "Maree &amp; Minnie Security Services",
+      "website": null,
+      "address": "50 Steyr Str, Aureus Randfontein, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maree-Minnie-Security-Services"
+    },
+    {
+      "name": "buyisela security services",
+      "website": null,
+      "address": "Site 51 Fort Jackson East London, Indwe Road East London, Eastern Cape",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/buyisela-security-services"
+    },
+    {
+      "name": "Daring Security",
+      "website": null,
+      "address": "27 Wolvengat Street Westbank Kuilsrivier, Western Cape",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Daring-Security_863599"
+    },
+    {
+      "name": "tsireledzo cleaning and security servic…",
+      "website": null,
+      "address": "1352 Tshiovhe Street, Tshiawelo Soweto, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/tsireledzo-cleaning-and-security-services"
+    },
+    {
+      "name": "WGi Security",
+      "website": null,
+      "address": "17 Retief Str Piet Retief, Mpumalanga",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/WGi-Security"
+    },
+    {
+      "name": "JB Electrical, Solar &amp; Security Solutio…",
+      "website": null,
+      "address": "1253 De Villebois Mareuil Street, Moreletapark Pretoria, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/JB-Electrical-Solar-Security-Solutions"
+    },
+    {
+      "name": "RandS Transparent Burglar Bars",
+      "website": null,
+      "address": "73 Old Main Road, Pinetown Durban, Kwazulu Natal",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/RandS-Transparent-Burglar-Bars"
+    },
+    {
+      "name": "Midube Security Services T/A MYSEC",
+      "website": null,
+      "address": "Kempton Park, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Midube-Security-Services-MYSEC"
+    },
+    {
+      "name": "Securix",
+      "website": null,
+      "address": "7th Ave Roodepoort, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Securix"
+    },
+    {
+      "name": "WD TRADING AS MBC SECURITY",
+      "website": null,
+      "address": "117 Ringwood Drive Pinelands Southern , Cape Town",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/WD-TRADING-AS-MBC-SECURITY"
+    },
+    {
+      "name": "TYT-900 2 way radios",
+      "website": null,
+      "address": "Boksburg, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/TYT-900-2-way-radios"
+    },
+    {
+      "name": "GRD SECURITY SERVICES",
+      "website": null,
+      "address": "31 Wye Road, Sherwood Park, Manenberg Cape Town, Western Cape",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/GRD-SECURITY-SERVICES"
+    },
+    {
+      "name": "Slamlock Extreme security",
+      "website": null,
+      "address": "Durban North, Kwazulu Natal",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Slamlock-Extreme-security"
+    },
+    {
+      "name": "GIO Technologies",
+      "website": null,
+      "address": "119 Pretoria Road, Witfield Boksburg, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/GIO-Technologies"
+    },
+    {
+      "name": "Cape Town Security Consultants",
+      "website": null,
+      "address": null,
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Town-Security-Consultants"
+    },
+    {
+      "name": "Asbonge Security Services",
+      "website": null,
+      "address": "Office 1310 Sangro House, 417 Smith Street Durban, Kwazulu Natal",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Asbonge-Security-Services"
+    },
+    {
+      "name": "D.M.V TECH",
+      "website": null,
+      "address": "56 Cycleman Road Akasia Karenpark, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/D-M-V-TECH"
+    },
+    {
+      "name": "evercheap security solutions",
+      "website": null,
+      "address": "Blackberry St Centurion, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/evercheap-security-solutions"
+    },
+    {
+      "name": "Duckitt Security services Cc",
+      "website": null,
+      "address": "6 Marais Street Durbanville, Western Cape",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Duckitt-Security-services-Cc"
+    },
+    {
+      "name": "HD Security Solutions CC",
+      "website": null,
+      "address": "Rustenburg, Rietvlei, 87 Rustenburg, North West",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/HD-Security-Solutions-CC"
+    },
+    {
+      "name": "MOBILE INSTALLATION SQUAD",
+      "website": null,
+      "address": "Johannesburg, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MOBILE-INSTALLATION-SQUAD"
+    },
+    {
+      "name": "Cos-Sec Solutions",
+      "website": null,
+      "address": "C/o Brown & Church Street, C/o Brown & Church Street Worcester, Western Cape",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cos-Sec-Solutions"
+    },
+    {
+      "name": "INKWAZI SECURITY CC",
+      "website": null,
+      "address": "103 Santa Fe', Suikerbekkie Street, Bromhof Randburg, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/INKWAZI-SECURITY-CC"
+    },
+    {
+      "name": "Soteria Security Solutions cc",
+      "website": null,
+      "address": "P O Box 1094 Sunninghill, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Soteria-Security-Solutions-cc"
+    },
+    {
+      "name": "Clemy Security And Cleaning Services",
+      "website": null,
+      "address": "Mozart Street, 11 Alabama Honeydew Ridge, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Clemy-Security-And-Cleaning-Services"
+    },
+    {
+      "name": "Mvelaphanda Protection Services Co-op L…",
+      "website": null,
+      "address": "Franchas Cottage, 60/20/3 Beacon Road, Kliptown Soweto, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mvelaphanda-Protection-Services-Co-op"
+    },
+    {
+      "name": "Royal Gates And Burglar Proofing",
+      "website": null,
+      "address": "12a Church Street Pretoria, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Royal-Gates-And-Burglar-Proofing"
+    },
+    {
+      "name": "Amos-jakuja Security Services",
+      "website": null,
+      "address": "Time Houssing, 420 Xobololo Street Engcobo, Eastern Cape",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Amos-jakuja-Security-Services"
+    },
+    {
+      "name": "Aspect Automation",
+      "website": null,
+      "address": "12a Nipper Rd, Pinetown, Westville Durban, Kwazulu-nata",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aspect-Automation"
+    },
+    {
+      "name": "A PRIVATE EYE",
+      "website": null,
+      "address": "EASTEN CAPE Port Elizabeth, Eastern Cape",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-PRIVATE-EYE"
+    },
+    {
+      "name": "Fleetworx",
+      "website": null,
+      "address": "Pretoria, Gauteng",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fleetworx"
+    },
+    {
+      "name": "S.A.PROTECTION SERVICE",
+      "website": null,
+      "address": "P.BOX 1740 HAMMANSKRAAL 0400 Pretoria-noord, Gauteng",
+      "page": 11,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/S-A-PROTECTION-SERVICE"
+    },
+    {
+      "name": "Frema Consulants Security &amp; Labour Law",
+      "website": null,
+      "address": "2 Unionsreet, Somerset East 5850 Domerste East, Eastern Cape",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Frema-Consulants-Security-Labour-Law"
+    },
+    {
+      "name": "GTM Training (Poplar Trading 151cc)",
+      "website": null,
+      "address": "9 Walter Reid Rd Tongaat, KwaZulu Natal",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/GTM-Training-Poplar-Trading-151cc"
+    },
+    {
+      "name": "Sly Control - Security Wristbands",
+      "website": null,
+      "address": "25 Lothbury Rd, Auckland Park Johannesburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sly-Control-Security-Wristbands"
+    },
+    {
+      "name": "SA SECURITY SOLUTIONS",
+      "website": null,
+      "address": "RANDBURG RANDBURG, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-SECURITY-SOLUTIONS"
+    },
+    {
+      "name": "P L Services",
+      "website": null,
+      "address": "36 Ethelbert Road Malvern Durban Queensburgh, KwaZulu Natal",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/P-L-Services_581887"
+    },
+    {
+      "name": "Cha&#39;Than Security",
+      "website": null,
+      "address": "88 FairChild Road impalapark Boksburg Boksburg, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cha-Than-Security"
+    },
+    {
+      "name": "i Spec Security",
+      "website": null,
+      "address": "Burton Ave Pietermaritzburg, KwaZulu Natal",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/i-Spec-Security"
+    },
+    {
+      "name": "Malex Securtiy Systems",
+      "website": null,
+      "address": "PO Box 15753 Doornfontein Johannesburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Malex-Securtiy-Systems"
+    },
+    {
+      "name": "Eastern Cape Security And Cleaning Serv…",
+      "website": null,
+      "address": "10 Finsbury Terrace Clifton Park East London, Eastern Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Eastern-Cape-Security-And-Cleaning-Services"
+    },
+    {
+      "name": "Ace Security Services",
+      "website": null,
+      "address": "Towers Bldg 125 Kingfischer Av Elspark Germiston, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ace-Security-Services"
+    },
+    {
+      "name": "Zechariah Security",
+      "website": null,
+      "address": "38a Victoria Avenue 12 Aloe Street Arconpark Vereeniging Vereeniging, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zechariah-Security"
+    },
+    {
+      "name": "Boomtown Customs &amp; Security Solutions",
+      "website": null,
+      "address": "shop 1B Signet Terrace Robin Ave Lenasia, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Boomtown-Customs-Security-Solutions"
+    },
+    {
+      "name": "colossal security services",
+      "website": null,
+      "address": "4 hawley Bedfordview, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/colossal-security-services"
+    },
+    {
+      "name": "Merlin Security cc",
+      "website": null,
+      "address": "2nd Floor Vesting Center Bosbok Road Honeydew, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Merlin-Security-cc"
+    },
+    {
+      "name": "Starforce Protection Services",
+      "website": null,
+      "address": "61 wick street Verulam Kwazulu Natal, KwaZulu-Nata",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Starforce-Protection-Services"
+    },
+    {
+      "name": "Conquest Investigations &amp; Guarding",
+      "website": null,
+      "address": "35 Radio Rd Alberton , Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Conquest-Investigations-Guarding"
+    },
+    {
+      "name": "PANZER Protection",
+      "website": null,
+      "address": "39 Grungstr, Springs, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/PANZER-Protection"
+    },
+    {
+      "name": "MS Security Services",
+      "website": null,
+      "address": "530 Teladia Aconville Benoni Benoni, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MS-Security-Services"
+    },
+    {
+      "name": "Professional Audio and Visual Repairs",
+      "website": null,
+      "address": "74 Dipdale Rd Malvern, KwaZulu-Nata",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Professional-Audio-and-Visual-Repairs"
+    },
+    {
+      "name": "Yale Security Point Tygervalley",
+      "website": null,
+      "address": "PO Box 3330 Tygervalley Durbanville, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Yale-Security-Point-Tygervalley"
+    },
+    {
+      "name": "Home Alone Security (HAS)",
+      "website": null,
+      "address": "3 Pebble Beach Melba Street Honeydew Ridge Honeydew, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Home-Alone-Security-HAS"
+    },
+    {
+      "name": "Unified Threat Management",
+      "website": null,
+      "address": "248 Kent Avenue Unit 9 Ridgeview Office Park Ferndale Ferndale, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Unified-Threat-Management"
+    },
+    {
+      "name": "Sureshock Electric Fencing",
+      "website": null,
+      "address": "23 Audreay str Del Judor X 4 Witbank, Mpumalanga",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sureshock-Electric-Fencing"
+    },
+    {
+      "name": "Security gates &amp; motors",
+      "website": null,
+      "address": "Cradle of Human Kind (R563) Krugersdorp, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Security-gates-motors"
+    },
+    {
+      "name": "Jathlet Security Services ( Protection…",
+      "website": null,
+      "address": "6 Hamburg Street Portlands Mitchells Plain, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jathlet-Security-Services-Protection-Services"
+    },
+    {
+      "name": "Infinitron",
+      "website": null,
+      "address": "10 Mifa Industrial Park 399 George Avenue Randjiespark Midrand, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Infinitron"
+    },
+    {
+      "name": "Ikhozi Security, Cleaning &amp; Personel pl…",
+      "website": null,
+      "address": "Alan Paton Ave Pietermaritzburg Kwazulu-Natal, KwaZulu-Nata",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ikhozi-security"
+    },
+    {
+      "name": "ZBE Security Solutions Gauteng",
+      "website": null,
+      "address": "5 Eekhoring Street Brackenhurst East Rand, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ZBE-Security-Solutions-Gauteng"
+    },
+    {
+      "name": "Dinake&#39;s cleaning(and security) service…",
+      "website": null,
+      "address": "15550 Mount Ayliff street Kagiso Ext 12 Mogale City, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dinakes-cleaning-and-security-services-cc"
+    },
+    {
+      "name": "Tshwagano security and cleaning cc",
+      "website": null,
+      "address": "No office yet Pretoria West, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tshwagano-security-and-cleaning-cc"
+    }
+  ]
+}

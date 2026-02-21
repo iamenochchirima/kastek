@@ -1,0 +1,2810 @@
+{
+  "category": "Cleaning-Services",
+  "count": 293,
+  "listings": [
+    {
+      "name": "Axxo Cleaning &amp; Maintenance Services cc",
+      "website": "https://www.acmservices.co.za",
+      "address": "48 Beach Road, Muizenberg Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Axxo-Cleaning-Maintenance-Services-cc"
+    },
+    {
+      "name": "M43 Security &amp; IT Services CC",
+      "website": "https://www.m43security.co.za",
+      "address": "251b Nyangwa Street, Mofolo Village, P.o. Dube Soweto, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/M43-Security-IT-Services-CC"
+    },
+    {
+      "name": "A and F Complex Management",
+      "website": "https://www.afmanagement.co.za",
+      "address": "70 Wendy Road Wendywood, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-and-F-Complex-Management"
+    },
+    {
+      "name": "M A N H A T T A N Laundry &amp; Cleaning S…",
+      "website": "https://www.ManhattanLaundry.co.cc",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/M-A-N-H-A-T-T-A-N-Laundry-Cleaning-Services-cc"
+    },
+    {
+      "name": "Rentique Cleaning Solutions CC",
+      "website": "https://www.rentiquecleaning.co.za",
+      "address": "26 Georgina Street, Van Riebeeck Village Van Riebeeck Park, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rentique-Cleaning-Solutions-CC"
+    },
+    {
+      "name": "JML MANAGEMENT SERVICES",
+      "website": "https://www.jmlmanagementservices.webs.com",
+      "address": "360 Kent Avenue, Ferndale Randburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/JML-MANAGEMENT-SERVICES"
+    },
+    {
+      "name": "Emporis Cleaning Services",
+      "website": "https://www.emporis.co.za",
+      "address": "139 Belle Aires Drive, Belle Aires Place, North Riding Randburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Emporis-Cleaning-Services"
+    },
+    {
+      "name": "Exertion 4 Gratification",
+      "website": "https://www.exertion4gratification.co.za",
+      "address": "Gauteng Boksburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Exertion-4-Gratification"
+    },
+    {
+      "name": "Clean Vision Chemicals",
+      "website": "https://www.houseofsoap.co.za",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Clean-Vision-Chemicals"
+    },
+    {
+      "name": "Bright and Spotless Cleaning Services",
+      "website": "https://www.brightspotless.co.za",
+      "address": "Coleen Street, Laser Park, Honeydew Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bright-and-Spotless-Cleaning-Services"
+    },
+    {
+      "name": "Park Avenue Cleaning Services",
+      "website": "https://www.parkavenuecleaningservices.com",
+      "address": "Nellie Street, Norwood Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Park-Avenue-Cleaning-Services"
+    },
+    {
+      "name": "C.15 PROTECTION AND CLEANING SERVICES cc",
+      "website": "https://www.c15protectionservices.co.za",
+      "address": "18 William Street, The Reeds Ext 9 Centurion, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/C-15-PROTECTION-AND-CLEANING-SERVICES-cc"
+    },
+    {
+      "name": "Cleaning Services",
+      "website": "https://www.allroundprop.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cleaning-Services"
+    },
+    {
+      "name": "HYGIvit",
+      "website": "https://www.hygivit.com",
+      "address": "Shop 5 Richwood Shopping Centre, Buitengracht Drive Richwood, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/HYGIvit"
+    },
+    {
+      "name": "Jopetra Waste Management &amp; General Main…",
+      "website": "https://www.jopetra.co.za",
+      "address": "11546 Sunrise Park, Ext. 10 Boitekong Rustenburg, North West",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jopetra-Waste-Management-General-Maintenance"
+    },
+    {
+      "name": "Classique",
+      "website": "https://WWW.CAPETOWN-CARPETCLEANING.CO.ZA",
+      "address": "Hannes Louw, Hannes Louw Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Classique"
+    },
+    {
+      "name": "Tisebenza General Trading",
+      "website": "https://www.tisebenzagtrading.co.za",
+      "address": "P.o. 650279 Benmore, Sharp Street No.12 Glendale Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tisebenza-General-Trading"
+    },
+    {
+      "name": "Cyris Cleaning Services / Crime scene c…",
+      "website": "https://www.cyrisservices.co.za",
+      "address": "1011 Kruger Ave, Lyttelton Centurion, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cyris-Cleaning-Services-Crime-scene-cleaning-Photography-Steel-works"
+    },
+    {
+      "name": "afivegroup",
+      "website": "https://www.afivegroup.co.za",
+      "address": "33 Penchartz Street, Honeydew Randburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/afivegroup_860941"
+    },
+    {
+      "name": "PRODORE BUSINESS ENTERPRISES CC",
+      "website": "https://www.prodore.co.za",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/PRODORE-BUSINESS-ENTERPRISES-CC"
+    },
+    {
+      "name": "Nice n`Clean Cleaning Services and Dome…",
+      "website": "https://www.niceandclean.co.za",
+      "address": "706 Church Str Pretoria, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nice-n-Clean-Cleaning-Services-and-Domestic-Placements"
+    },
+    {
+      "name": "Varz Cleaning Services",
+      "website": "https://www.varozvi.co.za",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Varz-Cleaning-Services"
+    },
+    {
+      "name": "[email&#160;protected]",
+      "website": "https://www.services3d.co.za",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/services3d-ymail-com"
+    },
+    {
+      "name": "Kurts Garden &amp; Pool Service - Gauteng…",
+      "website": "https://www.kurtservices.co.za",
+      "address": "Mimosa St, Elspark Germiston, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kurts-Garden-Pool-Service-Gauteng-Boksburg-Benoni-Germiston"
+    },
+    {
+      "name": "Pride Home Projects - 011 640 2283",
+      "website": "https://www.pridehomeprojects.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pride-Home-Projects-011-640-2283"
+    },
+    {
+      "name": "Weed eradication All Area&#39;s - products …",
+      "website": "https://www.kurtservices.co.za",
+      "address": "8 Mimosa St, Elspark Germiston, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Weed-eradication-All-Areas-products-and-services-from-Lawn-and-Paving"
+    },
+    {
+      "name": "Pura Vida Cleaning Service",
+      "website": "https://www.puravidaservices.weebly.com",
+      "address": "Fontenay, Siena, Burgundy Estate Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pura-Vida-Cleaning-Service"
+    },
+    {
+      "name": "Cleaning4Africa",
+      "website": "https://cleaning4africa.synthasite.com",
+      "address": "Montana Pretoria, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/cleaning4africa_512721"
+    },
+    {
+      "name": "NDOCKS CLEANING SERVICES",
+      "website": "https://www.ndocks-cleaning.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/NDOCKS-CLEANING-SERVICES_508996"
+    },
+    {
+      "name": "Magic Carpet Cleaners",
+      "website": "https://www.magiccarpetcleaners.co.za",
+      "address": "Bataan Street, Witpoortjie, Roodepoort Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Magic-Carpet-Cleaners"
+    },
+    {
+      "name": "Quality Quotes - Southern Africa",
+      "website": "https://www.QualityQuotes.co.za",
+      "address": "Kragga Kamma Road, Colleen Glenn Port Elizabeth, Eastern Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Quality-Quotes-Southern-Africa"
+    },
+    {
+      "name": "Real Exterminators Pest Control and Cle…",
+      "website": "https://www.realexterminators.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Real-Exterminators-Pest-Control-and-Cleaning-Services"
+    },
+    {
+      "name": "Ukhozi Cleaning Services",
+      "website": "https://www.ukhozicleaning.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ukhozi-Cleaning-Services"
+    },
+    {
+      "name": "Devra Chemicals",
+      "website": "https://www.devrachemicals.co.za",
+      "address": "Western Cape, Cape Town",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Devra-Chemicals"
+    },
+    {
+      "name": "Vivaclox CC Professional Services",
+      "website": "https://www.vivaclox.co.za",
+      "address": "71 Sunset Boulevard, 10 Logan Avenue, Highveld Centurion, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vivaclox-CC-Professional-Services"
+    },
+    {
+      "name": "BDF Cleaning Services",
+      "website": "https://www.bdfcleaning.co.za",
+      "address": "377 Rivonia Boulevard Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BDF-Cleaning-Services"
+    },
+    {
+      "name": "C.C CARPET CLEANING",
+      "website": "https://www.cc-carpetcleaning.co.za",
+      "address": "4 Marigold St Milnerton, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/C-C-CARPET-CLEANING"
+    },
+    {
+      "name": "Pinetown Cleaning Services",
+      "website": "https://www.maidsinc.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pinetown-Cleaning-Services"
+    },
+    {
+      "name": "Liaunyane Business Solutions",
+      "website": "https://www.liaunyane.webs.com",
+      "address": "6611 Ext 4, Orange Farm Orange Farm, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Liaunyane-Business-Solutions"
+    },
+    {
+      "name": "Rirothe Environmental Service",
+      "website": "https://www.rirotherecycling.co.za",
+      "address": "No 7048 Ext 10, Sondela Street, Diepsloot West Braynston, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rirothe-Environmental-Service"
+    },
+    {
+      "name": "another level cleaning and delivery cc",
+      "website": "https://[email&#160;protected]",
+      "address": "108 Spondo Zwide, Eastern Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/another-level-cleaning-and-delivery-cc"
+    },
+    {
+      "name": "Home 2 Office Cleaning &amp; Supplies",
+      "website": "https://www.home2officecleaning.co.za",
+      "address": "8653 Shai Street, Dr. Masibi - Langa Section, Kagiso 2 Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Home-2-Office-Cleaning-Supplies"
+    },
+    {
+      "name": "AC Carpet Cleaning Services",
+      "website": "https://www.accarpetcleaning.co.za",
+      "address": "Parow Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/AC-Carpet-Cleaning-Services"
+    },
+    {
+      "name": "Pro-Activ Pest Solutions",
+      "website": "https://www.proactivpest.co.za",
+      "address": "Marine Parade Kwazulu/natal, Kwazulu-nata",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pro-Activ-Pest-Solutions"
+    },
+    {
+      "name": "Edge Cleaning",
+      "website": "https://www.edgecleaning.co.za",
+      "address": "27 View Hills Road Crestholme, Kwazulu-nata",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Edge-Cleaning"
+    },
+    {
+      "name": "Classic Cleaning Services",
+      "website": "https://www.ccscleaningservices.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Classic-Cleaning-Services_794492"
+    },
+    {
+      "name": "A&amp;F Complex Management",
+      "website": "https://www.afmanagement.co.za",
+      "address": "70 Wendy Road, Wendywood Sandton, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-F-Complex-Management"
+    },
+    {
+      "name": "Provac Cleaning Equipment",
+      "website": "https://www.cleaning_equipment.co.za",
+      "address": "Pirates Creek, N2 Natioanl Road George, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Provac-Cleaning-Equipment"
+    },
+    {
+      "name": "South African Waste Management Corporat…",
+      "website": "https://www.sawmc.co.za",
+      "address": "P O Box 13080, The Tramshed Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/South-African-Waste-Management_579749"
+    },
+    {
+      "name": "WEBS DYNAMIC",
+      "website": "https://www.websdynamic.webs.com",
+      "address": "135, Lanham Street, Bloureier Ave Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/WEBS-DYNAMIC"
+    },
+    {
+      "name": "SANICO South Africa",
+      "website": "https://www.sanicosa.com",
+      "address": null,
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SANICO-South-Africa"
+    },
+    {
+      "name": "VT Oracle Trading Enterprise",
+      "website": "https://www.vtnoracle.com",
+      "address": "54 Celtis Gardens, Basson Street, Celtisdal Centurion, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/VT-Oracle-Trading-Enterprise"
+    },
+    {
+      "name": "Federal Africlean",
+      "website": "https://www.federalafriclean.co.za",
+      "address": "509a Dawn Street Lynnwood, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Federal-Africlean"
+    },
+    {
+      "name": "WASH-TECH",
+      "website": "https://www.wash-tech.webs.com",
+      "address": null,
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/WASH-TECH"
+    },
+    {
+      "name": "Kohler Global Chemicals",
+      "website": "https://www.kohlerchemicals.com",
+      "address": "43 Section Street Paarden Eiland, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kohler-Global-Chemicals"
+    },
+    {
+      "name": "Sandimx Trading cc.",
+      "website": "https://[email&#160;protected]",
+      "address": "5 Haley Avenue, Parkhill Gardens Germiston, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sandimx-Trading-cc"
+    },
+    {
+      "name": "Siyaya Contract Cleaning",
+      "website": "https://www.siyayacc.co.za",
+      "address": "28 Wilro Gardens, Umgeni Rd Wilropark, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Siyaya-Contract-Cleaning"
+    },
+    {
+      "name": "Zifikile Staffing Solutions",
+      "website": "https://www.zifikile.co.za",
+      "address": "141 Kine Center, Johannesburg, Commisssioner Street Gauteng, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zifikile-Staffing-Solutions"
+    },
+    {
+      "name": "Dazzlespan Cleaning Services",
+      "website": "https://www.dazzlespan.co.za",
+      "address": "P O Box 571, Florida Hills Florida, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dazzlespan-Cleaning-Services"
+    },
+    {
+      "name": "Amani&#39;s Garden Services",
+      "website": "https://www.amanis-garden-services.co.za",
+      "address": "22 Hazelwood, Menlo Park Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Amanis-Garden-Services"
+    },
+    {
+      "name": "Majita @ Work - All That Services",
+      "website": "https://[email&#160;protected]",
+      "address": "1343 Dumile Street , Diepkloof ,zone : 1 Diepkloof, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/Majita-Work-All-That-Services"
+    },
+    {
+      "name": "SuperCHAR Helderberg",
+      "website": "https://www.superchar.co.za",
+      "address": "Da Gama Street Strand, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/SuperCHAR-Helderberg"
+    },
+    {
+      "name": "I-tamics Cleaning Services",
+      "website": "https://www.itamics.co.za",
+      "address": "London Road Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/I-tamics-Cleaning-Services"
+    },
+    {
+      "name": "DurbanContractors",
+      "website": "https://www.durbancontractors.co.za",
+      "address": "44 Jesmond Grove Durban, Kwazulu-nata",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/DurbanContractors"
+    },
+    {
+      "name": "Inzibi Business Enterprise cc",
+      "website": "https://inzibi.webs.com",
+      "address": "Stand 67, Workshop H4, 6th Street, Zone 15 Ga-rankuwa, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Inzibi-Business-Enterprise-cc"
+    },
+    {
+      "name": "NU NEL",
+      "website": "https://www.roofspraying.co.za",
+      "address": "25 Ave Villieria Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/NU-NEL"
+    },
+    {
+      "name": "Unique Carpet and upholstry cleaners",
+      "website": "https://www.uniquecarpets.co.za",
+      "address": "Erasmustreet , Rasslouw Centurion, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Unique-Carpet-and-upholstry-cleaners"
+    },
+    {
+      "name": "Sparkles Cleaning Services",
+      "website": "https://www.sparklecs.co.za",
+      "address": "4670a Rustenburg Road, Diepkloof Zone 4 Soweto, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sparkles-Cleaning-Services"
+    },
+    {
+      "name": "Ziz Security and construction projects",
+      "website": "https://www.zizsecurity.co.za",
+      "address": "306-3rd Floor, Melody Centre, 159 Meyer Str, Ekhuruleni Germiston, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ziz-Security-and-construction-projects_427170"
+    },
+    {
+      "name": "Maids in Waiting",
+      "website": "https://www.maidsinwaiting.co.nr",
+      "address": "Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maids-in-Waiting"
+    },
+    {
+      "name": "Linakhwe trading enterprise",
+      "website": "https://linakhwetrading.com",
+      "address": "P.o.box 112, Idutywa, 5000, Weza A/a Idutywa, Eastern Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Linakhwe-trading-enterprise_497955"
+    },
+    {
+      "name": "Bulldog Protection And Training Center …",
+      "website": "https://www.bulldogsecurityservices.co.za",
+      "address": "58 Field Street Durban, Kwazulu-nata",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bulldog-Protection-And-Training-Center-CC"
+    },
+    {
+      "name": "Eco-Facilities Managers CC",
+      "website": "https://www.eco-facilities.co.za",
+      "address": "Po Box 3001 Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Eco-Facilities-Managers-CC"
+    },
+    {
+      "name": "R S &amp; Associates Loss Control Service",
+      "website": "https://www.rsasecurity.co.org",
+      "address": "Unit 5,bridge Street, Plankenberg Stellenbosch, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/R-S-Associates-Loss-Control-Service"
+    },
+    {
+      "name": "CleanLink Cleaners",
+      "website": "https://www.cleanlink.co.za",
+      "address": "William Nichol Fourways, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CleanLink-Cleaners"
+    },
+    {
+      "name": "Squeeky Clean",
+      "website": "https://www.squeekyclean.co.za",
+      "address": "22 Wellington Rd Parktown, Johannesburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Squeeky-Clean"
+    },
+    {
+      "name": "Mandlachem",
+      "website": "https://www.mandlachem.com",
+      "address": "21 Dassie Street Sesfontein, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mandlachem"
+    },
+    {
+      "name": "Grand Dynamic Services ( Pty ) Ltd",
+      "website": "https://www.granddynamicservices.com",
+      "address": "Walter Sisulu Road Witbank, Mpumalanga",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Grand-Dynamic-Services_508756"
+    },
+    {
+      "name": "Zuloki 543 cc",
+      "website": "https://www.zuloki-cleaning-services.co.za",
+      "address": "830 Hilda Groep Street, Graslaagte Humansdorp, Eastern Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zuloki-543-cc"
+    },
+    {
+      "name": "Dweba Chemical Supplies",
+      "website": "https://www.dwebainvestments.co.za",
+      "address": null,
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dweba-Chemical-Supplies"
+    },
+    {
+      "name": "Western Province Caterers",
+      "website": "https://www.wpc.co.za",
+      "address": "5 Beckham Street, Gardens Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Western-Province-Caterers_514144"
+    },
+    {
+      "name": "Cleaning Solutions",
+      "website": "https://pondulacleaningsolutions.yolasite.com",
+      "address": "Alphen Rd, The Reeds - Centurion Pretoria, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cleaning-Solutions"
+    },
+    {
+      "name": "Abc Personnel",
+      "website": "https://www.abcpersonnel.co.za",
+      "address": "Po Box 28524 Sunridge Park",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Abc-Personnel"
+    },
+    {
+      "name": ":Delta Blue Cleaning",
+      "website": "https://www.deltabluehygiene.co.za",
+      "address": "90 8th Str Springs, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Delta-Blue-Cleaning"
+    },
+    {
+      "name": "HIMIZA CONSULTANCY",
+      "website": "https://www.himizaconsultancy.co.za",
+      "address": "30 Carnation Street, Scottsville, Kraaifontein Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/HIMIZA-CONSULTANCY"
+    },
+    {
+      "name": "Premier Floor Care Cleaning Services cc",
+      "website": "https://www.premierfloorcare.co.za",
+      "address": "4 Montrose Mews, 23 Okkerneut Street, Cnr Kapok Street Constantia Kloof, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Premier-Floor-Care-Cleaning-Services-cc"
+    },
+    {
+      "name": "Xtreme Carpet And Upholstery Cleaners",
+      "website": "https://www.xtremecleaning.co.za",
+      "address": "Gauteng, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xtreme-Carpet-And-Upholstery-Cleaners_535774"
+    },
+    {
+      "name": "Nelspruit Flooring Contractors",
+      "website": "https://www.carpet.org.za",
+      "address": "56 Ehmke Street Nelspruit, Mpumalanga",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nelspruit-Flooring-Contractors"
+    },
+    {
+      "name": "Rope Riders cc",
+      "website": "https://www.roperiders.co.za",
+      "address": "Gauteng, Reigers Ave, Mountain View Pretoria, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rope-Riders-cc"
+    },
+    {
+      "name": "KB&amp;C GROUP (Pty) Ltd",
+      "website": "https://www.kbcgroup.co.za",
+      "address": null,
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/KB-C-GROUP_536523"
+    },
+    {
+      "name": "wilfred mtshali hospitality services",
+      "website": "https://www.mtshali.co.za",
+      "address": "8386 Sarajevo Cress, Cosmo City Ext 7, Cosmo City Cosmo City, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/wilfred-mtshali-hospitality-services"
+    },
+    {
+      "name": "Evolution Services cc",
+      "website": "https://www.evolutionpestcontrol.co.za",
+      "address": "P O Box 824 Westridge 7802, Mitchells Plain Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Evolution-Services-cc"
+    },
+    {
+      "name": "Quarterdeck Cleaning Services cc",
+      "website": "https://www.quarterdeckcleaningservices.co.za",
+      "address": "4 Montrose Mews, 23 Okkerneut Street Constantia Kloof, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Quarterdeck-Cleaning-Services-cc"
+    },
+    {
+      "name": "CS Carpet Solutions cc",
+      "website": "https://www.cs-group.za.net",
+      "address": "Amanda Glenn, Durbanville Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/CS-Carpet-Solutions-cc"
+    },
+    {
+      "name": "RHR Services",
+      "website": "https://www.sacarpetcleaning.co.za",
+      "address": "21waternooientjie Str Kuils River, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/RHR-Services"
+    },
+    {
+      "name": "Brilliant Cleaning",
+      "website": "https://www.brilliantcleaning.co.za",
+      "address": "11 Hennie Alberts Street, Cnr Catherina, Brackenhurst Alberton, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Brilliant-Cleaning"
+    },
+    {
+      "name": "Classic Cleaning Services",
+      "website": "https://www.ccscleaningservices.co.za",
+      "address": null,
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Classic-Cleaning-Services_794492"
+    },
+    {
+      "name": "Blue Water Cleaning",
+      "website": "https://www.bluewatercleaning.co.za",
+      "address": "Cape Town Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Water-Cleaning"
+    },
+    {
+      "name": "Hlelisu Development Projects cc",
+      "website": "https://bonvoyage1000.com/overcome",
+      "address": "P O Box 5978, Durban, 133 Gray Park Road Brighton Beach Durban, Kwazulu Natal",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hlelisu-Development-Projects-cc"
+    },
+    {
+      "name": "GS Home Management and Cleaning Service…",
+      "website": "https://www.gardenshuttle.co.za",
+      "address": "Main Street Plettenberg Bay, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/GS-Home-Management-and-Cleaning-Services-Plettenberg-Bay"
+    },
+    {
+      "name": "SuperCHAR",
+      "website": "https://www.superchar.co.za",
+      "address": "Paarl, Wellington Paarl, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/SuperCHAR_544992"
+    },
+    {
+      "name": "COMFORTKATE CATERING AND TECHNOLOGIES S…",
+      "website": "https://WWW.SAYMAIL.CO.ZA",
+      "address": "Vhutshavhelo Village, Tshikunda Village, Sibasa Thohoyandou, Limpopo",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/COMFORTKATE-CATERING-AND-TECHNOLOGIES-SERVICES"
+    },
+    {
+      "name": "Langelihle Bee Trading and Projects cc.",
+      "website": "https://www.langelihlebee.co.za",
+      "address": "P.o. Box 1428, Louw Street Heidelberg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Langelihle-Bee-Trading-and-Projects-cc"
+    },
+    {
+      "name": "Meluluntu Security &amp; Cleaning Services",
+      "website": "https://www.meluluntu.com",
+      "address": "23 Simon Street, West End Port Elizabeth, Eastern Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Meluluntu-Security-Cleaning-Services"
+    },
+    {
+      "name": "unique carpets",
+      "website": "https://www.uniquecarpets.co.za",
+      "address": "Centurion Pretoria, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/unique-carpets"
+    },
+    {
+      "name": "Xhanti Secirity and Cleaning Services",
+      "website": "https://www.xhanti.co.za",
+      "address": "P.o Box 51840, Waterfront Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xhanti-Secirity-and-Cleaning-Services"
+    },
+    {
+      "name": "A Class of Cleaning",
+      "website": "https://www.mobilevalet.co.za",
+      "address": "Gauteng, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-Class-of-Cleaning"
+    },
+    {
+      "name": "khuthazment cleaning services",
+      "website": "https://www.khuthazment.co.za",
+      "address": "4281 Isikalu Street Birch Acres X 25 Kempton Park Kempton Park, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/khuthazment-cleaning-services"
+    },
+    {
+      "name": "NITAFIX",
+      "website": "https://www.nitafixdetergents.co.za",
+      "address": "Fern Hill Farm, Brooksnek Kokstad, Kwazulu-nata",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/NITAFIX"
+    },
+    {
+      "name": "Summit &quot;on site&quot;",
+      "website": "https://www.summitonsite.com",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Summit-on-site"
+    },
+    {
+      "name": "Ntsu Tsa Bochabela Cleaning Services &amp; …",
+      "website": "https://[email&#160;protected]",
+      "address": "Pam Golding Building, 10a Church Street Bethlehem, Free State",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ntsu-Tsa-Bochabela-Cleaning-Services-construction"
+    },
+    {
+      "name": "ALL CLEAN EQUIPMENT",
+      "website": "https://www.allcleanequipment.co.za",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ALL-CLEAN-EQUIPMENT"
+    },
+    {
+      "name": "Central Upholstery",
+      "website": "https://www.centralupholstery.co.za",
+      "address": "4 Market Street Witbank, Mpumalanga",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Central-Upholstery"
+    },
+    {
+      "name": "CQC Cleaning Services",
+      "website": "https://www.cqccleaning.co.za",
+      "address": "Centurion, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CQC-Cleaning-Services"
+    },
+    {
+      "name": "Miami Upholstery",
+      "website": "https://www.miamiupholstery.co.za",
+      "address": "Witbank, Mpumalanga",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Miami-Upholstery"
+    },
+    {
+      "name": "Phambili civils and projects",
+      "website": "https://www.phambili-civils.co.za",
+      "address": "Office 426 Karl Kling Building, Vermeulen Street ,pretoria Pretoria, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Phambili-civils-and-projects"
+    },
+    {
+      "name": "Green Earth Cleaning",
+      "website": "https://www.greenearthcleaning.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Green-Earth-Cleaning"
+    },
+    {
+      "name": "Convenient Kitchen Catering",
+      "website": "https://www.convenientkitchen.co.za",
+      "address": "68 Falcon Road, D'urbanvale Durbanville, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Convenient-Kitchen-Catering_551412"
+    },
+    {
+      "name": "Joanne&#39;s Carpet Cleaning Service",
+      "website": "https://carpetcleaning.joanne.co.za",
+      "address": "Upington, Northern Cape",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Joannes-Carpet-Cleaning-Service"
+    },
+    {
+      "name": "Enviro Pools And Garden",
+      "website": "https://www.enviropools.co.za",
+      "address": "11 Martin Drive Queensmead Industrial Area Queensburgh, Kwazulu-nata",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Enviro-Pools-And-Garden"
+    },
+    {
+      "name": "Alchemy Cleaning",
+      "website": "https://www.alchemy-cleaning.co.za",
+      "address": "Staal Street Kayasands Randburg Randburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alchemy-Cleaning"
+    },
+    {
+      "name": "Nambith&#39; Ubuhle Hygiene",
+      "website": "https://www.namuhygiene.co.za",
+      "address": "Plot 9, Du Rand't Road, Putfontein Benoni, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nambith-Ubuhle-Hygiene"
+    },
+    {
+      "name": "Absolute Maintenance",
+      "website": "https://www.absolutemaintenance.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Absolute-Maintenance"
+    },
+    {
+      "name": "Vortron Systems CC",
+      "website": "https://www.vortronsystems.co.za",
+      "address": "P O Box 328 Allensnek, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vortron-Systems-CC"
+    },
+    {
+      "name": "Mogale Praise Him Catering and Cleaning…",
+      "website": "https://mogalepraisehim.co.za",
+      "address": "Krugersdorp, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mogale-Praise-Him-Catering-and-Cleaning-Services"
+    },
+    {
+      "name": "S.THABETHE SECURITY AND CLEANING",
+      "website": "https://www.sthabethe.co.za",
+      "address": "77 Harrison Street, Bree Street Johannesburg , Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/S-THABETHE-SECURITY-AND-CLEANING_552685"
+    },
+    {
+      "name": "Vaal Cleaning Equipment",
+      "website": "https://www.vaalcleaningequipment.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vaal-Cleaning-Equipment"
+    },
+    {
+      "name": "Crypton Treestump Removal",
+      "website": "https://www.CryptonM.co.za",
+      "address": "Theresapark, Buffalo Ave 19 Theresapark, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Crypton-Treestump-Removal"
+    },
+    {
+      "name": "BIOREC Trauma &amp; Crime Scene Cleaning Sp…",
+      "website": "https://www.biorec.co.za",
+      "address": "Pretoria, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BIOREC-Trauma-Crime-Scene-Cleaning-Specialists"
+    },
+    {
+      "name": "gemini assistance",
+      "website": "https://www.geminiassistance.com",
+      "address": "23 Scott Street Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/gemini-assistance"
+    },
+    {
+      "name": "Uchanda Cleaning Services",
+      "website": "https://uchanda.co.za",
+      "address": "T30 Granda Bay, Otto Du Plessis Drive, Boubergstrand Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Uchanda-Cleaning-Services"
+    },
+    {
+      "name": "Zuva Cleaning services",
+      "website": "https://www.zuvacleaning.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zuva-Cleaning-services"
+    },
+    {
+      "name": "Maispace Carpet Cleaners",
+      "website": "https://www.maispacecarpetcleaning.weebly.com",
+      "address": "Randpark Ridge Gauteng, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maispace-Carpet-Cleaners"
+    },
+    {
+      "name": "EnviroCair Biocide",
+      "website": "https://www.envirocair.co.za",
+      "address": "Verona Street, Bellville Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/EnviroCair-Biocide"
+    },
+    {
+      "name": "A1 Spotless Cleaning Services",
+      "website": "https://www.a1spotless.co.za",
+      "address": "57 Rietfontein Road Corner 12th Ave, Rivonia Sandton, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/A1-Spotless-Cleaning-Services"
+    },
+    {
+      "name": "cassidge Trading Interprice",
+      "website": "https://www.rocketmail.com",
+      "address": "612 Century Insuarance Building., Market, Kruis Jhb, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/cassidge-Trading-Interprice"
+    },
+    {
+      "name": "Carpet Cleaning Services Makhulu",
+      "website": "https://www.micarpetcleaning.co.za",
+      "address": "Southern Suburb, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Carpet-Cleaning-Services-Makhulu"
+    },
+    {
+      "name": "Madolo Security &amp; Cleaning Services",
+      "website": "https://www.madolosecurity.co.za",
+      "address": "Traco Building, No: 52 Sprigg Street, Office 209 Mthatha, Eastern Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Madolo-Security-Cleaning-Services"
+    },
+    {
+      "name": "Executive Home Management Solutions",
+      "website": "https://www.exechomemanagement.co.za",
+      "address": "Hartbeespoort, North West",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Executive-Home-Management-Solutions"
+    },
+    {
+      "name": "Central Group Services",
+      "website": "https://www.centralgroupservices.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Central-Group-Services"
+    },
+    {
+      "name": "Cleanest Garden Services",
+      "website": "https://www.cleanestcleaning.co.za",
+      "address": "Witkoppen Rd Northriding, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cleanest-Garden-Services"
+    },
+    {
+      "name": "MWALE ELECTRICAL SERVICES",
+      "website": "https://www.mwaleconstructionandprojects.co.za",
+      "address": "221 Van Der Walt Street City Towers Pretoria Pretoria, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MWALE-ELECTRICAL-SERVICES"
+    },
+    {
+      "name": "Cleanest Carpet Cleaners",
+      "website": "https://www.cleanestcleaning.co.za",
+      "address": "Johan Rd Honeydew, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cleanest-Carpet-Cleaners_397903"
+    },
+    {
+      "name": "DELTA BLUE TRADING 635",
+      "website": "https://www.deltabluetrading.com",
+      "address": "77 Millborn Street Judiths Paarl, Bertrams, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/DELTA-BLUE-TRADING-635"
+    },
+    {
+      "name": "Glomail",
+      "website": "https://www.glomail.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Glomail"
+    },
+    {
+      "name": "Alrode Chemicals",
+      "website": "https://www.alrodechem.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alrode-Chemicals"
+    },
+    {
+      "name": "Premium Cleaning Services",
+      "website": "https://www.premiumcleaningservices.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Premium-Cleaning-Services"
+    },
+    {
+      "name": "Gcinensa Cleaning",
+      "website": "https://www.gcinensacleaning.co.za",
+      "address": "Suite 217, Salisbury Center, West Street Durban",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gcinensa-Cleaning"
+    },
+    {
+      "name": "Grand Dynamic Services",
+      "website": "https://www.granddynamicservices.com",
+      "address": "P O Box 6523 Tasbet Park",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Grand-Dynamic-Services"
+    },
+    {
+      "name": "Marematlou",
+      "website": "https://www.marematlouedc.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marematlou"
+    },
+    {
+      "name": "Durban Propainters",
+      "website": "https://www.durbanpropainters.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Durban-Propainters"
+    },
+    {
+      "name": "KANDO&#39;S EVENTS MANAGEMENT &amp; CATERING CL…",
+      "website": "https://www.facebook.com/ahoy",
+      "address": "131 BLOCK C PHAROE PARK Germiston, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 400,
+      "error": "HTTP 400",
+      "bizbayUrl": "https://bizbay.co.za/Company/KANDoS-EVENTS-MANAGEMENT-CATERING-CLEANING-SERVICES"
+    },
+    {
+      "name": "Makatsang",
+      "website": "https://www.makatsang.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Makatsang"
+    },
+    {
+      "name": "Siyavuna",
+      "website": "https://www.siyavuna.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Siyavuna"
+    },
+    {
+      "name": "Julius Contractors",
+      "website": "https://juliuscontractors.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Julius-Contractors"
+    },
+    {
+      "name": "Africa Floorcare",
+      "website": "https://www.africafloorcare.co.za",
+      "address": "35 aylesbury road greenshields parks",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Africa-Floorcare"
+    },
+    {
+      "name": "Spill Response Team",
+      "website": "https://www.spillresponseteam.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Spill-Response-Team"
+    },
+    {
+      "name": "Hydrotek",
+      "website": "https://www.hydrotek.za.com",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hydrotek"
+    },
+    {
+      "name": "Leighton O&#39;brien",
+      "website": "https://www.axifuelrestoration.com",
+      "address": "Albany House 324/326 Regent Street LONDON W1B 3HH",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Leighton-obrien"
+    },
+    {
+      "name": "Runecor Cleaning Services",
+      "website": "https://runecor.co.za",
+      "address": "316 Jules Street Malvern Johannesburg",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Runecor-Cleaning-Services"
+    },
+    {
+      "name": "Tsheguka",
+      "website": "https://www.tsheguka.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tsheguka"
+    },
+    {
+      "name": "Approved Cleaning",
+      "website": "https://www.approvedcleaning.co.za",
+      "address": "77 Athlone Ave Dalpark Brakpan",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Approved-Cleaning"
+    },
+    {
+      "name": "Cleaning Pretoria",
+      "website": "https://cleaningpretoria.co.za",
+      "address": "441 Skilder Street Silvertondale Pretoria, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cleaning-Pretoria"
+    },
+    {
+      "name": "Clean Force Africa",
+      "website": "https://www.cleanforce.co.za",
+      "address": "21 Adriana Crescent Gateway Industrial Park Rooihuiskraal X25 Centurion",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Clean-Force-Africa"
+    },
+    {
+      "name": "Mathata Less",
+      "website": "https://www.mathataless.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mathata-Less"
+    },
+    {
+      "name": "Jobivi",
+      "website": "https://www.jobivi.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jobivi"
+    },
+    {
+      "name": "Siyaconsdan",
+      "website": "https://siyaconsdan.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Siyaconsdan"
+    },
+    {
+      "name": "L A MASH TRADING ENTERPRISE",
+      "website": null,
+      "address": "Stand No. 389, Mandela Village, Shatale Bushbuckridge, Mpumalanga",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/L-A-MASH-TRADING-ENTERPRISE"
+    },
+    {
+      "name": "Spark Steel Fabrication and Cleaning Se…",
+      "website": null,
+      "address": "Johannesburg, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Spark-Steel-Fabrication-and-Cleaning-Services"
+    },
+    {
+      "name": "Ukhamba Lwethu Civil Constructions",
+      "website": null,
+      "address": "Corner Rissik And Bree Johannesburg, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ukhamba-Lwethu-Civil-Constructions"
+    },
+    {
+      "name": "Jade&#39;s Cleaning, Communication and Civi…",
+      "website": null,
+      "address": null,
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jades-Cleaning-Communication-and-Civil-Services-CC"
+    },
+    {
+      "name": "Leenkleen cleaning Services",
+      "website": null,
+      "address": "Culross Road, Bryanston Sandton, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Leenkleen-cleaning-Services"
+    },
+    {
+      "name": "BEE LYNE CITY CLEANERS",
+      "website": null,
+      "address": "Midrand, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BEE-LYNE-CITY-CLEANERS"
+    },
+    {
+      "name": "Dumolihle Security &amp; Cleaning Service",
+      "website": null,
+      "address": "Mozart Street, 11 Alabama, Honeydew Ridge Roodepoort, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dumolihle-Security-Cleaning-Service"
+    },
+    {
+      "name": "Simbokwe Consrtuction and Cleaning serv…",
+      "website": null,
+      "address": "42 Taylor Street Uitenhage, Eastern Cape",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Simbokwe-Consrtuction-and-Cleaning-services"
+    },
+    {
+      "name": "M2 Plum Construction",
+      "website": null,
+      "address": "1228 U Section Botshabelo 9781 Bloemfontein, Free State",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/M2-Plum-Construction"
+    },
+    {
+      "name": "Machunu-Amahle Grass Cutters &amp; Cleaning…",
+      "website": null,
+      "address": "Bb841;umbabhatha Road;umlazi Durban, Kwazulu Natal",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Machunu-Amahle-Grass-Cutters-Cleaning-Services"
+    },
+    {
+      "name": "PTS Hygienic Masters",
+      "website": null,
+      "address": null,
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/PTS-Hygienic-Masters"
+    },
+    {
+      "name": "Inkuthalo Cleaning Services",
+      "website": null,
+      "address": null,
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Inkuthalo-Cleaning-Services"
+    },
+    {
+      "name": "SHONA-PK TRADING&amp;PROJECTS",
+      "website": null,
+      "address": "65 Foresthaven Drive, Foresthaven Durban, Kwazulu Natal",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SHONA-PK-TRADING-PROJECTS"
+    },
+    {
+      "name": "Clemy Security And Cleaning Services",
+      "website": null,
+      "address": "Mozart Street, 11 Alabama Honeydew Ridge, Gauteng",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Clemy-Security-And-Cleaning-Services"
+    },
+    {
+      "name": "GBE Cleaning Services JHB/PTA",
+      "website": null,
+      "address": "30 Swartkopp Street, Ext 2, Eldorado Park Johannesburg, Gauteng",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/GBE-Cleaning-Services-JHB-PTA"
+    },
+    {
+      "name": "Evening Star Laundromat",
+      "website": null,
+      "address": "Cnr Tana & Naivasha, Sunhill Shopping Centre Sunninghill, Gauteng",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Evening-Star-Laundromat"
+    },
+    {
+      "name": "Lamasha Cleaning Services",
+      "website": null,
+      "address": "Parkrand, Boksburg, Barry Marias, Jubilee Boksburg, Gauteng",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lamasha-Cleaning-Services"
+    },
+    {
+      "name": "Topez Investments (PTY) LTD",
+      "website": null,
+      "address": null,
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Topez-Investments"
+    },
+    {
+      "name": "Prithel General Building and Civil Cons…",
+      "website": null,
+      "address": "67 Cuckoo Avenue, Safari Gardens X8 Rustenburg, North West",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Prithel-General-Building-and-Civil-Construction-Projects"
+    },
+    {
+      "name": "Bonray Cleaning Services",
+      "website": null,
+      "address": "6 Orpiment Street Mayfieldpark, Gauteng",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bonray-Cleaning-Services"
+    },
+    {
+      "name": "EZWENI EMPLOYMENTS &amp; SERVICES",
+      "website": null,
+      "address": null,
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/EZWENI-EMPLOYMENTS-SERVICES"
+    },
+    {
+      "name": "SABTAM CLEANING SERVICES",
+      "website": null,
+      "address": "Johannesburg, Jaca Drive, Dobsonville Johannesburg, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SABTAM-CLEANING-SERVICES"
+    },
+    {
+      "name": "BLIND CLEANING - GEORGE - GARDEN ROUTE …",
+      "website": null,
+      "address": "00, Doring Street, Groeneweide Park George, Western Cape",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BLIND-CLEANING-GEORGE-GARDEN-ROUTE-SA"
+    },
+    {
+      "name": "JRO Cleaning Services",
+      "website": null,
+      "address": "Simonsvlei Crescent, The Reeds, Centurion Pretoria, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/JRO-Cleaning-Services"
+    },
+    {
+      "name": "Muhanelwa Tshikwenda General Dealer",
+      "website": null,
+      "address": "No 71, Terreira Stree, Austin View Midrand, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Muhanelwa-Tshikwenda-General-Dealer"
+    },
+    {
+      "name": "GLINSTER BLINK",
+      "website": null,
+      "address": "Wierdapark, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/GLINSTER-BLINK"
+    },
+    {
+      "name": "Modern Cleaners, Laundry &amp; Dry Cleaning…",
+      "website": null,
+      "address": "6 Sixth Avenue, Industria Polokwane, Limpopo",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Modern-Cleaners-Laundry-Dry-Cleaning-Services"
+    },
+    {
+      "name": "Makaringe Cleanining Services",
+      "website": null,
+      "address": "4238 Ext 4, Chlorine Streeet, Clayville Olifantsfontein, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Makaringe-Cleanining-Services"
+    },
+    {
+      "name": "NDIZA PLUMBING AND CLEANING SERVICES",
+      "website": null,
+      "address": "Storms Rd, Norkempark Kempton Park, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/NDIZA-PLUMBING-AND-CLEANING-SERVICES"
+    },
+    {
+      "name": "Nina&#39;s Cleaning &amp; Ironing Services",
+      "website": null,
+      "address": "27 Potentate Avenue, Phase 2, Braamfischerville Roodepoort, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ninas-Cleaning-Ironing-Services"
+    },
+    {
+      "name": "Contour Products",
+      "website": null,
+      "address": "27 Spyker Street, Rynsoord, Benoni Gauteng, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Contour-Products"
+    },
+    {
+      "name": "Star Cleaning and Maintenance Services",
+      "website": null,
+      "address": "8 Andries Dreyer Crescent, West Coast Yzerfontein, Western Cape",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Star-Cleaning-and-Maintenance-Services"
+    },
+    {
+      "name": "@ Your Service Cleaning Services",
+      "website": null,
+      "address": null,
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Your-Service-Cleaning-Services"
+    },
+    {
+      "name": "Chanfuti cc",
+      "website": null,
+      "address": "White River, Po Box 4205 White River, Mpumalanga",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chanfuti-cc"
+    },
+    {
+      "name": "Stambuyi Security and Cleaning Services…",
+      "website": null,
+      "address": null,
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Stambuyi-Security-and-Cleaning-Services-CC"
+    },
+    {
+      "name": "High Pressure Cleaning (KZN)",
+      "website": null,
+      "address": "Upper Highway, Winston Rd Kloof, Kwazulu Natal",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/High-Pressure-Cleaning-KZN"
+    },
+    {
+      "name": "move about transport",
+      "website": null,
+      "address": "Cape Town, Western Cape",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/move-about-transport"
+    },
+    {
+      "name": "the curve behind trading",
+      "website": null,
+      "address": "785 Dovea Street Doornpoort Ext 32 Pretoria, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/the-curve-behind-trading"
+    },
+    {
+      "name": "Tsoani cleaning services",
+      "website": null,
+      "address": null,
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tsoani-cleaning-services"
+    },
+    {
+      "name": "M.O.O.I - HOSPITALITY SERVICES",
+      "website": null,
+      "address": "Beach Road Cape Town, Western Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/M-O-O-I-HOSPITALITY-SERVICES"
+    },
+    {
+      "name": "Simako Pest Control Services",
+      "website": null,
+      "address": "39 Maldive Street, Beacon Bay East London, Eastern Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Simako-Pest-Control-Services"
+    },
+    {
+      "name": "MVM Classic Cleaners",
+      "website": null,
+      "address": "276 Pongola River Drive, Ext 3, Birch Acres Kempton Park, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MVM-Classic-Cleaners"
+    },
+    {
+      "name": "Eastern Cape Security And Cleaning Serv…",
+      "website": null,
+      "address": "10 Finsbury Terrace Clifton Park East London, Eastern Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Eastern-Cape-Security-And-Cleaning-Services"
+    },
+    {
+      "name": "Helderberg Cleaning Services",
+      "website": null,
+      "address": "Gordons Bay Gordons Bay, Western Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Helderberg-Cleaning-Services"
+    },
+    {
+      "name": "Lesibana Investment Holdings",
+      "website": null,
+      "address": "38 Balelaika Street, Ext 1, Proclamation Hill Pretoria West, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lesibana-Investment-Holdings"
+    },
+    {
+      "name": "Ramoshaba Cleaning And Maintenance Serv…",
+      "website": null,
+      "address": "304 President House Johannesburg, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ramoshaba-Cleaning-And-Maintenance-Services"
+    },
+    {
+      "name": "Uzwelo Investments",
+      "website": null,
+      "address": "94 Sunderland Road, Cato Manor Durban, Kwazulu-nata",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Uzwelo-Investments"
+    },
+    {
+      "name": "Mina Cleaning Services",
+      "website": null,
+      "address": "8057 Zone 7a Sebokeng, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mina-Cleaning-Services"
+    },
+    {
+      "name": "MP Site Cleaners",
+      "website": null,
+      "address": "Makhisane Pretoria, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MP-Site-Cleaners"
+    },
+    {
+      "name": "Mshump&#39;s Cleaning and Maintenance Servi…",
+      "website": null,
+      "address": "267 Quarry Road, Springfield Durban , Kwazulu-nata",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mshumps-Cleaning-and-Maintenance-Services"
+    },
+    {
+      "name": "JEMBAG Services and Supplies",
+      "website": null,
+      "address": "3 Klipdrif Street Postmasburg, Northern Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/JEMBAG-Services-and-Supplies"
+    },
+    {
+      "name": "TGM Laundry Services CC",
+      "website": null,
+      "address": "103 Jan Coetzee Srteet, Jan Niemand Park Pretoria, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/TGM-Laundry-Services-CC"
+    },
+    {
+      "name": "Optical Cleaning Services cc",
+      "website": null,
+      "address": "51 Jump Street Koringpunt, Limpopo",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Optical-Cleaning-Services-cc"
+    },
+    {
+      "name": "INDHLOVUKAZI TRADING ENTERPRISE",
+      "website": null,
+      "address": "Plot 17 Old Post Office Bldg, Section Ba Kwamhlanga, Mpumalanga",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/INDHLOVUKAZI-TRADING-ENTERPRISE"
+    },
+    {
+      "name": "MAZIKHWEZI CONTRACTING AND TRADING",
+      "website": null,
+      "address": "12a Park Lodge, 13 Anderson Road Pinetown, Kwazulu-nata",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MAZIKHWEZI-CONTRACTING-AND-TRADING"
+    },
+    {
+      "name": "Atlantic Cleaning and Pest Control Serv…",
+      "website": null,
+      "address": "Oakland Hills Drive Cape Town, Western Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Atlantic-Cleaning-and-Pest-Control-Services"
+    },
+    {
+      "name": "MYALL COURIERS MAINTENANCE &amp; ENTERPRISE…",
+      "website": null,
+      "address": "Sterre Eldoradopark, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MYALL-COURIERS-MAINTENANCE-ENTERPRISES-CC"
+    },
+    {
+      "name": "LANGAMO TRADING AND PROJECTS",
+      "website": null,
+      "address": "199 Jeppe Street, Small Street Moray House Jhb , Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/LANGAMO-TRADING-AND-PROJECTS"
+    },
+    {
+      "name": "Ultrasonic Blind Cleaning",
+      "website": null,
+      "address": "82 Errol Drive, Framesby Port Elizabeth, Eastern Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ultrasonic-Blind-Cleaning"
+    },
+    {
+      "name": "smallbites trading",
+      "website": null,
+      "address": "3498 Blue Bush, Naturena Naturena, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/smallbites-trading"
+    },
+    {
+      "name": "C V UNATHI TRADING",
+      "website": null,
+      "address": "4 Dumbarton Road, Umgeni Road, Durban Durban Kwazulu Natal, Kwazulu-nata",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/C-V-UNATHI-TRADING"
+    },
+    {
+      "name": "Therm Clean",
+      "website": null,
+      "address": "Fish Hoek Fish Hoek, Western Cape",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Therm-Clean"
+    },
+    {
+      "name": "Rampofene Trading Enterprise",
+      "website": null,
+      "address": "No 853 Unit C Khutsong Polokwane, Limpopo",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rampofene-Trading-Enterprise"
+    },
+    {
+      "name": "NORTH COAST WINDOW CLEANING",
+      "website": null,
+      "address": "34 Sipho Sethu Road, Mount Edgecombe Durban , Kwazulu Natal",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/NORTH-COAST-WINDOW-CLEANING"
+    },
+    {
+      "name": "Katlegile Marketing &amp; Projects",
+      "website": null,
+      "address": "No 56 Kantoor Str, Swaan East Lynn,pretoria, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Katlegile-Marketing-Projects"
+    },
+    {
+      "name": "TNL COATIONGS AND CLEANING SERVICES CC",
+      "website": null,
+      "address": "106 De Villiers Street, Kenilworth Johannesburg, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/TNL-COATIONGS-AND-CLEANING-SERVICES-CC"
+    },
+    {
+      "name": "Ikhozi Security, Cleaning &amp; Personel pl…",
+      "website": null,
+      "address": "Alan Paton Ave Pietermaritzburg Kwazulu-natal, Kwazulu-nata",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ikhozi-security"
+    },
+    {
+      "name": "Holiday Home Maintenance CC",
+      "website": null,
+      "address": "39 Hannes Louw Drive, De Tijger Parow, Western Cape",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Holiday-Home-Maintenance-CC"
+    },
+    {
+      "name": "Ba a Dira",
+      "website": null,
+      "address": "Graniet Street Wilkoppies, North West Province",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ba-a-Dira"
+    },
+    {
+      "name": "aa Gemko Cleaning services",
+      "website": null,
+      "address": "1c Preston Road, Prestondale, Umhlanga Durban North Kwazulu Natal, Kwazulu-nata",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/aa-Gemko-Cleaning-services"
+    },
+    {
+      "name": "Zanekamva Cleaning Catering and Distrib…",
+      "website": null,
+      "address": "62 Bokwe Street, Mossel Bay, Mossel Bay Mossel Bay, Western Cape",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zanekamva-Cleaning-Catering-and-Distribution-Services"
+    },
+    {
+      "name": "Dinake&#39;s cleaning(and security) service…",
+      "website": null,
+      "address": "15550 Mount Ayliff Street, Kagiso Ext 12 Mogale City, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dinakes-cleaning-and-security-services-cc"
+    },
+    {
+      "name": "Genesis 1 Showroom Cleaning Services",
+      "website": null,
+      "address": "On Site Showroom Cleaning Cape Town, Western Cape",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Genesis-1-Showroom-Cleaning-Services"
+    },
+    {
+      "name": "MOIPONE AND MKEMELENG CATERING AND PROJ…",
+      "website": null,
+      "address": "12 Aloe Street Arconpark Vereeniging 1939 Arconpark Vereeniging 1939, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MOIPONE-AND-MKEMELENG-CATERING-AND-PROJECTS"
+    },
+    {
+      "name": "Tshwagano security and cleaning cc",
+      "website": null,
+      "address": "No Office Yet Pretoria West, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tshwagano-security-and-cleaning-cc"
+    },
+    {
+      "name": "Fentse cleaning services",
+      "website": null,
+      "address": "6755 Malefetse Street Thokoza Thokoza, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fentse-cleaning-services"
+    },
+    {
+      "name": "iSoneike Laundry",
+      "website": null,
+      "address": null,
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/iSoneike-Laundry"
+    },
+    {
+      "name": "Quench ManagementServices",
+      "website": null,
+      "address": "Johannesburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Quench-ManagementServices"
+    },
+    {
+      "name": "NDL DEVELOPMENT PROJECT CC",
+      "website": null,
+      "address": "26 DEVHULA STR LADY SELBORNE PTA 26 DEVHULA STR PTA W PRETORIA, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/NDL-DEVELOPMENT-PROJECT-CC"
+    },
+    {
+      "name": "LET - A - DRUM",
+      "website": null,
+      "address": "11 Westgate 15 Mottramdale Rd Westville Durban, KwaZulu-Nata",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/LET-A-DRUM"
+    },
+    {
+      "name": "Bright Star Cleaning Services",
+      "website": null,
+      "address": null,
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bright-Star-Cleaning-Services"
+    },
+    {
+      "name": "motshegwa cleaning services",
+      "website": null,
+      "address": "7222 phomolng x8,modimolle,0510 modimolle, Limpopo",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/motshegwa-cleaning-services"
+    },
+    {
+      "name": "Kazi Events and Projects",
+      "website": null,
+      "address": "1968 Sekhukhune Road Payneville Springs, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kazi-Events-and-Projects"
+    },
+    {
+      "name": "Nebata Investments and Projects",
+      "website": null,
+      "address": "Midrand Noordwyk Barclay Road Johannesburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nebata-Investments-and-Projects"
+    },
+    {
+      "name": "Silverstone office Solutions",
+      "website": null,
+      "address": "Unit 3 Millenium park Scheckter road Kilarney Gardens Cape Town, Western Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Silverstone-office-Solutions"
+    },
+    {
+      "name": "Yardmangardern",
+      "website": null,
+      "address": "155 Frances Street Frances street Bellevue east Johannesburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Yardmangardern"
+    },
+    {
+      "name": "REATE INVESTMENTS CC T/A R. I. CONSTRUC…",
+      "website": null,
+      "address": "19 SUNNY WAY KELVIN, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/REATE-INVESTMENTS-CC-R-I-CONSTRUCTION"
+    },
+    {
+      "name": "Char and Office Cleaning Services",
+      "website": null,
+      "address": "15 Eastry Rd Claremont Claremont, Western Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Char-and-Office-Cleaning-Services"
+    },
+    {
+      "name": "almant general trading",
+      "website": null,
+      "address": "[email&#160;protected] 2838 block h1 2838 block h1 Aliwal North, Eastern Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/almant-general-trading"
+    },
+    {
+      "name": "ELFCO",
+      "website": null,
+      "address": "8 Barbet Street Vereeniging, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ELFCO"
+    },
+    {
+      "name": "Personal Window Cleaning KZN",
+      "website": null,
+      "address": "8 Saddle Rd Moseley Park Pinetown, KwaZulu-Nata",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Personal-Window-Cleaning-KZN"
+    },
+    {
+      "name": "Jabulisizwe Trading",
+      "website": null,
+      "address": "97 Tlale street 53 Yelanda street 20 Mahlare street Pretoria, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jabulisizwe-Trading"
+    },
+    {
+      "name": "MSE Aqua Blast",
+      "website": null,
+      "address": "76 Silverpine Ave Randburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MSE-Aqua-Blast"
+    },
+    {
+      "name": "Loliwe Consulting Services cc",
+      "website": null,
+      "address": "16 Randfern village 323 Main Avenue Ferndale Randburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Loliwe-Consulting-Services-cc"
+    },
+    {
+      "name": "BEE-SURE HYGIENE SERVICES",
+      "website": null,
+      "address": "1 DURING RD HONEYDEW Randburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BEE-SURE-HYGIENE-SERVICES"
+    },
+    {
+      "name": "Sharon&#39;s laundry &amp; cleaning services",
+      "website": null,
+      "address": "280 Thakalekoala str Rocklands location Bloemfontein, Free State",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sharons-laundry-cleaning-services"
+    },
+    {
+      "name": "Largies.Net cc",
+      "website": null,
+      "address": "Box 8100, Namakgale, RSA 1391 360D Madiba Street Namakgale, Limpopo",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Largies-Net-cc"
+    },
+    {
+      "name": "Carpetmaid",
+      "website": null,
+      "address": "P.O.Box 35698 Northway, KwaZulu-Nata",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Carpetmaid_535969"
+    },
+    {
+      "name": "Tissues 4 U Trading and Enterprises",
+      "website": null,
+      "address": "3 Eland Street Middelburg, Mpumalanga",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tissues-4-U-Trading-and-Enterprises"
+    },
+    {
+      "name": "Noyana Trading Enterprise",
+      "website": null,
+      "address": null,
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Noyana-Trading-Enterprise"
+    },
+    {
+      "name": "Ubutu Trading Enterprise CC",
+      "website": null,
+      "address": "22 Cape Beech Ave Centurion Centurion , Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ubutu-Trading-Enterprise-CC"
+    },
+    {
+      "name": "VAROZVI CONTRACTORS CC",
+      "website": null,
+      "address": "15 RICHARDS PARK FIFE STREET BUCCLEUCH Sandton, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/VAROZVI-CONTRACTORS-CC"
+    },
+    {
+      "name": "Walrique Cleaning",
+      "website": null,
+      "address": "Cape Town, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Walrique-Cleaning"
+    },
+    {
+      "name": "LEKABOTSHELO CLEANING SERVICES",
+      "website": null,
+      "address": "36 ELIJAH BARAYI STR KHAYELITSHA 7784 Khayelitsha, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/LEKABOTSHELO-CLEANING-SERVICES"
+    },
+    {
+      "name": "mabje cleaning services cc",
+      "website": null,
+      "address": "p o box 9813 sekgakgapeng mokopane, Limpopo",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/mabje-cleaning-services-cc"
+    },
+    {
+      "name": "JAMCO MAINTENANCE and SERVICES",
+      "website": null,
+      "address": null,
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/JAMCO-MAINTENANCE-and-SERVICES"
+    },
+    {
+      "name": "Shakinah Cleaning and Security Services…",
+      "website": null,
+      "address": "41Taaibos Street Lentegeur Mitchells Plain Cape Town, Cape Town",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shakinah-Cleaning-and-Security-Servicescc"
+    },
+    {
+      "name": "xplosive investments 902 cc",
+      "website": null,
+      "address": "5 emerald avenue balmoral top town Queenstown, Eastern Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/xplosive-investments-902-cc"
+    },
+    {
+      "name": "Motuke Trading Enterprise",
+      "website": null,
+      "address": "985 section B Palm Springs Evaton, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Motuke-Trading-Enterprise"
+    },
+    {
+      "name": "MAKENAHOHLE TRADING AND PROJECTS CC.",
+      "website": null,
+      "address": "664 E ndlovu road Meadowlands zone 5 soweto ndlovu road Johannesburg, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MAKENAHOHLE-TRADING-AND-PROJECTS-CC"
+    },
+    {
+      "name": "Gentle Departures",
+      "website": null,
+      "address": "Borghorst Street, Monte Vista Cape Town, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gentle-Departures"
+    },
+    {
+      "name": "reyakopele trading 160",
+      "website": null,
+      "address": "pretoria, ga-rankuwa, zone 1 theresapark Pretoria North, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/reyakopele-trading-160"
+    },
+    {
+      "name": "L.A.H Cleaning and Maintenance cc",
+      "website": null,
+      "address": "Villa Elegance Eland Road Glen Marais Kempton Park, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/L-A-H-Cleaning-and-Maintenance-cc"
+    },
+    {
+      "name": "Mikese Trading and Projects",
+      "website": null,
+      "address": "1118 Morake Street Moletsane P. O Kwa xuma Soweto, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mikese-Trading-and-Projects"
+    },
+    {
+      "name": "D.S.D. Carpet and upholstery cleaners",
+      "website": null,
+      "address": "Charl Celliers street Alberton, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/D-S-D-Carpet-and-upholstery-cleaners"
+    },
+    {
+      "name": "Mpumalanga Domestic Cleaning Srvices",
+      "website": null,
+      "address": "pobox 13551, Leraatsfontein,1038 Chrishani Str Bethal, Mpumalanga",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mpumalanga-Domestic-Cleaning-Srvices"
+    },
+    {
+      "name": "Mudziwa Projects cc",
+      "website": null,
+      "address": null,
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mudziwa-Projects-cc"
+    },
+    {
+      "name": "NGK Cleaning Services",
+      "website": null,
+      "address": "20 Koch str Krigeville Stellenbosch, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/NGK-Cleaning-Services"
+    },
+    {
+      "name": "Captains Cabin",
+      "website": null,
+      "address": "262 Stateway Bedelia Souh Africa Welkom, Free State",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Captains-Cabin"
+    },
+    {
+      "name": "Nkosiyomusa General Trading",
+      "website": null,
+      "address": "7812 Extension 6 7812 extension 6 Bela-bela, Limpopo",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nkosiyomusa-General-Trading"
+    },
+    {
+      "name": "Durbanville Cleaning Services",
+      "website": null,
+      "address": "41 Panorama Drive Stellenberg Durbanville, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Durbanville-Cleaning-Services"
+    },
+    {
+      "name": "Best touch trading enterprise",
+      "website": null,
+      "address": "8241 Ext 9 kwaguqa Witbank 1039 Popomolife street kwaguqa Witbank, Mpumalanga",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Best-touch-trading-enterprise"
+    },
+    {
+      "name": "Xtreme Car Wash",
+      "website": null,
+      "address": null,
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xtreme-Car-Wash"
+    },
+    {
+      "name": "ASK Services Incorporated",
+      "website": null,
+      "address": "9 Bosman Street Kuilsrivier Kuilsriver, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ASK-Services"
+    },
+    {
+      "name": "galding servicece",
+      "website": null,
+      "address": "28 cromton st 66 nicolals crompton cromton pinetown, KwaZulu-Nata",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/galding-servicece"
+    },
+    {
+      "name": "BATHUSE CLEANERS",
+      "website": null,
+      "address": "POLOKWANE, Limpopo",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BATHUSE-CLEANERS"
+    }
+  ]
+}

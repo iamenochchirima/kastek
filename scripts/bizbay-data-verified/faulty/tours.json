@@ -1,0 +1,3848 @@
+{
+  "category": "Tours",
+  "count": 387,
+  "listings": [
+    {
+      "name": "Molo Africa",
+      "website": "https://www.travelintoafrica.co.za",
+      "address": "P O Box 4028 Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Molo-Africa"
+    },
+    {
+      "name": "Garden Shuttle - Airport Transfers - Ge…",
+      "website": "https://www.gardenshuttle.co.za",
+      "address": "Head Office, Main Street, Knysna Plettenberg Bay , Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Garden-Shuttle-Airport-Transfers-George-Knysna-Plettenberg-Bay-Garden-Route-South-Africa"
+    },
+    {
+      "name": "Extraordinary Travel &amp; Tours &#39;E.T&amp;T&#39;",
+      "website": "https://www.e-ttgroup.com",
+      "address": "26 Thornton Road, Westdene Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Extraordinary-Travel-Tours-E-T-T"
+    },
+    {
+      "name": "Lion Pride Charters",
+      "website": "https://www.lionpridecharters.co.za",
+      "address": "Florida Cbd Roodepoort, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lion-Pride-Charters"
+    },
+    {
+      "name": "Sunset Palms Tours",
+      "website": "https://www.sunsetpalmstours.co.za",
+      "address": "Garsfontein, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sunset-Palms-Tours"
+    },
+    {
+      "name": "moses tours",
+      "website": "https://www.mosetours.co.za",
+      "address": "36.doris Street Kensingtone 2090 Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/moses-tours"
+    },
+    {
+      "name": "African Hopper Tours",
+      "website": "https://www.hoppertours.com",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Hopper-Tours"
+    },
+    {
+      "name": "Adaro Tours",
+      "website": "https://www.adarotours.co.za",
+      "address": "30 Frans Conradie Drive Parow, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Adaro-Tours"
+    },
+    {
+      "name": "Bezco-SA Travel",
+      "website": "https://www.bezco-sa.co.za",
+      "address": "P O Box 28061 Bothasig, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bezco-SA-Travel"
+    },
+    {
+      "name": "Western Cape Tours",
+      "website": "https://www.westerncapetours.co.za",
+      "address": "26 Edgemead Drive Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Western-Cape-Tours"
+    },
+    {
+      "name": "CLASSIC CABS &amp; TOURS",
+      "website": "https://www.classiccabsandtours.co.za",
+      "address": "31 Sycamore Way, Athlone, Cape Town Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CLASSIC-CABS-TOURS"
+    },
+    {
+      "name": "Back In Africa",
+      "website": "https://www.backinafrica.com",
+      "address": "119 Mann Street, Loerie Park, Garden Route George, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Back-In-Africa"
+    },
+    {
+      "name": "Cape Luxury Cars",
+      "website": "https://www.capeluxurycars.co.za",
+      "address": "Kloof Street Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 400,
+      "error": "HTTP 400",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Luxury-Cars"
+    },
+    {
+      "name": "Swell Tours South Africa",
+      "website": "https://www.swelltours.com",
+      "address": "Mdumbi, Transkei Wild Coast, Eastern Cape",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Swell-Tours-South-Africa"
+    },
+    {
+      "name": "Pinnacle Travel Transfers &amp; Tours",
+      "website": "https://www.pinnacle-transfersandtours.com",
+      "address": "Heriotdale, 47 Pendula Rd Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pinnacle-Travel-Transfers-Tours"
+    },
+    {
+      "name": "Fanatic Tours",
+      "website": "https://www.fanatictours.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fanatic-Tours"
+    },
+    {
+      "name": "Anytime Africa Tours and Safaris",
+      "website": "https://www.anytimeafrica.co.za",
+      "address": "Salt Rock, Kwazulu Natal",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Anytime-Africa-Tours-and-Safaris"
+    },
+    {
+      "name": "Breath of Asia Tours",
+      "website": "https://www.breathofasia.co.za",
+      "address": "51 Marion Avenue, Glenashley Durban , Kwazulu Natal",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Breath-of-Asia-Tours"
+    },
+    {
+      "name": "BRAVOSPEC TRAVEL AND TOURS",
+      "website": "https://www.bravospecinvestments.co.za",
+      "address": "Goethe Rd Lombardy East, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BRAVOSPEC-TRAVEL-AND-TOURS"
+    },
+    {
+      "name": "Mzo tours and travel",
+      "website": "https://www.mzotoursandtravel.co.za",
+      "address": "8 Club Street, Forest Hill Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mzo-tours-and-travel"
+    },
+    {
+      "name": "Hot Pepper Travel CC",
+      "website": "https://www.hotpeppertravel.co.za",
+      "address": "Section 108, Farm Heidel Berg White River, Mpumalanga",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hot-Pepper-Travel-CC"
+    },
+    {
+      "name": "Wild Flower Tours",
+      "website": "https://travel.to/wildflowertours",
+      "address": "Saldanha, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wild-Flower-Tours"
+    },
+    {
+      "name": "Travelpass International (Pty) Ltd",
+      "website": "https://www.travpass.org",
+      "address": "Amr Office Park - Bldg 2, Concorde Road East Bedfordview, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Travelpass-International"
+    },
+    {
+      "name": "Ajar Tours",
+      "website": "https://www.ajar.co.za",
+      "address": "9 Wellington Street, Goodwood Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ajar-Tours"
+    },
+    {
+      "name": "CH Shuttles &amp; Tours",
+      "website": "https://www.chsolutions.co.za",
+      "address": "Alberton, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CH-Shuttles-Tours"
+    },
+    {
+      "name": "Execugolf",
+      "website": "https://www.execugolf.co.za",
+      "address": "31 Danie Joubert Street, Multi Media Productions White River, Mpumalanga",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Execugolf"
+    },
+    {
+      "name": "Touristo Tours",
+      "website": "https://www.touristotours.com",
+      "address": "2a Greentrees, 80 Adrain Rd, 2a Greentrees Durban, Kwazulu Natal",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Touristo-Tours"
+    },
+    {
+      "name": "Cape Shuttles",
+      "website": "https://capeshuttles.co.za",
+      "address": "Unit 43 Rietvlei Park Birkenhead Rd Table View Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Shuttles"
+    },
+    {
+      "name": "Helderberg Mall&amp;All Shuttle Services",
+      "website": "https://www.mallnall.co.za",
+      "address": "8 Victoria Rd Somerset West, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Helderberg-Mall-All-Shuttle-Services"
+    },
+    {
+      "name": "Usizo Lwenkosi tours",
+      "website": "https://www.soweto.mahoonas.co.za",
+      "address": "Soweto Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Usizo-Lwenkosi-tours"
+    },
+    {
+      "name": "Sani Pass Hotel",
+      "website": "https://www.sanipasshotel.co.za",
+      "address": "Sani Pass Road, Goodhope Farm Himeville, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sani-Pass-Hotel"
+    },
+    {
+      "name": "Dinath Travel &amp; Tours",
+      "website": "https://dinathtravel.yolasite.com",
+      "address": "57 Crocodile Street Brits, North West",
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dinath-Travel-Tours"
+    },
+    {
+      "name": "Matulutulu tours and travel",
+      "website": "https://www.matulutulu.com",
+      "address": "Sezela Rd Sezela, Kwazulu Natal",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Matulutulu-tours-and-travel"
+    },
+    {
+      "name": "Egypt Today CC",
+      "website": "https://www.egypttoday.co.za",
+      "address": "Po Box 332, Constantia Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Egypt-Today-CC"
+    },
+    {
+      "name": "TLC African Tours &amp; Safaris",
+      "website": "https://www.africantours.travel",
+      "address": "Po Box 226 Muizenberg, Cape Town",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/TLC-African-Tours-Safaris"
+    },
+    {
+      "name": "King &amp; Queen Tours And Coaches",
+      "website": "https://www.kingandqueen.co.za",
+      "address": "211 Kenneth Avenue Randfontein, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/King-Queen-Tours-And-Coaches"
+    },
+    {
+      "name": "Cernogyn Tourism Services",
+      "website": "https://www.cernogyn.co.za",
+      "address": "Green Market Square Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cernogyn-Tourism-Services"
+    },
+    {
+      "name": "Dany Tours",
+      "website": "https://sadanytours.com",
+      "address": "Cape Town, Table View Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dany-Tours"
+    },
+    {
+      "name": "E-gwarragwarra golf tours",
+      "website": "https://www.e-gwarragwarra.co.za",
+      "address": "Centurion, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/E-gwarragwarra-golf-tours"
+    },
+    {
+      "name": "Mygr8 Tourism Services",
+      "website": "https://www.mygr8.net",
+      "address": "Kruger Mpumulanga International Airport, Mpumalanga",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mygr8-Tourism-Services_859007"
+    },
+    {
+      "name": "Gecko Hill Tours",
+      "website": "https://www.geckohill.co.za",
+      "address": "7 Neden Road Montrose, Pietermaritzburg, Kwazulu Natal",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gecko-Hill-Tours"
+    },
+    {
+      "name": "S &amp; A TOURS",
+      "website": "https://www.snatours.co.za",
+      "address": "24 Grasmere Street Athlone, Cape Town",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/S-A-TOURS"
+    },
+    {
+      "name": "Stobers Tours | Tour Cape Town",
+      "website": "https://www.stoberstours-capetown.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Stobers-Tours-Tour-Cape-Town"
+    },
+    {
+      "name": "D Adventure Tours",
+      "website": "https://www.dadventuretours.co.za",
+      "address": "280 Big Sky, Quorn Drive, Northriding Estates Honeydew, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/D-Adventure-Tours"
+    },
+    {
+      "name": "FlyJozi Helicopter Tours &amp; Transfers",
+      "website": "https://www.flyjozi.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/FlyJozi-Helicopter-Tours-Transfers"
+    },
+    {
+      "name": "Cape Private Tours",
+      "website": "https://www.capeprivatetours.com",
+      "address": "15 Twin Sails, Jenny Lane West Beach, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Private-Tours"
+    },
+    {
+      "name": "Bright Idea Taxis and Tours",
+      "website": "https://www.brightideatours.co.za",
+      "address": "8 Brandon Close Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bright-Idea-Taxis-and-Tours"
+    },
+    {
+      "name": "ExecuSafari",
+      "website": "https://www.execusafari.co.za",
+      "address": "40 Fiddle Street Witbank, Mpumalanga",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ExecuSafari"
+    },
+    {
+      "name": "Savvy Tours",
+      "website": "https://www.savvytours.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Savvy-Tours"
+    },
+    {
+      "name": "SnapShot Adventure Tours &amp; Travel",
+      "website": "https://www.snapshot-tours.co.za",
+      "address": "10 Pepper St, Unit 13 Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SnapShot-Adventure-Tours-Travel"
+    },
+    {
+      "name": "Vibe Tours",
+      "website": "https://www.vibetours.com",
+      "address": "2145 Westrich, Rockrich Road, Newland West Durban, Kwazulu Natal",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vibe-Tours"
+    },
+    {
+      "name": "Meiki Tours &amp; Safaris",
+      "website": "https://www.meikitoursafaris.weebly.com",
+      "address": "4516 Khunou Street, Orlando East Soweto, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Meiki-Tours-Safaris"
+    },
+    {
+      "name": "Road Cat Shuttle and Tours",
+      "website": "https://roadcat.co.za",
+      "address": "63 Libertas Avenue Table View, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Road-Cat-Shuttle-and-Tours"
+    },
+    {
+      "name": "Mantre Travel",
+      "website": "https://www.mantretravel.com",
+      "address": "Po Box 1783, Sundowner, Tourmaline Road Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mantre-Travel"
+    },
+    {
+      "name": "Chestnut Tours &amp; Chauffeur Services",
+      "website": "https://www.chestnuttours.co.za",
+      "address": "3 Northwold Dr Saxonwold, Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chestnut-Tours-Chauffeur-Services"
+    },
+    {
+      "name": "Sebata Safari&#39;s",
+      "website": "https://www.sebatasafaris.co.za",
+      "address": "9 Troika Crescent, Silver Stream Estate, Silver Lakes Road Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sebata-Safaris_887160"
+    },
+    {
+      "name": "JTV Tours",
+      "website": "https://www.jtvtours.co.za",
+      "address": "Witfield, Strauss Witfield, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/JTV-Tours_888260"
+    },
+    {
+      "name": "Street Scene Tours",
+      "website": "https://www.streetscenetours.co.za",
+      "address": "170 Mahatma Gandhi Road, Point Durban, Kwazulu Natal",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Street-Scene-Tours"
+    },
+    {
+      "name": "Galaxyexpress Tours &amp; Travel",
+      "website": "https://www.galaxyxpresstours.com",
+      "address": "No 9 Barrack Street, Cape Town Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Galaxyexpress-Tours-Travel_888930"
+    },
+    {
+      "name": "Galaxyexpress Tours &amp; Travel",
+      "website": "https://www.galaxyxpresstours.com",
+      "address": "No 9 Barrack Street, Cape Town Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Galaxyexpress-Tours-Travel_888930"
+    },
+    {
+      "name": "Moya Wa Tenga Safaris",
+      "website": "https://www.moyawatenga.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Moya-Wa-Tenga-Safaris"
+    },
+    {
+      "name": "U Like Tours and Travel",
+      "website": "https://www.uliketoursandtravel.co.za",
+      "address": "Durban, Kwazulu Natal",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/U-Like-Tours-and-Travel"
+    },
+    {
+      "name": "JUST CAPE TOWN",
+      "website": "https://www.justcapetown.com",
+      "address": "36 Beach Boulevard, Blouberg Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/JUST-CAPE-TOWN"
+    },
+    {
+      "name": "Bonilizwe Tours and Events CC",
+      "website": "https://www.bonilizwetours.co.za",
+      "address": "854/63, Mafumbu Street, Zondi One Soweto, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bonilizwe-Tours-and-Events-CC"
+    },
+    {
+      "name": "Highland Essential Oils",
+      "website": "https://www.icyherbs.co.za",
+      "address": "Vlakbult Farm Clocolan, Free State",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Highland-Essential-Oils"
+    },
+    {
+      "name": "King David Tours &amp; Travels",
+      "website": "https://www.kingdavidtours.sitew.com",
+      "address": "P.o. Box 35, 16 Wynand Smith Street Pretoria West, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/King-David-Tours-Travels"
+    },
+    {
+      "name": "Umra Tours And Nuri&#39;s Travel",
+      "website": "https://www.NurisTravel.com",
+      "address": "78 Mint Road, Fordsburg Towers Fordsburg Fordsburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Umra-Tours-And-Nuris-Travel"
+    },
+    {
+      "name": "Bananien Lodge",
+      "website": "https://www.bananienlodge.co.za",
+      "address": "7km From Sabie On R536 To Hazyview Sabie, Mpumalanga",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bananien-Lodge"
+    },
+    {
+      "name": "Wild Frontier Safaris",
+      "website": "https://www.wildfrontiersafaris.co.za",
+      "address": "2396, Swartwitpens, Marloth Park Marloth Park, Mpumalanga",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wild-Frontier-Safaris"
+    },
+    {
+      "name": "Shuttleworth Tours Zululand",
+      "website": "https://www.shuttleworthtours.co.za",
+      "address": "19 Shepstone Street Eshowe, Kwazulu-nata",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shuttleworth-Tours-Zululand"
+    },
+    {
+      "name": "harley Chauffeur Rides",
+      "website": "https://www.harleyride.co.za",
+      "address": "41 Amarant Street, Weltvreden Park, Roodepoort Johannesburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/harley-Chauffeur-Rides"
+    },
+    {
+      "name": "Tour2Africa",
+      "website": "https://www.tour2africa.com",
+      "address": "Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tour2Africa"
+    },
+    {
+      "name": "361 Strubenkop Guest House",
+      "website": "https://www.361strubenkop.co.za",
+      "address": null,
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/361-Strubenkop-Guest-House"
+    },
+    {
+      "name": "Harvey World Travel - Florida Road Durb…",
+      "website": "https://www.harveyworldtraveldurban.co.za",
+      "address": "190 Florida Road Durban, Kwazulu-nata",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Harvey-World-Travel-Florida-Road-Durban"
+    },
+    {
+      "name": "Cape Contact",
+      "website": "https://www.capecontact.co.za",
+      "address": "Cape Town, Milnerton, 7441 Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Contact"
+    },
+    {
+      "name": "Heritage Trails",
+      "website": "https://www.heritagetrails.co.za",
+      "address": "188 Main Road Walmer Port Elizabeth, Eastern Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Heritage-Trails"
+    },
+    {
+      "name": "MBE Travel (Affordable Efficient Effect…",
+      "website": "https://www.mbetravel.co.za",
+      "address": "17 Citation Street, Corner Azdec Street, Irene View, Highveld Centurion, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MBE-Travel-Affordable-Efficient-Effective"
+    },
+    {
+      "name": "Knight Fishing Charters",
+      "website": "https://www.knightfishingcharters.co.cc",
+      "address": "Main Road, Kalk Bay, Kalk Bay Harbour Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Knight-Fishing-Charters"
+    },
+    {
+      "name": "Papa G Tours &amp; Transfers",
+      "website": "https://www.papagtours.co.za",
+      "address": "23 Bushwillow Road, Craighavon, Fourways Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Papa-G-Tours-Transfers"
+    },
+    {
+      "name": "Cheapest Tours",
+      "website": "https://www.cheapesttours.co.za",
+      "address": "8 Amanzi Cresent , Vredekloof Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cheapest-Tours"
+    },
+    {
+      "name": "matulutulu tours",
+      "website": "https://www.matulutulu.com",
+      "address": "Sezela Rd Sezela Umdoni, Kwazulu Natal",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/matulutulu-tours"
+    },
+    {
+      "name": "Little-Eden Guest House and Golf Tours",
+      "website": "https://www.little-edenguesthouse.co.za",
+      "address": "Elizabethstr 18 Edenville, Free State",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Little-Eden-Guest-House-and-Golf-Tours"
+    },
+    {
+      "name": "U-Travel",
+      "website": "https://www.travport.co.za/utravel",
+      "address": "Partridge Place, Hiskett Avenue, Magaliessig Magaliessig, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/U-Travel_857773"
+    },
+    {
+      "name": "Mainstream Tours &amp; Charters",
+      "website": "https://www.mainstreamcharters.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mainstream-Tours-Charters"
+    },
+    {
+      "name": "African Sun Travel",
+      "website": "https://www.africansuntravel.com",
+      "address": "Gregory Avenue Halfway House, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Sun-Travel"
+    },
+    {
+      "name": "Quintessential Tours",
+      "website": "https://www.essentialtours.com",
+      "address": "149 Woodgate Road Plumstead, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Quintessential-Tours"
+    },
+    {
+      "name": "Rockjumper Birding Tours",
+      "website": "https://rockjumper.co.za",
+      "address": "16 Fettes Drive, Wembley Pietermaritzburg, Kwazulu-nata",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rockjumper-Birding-Tours"
+    },
+    {
+      "name": "Prosperous Tours CC",
+      "website": "https://prosperoustours.co.za",
+      "address": "Po Box 1402, Saxby Ave 1028, Eldoraigne Centurion, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Prosperous-Tours-CC_397438"
+    },
+    {
+      "name": "African Plan Tours",
+      "website": "https://www.africanplan.co.za",
+      "address": "P.o.box 3597 Halfway House, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Plan-Tours"
+    },
+    {
+      "name": "SAP-RAPIDE (c/o Quiktronix)",
+      "website": "https://www.sap-rapide.com",
+      "address": "P.o. Box 47749, Greyville Durban Kwazulu Natal, Kwazulu-nata",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/SAP-RAPIDE-c-o-Quiktronix"
+    },
+    {
+      "name": "rate-it cc",
+      "website": "https://www.rate-it.co.za",
+      "address": "243 Brooks Street, Brooklyn, Lynnwood Road Pretoria, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/rate-it-cc"
+    },
+    {
+      "name": "SEE-MORE TOURS AND TRANSFERS",
+      "website": "https://www.seemoretours.co.za",
+      "address": "29 High Street, Aurora, Durbanville Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SEE-MORE-TOURS-AND-TRANSFERS"
+    },
+    {
+      "name": "Great Sights tours and transfers",
+      "website": "https://www.greatsights.co.za",
+      "address": "Po Box 46142, Orange Grove Johannesburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Great-Sights-tours-and-transfers_394859"
+    },
+    {
+      "name": "Sharp Shuttle",
+      "website": "https://www.sharpshuttletours.co.za",
+      "address": "Zoetendal Edgemead, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sharp-Shuttle"
+    },
+    {
+      "name": "Bodyguard Services",
+      "website": "https://www.gettinghome.co.za",
+      "address": "Po Box 12811, Mill Street Southern Africa, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bodyguard-Services"
+    },
+    {
+      "name": "Deovolente Tours",
+      "website": "https://www.africa-adventure-tours.com",
+      "address": "Illinoisstreet Bellville, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Deovolente-Tours_395151"
+    },
+    {
+      "name": "Studio Travel",
+      "website": "https://www.studiotravel.co.za",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Studio-Travel"
+    },
+    {
+      "name": "Angel Tours And Events Management",
+      "website": "https://www.at-and-emanagement.co.za",
+      "address": "91 Florida Cabanas, 6 2nd Street, Florida Roodepoort, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Angel-Tours-And-Events-Management"
+    },
+    {
+      "name": "Sure Gold Travel",
+      "website": "https://www.goldtravel.surecorporate.co.za",
+      "address": "9 Somerset Road, 3rd Floor De Waterkant Green Point, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sure-Gold-Travel"
+    },
+    {
+      "name": "Helderberg Trike Tours &amp; Rentals",
+      "website": "https://www.helderberg-triketours.co.za",
+      "address": "38 Kyle Street Strand, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Helderberg-Trike-Tours-Rentals"
+    },
+    {
+      "name": "26 Degrees South - Transfers &amp; Tours",
+      "website": "https://www.26dgrsouth.co.za",
+      "address": "Suite 105 1st Floor, Stadium On Main, Main Road Claremont, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/26-Degrees-South-Transfers-Tours"
+    },
+    {
+      "name": "Devine Travel Destinations",
+      "website": "https://www.devinetraveldestinations.com",
+      "address": "Devine Travel Destinations, Krediet Street, Radiokop Johannesburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Devine-Travel-Destinations"
+    },
+    {
+      "name": "Tambourine Tours",
+      "website": "https://www.tambourinetours.co.za",
+      "address": "Po Box 9331 Centurion, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tambourine-Tours"
+    },
+    {
+      "name": "Indri Tours",
+      "website": "https://indritours.com",
+      "address": "16 Fettes Rd, Wembley Pietermaritzburg Kwazulu Natal, Kwazulu-nata",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Indri-Tours"
+    },
+    {
+      "name": "XEREX TOURS",
+      "website": "https://[email&#160;protected]",
+      "address": "Rhenosterfontein Rustenburg , North West Province",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/XEREX-TOURS"
+    },
+    {
+      "name": "Exclusive Island Holidays",
+      "website": "https://www.exclusive-island-holidays.com",
+      "address": "Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Exclusive-Island-Holidays"
+    },
+    {
+      "name": "Africa Centre Airport Leisure Hotel",
+      "website": "https://www.africacentrehotel.co.za",
+      "address": "65 Sunny Road, Lakefield Benoni, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Africa-Centre-Airport-Leisure-Hotel"
+    },
+    {
+      "name": "Aranza Travel &amp; Tours",
+      "website": "https://www.aranzatravelandtours.com",
+      "address": "21 A G Visserstreet Johannesburg , Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aranza-Travel-Tours"
+    },
+    {
+      "name": "Menlyn Transfers &amp; Tours &amp; Cornerstone …",
+      "website": "https://www.CornerstoneCottage.co.za",
+      "address": "209 Kassia Ave Newlands / Pretoria, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Menlyn-Transfers-Tours-Cornerstone-Cottage-B-B"
+    },
+    {
+      "name": "Surf n Turf Tours",
+      "website": "https://www.surfturftours.com",
+      "address": "25 Harvey Street Umkomaas Kwazulu Natal, Kwazulu-nata",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Surf-n-Turf-Tours"
+    },
+    {
+      "name": "Claim Victory Tours",
+      "website": "https://www.claimvictorytours.co.za",
+      "address": "Po Box 6084 Welgemoed 7538 Bellville, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Claim-Victory-Tours_396757"
+    },
+    {
+      "name": "Panthera Tours",
+      "website": "https://www.tours-sa.com",
+      "address": "Suite #508, Private Bag X4 Menlo Park, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Panthera-Tours"
+    },
+    {
+      "name": "Wildlife Sightings",
+      "website": "https://www.wildlifesightings.co.za",
+      "address": "South Africa Pretoria, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wildlife-Sightings"
+    },
+    {
+      "name": "Stompdrift Dam Resort",
+      "website": "https://www.stompdriftdam.co.za",
+      "address": "Stompdrift Dam De Rust, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Stompdrift-Dam-Resort"
+    },
+    {
+      "name": "africa safaris",
+      "website": "https://www.finchtravels.com",
+      "address": "150 Main Road Muizenberg Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/africa-safaris"
+    },
+    {
+      "name": "Elyon Transfers &amp; Tours",
+      "website": "https://www.elyontransfers.co.za",
+      "address": "Bergroos Street, Van Riebeeck Park Kempton Park, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Elyon-Transfers-Tours"
+    },
+    {
+      "name": "Radyn Charter &amp; Tours",
+      "website": "https://www.radyncharters.co.za",
+      "address": "63 Lelie Street Brackenfell, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Radyn-Charter-Tours"
+    },
+    {
+      "name": "Safari Junction cc",
+      "website": "https://www.safarijunction.co.za",
+      "address": "Skukuza 01, Kruger National Park Skukuza, Mpumalanga",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Safari-Junction-cc"
+    },
+    {
+      "name": "Alfresco Event &amp; Meeting Planners",
+      "website": "https://www.alfrescoevents.co.za",
+      "address": "30 Chapman Drive Gordon's Bay, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alfresco-Event-Meeting-Planners"
+    },
+    {
+      "name": "Woza Nawe Cultural Tours",
+      "website": "https://www.swaziculturaltours.com",
+      "address": "Patricia Rd Pietermaritzburg, Kwazulu-nata",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Woza-Nawe-Cultural-Tours"
+    },
+    {
+      "name": "Coral Tours &amp; Safaris",
+      "website": "https://www.coraltours.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Coral-Tours-Safaris"
+    },
+    {
+      "name": "Classic Tours",
+      "website": "https://www.classictours.co.za",
+      "address": "32 Milner Street Paarden Eiland, Cape Town",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Classic-Tours"
+    },
+    {
+      "name": "Holidays In Africa",
+      "website": "https://www.holidaysinafrica.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Holidays-In-Africa"
+    },
+    {
+      "name": "Loumont Tours",
+      "website": "https://www.loumonttours.com",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Loumont-Tours"
+    },
+    {
+      "name": "WILDWAYS Adventures",
+      "website": "https://www.wildwaysadventures.co.za",
+      "address": "Magdaline Drive Monteseel, Kwazulu-nata",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/WILDWAYS-Adventures"
+    },
+    {
+      "name": "Afrika No 1 Adventures &amp; Safaris CC",
+      "website": "https://www.afrika1.co.za",
+      "address": "Po Box 5 Innovation Hub, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Afrika-No-1-Adventures-Safaris-CC"
+    },
+    {
+      "name": "Homeleigh Halt Guest House",
+      "website": "https://www.homeleighhalt.com",
+      "address": "253 Main Road, Walmer Port Elizabeth, Eastern Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Homeleigh-Halt-Guest-House"
+    },
+    {
+      "name": "Satravelbug Tours",
+      "website": "https://satravelbugtours.com",
+      "address": "B4 Hollandia Building, Oak Street Chelsea Wynberg",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Satravelbug-Tours"
+    },
+    {
+      "name": "Sa Fun Journeys",
+      "website": "https://www.safunjourneys.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sa-Fun-Journeys"
+    },
+    {
+      "name": "Keloanne",
+      "website": "https://keloanne.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Keloanne"
+    },
+    {
+      "name": "Travel With Options",
+      "website": "https://www.travelwithoptions.co.za",
+      "address": "44 Joubert Street Brenthurst Brakpan, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Travel-With-Options"
+    },
+    {
+      "name": "Izotsha Tours",
+      "website": "https://www.berribest.com",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Izotsha-Tours"
+    },
+    {
+      "name": "The Lilypad Bed &amp; Breakfast",
+      "website": "https://www.thelilypad.co.za",
+      "address": "8b Aileen Road, Illiondale Edenvale, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Lilypad-Bed-Breakfast"
+    },
+    {
+      "name": "AAA Shuttles",
+      "website": "https://www.aaashuttles.co.za",
+      "address": "7 Barque Close, Strandfontein Village Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/AAA-Shuttles"
+    },
+    {
+      "name": "Leisure Assets",
+      "website": "https://www.leisureassets.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Leisure-Assets"
+    },
+    {
+      "name": "The Safari Connection",
+      "website": "https://www.safariconnection.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Safari-Connection"
+    },
+    {
+      "name": "Gapintern",
+      "website": "https://www.gapintern.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gapintern"
+    },
+    {
+      "name": "Flyways Inter-Forwarders",
+      "website": "https://www.flywaysinter.com",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Flyways-Inter-Forwarders_507465"
+    },
+    {
+      "name": "CV Eco Tours",
+      "website": "https://www.cvecotours.com",
+      "address": "Sunnyrigde, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CV-Eco-Tours_582602"
+    },
+    {
+      "name": "Siyanqoba Tours",
+      "website": "https://www.siyanqobatours.co.za",
+      "address": "9 Holly Street Vereeniging, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Siyanqoba-Tours_507941"
+    },
+    {
+      "name": "37 West Adventures",
+      "website": "https://www.37westadventures.co.za",
+      "address": "1 Aureole Avenue, Unit 31 Block 3b North Gate Office Park North Riding, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/37-West-Adventures"
+    },
+    {
+      "name": "iHunt - Hunting Africa",
+      "website": "https://www.ihunt.co.za",
+      "address": "24 Bella Vista Street, Silver Stone Country Estate Monavoni, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/iHunt-Hunting-Africa"
+    },
+    {
+      "name": "Umoza Travels",
+      "website": "https://www.umozatravels.co.za",
+      "address": "22 Eastway, Kelvin, Sandton Sandton, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Umoza-Travels"
+    },
+    {
+      "name": "Travel With Flair",
+      "website": "https://www.twf.travel",
+      "address": "103 Club Avenue, Waterkloof Heights, Waterkloof Heights Centre Pretoria, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Travel-With-Flair_508571"
+    },
+    {
+      "name": "SA Accommodation Guide",
+      "website": "https://www.sa-accommodation-guide.co.za",
+      "address": "Bellville, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Accommodation-Guide"
+    },
+    {
+      "name": "Golden Triangle Tour",
+      "website": "https://www.rajasthancityguide.com/special-rajasthan-tour-package/golden-triangle-tour.html",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Golden-Triangle-Tour"
+    },
+    {
+      "name": "golden triangle tours",
+      "website": "https://www.colorfulrajasthantours.com",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/golden-triangle-tours"
+    },
+    {
+      "name": "ZED Tours &amp; Transport",
+      "website": "https://www.zedtransport.co.za",
+      "address": "59 Trevor Road, Rondebosch East Rondebosch East, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ZED-Tours-Transport"
+    },
+    {
+      "name": "DuVon Guesthouse",
+      "website": "https://www.capestay.co.za/duvon",
+      "address": "Little Italy Robertson, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/DuVon-Guesthouse"
+    },
+    {
+      "name": "Fairgame Safaris",
+      "website": "https://www.fairgame.co.za",
+      "address": "Fort D Acre Reserve, Po Box 394 Port Alfred, Eastern Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fairgame-Safaris"
+    },
+    {
+      "name": "Nature Touring",
+      "website": "https://www.naturetouring.com",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nature-Touring"
+    },
+    {
+      "name": "SCHUINSDRAAI SAFARIS",
+      "website": "https://schuinsdraaisafaris.com",
+      "address": "Schuinsdraai Nature Reserve (limpopo Province), Po Box 4000 Mokopane, Limpopo",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SCHUINSDRAAI-SAFARIS"
+    },
+    {
+      "name": "Odds &#39;n Ends Coffee House",
+      "website": "https://www.odds-n-ends.co.za",
+      "address": "21 Beuke Place, Die Wilgers, (just Behid The Wilgers Hospital) Pretoria, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Odds-n-Ends-Coffee-House"
+    },
+    {
+      "name": "Airlux Shuttle Services",
+      "website": "https://www.airluxshuttles.co.za",
+      "address": "Sonneblom Road Johannesburg, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Airlux-Shuttle-Services"
+    },
+    {
+      "name": "Holiday Specials",
+      "website": "https://www.holidayspecials.co.za",
+      "address": "Hout Bay, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Holiday-Specials"
+    },
+    {
+      "name": "Rusoord Tours &amp; Safaris",
+      "website": "https://www.rusoordtours.com",
+      "address": "Lephalale, Limpopo",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rusoord-Tours-Safaris"
+    },
+    {
+      "name": "Trinity Travel &amp; Tours",
+      "website": "https://www.trinitytravel.co.za",
+      "address": "Custom Tours To Suit Your Need Durban, Kwazulu-nata",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trinity-Travel-Tours"
+    },
+    {
+      "name": "kerala tour operator information",
+      "website": "https://www.tourismpoints.com/kerala-tourism/kerala-tours-package.html",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/kerala-tour-operator-information"
+    },
+    {
+      "name": "Leopard Track Safaris",
+      "website": "https://www.leopardtracksafaris.co.za",
+      "address": "44 Main Street, Howick Howick, Kwazulu-nata",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Leopard-Track-Safaris"
+    },
+    {
+      "name": "Africa Shark Dive Safaris",
+      "website": "https://www.africasharkdivesafaris.co.za",
+      "address": "53 Big Bay Beach Club, Marine Drive Bloubergstrand, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Africa-Shark-Dive-Safaris"
+    },
+    {
+      "name": "Ebrahim&#39;s Tours and Travel",
+      "website": "https://www.et-travel.co.za",
+      "address": "5 Yolande Drive, Constantia Kloof Roodepoort, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ebrahims-Tours-and-Travel"
+    },
+    {
+      "name": "No.23 Supporters Tours",
+      "website": "https://www.no23supporters.co.za",
+      "address": "5de Laan 819 Pretoria, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/No-23-Supporters-Tours"
+    },
+    {
+      "name": "Y-KNOT GROUP",
+      "website": "https://www.y-knot.co.za",
+      "address": "131, 12th Ave Rivonia, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Y-KNOT-GROUP"
+    },
+    {
+      "name": "Biker Buzz",
+      "website": "https://www.bikerbuzz.co.za",
+      "address": "2 St Christopher Road, Bedfordview Johannesburg, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Biker-Buzz"
+    },
+    {
+      "name": "Pejane Travel &amp; Tours",
+      "website": "https://www.pejanetours.co.za",
+      "address": "78 Maitland Street, 305f Cuthberts Building Bloemfontein, Free State",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pejane-Travel-Tours"
+    },
+    {
+      "name": "Bergplaats Game Lodge",
+      "website": "https://www.bergplaats.co.za",
+      "address": "Theeskloof Road, Beaufort West Beaufort West, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bergplaats-Game-Lodge"
+    },
+    {
+      "name": "Buy-Tickets.co.za",
+      "website": "https://www.buy-tickets.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Buy-Tickets-co-za"
+    },
+    {
+      "name": "15 on Penguin Guesthouse",
+      "website": "https://www.150npenguin.co.za",
+      "address": "15 Penguin Drive Glen Marine Simon'stown Simon's Town, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/15-on-Penguin-Guesthouse"
+    },
+    {
+      "name": "Ambitious Properties",
+      "website": "https://www.richviewsmauritius.com",
+      "address": "16 Birchwood Lane Tokai 7945 Cape Town, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ambitious-Properties"
+    },
+    {
+      "name": "Jinjared Travel and Events Management cc",
+      "website": "https://www.jinjared.co.za",
+      "address": "D1723 Ntabankulu Road Durban, Kwazulu-nata",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jinjared-Travel-and-Events-Management-cc"
+    },
+    {
+      "name": "Desert Charm Events",
+      "website": "https://www.desertcharmevent.com",
+      "address": "Edenvale, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Desert-Charm-Events"
+    },
+    {
+      "name": "Animals in Wonderland - Wildlife Educat…",
+      "website": "https://www.lovemorenaturally.comxa.com",
+      "address": "Plot 20 Crockartshope Colleen Glen Port Elizabeth, Eastern Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Animals-in-Wonderland-Wildlife-Education"
+    },
+    {
+      "name": "VIP Executive Drives",
+      "website": "https://www.vipdrives.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/VIP-Executive-Drives"
+    },
+    {
+      "name": "K1Racing",
+      "website": "https://www.kolonnadecentre.co.za/entertainment_k1.htm",
+      "address": "Kolonnade Centre, Zambesi drive, Montana Park, Pretoria Pretoria, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/K1Racing"
+    },
+    {
+      "name": "Sizwene Tours and Airport Shuttle",
+      "website": "https://www.sizwene.com",
+      "address": "5A Park Street Kempton Park, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sizwene-Tours-and-Airport-Shuttle"
+    },
+    {
+      "name": "Worms 4 Africa",
+      "website": "https://worms4africa.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Worms-4-Africa"
+    },
+    {
+      "name": "Ilala Safaris and Guest Accommodation",
+      "website": "https://www.ilalasafaris.blogspot.com",
+      "address": "10 Ludik Str Nelspruit, Mpumalanga",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ilala-Safaris-and-Guest-Accommodation"
+    },
+    {
+      "name": "Micnel&#39;s Shuttle and Tours",
+      "website": "https://micnels.co.za",
+      "address": "483 Partridge Avenue Roseville Pretoria , Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Micnels-Shuttle-and-Tours"
+    },
+    {
+      "name": "Okapi shuttles and Tours",
+      "website": "https://www.okapishuttles.com",
+      "address": "19 Third Ave, Benoni, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Okapi-shuttles-and-Tours"
+    },
+    {
+      "name": "Tours In SA",
+      "website": "https://www.toursinsa.com",
+      "address": "Cape Town, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tours-In-SA"
+    },
+    {
+      "name": "Ilawu Hotel and Lodges",
+      "website": "https://www.ilawu.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ilawu-Hotel-and-Lodges"
+    },
+    {
+      "name": "KwaIntaba Motorcycle Tours",
+      "website": "https://www.kwaintaba.co.za",
+      "address": "108 Martha Str. Kamma Park Port Elizabeth, Eastern Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/KwaIntaba-Motorcycle-Tours"
+    },
+    {
+      "name": "Ntotha travel and tours",
+      "website": "https://www.ntothatravel.co.za",
+      "address": "168 Malta road Naturena Johannesburg, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ntotha-travel-and-tours_535607"
+    },
+    {
+      "name": "Ntotha travel and tours",
+      "website": "https://www.ntothatravel.co.za",
+      "address": "168 Malta road Naturena, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ntotha-travel-and-tours_535607"
+    },
+    {
+      "name": "adventure2gether party bus",
+      "website": "https://www.adventure2gether.co.za",
+      "address": "Plaas Tweefontein Bronkhorstspruit, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/adventure2gether-party-bus"
+    },
+    {
+      "name": "Karl A Schultz Films and Rentals",
+      "website": "https://mandy.com",
+      "address": "39 Watercombe Road, Chartwell Johannesburg, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Karl-A-Schultz-Films-and-Rentals_535908"
+    },
+    {
+      "name": "travel kerala",
+      "website": "https://www.keralayathra.com",
+      "address": "alappy kerala Nagina, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/travel-kerala"
+    },
+    {
+      "name": "Now and Forever Digital photography",
+      "website": "https://www.nowandforever.co.za",
+      "address": "301 Dominika Street Sinoville Pretoria, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Now-and-Forever-Digital-photography"
+    },
+    {
+      "name": "Luxury Coach Hire (L.C.H.)",
+      "website": "https://www.luxurycoachhire.co.za",
+      "address": "51 Aster Street Heldervue Somerset West, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Luxury-Coach-Hire-L-C-H"
+    },
+    {
+      "name": "Student Flights Hatfield",
+      "website": "https://www.studentflights.co.za",
+      "address": "Shop 22b, Hatfield Plaza 1122 Burnett Street Hatfield Pretoria, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Student-Flights-Hatfield"
+    },
+    {
+      "name": "Distique Events",
+      "website": "https://www.distique.co.za",
+      "address": "Silver Village Silver Lakes Golf Estate Pretoria, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Distique-Events"
+    },
+    {
+      "name": "Skylink Airport Shuttle Services South …",
+      "website": "https://www.skylink.co.za",
+      "address": "Sasolburg, Free State",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Skylink-Airport-Shuttle-Services-South-Africa"
+    },
+    {
+      "name": "RJN Travel",
+      "website": "https://www.rjntravel.co.za",
+      "address": "Cape Town Cape Town, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/RJN-Travel"
+    },
+    {
+      "name": "Deo Gratia Guest House (B&amp;B and Self Ca…",
+      "website": "https://www.thecapehome.co.za",
+      "address": "140 Murray Street Vierlanden Durbanville, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Deo-Gratia-Guest-House-B-B-and-Self-Catering"
+    },
+    {
+      "name": "Hello Africa Tours and Transfers",
+      "website": "https://www.hatours.co.za",
+      "address": "69 Steenbok Avenue Leondale Germiston, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hello-Africa-Tours-and-Transfers"
+    },
+    {
+      "name": "Fynbus Tours &amp; Transfers",
+      "website": "https://www.fynbus.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fynbus-Tours-Transfers"
+    },
+    {
+      "name": "Das Landhaus Guest Lodge",
+      "website": "https://www.daslandhaussa.net",
+      "address": "97 Runnymead Road, Chartwell North Sandton Johannesburg, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Das-Landhaus-Guest-Lodge"
+    },
+    {
+      "name": "Melantia Travel Shuttles and Tours",
+      "website": "https://www.melantia.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Melantia-Travel-Shuttles-and-Tours"
+    },
+    {
+      "name": "Josh Explorer Tours, Safaris and Transf…",
+      "website": "https://www.joshexplorer.co.za",
+      "address": "215 Nupen Crescent Street Halfway House Extension 12 Midrand, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Josh-Explorer-Tours-Safaris-and-Transfers"
+    },
+    {
+      "name": "Hawksnest Guest House",
+      "website": "https://www.hawksnest.co.za",
+      "address": "9 Grobler street Ermelo, Mpumalanga",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hawksnest-Guest-House"
+    },
+    {
+      "name": "Airport cabs",
+      "website": "https://www.airportcabs.co.za",
+      "address": "Pretoria, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Airport-cabs"
+    },
+    {
+      "name": "Relo Tours",
+      "website": "https://www.relotours.co.za",
+      "address": "74 Goethe rd,Lombardy East Goethe rd, Gauteng, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Relo-Tours"
+    },
+    {
+      "name": "OTS Journey Center",
+      "website": "https://www.otsbyparuda.com",
+      "address": "Middleburg, Limpopo",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/OTS-Journey-Center"
+    },
+    {
+      "name": "ushaka transfers",
+      "website": "https://www.ushakatransfers.co.za",
+      "address": "kempton park Johannesburg, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ushaka-transfers"
+    },
+    {
+      "name": "Tirhani Lodge",
+      "website": "https://www.tirhanilodge.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tirhani-Lodge"
+    },
+    {
+      "name": "Anansi Shuttles &amp; Tours",
+      "website": "https://www.anansibiz.co.za",
+      "address": "5 Katjiepiering Crescent Zwartkop Ext 4 Centurion, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Anansi-Shuttles-Tours"
+    },
+    {
+      "name": "Marula Travel &amp; Adventure",
+      "website": "https://www.marulatravel.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marula-Travel-Adventure"
+    },
+    {
+      "name": "Find me a Bed",
+      "website": "https://www.findmeabed.co.za",
+      "address": "4 Park Lane Central Park Drive Port Elizabeth, Eastern Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Find-me-a-Bed"
+    },
+    {
+      "name": "Aloha Self-Catering Accommodation &amp; B/B",
+      "website": "https://www.alohahomestay.co.za",
+      "address": "525 Marine Drive Oceanview Bluff, KwaZulu-Nata",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aloha-Self-Catering-Accommodation-B-B"
+    },
+    {
+      "name": "Josh Explorer Tours,Safaris &amp; Transfers",
+      "website": "https://www.joshexplorer.co.za",
+      "address": "Palms Offices 511 Nupen Crescent street, Halfway House Ext 12, Midrand, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Josh-Explorer-Tours-Safaris-Transfers"
+    },
+    {
+      "name": "Viglietti Safaris - An African Experien…",
+      "website": "https://www.vigliettisafari.com",
+      "address": "Namibia (South West Africa) Cape Town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Viglietti-Safaris-An-African-Experience-Giovanni-Viglietti"
+    },
+    {
+      "name": "Bushveld Escape",
+      "website": "https://www.bushveldescape.co.za",
+      "address": "Pretoria, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bushveld-Escape"
+    },
+    {
+      "name": "Wilderness Adventures",
+      "website": "https://www.wildernessadventures.co.za",
+      "address": "Portion 40 Farm 178 Dieprevier George, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wilderness-Adventures"
+    },
+    {
+      "name": "Knights Execu-Drive",
+      "website": "https://www.knightsexecudrive.co.za",
+      "address": "St Andrews Manor 7 St Christopher Road St Andrews, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Knights-Execu-Drive"
+    },
+    {
+      "name": "TC TRAVEL AND TOURS",
+      "website": "https://[email&#160;protected]",
+      "address": "100 MUSGRAVE ROAD MUSGRAVE Durban, KwaZulu-Nata",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/TC-TRAVEL-AND-TOURS"
+    },
+    {
+      "name": "A2B Tours and Charters",
+      "website": "https://www.a2btours.co.za",
+      "address": "27 Froetang Street Welgevonden Estate Stellenbosch, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/A2B-Tours-and-Charters"
+    },
+    {
+      "name": "Lizo Magcida",
+      "website": "https://gcidagroup.yolasite.com",
+      "address": "No.17 - 23 Devoreux Avenue Vincent East London, Eastern Cape",
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lizo-Magcida"
+    },
+    {
+      "name": "Somoho Tours &amp; Events",
+      "website": "https://www.somoho.co.za",
+      "address": "Constantia Valley Cape town , Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Somoho-Tours-Events"
+    },
+    {
+      "name": "Limousine &amp; Air Charter",
+      "website": "https://www.limoandcharter.co.za",
+      "address": "209 Monument Road Glen Marais Kempton Park, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Limousine-Air-Charter"
+    },
+    {
+      "name": "Mohads Travel And Tours",
+      "website": "https://www.mohads.com",
+      "address": "31 main road Mayfair Johannesburg, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mohads-Travel-And-Tours"
+    },
+    {
+      "name": "Greencape Tours",
+      "website": "https://www.greencape.com",
+      "address": "49 Melville Road Plumstead Cape Town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Greencape-Tours"
+    },
+    {
+      "name": "The Couple Event &amp; Tour Planners",
+      "website": "https://thecoupleeventandtourplanners.yolasite.com",
+      "address": "5338 Gaubatlelwe Street Orlando East Soweto Johannesburg, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Couple-Event-Tour-Planners"
+    },
+    {
+      "name": "Perfect Getaways",
+      "website": "https://www.perfectgetaways.co.za",
+      "address": "126 Sarel Baard Crescent Centurion, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Perfect-Getaways"
+    },
+    {
+      "name": "TravelClick.co.za",
+      "website": "https://www.travelclick.co.za",
+      "address": "Johannesburg Randburg Johannesburg, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/TravelClick-co-za"
+    },
+    {
+      "name": "La&#39;bella b&amp;b",
+      "website": "https://labella2010.yolasite.com",
+      "address": "376 Tara Road bluff Durban, KwaZulu-Nata",
+      "page": 12,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/La-bella-b-b"
+    },
+    {
+      "name": "As&#39;vaye",
+      "website": "https://www.asvaye.co.za",
+      "address": "49 Knightsbridge 37 David Draper Bruma Johannesburg, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/As-vaye"
+    },
+    {
+      "name": "Cape Destination Management",
+      "website": "https://www.cape-dmc.co.za",
+      "address": "24 Tarentaal Street Stellenbosch, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Destination-Management"
+    },
+    {
+      "name": "Liquid360 Adventures",
+      "website": "https://www.liquid360.co.za",
+      "address": "Bridge Street Kakamas, Northern Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Liquid360-Adventures"
+    },
+    {
+      "name": "EXOTIC TOURS",
+      "website": "https://www.exotictours.co.za",
+      "address": "6 BENSON AVENUE Randfontein, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/EXOTIC-TOURS_544841"
+    },
+    {
+      "name": "Supreme Guest House Accommodation",
+      "website": "https://www.guesthouseinjohannesburg.co.za",
+      "address": "55 Hantamberg Street Glenvista, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Supreme-Guest-House-Accommodation"
+    },
+    {
+      "name": "KHOSI-TOURS &amp; TRAVEL",
+      "website": "https://www.khositours.co.za",
+      "address": "145 KOEDOE STREET NUMBIPARK Hazyview, Mpumalanga",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/KHOSI-TOURS-TRAVEL"
+    },
+    {
+      "name": "Reneiwe Tours",
+      "website": "https://www.reneiwe2010.com",
+      "address": "Graskop, Mpumalanga",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Reneiwe-Tours"
+    },
+    {
+      "name": "MyShuttles.com",
+      "website": "https://www.myshuttles.com",
+      "address": "Durban, KwaZulu-Nata",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/MyShuttles-com"
+    },
+    {
+      "name": "69Cambridge.co.za",
+      "website": "https://www.69cambridge.co.za",
+      "address": "Centurion, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/69Cambridge-co-za"
+    },
+    {
+      "name": "Tic Toc Tours",
+      "website": "https://www.tictoctravel.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tic-Toc-Tours"
+    },
+    {
+      "name": "Kuona Africa",
+      "website": "https://www.kuonafrica.com",
+      "address": "108 Nederberg Moray Place Str Oranjezicht Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kuona-Africa"
+    },
+    {
+      "name": "La Route Des Vins",
+      "website": "https://www.laroutedesvins.co.za",
+      "address": "Vredehoek Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/La-Route-Des-Vins"
+    },
+    {
+      "name": "Holidays and Cash",
+      "website": "https://www.holidaysandcash.com/wealthonline",
+      "address": "Durban, KwaZulu-Nata",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Holidays-and-Cash"
+    },
+    {
+      "name": "Boi&#39;s travell and tours",
+      "website": "https://www.boitours.co.za",
+      "address": "84kloppre Rustenburg, North West Province",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bois-travell-and-tours"
+    },
+    {
+      "name": "Capricorn Coachliner",
+      "website": "https://capricorn_coachliner.co.za",
+      "address": "7 Agapanthus Crescent Parktown Athlone, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Capricorn-Coachliner"
+    },
+    {
+      "name": "SA Connection",
+      "website": "https://www.saconnection.co.za",
+      "address": "1 Longfellow The Quigney East London, Eastern Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Connection"
+    },
+    {
+      "name": "SA Direct Link",
+      "website": "https://www.sadirectlink.co.za",
+      "address": "134 Danielle road Sanddrift Milnerton Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Direct-Link"
+    },
+    {
+      "name": "One World Property Group",
+      "website": "https://www.oneworldpropertygroup.co.za",
+      "address": "66 Century View Ratanga Road Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/One-World-Property-Group"
+    },
+    {
+      "name": "Aviation Junction",
+      "website": "https://www.aviationjunction.net",
+      "address": "13B General Kemp st PO Box 11256 Secunda, Mpumalanga",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aviation-Junction"
+    },
+    {
+      "name": "SA Venues and Hotels",
+      "website": "https://www.savenuesandhotels.com",
+      "address": "Dullstroom, Mpumalanga",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Venues-and-Hotels"
+    },
+    {
+      "name": "kennington lodge",
+      "website": "https://kenningtonlodge.co.za",
+      "address": "Louis Trichardt, Limpopo",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/kennington-lodge"
+    },
+    {
+      "name": "Discover Ballooning",
+      "website": "https://www.discoverballooning.co.za",
+      "address": "Jasmyn (The Windmill) Jan Smuts Way Meerhof Hartbeespoort, North West Province",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Discover-Ballooning"
+    },
+    {
+      "name": "Motorcycle Adventure Tours and Rentals",
+      "website": "https://www.motorcycleadventure.co.za",
+      "address": "20 Manchester Road Pinetown Durban, KwaZulu-Nata",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Motorcycle-Adventure-Tours-and-Rentals"
+    },
+    {
+      "name": "Africa Magik Tours",
+      "website": "https://www.africamagiktours.co.za",
+      "address": "P.O. Box 8000 Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Africa-Magik-Tours"
+    },
+    {
+      "name": "Energetic World Exploration",
+      "website": "https://www.ewetravel.co.za",
+      "address": "Glen Marais Kempton Park, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Energetic-World-Exploration"
+    },
+    {
+      "name": "koppie alleen guesthouse",
+      "website": "https://www.koppiealleen.co.za",
+      "address": "koedoeskop middeldrift zondereinde myn northam, North West Province",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/koppie-alleen-guesthouse"
+    },
+    {
+      "name": "Tristan&#39;s Tours",
+      "website": "https://www.busforhire.com",
+      "address": "15 comrie Road Malvern Durban, KwaZulu-Nata",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tristans-Tours"
+    },
+    {
+      "name": "Vhuthihi Tours and Events",
+      "website": "https://www.vhuthihitours.co.za",
+      "address": "159 Acacia street Noordwyk midrand, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vhuthihi-Tours-and-Events"
+    },
+    {
+      "name": "Luna Nights",
+      "website": "https://www.lunanights.co.za",
+      "address": "No 3 Spilhaus Ave Constantia Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Luna-Nights"
+    },
+    {
+      "name": "Nombulelo Tours and Events Management",
+      "website": "https://www.linkedin.com/nombulelotoursandevents",
+      "address": "Plumstead Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nombulelo-Tours-and-Events-Management"
+    },
+    {
+      "name": "African Safari",
+      "website": "https://www.e-gnu.com",
+      "address": "Hilltop Road Scarborough, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Safari_548955"
+    },
+    {
+      "name": "Mimosa Africa Travel and Tours",
+      "website": "https://www.mimosaafrica.co.za",
+      "address": "70 Aquila, Roos Street Four Ways, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mimosa-Africa-Travel-and-Tours"
+    },
+    {
+      "name": "Mom&#39;s Taxi",
+      "website": "https://www.momstaxi.co.za",
+      "address": "41 Mercury Street Farrarmaere Benoni, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Moms-Taxi"
+    },
+    {
+      "name": "E &amp; A Adventures",
+      "website": "https://www.eaadventures.co.za",
+      "address": "4 Fairmount View Punters Way, Kenilworth Park Kenilworth Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/E-A-Adventures"
+    },
+    {
+      "name": "Lorraine Cottages, B&amp;B and Self-Catering",
+      "website": "https://www.lorcot.co.za",
+      "address": "Baobab Street Ida's Valley Stellenbosch, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lorraine-Cottages-B-B-and-Self-Catering"
+    },
+    {
+      "name": "Jozibear Tours",
+      "website": "https://www.jozibeartours.co.za",
+      "address": "31 Yvonne Street Helderkruin, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jozibear-Tours"
+    },
+    {
+      "name": "Pearlygate Tours and Coaches",
+      "website": "https://www.pearlygatetours.com",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pearlygate-Tours-and-Coaches"
+    },
+    {
+      "name": "GODUKA TRAVEL and TOURS",
+      "website": "https://www.godukatravelandtours.co.za",
+      "address": "154 Teak Drive Northcliff Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/GODUKA-TRAVEL-and-TOURS"
+    },
+    {
+      "name": "Pretvan Tours",
+      "website": "https://www.pretvan.co.za",
+      "address": "Kempton Park Glen Marais Kempton Park, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pretvan-Tours_551351"
+    },
+    {
+      "name": "Sherwood Tours",
+      "website": "https://www.sherwoodtours.co.za",
+      "address": "Victoria & Alfred Waterfront Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sherwood-Tours"
+    },
+    {
+      "name": "Garden Route Surf Tours",
+      "website": "https://www.gardenroutesurftours.com",
+      "address": "Port Elizabeth, Eastern Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Garden-Route-Surf-Tours"
+    },
+    {
+      "name": "Hatfield Shuttle &amp; Tours",
+      "website": "https://www.hatfieldshuttles.co.za",
+      "address": "1254 Keurboom Ave Moregloed Pretoria, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hatfield-Shuttle-Tours"
+    },
+    {
+      "name": "Jereh Shuttel Services",
+      "website": "https://www.jereh.co.za",
+      "address": "Posbus 19511 nelspruit Nelspruit, Mpumalanga",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jereh-Shuttel-Services"
+    },
+    {
+      "name": "Chain of Events (Pty) Ltd",
+      "website": "https://www.chainofevents.biz",
+      "address": "Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chain-of-Events_552252"
+    },
+    {
+      "name": "iKhaya Stellenbosch Backpackers",
+      "website": "https://www.stellenboschbackpackers.co.za",
+      "address": "TWIN OAKS @ 56 BIRD 56 Bird Street Stellenbosch, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/iKhaya-Stellenbosch-Backpackers"
+    },
+    {
+      "name": "African Xplorer Tours and Daytours",
+      "website": "https://www.africanxplorer.co.za",
+      "address": "Albertus Street La Montagne Pretoria, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Xplorer-Tours-and-Daytours"
+    },
+    {
+      "name": "LS2 Tours",
+      "website": "https://www.ls2tours.co.za",
+      "address": "20A Queens Road Sea Point Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/LS2-Tours"
+    },
+    {
+      "name": "MTBSafari",
+      "website": "https://www.mtbsafari.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MTBSafari"
+    },
+    {
+      "name": "Shuttle Worx",
+      "website": "https://www.shuttleworx.co.za",
+      "address": "Sandton Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shuttle-Worx"
+    },
+    {
+      "name": "Blue Rock Shuttles and Tours",
+      "website": "https://www.bluerockshuttles.webs.com",
+      "address": "Cape Town Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Rock-Shuttles-and-Tours"
+    },
+    {
+      "name": "Imayela Travel &amp; Tours",
+      "website": "https://www.imayelatravel.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Imayela-Travel-Tours"
+    },
+    {
+      "name": "intende travel and tours",
+      "website": "https://www.intendetravel.co.za",
+      "address": "97 Bedford Avenue bedford avenue benoni, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/intende-travel-and-tours_553437"
+    },
+    {
+      "name": "Tours-De-Mornay",
+      "website": "https://www.toursdemornay.com",
+      "address": "36 Marloth Street Nelspruit, Mpumalanga",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tours-De-Mornay"
+    },
+    {
+      "name": "A2Z Golf Tours &amp; Safaris",
+      "website": "https://a2zgolftourssafarissouthafrica.yolasite.com",
+      "address": "Bamboesberg street PO Box 11593 Aerorand Middelburg, Mpumalanga",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/A2Z-Golf-Tours-Safaris"
+    },
+    {
+      "name": "Oemie&#39;s Tours",
+      "website": "https://www.oemiestours.co.za",
+      "address": "18 Drift Road Kenwyn Cape Town Cape Town, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Oemies-Tours"
+    },
+    {
+      "name": "JAB 4X4 EXPEDITIONS AND TOURS",
+      "website": "https://jabet.co.za",
+      "address": "17 SHAW STR THE REEDS CENTURION, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/JAB-4X4-EXPEDITIONS-AND-TOURS"
+    },
+    {
+      "name": "Adonia Tours &amp; Shuttle Services",
+      "website": "https://www.adoniatours.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Adonia-Tours-Shuttle-Services"
+    },
+    {
+      "name": "AARDWOLF SAFARIS",
+      "website": "https://www.WeDrive.co.za",
+      "address": "P O Box 60600 Tableview Cape Town, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/AARDWOLF-SAFARIS"
+    },
+    {
+      "name": "Mosoa Chauffeurs and Tours",
+      "website": "https://www.moswachauffeurs.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mosoa-Chauffeurs-and-Tours"
+    },
+    {
+      "name": "Flying Solo",
+      "website": "https://www.flying-solo.co.za",
+      "address": "Docnor Medical Centre 39 Umhlanga Rocks Drive Durban North, KwaZulu Natal",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Flying-Solo"
+    },
+    {
+      "name": "Cesilapha Holiday and golfing tours",
+      "website": "https://www.cesilapha.com",
+      "address": "30 Ocean Drive North Port Shepstone, KwaZulu Natal",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cesilapha-Holiday-and-golfing-tours"
+    },
+    {
+      "name": "Shuttle Connect",
+      "website": "https://www.shuttleconnect.co.za",
+      "address": "30 Avonwold Drive Cowies Hill Woodside Cowie's Hill, KwaZulu Natal",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shuttle-Connect"
+    },
+    {
+      "name": "Chelsea Morning Tours",
+      "website": "https://www.chelseamorning.co.za",
+      "address": "17 Wilkinson Street Gardens Cape Town, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chelsea-Morning-Tours"
+    },
+    {
+      "name": "AFRICAN TRAX TOURS AND VOLUNTEERING",
+      "website": "https://www.africantrax.co.za",
+      "address": "Sandown Road, Westbeach Cape Town, Cape Town",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/AFRICAN-TRAX-TOURS-AND-VOLUNTEERING"
+    },
+    {
+      "name": "Makarios Lodge and Conferencing and tou…",
+      "website": "https://www.makariosplk.co.za",
+      "address": "Polokwane Myngenoegen 62 Polokwane, Limpopo",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Makarios-Lodge-and-Conferencing-and-tours"
+    },
+    {
+      "name": "Meerkat African Safaris",
+      "website": "https://www.meerkatafricansafaris.co.za",
+      "address": "Thabazimbe, Limpopo Thabazimbi, Limpopo",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Meerkat-African-Safaris"
+    },
+    {
+      "name": "Cherry Moss Trade",
+      "website": "https://www.cherrymosscars.com",
+      "address": "62 Huguenot Street Franschhoek, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cherry-Moss-Trade"
+    },
+    {
+      "name": "CV Eco Tours",
+      "website": "https://www.cvecotours.com",
+      "address": "2 Olympia Street Primrose, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CV-Eco-Tours_582602"
+    },
+    {
+      "name": "Take Off In Style",
+      "website": "https://www.TakeOffInStyle.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Take-Off-In-Style"
+    },
+    {
+      "name": "Escapade au cap Tours",
+      "website": "https://www.escapadeaucaptours.com",
+      "address": "Po Box 234, Capegate Cape Town, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Escapade-au-cap-Tours"
+    },
+    {
+      "name": "a2b Shuttle Service and Tours",
+      "website": "https://www.a2bshuttles.co.za",
+      "address": "21 Peperboom Avenue Roodepoort, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/a2b-Shuttle-Service-and-Tours"
+    },
+    {
+      "name": "Freeflight Travel and Tours cc",
+      "website": "https://www.freeflight.110mb.com",
+      "address": "32 nd Avenue,Villieria,Pretoria Pretoria, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Freeflight-Travel-and-Tours-cc"
+    },
+    {
+      "name": "Buon Viaggio Tours &amp; Travel",
+      "website": "https://www.buonviaggio.co.za",
+      "address": "132 Bayley Street, Farrarmere Benoni, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Buon-Viaggio-Tours-Travel"
+    },
+    {
+      "name": "Cape Attractions Travel and Tours",
+      "website": "https://www.capeattractions.co.za",
+      "address": "Queen Victoria Street Cape Town Cape Town, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Attractions-Travel-and-Tours"
+    },
+    {
+      "name": "Vuka Africa Tours",
+      "website": "https://www.vukafricatours.com",
+      "address": "PO Box 14040 237 Old Main Road Bothas Hills, KwaZulu Natal",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vuka-Africa-Tours"
+    },
+    {
+      "name": "Where to Dine SA",
+      "website": "https://www.wheretodinesa.co.za",
+      "address": "Sandbaai, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Where-to-Dine-SA"
+    },
+    {
+      "name": "On! Tour",
+      "website": "https://www.ontour.co.za",
+      "address": "Justin Cres Durbanville, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/On-Tour"
+    },
+    {
+      "name": "Destinations Managment Company",
+      "website": "https://www.fairfieldtours-dmc.com",
+      "address": "66 Hopkins Street Parow Cape Town, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Destinations-Managment-Company"
+    },
+    {
+      "name": "BookVictoriaFalls",
+      "website": "https://www.bookvictoriafalls.com",
+      "address": "Victoria Falls Cape Town, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/BookVictoriaFalls"
+    },
+    {
+      "name": "Africa Explore Tours &amp; Safaris",
+      "website": "https://www.africa-explore.co.za",
+      "address": "5 Bree Avenue Comet 5 Bree Avenue Comet Boksburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Africa-Explore-Tours-Safaris"
+    },
+    {
+      "name": "Heatherdale Guest House and Function Ve…",
+      "website": "https://www.heatherdale.co.za",
+      "address": "358 Valley Road, Northriding Randburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 502,
+      "error": "HTTP 502",
+      "bizbayUrl": "https://bizbay.co.za/Company/Heatherdale-Guest-House-and-Function-Venue"
+    },
+    {
+      "name": "OR Tambo Shuttle Service and Bus Transp…",
+      "website": "https://www.jpshuttle.co.za",
+      "address": "566 Scot Street Pretoria 0182 Pretoria, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/OR-Tambo-Shuttle-Service-and-Bus-Transport-Service"
+    },
+    {
+      "name": "Potties B&amp;B",
+      "website": "https://www.flydeaar.co.za",
+      "address": "30 Hoop Street De Aar, Northern Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Potties-B-B"
+    },
+    {
+      "name": "Tydon Safaris",
+      "website": "https://www.tydonsafaris.com/",
+      "address": "81 Pretoria Road Rynfield benoni 1501 Benoni, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tydon-Safaris"
+    },
+    {
+      "name": "Kruger Park South Tourism Association",
+      "website": "https://www.krugerparksouth.co.za",
+      "address": "Air Street Sasol Garage Malalane, Mpumalanga",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kruger-Park-South-Tourism-Association"
+    },
+    {
+      "name": "MR EVENTS TOURS &amp; TRAVEL",
+      "website": "https://mrevents.co.za",
+      "address": "27 WAPNICK STREET PEERLESS PARK EAST KRAAIFONTEIN Kraaifontein, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MR-EVENTS-TOURS-TRAVEL"
+    },
+    {
+      "name": "ShowMe Cape Town",
+      "website": "https://www.showme.co.za/cape-town",
+      "address": "Creative Suites 210 Long Street Cape Town, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 410,
+      "error": "HTTP 410",
+      "bizbayUrl": "https://bizbay.co.za/Company/ShowMe-Cape-Town"
+    },
+    {
+      "name": "Elephant Walk Accommodation and Tours",
+      "website": "https://www.accommodationphalaborwa.com",
+      "address": "30 Anna Scheepers Avenue Phalaborwa, Limpopo",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Elephant-Walk-Accommodation-and-Tours"
+    },
+    {
+      "name": "DELTACAB CORPORATE SHUTTLE SERVICE",
+      "website": "https://www.deltacab.co.za",
+      "address": "33 WESSEL ROAD RIVONIA Sandton, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/DELTACAB-CORPORATE-SHUTTLE-SERVICE"
+    },
+    {
+      "name": "Rhino Shuttles and Tours",
+      "website": "https://www.rhinoshuttles.co.za",
+      "address": "Thrush avenue, Boskruin, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rhino-Shuttles-and-Tours"
+    },
+    {
+      "name": "Emoyeni Guest Lodge",
+      "website": "https://www.emoyenilodge.com",
+      "address": "D113 Camperdown, KwaZulu Natal",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Emoyeni-Guest-Lodge"
+    },
+    {
+      "name": "Photos of Africa",
+      "website": "https://www.photosofafrica.com",
+      "address": "Hoedspruit wildlife estate Hoedspruit, Limpopo",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Photos-of-Africa"
+    },
+    {
+      "name": "Siyaya Travel &amp; Tours",
+      "website": "https://www.siyayatours.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Siyaya-Travel-Tours"
+    },
+    {
+      "name": "The Bay Caf&#233; on glen",
+      "website": "https://facebook.com/the.baycafe.onglen",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 400,
+      "error": "HTTP 400",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Bay-Caf%C3%A9-on-glen"
+    },
+    {
+      "name": "Bentley on the Beach",
+      "website": "https://www.beachfront.org.za",
+      "address": "19-20 The Promenade, La Lucia Durban, KwaZulu Natal",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bentley-on-the-Beach"
+    },
+    {
+      "name": "Ludiaana Guest House",
+      "website": "https://www.ludiaana.co.za",
+      "address": "7 Horace Cameron Street Unitas Park Vereeniging, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ludiaana-Guest-House"
+    },
+    {
+      "name": "at&amp;t travel &amp; tours",
+      "website": "https://www.atandtmafikeng.co.za",
+      "address": "2532mosiane crescent unit 1 mmabatho mmabatho, North West",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/at-t-travel-tours"
+    },
+    {
+      "name": "Amalgamated African Tour Operators",
+      "website": "https://www.aaoperators.co.za",
+      "address": "Anchorage Farm N2 The Crags, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Amalgamated-African-Tour-Operators"
+    },
+    {
+      "name": "Ed&#39;s Tours cc",
+      "website": "https://www.edstours.co.za",
+      "address": "Unit 102 Monaco Gardens 132 Beach Road Strand, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Eds-Tours-cc"
+    },
+    {
+      "name": "Package Tours South Africa",
+      "website": "https://www.packagetours.co.za",
+      "address": "20 Market Street Stellenbosch, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Package-Tours-South-Africa"
+    },
+    {
+      "name": "Fundani Tourism",
+      "website": "https://www.fundanitourism.co.za",
+      "address": "No1 Bank Street off Oak Avenue Cullinan Pretoria, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fundani-Tourism"
+    },
+    {
+      "name": "AWOL Tours",
+      "website": "https://www.withoutlimits.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/AWOL-Tours_399344"
+    },
+    {
+      "name": "Graton Guest House",
+      "website": "https://www.graton.co.za",
+      "address": "4a oaklands road orchards johannesburg po box 92283",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Graton-Guest-House_399348"
+    },
+    {
+      "name": "Egypt Today",
+      "website": "https://www.egypttoday.co.za",
+      "address": "131 Boundary Road Diep River Cape Town, Western Cape",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Egypt-Today"
+    },
+    {
+      "name": "Panstrat Solutions",
+      "website": "https://www.panstrat.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Panstrat-Solutions"
+    },
+    {
+      "name": "Info Jeffreys Bay",
+      "website": "https://www.infojeffreysbay.com",
+      "address": "da gama road j bay box 2031",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Info-Jeffreys-Bay"
+    },
+    {
+      "name": "The Colonial On Arundel",
+      "website": "https://www.colonial-addo.co.za",
+      "address": "Addo Elephant National Park h2c3 Eastern Cape",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Colonial-On-Arundel"
+    },
+    {
+      "name": "Dugmore Properties",
+      "website": "https://www.dugmore-estates.com",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dugmore-Properties"
+    },
+    {
+      "name": "Moonlight Travel",
+      "website": "https://www.moonlight-travel.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Moonlight-Travel"
+    },
+    {
+      "name": "Alto Events",
+      "website": "https://www.altoevents.co.za",
+      "address": "62 westmoreland road kensington",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alto-Events"
+    },
+    {
+      "name": "Fresh Lemon Media",
+      "website": "https://www.freshlemonmedia.com",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fresh-Lemon-Media"
+    },
+    {
+      "name": "Western Cape Accommodation",
+      "website": "https://www.westerncapeaccommodation.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Western-Cape-Accommodation"
+    },
+    {
+      "name": "Safariwise",
+      "website": "https://www.birdwatching.co.za",
+      "address": "22 meiring street worcester, Western Cape",
+      "page": 16,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Safariwise"
+    },
+    {
+      "name": "African Bundu Safaris",
+      "website": "https://www.absafaris.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Bundu-Safaris"
+    },
+    {
+      "name": "Ambula",
+      "website": "https://www.ambulasafaris.com",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ambula"
+    },
+    {
+      "name": "Birds Africa",
+      "website": "https://www.birdsafrica.co.za",
+      "address": "4a lea drive westville 3630, kwazulu-natal",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Birds-Africa"
+    },
+    {
+      "name": "Ambassador Hotel",
+      "website": "https://www.ambassador.co.za",
+      "address": "34 victoria road bantry bay cape town",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ambassador-Hotel_399955"
+    },
+    {
+      "name": "Atlantic Suites Camps Bay",
+      "website": "https://www.atlanticsuites-campsbay.com",
+      "address": "30 hely hutchinson avenue camps bay cape town",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Atlantic-Suites-Camps-Bay"
+    },
+    {
+      "name": "Accommodation In Namibia",
+      "website": "https://www.accommodationinnamibia.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Accommodation-In-Namibia"
+    },
+    {
+      "name": "Specialized Tours",
+      "website": "https://www.specialtours.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Specialized-Tours_400099"
+    },
+    {
+      "name": "Aardvark Travel Centre",
+      "website": "https://www.aardvarktravelcentre.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aardvark-Travel-Centre"
+    },
+    {
+      "name": "Zungah Safaris",
+      "website": "https://www.zungah.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zungah-Safaris"
+    },
+    {
+      "name": "Eco Travel",
+      "website": "https://www.ecotravel.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Eco-Travel"
+    },
+    {
+      "name": "Speirs Tours",
+      "website": "https://www.speirstours.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Speirs-Tours_400357"
+    },
+    {
+      "name": "Blue Dolphin Tourist Services",
+      "website": "https://www.blue-dolphin-ts.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Dolphin-Tourist-Services_400398"
+    },
+    {
+      "name": "Jacels Tours",
+      "website": "https://www.jacelstours.com",
+      "address": "PO Box 110425 Hadison Park KIMBERLEY, Northern Cape",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jacels-Tours"
+    },
+    {
+      "name": "Doorway",
+      "website": "https://www.doorway.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Doorway"
+    },
+    {
+      "name": "Cultural Encounters",
+      "website": "https://encounterafrica.co.za",
+      "address": "4th floor norvice house 93 de korte street braamfontein johannesburg",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cultural-Encounters"
+    },
+    {
+      "name": "Swing Easy Tours",
+      "website": "https://www.swingeasytours.com",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Swing-Easy-Tours"
+    },
+    {
+      "name": "Bushtrackers",
+      "website": "https://www.bushtrackers.co.za",
+      "address": "4x4 hire self-drive tours",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bushtrackers"
+    },
+    {
+      "name": "Africa Shark Dive Safaris",
+      "website": "https://www.africasharkdivesafaris.com",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Africa-Shark-Dive-Safaris"
+    },
+    {
+      "name": "Car Rental Services",
+      "website": "https://car-rental.co.za",
+      "address": "1 CP Brand Avenue Melkbosstrand, Western Cape",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Car-Rental-Services"
+    },
+    {
+      "name": "The Eco-ist",
+      "website": "https://www.eco-tourisminvestments.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Eco-ist"
+    },
+    {
+      "name": "Randys Tours",
+      "website": "https://www.randystours.com",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Randys-Tours"
+    },
+    {
+      "name": "Yes we can travel tourism and projects",
+      "website": null,
+      "address": "18a Morrice Street, Malvern Johannesburg, Gauteng",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Yes-we-can-travel-tourism-and-projects"
+    },
+    {
+      "name": "Shuttle &amp; Go",
+      "website": null,
+      "address": "Savoia Farm, Paradyskloof Road Stellenbosch, Western Cape",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shuttle-Go"
+    },
+    {
+      "name": "Scatterlings Tours &amp; Transfers cc",
+      "website": null,
+      "address": "P.o.box 1206, Sea Point Cape Town, Western Cape",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Scatterlings-Tours-Transfers-cc"
+    },
+    {
+      "name": "Soulfire Events",
+      "website": null,
+      "address": "26 Saunders Road, Amalinda East London, Eastern Cape",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Soulfire-Events"
+    },
+    {
+      "name": "Plamen Tours Transfers",
+      "website": null,
+      "address": "344 Kent Ave. Randburg Johannesburg, Gauteng",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Plamen-Tours-Transfers"
+    },
+    {
+      "name": "Chestnut Tours &amp; Chauffeur Services",
+      "website": null,
+      "address": "3 Northwold Dr, Saxonwold Johannesburg, Gauteng",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chestnut-Tours-Chauffeur-Services"
+    },
+    {
+      "name": "Highlife4u Medical Tours - Drug Rehabil…",
+      "website": null,
+      "address": "Pretoria, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Highlife4u-Medical-Tours-Drug-Rehabilitation-in-Thailand"
+    },
+    {
+      "name": "GENERAL TOURS TAXIS",
+      "website": null,
+      "address": "710 Quartz Hill, 05 Bruce Street, Quartz Street Hillbrow, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/GENERAL-TOURS-TAXIS"
+    },
+    {
+      "name": "KCQ Travel and Tours",
+      "website": null,
+      "address": "32 Anker Street Dalpark 1 Midrand, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/KCQ-Travel-and-Tours"
+    },
+    {
+      "name": "National Tours",
+      "website": null,
+      "address": "191 Moorcross Drive, Moorton Moorton, Kwazulu Natal",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/National-Tours_865783"
+    },
+    {
+      "name": "Green Apple Tours",
+      "website": null,
+      "address": "258 Rosmead Avenue Wynberg, Cape Town",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Green-Apple-Tours"
+    },
+    {
+      "name": "Seniors on Tour &amp; Airport Shuttle Servi…",
+      "website": null,
+      "address": "Constantia, Western Cape",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Seniors-on-Tour-Airport-Shuttle-Service"
+    },
+    {
+      "name": "Lesiba Tours &amp; Safaris",
+      "website": null,
+      "address": "Box 9132 Pretoria, 410 Paul Kruger Pretoria, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lesiba-Tours-Safaris"
+    },
+    {
+      "name": "TT &amp; T Transfers and Tours",
+      "website": null,
+      "address": "Po Box 7353, Weltevreden Park Roodepoort, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/TT-T-Transfers-and-Tours"
+    },
+    {
+      "name": "Monuments and Battlefield Tours by Vinc…",
+      "website": null,
+      "address": "4 Jones Street Ladysmith, Kwazulu-nata",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Monuments-and-Battlefield-Tours-by-Vincent-Horn"
+    },
+    {
+      "name": "maboe heritage tours and safaris",
+      "website": null,
+      "address": "2185 Selosecha Sec Ledig 0316, N/a, N/a Sun City, North West",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/maboe-heritage-tours-and-safaris"
+    },
+    {
+      "name": "Boelani Tours",
+      "website": null,
+      "address": "Hoogstraat 56 Bethlehem, Free State",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Boelani-Tours"
+    },
+    {
+      "name": "Beauty of the Cape Travel and Tours",
+      "website": null,
+      "address": "3 matterhorn cresent Mitchells Plain, Western Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Beauty-of-the-Cape-Travel-and-Tours"
+    },
+    {
+      "name": "Sgegede Lodges and Tours",
+      "website": null,
+      "address": "520 Sarel Avenue mountain view Pretoria, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sgegede-Lodges-and-Tours"
+    },
+    {
+      "name": "LINS TOURS",
+      "website": null,
+      "address": "vOORTREKKERLAAN 50 Ermelo, Mpumalanga",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/LINS-TOURS"
+    },
+    {
+      "name": "Ultimafrica Tour Operators",
+      "website": null,
+      "address": "17 Marikana Crescent Morningside Sandton, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ultimafrica-Tour-Operators"
+    },
+    {
+      "name": "Pearly Gate Tours &amp; coaches",
+      "website": null,
+      "address": "123 Gladioli Street Soneike Kuils River, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pearly-Gate-Tours-coaches"
+    },
+    {
+      "name": "Garden Router Tours &amp; Transfers",
+      "website": null,
+      "address": "09 Silver Street Rocky Hill Oudtshoorn, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Garden-Router-Tours-Transfers"
+    },
+    {
+      "name": "Curious Tourist Bus Tours",
+      "website": null,
+      "address": "12 Malibongwe Rd Cape Town, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Curious-Tourist-Bus-Tours"
+    },
+    {
+      "name": "Prosperous Tours CC",
+      "website": null,
+      "address": "PO Box 362 Lekoko Lekoko, North West Province",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Prosperous-Tours-CC_397438"
+    },
+    {
+      "name": "MDT Travel",
+      "website": null,
+      "address": "PO Box 12080 N1 City Goodwood Plattekloof, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MDT-Travel"
+    },
+    {
+      "name": "Nduluka Travel Services",
+      "website": null,
+      "address": "Office 12 Abantu Mall Buffallo Street King William's Town, Eastern Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nduluka-Travel-Services"
+    },
+    {
+      "name": "SUN BREAK TRAVEL",
+      "website": null,
+      "address": "47 LESTERWEG Brenthurst, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SUN-BREAK-TRAVEL"
+    }
+  ]
+}

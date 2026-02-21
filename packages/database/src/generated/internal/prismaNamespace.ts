@@ -393,6 +393,9 @@ export const ModelName = {
   BotConfiguration: 'BotConfiguration',
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
+  OutreachCampaign: 'OutreachCampaign',
+  OutreachLead: 'OutreachLead',
+  WebServiceLead: 'WebServiceLead',
   Conversation: 'Conversation',
   Message: 'Message'
 } as const
@@ -410,7 +413,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "conversation" | "message"
+    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "outreachCampaign" | "outreachLead" | "webServiceLead" | "conversation" | "message"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1080,6 +1083,228 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    OutreachCampaign: {
+      payload: Prisma.$OutreachCampaignPayload<ExtArgs>
+      fields: Prisma.OutreachCampaignFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OutreachCampaignFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OutreachCampaignFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload>
+        }
+        findFirst: {
+          args: Prisma.OutreachCampaignFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OutreachCampaignFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload>
+        }
+        findMany: {
+          args: Prisma.OutreachCampaignFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload>[]
+        }
+        create: {
+          args: Prisma.OutreachCampaignCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload>
+        }
+        createMany: {
+          args: Prisma.OutreachCampaignCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OutreachCampaignCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload>[]
+        }
+        delete: {
+          args: Prisma.OutreachCampaignDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload>
+        }
+        update: {
+          args: Prisma.OutreachCampaignUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload>
+        }
+        deleteMany: {
+          args: Prisma.OutreachCampaignDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OutreachCampaignUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OutreachCampaignUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload>[]
+        }
+        upsert: {
+          args: Prisma.OutreachCampaignUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachCampaignPayload>
+        }
+        aggregate: {
+          args: Prisma.OutreachCampaignAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOutreachCampaign>
+        }
+        groupBy: {
+          args: Prisma.OutreachCampaignGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OutreachCampaignGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OutreachCampaignCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OutreachCampaignCountAggregateOutputType> | number
+        }
+      }
+    }
+    OutreachLead: {
+      payload: Prisma.$OutreachLeadPayload<ExtArgs>
+      fields: Prisma.OutreachLeadFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OutreachLeadFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OutreachLeadFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload>
+        }
+        findFirst: {
+          args: Prisma.OutreachLeadFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OutreachLeadFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload>
+        }
+        findMany: {
+          args: Prisma.OutreachLeadFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload>[]
+        }
+        create: {
+          args: Prisma.OutreachLeadCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload>
+        }
+        createMany: {
+          args: Prisma.OutreachLeadCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OutreachLeadCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload>[]
+        }
+        delete: {
+          args: Prisma.OutreachLeadDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload>
+        }
+        update: {
+          args: Prisma.OutreachLeadUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload>
+        }
+        deleteMany: {
+          args: Prisma.OutreachLeadDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OutreachLeadUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OutreachLeadUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload>[]
+        }
+        upsert: {
+          args: Prisma.OutreachLeadUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachLeadPayload>
+        }
+        aggregate: {
+          args: Prisma.OutreachLeadAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOutreachLead>
+        }
+        groupBy: {
+          args: Prisma.OutreachLeadGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OutreachLeadGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OutreachLeadCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OutreachLeadCountAggregateOutputType> | number
+        }
+      }
+    }
+    WebServiceLead: {
+      payload: Prisma.$WebServiceLeadPayload<ExtArgs>
+      fields: Prisma.WebServiceLeadFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.WebServiceLeadFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.WebServiceLeadFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload>
+        }
+        findFirst: {
+          args: Prisma.WebServiceLeadFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.WebServiceLeadFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload>
+        }
+        findMany: {
+          args: Prisma.WebServiceLeadFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload>[]
+        }
+        create: {
+          args: Prisma.WebServiceLeadCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload>
+        }
+        createMany: {
+          args: Prisma.WebServiceLeadCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.WebServiceLeadCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload>[]
+        }
+        delete: {
+          args: Prisma.WebServiceLeadDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload>
+        }
+        update: {
+          args: Prisma.WebServiceLeadUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload>
+        }
+        deleteMany: {
+          args: Prisma.WebServiceLeadDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.WebServiceLeadUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.WebServiceLeadUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload>[]
+        }
+        upsert: {
+          args: Prisma.WebServiceLeadUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WebServiceLeadPayload>
+        }
+        aggregate: {
+          args: Prisma.WebServiceLeadAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateWebServiceLead>
+        }
+        groupBy: {
+          args: Prisma.WebServiceLeadGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.WebServiceLeadGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.WebServiceLeadCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.WebServiceLeadCountAggregateOutputType> | number
+        }
+      }
+    }
     Conversation: {
       payload: Prisma.$ConversationPayload<ExtArgs>
       fields: Prisma.ConversationFieldRefs
@@ -1411,6 +1636,64 @@ export const QuoteRequestScalarFieldEnum = {
 export type QuoteRequestScalarFieldEnum = (typeof QuoteRequestScalarFieldEnum)[keyof typeof QuoteRequestScalarFieldEnum]
 
 
+export const OutreachCampaignScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  category: 'category',
+  status: 'status',
+  totalLeads: 'totalLeads',
+  emailsSent: 'emailsSent',
+  replies: 'replies',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OutreachCampaignScalarFieldEnum = (typeof OutreachCampaignScalarFieldEnum)[keyof typeof OutreachCampaignScalarFieldEnum]
+
+
+export const OutreachLeadScalarFieldEnum = {
+  id: 'id',
+  campaignId: 'campaignId',
+  businessName: 'businessName',
+  website: 'website',
+  address: 'address',
+  bizbayUrl: 'bizbayUrl',
+  category: 'category',
+  phone: 'phone',
+  emailStatus: 'emailStatus',
+  emailAddress: 'emailAddress',
+  emailSentAt: 'emailSentAt',
+  emailTemplate: 'emailTemplate',
+  followUpCount: 'followUpCount',
+  lastFollowUp: 'lastFollowUp',
+  nextFollowUp: 'nextFollowUp',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OutreachLeadScalarFieldEnum = (typeof OutreachLeadScalarFieldEnum)[keyof typeof OutreachLeadScalarFieldEnum]
+
+
+export const WebServiceLeadScalarFieldEnum = {
+  id: 'id',
+  businessName: 'businessName',
+  website: 'website',
+  address: 'address',
+  category: 'category',
+  bizbayUrl: 'bizbayUrl',
+  phone: 'phone',
+  email: 'email',
+  callStatus: 'callStatus',
+  notes: 'notes',
+  callbackDate: 'callbackDate',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WebServiceLeadScalarFieldEnum = (typeof WebServiceLeadScalarFieldEnum)[keyof typeof WebServiceLeadScalarFieldEnum]
+
+
 export const ConversationScalarFieldEnum = {
   id: 'id',
   channel: 'channel',
@@ -1670,6 +1953,9 @@ export type GlobalOmitConfig = {
   botConfiguration?: Prisma.BotConfigurationOmit
   onboardingConversation?: Prisma.OnboardingConversationOmit
   quoteRequest?: Prisma.QuoteRequestOmit
+  outreachCampaign?: Prisma.OutreachCampaignOmit
+  outreachLead?: Prisma.OutreachLeadOmit
+  webServiceLead?: Prisma.WebServiceLeadOmit
   conversation?: Prisma.ConversationOmit
   message?: Prisma.MessageOmit
 }

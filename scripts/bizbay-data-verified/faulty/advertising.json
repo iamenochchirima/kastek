@@ -1,0 +1,4099 @@
+{
+  "category": "Advertising",
+  "count": 411,
+  "listings": [
+    {
+      "name": "Lavender Lane Promotions",
+      "website": "https://www.lavenderlanepromotions.co.za",
+      "address": "16 James Street, Noordheuwel Ext 4 Krugersdorp, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lavender-Lane-Promotions"
+    },
+    {
+      "name": "Jadeye Designs CC",
+      "website": "https://www.jadeye.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jadeye-Designs-CC"
+    },
+    {
+      "name": "Ocean Pacific Promotions",
+      "website": "https://www.oppromotions.co.za",
+      "address": "1 Charma, 7 Harts Laan, Petersfield Ext Springs, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ocean-Pacific-Promotions"
+    },
+    {
+      "name": "Dummies Info",
+      "website": "https://www.dummiesinfo.com",
+      "address": "Seodin Road 80 Kuruman, Northern Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dummies-Info"
+    },
+    {
+      "name": "Website Design - Web Outsource",
+      "website": "https://www.weboutsource.co.za",
+      "address": "877 9th Ave, Wonderboom South Pretoria, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Website-Design-Web-Outsource"
+    },
+    {
+      "name": "TREX Recruitment",
+      "website": "https://www.trexrec.co.za",
+      "address": "Gauteng, Johannesburg Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/TREX-Recruitment"
+    },
+    {
+      "name": "Virtual Dynamics",
+      "website": "https://www.virtualdynamics.co.za",
+      "address": "10 Thaxted Avenue Mulbarton, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Virtual-Dynamics"
+    },
+    {
+      "name": "K-PASA Advertising",
+      "website": "https://www.kpasa-advertising.com",
+      "address": "23 Bella Mare Str, Sunningdale, Tableview Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/K-PASA-Advertising"
+    },
+    {
+      "name": "muxIT AV Solutions",
+      "website": "https://www.muxit.co.za",
+      "address": "Postnet Suite 12, Private Bag X 12, Tokai Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/muxIT-AV-Solutions"
+    },
+    {
+      "name": "Advert Square",
+      "website": "https://www.advertsquare.co.za",
+      "address": "Potchefstroom, North West Province",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Advert-Square"
+    },
+    {
+      "name": "DS Design &amp; Sign Studio CC",
+      "website": "https://www.dsdesigns.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/DS-Design-Sign-Studio-CC"
+    },
+    {
+      "name": "Dashboard Integrated Marketing",
+      "website": "https://www.dashboardintegrated.co.za",
+      "address": "Kyalami Business Park, 41 Kyalami Boulevard Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dashboard-Integrated-Marketing"
+    },
+    {
+      "name": "MEDIA 4 AFRICA",
+      "website": "https://www.media4africa.co.za",
+      "address": "40 Oak Lane Business Park, Trichardt Boksburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MEDIA-4-AFRICA"
+    },
+    {
+      "name": "Openedge Advertising (Pty) Ltd",
+      "website": "https://www.openedgemediagroup.co.za",
+      "address": "44 Old Kilcullen Road, Bryanston Sandton, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Openedge-Advertising"
+    },
+    {
+      "name": "Leap Advertising",
+      "website": "https://www.leapadvertising.co.za",
+      "address": "Plot 39, Claremont Nelspruit, Mpumalanga",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Leap-Advertising"
+    },
+    {
+      "name": "Phoenix Emarketing Solutions",
+      "website": "https://www.phoenixemarketing.co.za",
+      "address": "Saponariastreet, Dorandia Pretoria North, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Phoenix-Emarketing-Solutions"
+    },
+    {
+      "name": "Renate Wragg Brand Management",
+      "website": "https://www.renatewragg.co.za",
+      "address": "Rosmead Avenue Kenilworth, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Renate-Wragg-Brand-Management"
+    },
+    {
+      "name": "Lemondrop Marketing CC",
+      "website": "https://www.lemondropmarketing.co.za",
+      "address": "Jasmine Street Kempton Park, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lemondrop-Marketing-CC"
+    },
+    {
+      "name": "VivaSource",
+      "website": "https://www.vivasource.co.za",
+      "address": "Corner Citation & Azdec Avenue, Irene View Estate, Highveld Centurion, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/VivaSource"
+    },
+    {
+      "name": "ClarionCall Mobile Outdoor",
+      "website": "https://www.clarioncallmedia.co.za",
+      "address": "Alberton, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ClarionCall-Mobile-Outdoor"
+    },
+    {
+      "name": "Garden Route Publications CC",
+      "website": "https://www.grpublications.co.za",
+      "address": "Office 7, 6 Queen Street Knysna, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Garden-Route-Publications-CC"
+    },
+    {
+      "name": "BrandVerse",
+      "website": "https://www.brandverse.com",
+      "address": "45 Harbour Rd Kalkbay Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/BrandVerse"
+    },
+    {
+      "name": "ShowMe Cape Town",
+      "website": "https://www.showme.co.za/cape-town",
+      "address": "Creative Suites, 210 Long Street Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 410,
+      "error": "HTTP 410",
+      "bizbayUrl": "https://bizbay.co.za/Company/ShowMe-Cape-Town"
+    },
+    {
+      "name": "The Real Witbank Online",
+      "website": "https://www.witbankonline.co.za",
+      "address": "Witbank, Mpumalanga",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Real-Witbank-Online"
+    },
+    {
+      "name": "IGTHUS",
+      "website": "https://www.igthus.co.za/",
+      "address": "Blydeville, Begonia 12 Upington, Northern Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/IGTHUS"
+    },
+    {
+      "name": "KaRMedia Advertising Solutions",
+      "website": "https://www.karmedia.co.za",
+      "address": "28 Acropolis Street, Starwood - Phoenix Durban, Kwazulu Natal",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/KaRMedia-Advertising-Solutions"
+    },
+    {
+      "name": "Advertising SA Pages",
+      "website": "https://www.advertisinsapages.com",
+      "address": "1 Monaco Place, Westmead Pinetown , Kwazulu Natal",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Advertising-SA-Pages"
+    },
+    {
+      "name": "WaterWalks Strategy, Advertising &amp; Desi…",
+      "website": "https://www.waterwalks.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/WaterWalks-Strategy-Advertising-Design"
+    },
+    {
+      "name": "SA Stock photos (MMP)",
+      "website": "https://www.sastockphotos.co.za",
+      "address": "31 Danie Joubert Street White River, Mpumalanga",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Stock-photos-MMP"
+    },
+    {
+      "name": "Corporate Vine",
+      "website": "https://www.corporatevine.co.za",
+      "address": "11 Hambleton Park, 957 Richards Drive Midrand, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Corporate-Vine"
+    },
+    {
+      "name": "RUBY ORIGINAL Exhibitions &amp; Events Proj…",
+      "website": "https://www.rubyoriginal.co.za",
+      "address": "Constantiakloof, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/RUBY-ORIGINAL-Exhibitions-Events-Project-Management"
+    },
+    {
+      "name": "pelox investments pty ltd",
+      "website": "https://www.peloxinvestments.co.za",
+      "address": "14 Stanrich Avenue Cyrildene, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/pelox-investments"
+    },
+    {
+      "name": "Bikini. The Advertising Agency",
+      "website": "https://www.bikinidbn.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bikini-The-Advertising-Agency"
+    },
+    {
+      "name": "Mokgadi Multi Media",
+      "website": "https://www.mokgadimultimedia.yolasite.com",
+      "address": "78b Schoeman Street, Polokwane, Limpopo Pietersburg, Limpopo",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mokgadi-Multi-Media"
+    },
+    {
+      "name": "Uptown Consulting",
+      "website": "https://www.uptownconsulting.co.za",
+      "address": "4 Peach Tree Crescent Table View, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Uptown-Consulting"
+    },
+    {
+      "name": "Bella Print",
+      "website": "https://www.bellaprint.co.za",
+      "address": "Hilton, Pmb Pietermaritzburg, Kwazulu Natal",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bella-Print"
+    },
+    {
+      "name": "Madcowontherun Designs",
+      "website": "https://www.madcowontherun.co.za",
+      "address": "Po Box 264178, Three Rivers Vereeniging, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Madcowontherun-Designs"
+    },
+    {
+      "name": "TV Graphics",
+      "website": "https://innercircle.ning.com/profile/TonyVink",
+      "address": "4 Stuart Place, Stuart Place, Cresta Ext. 1 Randburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/TV-Graphics"
+    },
+    {
+      "name": "Phenomenal Promotions",
+      "website": "https://www.phenomenalpromotions.co.za",
+      "address": "19 Van Der Linde Road, Bramleyview Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Phenomenal-Promotions"
+    },
+    {
+      "name": "Die Rot",
+      "website": "https://www.dierot.co.za",
+      "address": "Kompanje Street 45 Parow East Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Die-Rot"
+    },
+    {
+      "name": "Gourmet Garbage Media and Advertising",
+      "website": "https://www.gourmetgarbage.net",
+      "address": "Lingerette Road Sunninghill, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gourmet-Garbage-Media-and-Advertising"
+    },
+    {
+      "name": "LinkUp Western Cape",
+      "website": "https://[email&#160;protected]",
+      "address": "Pinewood Park, Protea Rd Bergvliet, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/LinkUp-Western-Cape"
+    },
+    {
+      "name": "at boy advertising",
+      "website": "https://www.fatboyadvertising.co.za",
+      "address": "Bronkhorstspruit, Zinnia, Hortensia Bronkhorstspruit, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/at-boy-advertising"
+    },
+    {
+      "name": "Blue Hen Media",
+      "website": "https://www.bluehenmedia.co.za",
+      "address": "Po Box 1492 Howick, Kwazulu Natal",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Hen-Media"
+    },
+    {
+      "name": "Sky Messaging (PTY) Ltd",
+      "website": "https://www.sky-messaging.com",
+      "address": "Suite 315, Sovereign Quays, Somerset Road, Green Point Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sky-Messaging"
+    },
+    {
+      "name": "Hessequa Express",
+      "website": "https://hessequaexpress.bloglines.co.za",
+      "address": "Albertinia Albertinia, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hessequa-Express"
+    },
+    {
+      "name": "Sign Spinners",
+      "website": "https://www.signspinners.co.za",
+      "address": "1 Teal, Close, Noordhoek Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sign-Spinners"
+    },
+    {
+      "name": "Continental Outdoor Media",
+      "website": "https://www.continentaloutdoor.com",
+      "address": "2 Bruton Road Bryanston, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Continental-Outdoor-Media"
+    },
+    {
+      "name": "Mediumwave Communications (Pty) Ltd",
+      "website": "https://www.mediumwave.co.za",
+      "address": "328 Minnaar Street, 102 Parkburg, Pretoria, 0002 Pretoria Central, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mediumwave-Communications"
+    },
+    {
+      "name": "Phoenix Branding &amp; Marketing",
+      "website": "https://www.pbmstudio.co.za",
+      "address": "Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Phoenix-Branding-Marketing"
+    },
+    {
+      "name": "Passion for ideas",
+      "website": "https://www.passionforideas.net",
+      "address": "6 Greenville Estate, De Villiers Drive, Durbanville Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Passion-for-ideas"
+    },
+    {
+      "name": "Lilia Jardim :: GR4PH1C D351GN3R",
+      "website": "https://www.liliajardim.yolasite.com",
+      "address": "Bloubergstrand Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lilia-Jardim-GR4PH1C-D351GN3R"
+    },
+    {
+      "name": "SmartSigns CC",
+      "website": "https://www.smartsigns.co.za",
+      "address": "50 Clare Road, Corner Loverswalk Fordsburg, Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SmartSigns-CC"
+    },
+    {
+      "name": "The Firehouse Group",
+      "website": "https://www.thefirehouse.co.a",
+      "address": "40 Bompas Road, Dunkeld West Hyde Park, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Firehouse-Group"
+    },
+    {
+      "name": "Illanique van Aswegen Food Styling",
+      "website": "https://www.illaniquevanaswegen.com",
+      "address": "Constantia, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Illanique-van-Aswegen-Food-Styling"
+    },
+    {
+      "name": "The DTP Room",
+      "website": "https://www.dtproom.co.za",
+      "address": null,
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-DTP-Room"
+    },
+    {
+      "name": "Barcoded-Ads",
+      "website": "https://www.barcoded-ads.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Barcoded-Ads"
+    },
+    {
+      "name": "Killarney Pages",
+      "website": "https://www.killarneypages.co.za",
+      "address": "Lauda Road, Killarney Gardens Milnerton, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Killarney-Pages"
+    },
+    {
+      "name": "Despot advertising cc",
+      "website": "https://www.despot.co.za",
+      "address": "23 General Dan Pienaar Street Thaba Tshwane Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Despot-advertising-cc"
+    },
+    {
+      "name": "Staticpaper",
+      "website": "https://www.staticpaper.co.za",
+      "address": "4adorsetshire Street Paarden Island, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Staticpaper"
+    },
+    {
+      "name": "Brandchild Advertising",
+      "website": "https://www.brandchild.co.za",
+      "address": "P.o.box 4993 Rivonia Sandton, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Brandchild-Advertising"
+    },
+    {
+      "name": "MyCAN Media",
+      "website": "https://www.mycanmedia.webs.com",
+      "address": "8564 Bhejane Street, Unit-f Thokoza Tokoza, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MyCAN-Media"
+    },
+    {
+      "name": "IN THE BOX ADVERTISING",
+      "website": "https://intheboxmag.co.za",
+      "address": "105 The Village Link, Southfield Road, Plumstead Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/IN-THE-BOX-ADVERTISING"
+    },
+    {
+      "name": "Red Racoon Promotions and Advertising",
+      "website": "https://www.redracoon.co.za",
+      "address": "1 Columbus Ave, Eastleigh Edenvale, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Red-Racoon-Promotions-and-Advertising"
+    },
+    {
+      "name": "Pamusika.Com",
+      "website": "https://www.pamusika.com",
+      "address": "Westage Hartswater, Cape Town",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pamusika-Com"
+    },
+    {
+      "name": "OutdoordisplayZ",
+      "website": "https://www.outdoordisplayz.co.za",
+      "address": "Johannesburg & Surrounding, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/OutdoordisplayZ"
+    },
+    {
+      "name": "The Smalls",
+      "website": "https://www.thesmalls.co.za",
+      "address": "Stilbaai, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Smalls"
+    },
+    {
+      "name": "vonh brand.provocateur",
+      "website": "https://vonh.co.za/",
+      "address": "7th Ave Parktown North, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/vonh-brand-provocateur"
+    },
+    {
+      "name": "Xpressions Advertising &amp; Design",
+      "website": "https://www.xpressions.co.za",
+      "address": "Morningside Durban, Kwazulu Natal",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xpressions-Advertising-Design"
+    },
+    {
+      "name": "Johannesburg Business Directory",
+      "website": "https://www.jhbbiz.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Johannesburg-Business-Directory"
+    },
+    {
+      "name": "Bizbook",
+      "website": "https://www.bizbook.co.za",
+      "address": "19 Rio Street, Knysna Heights Knysna, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bizbook"
+    },
+    {
+      "name": "XYZ...Xamine Your Zone Magazine",
+      "website": "https://www.xyzmagazine.co.za",
+      "address": "Unit 94 Via Arrezio, 25 Daisy Street Sandton, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/XYZ-Xamine-Your-Zone-Magazine"
+    },
+    {
+      "name": "Print N Ink",
+      "website": "https://www.print-n-ink.co.za",
+      "address": "Forest Drive Pineslopes, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Print-N-Ink"
+    },
+    {
+      "name": "BLDWTNSS PRINT",
+      "website": "https://www.bldwtnss.co.za",
+      "address": "Unit 20, Ruimsig Boulevard, Doreen Rd Ruimsig, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BLDWTNSS-PRINT"
+    },
+    {
+      "name": "African Graphix",
+      "website": "https://www.africangraphix.co.zxa",
+      "address": null,
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Graphix"
+    },
+    {
+      "name": "Virtual Ink Advertising",
+      "website": "https://www.virtualink.co.za",
+      "address": "Unit 34, Greenwich Village, Forty-fifth Avenue Sherwood, Kwazulu Natal",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Virtual-Ink-Advertising"
+    },
+    {
+      "name": "Double U Media",
+      "website": "https://www.doubleumedia.co.za",
+      "address": "30 Hornbill Road Rooihuiskraal, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Double-U-Media"
+    },
+    {
+      "name": "Chocolography SA",
+      "website": "https://[email&#160;protected]",
+      "address": "140 Azalea Str, Wilropark Roodepoort, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chocolography-SA"
+    },
+    {
+      "name": "Volition - Signage , Printers &amp; Mecca S…",
+      "website": "https://www.palmsalesconsultancy.co.za/volition",
+      "address": "38 Belrene Street, Soutpansberg Street, Rietondale Pretoria, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Volition-Signage-Printers-Mecca-Stationers"
+    },
+    {
+      "name": "Intacom",
+      "website": "https://www.intacommarketing.co.za",
+      "address": "4 Carey Street, Wynberg Sandton, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Intacom"
+    },
+    {
+      "name": "Silver Lining Corporate Gifts and Brand…",
+      "website": "https://www.silver-lining.co.za",
+      "address": "Meadowridge Western Cape , Cape Town",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Silver-Lining-Corporate-Gifts-and-Branding"
+    },
+    {
+      "name": "Northern cape signs",
+      "website": "https://www.ncsigns.co.za",
+      "address": "1 Scholtz St, Fabricia Road Kimberley, Northern Cape",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Northern-cape-signs"
+    },
+    {
+      "name": "Haibo Media",
+      "website": "https://www.haibomedia.co.za",
+      "address": "338, Appelblaar Avenue Magalieskruin, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Haibo-Media"
+    },
+    {
+      "name": "Silver Signs",
+      "website": "https://www.silversigns.co.za",
+      "address": "2 Voortrekker Road, Silverfields Krugersdorp, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Silver-Signs"
+    },
+    {
+      "name": "Undercover Rebel",
+      "website": "https://rebel.ournet.co.za",
+      "address": "Somerset West, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Undercover-Rebel"
+    },
+    {
+      "name": "Marvelous Memories and Designs",
+      "website": "https://www.marvelous.co.za",
+      "address": "42 Petrus Street, Elarduspark Pretoria , Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marvelous-Memories-and-Designs"
+    },
+    {
+      "name": "ChrissieB Promotions",
+      "website": "https://www.ChrissieB.co.za",
+      "address": "14 Olsen Road, Bluff Durban, Kwazulu-nata",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ChrissieB-Promotions"
+    },
+    {
+      "name": "Alphacad Solutions",
+      "website": "https://www.alphacadsolutions.com",
+      "address": "41 Rissik Johannesburg 2000 Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alphacad-Solutions"
+    },
+    {
+      "name": "PROMOTIONS",
+      "website": "https://PromotionsModels.yolasite.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/PROMOTIONS"
+    },
+    {
+      "name": "Promo Connection",
+      "website": "https://www.promoconnection.co.za",
+      "address": null,
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Promo-Connection"
+    },
+    {
+      "name": "Hive Designs",
+      "website": "https://www.hivedesigns.co.za",
+      "address": "179 Nightingale Avenue, Lenasia, Extension 1 Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hive-Designs"
+    },
+    {
+      "name": "Oc2Tech Solutions",
+      "website": "https://www.oc2tech.co.za",
+      "address": null,
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Oc2Tech-Solutions"
+    },
+    {
+      "name": "Salt Studios",
+      "website": "https://www.saltstudios.co.za",
+      "address": "Twickenham Building, The Campus, Main Road Bryanston, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Salt-Studios"
+    },
+    {
+      "name": "Twin Cities",
+      "website": "https://www.twincitiessa.org",
+      "address": "Pretoria, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Twin-Cities"
+    },
+    {
+      "name": "Devra Chemicals",
+      "website": "https://www.devrachemicals.co.za",
+      "address": "Western Cape, Cape Town",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Devra-Chemicals"
+    },
+    {
+      "name": "Symbiotic Media",
+      "website": "https://www.symbioticmedia.co.za",
+      "address": "P.o. Box 12340, Mill Street, Gardens Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Symbiotic-Media"
+    },
+    {
+      "name": "The Tatz Initiative - Graphic Design &amp; …",
+      "website": "https://www.tatzi.co.za",
+      "address": "Sun Village, 123 South St, Die Hoewes Centurion, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Tatz-Initiative-Graphic-Design-Web"
+    },
+    {
+      "name": "Leeulekker.com",
+      "website": "https://www.leeulekker.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Leeulekker-com"
+    },
+    {
+      "name": "SCE Productions CC",
+      "website": "https://www.sceproduction.co.za",
+      "address": "205 Panorama Mansions, 7 St. James Road, Vredehoek Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SCE-Productions-CC"
+    },
+    {
+      "name": "Cre8tf Corporation",
+      "website": "https://za.linkedin.com/cre8tf",
+      "address": "10 Varing Avenue George, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cre8tf"
+    },
+    {
+      "name": "danielfbothma writer director",
+      "website": "https://www.wix.com/danielfbothma/writer_director",
+      "address": "Table View Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/danielfbothma-writer-director"
+    },
+    {
+      "name": "Health and Fitness SA",
+      "website": "https://www.healthandfitnesssa.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Health-and-Fitness-SA"
+    },
+    {
+      "name": "Panache Graphics",
+      "website": "https://www.smartfind.co.za",
+      "address": "35 Frere Road, Troyeville, Johannesburg Johannesburg Central, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Panache-Graphics"
+    },
+    {
+      "name": "Print to Advertise",
+      "website": "https://www.printtoadvertise.co.za",
+      "address": "191 Edison Cres, Hennopspark Centurion, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Print-to-Advertise"
+    },
+    {
+      "name": "Tequila Creations",
+      "website": "https://www.tequilacreations.co.za",
+      "address": "Katumba Road Sunninghill, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tequila-Creations"
+    },
+    {
+      "name": "MBark Productions Marketing",
+      "website": "https://www.mbark.co.za",
+      "address": "367 Brooklyn Road, Brooklyn Pretoria, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/MBark-Productions-Marketing"
+    },
+    {
+      "name": "Mongatane Building and Interior Constru…",
+      "website": "http://jmconsultants.wozaonline.co.za",
+      "address": "102 Oropa Mansions, 40 Yeo Street Yeoville, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mongatane-Building-and-Interior-Construction"
+    },
+    {
+      "name": "TT SIGNS (PMB)",
+      "website": "https://www.ttsigns.co.za",
+      "address": "99 Victoria Road Pietermaritzburg Kwazulu Natal, Kwazulu Natal",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/TT-SIGNS-PMB"
+    },
+    {
+      "name": "ODYSSEY INTERNET CAFE UNDER DIVDARK MAN…",
+      "website": "https://www.odysseydivdark.co.za",
+      "address": "Sterland Plaza, Cnr Pretorius & Beatrix, Arcadia Pretoria, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ODYSSEY-INTERNET-CAFE-UNDER-DIVDARK-MANAGEMENT"
+    },
+    {
+      "name": "DC Productions",
+      "website": "https://www.dcproductions.co.za",
+      "address": "Cnr Louis Botha Ave & 11th Avenue Highlands North, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/DC-Productions"
+    },
+    {
+      "name": "Internet AdSales",
+      "website": "https://www.internetadsales.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Internet-AdSales"
+    },
+    {
+      "name": "Durban Design Marketing",
+      "website": "https://www.durbandesignmarketing.co.za",
+      "address": "Palm Gate, Aroura Drive Umhlanga Rocks, Kwazulu-nata",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Durban-Design-Marketing"
+    },
+    {
+      "name": "7PlusMedia",
+      "website": "https://www.7plusmedia.co.za",
+      "address": "Po Box 118 Menlyn, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/7PlusMedia"
+    },
+    {
+      "name": "Nzuza Signs and Outdoor Advertising",
+      "website": "https://www.nzuzasigns.co.za",
+      "address": "89 Schoeman Street, Polokwane, Polokwane Polokwane, Limpopo",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nzuza-Signs-and-Outdoor-Advertising"
+    },
+    {
+      "name": "BizAdMag Online cc",
+      "website": "https://www.bizadmag.co.za",
+      "address": "Head Office, 22a Palm Street West, Edenglen Edenvale, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BizAdMag-Online-cc"
+    },
+    {
+      "name": "ROCKET SEARCH, Cheap Affordable Online …",
+      "website": "https://www.rocketsearch.co.za",
+      "address": "60 Courtney Place, Panther Road, Boskruin Randburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ROCKET-SEARCH-Cheap-Affordable-Online-Business-Advertising"
+    },
+    {
+      "name": "WIZARD CLOTHING",
+      "website": "https://www.altitudeleisurewear.com",
+      "address": "31b Lake Rd, Long Meadow Business Park North, Longmeadow Edenvale, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/WIZARD-CLOTHING"
+    },
+    {
+      "name": "QW Property Improvements",
+      "website": "https://www.pvcinnovations.co.za",
+      "address": "Green Valley Close, Diep River Diep River, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/QW-Property-Improvements"
+    },
+    {
+      "name": "Creative Design Corner",
+      "website": "https://www.creativedesigncorner.co.za",
+      "address": "Branch In Benoni, Branch In Pretoria Johannesburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Creative-Design-Corner"
+    },
+    {
+      "name": "Green Mango Promotions cc",
+      "website": "https://www.promogifts.co.za/greenmangopromotions",
+      "address": "Rosegum Street Centurion, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Green-Mango-Promotions-cc"
+    },
+    {
+      "name": "Liquid Design and Advertising",
+      "website": "https://www.liquiddesign.co.za",
+      "address": "182 Cortayne Avn Mondeor, Ashden St, Colombine Avn Johannesburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Liquid-Design-and-Advertising"
+    },
+    {
+      "name": "The Graphic pen",
+      "website": "https://[email&#160;protected]",
+      "address": "22 Jonkershoek ,northpine,brackenfell,7560 Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Graphic-pen"
+    },
+    {
+      "name": "Mayne Concepts",
+      "website": "https://www.mayneconcepts.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mayne-Concepts"
+    },
+    {
+      "name": "Limbik Responding Creative",
+      "website": "https://www.limbik.co.za",
+      "address": "141/143 Dorp Street Stellenbosch, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Limbik-Responding-Creative"
+    },
+    {
+      "name": "Red Dice Events",
+      "website": "https://www.reddice.co.za",
+      "address": "Po Box 2275, Port Shepstone, 4240 Port Shepstone, Kwazulu-nata",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Red-Dice-Events"
+    },
+    {
+      "name": "Nirvana Extreme Classifieds",
+      "website": "https://www.nirvanasa.info",
+      "address": "39, Saddle Port Elizabeth, Eastern Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nirvana-Extreme-Classifieds"
+    },
+    {
+      "name": "Spoom Concepts Graphic Design Studio",
+      "website": "https://www.spoomconcepts.co.za",
+      "address": "52 Monte Carlo, Uitzicht Durbanville , Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Spoom-Concepts-Graphic-Design-Studio"
+    },
+    {
+      "name": "Gecko Advertising",
+      "website": "https://www.gecko-zone.co.za",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gecko-Advertising"
+    },
+    {
+      "name": "DESIGN BEAN",
+      "website": "https://www.designbean.co.za",
+      "address": "Graphic Design, Weltevreden Park Roodepoort, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/DESIGN-BEAN"
+    },
+    {
+      "name": "Amani Magazine",
+      "website": "https://www.amanimag.com",
+      "address": "P O Box 406, Plumstead Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Amani-Magazine"
+    },
+    {
+      "name": "GXI Website Design Services",
+      "website": "https://www.GXI.co.za",
+      "address": "Nation Wide Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/GXI-Website-Design-Services"
+    },
+    {
+      "name": "Business &amp; classified blog",
+      "website": "https://busines.co.za",
+      "address": "George, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Business-classified-blog"
+    },
+    {
+      "name": "www.gsale.co.za",
+      "website": "https://www.gsale.co.za",
+      "address": "Gardens Cape Town 8001, Millstreet Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/www-gsale-co-za"
+    },
+    {
+      "name": "Buzz Ooh!",
+      "website": "https://www.buzzooh.com",
+      "address": "66 Melville Street, Discovery Xr Florida, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Buzz-Ooh"
+    },
+    {
+      "name": "Uchoose Property Marketing (Pty) Ltd. -…",
+      "website": "https://www.uchoose.co.za",
+      "address": "Soetdoring Street, Bassonia Johannesburg, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Uchoose-Property-Marketing-Ltd-Property-Real-Estate-Videos"
+    },
+    {
+      "name": "The Database Company - Elizabeth van Vr…",
+      "website": "https://thedatabasecompany.webs.com",
+      "address": "9 Andrew Road, Centurion, Gauteng Valhalla, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Database-Company-Elizabeth-van-Vreden"
+    },
+    {
+      "name": "Rustmovement.com Magazine",
+      "website": "https://www.rustmovement.com",
+      "address": "10 Chamroo Rd, Malvern Durban, Kwazulu-nata",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rustmovement-com-Magazine"
+    },
+    {
+      "name": "BrandNew Consulting",
+      "website": "https://brandnewconsulting.bcgshop.co.za",
+      "address": "16 Corncrake Close Muizenberg Cape Town, Cape Town",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/BrandNew-Consulting"
+    },
+    {
+      "name": "QBD Productions Web Design",
+      "website": "https://www.quaymberley.com/qbdproductions",
+      "address": "Noordwyk, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/QBD-Productions-Web-Design"
+    },
+    {
+      "name": "Mass Media Studios",
+      "website": "https://www.massmediastudios.co.za",
+      "address": "2a Rohrs Crescent, Sarnia, Pinetown Durban, Kwazulu Natal",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mass-Media-Studios"
+    },
+    {
+      "name": "Tame Times",
+      "website": "https://www.tametimes.co.za",
+      "address": "59 Clinton Road, New Redruth Alberton, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 503,
+      "error": "HTTP 503",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tame-Times"
+    },
+    {
+      "name": "Taxi Top SA",
+      "website": "https://www.taxitopsa.co.za",
+      "address": "561 Jorissen Street, Sunnyside, 0002 Pretoria, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Taxi-Top-SA"
+    },
+    {
+      "name": "WEBS DYNAMIC",
+      "website": "https://www.websdynamic.webs.com",
+      "address": "135, Lanham Street, Bloureier Ave Pretoria, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/WEBS-DYNAMIC"
+    },
+    {
+      "name": "Pink Ice Promotions",
+      "website": "https://www.facebook.com/home.php?#!/group.php?gid=142224945793915&ref=ts",
+      "address": "116 Glengory Rd, Northmead, Benoni Benoni, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 400,
+      "error": "HTTP 400",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pink-Ice-Promotions"
+    },
+    {
+      "name": "Mpumalanga Business Association",
+      "website": "https://www.mba4u.net",
+      "address": "163 Watermeyer Street, Meyers Park, Pretoria Pretoria, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mpumalanga-Business-Association"
+    },
+    {
+      "name": "Creative Core Media Pty Ltd",
+      "website": "https://www.creativecore.co.za",
+      "address": "Faerie Glen Pretoria, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Creative-Core-Media"
+    },
+    {
+      "name": "Creative Associates",
+      "website": "https://www.creativeassociates.co.za",
+      "address": "Hillcrest, Kwazulu Natal",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Creative-Associates"
+    },
+    {
+      "name": "i-Line Films",
+      "website": "https://www.iline.co.za",
+      "address": "1163 Newman Avenue, Queenswood Pretoria, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/i-Line-Films_793538"
+    },
+    {
+      "name": "Vermaakenterprises",
+      "website": "https://www.vermaakenterprises.com",
+      "address": "39 Delport Street, Elsburg, Germiston Johannesbrug, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vermaakenterprises"
+    },
+    {
+      "name": "Minni Mo Snake Shows",
+      "website": "https://www.imhoffsnakepark.co.za",
+      "address": "Imhoff Farm, Kommetjie Main Road, Kommetjie Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Minni-Mo-Snake-Shows"
+    },
+    {
+      "name": "Penelope Brand Management And Marketing",
+      "website": "https://www.wix.com/penelopebmm/sa",
+      "address": "1931 Extention 2, Kiwi Street, Rondebult Germiston, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Penelope-Brand-Management-And-Marketing"
+    },
+    {
+      "name": "Invert Design &amp; Photography",
+      "website": "https://www.invert.co.za",
+      "address": "Stellenbosch, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Invert-Design-Photography"
+    },
+    {
+      "name": "Number Pleaze",
+      "website": "https://www.numberpleaze.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Number-Pleaze"
+    },
+    {
+      "name": "KZN Artists",
+      "website": "https://www.kznartists.co.za",
+      "address": "Morningside, Berea Durban, Kwazulu Natal",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/KZN-Artists"
+    },
+    {
+      "name": "SMSCITY",
+      "website": "https://www.smscity.co.za",
+      "address": "41 Blaauwberg Road Bloubergstrand, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SMSCITY_885115"
+    },
+    {
+      "name": "Quintessential Marketing",
+      "website": "https://www.qmarq.co.za",
+      "address": "46 Stratton Road Bryanston, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Quintessential-Marketing"
+    },
+    {
+      "name": "Witooka Web Design",
+      "website": "https://www.witooka.co.za",
+      "address": "P.o. Box 345 Edgemead, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Witooka-Web-Design"
+    },
+    {
+      "name": "Rugby World Distributors CC",
+      "website": "https://www.rwd.za.net",
+      "address": "445 Kiepersol Rd, Lynnwood Pretoria, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rugby-World-Distributors-CC"
+    },
+    {
+      "name": "The Ants Nest | Advertising &amp; Design",
+      "website": "https://www.theantsnest.co.za",
+      "address": "17 Mount Road Rondebosch, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Ants-Nest-Advertising-Design"
+    },
+    {
+      "name": "CapeAds",
+      "website": "https://www.capeads.co.za",
+      "address": "No1 Chiappini Square, First Floor, Chiappini Street Cape Town, Western Cape",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/CapeAds"
+    },
+    {
+      "name": "Exclaim Marketing And Advertising",
+      "website": "https://www.exclaimmarketing.co.za",
+      "address": "354 Highland Road, Bedfordview, 354 Highland Road Kensington, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Exclaim-Marketing-And-Advertising"
+    },
+    {
+      "name": "14th Hour Marketing Services",
+      "website": "https://www.14thhour.co.za",
+      "address": "107 Blandford Road, 37 Twin Lakes Northriding, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/14th-Hour-Marketing-Services"
+    },
+    {
+      "name": "Ranger Outback Promotions",
+      "website": "https://www.rangeroutback.co.za",
+      "address": "Unit 70 Platinum Junction Business Park, School Street Milnerton, Western Cape",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ranger-Outback-Promotions"
+    },
+    {
+      "name": "Mad Advertising Pty (Ltd)",
+      "website": "https://www.madworld.co.za",
+      "address": "4 Treaty Road, Woodstock Cape Town, Western Cape",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mad-Advertising"
+    },
+    {
+      "name": "Adrian Shields Photography",
+      "website": "https://www.facebook.com/group.php?gid=41883555667&ref=ts",
+      "address": "Richdens Hillcrest, Kwazulu-nata",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 400,
+      "error": "HTTP 400",
+      "bizbayUrl": "https://bizbay.co.za/Company/Adrian-Shields-Photography"
+    },
+    {
+      "name": "SA Citi Media",
+      "website": "https://www.citimedia.co.za",
+      "address": "322 Potgieter St, C/o Potgieter & Skinner St Pretoria, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 503,
+      "error": "HTTP 503",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Citi-Media"
+    },
+    {
+      "name": "GADesign Studio",
+      "website": "https://www.gadesign-studio.co.za",
+      "address": "10 General Jh Olivier Street, Wegelegen Cape Town, Western Cape",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/GADesign-Studio"
+    },
+    {
+      "name": "Playback Digital Video Solutions",
+      "website": "https://www.individeol.co.za",
+      "address": "124 Albert Rd Hout Bay, Western Cape",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Playback-Digital-Video-Solutions"
+    },
+    {
+      "name": "Aloe Printers",
+      "website": "https://www.3dcaloe.com",
+      "address": "Chris Van Der Linde Building, Shop 1, 4 Jonie Street Annlin, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aloe-Printers"
+    },
+    {
+      "name": "autodisc",
+      "website": "https://www.autodisc.co.za",
+      "address": "Gemini Street Brackenfell, Western Cape",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/autodisc"
+    },
+    {
+      "name": "Which? Industrial Magazine",
+      "website": "https://www.whichindustrial.co.za",
+      "address": "373 Kent Ave, Cnr Bond Randburg, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Which-Industrial-Magazine"
+    },
+    {
+      "name": "Advertising Which? Industrial Magazine",
+      "website": "https://www.whichindustrial.co.za",
+      "address": "Kent Ave, Cnr Bond Randburg, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Advertising-Which-Industrial-Magazine"
+    },
+    {
+      "name": "Corporate Sugar Promotional &amp; Marketing…",
+      "website": "https://www.corporatesugar-online.co.za",
+      "address": "Brakrivier Avenue Sandton, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Corporate-Sugar-Promotional-Marketing-Concepts-CC"
+    },
+    {
+      "name": "Team U",
+      "website": "https://www.teamu.co.za",
+      "address": "82 Mc Dougal Street Kimberley, Northern Cape",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Team-U"
+    },
+    {
+      "name": "Enchanted Events",
+      "website": "https://www.enchantedevents.co.za",
+      "address": "1 Premier Place, 6 Premier Avenue, Windsor West Randburg, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Enchanted-Events"
+    },
+    {
+      "name": "Tau and Associates :: Printing",
+      "website": "https://www.taa.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tau-and-Associates-Printing"
+    },
+    {
+      "name": "Pretoria EasyDirect",
+      "website": "https://www.pretoriaeasydirect.co.za",
+      "address": "799 Riana Street, Dorandia X 10 Pretoria North, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pretoria-EasyDirect"
+    },
+    {
+      "name": "RSA Leisurewear",
+      "website": "https://www.rsaleisurewear.co.za",
+      "address": "46 Landsmark Ave Kosmosdal, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/RSA-Leisurewear_394237"
+    },
+    {
+      "name": "Design Illustration Technologies CC",
+      "website": "https://www.vryheidbusiness.co.za",
+      "address": "80 Edward Street, P.o. Box 2201 Vryheid, Kzn, Kwazulu-nata",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Design-Illustration-Technologies-CC"
+    },
+    {
+      "name": "EquineServices.co.za",
+      "website": "https://www.equineservices.co.za",
+      "address": "Suite 80, Private Bag X7 Northriding, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/EquineServices-co-za"
+    },
+    {
+      "name": "Tinted Design &amp; Publishing",
+      "website": "https://www.tinteddesign.com",
+      "address": "25 Zevenrosen, Tiffany Crescent Northwold, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tinted-Design-Publishing"
+    },
+    {
+      "name": "Herjoo Online",
+      "website": "https://www.herjoo.co.za",
+      "address": "11 2nd Avenue, Alberton North Alberton, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Herjoo-Online"
+    },
+    {
+      "name": "laidlaw manufacturing",
+      "website": "https://[email&#160;protected]",
+      "address": "50 Old Mill Rd, Unit 9, Old Mill Square;old Mill Rd Ndabeni, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/laidlaw-manufacturing"
+    },
+    {
+      "name": "BreakingSurf",
+      "website": "https://www.breakingsurf.co.za",
+      "address": "15 Morningside Village Estate, Cnr Outspan & Fir, Morningside Sandton, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BreakingSurf"
+    },
+    {
+      "name": "Webstyle Graphics (PTY) Ltd",
+      "website": "https://www.webstyle.co.za",
+      "address": "P.o Box 291536 Melville, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Webstyle-Graphics"
+    },
+    {
+      "name": "PROMOTIONAL PRINTING",
+      "website": "https://www.promotionalprinting.co.za",
+      "address": "Po Box 314, Edgemead Cape Town, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/PROMOTIONAL-PRINTING"
+    },
+    {
+      "name": "Softline ACCPAC",
+      "website": "https://www.accpac.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Softline-ACCPAC_394805"
+    },
+    {
+      "name": "Avecon Consulting",
+      "website": "https://www.avecon.co.za",
+      "address": "322 The Avenue Henley On Klip, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Avecon-Consulting"
+    },
+    {
+      "name": "Seethrough Roland UV Printing",
+      "website": "https://www.seethrough.co.za",
+      "address": "687 Picasso Str Moreleta, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Seethrough-Roland-UV-Printing"
+    },
+    {
+      "name": "Vista Print Solutions",
+      "website": "https://www.vistaprintsolutions.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vista-Print-Solutions"
+    },
+    {
+      "name": "Bayanda Recruitment",
+      "website": "https://www.bayandarecruitment.co.za",
+      "address": "52 Wierda Road West, Shangai House, Wierda Valley, Sandton Johannesburg, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bayanda-Recruitment"
+    },
+    {
+      "name": "Active Signs &amp; Designs",
+      "website": "https://www.pnc.co.za",
+      "address": "31 Nigel Road Springs, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Active-Signs-Designs"
+    },
+    {
+      "name": "PixieMinx",
+      "website": "https://www.tano.co.za",
+      "address": "8 Protea Street Caledon, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/PixieMinx"
+    },
+    {
+      "name": "Demographix Dezigns",
+      "website": "https://www.demographix.co.za",
+      "address": "191 Milner Rd, Claremont Cape Town, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Demographix-Dezigns"
+    },
+    {
+      "name": "Online Web Marketing",
+      "website": "https://www.onlinewebmarketing.co.za",
+      "address": "Rembrandt Street Vanderbijlpark, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Online-Web-Marketing"
+    },
+    {
+      "name": "G Studio Branding Agency",
+      "website": "https://www.gstudio.co.za",
+      "address": "107 Hole In The Wall Centre, Main Road Somerset West, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/G-Studio-Branding-Agency"
+    },
+    {
+      "name": "Soundchoice KZN",
+      "website": "https://www.soundchoicekzn.co.za",
+      "address": "91 Roberts Rd, 20 Marble Arch, Pietermaritzburg Clarendon, Kwazulu-nata",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Soundchoice-KZN"
+    },
+    {
+      "name": "Red Feather Promotions cc",
+      "website": "https://www.redfeatherpromotions.co.za",
+      "address": "1a Kareeboom Road Thornton, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Red-Feather-Promotions-cc"
+    },
+    {
+      "name": "charelle.com",
+      "website": "https://www.charelle.com/wordpress",
+      "address": "P O Box 18373, Quigney, East London Eastern Cape, Eastern Cape",
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/charelle-com"
+    },
+    {
+      "name": "Ikhala Graphic Communications",
+      "website": "https://ikhalagraphic.com",
+      "address": "Highgate Street, 42 Maitland P.O. Box 2208 CT 8000 Cape Town, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ikhala-Graphic-Communications"
+    },
+    {
+      "name": "AUTO DEALER SERVICES",
+      "website": "https://[email&#160;protected]",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/AUTO-DEALER-SERVICES"
+    },
+    {
+      "name": "Mphoentle Marketing Communications (MMC)",
+      "website": "https://www.mphoentle.co.za",
+      "address": "Irene View Estate 17 Azdec & Citation Highveld Centurion, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mphoentle-Marketing-Communications-MMC"
+    },
+    {
+      "name": "individeol",
+      "website": "https://www.individeol.co.za",
+      "address": "124 Albert Rd Hout Bay, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/individeol"
+    },
+    {
+      "name": "epnet cc",
+      "website": "https://www.epnetwork.co.za",
+      "address": "26 Rutherford Road Sunninghill Sandton, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/epnet-cc"
+    },
+    {
+      "name": "Transcend Marketing",
+      "website": "https://www.transcendwebsites.com",
+      "address": "P.O. box 1570 Amherst, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Transcend-Marketing"
+    },
+    {
+      "name": "VIP Promotions",
+      "website": "https://www.vip-promotions.co.za",
+      "address": "6 Dunsheen Road Wynberg Cape Town, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/VIP-Promotions"
+    },
+    {
+      "name": "Volvonet",
+      "website": "https://www.volvonet.co.za",
+      "address": "Cnr Graham and Cole Street Shere Pretoria , Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Volvonet"
+    },
+    {
+      "name": "Mira Media and Advertising",
+      "website": "https://www.mirapromo.co.za",
+      "address": "Office 1, No 8 Postma Street, Rustenburg P.O Box 984 Rustenburg, North West",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mira-Media-and-Advertising"
+    },
+    {
+      "name": "Stay-SouthAfrica.co.za",
+      "website": "https://www.stay-southafrica.co.za",
+      "address": "Johannesburg Paulshof, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Stay-SouthAfrica-co-za"
+    },
+    {
+      "name": "Promoboot",
+      "website": "https://www.promoboot.co.za",
+      "address": "PO Box 75265 Garden View, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Promoboot"
+    },
+    {
+      "name": "Real Deal IT",
+      "website": "https://www.rdit.co.za",
+      "address": "17 Fitzpatrick Crescent Halfway house Midrand Gauteng, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 503,
+      "error": "HTTP 503",
+      "bizbayUrl": "https://bizbay.co.za/Company/Real-Deal-IT"
+    },
+    {
+      "name": "Talk2fm Business Advertising",
+      "website": "https://www.talk2fm.com",
+      "address": "22 Village lane Durbanville, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Talk2fm-Business-Advertising"
+    },
+    {
+      "name": "Incredible Software Solutions",
+      "website": "https://www.incrediblesoftwaresolutions.com",
+      "address": "Blaauberg road Cape Town, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Incredible-Software-Solutions"
+    },
+    {
+      "name": "BlackLeaf Design",
+      "website": "https://www.blackleafdesign.co.za",
+      "address": "17 Papillion Street Glen Austin AH Ext 3 Midrand, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BlackLeaf-Design"
+    },
+    {
+      "name": "Xpect Media Solutions",
+      "website": "https://www.xpectonline.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xpect-Media-Solutions"
+    },
+    {
+      "name": "Xtreme Advertising &amp; Agency",
+      "website": "https://www.xtremeadvertising.co.za",
+      "address": "Danhof Bloemfontein, Free State",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xtreme-Advertising-Agency"
+    },
+    {
+      "name": "Pixelmash Design",
+      "website": "https://www.pixelmash.co.za",
+      "address": "na Johannesburg, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pixelmash-Design"
+    },
+    {
+      "name": "Sesmic Technologies",
+      "website": "https://www.sesmic.co.za",
+      "address": "Biccard Braamfontein Johannesburg, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sesmic-Technologies"
+    },
+    {
+      "name": "PromoWorx",
+      "website": "https://www.promoworx.co.za",
+      "address": "206 Ontdekkers Rd Horizon Roodepoort, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/PromoWorx"
+    },
+    {
+      "name": "Lampro",
+      "website": "https://www.lamprodbn.co.za",
+      "address": "286 Jan Smuts Highway Mayville , KwaZulu-Nata",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lampro"
+    },
+    {
+      "name": "Great Info",
+      "website": "https://www.greatinfo.co.za",
+      "address": "Skateboard Johannesburg, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Great-Info"
+    },
+    {
+      "name": "The Bidding Gallery",
+      "website": "https://www.thebiddinggallery.co.za",
+      "address": "Blaauwklip Office Park Webersvalley Road Jamestown Stellenbosch, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Bidding-Gallery_395988"
+    },
+    {
+      "name": "Get web Design",
+      "website": "https://www.getwebdesign.co.za",
+      "address": "8 River Ridge Place Bush Willow Drive Edenvale Gauteng, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Get-web-Design"
+    },
+    {
+      "name": "Pollock&#39;s Copy Design Print",
+      "website": "https://www.pollocks.co.za",
+      "address": "Cnr Pearce Street and 4th Avernue Berea East London, Eastern Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pollocks-Copy-Design-Print"
+    },
+    {
+      "name": "Rob Pollock Photography, Imaging and Fr…",
+      "website": "https://www.pollocks.co.za",
+      "address": "Cnr Pearce St and 4th Ave Berea East London, Eastern Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rob-Pollock-Photography-Imaging-and-Framing"
+    },
+    {
+      "name": "SaleSearcher",
+      "website": "https://www.salesearcher.co.za",
+      "address": "Century City South Africa, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SaleSearcher"
+    },
+    {
+      "name": "Village Square Marketing",
+      "website": "https://www.villagesquaremarketing.co.za",
+      "address": "Shop 2 Parklane Centre Chief Albert Luthuli Road Pietermaritzburg, KwaZulu-Nata",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Village-Square-Marketing"
+    },
+    {
+      "name": "GL Hosting",
+      "website": "https://www.ownwebsite.co.za",
+      "address": "Germiston Elspark, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/GL-Hosting"
+    },
+    {
+      "name": "H&amp;M Fast print and Marketing",
+      "website": "https://www.hmfastprint.co.za",
+      "address": "Jan van Rooyen Witpoortjie Roodepoort, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/H-M-Fast-print-and-Marketing"
+    },
+    {
+      "name": "Graphic Trance",
+      "website": "https://www.graphictrance.co.za",
+      "address": "2324 Tshepisong, Roodepoort 1724 Roodepoort, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Graphic-Trance"
+    },
+    {
+      "name": "DEEP WITHIN EVENTS MANAGEMENT &amp; MARKETI…",
+      "website": "https://[email&#160;protected]",
+      "address": "OLD JHB/ VEREENIGING ROAD AND WEILBACH RD De Deur, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/DEEP-WITHIN-EVENTS-MANAGEMENT-MARKETING-CONCEPTS"
+    },
+    {
+      "name": "Killiecrankie Road Productions",
+      "website": "https://www.krproductions.com",
+      "address": "Killiecrankie Road Westville, KwaZulu Natal",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Killiecrankie-Road-Productions"
+    },
+    {
+      "name": "AUM IT SOLUTIONS",
+      "website": "https://www.aumitsolutions.co.za",
+      "address": "104 MAFA MANZIL; OFFICE 201 1ST FLOOR GEMSBOK STREET Lenasia, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/AUM-IT-SOLUTIONS"
+    },
+    {
+      "name": "thedigitalmind.net",
+      "website": "https://www.thedigitalmind.net",
+      "address": "Marshaltown Johannesburg Johannesburg, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/thedigitalmind-net"
+    },
+    {
+      "name": "Ice Art Ice Sculptures",
+      "website": "https://www.iceart.co.za",
+      "address": "Basson Street Cape Town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ice-Art-Ice-Sculptures"
+    },
+    {
+      "name": "Equipment Marketing",
+      "website": "https://www.eqm.weebly.com",
+      "address": "Iniastr Malmesbury, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Equipment-Marketing"
+    },
+    {
+      "name": "eVolution Outsourcing",
+      "website": "https://www.evolution-outsourcing.com",
+      "address": "Sabré Way, Kensington Cape Town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/eVolution-Outsourcing"
+    },
+    {
+      "name": "Sukuma Branding Specialists",
+      "website": "https://www.sukuma7.co.za",
+      "address": "407 Columbia 118 Vos Sunnyside Pretoria, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sukuma-Branding-Specialists"
+    },
+    {
+      "name": "PLATFUSE",
+      "website": "https://www.platfuse.com",
+      "address": "303 shradha fiarmount HSR Bangalore karnataka INDIA, North West Province",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/PLATFUSE"
+    },
+    {
+      "name": "InterComm South Africa",
+      "website": "https://www.intercomm.co.za",
+      "address": "Bedfordview Johannesburg, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/InterComm-South-Africa"
+    },
+    {
+      "name": "Spartan Media",
+      "website": "https://www.spartanmedia.co.za",
+      "address": "114 Intersite Avenue Springfield Park Springfiled Durban North, KwaZulu-Nata",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Spartan-Media"
+    },
+    {
+      "name": "intoxicating design and advertising",
+      "website": "https://www.intoxicating.co.za",
+      "address": "4 Almond Street Oude Spruit Brackenfell, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/intoxicating-design-and-advertising"
+    },
+    {
+      "name": "Wellness with Sportron Ilse L&#246;tter",
+      "website": "https://www.ilselotter.sportron.co.za",
+      "address": "Posbus 1719 Milnerton Cape Town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wellness-with-Sportron-Ilse-L%C3%B6tter"
+    },
+    {
+      "name": "Domino Grafix",
+      "website": "https://www.dgrafix.netii.net",
+      "address": "Bellville, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Domino-Grafix"
+    },
+    {
+      "name": "OneDi&#39;zain - Graphic Design",
+      "website": "https://www.onedizain.co.za",
+      "address": "John Voster Pretoria, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/OneDi-zain-Graphic-Design"
+    },
+    {
+      "name": "IDW Promotions",
+      "website": "https://www.identitywatch.co.za",
+      "address": "Unit 26 Prestige Business Park Democracy Way Milnerton Cape Town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/IDW-Promotions"
+    },
+    {
+      "name": "Helios Design",
+      "website": "https://www.heliosdesign.co.za",
+      "address": "Palm Place, No 22 Braam Fisher Drive Linden 2195 Johannesburg, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Helios-Design"
+    },
+    {
+      "name": "Blue Jaguar Consulting",
+      "website": "https://www.bluejaguar.co.za",
+      "address": "37 Silwood Road Bramley Bramley, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Jaguar-Consulting"
+    },
+    {
+      "name": "JaeKae Creations",
+      "website": "https://www.jaekae.co.za",
+      "address": "Johannesburg Johannesburg, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/JaeKae-Creations"
+    },
+    {
+      "name": "R-Squared",
+      "website": "https://www.r-squared.co.za",
+      "address": "9 Villa Roseto Katumba Road Sunninghill, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/R-Squared"
+    },
+    {
+      "name": "ESPdesign",
+      "website": "https://www.esprint.co.za",
+      "address": "83 Helderberg College rd the Vineyard Somerset West, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ESPdesign"
+    },
+    {
+      "name": "The Graphic Design School",
+      "website": "https://www.thegraphicdesignschool.co.za",
+      "address": "86 Von Wielligh Street Johannesburg, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Graphic-Design-School"
+    },
+    {
+      "name": "Xsphere Marketing and Design",
+      "website": "https://www.x-sphere.co.za",
+      "address": "69 susanna road florentia Alberton, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Xsphere-Marketing-and-Design"
+    },
+    {
+      "name": "Vusizwe Institute",
+      "website": "https://www.vusizwe.blogspot.com",
+      "address": "10 Henry Nxumalo Street Newtown Johannesburg Johannesburg, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vusizwe-Institute"
+    },
+    {
+      "name": "Downtown Embroidery",
+      "website": "https://www.downtownembroidery.co.za",
+      "address": "290 Umbilo Rd Durban, KwaZulu-Nata",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Downtown-Embroidery_397847"
+    },
+    {
+      "name": "tanya.horsford.design",
+      "website": "https://www.freshwaterpearls.co.za",
+      "address": "Shop 2, 4 Fourth Avenue (next to ERA Sun) Gonubie, Eastern Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/tanya-horsford-design"
+    },
+    {
+      "name": "Norbi Media",
+      "website": "https://www.norbi.co.za",
+      "address": "503 Hamilton 285 Hamilton Street Arcadia Pretoria, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Norbi-Media"
+    },
+    {
+      "name": "INRECO CORPORATIONAL GIFTS",
+      "website": "https://www.inreco.co.za",
+      "address": "16 Barbara Street,Morehill Benoni, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/INRECO-CORPORATIONAL-GIFTS"
+    },
+    {
+      "name": "Treasuries Photography",
+      "website": "https://www.treasuries.co.za",
+      "address": "Beethoven Street Vanderbijlpark, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Treasuries-Photography"
+    },
+    {
+      "name": "The Brandt Inventory, Creative Design S…",
+      "website": "https://www.brandt.co.za",
+      "address": "18, 6th Avenue Fish Hoek, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Brandt-Inventory-Creative-Design-Studio"
+    },
+    {
+      "name": "baymarketing",
+      "website": "https://www.baymarketing.co.za",
+      "address": "15 Laurentia Way Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/baymarketing"
+    },
+    {
+      "name": "Good Speed Ent",
+      "website": "https://www.goodspeed.co.za",
+      "address": "19 Kokkewiet Road Randparkridge Randburg, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Good-Speed-Ent"
+    },
+    {
+      "name": "Globecreative",
+      "website": "https://www.globecreative.co.za",
+      "address": "19 Hope Street Gardens 8001 Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Globecreative"
+    },
+    {
+      "name": "KZN Ads",
+      "website": "https://www.kznads.co.za",
+      "address": "542 Sheringham Cresent Leisure Bay PO Box 6 Glenmore Beach Munster, KwaZulu-Nata",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/KZN-Ads"
+    },
+    {
+      "name": "Dummiesinfo",
+      "website": "https://www.dummiesinfo.com",
+      "address": "12 th Street Goodwood, Northern Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dummiesinfo"
+    },
+    {
+      "name": "Radio Midrand 93,8 FM",
+      "website": "https://www.radiomidrand.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Radio-Midrand-93-8-FM"
+    },
+    {
+      "name": "KeaSam Corporate",
+      "website": "https://www.keasam.co.za",
+      "address": "03 Desmond Ave Silverfields Krugersdorp, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/KeaSam-Corporate_398549"
+    },
+    {
+      "name": "Frontline Studio",
+      "website": "https://www.frontlinestudio.net",
+      "address": "160 Jan Smuts Avenue Rosebank Johannesburg, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Frontline-Studio"
+    },
+    {
+      "name": "Leratadima Outdoor Advertising",
+      "website": "https://www.leratadima.co.za",
+      "address": "34 Pembrooke Amplifier Street Radiokop, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Leratadima-Outdoor-Advertising"
+    },
+    {
+      "name": "SM&amp;D Consulting",
+      "website": "https://www.smandd.co.za",
+      "address": "233 Prinsman Place 300 Prinsloo Street PTA CBD Tshwane, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SM-D-Consulting"
+    },
+    {
+      "name": "Design Essence",
+      "website": "https://www.designessence.co.za",
+      "address": "Sandton Drive Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Design-Essence"
+    },
+    {
+      "name": "Brand Innovation",
+      "website": "https://www.brandinnovation.co.za",
+      "address": "Post Net Suite 283 Private Bag X1005 Claremont Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Brand-Innovation"
+    },
+    {
+      "name": "Logo Central",
+      "website": "https://www.wix.com/fhlpromotions/logocentral",
+      "address": "Office 605 Arcadia Center Vermeulen Street Arcadia Pretoria, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Logo-Central"
+    },
+    {
+      "name": "Market Magnet Consulting",
+      "website": "https://www.marketmagnet.co.za",
+      "address": "10 Gillard Dr Cresta randburg Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Market-Magnet-Consulting"
+    },
+    {
+      "name": "Holst Media",
+      "website": "https://www.marcelvanderholst.co.za",
+      "address": "23 Stewart Drive, Berea East London, Eastern Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Holst-Media"
+    },
+    {
+      "name": "Brand Shack",
+      "website": "https://www.brandshack.co.za",
+      "address": "PO Box 25339 Eastrand Boksburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Brand-Shack"
+    },
+    {
+      "name": "Cass Design",
+      "website": "https://www.cassdesign.co.za",
+      "address": "Plot 48 Welgegund Hartbeespoort, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cass-Design"
+    },
+    {
+      "name": "Alfresco Event &amp; Meeting Planners",
+      "website": "https://www.alfrescoevents.co.za",
+      "address": "30 Chapman Drive Gordon's Bay, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alfresco-Event-Meeting-Planners"
+    },
+    {
+      "name": "Upington Directory",
+      "website": "https://www.4upt.co.za",
+      "address": "81 Wildebeest Upington, Northern Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Upington-Directory"
+    },
+    {
+      "name": "BRANDITT",
+      "website": "https://www.branditt.co.za",
+      "address": "amanzimtoti Amanzimtoti, KwaZulu Natal",
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/BRANDITT"
+    },
+    {
+      "name": "Go Communications",
+      "website": "https://www.gocommunications.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Go-Communications"
+    },
+    {
+      "name": "Lime Tree Consulting Solutions cc",
+      "website": "https://www.limetree.co.za",
+      "address": "Postnet Suite 153 Private Bag x13 Brackenfell, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lime-Tree-Consulting-Solutions-cc"
+    },
+    {
+      "name": "Angel Worx Media",
+      "website": "https://www.angelworxmedia.co.za",
+      "address": "Jan Neetling Midvaal, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Angel-Worx-Media"
+    },
+    {
+      "name": "ALLSA Internet Marketing",
+      "website": "https://www.webxpert.co.za",
+      "address": "PO Box 316 Sea Point Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/ALLSA-Internet-Marketing"
+    },
+    {
+      "name": "Blackindex Websites",
+      "website": "https://www.blackindex.co.za",
+      "address": "13 end street Johannesburg , Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blackindex-Websites"
+    },
+    {
+      "name": "Poster-T-shirt",
+      "website": "https://www.tothetee.co.za",
+      "address": "Barrow 9 The Pavilion Jack Martin's Drive Westville, Durban, KwaZulu Natal",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Poster-T-shirt"
+    },
+    {
+      "name": "Sapphire Dawn",
+      "website": "https://www.sapphiredawn.co.za",
+      "address": "229 High Level Road Sea Point Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sapphire-Dawn"
+    },
+    {
+      "name": "Speak Advertising &amp; Design",
+      "website": "https://www.speakgroup.co.za",
+      "address": "8 Canterbury Street Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Speak-Advertising-Design"
+    },
+    {
+      "name": "Vista Photographic Solutions",
+      "website": "https://www.vistaphoto.co.za",
+      "address": "PO BOX 18643 Sunward Park Johannesburg, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vista-Photographic-Solutions"
+    },
+    {
+      "name": "Focus Gifts and Clothing cc",
+      "website": "https://www.focusgiftsandclothing.co.za",
+      "address": "29 Helen Joseph rd glenwood Durban Kwazulu Natal, KwaZulu-Nata",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Focus-Gifts-and-Clothing-cc"
+    },
+    {
+      "name": "Kosla Technologies",
+      "website": "https://www.kosla.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kosla-Technologies"
+    },
+    {
+      "name": "Daynage Custom Design",
+      "website": "https://www.daynage.co.za",
+      "address": "725 Wiedrigh Street Moreleta Park, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Daynage-Custom-Design"
+    },
+    {
+      "name": "Geoff Louw Graphic Design",
+      "website": "https://www.the-ad-man.co.za",
+      "address": "City Bowl Cape Town, Western Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Geoff-Louw-Graphic-Design"
+    },
+    {
+      "name": "MOLLOH BUSINESS ENTERPRISES cc",
+      "website": "https://www.molloh.co.za",
+      "address": "1003 DENOR HOUSE 356 SMITH STREET DURBAN DURBAN, KwaZulu-Nata",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MOLLOH-BUSINESS-ENTERPRISES-cc"
+    },
+    {
+      "name": "Graffic Hub Visual Networks",
+      "website": "https://www.visualnetworks.co.za",
+      "address": "140 Gerard Moerdyk Street Pretoria, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Graffic-Hub-Visual-Networks"
+    },
+    {
+      "name": "Protocol In Practice",
+      "website": "https://protocolinpractice.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Protocol-In-Practice"
+    },
+    {
+      "name": "Reefsteamers Association",
+      "website": "https://www.reefsteamers.com",
+      "address": "PO Box 1736 Germiston, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Reefsteamers-Association"
+    },
+    {
+      "name": "Creative Charms",
+      "website": "https://www.creativecharms.co.za",
+      "address": "The Studio 50 Canterbury Street Zonnebloem Cape Town, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Creative-Charms"
+    },
+    {
+      "name": "Heilie Clothing",
+      "website": "https://www.heilieclothing.co.za",
+      "address": "Cnr Bosvlier and Frangipani Street Wichester Hills Johannesburg Gauteng, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Heilie-Clothing_406064"
+    },
+    {
+      "name": "Mobile Media",
+      "website": "https://www.mobile-media.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mobile-Media"
+    },
+    {
+      "name": "Rage Marketing",
+      "website": "https://ragemarketing.co.za",
+      "address": "228 vonkprop street samcorpark pretoria",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rage-Marketing"
+    },
+    {
+      "name": "Athlordian Design Studio",
+      "website": "https://www.athlordiandesigns.com",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Athlordian-Design-Studio"
+    },
+    {
+      "name": "Good Dog Designs",
+      "website": "https://www.gooddogdesigns.co.za",
+      "address": "PO Box 146137 Brackengardens Alberton, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Good-Dog-Designs"
+    },
+    {
+      "name": "Purple Apricot",
+      "website": "https://www.purpleapricot.co.za",
+      "address": "34 Royce Street Bryanston, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Purple-Apricot"
+    },
+    {
+      "name": "Pyramed",
+      "website": "https://pyramed.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pyramed"
+    },
+    {
+      "name": "Avl Supplies",
+      "website": "https://www.avlsupplies.com",
+      "address": "18 Geelhout Avenue Heuweloord Centurion Heuweloord, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Avl-Supplies"
+    },
+    {
+      "name": "Digital Weave Interactive",
+      "website": "https://www.dweave.co.za",
+      "address": "423 Long Avenue Ferndale, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Digital-Weave-Interactive"
+    },
+    {
+      "name": "Direct Marketing Solutions",
+      "website": "https://www.dmsnet.co.za",
+      "address": "2 duke of kent street krugersdorp 1739 po box 4020 honeydew, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Direct-Marketing-Solutions"
+    },
+    {
+      "name": "Tp Group",
+      "website": "https://tpgroup.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tp-Group"
+    },
+    {
+      "name": "Lunderstedt Consulting",
+      "website": "https://www.lunderstedtconsulting.co.za",
+      "address": "21 Delver Street Weston Golden Plaza Office 19 Klerkskdorp, North West Province",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lunderstedt-Consulting"
+    },
+    {
+      "name": "Symcom",
+      "website": "https://www.symcom.co.za",
+      "address": "92 Boom Street Pietermaritzburg, KwaZulu Natal",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Symcom"
+    },
+    {
+      "name": "Webnetix",
+      "website": "https://www.webnetix.co.za",
+      "address": "10 o'hare street highveld city",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Webnetix"
+    },
+    {
+      "name": "Click Design",
+      "website": "https://click-design.co.za",
+      "address": "manawatu midwife 4 on bresford lets go africa unathi charters",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Click-Design"
+    },
+    {
+      "name": "Vip Models",
+      "website": "https://www.vipmodels.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vip-Models"
+    },
+    {
+      "name": "ARTLETIC South Africa",
+      "website": "https://www.artletic.co.za",
+      "address": "Palmietkuil 0902 Devon East Rand Johannesburg, Gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ARTLETIC-South-Africa"
+    },
+    {
+      "name": "Smile Web Design &amp; Marketing",
+      "website": "https://www.smilewebdesign.com",
+      "address": "Parklands cape town, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Smile-Web-Design-Marketing"
+    },
+    {
+      "name": "In Touch Outdoor",
+      "website": "https://www.intouchoutdoor.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/In-Touch-Outdoor"
+    },
+    {
+      "name": "Venue Marketing South Africa",
+      "website": "https://www.venue-marketing.co.za",
+      "address": "we have 3 guests online login form password remember me",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Venue-Marketing-South-Africa"
+    },
+    {
+      "name": "RT Clothing",
+      "website": "https://www.rtclothing.co.za",
+      "address": "15 Montana Rooitou Avenue Weltevreden Park, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/RT-Clothing"
+    },
+    {
+      "name": "SEO Strategic Solutions l SEO Consultan…",
+      "website": "https://www.seostrategicsolutions.com",
+      "address": "Ground Floor, Ipanema House, Kuisis road Pretoria, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/SEO-Strategic-Solutions-l-SEO-Consultants"
+    },
+    {
+      "name": "RSA Clothing",
+      "website": "https://www.rsaleisurewear.co.za",
+      "address": "46 Lands Mark Kempton Park Kempton Park, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/RSA-Clothing"
+    },
+    {
+      "name": "Markkom Marketing Communications",
+      "website": "https://www.marketkom.com",
+      "address": "Westville Westville, KwaZulu-Nata",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Markkom-Marketing-Communications"
+    },
+    {
+      "name": "Pennyfarthing Design Studio",
+      "website": "https://www.pennyfarthingdesign.co.za",
+      "address": "118 Sherbrook Lopis Place Edenglen Edenvale, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pennyfarthing-Design-Studio"
+    },
+    {
+      "name": "Gist Marketing Solutions",
+      "website": "https://www.gistmarketing.co.za",
+      "address": "99 Turkoois Avenue Centurion, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gist-Marketing-Solutions"
+    },
+    {
+      "name": "Guest Files",
+      "website": "https://www.guestfiles.co.za",
+      "address": "Johannesburg Bryanston, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Guest-Files"
+    },
+    {
+      "name": "Blush Media",
+      "website": "https://www.blushmedia.co.za",
+      "address": "12 Gorlay Road Ottery Cape Town, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blush-Media"
+    },
+    {
+      "name": "Ansunette Ferreira fine art wedding pho…",
+      "website": "https://www.ansunette.co.za",
+      "address": "543 Dwyka Erasmuskloof Pretoria, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ansunette-Ferreira-fine-art-wedding-photograpy"
+    },
+    {
+      "name": "Amazing Signs",
+      "website": "https://www.amazinginstoresigns.co.za",
+      "address": "Unit 8 Robertville Industrial Park 254 Nadine Street Florida, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Amazing-Signs_426712"
+    },
+    {
+      "name": "Pure Publishing and Design Cc",
+      "website": "https://www.purepublishing.co.za",
+      "address": "1st Floor 71 Shortmarket Street Cnr Shortmarket and Bree Cape Town, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pure-Publishing-and-Design-Cc"
+    },
+    {
+      "name": "CBL Studios",
+      "website": "https://www.cblstudios.co.za",
+      "address": "22 Kliprand Street Discovery Roodepoort, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CBL-Studios"
+    },
+    {
+      "name": "Yellowam Production cc",
+      "website": "https://www.yellowm.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Yellowam-Production-cc"
+    },
+    {
+      "name": "Hamcock Intelligent Technologies",
+      "website": "https://www.hamcock.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hamcock-Intelligent-Technologies"
+    },
+    {
+      "name": "NiKieTa Marketing",
+      "website": "https://www.NiKieTa.co.za",
+      "address": "Sandringham, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/NiKieTa-Marketing"
+    },
+    {
+      "name": "CZ Diamonds",
+      "website": "https://www.czdiamonds.co.za",
+      "address": "Houghton, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CZ-Diamonds"
+    },
+    {
+      "name": "Logo Dude Creations",
+      "website": "https://www.facebook.com/home.php?#/pages/Logo-Dude-Creations/60739667421?ref=ts",
+      "address": "Clarendon Drive Johannesburg, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 400,
+      "error": "HTTP 400",
+      "bizbayUrl": "https://bizbay.co.za/Company/Logo-Dude-Creations"
+    },
+    {
+      "name": "Protoform Rapid Prototyping",
+      "website": "https://www.protoform.co.za",
+      "address": "c/o Charles Matthews & John Van Niekerk str. Cape Town, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Protoform-Rapid-Prototyping"
+    },
+    {
+      "name": "Brand On Boyz",
+      "website": "https://www.c4media.co.za",
+      "address": "325 Rivoina Boulevard Rivonia Johannesburg, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Brand-On-Boyz"
+    },
+    {
+      "name": "civils an signs",
+      "website": "https://www.signsancivils.com",
+      "address": "old strandfontein road ottery wetton park cape town, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/civils-an-signs"
+    },
+    {
+      "name": "Tanzanite Consulting",
+      "website": "https://www.tanzaniteconsulting.com",
+      "address": "Vanderbijlpark, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tanzanite-Consulting"
+    },
+    {
+      "name": "Oxone Industries (Southern Africa)",
+      "website": "https://www.oxone.co.za",
+      "address": "14b Protea Office Park Halfway House, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Oxone-Industries-Southern-Africa"
+    },
+    {
+      "name": "Planet Pixl School of Advertising and P…",
+      "website": "https://www.planetpixl.co.za",
+      "address": "65 Park Road Willows Bloemfontein, Free State",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Planet-Pixl-School-of-Advertising-and-Photography"
+    },
+    {
+      "name": "Mi Design CC",
+      "website": "https://www.mi-design.co.za",
+      "address": "33 Oshivelo Sovereign Road Wilgeheuwel Roodepoort, Gauteng",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mi-Design-CC"
+    },
+    {
+      "name": "Guerrillas Gone Green CC",
+      "website": "https://www.guerrillasgonegreen.com",
+      "address": "53 Maple Drive Sandton Inanda, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Guerrillas-Gone-Green-CC"
+    },
+    {
+      "name": "G Studio Branding Agency PTY Ltd",
+      "website": "https://www.gstudio.co.za",
+      "address": "107 Hole in the wall center Main Road Somerset West, Western Cape",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/G-Studio-Branding-Agency_427345"
+    },
+    {
+      "name": "GASS",
+      "website": "https://www.gassdigital.co.za",
+      "address": "13 friesland str, rembrandt park Johannesburg, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/GASS"
+    },
+    {
+      "name": "Media Stuff",
+      "website": "https://www.mediastuff.co.za",
+      "address": "First Floor Claric Place 55 Rietfontein Street Rivonia, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Media-Stuff"
+    },
+    {
+      "name": "TruthFire Media",
+      "website": "https://www.truthfire.co.za",
+      "address": "Germiston, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/TruthFire-Media"
+    },
+    {
+      "name": "Witzenberg Herald",
+      "website": "https://www.witzenbergherald.co.za",
+      "address": "Voortrekker Street 35 Ceres, Western Cape",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Witzenberg-Herald"
+    },
+    {
+      "name": "Velocity Signage &amp; Printing",
+      "website": "https://velocitysignage.co.za",
+      "address": "1 Willow Crescent, St Andrews, Senderwood Bedfordview, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Velocity-Signage-Printing"
+    },
+    {
+      "name": "Hakuna Matata Gifts",
+      "website": "https://www.hakunagifts.co.za",
+      "address": "261 Eeufees St Rachel de Beer St Gerrit Maritz st Pretoria North, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hakuna-Matata-Gifts_427808"
+    },
+    {
+      "name": "Heypenni Gold Marketing &amp; Design",
+      "website": "https://www.heypennigold.co.za",
+      "address": "21 Louw Avenue Lakefield Benoni, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Heypenni-Gold-Marketing-Design"
+    },
+    {
+      "name": "Electric Events",
+      "website": "https://www.electricevents.co.za",
+      "address": "55 Serissa Avenue Roodekrans Johannesburg, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Electric-Events"
+    },
+    {
+      "name": "Hi Form Trading 3",
+      "website": "https://www.hft3.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hi-Form-Trading-3"
+    },
+    {
+      "name": "C Squared Creative Agency",
+      "website": "https://www.c-squared.co.za",
+      "address": "31 Boschkop Ave Boskruin Randburg Randburg, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/C-Squared-Creative-Agency"
+    },
+    {
+      "name": "BUZINFO",
+      "website": "https://www.buzinfo.co.za",
+      "address": "Malvern, KwaZulu-Nata",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/BUZINFO"
+    },
+    {
+      "name": "DIRT Designs",
+      "website": "https://www.dirtdesigns.mobi",
+      "address": "P.O. Box 4924, Dainfern Valley, Johannesburg, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/DIRT-Designs"
+    },
+    {
+      "name": "Ethekwini Banner and Sign",
+      "website": "https://www.ethekwinibanner.co.za",
+      "address": "Mason Road Pinetown Pinetown, KwaZulu-Nata",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ethekwini-Banner-and-Sign"
+    },
+    {
+      "name": "Goldfields Media Design Graphix",
+      "website": "https://www.goldfieldsmedia.byethost24.com",
+      "address": "Po Box 1205 Highlands North Johannesburg, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Goldfields-Media-Design-Graphix_428406"
+    },
+    {
+      "name": "KLA PR &amp; Events",
+      "website": "https://www.klapr.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/KLA-PR-Events"
+    },
+    {
+      "name": "Equilibrium",
+      "website": "https://keystoneproductions.co.za/studio.aspx",
+      "address": "41A Frost Ave, Aukland Park, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "httpStatus": 400,
+      "error": "HTTP 400",
+      "bizbayUrl": "https://bizbay.co.za/Company/Equilibrium"
+    },
+    {
+      "name": "Liquid Print and Packaging",
+      "website": "https://www.liquidp.co.za",
+      "address": "Ground Floor 373 Umgeni Road Durban, KwaZulu-Nata",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Liquid-Print-and-Packaging"
+    },
+    {
+      "name": "Ricci Designs",
+      "website": "https://www.riccidesigns.co.za",
+      "address": "Plot 16/2 Airport Rd Cynthiavale Doornpoort Pretoria North, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ricci-Designs"
+    },
+    {
+      "name": "o&#39;Kagans Brand Aidcc",
+      "website": "https://www.okagans.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/oKagans-Brand-Aidcc"
+    },
+    {
+      "name": "Kit It Out Corporate and Promotional Su…",
+      "website": "https://www.kio.co.za",
+      "address": "29 7th Ave, Edenvale, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kit-It-Out-Corporate-and-Promotional-Suppliers"
+    },
+    {
+      "name": "Mr Copy and Print",
+      "website": "https://www.mrcopy.co.za",
+      "address": "421A Morelete Street Silverton Pretoria, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mr-Copy-and-Print"
+    },
+    {
+      "name": "Libra Productions",
+      "website": "https://www.libraproductions.co.za",
+      "address": "309 Derdepoort Road, Silverton, Unit 56 Pretoria, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Libra-Productions"
+    },
+    {
+      "name": "Creative Studios",
+      "website": "https://www.thecreativegroup.co.za",
+      "address": "Fourways Gauteng SA fourways, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Creative-Studios"
+    },
+    {
+      "name": "Mna Nawe Events Management",
+      "website": "https://www.mnanawe.co.za",
+      "address": "24 William cresent Bisho Park Bisho, Eastern Cape",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mna-Nawe-Events-Management"
+    },
+    {
+      "name": "Hlomuka Business Consultants",
+      "website": "https://www.hlomukabusinessconsultants.co.za",
+      "address": "Manor Gardens, Durban Durban, KwaZulu-Nata",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hlomuka-Business-Consultants"
+    },
+    {
+      "name": "EventFull Promotions",
+      "website": "https://www.promogifts.co.za/eventfullpromotions",
+      "address": "Pinetown, KwaZulu Natal",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/EventFull-Promotions"
+    },
+    {
+      "name": "Black Mercury Solutions",
+      "website": "https://www.blackmercury.co.za",
+      "address": "Krugersdorp, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Black-Mercury-Solutions"
+    },
+    {
+      "name": "eXposure News",
+      "website": "https://www.promoactivewear.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/eXposure-News"
+    },
+    {
+      "name": "That Media Place",
+      "website": "https://www.thatmediaplace.co.za",
+      "address": "64 Lucas Street Newton Parkl Port Elizabeth, Eastern Cape",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/That-Media-Place"
+    },
+    {
+      "name": "Pinnacle Digital Solutions",
+      "website": "https://www.p-ds.co.za",
+      "address": "372 Louis Botha Ave Maryvale Orange Grove Johannesburg, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pinnacle-Digital-Solutions"
+    },
+    {
+      "name": "Sot&#233; Designs and Gear",
+      "website": "https://www.sotedesigns.com",
+      "address": "3 Cessna Close Helderkruin Roodepoort, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sot%C3%A9-Designs-and-Gear"
+    },
+    {
+      "name": "Cyber Storm IT Solutions",
+      "website": "https://www.cyber-storm.co.za",
+      "address": "35 Kingfisher Avenue Fourways Gauteng North Four Ways, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cyber-Storm-IT-Solutions"
+    },
+    {
+      "name": "SME Solutions",
+      "website": "https://www.smesolutions.co.za",
+      "address": "104 Koranna Ave Doringkloof, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/SME-Solutions"
+    },
+    {
+      "name": "Heuer Rost Consultants CC",
+      "website": "https://www.heuerrost.com",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Heuer-Rost-Consultants-CC"
+    },
+    {
+      "name": "MONICA CHILDS MARKETING",
+      "website": "https://www.goodiebag.co.za",
+      "address": "38 ST JOSEPHS ROAD Plumstead, Western Cape",
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/MONICA-CHILDS-MARKETING"
+    },
+    {
+      "name": "Beezwax Consulting",
+      "website": "https://www.beezwax-consulting.com",
+      "address": "73 Fourways Estate Inchanga Road Craigavon, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Beezwax-Consulting"
+    },
+    {
+      "name": "The Power of Eye Design &amp; Marketing",
+      "website": "https://www.poe.co.za",
+      "address": "2 Elloria/10 Ross Street Amanzimtoti, KwaZulu-Nata",
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Power-of-Eye-Design-Marketing"
+    },
+    {
+      "name": "SiteSeeing",
+      "website": "https://www.siteseeing.co.za",
+      "address": "La Montagne Pretoria East, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SiteSeeing"
+    },
+    {
+      "name": "IGP",
+      "website": "https://www.igpcc.co.za/latest",
+      "address": "209 SandownPlace 121 Pretoria ave Sandown Sandown, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/IGP"
+    },
+    {
+      "name": "Silkscreen Masters cc",
+      "website": "https://silkscreenmasters.com",
+      "address": "40 Auret street Jeppestown, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Silkscreen-Masters-cc"
+    },
+    {
+      "name": "SABRANDS",
+      "website": "https://www.sabrandsonline.co.za",
+      "address": "5 Leviseur Street Westdene Bloemfontein , Free State",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SABRANDS"
+    },
+    {
+      "name": "METCALF MURDOCK BRANDING DESIGN ADVERTI…",
+      "website": "https://www.metcalfmurdock.com",
+      "address": "Breakfree Estates Midrand Midrand, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/METCALF-MURDOCK-BRANDING-DESIGN-ADVERTISING"
+    },
+    {
+      "name": "DotC Grapix",
+      "website": "https://www.dotc.co.za",
+      "address": "86 Pitzer Street, Glen Austen Midrand, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/DotC-Grapix"
+    },
+    {
+      "name": "Just this Once...",
+      "website": "https://www.jto.co.za",
+      "address": "Aspen crescent Zwartkop ext 8 Centurion, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Just-this-Once"
+    },
+    {
+      "name": "Elgro Electronics",
+      "website": "https://www.elgro-sa.co.za",
+      "address": "PO Box 68953 Highveld Park Centurion, 0169 Brakpan, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Elgro-Electronics_430495"
+    },
+    {
+      "name": "Vivid Grafix",
+      "website": "https://www.vgrafix.co.za",
+      "address": "Rembrandt, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vivid-Grafix"
+    },
+    {
+      "name": "RCDP - Roy Clucas Design Process",
+      "website": "https://www.rcdp.co.za",
+      "address": "Craighall Park Johannesburg, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/RCDP-Roy-Clucas-Design-Process"
+    },
+    {
+      "name": "SBQ",
+      "website": "https://www.sbq.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SBQ"
+    },
+    {
+      "name": "Brand Me Promotions",
+      "website": "https://www.byme.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Brand-Me-Promotions"
+    },
+    {
+      "name": "GTi Marketing &amp; Design",
+      "website": "https://www.gtimarketing.co.za",
+      "address": "Unit 5, Access Park, Albizia Road, Maxmead Pinetown Durban, KwaZulu-Nata",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/GTi-Marketing-Design"
+    },
+    {
+      "name": "IGNITE",
+      "website": null,
+      "address": "Port Elizabeth, Eastern Cape",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/IGNITE"
+    },
+    {
+      "name": "Art Studio",
+      "website": null,
+      "address": "Southern Suburbs, Cape Town Cape Town, Western Cape",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Art-Studio_515214"
+    },
+    {
+      "name": "Visual Advertising",
+      "website": null,
+      "address": "23 Jackson Street, Westbank East London, Eastern Cape",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Visual-Advertising"
+    },
+    {
+      "name": "CREATIVITY ZONE Graphic advertising des…",
+      "website": null,
+      "address": "Bedfordview, 13a Oxford Road Unit 15 Bedfordview Bedfordview, Gauteng",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/CREATIVITY-ZONE-Graphic-advertising-design"
+    },
+    {
+      "name": "GRUBUILDcc Create-Design-Grow",
+      "website": null,
+      "address": "Centurion, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/GRUBUILDcc-Create-Design-Grow"
+    },
+    {
+      "name": "Strictly Branding",
+      "website": null,
+      "address": "978 Block C Mabopane, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Strictly-Branding"
+    },
+    {
+      "name": "AA GRAPHICS SIGNS, PRINTING, MALL DECOR",
+      "website": null,
+      "address": "2 Twinoak Old Paarl Road Brackenfell, Western Cape",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/AA-GRAPHICS-SIGNS-PRINTING-MALL-DECOR"
+    },
+    {
+      "name": "Bubomedia Advertising and Marketing",
+      "website": null,
+      "address": "Unit 317, 100 Jorissen Street Johannesburg, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bubomedia-Advertising-and-Marketing"
+    },
+    {
+      "name": "PANDA MARKETING",
+      "website": null,
+      "address": "39 Howick Drive, Waterfall Pinetown, Kwazulu-nata",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/PANDA-MARKETING"
+    },
+    {
+      "name": "Scoop Design and Advertising",
+      "website": null,
+      "address": "7 Batya Street, Kenridge Durbanville, Western Cape",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Scoop-Design-and-Advertising"
+    },
+    {
+      "name": "CYSTEM SIGNS",
+      "website": null,
+      "address": "P.o.box 145, Mokopane., 59 Maribashoek Potgietersrus, Limpopo",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/CYSTEM-SIGNS"
+    },
+    {
+      "name": "Reality marketing and Advertising Solut…",
+      "website": null,
+      "address": "132 Market St, Von Brandis Johannesburg, Gauteng",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Reality-marketing-and-Advertising-Solutions"
+    },
+    {
+      "name": "Nocturnal Design Studio",
+      "website": null,
+      "address": null,
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nocturnal-Design-Studio"
+    },
+    {
+      "name": "Cape Umbrellas (Pty) Ltd",
+      "website": null,
+      "address": "Saltriver Road Cape Town, Western Cape",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Umbrellas_398762"
+    },
+    {
+      "name": "Taxi Commuter Magazine",
+      "website": null,
+      "address": null,
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Taxi-Commuter-Magazine"
+    },
+    {
+      "name": "Rocket Fuel Advertising",
+      "website": null,
+      "address": "15 Cecil Awret Road, Illiondale Edenvale, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rocket-Fuel-Advertising"
+    },
+    {
+      "name": "TOSHIBA",
+      "website": null,
+      "address": "Soutpansberg Road Pretoria Pretoria, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/TOSHIBA"
+    }
+  ]
+}

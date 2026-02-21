@@ -1,0 +1,1134 @@
+{
+  "category": "Construction",
+  "count": 123,
+  "listings": [
+    {
+      "name": "Setbuild",
+      "website": "https://www.setbuild.co.za",
+      "address": "129 Ninth Road, Kew Johannesburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Setbuild"
+    },
+    {
+      "name": "Hucryn Construction",
+      "website": "https://www.hucryn.co.za",
+      "address": "Boksburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hucryn-Construction"
+    },
+    {
+      "name": "Westfield General Contractors",
+      "website": "https://www.westfieldcontractors.co.za",
+      "address": "73 Churchill Road Durban, Kwazulu Natal",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Westfield-General-Contractors"
+    },
+    {
+      "name": "Shumanie Property Construction and Mana…",
+      "website": "https://www.shumanie.co.za",
+      "address": "20 Monument Road, Monument Road, Kempton Park Kempton Park, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Shumanie-Property-Construction-and-Management"
+    },
+    {
+      "name": "Civilsure",
+      "website": "https://www.civilsure.co.za",
+      "address": "Knysna, Eastern Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Civilsure"
+    },
+    {
+      "name": "Eaglewood Contracts cc",
+      "website": "https://www.eaglewood.co.za",
+      "address": null,
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Eaglewood-Contracts-cc"
+    },
+    {
+      "name": "RPGHR Services",
+      "website": "https://www.rpghr.co.za",
+      "address": "Berg Ave 913b, Scoter Ave Pretoria, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/RPGHR-Services"
+    },
+    {
+      "name": "Zandspruit Construction",
+      "website": "https://www.zandspruit.co.za",
+      "address": "Zandspruit Bush & Aero Estates, The Rijshuys, R527 Hoedspruit, Limpopo",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Zandspruit-Construction"
+    },
+    {
+      "name": "HIRE IT CAPE TOWN",
+      "website": "https://www.hire-it.co.za",
+      "address": "68 New Market Street, Woodstock Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/HIRE-IT-CAPE-TOWN"
+    },
+    {
+      "name": "Linglen Homes",
+      "website": "https://www.linglenhomes.com",
+      "address": "12 Stepney Street, Parklands Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Linglen-Homes"
+    },
+    {
+      "name": "HIRE ALL",
+      "website": "https://www.hireall.co.za",
+      "address": "Gauteng Florida, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/HIRE-ALL"
+    },
+    {
+      "name": "DHD Construction",
+      "website": "https://www.dhdconstruction.co.za",
+      "address": "22 Hudson Road Marburg, Kwazulu Natal",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/DHD-Construction"
+    },
+    {
+      "name": "A &amp; S Tools",
+      "website": "https://toolsforafrica.co.za",
+      "address": null,
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/A-S-Tools"
+    },
+    {
+      "name": "TCO Construction cc",
+      "website": "https://www.tcoconstruction.co.za",
+      "address": "Plot 35 Palmietfontein, N1 Ltt Polokwane, Limpopo",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/TCO-Construction-cc"
+    },
+    {
+      "name": "Construction consultant",
+      "website": "https://www.constructionconsultant.co.za",
+      "address": "Pienaar Ave Kempton Park, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Construction-consultant"
+    },
+    {
+      "name": "i-Build Projects",
+      "website": "https://www.ibuild4u.org.za",
+      "address": "28 Waterford Office Park, Cnr Witkoppen & Waterford Drive Fourways, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/i-Build-Projects"
+    },
+    {
+      "name": "Realty King Integrated Property Group",
+      "website": "https://www.promisedland.co.za",
+      "address": "Suite 1, Plum Tree Trading Post, Main Road Sedgefield, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Realty-King-Integrated-Property-Group"
+    },
+    {
+      "name": "Urban Spaces Interior Design",
+      "website": "https://www.urbanspaces.co.za",
+      "address": "8 Norwich Ave, Observatory Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Urban-Spaces-Interior-Design"
+    },
+    {
+      "name": "Q D S Projects",
+      "website": "https://www.qdsprojects.co.za",
+      "address": null,
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Q-D-S-Projects"
+    },
+    {
+      "name": "Civil Engineering Construction Consulta…",
+      "website": "https://www.constructionconsultant.co.za",
+      "address": "Kempton Park, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Civil-Engineering-Construction-Consultant"
+    },
+    {
+      "name": "Need A Tool",
+      "website": "https://www.needatool.co.za",
+      "address": "32 Nipper Road, New Germany Durban, Kwazulu Natal",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Need-A-Tool_795871"
+    },
+    {
+      "name": "Ons Huis Bouers cc t/a OHB Construction",
+      "website": "https://www.ohbconstruction.co.za",
+      "address": "19 Durr Street Paarl, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ons-Huis-Bouers-cc-OHB-Construction"
+    },
+    {
+      "name": "ABBEY CONSTRUCTION",
+      "website": "https://www.abbeyconstruction.co.za",
+      "address": "The Cliffs Tygervalley Durbanville, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ABBEY-CONSTRUCTION"
+    },
+    {
+      "name": "Datra Construction",
+      "website": "https://www.datra.co.za",
+      "address": "79 Sandown Rd, West Beach Table View, Cape Town",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Datra-Construction"
+    },
+    {
+      "name": "Daystar Construction",
+      "website": "https://www.daystar-construction.com",
+      "address": "178 Lever Road Erand, Midrand , Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Daystar-Construction_861262"
+    },
+    {
+      "name": "Dampmen",
+      "website": "https://www.dampmen.co.za",
+      "address": "2b Milner Road Maitland, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dampmen_862313"
+    },
+    {
+      "name": "Profin Construction",
+      "website": "https://www.roofcoating.co.za",
+      "address": "Waterfront Estates, Van Riebeeck Street Meyerton, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Profin-Construction"
+    },
+    {
+      "name": "ETICON CONSTRUCTION",
+      "website": "https://www.eticon.co.za",
+      "address": "80 Starling Street, Kelvin Estates, Spartan X 26 Kempton Park, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ETICON-CONSTRUCTION"
+    },
+    {
+      "name": "SP Plumbers &amp; Construction",
+      "website": "https://www.spplumbers.co.za",
+      "address": "828 Spioenkop Str , Waverley Pretoria, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/SP-Plumbers-Construction"
+    },
+    {
+      "name": "Budget Painters",
+      "website": "https://www.budgetpainters.co.za",
+      "address": "Welgelegen, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Budget-Painters_883299"
+    },
+    {
+      "name": "Solid Ground Construction",
+      "website": "https://www.solidgroundconstruction.co.za",
+      "address": "27 Ruskin Road Table View, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Solid-Ground-Construction"
+    },
+    {
+      "name": "The Construction Co.",
+      "website": "https://www.theconstructionco.co.za",
+      "address": "13 Station Road, Unit 1, Maitland Business Park Maitland, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Construction"
+    },
+    {
+      "name": "JHM Quantity Surveying &amp; Projects cc",
+      "website": "https://www.jhm.co.za",
+      "address": "25 President Street Parys, Free State",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/JHM-Quantity-Surveying-Projects-cc"
+    },
+    {
+      "name": "Alusani Skills &amp; Training Network",
+      "website": "https://www.alusani.co.za",
+      "address": "Po Box 2844 Saxonwold, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Alusani-Skills-Training-Network_886328"
+    },
+    {
+      "name": "Concrete Works",
+      "website": "https://www.concreteworkssa.co.za",
+      "address": "471 Umgeni Rd, Greyville Durban-noord, Kwazulu-nata",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Concrete-Works_539335"
+    },
+    {
+      "name": "Victor&#39;s Plant and Construction",
+      "website": "https://www.victorsplant.co.za",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Victors-Plant-and-Construction"
+    },
+    {
+      "name": "Flooring Solutions",
+      "website": "https://www.intellatread.co.za",
+      "address": "No. 9 Roxane, Bowtie Plettenberg Bay, Western Cape",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Flooring-Solutions_396023"
+    },
+    {
+      "name": "JLG PROJECTS",
+      "website": "https://www.jlgprojects.co.za",
+      "address": "Cnr Elsecar & Bernie Rd , Kyasands North Riding,rand Burg,johannesburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/JLG-PROJECTS"
+    },
+    {
+      "name": "Cape Core Rubble",
+      "website": "https://www.capecorerubble.co.za",
+      "address": "25 Joubert Street, Goodwood Cape Town, Western Cape",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Core-Rubble"
+    },
+    {
+      "name": "Chilli-B Home Solutions",
+      "website": "https://www.chilli-b.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Chilli-B-Home-Solutions"
+    },
+    {
+      "name": "stimteam steel construction",
+      "website": "https://www.stimteam.co.za",
+      "address": "365 Capital Park, Myberg, Paulkruger Pretoria, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/stimteam-steel-construction"
+    },
+    {
+      "name": "Alphomega Construction And Propmark",
+      "website": "https://www.alphomega.co.za",
+      "address": "142 Mahlangu Street Ogies, Mpumalanga",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Alphomega-Construction-And-Propmark"
+    },
+    {
+      "name": "Dial A Contractor",
+      "website": "https://www.dialacontractor.co.za",
+      "address": "Cambridge Street Goodwood, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dial-A-Contractor_884031"
+    },
+    {
+      "name": "W Voigt (Inland",
+      "website": "https://www.wvoigt.co.za",
+      "address": "9 Delphi Street, Eastgate Ext 18 Eastgate Ext 18, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/W-Voigt-Inland"
+    },
+    {
+      "name": "Vingro Construction (PTY)LTD",
+      "website": "https://www.vingro.co.za",
+      "address": "13 A, Delius Street, Sw 5 Vanderbijlpark, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vingro-Construction"
+    },
+    {
+      "name": "Cymru Construction Projects cc",
+      "website": "https://www.freewebs.com/pridebuilding",
+      "address": "Edenvale Edenvale, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cymru-Construction-Projects-cc"
+    },
+    {
+      "name": "The Facilitators (Your Ultimate NHBRC S…",
+      "website": "https://www.the-facilitators.com",
+      "address": "174 Retief Ave, Lyttelton Centurion, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Facilitators-Your-Ultimate-NHBRC-Solution-Lyttelton"
+    },
+    {
+      "name": "Viking Core Drilling",
+      "website": "https://www.vikingcoredrilling.co.za",
+      "address": "51 Puttick Ave Sundowner, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Viking-Core-Drilling"
+    },
+    {
+      "name": "Zirk Tiling; Carpentry &amp; General",
+      "website": "https://sites.google.com/site/ztilingc",
+      "address": "Pretoria, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Zirk-Tiling-Carpentry-General"
+    },
+    {
+      "name": "IBC International (Pty) Ltd",
+      "website": "https://www.ibc-int.com",
+      "address": "77, 5th Avenue Northmead, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/IBC-International_512485"
+    },
+    {
+      "name": "Woodworkprojects",
+      "website": "https://www.woodworkprojects.co.za",
+      "address": "Ballito, Kwazulu-nata",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Woodworkprojects"
+    },
+    {
+      "name": "Mathote Modular Building Systems",
+      "website": "https://www.mathotecon.co.za",
+      "address": "3 Wright Road, Nuffield, Springs Springs, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mathote-Modular-Building-Systems"
+    },
+    {
+      "name": "Red Dot Interiors",
+      "website": "https://www.reddotinteriors.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Red-Dot-Interiors"
+    },
+    {
+      "name": "Hire Resolve",
+      "website": "https://www.hireresolve.co.za",
+      "address": "1410 Eglin, Eglin, Sunninghill Johannesburg, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hire-Resolve_553660"
+    },
+    {
+      "name": "CJP Chemicals (Pty) Ltd",
+      "website": "https://www.cjpchemicals.co.za",
+      "address": "32 Tiger Moth Avenue Aeroton, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/CJP-Chemicals_579301"
+    },
+    {
+      "name": "ECO DYNAMICS",
+      "website": "https://ecodynamics.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ECO-DYNAMICS"
+    },
+    {
+      "name": "Liege Construction",
+      "website": "https://www.liegeconstruction.com",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Liege-Construction"
+    },
+    {
+      "name": "NOSA",
+      "website": "https://www.nosa.co.za",
+      "address": "Game Park Business Centre, Horwood Str Secunda, Mpumalanga",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/NOSA_795273"
+    },
+    {
+      "name": "TYRE FLUID PS/2 TYRE PRESSURE STABILIZE…",
+      "website": "https://www.tyrefluidps2.co.za",
+      "address": "2 Yuri Street Nelspruit Mpumalanga, 2 Yuri Street Steiltes Nelspruit, Mpumalanga",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/TYRE-FLUID-PS-2-TYRE-PRESSURE-STABILIZER-COMERTIAL"
+    },
+    {
+      "name": "Compu Homes SA (Pty) Ltd",
+      "website": "https://www.compu-homes.com",
+      "address": "7,8,9 Gardens Business Village, Incholm Place, Gardens Cape Town, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Compu-Homes-SA"
+    },
+    {
+      "name": "Style &amp; Craft Paving",
+      "website": "https://www.styleandcraftpaving.co.za",
+      "address": "123, 10th Avenue Edenvale, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Style-Craft-Paving"
+    },
+    {
+      "name": "Pendula Paint",
+      "website": "https://www.pendula.co.za",
+      "address": "C/o Duvenhage & Okkerneut Ave, Edleen Kempton Park, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pendula-Paint"
+    },
+    {
+      "name": "Gast International",
+      "website": "https://www.gast.co.za",
+      "address": "Gast Techno Park South, 154 Edwards Ave, Hennopspark Centurion, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 202,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gast-International"
+    },
+    {
+      "name": "The Facilitators (Your Ultimate NHBRC S…",
+      "website": "https://www.the-facilitators.com",
+      "address": "174 Retief Ave, Lyttelton Manor Lyttelton, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Facilitators-Your-Ultimate-NHBRC-Solution-Lyttelton"
+    },
+    {
+      "name": "Construction Training College - Nationw…",
+      "website": "https://www.ctc.co.za",
+      "address": "Head Office Lenchen South Centurion, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/CONSTRUCTION_886933"
+    },
+    {
+      "name": "Umso Construction (Pty) Ltd",
+      "website": "https://www.umso.co.za",
+      "address": "25 Ray Craib Cresecent, Beacon Bay, East London South Africa, Eastern Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Umso-Construction_393921"
+    },
+    {
+      "name": "Hydraform International",
+      "website": "https://www.hydraform.com",
+      "address": "Rondebuild Road Nr.220 Boksburg, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hydraform-International"
+    },
+    {
+      "name": "Good Hope Construction",
+      "website": "https://www.goodhopeconstruction.co.za",
+      "address": "105 Joubert Street Parow Valley, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Good-Hope-Construction_394006"
+    },
+    {
+      "name": "FixME.co.za",
+      "website": "https://www.fixme.co.za",
+      "address": "Timberlea Farm, R44 Klapmuts Road Stellenbosch, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/FixME-co-za"
+    },
+    {
+      "name": "FLORDEK",
+      "website": "https://www.flordek.co.za",
+      "address": "26 Spoon Street Lakeside, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/FLORDEK"
+    },
+    {
+      "name": "Flowcrete Quickslab",
+      "website": "https://www.flowcrete.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Flowcrete-Quickslab"
+    },
+    {
+      "name": "S G Plastic Construction cc",
+      "website": "https://www.sgplastic.co.za",
+      "address": "7 c Susan Street Strijdompark Randburg, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/S-G-Plastic-Construction-cc"
+    },
+    {
+      "name": "Khumbula Property Services",
+      "website": "https://www.kproperty.co.za",
+      "address": "38 dover street ferndale randburg country",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Khumbula-Property-Services"
+    },
+    {
+      "name": "Savanha Construction",
+      "website": "https://www.savanhacon.com",
+      "address": "43 springbok street hoedspruit Hoedspruit, Mpumalanga",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Savanha-Construction"
+    },
+    {
+      "name": "CQS Solutions (Pty) Ltd",
+      "website": "https://www.cqssolutions.co.za",
+      "address": "102 Hilcrest Avenue Blairgowrie, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/CQS-Solutions"
+    },
+    {
+      "name": "Avant SA",
+      "website": "https://www.avantsa.co.za",
+      "address": "Bethlehem, Free State",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Avant-SA"
+    },
+    {
+      "name": "Plain Jane Projects",
+      "website": "https://www.pjprojects.co.za",
+      "address": "55 Lewzene Estates 55 Lewzene Estates Cullinan, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Plain-Jane-Projects_426924"
+    },
+    {
+      "name": "Elematic SA (Pty) Ltd",
+      "website": "https://www.elematic.co.za",
+      "address": "R 29 Mainreef Rd Brakpan Brakpan, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Elematic-SA"
+    },
+    {
+      "name": "Alcocks Infrared Scans (Thermography)",
+      "website": "https://www.alcocks.co.za",
+      "address": "A8 Glen Murray Industrial Park, 13 Mooreland Drive, Redhill Durban, KwaZulu-Nata",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Alcocks-Infrared-Scans-Thermography"
+    },
+    {
+      "name": "STERNBERG STEEL CONSTRUCTION &amp; TRAINING…",
+      "website": "https://www.easyinfo.co.za",
+      "address": "2 GILLESPIE STREET, SELECTION PARK SPRINGS, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/STERNBERG-STEEL-CONSTRUCTION-TRAINING-CENTRE"
+    },
+    {
+      "name": "MDA Consulting (Pty) Ltd",
+      "website": "https://www.mdaconsulting.co.za",
+      "address": "Unit 4 Gillitts Office Park 2 Roger Place Gillitts, KwaZulu-Nata",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/MDA-Consulting_514523"
+    },
+    {
+      "name": "Ricro Slabs",
+      "website": "https://Ricroslabs.co.za",
+      "address": "16 Steve Tswete St Modimolle, Limpopo",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ricro-Slabs"
+    },
+    {
+      "name": "Borehole Man",
+      "website": "https://www.boreholeman.co.za",
+      "address": "Tokai Cape Town, Western Cape",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Borehole-Man"
+    },
+    {
+      "name": "Sensible Project Management",
+      "website": "https://www.sensible.co.za",
+      "address": "Suite A4&5 61 Basil Hulett Drive Salt Rock Umhlali, KwaZulu-Nata",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sensible-Project-Management"
+    },
+    {
+      "name": "mna enterprises",
+      "website": "https://mnabuilding.co.za",
+      "address": "6 Clyde RD Newlands Cape Town, Western Cape",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/mna-enterprises_533150"
+    },
+    {
+      "name": "P&amp;H Protective Plaster Systems (Pty) Ltd",
+      "website": "https://www.phrocklite.co.za",
+      "address": "41 Pomona Road Kempton Park, Gauteng",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/P-H-Protective-Plaster-Systems"
+    },
+    {
+      "name": "1 Call ASAP (Pty) Ltd",
+      "website": "https://www.1callasap.co.za",
+      "address": "4 Giuliva House 47 Blaauberg Rd Tableview Cape Town, Western Cape",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/1-Call-ASAP_533533"
+    },
+    {
+      "name": "HF Roofs (Pty) Ltd",
+      "website": "https://www.hfroofs.co.za",
+      "address": "4 E Rand Station Rd Comet Boksburg, Gauteng",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/HF-Roofs"
+    },
+    {
+      "name": "Form-scaff",
+      "website": "https://www.formscaff.com",
+      "address": "Helderberg Idustrial Park Chilwan Crescent Strand, Western Cape",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Form-scaff_533947"
+    },
+    {
+      "name": "Mascus South Africa",
+      "website": "https://www.mascus.co.za",
+      "address": "Cnr Malibongwe & North Rd Linden Ext Randburg Johannesburg, Gauteng",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mascus-South-Africa"
+    },
+    {
+      "name": "Mother City Projects",
+      "website": "https://mothercityprojects.co.za",
+      "address": "6 Club Street Lakeside, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mother-City-Projects"
+    },
+    {
+      "name": "stone nature construction",
+      "website": "https://www.stonenature.co.za",
+      "address": "13 rotting dean road same same capetown, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/stone-nature-construction_538712"
+    },
+    {
+      "name": "Summit Scaffolding &amp; Formwork CT (Pty) …",
+      "website": "https://www.summitscaff.co.za",
+      "address": "3 Monaco Road Killarney Gardens Table View, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Summit-Scaffolding-Formwork-CT"
+    },
+    {
+      "name": "Concrete Works",
+      "website": "https://www.concreteworkssa.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Concrete-Works_539335"
+    },
+    {
+      "name": "Colour Screed CAPECRETE",
+      "website": "https://www.capecrete.com",
+      "address": "4 Florida Street Durbanville, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Colour-Screed-CAPECRETE"
+    },
+    {
+      "name": "Jenny Mills Architects",
+      "website": "https://www.jma.za.net",
+      "address": "403 De Oude Schuur 120 Bree Street Cape Town, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jenny-Mills-Architects"
+    },
+    {
+      "name": "Steelart cc",
+      "website": "https://www.steelartmetalwork.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Steelart-cc"
+    },
+    {
+      "name": "Jenny Mills Architecture and Interiors",
+      "website": "https://www.jma.za.net",
+      "address": "403 De Oude Schuur 120 Bree Street Cape Town, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jenny-Mills-Architecture-and-Interiors"
+    },
+    {
+      "name": "Elematic S A",
+      "website": "https://www.elematic.co.za",
+      "address": "R29 Main Reef Road Benoni, Gauteng",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Elematic-S-A"
+    },
+    {
+      "name": "Consolidated Performance Projects (Pty)…",
+      "website": "https://www.cpprojects.co.za",
+      "address": "7 Alice Rd Kensington Johannesburg, Gauteng",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Consolidated-Performance-Projects"
+    },
+    {
+      "name": "Hire-It",
+      "website": "https://www.hire-it.co.za",
+      "address": "6 Klipfontein Road Belgravia Athlone Cape Town, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hire-It_544230"
+    },
+    {
+      "name": "Globel Granite &amp; Marble, Tiles, Interio…",
+      "website": "https://www.globelstone.com",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Globel-Granite-Marble-Tiles-Interiors-Construction"
+    },
+    {
+      "name": "Construq ( building concepts )",
+      "website": "https://www.construq.com",
+      "address": "Po Box 50766, Waterfront Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Construq-building-concepts"
+    },
+    {
+      "name": "Sunnyshine Trading Enterprise cc",
+      "website": "https://changinglife.iblog.co.za/houses/",
+      "address": "158 Umnama Street, 158 Mohlatse Street, 77 Block Vv,soshanguve Pretoria, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sunnyshine-Trading-Enterprise-cc"
+    },
+    {
+      "name": "Siyathola Carpentry &amp; Construction Serv…",
+      "website": "https://www.siyathola.com",
+      "address": "Gordon Road Florida North, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Siyathola-Carpentry-Construction-Services"
+    },
+    {
+      "name": "Siyathola Carpentry &amp; Construction",
+      "website": "https://www.siyathola.com",
+      "address": "Florida North, Gordon Road Roodepoort, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Siyathola-Carpentry-Construction"
+    },
+    {
+      "name": "Elemental Construction",
+      "website": "https://www.elementalconstruction.co.za",
+      "address": "1, Arnold Rd, Observatory Cape Town, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Elemental-Construction"
+    },
+    {
+      "name": "Curtis Gunite",
+      "website": "https://www.curtispools.co.za",
+      "address": "389b Spionkop Str Northriding, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Curtis-Gunite"
+    },
+    {
+      "name": "Kib Consulting And Project Management",
+      "website": "https://sites.google.com/site/kibrsa",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kib-Consulting-And-Project-Management"
+    },
+    {
+      "name": "Vent Air Sheet Metal Works",
+      "website": "https://www.ventair.za.net",
+      "address": "Hendrik Van Eck Drive, Riverside Industrial Uitenhage, Eastern Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vent-Air-Sheet-Metal-Works"
+    },
+    {
+      "name": "Plain Jane Projects",
+      "website": "https://www.pjprojects.co.za",
+      "address": "55 Lewzene Estate, 55 Lewzene Estates Cullinan, Mpumalanga",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Plain-Jane-Projects_426924"
+    },
+    {
+      "name": "Biobox SA",
+      "website": "https://www.biobox.co.za",
+      "address": "309a Zasm Street, Waltloo Pretoria, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Biobox-SA"
+    },
+    {
+      "name": "Dan&#39;s Willy Construction",
+      "website": "https://www.danswilly4u15.com",
+      "address": "19 Ngani Street Umtata, Eastern Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dans-Willy-Construction"
+    },
+    {
+      "name": "Jbc Roof Cover (Pty) Ltd",
+      "website": "https://www.jbcroofcover.co.za",
+      "address": "Unit 5, 90 Main Reef Road, Technikon Roodepoort, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jbc-Roof-Cover"
+    },
+    {
+      "name": "MJNP Civil And Building Construction",
+      "website": "https://www.mjnpcivil.co.za",
+      "address": "115 Aschmann Road Roseacres, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/MJNP-Civil-And-Building-Construction"
+    },
+    {
+      "name": "Bashewa Power Projects",
+      "website": "https://www.bashewa.co.za",
+      "address": "Holding 239 Bashewa Agricultural Holdings Pretoria, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bashewa-Power-Projects"
+    },
+    {
+      "name": "Rob Hyde Builders",
+      "website": "https://www.robhydebuilders.co.za",
+      "address": "10 Queen Street Knysna, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rob-Hyde-Builders"
+    },
+    {
+      "name": "Billcost (Pty) Ltd",
+      "website": "https://www.billcost.co.za",
+      "address": "1 Niblick Way Somerset West, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Billcost_384503"
+    },
+    {
+      "name": "Swagefast (Pty) Ltd.",
+      "website": "https://www.swagefast.co.za",
+      "address": "09 Monument Street, 3 Princess Marina Street, Olivanna Krugersdorp, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Swagefast"
+    },
+    {
+      "name": "Wraygor",
+      "website": "https://www.wraygor.co.za",
+      "address": "Unit 63 Apd Industrial Park 2, Bernie Street, Kyasands Johannesburg, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wraygor"
+    },
+    {
+      "name": "Debucon",
+      "website": "https://www.debucon.net",
+      "address": "Stevenson Street, Klipfontein Witbank, Mpumalanga",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Debucon"
+    },
+    {
+      "name": "Dianne&#39;s perfect paint &amp; construction",
+      "website": "https://www.vodamail.co.za",
+      "address": "934 Theo Slabbert Booysens Pretoria, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Diannes-perfect-paint-construction"
+    },
+    {
+      "name": "Milty&#39;s Training Academy",
+      "website": "https://www.miltysacademy.com",
+      "address": "121 Main Reef Road Technicon Rooderpoort, Gauteng",
+      "page": 17,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Miltys-Training-Academy"
+    }
+  ]
+}

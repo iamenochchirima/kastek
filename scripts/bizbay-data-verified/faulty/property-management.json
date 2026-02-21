@@ -1,0 +1,4596 @@
+{
+  "category": "Property-Management",
+  "count": 485,
+  "listings": [
+    {
+      "name": "Rent A Den (Pty) Ltd",
+      "website": "https://www.rentaden.co.za",
+      "address": "127 Constantia Drive Constantia Kloof, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rent-A-Den_533912"
+    },
+    {
+      "name": "Eyethu Translodge and Plant Hire",
+      "website": "https://www.eyethu-tp.co.za",
+      "address": "344 Belvedere Road, Glen Austin Midrand , Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Eyethu-Translodge-and-Plant-Hire_865283"
+    },
+    {
+      "name": "Iron Bridge Commercial Property Brokers…",
+      "website": "https://www.ironbridge.co.za",
+      "address": "Po Box 2027 Bedfordview, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Iron-Bridge-Commercial-Property-Brokers-CC"
+    },
+    {
+      "name": "Pullen&#39;s Platinum Property Management",
+      "website": "https://www.pullensplatinum.co.za",
+      "address": "21 Canna Crescent, Beacon Bay East London, Eastern Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pullens-Platinum-Property-Management"
+    },
+    {
+      "name": "Rivigan Property Group",
+      "website": "https://www.riviganpg.co.za",
+      "address": "Unit 3 Ruimsig Country Office Park, 193 Hole In One Road Ruimsig, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rivigan-Property-Group"
+    },
+    {
+      "name": "Diamond Residential Properties",
+      "website": "https://www.diamondpropgroup.com",
+      "address": "1st Floor Paramont Place, 105 Main Road, Green Point Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Diamond-Residential-Properties"
+    },
+    {
+      "name": "Etienne Mynhardt Properties",
+      "website": "https://www.propertygenie.co.za",
+      "address": "Paulshof Paulshof, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Etienne-Mynhardt-Properties"
+    },
+    {
+      "name": "Property Listings Services",
+      "website": "https://www.fls.co.za",
+      "address": "40 Bell Street, Noordheuwel Krugersdorp, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Property-Listings-Services"
+    },
+    {
+      "name": "Cosmos Property Group",
+      "website": "https://www.cosmospropertygroup.co.za",
+      "address": "7 Koos De La Ray Street Beyerspark, Boksburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cosmos-Property-Group"
+    },
+    {
+      "name": "RENT WAREHOUSE",
+      "website": "http.www.kotzeepropertywarehouse.com",
+      "address": "224 Rondebult Road Libradene, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from http.www.kotzeepropertywarehouse.com",
+      "bizbayUrl": "https://bizbay.co.za/Company/RENT-WAREHOUSE"
+    },
+    {
+      "name": "ERF PROPERTIES",
+      "website": "https://www.erfprop.co.za",
+      "address": "137 Water Road, Walmer, Port Elizabeth Port Elizabeth, Eastern Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ERF-PROPERTIES"
+    },
+    {
+      "name": "Astute Properties",
+      "website": "https://www.astuteproperties.co.za",
+      "address": null,
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Astute-Properties"
+    },
+    {
+      "name": "SA PROPERTY WAREHOUSE VALUERS",
+      "website": "https://www.sapropertywarehouse.co.cc",
+      "address": "48a Jan Smuts Avenue, Winston Park Gilitts, Kwazulu Natal",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-PROPERTY-WAREHOUSE-VALUERS"
+    },
+    {
+      "name": "Newco Administration cc",
+      "website": "https://newcoadministration.com",
+      "address": "Unit 3, West Square Office Park, 407 West Avenue Ferndale, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Newco-Administration-cc"
+    },
+    {
+      "name": "Invest In The Best Properties - East Ra…",
+      "website": "https://www.investinthebest.co.za",
+      "address": "146 2nd Avenue, Bredell Kempton Park, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Invest-In-The-Best-Properties-East-Rand"
+    },
+    {
+      "name": "On Top Property Management",
+      "website": "https://www.ontoppropertymanagement.co.za",
+      "address": "Little Greece, Shop 1, George Street, Strand Cape Town, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/On-Top-Property-Management"
+    },
+    {
+      "name": "GS Home Management and Cleaning Service…",
+      "website": "https://www.gardenshuttle.co.za",
+      "address": "Main Street Plettenberg Bay, Western Cape",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/GS-Home-Management-and-Cleaning-Services-Plettenberg-Bay"
+    },
+    {
+      "name": "Supreme Software",
+      "website": "https://www.supremesoftware.co.za",
+      "address": "11 Elford Road, Robertsham Johannesburg, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Supreme-Software"
+    },
+    {
+      "name": "J R L Property Management CC",
+      "website": "https://www.jrlprop.co.za",
+      "address": "96 Farnham Ave, Lynnwood Manor Pretoria, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/J-R-L-Property-Management-CC"
+    },
+    {
+      "name": "Express Realty",
+      "website": "https://www.expressrealty.co.za",
+      "address": "85 Letaba Street, Brackendowns Alberton, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Express-Realty"
+    },
+    {
+      "name": "Cat Construction",
+      "website": "https://www.catconstruction.co.za",
+      "address": "Unit E16, Prime Park, Mocke Road Diep River, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cat-Construction"
+    },
+    {
+      "name": "Havilah Investments",
+      "website": "https://www.havilahinvest.com",
+      "address": "5 Young Ave.hd,box 31896 Braamfotein 2017 Hougton, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Havilah-Investments"
+    },
+    {
+      "name": "Gea Nilenca",
+      "website": "https://www.geanilenca.co.za",
+      "address": "Aberdein Street Germiston, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gea-Nilenca"
+    },
+    {
+      "name": "South African Mortgage Originators - Mo…",
+      "website": "https://www.mortgagepluscc.co.za",
+      "address": "3 Quinn Street Parkhurst, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/South-African-Mortgage-Originators-Mortgage-Plus-SAs-no-1-Bond-Originator"
+    },
+    {
+      "name": "rate-it cc",
+      "website": "https://www.rate-it.co.za",
+      "address": "243 Brooks Street, Brooklyn, Lynnwood Road Pretoria, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/rate-it-cc"
+    },
+    {
+      "name": "Maispace Rentals,Sales and Management",
+      "website": "https://www.maispacerental.weebly.com",
+      "address": "Seder Avenue Randpark Ridge, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maispace-Rentals-Sales-and-Management"
+    },
+    {
+      "name": "JHI",
+      "website": "https://www.jhi.co.za",
+      "address": "Jhi Place, 2 Norwich Close Sandton, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/JHI_400794"
+    },
+    {
+      "name": "Keymax Property Developments",
+      "website": "https://www.keymaxprop.co.za",
+      "address": "66 Erasmus Ave, Raslouw Centurion, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Keymax-Property-Developments"
+    },
+    {
+      "name": "U Direct Realty CC",
+      "website": "https://www.udirect.co.za",
+      "address": "53 Paardeberg Avenue, Ext 1, Oakdene Oakdene, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/U-Direct-Realty-CC"
+    },
+    {
+      "name": "Evodia Motsepe Properties",
+      "website": "https://www.mphoentle.co.za",
+      "address": "17 Azdec Avenue, Azdec And Citation, Irene View Centurion, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Evodia-Motsepe-Properties"
+    },
+    {
+      "name": "African Facilities Management Online",
+      "website": "https://www.gobetter.co.za",
+      "address": "Po Box 150 Mondeor, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Facilities-Management-Online"
+    },
+    {
+      "name": "Maison Construction",
+      "website": "https://www.maison.co.za",
+      "address": "Kirstenbosch Ave Strand, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maison-Construction"
+    },
+    {
+      "name": "Silver Sails Estate Agency",
+      "website": "https://www.silversails.co.za",
+      "address": "49 Harrington Street Brits North West, North West Province",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Silver-Sails-Estate-Agency"
+    },
+    {
+      "name": "Janet and Gill Properties",
+      "website": "https://www.propertygenie.co.za",
+      "address": "Ninth Avenue, Walmer Port Elizabeth, Eastern Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Janet-and-Gill-Properties"
+    },
+    {
+      "name": "bhopalmart",
+      "website": "https://www.bhopalmart.com",
+      "address": "Zone 1 Mp Nagar Bhopal, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/bhopalmart"
+    },
+    {
+      "name": "David Jacobs Real Estate",
+      "website": "https://www.djrealestate.co.za",
+      "address": "P.o. Box1412 Cresta, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/David-Jacobs-Real-Estate"
+    },
+    {
+      "name": "CoCo HOME MANAGEMENT",
+      "website": "https://www.cocohm.co.za",
+      "address": "P.o.box 26789, Hout Bay Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CoCo-HOME-MANAGEMENT"
+    },
+    {
+      "name": "Umhlanga Flat Services",
+      "website": "https://www.umhlangaflatservices.co.za",
+      "address": "4 Lagoon Drive Umhlanga Rocks, Kwazulu Natal",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Umhlanga-Flat-Services"
+    },
+    {
+      "name": "Chas Everitt International Property Gro…",
+      "website": "https://www.everitt-bryanston.co.za",
+      "address": "321 Main Road (cnr Petunia Street), Petunia Street Bryanston, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chas-Everitt-International-Property-Group-Sandton-Northern-Johannesburg"
+    },
+    {
+      "name": "Risala Investment Holdings",
+      "website": "https://www.risala.co.za",
+      "address": null,
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Risala-Investment-Holdings"
+    },
+    {
+      "name": "Gordon Knight Properties",
+      "website": "https://www.gordonknightprop.co.za",
+      "address": "31 Atlantic Drive, Bluewater Estate, Kommetjie Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gordon-Knight-Properties"
+    },
+    {
+      "name": "Creek Projects (Pty) Limited",
+      "website": "https://www.creekprojects.com",
+      "address": null,
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Creek-Projects"
+    },
+    {
+      "name": "Conrad Project Services",
+      "website": "https://www.conradproject.com",
+      "address": "1 St Alma Road, Lansdowne Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Conrad-Project-Services"
+    },
+    {
+      "name": "Route 47 Real Estate Brokers Pty Ltd",
+      "website": "https://www.route47.co.za",
+      "address": "75 Amajuba Street, Noordheuwel, Noordheuwel Krugersdorp, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Route-47-Real-Estate-Brokers"
+    },
+    {
+      "name": "BANARENG CONSULTING",
+      "website": "https://www.wix.com/thibo2/banareng",
+      "address": "16890 Albany Street, Protea Glen Ext.16, Soweto,1818 Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/BANARENG-CONSULTING"
+    },
+    {
+      "name": "SA Commercial and Development Opportuni…",
+      "website": "https://www.sa-properties.com/propertysearch/listing1_c1_cy-c-2792.asp",
+      "address": "Kenilworth Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Commercial-and-Development-Opportunities"
+    },
+    {
+      "name": "Imppact Property Professionals",
+      "website": "https://www.imppact.co.za",
+      "address": "P.o.box 82818, Southdale, Booysens Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Imppact-Property-Professionals"
+    },
+    {
+      "name": "Sakhiwo Property Services",
+      "website": "https://www.sakhiwoproperty.co.za",
+      "address": "Unit 35 Zonnebloem Sabie Road,bardene, Sabie Road, Bardene East Rand, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sakhiwo-Property-Services"
+    },
+    {
+      "name": "ConnectSA Investments and Projects",
+      "website": "https://www.connectsouthafrica.net",
+      "address": "4 Hollywood Heights, 126 Troye Street, Sunnyside Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ConnectSA-Investments-and-Projects"
+    },
+    {
+      "name": "Neo Spaces",
+      "website": "https://www.neospaces.co.za",
+      "address": "Sandown Sandton, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Neo-Spaces"
+    },
+    {
+      "name": "NOREL Properties / Eiendomme",
+      "website": "https://sites.norelprop.com/norel",
+      "address": "9 Wouterroad, 9 Wouterweg, Retiefspark Lichtenburg, North West Province",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/NOREL-Properties-Eiendomme"
+    },
+    {
+      "name": "Ikageng Bawethu Investments",
+      "website": "https://www.ikagengbawethu.co.za",
+      "address": "479 President Street, Stanard Bank Towers Germiston, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ikageng-Bawethu-Investments"
+    },
+    {
+      "name": "Necira Services",
+      "website": "https://www.necira.co.za",
+      "address": "768 Bootlane, Cornwall Hill, Irene X10 Centurion, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Necira-Services"
+    },
+    {
+      "name": "EVA Capital",
+      "website": "https://www.evacapital.co.za",
+      "address": "Twin Towers West, Cnr Maude And Fifth, Sandown, Sandton City Sandton, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/EVA-Capital_497921"
+    },
+    {
+      "name": "S.T.E. ESTATES",
+      "website": "https://www.ste-estates.co.za",
+      "address": "224 Block D, Mabopane Mabopane, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/S-T-E-ESTATES"
+    },
+    {
+      "name": "Chilli Property",
+      "website": "https://www.chilliprop.co.za",
+      "address": "Po Box 994, Cramerview 2060, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chilli-Property"
+    },
+    {
+      "name": "RentEazy Property Management",
+      "website": "https://www.renteazy.co.za",
+      "address": "Mahogany Drive Randburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/RentEazy-Property-Management"
+    },
+    {
+      "name": "Homes2rent Property Management",
+      "website": "https://www.homes2rent.co.za",
+      "address": "9 Corn Wallis Harris Str Vanderbijlpark, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Homes2rent-Property-Management"
+    },
+    {
+      "name": "Agile Zulu Consulting",
+      "website": "https://www.agilezulu.co.za",
+      "address": "Kassier Rd Shongweni, Kwazulu-nata",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Agile-Zulu-Consulting"
+    },
+    {
+      "name": "ArchiSpace Consulting",
+      "website": "https://www.archispace.co.za",
+      "address": "19 Burg Street, 2nd Floor, P.o. Box 1041 Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ArchiSpace-Consulting"
+    },
+    {
+      "name": "Fractional ownership with Legacy Privat…",
+      "website": "https://www.legacyprivateresidencies.co.za",
+      "address": "5 Autumn Street Rivonia, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fractional-ownership-with-Legacy-Private-Residencies"
+    },
+    {
+      "name": "Away From Home",
+      "website": "https://www.awayfromhome.co.za",
+      "address": "11 Orion Road, Kirstenhof Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Away-From-Home"
+    },
+    {
+      "name": "Maxprop Amanzimtoti",
+      "website": "https://[email&#160;protected]",
+      "address": "17 Beach Rd Amanzimtoti, Kwazulu-nata",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maxprop-Amanzimtoti"
+    },
+    {
+      "name": "Mark&#39;s Real Estate",
+      "website": "https://www.marksrealestate.co.za",
+      "address": "220 Sir Lowry Road, Zonnebloem, Same As Above Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marks-Real-Estate_514140"
+    },
+    {
+      "name": "Purple Rose Nebula Property (Pty) Ltd",
+      "website": "https://www.prn-estates.co.za",
+      "address": "Alberton Alberton, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Purple-Rose-Nebula-Property"
+    },
+    {
+      "name": "JUSTPALM.com",
+      "website": "https://www.justpalm.com",
+      "address": null,
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/JUSTPALM-com"
+    },
+    {
+      "name": "Budget Painters Boland",
+      "website": "https://www.budgetpaintersboland.co.za",
+      "address": "P.o. Box 1415, Gordon's Bay, 7151 Gordon's Bay, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Budget-Painters-Boland"
+    },
+    {
+      "name": "Nowletting",
+      "website": "https://www.nowletting.net",
+      "address": null,
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nowletting"
+    },
+    {
+      "name": "Aura property Group",
+      "website": "https://www.aurapg.co.za",
+      "address": "70 Carol Rd, Mindalore, Voortrekker Gauteng, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aura-property-Group"
+    },
+    {
+      "name": "Simplified Power",
+      "website": "https://www.prepaidmetering.co.za",
+      "address": "Boksburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Simplified-Power"
+    },
+    {
+      "name": "Alphaprops",
+      "website": "https://www.alphaprops.co.za",
+      "address": "Bloubergstrand, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alphaprops"
+    },
+    {
+      "name": "Whisian Property Management (Pty) Ltd",
+      "website": "https://www.whisian.co.za",
+      "address": "Suite 1, Waterkloof Rand Centre, Rigel Avenue, Erasmusrand Pretoria, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Whisian-Property-Management"
+    },
+    {
+      "name": "Proximity Property Management",
+      "website": "https://www.proximityprop.co.za",
+      "address": "127 Constantia Blvd, Cnr Jim Fouche, Constantia Kloof Roodepoort, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Proximity-Property-Management"
+    },
+    {
+      "name": "Pproperties",
+      "website": "https://www.pproperties.co.za",
+      "address": "Crotsstreet 875 Rietfontein Pretoria, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pproperties"
+    },
+    {
+      "name": "iLaaik Sedgefield",
+      "website": "https://www.ilaaiksedgefield.co.za",
+      "address": "30 Main Road Sedgefield, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/iLaaik-Sedgefield"
+    },
+    {
+      "name": "Sequence Property",
+      "website": "https://www.sequenceproperty.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sequence-Property"
+    },
+    {
+      "name": "Jennifer Anne Properties",
+      "website": "https://jenniferanne.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jennifer-Anne-Properties"
+    },
+    {
+      "name": "SwanProperties",
+      "website": "https://www.swanprop.mobi",
+      "address": "85 Van Der Merwe Drive, Silverton Ridge Pretoria, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SwanProperties"
+    },
+    {
+      "name": "Realty 1 North Western Johannesburg",
+      "website": "https://www.realty-1.co.za",
+      "address": "Unit 28 Waterford Office Park, Cnr Witkoppen, Waterford Drive Four Ways, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Realty-1-North-Western-Johannesburg"
+    },
+    {
+      "name": "Diamond Residential Properties",
+      "website": "https://www.diamondpropgroup.com",
+      "address": "Paramont Place, 105 Main Road, Green Point Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Diamond-Residential-Properties"
+    },
+    {
+      "name": "National Letting KZN",
+      "website": "https://www.natletting.co.za",
+      "address": "97 Clark Road, Glenwood Durban North, Kwazulu-nata",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/National-Letting-KZN"
+    },
+    {
+      "name": "Signal Properties",
+      "website": "https://www.signalproperties.co.za",
+      "address": "48 Rinyani Ave, Allens Nek Roodepoort, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Signal-Properties"
+    },
+    {
+      "name": "Sea Shell Holiday letting",
+      "website": "https://www.seashellholiday.co.za",
+      "address": "Margate, Kwazulu-nata",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sea-Shell-Holiday-letting"
+    },
+    {
+      "name": "Swindon Property Services",
+      "website": "https://www.swinprop.com",
+      "address": "Buitenkloof Studios, 8 Kloof Street Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Swindon-Property-Services"
+    },
+    {
+      "name": "IHFM (Pty) Ltd",
+      "website": "https://www.ihfm.co.za",
+      "address": "Suite 206, Matrix House, 73 Strand Street Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/IHFM_545904"
+    },
+    {
+      "name": "Dynamic Auctioneers",
+      "website": "https://www.dynamicauctioneers.co.za",
+      "address": "40 Aalwyn Crescent, Eldoraigne X3 Centurion, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dynamic-Auctioneers_545921"
+    },
+    {
+      "name": "Property Network Solutions",
+      "website": "https://www.propertyforsalesa.co.za",
+      "address": "Centurion Pretoria, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Property-Network-Solutions"
+    },
+    {
+      "name": "One World Property Group",
+      "website": "https://www.oneworldpropertygroup.co.za",
+      "address": "66 Century View, Ratanga Road Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/One-World-Property-Group"
+    },
+    {
+      "name": "Le Diamante : Beach side properties",
+      "website": "https://www.lediamante.co.za",
+      "address": "Le Diamante, Main Road Muizenberg, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Le-Diamante-Beach-side-properties"
+    },
+    {
+      "name": "Liaisons Property Management",
+      "website": "https://www.2heads.co.za/thelodges",
+      "address": "Erf 116, 17 St Georges Way, St Francis Links St Francis Bay, Eastern Cape",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Liaisons-Property-Management"
+    },
+    {
+      "name": "Flavionet (Pty) Ltd",
+      "website": "https://www.flavionet.biz",
+      "address": "Old Farm Road 830, Faerie Glen Pretoria, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Flavionet"
+    },
+    {
+      "name": "Hanger and Horn Property Management &amp; C…",
+      "website": "https://www.hangerandhorn.com",
+      "address": "2 Bamboo Lane Pinetown, Kwazulu Natal",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hanger-and-Horn-Property-Management-Construction-CC"
+    },
+    {
+      "name": "Freeline Properties",
+      "website": "https://www.freelineproperties.com",
+      "address": "Po Box 51194, Waterfront Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Freeline-Properties"
+    },
+    {
+      "name": "Constantia Sectional Title Management",
+      "website": "https://www.cstm.co.za",
+      "address": "Panorama Office Estate, Block 4, 971 Kudu Street Allen's Nek, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Constantia-Sectional-Title-Management_551390"
+    },
+    {
+      "name": "Audrey Clifford Lifestyle &amp; Event Manag…",
+      "website": "https://www.audreyclifford.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Audrey-Clifford-Lifestyle-Event-Management"
+    },
+    {
+      "name": "The Property Consultant",
+      "website": "https://www.thepropertyconsultant.net",
+      "address": "153 High Level Street, Sea Point Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Property-Consultant_579898"
+    },
+    {
+      "name": "JRL Property Management CC",
+      "website": "https://www.jrlprop.co.za",
+      "address": "96 Farnham Ave , Lynnwood Manor Pretoria, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/JRL-Property-Management-CC"
+    },
+    {
+      "name": "Nates Properties &amp; Auctioneers",
+      "website": "https://www.natesproperties.com / www.ericnates.com",
+      "address": "Po Box 50595, West Beach, Cape Town Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://www.natesproperties.com / www.ericnates.com",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nates-Properties-Auctioneers"
+    },
+    {
+      "name": "Property 100 Jacaranda",
+      "website": "https://www.property100jacaranda.co.za",
+      "address": "5 Panorama Street,rooihuiskraal, Centurion Centurion, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Property-100-Jacaranda"
+    },
+    {
+      "name": "Barcle Consulting",
+      "website": "https://www.barcle.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Barcle-Consulting"
+    },
+    {
+      "name": "Privatelandlord Property Management",
+      "website": "https://www.privatelandlord.co.za",
+      "address": null,
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Privatelandlord-Property-Management"
+    },
+    {
+      "name": "Multi Projects Property Management",
+      "website": "https://www.multiprojects.com",
+      "address": "Shop 6, Hibernian Towers, Beach Road Strand, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Multi-Projects-Property-Management_582309"
+    },
+    {
+      "name": "Take Off In Style",
+      "website": "https://www.TakeOffInStyle.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Take-Off-In-Style"
+    },
+    {
+      "name": "AIV Property Specialists",
+      "website": "https://www.aivproperties.co.za",
+      "address": "Block 1, 5th Floor, Rivonia Square, Cnr 9th Ave, Rivonia Blvd Rivonia, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/AIV-Property-Specialists"
+    },
+    {
+      "name": "Terblanche Total Property Solutions",
+      "website": "https://www.ttps.co.za",
+      "address": "9 St. Blaize Terrace, 10 Marsh Street Mosselbay, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Terblanche-Total-Property-Solutions_795661"
+    },
+    {
+      "name": "Phezulu Business Management",
+      "website": "https://www.phezulucapital.co.za",
+      "address": "Randburg Garden Mall, 343 Kent Avenue, Ferndale Randburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Phezulu-Business-Management"
+    },
+    {
+      "name": "Green Renovations",
+      "website": "https://www.greenrenovations.co.za",
+      "address": "Kenridge, Durbanville Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Green-Renovations"
+    },
+    {
+      "name": "MiB Security Services",
+      "website": "https://www.mibsecurity.co.za",
+      "address": "Office 207, Tourism Centre, 60 Park Road, Willows Bloemfontein, Free State",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MiB-Security-Services_886095"
+    },
+    {
+      "name": "Turnkey Lifestyles",
+      "website": "https://www.turnkeylifestyles.com",
+      "address": "Po Box 25284, Gateway Umhlanga, Kwazulu Natal",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Turnkey-Lifestyles"
+    },
+    {
+      "name": "Mjk Network Solutions",
+      "website": "https://www.mjk.co.za",
+      "address": "5 Roggeveld Street, Noordheuwel Ext 2 Krugersdorp, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mjk-Network-Solutions"
+    },
+    {
+      "name": "Spencer-Gore Developments",
+      "website": "https://www.spencergoredevelopments.co.za",
+      "address": "12 Grace Ave Westville, Kwazulu Natal",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Spencer-Gore-Developments"
+    },
+    {
+      "name": "Shatel",
+      "website": "https://www.shatel.co.za",
+      "address": "135 Lady Grey Street Paarl, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shatel"
+    },
+    {
+      "name": "MeasureUp Space Auditors",
+      "website": "https://www.measureup.co.za",
+      "address": "Haymeadow St Faerie Glen, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MeasureUp-Space-Auditors"
+    },
+    {
+      "name": "Forward Planning",
+      "website": "https://www.forwardplanning.co.za",
+      "address": "72 Brommersvlei Road Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Forward-Planning"
+    },
+    {
+      "name": "Mavimbela and Asssociates cc",
+      "website": "https://www.mavimbelaassociates.co.za",
+      "address": "Mavimbela House, 14 Mail Street, Florida Park Florida, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mavimbela-and-Asssociates-cc"
+    },
+    {
+      "name": "AWANDA PROPERTY CONSULTANTS",
+      "website": "https://www.awandap.co.za",
+      "address": "Bryanston Gate Office Park, 170 Curzon Road Bryanston, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/AWANDA-PROPERTY-CONSULTANTS"
+    },
+    {
+      "name": "Cape Portfolios",
+      "website": "https://www.capeportfolios.com",
+      "address": "2 Van Kamp Street Camps Bay",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Portfolios"
+    },
+    {
+      "name": "Sea Cape Rentals",
+      "website": "https://www.seacape.com",
+      "address": "Shop 2 Candlewood, Victoria Avenue Hout Bay, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sea-Cape-Rentals"
+    },
+    {
+      "name": "JHI",
+      "website": "https://www.jhi.co.za",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/JHI_400794"
+    },
+    {
+      "name": "Nox Rentals",
+      "website": "https://www.noxrentals.co.za",
+      "address": "1st Floor, 13 Totnes Avenue, Camps Bay Cape Town",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nox-Rentals"
+    },
+    {
+      "name": "Ann Rault Properties",
+      "website": "https://www.arprop.co.za",
+      "address": "5 Lancaster Avenue/cnr Aberdeen Street Westdene",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ann-Rault-Properties"
+    },
+    {
+      "name": "Harcourts",
+      "website": "https://www.stilbaaiproperties.co.za",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Harcourts"
+    },
+    {
+      "name": "UBHEDU Properties",
+      "website": "https://www.ubhedu.co.za",
+      "address": "37 Fernwood Close Parklands , Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/UBHEDU-Properties"
+    },
+    {
+      "name": "Griffon Properties",
+      "website": "https://www.griffon-properties.co.za",
+      "address": "18 Van Blommenstein Street Onrus River, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Griffon-Properties"
+    },
+    {
+      "name": "Delta Quantity Surveyors",
+      "website": "https://www.deltaqs.co.za",
+      "address": "54 Loots Road, Blairgowrie Randburg",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Delta-Quantity-Surveyors"
+    },
+    {
+      "name": "Wilson Properties",
+      "website": "https://www.wilsonproperties.co.za",
+      "address": "101 Homestead Rd Kya Sands Randburg",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wilson-Properties"
+    },
+    {
+      "name": "Propsys",
+      "website": "https://www.propsys.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Propsys"
+    },
+    {
+      "name": "The Penthouse Property",
+      "website": "https://www.thepenthouseproperty.co.za",
+      "address": "27 Ridgeton Towers, 6 Aurora Drive Umhlanga Ridge",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Penthouse-Property"
+    },
+    {
+      "name": "Openshore Property",
+      "website": "https://www.openshoreproperty.com",
+      "address": "Unit 1, Time Technology Park, Simonstone Burnley Lancashire Bb12 7gt",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Openshore-Property"
+    },
+    {
+      "name": "Dominicum Properties",
+      "website": "https://www.dominicum.co.za",
+      "address": "2349 Westbrook, Private Bag X 7 Kyalami",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dominicum-Properties_413958"
+    },
+    {
+      "name": "Pick Of Plett",
+      "website": "https://www.pickofplett.co.za",
+      "address": "11 Main Street, Po Box 170 Plettenberg Bay, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pick-Of-Plett"
+    },
+    {
+      "name": "De Lucia Group",
+      "website": "https://www.deluciagroup.co.za",
+      "address": "P O Box 59 Kempton Park",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/De-Lucia-Group"
+    },
+    {
+      "name": "Sherwood Greene",
+      "website": "https://www.sherwoodgreene.com",
+      "address": "Dedhani Kimathi Road, P O Box 32628, Lusaka Zambia",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sherwood-Greene"
+    },
+    {
+      "name": "Sable Holdings",
+      "website": "https://www.sableholdings.co.za",
+      "address": "52 Grosvenor Road Bryanston",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sable-Holdings"
+    },
+    {
+      "name": "Dgb Group",
+      "website": "https://www.dgbgroup.co.za",
+      "address": "P O Box 100 Montana Park",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dgb-Group"
+    },
+    {
+      "name": "Matton Property Management Systems",
+      "website": "https://imsys.co.za",
+      "address": null,
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Matton-Property-Management-Systems"
+    },
+    {
+      "name": "Resipro",
+      "website": "https://www.resipro.co.za",
+      "address": "Box 27212, Kloof Street Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Resipro"
+    },
+    {
+      "name": "Intangible Consulting",
+      "website": "https://www.intangible.co.za",
+      "address": "2 Forest Rd, Bramley Johannesburg",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Intangible-Consulting"
+    },
+    {
+      "name": "Clark Realty",
+      "website": "https://clarkhawaii.com",
+      "address": "65- Kawaihae Rd, Kamuela, Hi 96740 Phone",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Clark-Realty"
+    },
+    {
+      "name": "Chesterwood Properties",
+      "website": "https://www.chesterwoodproperties.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chesterwood-Properties"
+    },
+    {
+      "name": "Basil Elk Real Estate",
+      "website": "https://www.basilelk.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Basil-Elk-Real-Estate"
+    },
+    {
+      "name": "Wilna Properties",
+      "website": "https://www.wilnaproperties.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wilna-Properties"
+    },
+    {
+      "name": "Busisiwe",
+      "website": "https://www.busisiwe.co.za",
+      "address": "41 Hans Van Ransburg Street, Rampie Smith Building Polokwane",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Busisiwe"
+    },
+    {
+      "name": "Rent Flats",
+      "website": "https://www.rentflats.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rent-Flats"
+    },
+    {
+      "name": "Lad-brooke Property Management",
+      "website": "https://www.lad-brooke.com",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lad-brooke-Property-Management"
+    },
+    {
+      "name": "Century21 Mandela Bay",
+      "website": "https://www.century21bay.co.za",
+      "address": "Port Elizabeth, Eastern Cape",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Century21-Mandela-Bay"
+    },
+    {
+      "name": "Bidmania",
+      "website": "https://www.bidmania.co.za",
+      "address": "1166a Hjalmer Street, Booysens Booysens, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bidmania"
+    },
+    {
+      "name": "Rite Mark Property Developments &amp; Civils",
+      "website": "https://www.ritemarkpropcivil.co.za",
+      "address": "7 Retiefstreet,oak Dale, Bellville, South Afrika Bellville, Western Cape",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rite-Mark-Property-Developments-Civils"
+    },
+    {
+      "name": "Kilimani",
+      "website": "https://www.kilimani.com",
+      "address": "265 Auriga Street, Waterkloof Ridge Pretoria, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kilimani"
+    },
+    {
+      "name": "Wakefields Property",
+      "website": "https://wakefieldsproperty.co.za",
+      "address": "Private Bag X11, Musgrave Road Kwazulu Natal",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wakefields-Property"
+    },
+    {
+      "name": "Intdev",
+      "website": "https://www.intersite.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Intdev"
+    },
+    {
+      "name": "Iron Bridge",
+      "website": "https://www.ironbridge.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Iron-Bridge"
+    },
+    {
+      "name": "Blouberg@sea",
+      "website": "https://www.bloubergatsea.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blouberg-sea"
+    },
+    {
+      "name": "Absolute Accommodation",
+      "website": "https://www.absoluteaccommodation.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Absolute-Accommodation"
+    },
+    {
+      "name": "Leso Estates",
+      "website": "https://www.lesoestates.co.za",
+      "address": "Lorre Building, 6 Oak Avenue Kempton Park",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Leso-Estates"
+    },
+    {
+      "name": "Terblanche Thomas",
+      "website": "https://www.terblanchethomas.co.za",
+      "address": "9 St Blaize Terrace, 10 Marsh Street Mossel Bay",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Terblanche-Thomas"
+    },
+    {
+      "name": "Cape Facilities",
+      "website": "https://www.capefacilities.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Facilities"
+    },
+    {
+      "name": "Thabalanga",
+      "website": "https://www.thabalanga.com",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Thabalanga"
+    },
+    {
+      "name": "Originalslant Property Management Servi…",
+      "website": "https://www.originalslant.com",
+      "address": "Herschel Road Fish Hoek, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Originalslant-Property-Management-Services"
+    },
+    {
+      "name": "Lynn Estates",
+      "website": "https://lynnestates.com",
+      "address": "11th Floor, The Forum, 2 Maude Street Sandton",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lynn-Estates_509136"
+    },
+    {
+      "name": "Chelsea Group",
+      "website": "https://www.chelsea-grp.com",
+      "address": "East Camelback Rd, 5th Floor Amsterdam, Phoenix",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chelsea-Group"
+    },
+    {
+      "name": "African Elite Properties",
+      "website": "https://africaneliteproperties.com",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Elite-Properties"
+    },
+    {
+      "name": "Empire Title Agency Of Arizona",
+      "website": "https://www.etaaz.com",
+      "address": "E Camelback Road, Suite 515 Phoenix",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Empire-Title-Agency-Of-Arizona"
+    },
+    {
+      "name": "Florida Apartment Association",
+      "website": "https://www.fl-apartments.org",
+      "address": "341 N Maitland Avenue, Suite 130 Maitland",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Florida-Apartment-Association"
+    },
+    {
+      "name": "TalkSpot",
+      "website": "https://www.propertysouthafrica.talkspot.com",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/TalkSpot"
+    },
+    {
+      "name": "GOLDENSTONE PROPERTIES",
+      "website": "https://www.goldenstoneprops.co.za",
+      "address": "29 Fick Crescent, Suideroord Johannesburg, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/GOLDENSTONE-PROPERTIES"
+    },
+    {
+      "name": "Thokazi Property Solutions",
+      "website": "https://www.thokazi.co.za",
+      "address": "42 Caron Road, Rembrandt Park, Lombardy East Jhb, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Thokazi-Property-Solutions"
+    },
+    {
+      "name": "Etali",
+      "website": "https://www.etali.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Etali"
+    },
+    {
+      "name": "The MBA Training Company",
+      "website": "https://www.thembatrainingcompany.com",
+      "address": "Turnberry Office Park, 48 Grosvenor Road, Bryanston Johannesburg, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-MBA-Training-Company"
+    },
+    {
+      "name": "Just Jeeves",
+      "website": "https://www.justjeeves.co.za",
+      "address": "Just, Jeeves Insurance Services, 7 Sterling Crescent Parklands",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Just-Jeeves"
+    },
+    {
+      "name": "Property Management",
+      "website": "https://www.propertymanagement.co.za",
+      "address": "7 Princess Street, Hout Bay Cape Town",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Property-Management"
+    },
+    {
+      "name": "Zygote",
+      "website": "https://www.zygote.co.za",
+      "address": "Rivonia Place, 31 Wessels Rd Rivonia",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zygote"
+    },
+    {
+      "name": "Growthpoint",
+      "website": "https://www.growthpoint.co.za",
+      "address": "36 hans strijdom avenue foreshore cape town",
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Growthpoint"
+    },
+    {
+      "name": "Triple J Investments",
+      "website": "https://triplejinvestments.com",
+      "address": "N 35th Avenue Suite 105 Phoenix",
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Triple-J-Investments"
+    },
+    {
+      "name": "Ensurent",
+      "website": "https://www.ensurent.co.za",
+      "address": "60 rivonia road sandhurst 1st floor sandhurst centre",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ensurent"
+    },
+    {
+      "name": "Eastlight",
+      "website": "https://eastlight.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Eastlight"
+    },
+    {
+      "name": "Ndivhuwo",
+      "website": "https://www.ndivhuwo.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ndivhuwo"
+    },
+    {
+      "name": "Lindiwe Group",
+      "website": "https://www.lindiwegroup.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lindiwe-Group"
+    },
+    {
+      "name": "Ifm Trust",
+      "website": "https://www.ifmtrust.com",
+      "address": "2nd Floor North Tower 3 Sandown Valley Crescent Sandton",
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ifm-Trust"
+    },
+    {
+      "name": "Nyeleti",
+      "website": "https://www.NYELETI.com",
+      "address": "396 Florida Street Faerie Glen, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nyeleti"
+    },
+    {
+      "name": "Growthpoint Properties",
+      "website": "https://www.GROWTHPOINT.net",
+      "address": "The Place 1 Sandton Drive Sandton, Gauteng",
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Growthpoint-Properties"
+    },
+    {
+      "name": "On Top Property Rentals",
+      "website": "https://www.ontoppropertyrentals.co.za",
+      "address": "Little Greece, Shop 1 George Street Strand Cape Town, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/On-Top-Property-Rentals"
+    },
+    {
+      "name": "Micro Management",
+      "website": "https://www.micromgmt.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Micro-Management"
+    },
+    {
+      "name": "Bjo Properties",
+      "website": "https://www.BJOPROPERTIES.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bjo-Properties"
+    },
+    {
+      "name": "Sunny Homes Realty Of Sw Fla",
+      "website": "https://www.sunny-homes-realty.com",
+      "address": "SW 23rd Avenue Canal",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sunny-Homes-Realty-Of-Sw-Fla"
+    },
+    {
+      "name": "Eem Knysna",
+      "website": "https://www.eemknysna.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Eem-Knysna"
+    },
+    {
+      "name": "Homestead Real Estate Company",
+      "website": "https://www.capemayshorerentals.com",
+      "address": "Head South through 2 traffic lights Cape May",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Homestead-Real-Estate-Company"
+    },
+    {
+      "name": "Mine Citi",
+      "website": "https://www.MINECITI.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mine-Citi"
+    },
+    {
+      "name": "Crystal Waves",
+      "website": "https://www.crystal-waves.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "httpStatus": 401,
+      "error": "HTTP 401",
+      "bizbayUrl": "https://bizbay.co.za/Company/Crystal-Waves"
+    },
+    {
+      "name": "Alpha Villa Management",
+      "website": "https://www.alphavillamanagement.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alpha-Villa-Management"
+    },
+    {
+      "name": "Treoc Service Provider Network",
+      "website": "https://www.treocserviceproviders.com",
+      "address": "8 Treoc House Fairways Office Park Niblick Way Somerset West, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Treoc-Service-Provider-Network"
+    },
+    {
+      "name": "Panorama Properties",
+      "website": "https://www.sabieproperties.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Panorama-Properties"
+    },
+    {
+      "name": "Acquest Property Solutions",
+      "website": "https://www.apsint.com.au",
+      "address": "7th Street Parkmore Sandton, Gauteng",
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Acquest-Property-Solutions"
+    },
+    {
+      "name": "Salprop",
+      "website": "https://www.salprop.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Salprop"
+    },
+    {
+      "name": "Rent-smart",
+      "website": "https://www.rent-smart.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rent-smart_557303"
+    },
+    {
+      "name": "The Clicquot Collection",
+      "website": "https://www.theclicquotcollection.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Clicquot-Collection"
+    },
+    {
+      "name": "Southern Cape Letting",
+      "website": "https://www.southerncapeletting.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Southern-Cape-Letting"
+    },
+    {
+      "name": "The Renovation Boyz",
+      "website": "https://therenovationboyz.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Renovation-Boyz"
+    },
+    {
+      "name": "Outgrow",
+      "website": "https://www.outgrow.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Outgrow"
+    },
+    {
+      "name": "Biogold",
+      "website": "https://www.biogold.biz",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Biogold"
+    },
+    {
+      "name": "Nppm",
+      "website": "https://www.nppm.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nppm"
+    },
+    {
+      "name": "Jpm",
+      "website": "https://www.jpm.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jpm_565876"
+    },
+    {
+      "name": "Proximity Prop",
+      "website": "https://www.proximityprop.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Proximity-Prop"
+    },
+    {
+      "name": "Necira",
+      "website": "https://www.necira.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Necira"
+    },
+    {
+      "name": "Trafalgar Africa",
+      "website": "https://www.trafalgarafrica.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trafalgar-Africa"
+    },
+    {
+      "name": "Cape Town Rental Properties",
+      "website": "https://www.cape-town-rental-properties.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Town-Rental-Properties"
+    },
+    {
+      "name": "W-pro",
+      "website": "https://www.wpro.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/W-pro"
+    },
+    {
+      "name": "Petermens Homes",
+      "website": "https://www.petermens.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Petermens-Homes"
+    },
+    {
+      "name": "Northwind Maestro",
+      "website": "https://www.northwindmaestro.com",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Northwind-Maestro"
+    },
+    {
+      "name": "Property Management Software And Facili…",
+      "website": "https://www.raindrop.co.uk",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Property-Management"
+    },
+    {
+      "name": "A-cres",
+      "website": "https://www.a-cres.co.za",
+      "address": "10 Lansdowne Drive Westville",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-cres"
+    },
+    {
+      "name": "Lucy Ferreira Properties",
+      "website": "https://www.lucyferreiraproperties.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lucy-Ferreira-Properties"
+    },
+    {
+      "name": "Cape Prestige",
+      "website": "https://www.capeprestige.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Prestige"
+    },
+    {
+      "name": "G7 Property Brokers",
+      "website": "https://www.g7prop.com",
+      "address": "PO Box 5888 Cresta, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/G7-Property-Brokers"
+    },
+    {
+      "name": "Wesson Construction",
+      "website": "https://www.wessonconstruction.co.za",
+      "address": "6 Tolbos Close Plattekloof Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wesson-Construction"
+    },
+    {
+      "name": "Aldora Stud",
+      "website": "https://www.aldorastud.co.za",
+      "address": "POBOX 85 Nottingham Road, KwaZulu Natal",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aldora-Stud"
+    },
+    {
+      "name": "Ansunette Ferreira Fine Art Wedding Pho…",
+      "website": "https://www.ansunette.co.za",
+      "address": "543 Dwyka Erasmuskloof Pretoria, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ansunette-Ferreira-Fine-Art-Wedding-Photographer"
+    },
+    {
+      "name": "Wright Approach Investments 503",
+      "website": "https://[email&#160;protected]",
+      "address": "221 Sixth Avenue Grassy Park Grassy Park, Cape Town",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wright-Approach-Investments-503"
+    },
+    {
+      "name": "Faraway House Trading (Pty) LTD",
+      "website": "https://www.farawayhouse.co.za",
+      "address": "FARAWAY HOUSE FARM R43 Villiersdorp, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Faraway-House-Trading"
+    },
+    {
+      "name": "Money Style Network cc",
+      "website": "https://www.moneystyle.co.za",
+      "address": "263 Kent Ave Ferndale Randburg, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Money-Style-Network-cc"
+    },
+    {
+      "name": "I B N Electronique",
+      "website": "https://ibnagencies.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/I-B-N-Electronique"
+    },
+    {
+      "name": "Deu Property Management",
+      "website": "https://www.deu.co.za",
+      "address": "87 de korte street heerengracht building braamfontein",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Deu-Property-Management"
+    },
+    {
+      "name": "BEES (Prperty Bees)",
+      "website": "https://www.propertybees.co.za",
+      "address": "Tops Office Park , 27 Walnut str, 27 Walnut str, Roodepoort, Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/BEES-Prperty-Bees"
+    },
+    {
+      "name": "MARKS CAPE CITY",
+      "website": "https://www.markscapecity.co.za",
+      "address": "21 Sir Lowry Road Zonnebloem Cape town Cape Town, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MARKS-CAPE-CITY"
+    },
+    {
+      "name": "Team Agent",
+      "website": "https://www.boardwalkmeanderteam.co.za",
+      "address": "Pretoria , Gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Team-Agent"
+    },
+    {
+      "name": "RB Properties (Pty) LTD",
+      "website": null,
+      "address": "2nd Floor West Tower, Maud Street, Nelson Mandela Square Sandton, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/RB-Properties"
+    },
+    {
+      "name": "refresh realty",
+      "website": null,
+      "address": "11 Aronby Court, 42 Hopkins Street, Yeoville Johannesburg, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/refresh-realty"
+    },
+    {
+      "name": "Ekhaya Accomodation And Properties",
+      "website": null,
+      "address": null,
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ekhaya-Accomodation-And-Properties"
+    },
+    {
+      "name": "INFOMATEC EXCELLENCE",
+      "website": null,
+      "address": "153 Frances Street, Delaray Bellevue East, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/INFOMATEC-EXCELLENCE"
+    },
+    {
+      "name": "Silver Soltion 3039 cc",
+      "website": null,
+      "address": "14 Mimosa Crescent, Mimosa Village Belhar, Western Cape",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Silver-Soltion-3039-cc"
+    },
+    {
+      "name": "Platinum Global",
+      "website": null,
+      "address": "158 Zastron Street, Westdene Bloemfontein, Free State",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Platinum-Global"
+    },
+    {
+      "name": "proplegal",
+      "website": null,
+      "address": "Suite 5, 1024, Saxby Avenue, Eldoraigne Centurion, Gauteng",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/proplegal"
+    },
+    {
+      "name": "Rent-A-Property (Northern Suburbs)",
+      "website": null,
+      "address": "21 Alef Street, Elishua Villas, Sonstraalheights Durbanville, Western Cape",
+      "page": 4,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rent-A-Property-Northern-Suburbs"
+    },
+    {
+      "name": "Castlehill Trading 429 CC",
+      "website": null,
+      "address": "19 Hawthorn Crescent, Thornton Thornton, Western Cape",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Castlehill-Trading-429-CC"
+    },
+    {
+      "name": "C R A Valuation Services",
+      "website": null,
+      "address": "5 Permanent Road, Atlasville Boksburg, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/C-R-A-Valuation-Services"
+    },
+    {
+      "name": "Best Rock Investments",
+      "website": null,
+      "address": "Pretoria, Johannesburg, London California , Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Best-Rock-Investments"
+    },
+    {
+      "name": "PC and H Botha Construction Claims Cons…",
+      "website": null,
+      "address": "103 Club Avenue Waterkloof Heights, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/PC-and-H-Botha-Construction-Claims-Consultants-And-Arbitrato"
+    },
+    {
+      "name": "Thinus Pretorius Groep BK",
+      "website": null,
+      "address": "P.o.box 781 Vredenburg, Western Cape",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Thinus-Pretorius-Groep-BK"
+    },
+    {
+      "name": "Megatour Computer Systems",
+      "website": null,
+      "address": "19 Currey Street Boksburg, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Megatour-Computer-Systems"
+    },
+    {
+      "name": "Terra Dominium (Pty) Ltd",
+      "website": null,
+      "address": "200 Nelson Mandela Drive Bloemfontein, Free State",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Terra-Dominium"
+    },
+    {
+      "name": "Ripple Effect Property Management",
+      "website": null,
+      "address": "13 Malmesbury Road, Welgelegen, Parow Bellville, Western Cape",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ripple-Effect-Property-Management"
+    },
+    {
+      "name": "H and M Property Management",
+      "website": null,
+      "address": "33, Palala Road Wilro Park, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/H-and-M-Property-Management"
+    },
+    {
+      "name": "Semenya Property Holdings",
+      "website": null,
+      "address": "53 Pyramid Road, Eden Glen Ext 21 Edenvale, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Semenya-Property-Holdings"
+    },
+    {
+      "name": "OJO PROPERTY MANAGEMENT SERVICES",
+      "website": null,
+      "address": "Blinkblaarstr Wonderboom, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/OJO-PROPERTY-MANAGEMENT-SERVICES"
+    },
+    {
+      "name": "grofo properties",
+      "website": null,
+      "address": null,
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/grofo-properties"
+    },
+    {
+      "name": "beetha properties cc",
+      "website": null,
+      "address": "Shop 1a, 56 Nelson Mandela Drive Rustenburg, North West Province",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/beetha-properties-cc"
+    },
+    {
+      "name": "Prop T Marketing",
+      "website": null,
+      "address": "273 Milner Street, Waterkloof Pretoria, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Prop-T-Marketing"
+    },
+    {
+      "name": "Mabuse Construction",
+      "website": null,
+      "address": "14 Kameeldoring Street Akasia Pretoria, Gauteng",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mabuse-Construction"
+    },
+    {
+      "name": "Phakisa Seamless Gutters",
+      "website": null,
+      "address": "36 Naude Street Bethlehem, Free State",
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Phakisa-Seamless-Gutters"
+    },
+    {
+      "name": "FSN Real Estates",
+      "website": null,
+      "address": null,
+      "page": 6,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/FSN-Real-Estates"
+    },
+    {
+      "name": "Sense Insurance Brokers CC",
+      "website": null,
+      "address": "188 Beach Road Strand, Western Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sense-Insurance-Brokers-CC"
+    },
+    {
+      "name": "M Caisley Properties cc",
+      "website": null,
+      "address": null,
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/M-Caisley-Properties-cc"
+    },
+    {
+      "name": "Unique Property Solutions",
+      "website": null,
+      "address": "526 Saliehout Street, Sinoville Pretoria North, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Unique-Property-Solutions"
+    },
+    {
+      "name": "Equipsec Property Management",
+      "website": null,
+      "address": "Benoni, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Equipsec-Property-Management"
+    },
+    {
+      "name": "Mellow Africa Properties",
+      "website": null,
+      "address": "305 Juliana Court, 4 Princess Place Parktown, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mellow-Africa-Properties"
+    },
+    {
+      "name": "Fred Reynolds Estate Agency",
+      "website": null,
+      "address": "4 8th Street, North, Caray House Springs, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fred-Reynolds-Estate-Agency"
+    },
+    {
+      "name": "certified document couriers",
+      "website": null,
+      "address": "987a Sovereign Street Wilgeheuwel, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/certified-document-couriers"
+    },
+    {
+      "name": "BARCLAYS ESTATE AND PROPERTY MANAGEMENT",
+      "website": null,
+      "address": "Boom Street, Boom Street, Boom Street Rustenburg, North West Province",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BARCLAYS-ESTATE-AND-PROPERTY-MANAGEMENT"
+    },
+    {
+      "name": "VISTA DISTRIBUTION",
+      "website": null,
+      "address": "Eersterivier, Western Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/VISTA-DISTRIBUTION"
+    },
+    {
+      "name": "Exclusive Home Owner&#39;s Management",
+      "website": null,
+      "address": "Kerk Str. 48, Brits, 0250 Brits, North West Province",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Exclusive-Home-Owners-Management"
+    },
+    {
+      "name": "Mico Plumbing",
+      "website": null,
+      "address": "P.o.box 743 Oudtshoorn, Western Cape",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mico-Plumbing"
+    },
+    {
+      "name": "Coral Facilities Management (Pty) Ltd",
+      "website": null,
+      "address": "1st Floor, Coral House, 20 Peter Place, Lyme Park Sandton, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Coral-Facilities-Management"
+    },
+    {
+      "name": "@ THE HOME SHOP",
+      "website": null,
+      "address": "Koedoe 128, Eldoraigne Centurion, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/THE-HOME-SHOP"
+    },
+    {
+      "name": "Lifestyle Management",
+      "website": null,
+      "address": "39a Mooney Cres, Irene View Estate, Highveld Park Highveld Park, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lifestyle-Management"
+    },
+    {
+      "name": "CRESCENT REAL ESTATE",
+      "website": null,
+      "address": "29 Mercury Street Mayfair West, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/CRESCENT-REAL-ESTATE"
+    },
+    {
+      "name": "Garnett Adams Management Consultants Pt…",
+      "website": null,
+      "address": "Unit 5a Waterford Court, 141 Rabie Street Lyttelton, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Garnett-Adams-Management-Consultants"
+    },
+    {
+      "name": "Dam View Properties",
+      "website": null,
+      "address": "Rietbok Street, Theresapark Pretoria North, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dam-View-Properties"
+    },
+    {
+      "name": "RUBY STAR CONSTRUCTION",
+      "website": null,
+      "address": "42 Andries Street, Wynberg, Sandton Johannesburg, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/RUBY-STAR-CONSTRUCTION"
+    },
+    {
+      "name": "Harry Griessel Properties",
+      "website": null,
+      "address": "3 Holmdene Road South Hills Johannesburg, Gauteng",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Harry-Griessel-Properties"
+    },
+    {
+      "name": "SA Country Properties",
+      "website": null,
+      "address": "Elgin Valley Centre Cnr N2 & Main Road Grabouw, Western Cape",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Country-Properties"
+    },
+    {
+      "name": "A-TECH HOME LOANS",
+      "website": null,
+      "address": "12 ANDY PORTER KUILSRIVER Cape Town, Western Cape",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-TECH-HOME-LOANS"
+    },
+    {
+      "name": "NID Valuators",
+      "website": null,
+      "address": "Unit 9, 87 Kellner Street, Westdene Bloemfontein, Free State",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/NID-Valuators"
+    },
+    {
+      "name": "SEBO - Dry Carpet Cleaning",
+      "website": null,
+      "address": "21 Alef Street Elishua Villas Sonstraal Heights Durbanville, Western Cape",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SEBO-Dry-Carpet-Cleaning"
+    },
+    {
+      "name": "Reposalive",
+      "website": null,
+      "address": "Johannesburg, Gauteng",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Reposalive"
+    },
+    {
+      "name": "SMART HOMES",
+      "website": null,
+      "address": "POTGIETER STREET SUIDEROORD JHB, Gauteng",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SMART-HOMES_539221"
+    },
+    {
+      "name": "Al-Mar Property Rentals",
+      "website": null,
+      "address": "24a Sysielaan Rustenburg, North West Province",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Al-Mar-Property-Rentals"
+    },
+    {
+      "name": "RPM Executive Management",
+      "website": null,
+      "address": "Fourways Bryanston, Gauteng",
+      "page": 11,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/RPM-Executive-Management"
+    },
+    {
+      "name": "One stop property shop",
+      "website": null,
+      "address": "Pretoria, Gauteng",
+      "page": 11,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/One-stop-property-shop"
+    },
+    {
+      "name": "Oakwood Property Management",
+      "website": null,
+      "address": null,
+      "page": 11,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Oakwood-Property-Management_553729"
+    },
+    {
+      "name": "Nabster Investments",
+      "website": null,
+      "address": "14 Bonanza street, Selby Ext 19 Johannesburg Selby Ext 19, Gauteng",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nabster-Investments"
+    },
+    {
+      "name": "Nthapeng General Trading cc",
+      "website": null,
+      "address": "185 Asemblies Street Tzaneen, Limpopo",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nthapeng-General-Trading-cc"
+    },
+    {
+      "name": "Mhambi Property Developments",
+      "website": null,
+      "address": "275 Pongola River Drive Birch Acres x1, Gauteng",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mhambi-Property-Developments_859227"
+    },
+    {
+      "name": "Kenli Consulting",
+      "website": null,
+      "address": "Pretoria , Gauteng",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kenli-Consulting"
+    },
+    {
+      "name": "BROOKS AND MICHAELS",
+      "website": null,
+      "address": "333 MAIN RD Cape Town, Western Cape",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BROOKS-AND-MICHAELS"
+    },
+    {
+      "name": "Shenzi Properties",
+      "website": null,
+      "address": "Unit 1 Aimee Lodge Randburg, Gauteng",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shenzi-Properties"
+    },
+    {
+      "name": "ENGEL AND VOLKER",
+      "website": null,
+      "address": "27 Main Street Cape Town, Western Cape",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ENGEL-AND-VOLKER"
+    },
+    {
+      "name": "Staybond E C",
+      "website": null,
+      "address": "706 Main Street North End Port Elizabeth, Eastern Cape",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Staybond-E-C"
+    },
+    {
+      "name": "BOPHUTHATSWANA FURNISHERS",
+      "website": null,
+      "address": "Bus 176 Brits",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BOPHUTHATSWANA-FURNISHERS"
+    },
+    {
+      "name": "World Construction",
+      "website": null,
+      "address": "207 Illovo Cnt 204 Oxford Rd Illovo Johannesburg, Gauteng",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/World-Construction"
+    },
+    {
+      "name": "Sanroc Investments",
+      "website": null,
+      "address": "22 Jan Smuts Road Springs, Gauteng",
+      "page": 12,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sanroc-Investments"
+    },
+    {
+      "name": "Aviation Direct",
+      "website": null,
+      "address": "No 13 Sandton View Swappen Drive Johannesburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aviation-Direct"
+    },
+    {
+      "name": "Lobola Property Developers",
+      "website": null,
+      "address": "Second Floor Sanlam Building Umtata, Eastern Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lobola-Property-Developers"
+    },
+    {
+      "name": "Becker Sands Property Management",
+      "website": null,
+      "address": "36 East Road Morningside",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Becker-Sands-Property-Management"
+    },
+    {
+      "name": "Heartland Leasing",
+      "website": null,
+      "address": "1 DICKENS RD AMANZIMTOTI, KwaZulu Natal",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Heartland-Leasing"
+    },
+    {
+      "name": "Razor Property Developers",
+      "website": null,
+      "address": "Number 162 Wetton Road Wetton",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Razor-Property-Developers"
+    },
+    {
+      "name": "Solutio Business And Personal Brokers",
+      "website": null,
+      "address": "34 BOUVARDIA AV PRETORIA, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Solutio-Business-And-Personal-Brokers"
+    },
+    {
+      "name": "Solomon Brothers Property Holdings",
+      "website": null,
+      "address": "Paint House Suite, The Promenade Victoria Road Cape Town, Western Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Solomon-Brothers-Property-Holdings"
+    },
+    {
+      "name": "Goldfields Importers And Exporters",
+      "website": null,
+      "address": "4 Van Lingen St Industries East Germiston, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Goldfields-Importers-And-Exporters"
+    },
+    {
+      "name": "Makucace Property Developers",
+      "website": null,
+      "address": "23235 Nu 12 B Port Elizabeth, Eastern Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Makucace-Property-Developers"
+    },
+    {
+      "name": "Zwavelpoort Farm 373 Jr",
+      "website": null,
+      "address": "692 B Rhodes St Pretoria, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zwavelpoort-Farm-373-Jr"
+    },
+    {
+      "name": "Deyzel And Deyzel Property Developers",
+      "website": null,
+      "address": "Lynette Plek 2 Uitenhage, Eastern Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Deyzel-And-Deyzel-Property-Developers"
+    },
+    {
+      "name": "Chalupsky Properties",
+      "website": null,
+      "address": "No 8 Nonoti Road Durban, Kwazulu-natal",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chalupsky-Properties"
+    },
+    {
+      "name": "Jurassic Park Investments",
+      "website": null,
+      "address": "3 Dayan Street Alberton, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jurassic-Park-Investments"
+    },
+    {
+      "name": "Provestor One Hundred And Eleven",
+      "website": null,
+      "address": "39 Tokai Rd Cape Town, Western Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Provestor-One-Hundred-And-Eleven"
+    },
+    {
+      "name": "Marshalls Internal",
+      "website": null,
+      "address": "11 SUNBURY PARK UMHLANGA ROCKS, KwaZulu Natal",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marshalls-Internal"
+    },
+    {
+      "name": "H T Property Management",
+      "website": null,
+      "address": "8 GEELHOUT RANDPARK RIDGE 19 KAREE ST RANDBURG, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/H-T-Property-Management"
+    },
+    {
+      "name": "GOLF COURSE HOTEL",
+      "website": null,
+      "address": "St Michaels On Sea Uvongo, KwaZulu Natal",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/GOLF-COURSE-HOTEL"
+    },
+    {
+      "name": "Alf Dix And Co Natal",
+      "website": null,
+      "address": "10 Somme St Howick, KwaZulu Natal",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alf-Dix-And-Co-Natal"
+    },
+    {
+      "name": "Contact Investments",
+      "website": null,
+      "address": "9th Fl Samro Bldg De Beer Johannesburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Contact-Investments"
+    },
+    {
+      "name": "Enya&#39;s Coffee House",
+      "website": null,
+      "address": "Office 7 Somerset West, Western Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Enyas-Coffee-House"
+    },
+    {
+      "name": "Andeep Investment",
+      "website": null,
+      "address": "11 Broadlands Rosebank, Western Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Andeep-Investment"
+    },
+    {
+      "name": "Weemac Mansions",
+      "website": null,
+      "address": "Colette Court Hillbrow Johannesburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Weemac-Mansions"
+    },
+    {
+      "name": "Castle Estate Agency",
+      "website": null,
+      "address": "23 Malata Beach, 65 Coral Road Cape Town, Western Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Castle-Estate-Agency"
+    },
+    {
+      "name": "Dolphin Repairs And Services",
+      "website": null,
+      "address": "101 Broadway Cntr Cape Town, Western Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dolphin-Repairs-And-Services"
+    },
+    {
+      "name": "David Newham Property Management",
+      "website": null,
+      "address": "51 Durban Road Cape Town, Western Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/David-Newham-Property-Management"
+    },
+    {
+      "name": "Manza Agents",
+      "website": null,
+      "address": "1 Long Street Kempton Park, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Manza-Agents"
+    },
+    {
+      "name": "ATTLAN LEASING AND INVESTMENTS CO",
+      "website": null,
+      "address": "106 Berea Road Durban",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ATTLAN-LEASING-AND-INVESTMENTS"
+    },
+    {
+      "name": "Dely And De Kock",
+      "website": null,
+      "address": "138 Du Toit T Pretoria",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dely-And-De-Kock"
+    },
+    {
+      "name": "SHACKMAN BROTHERS 1975",
+      "website": null,
+      "address": "2nd Fl 12 Baker St Rosebank Johannesburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SHACKMAN-BROTHERS-1975"
+    },
+    {
+      "name": "Page Properties",
+      "website": null,
+      "address": "29 Summt Road Beaken Bay East London, Eastern Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Page-Properties"
+    },
+    {
+      "name": "METBOARD FINANCIAL PLANNING SERVICES",
+      "website": null,
+      "address": "55 Fox Street",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/METBOARD-FINANCIAL-PLANNING-SERVICES"
+    },
+    {
+      "name": "Leymanni Property Investments",
+      "website": null,
+      "address": "511 Charles Street Menlo Park, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Leymanni-Property-Investments"
+    },
+    {
+      "name": "Elaine Cowley Property Management",
+      "website": null,
+      "address": "Six Glenhove Road Melrose Estate",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Elaine-Cowley-Property-Management"
+    },
+    {
+      "name": "Griffin Developments",
+      "website": null,
+      "address": "27 Meyer St Johannesburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Griffin-Developments"
+    },
+    {
+      "name": "Mcnaughton And Ellis Property Holdings",
+      "website": null,
+      "address": "30 Pickering Street Port Elizabeth, Eastern Cape",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mcnaughton-And-Ellis-Property-Holdings"
+    },
+    {
+      "name": "Main Street 154",
+      "website": null,
+      "address": "156 Kleine Street New Muckleneuk, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Main-Street-154"
+    },
+    {
+      "name": "Mcmillan&#39;s Property Management",
+      "website": null,
+      "address": "105 Club Avenue Waterkloof Heights, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mcmillans-Property-Management"
+    },
+    {
+      "name": "Waz Props",
+      "website": null,
+      "address": "Unilong House Cnr Georginia/paul Kruger Street Roodepoort, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Waz-Props"
+    },
+    {
+      "name": "PROSPECTA MAAKELAARS",
+      "website": null,
+      "address": "26 Nicholane Ave Ruiterhoff Randburg, Gauteng",
+      "page": 13,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/PROSPECTA-MAAKELAARS"
+    },
+    {
+      "name": "Diggers Property Management",
+      "website": null,
+      "address": null,
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Diggers-Property-Management"
+    },
+    {
+      "name": "Dainfern Property 1414",
+      "website": null,
+      "address": "5 Palmetto Close Centurion Golf Estate, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dainfern-Property-1414"
+    },
+    {
+      "name": "Gradwells Real Estate Management",
+      "website": null,
+      "address": "3 LENNOX ST Johannesburg, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gradwells-Real-Estate-Management"
+    },
+    {
+      "name": "Mini Developments",
+      "website": null,
+      "address": "De Villiersstraat 40 Trichardt, Mpumalanga",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mini-Developments"
+    },
+    {
+      "name": "Clive Parkes Real Estate",
+      "website": null,
+      "address": "1005 Sanlam Golden Acre Adderley St Cape Town, Western Cape",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Clive-Parkes-Real-Estate"
+    },
+    {
+      "name": "Hampstead Erf 1197",
+      "website": null,
+      "address": "1147 Aspen Drive Hampstead Village Randburg, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hampstead-Erf-1197"
+    },
+    {
+      "name": "MONTAGUE HOMES",
+      "website": null,
+      "address": "Cedar Ave & Cedar Lake Blovd Johannesburg, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MONTAGUE-HOMES"
+    },
+    {
+      "name": "BONNIN&#39;S ESTATES",
+      "website": null,
+      "address": "17 Mackewstan Avenue Durban",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BONNINs-ESTATES"
+    },
+    {
+      "name": "Marriott Property Services",
+      "website": null,
+      "address": "321 SMITH ST DURBAN, KwaZulu Natal",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marriott-Property-Services"
+    },
+    {
+      "name": "Dexter Finance",
+      "website": null,
+      "address": "Eden 8 Pison St 22 Stellenbosch, Western Cape",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dexter-Finance"
+    },
+    {
+      "name": "ICKINGA",
+      "website": null,
+      "address": "28 Danie Joubert Street Tzaneen, Limpopo",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ICKINGA"
+    },
+    {
+      "name": "Star Enterprises",
+      "website": null,
+      "address": "3 Premier Ave, Windsor",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Star-Enterprises"
+    },
+    {
+      "name": "Bjl Chelcor",
+      "website": null,
+      "address": "29 Nancy Road Bryanston, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bjl-Chelcor"
+    },
+    {
+      "name": "Dockel Sibanda And Associates",
+      "website": null,
+      "address": "Washingtonstraat 7 Bellville, Western Cape",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dockel-Sibanda-And-Associates"
+    },
+    {
+      "name": "Van Heese Investments",
+      "website": null,
+      "address": "14 Karee Av Pietersburg, Limpopo",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Van-Heese-Investments"
+    },
+    {
+      "name": "WIMPY WELKOM",
+      "website": null,
+      "address": "Cnr 12 & 13 Street Welkom, Free State",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/WIMPY-WELKOM"
+    },
+    {
+      "name": "Gearwise Properties",
+      "website": null,
+      "address": "LOT 405, SIMBITHI AVENUE TONGAAT, KwaZulu Natal",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gearwise-Properties"
+    },
+    {
+      "name": "Lancaster Finance",
+      "website": null,
+      "address": "115 High St Vryheid",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lancaster-Finance"
+    },
+    {
+      "name": "Uts Property Management",
+      "website": null,
+      "address": "16 Paardekraal Drive Krugersdorp",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Uts-Property-Management"
+    },
+    {
+      "name": "Seldenrod Property Holdings",
+      "website": null,
+      "address": "2 Adelaide Road Plumstead, Western Cape",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Seldenrod-Property-Holdings"
+    },
+    {
+      "name": "Wasp Properties",
+      "website": null,
+      "address": "4 LANEANTER STREET",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wasp-Properties"
+    },
+    {
+      "name": "Galpin Brothers Enterprises",
+      "website": null,
+      "address": "22 Grey St Adelaide, Eastern Cape",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Galpin-Brothers-Enterprises"
+    },
+    {
+      "name": "Lib Construction And Property Developers",
+      "website": null,
+      "address": "First Floor 119 Witch Hazel Ave Hazel Park Centurion, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lib-Construction-And-Property-Developers"
+    },
+    {
+      "name": "B Z Building Contractors And Property D…",
+      "website": null,
+      "address": "33583 Hlula Street Khayelitsha, Western Cape",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/B-Z-Building-Contractors-And-Property-Developers"
+    },
+    {
+      "name": "Erf 1649 Delmas",
+      "website": null,
+      "address": "Conanstraat 689 Moreletapark, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Erf-1649-Delmas"
+    },
+    {
+      "name": "60 Aruba",
+      "website": null,
+      "address": "Suite 5-9 Frosterley Park La Lucia",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/60-Aruba"
+    },
+    {
+      "name": "HABITAT TWEE DUISEND",
+      "website": null,
+      "address": "Shop 33 Sinoville Centre,119 Brac Avenue",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/HABITAT-TWEE-DUISEND"
+    },
+    {
+      "name": "Njmh Ontwikkeling",
+      "website": null,
+      "address": "Tuinstraat 15 Malmesbury, Western Cape",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Njmh-Ontwikkeling"
+    },
+    {
+      "name": "64 Aruba",
+      "website": null,
+      "address": "11a Berkeley Cres Durban, Kwazulu-natal",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/64-Aruba"
+    },
+    {
+      "name": "Panino Properties",
+      "website": null,
+      "address": "2 Jones St Kimberley, Northern Cape",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Panino-Properties"
+    },
+    {
+      "name": "Property Management Services",
+      "website": null,
+      "address": "Russell St Durban",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Property-Management-Services"
+    },
+    {
+      "name": "Tzaneen Staal Industriee",
+      "website": null,
+      "address": "6 Duikerlaan Tzaneen",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tzaneen-Staal-Industriee"
+    },
+    {
+      "name": "Oakwood Ventures",
+      "website": null,
+      "address": "28 2nd Avenue Johannesburg, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Oakwood-Ventures"
+    },
+    {
+      "name": "Bouprok Eiendomme",
+      "website": null,
+      "address": "22 Hans Van Rensburg Street Naboomspruit",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bouprok-Eiendomme"
+    },
+    {
+      "name": "V C L INVESTMENTS",
+      "website": null,
+      "address": "Park Central King George St Killarney Johannesburg, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/V-C-L-INVESTMENTS"
+    },
+    {
+      "name": "BETTA PROPERTIES",
+      "website": null,
+      "address": "L 36 Eastgate Shopping Centre Bedfordview",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BETTA-PROPERTIES"
+    },
+    {
+      "name": "Ngenekhaya Property Developers",
+      "website": null,
+      "address": "34 Jellicoe Street Witbank, Mpumalanga",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ngenekhaya-Property-Developers"
+    },
+    {
+      "name": "Glo Realty",
+      "website": null,
+      "address": "293 Anderson Street Pretoria, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Glo-Realty"
+    },
+    {
+      "name": "D N T Estate Agency",
+      "website": null,
+      "address": "4th Fl 413 Game Cnt 396 West St Durban",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/D-N-T-Estate-Agency"
+    },
+    {
+      "name": "MIMOSA FASHIONS",
+      "website": null,
+      "address": "7 MOGUL ST PRETORIA WEST, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MIMOSA-FASHIONS"
+    },
+    {
+      "name": "TOWNHOUSE INDUSTRIAL DEVELOPERS",
+      "website": null,
+      "address": "9 Koorsboom Street",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/TOWNHOUSE-INDUSTRIAL-DEVELOPERS"
+    },
+    {
+      "name": "Lew Geffen Estates",
+      "website": null,
+      "address": "366 Jan Smuts Ave Johannesburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lew-Geffen-Estates"
+    },
+    {
+      "name": "Ipg Property Trading And Development",
+      "website": null,
+      "address": "162 Anderson Str Johannesburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ipg-Property-Trading-And-Development"
+    },
+    {
+      "name": "Kasle Properties",
+      "website": null,
+      "address": "1st Floor Midrand City Shopping Centre Halfway House",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kasle-Properties"
+    },
+    {
+      "name": "Makana Property Developers",
+      "website": null,
+      "address": "Third Floor Murray House Cape Town, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Makana-Property-Developers"
+    },
+    {
+      "name": "Aegis Building",
+      "website": null,
+      "address": "34 Loveday St Johannesburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aegis-Building"
+    },
+    {
+      "name": "Cerulean Properties",
+      "website": null,
+      "address": "21 Girton Road Parktown",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cerulean-Properties"
+    },
+    {
+      "name": "Summerplace Properties",
+      "website": null,
+      "address": "139 6th St Wynberg Germiston, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Summerplace-Properties"
+    },
+    {
+      "name": "J A Durr Trust",
+      "website": null,
+      "address": "Stanhope Cnt Main Rd Claremont, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/J-A-Durr-Trust"
+    },
+    {
+      "name": "Greenhart Share Block",
+      "website": null,
+      "address": "LOT 865 HOULTEN DR PORT EDWARD, KwaZulu Natal",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Greenhart-Share-Block"
+    },
+    {
+      "name": "Trer Bha Holdings",
+      "website": null,
+      "address": "P.o.box 3268 Durban",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Trer-Bha-Holdings"
+    },
+    {
+      "name": "Jjvz De Villiers Properties",
+      "website": null,
+      "address": "670 Jacqueline Drive Garsfontein, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jjvz-De-Villiers-Properties"
+    },
+    {
+      "name": "SEAVIEW CENTRE",
+      "website": null,
+      "address": "S K B Midtown Park 1 Sherbourne Road Parktown",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SEAVIEW-CENTRE"
+    },
+    {
+      "name": "Real Estate Investment Group",
+      "website": null,
+      "address": "6th Fl 11 Diagonal Str Johannesburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Real-Estate-Investment-Group"
+    },
+    {
+      "name": "Collprop Kwazulu-natal",
+      "website": null,
+      "address": "17 Deby Place, Derby Downs Office Park Durban",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Collprop-Kwazulu-natal"
+    },
+    {
+      "name": "Northlands Group Holdings",
+      "website": null,
+      "address": "308 Phidias Centre Edenvale, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Northlands-Group-Holdings"
+    },
+    {
+      "name": "Efcon Consolidated Investments",
+      "website": null,
+      "address": "36 Pallinghurst Rd Johannesburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Efcon-Consolidated-Investments"
+    },
+    {
+      "name": "Willow Park Estates",
+      "website": null,
+      "address": "Plot 101 Pretoria",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Willow-Park-Estates"
+    },
+    {
+      "name": "T And R Investments",
+      "website": null,
+      "address": "3rd Flr Argent Hse Cnr Loveday & Kay Sts Johannesburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/T-And-R-Investments"
+    },
+    {
+      "name": "Cabana Marketing",
+      "website": null,
+      "address": "6 Kelvin Str Spartan",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cabana-Marketing"
+    },
+    {
+      "name": "Mad Prop",
+      "website": null,
+      "address": "22 B Church Street Durbanville, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mad-Prop"
+    },
+    {
+      "name": "Gt And Vl Property Developers",
+      "website": null,
+      "address": "15 York St Johannesburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gt-And-Vl-Property-Developers"
+    },
+    {
+      "name": "Ninety Nine Investments",
+      "website": null,
+      "address": "Coldkott And Co 158 Main Street, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ninety-Nine-Investments"
+    },
+    {
+      "name": "H Grant And Stracey",
+      "website": null,
+      "address": "23 Oxford St Durbanville, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/H-Grant-And-Stracey"
+    },
+    {
+      "name": "G K BREED",
+      "website": null,
+      "address": "21 1st Av Bloemfontein, Free State",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/G-K-BREED"
+    },
+    {
+      "name": "BROLL REAL ESTATE",
+      "website": null,
+      "address": "14th Floor The Terraces, 34 Bree Street Cape Town, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BROLL-REAL-ESTATE"
+    },
+    {
+      "name": "Southern Homes",
+      "website": null,
+      "address": "93 Station Rd Observatory",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Southern-Homes"
+    },
+    {
+      "name": "Powerprop 205",
+      "website": null,
+      "address": "First Floor Block D Belvedere Office Park Bellville, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Powerprop-205"
+    },
+    {
+      "name": "Mcrad Property Management",
+      "website": null,
+      "address": "12 St Giles Streert Randburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mcrad-Property-Management"
+    },
+    {
+      "name": "Marina Palms",
+      "website": null,
+      "address": "Marine Drive Margate, Kwazulu-natal",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marina-Palms"
+    },
+    {
+      "name": "Peetco Property Developers",
+      "website": null,
+      "address": "Oliviastraat 1 Oakglen",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Peetco-Property-Developers"
+    },
+    {
+      "name": "Real Estate And Property Services",
+      "website": null,
+      "address": "41 FOURTEENTH ST Johannesburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Real-Estate-And-Property-Services"
+    },
+    {
+      "name": "Hummingbird Property And Management Ser…",
+      "website": null,
+      "address": "34 Cadoza St Johannesburg, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hummingbird-Property-And-Management-Services"
+    },
+    {
+      "name": "D Taylor Property Developers",
+      "website": null,
+      "address": "Lentelus Riebeeck Street Prince Alfred Hamlet, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/D-Taylor-Property-Developers"
+    },
+    {
+      "name": "Prosam Property Developers",
+      "website": null,
+      "address": "Second Floor Suite 12 Bayview House Point",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Prosam-Property-Developers"
+    },
+    {
+      "name": "Siyaya Property Developers",
+      "website": null,
+      "address": "Clark Street 189 Pretoria, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Siyaya-Property-Developers"
+    },
+    {
+      "name": "M O D STORES ESTATES",
+      "website": null,
+      "address": "373 Polaris Street Waterkloof Pretoria, Gauteng",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/M-O-D-STORES-ESTATES"
+    },
+    {
+      "name": "Marten And Associates",
+      "website": null,
+      "address": "1207 Golden Acre Cape Town, Western Cape",
+      "page": 15,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marten-And-Associates"
+    },
+    {
+      "name": "Parker Victor Estates",
+      "website": null,
+      "address": "Portion17 Boshikop Farm Nelspruit, Mpumalanga",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Parker-Victor-Estates"
+    },
+    {
+      "name": "Angor Financial Services",
+      "website": null,
+      "address": "Epson Down Off Pr, Lincton House, Slone Stret Johannesburg, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Angor-Financial-Services"
+    },
+    {
+      "name": "Wedgewood Communications",
+      "website": null,
+      "address": "168 Rivonia Road Johannesburg, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wedgewood-Communications"
+    },
+    {
+      "name": "C B Richard Ellis",
+      "website": null,
+      "address": "Broll House, 27 Fricker Road Johannesburg, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/C-B-Richard-Ellis"
+    },
+    {
+      "name": "Dollar Investments",
+      "website": null,
+      "address": "65 Station Rd Observatory",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dollar-Investments"
+    },
+    {
+      "name": "UNITY PROPERTY AND FINANCE",
+      "website": null,
+      "address": "406 Nedbank Centre Strand Street Cape Town, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/UNITY-PROPERTY-AND-FINANCE"
+    },
+    {
+      "name": "Syfrets Property Brokers",
+      "website": null,
+      "address": "24 Wale St Cape Town, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Syfrets-Property-Brokers"
+    },
+    {
+      "name": "Fabulous Bling",
+      "website": null,
+      "address": "14 Dale Lane Avenue Randparkridge, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fabulous-Bling"
+    },
+    {
+      "name": "Adel Property Developers",
+      "website": null,
+      "address": "Giddys Building Port Elizabeth, Eastern Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Adel-Property-Developers"
+    },
+    {
+      "name": "Sebilwane Property Developers And Const…",
+      "website": null,
+      "address": "922-3 Extension 4 Orange Farm, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sebilwane-Property-Developers-And-Construction"
+    },
+    {
+      "name": "Rabie Property Developers",
+      "website": null,
+      "address": "Plumpark, 25 Gabriel Road",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rabie-Property-Developers"
+    },
+    {
+      "name": "MONIS BUILDING",
+      "website": null,
+      "address": "Cnr Jeppe & Harrison St Johannesburg, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MONIS-BUILDING"
+    },
+    {
+      "name": "BENDAN BELEG",
+      "website": null,
+      "address": "515 Trichard Rd Boksburg North",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BENDAN-BELEG"
+    },
+    {
+      "name": "Mortimer Property Group",
+      "website": null,
+      "address": "2nd Fl Killarney Mall 60 Riviera Rd Killarney",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mortimer-Property-Group"
+    },
+    {
+      "name": "PAMODZI ENTERPRISES HOMES",
+      "website": null,
+      "address": "100 Parkwood Road Ormonde",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/PAMODZI-ENTERPRISES-HOMES"
+    },
+    {
+      "name": "Boitshepo Property Developers",
+      "website": null,
+      "address": "49a Merriman Avenue Vereeniging, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Boitshepo-Property-Developers"
+    },
+    {
+      "name": "Tepa Properties And Services",
+      "website": null,
+      "address": "191 Tsagae St Tshiawelo, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tepa-Properties-And-Services"
+    },
+    {
+      "name": "WAKEFIELDS ESTATE AGENTS",
+      "website": null,
+      "address": "Nr Porterfield Road & Marine Circle",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/WAKEFIELDS-ESTATE-AGENTS"
+    },
+    {
+      "name": "Quorum Managed Portfolios",
+      "website": null,
+      "address": "No 4 Albury Park Jan Smuts Avenue Hyde Park",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Quorum-Managed-Portfolios"
+    },
+    {
+      "name": "Street And Crouch Estate Agents",
+      "website": null,
+      "address": "24 Parkland Centre Commerical Road Pietermaritzburg",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Street-And-Crouch-Estate-Agents"
+    },
+    {
+      "name": "STYLE-LITE",
+      "website": null,
+      "address": "Kellner Street 61 Bloemfontein, Free State",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/STYLE-LITE"
+    },
+    {
+      "name": "Margatma Property Developers",
+      "website": null,
+      "address": "Koringpunt Bolahlakgomo Village",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Margatma-Property-Developers"
+    },
+    {
+      "name": "Westbourne Properties",
+      "website": null,
+      "address": "5 Ravenscraig Road Woodstock, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Westbourne-Properties"
+    },
+    {
+      "name": "Charlie Eiendomme",
+      "website": null,
+      "address": "481 Barry Hertzogavenue Waterkloof Glen Pretoria",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Charlie-Eiendomme"
+    },
+    {
+      "name": "City Property Administration",
+      "website": null,
+      "address": "Cpa Hse Pretoria, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/City-Property-Administration"
+    },
+    {
+      "name": "R J Ninja Property Developers",
+      "website": null,
+      "address": "76 Piers Road Spring, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/R-J-Ninja-Property-Developers"
+    },
+    {
+      "name": "Haja Development And Property Management",
+      "website": null,
+      "address": "Seventh Floor Cavendish Chambers Johannesburg, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Haja-Development-And-Property-Management"
+    },
+    {
+      "name": "Sage Properties",
+      "website": null,
+      "address": "3 GWEN LANE Johannesburg, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sage-Properties"
+    },
+    {
+      "name": "Matrix Projects",
+      "website": null,
+      "address": "23 ERNEST OPPENHEIMER DR Johannesburg, Gauteng",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Matrix-Projects"
+    },
+    {
+      "name": "Dixatha Realtor And Property Developers",
+      "website": null,
+      "address": "77 Watkey Street Bloemfontein, Free State",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dixatha-Realtor-And-Property-Developers"
+    },
+    {
+      "name": "Yangua Middeldrift",
+      "website": null,
+      "address": "Middeldrift Ceres, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Yangua-Middeldrift"
+    },
+    {
+      "name": "Brackenville Properties",
+      "website": null,
+      "address": "Du Toit Street Bellville, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Brackenville-Properties"
+    },
+    {
+      "name": "KIM",
+      "website": null,
+      "address": "64 Dennis Rd Atholhurst",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/KIM"
+    },
+    {
+      "name": "Moneri Property Developers",
+      "website": null,
+      "address": "Fifth Floor Nedbank Centre Nelspruit, Mpumalanga",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Moneri-Property-Developers"
+    },
+    {
+      "name": "Northcape Property Developers",
+      "website": null,
+      "address": "8a Highwick Drive Cape Town, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Northcape-Property-Developers"
+    },
+    {
+      "name": "Development Management Services",
+      "website": null,
+      "address": "Sunninghill Centre 97 Eddison Cres Sunninghill",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Development-Management-Services"
+    },
+    {
+      "name": "Mavek Eiendomme",
+      "website": null,
+      "address": "Stanfinsentrum Standerton, Mpumalanga",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mavek-Eiendomme"
+    },
+    {
+      "name": "Alto Business Park",
+      "website": null,
+      "address": "51 Crown Crescent Durbanville, Western Cape",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alto-Business-Park"
+    },
+    {
+      "name": "Jasco Investments",
+      "website": null,
+      "address": "Centex Office Park, Katherine Avenue",
+      "page": 16,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jasco-Investments"
+    },
+    {
+      "name": "The Property Managers",
+      "website": null,
+      "address": "1 Colombus, 15 Orchards Ave Johannesburg, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Property-Managers"
+    },
+    {
+      "name": "LE HOMES",
+      "website": null,
+      "address": "44 Monaheng Section P O Katlehong",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/LE-HOMES"
+    },
+    {
+      "name": "Misty Mountains Estates",
+      "website": null,
+      "address": "45 Lincoln Street Woodmead, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Misty-Mountains-Estates"
+    },
+    {
+      "name": "ZENEX MALVERN",
+      "website": null,
+      "address": "Shop 12 Klatina St Johannesburg, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ZENEX-MALVERN"
+    },
+    {
+      "name": "CITI ESTATE AGENTS &amp; BUSINESS BROKERS",
+      "website": null,
+      "address": "Suite 110 A A Hse 4 Rink Str Port Elizabeth, Eastern Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/CITI-ESTATE-AGENTS-BUSINESS-BROKERS"
+    },
+    {
+      "name": "Landmore Property Management Services",
+      "website": null,
+      "address": "Village Walk Off Prk 2nd Flr No 6 Maude Street Johannesburg, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Landmore-Property-Management-Services"
+    },
+    {
+      "name": "ALBERTON CITY MANAGEMENT",
+      "website": null,
+      "address": "66 Jorissen St Johannesburg, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ALBERTON-CITY-MANAGEMENT"
+    },
+    {
+      "name": "W S Designers And Estate Consultants",
+      "website": null,
+      "address": "186 Olivien St Ennerdale Ext 5 Vereeniging, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/W-S-Designers-And-Estate-Consultants"
+    },
+    {
+      "name": "SEACORE INVESTMENTS",
+      "website": null,
+      "address": "124 Upper Waterkant St Cape Town, Western Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SEACORE-INVESTMENTS"
+    },
+    {
+      "name": "Pam Golding International Holdings",
+      "website": null,
+      "address": "45 KENTON RD KENTON ON SEA, Eastern Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pam-Golding-International-Holdings"
+    },
+    {
+      "name": "Marina Da Gama Real Estate",
+      "website": null,
+      "address": "18 Dabchick Quay Marina Da Gama Muizenberg",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marina-Da-Gama-Real-Estate"
+    },
+    {
+      "name": "Normanstreet 16b Investments",
+      "website": null,
+      "address": "198 Langenhoven Street Pretoria, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Normanstreet-16b-Investments"
+    },
+    {
+      "name": "Development Group International Propert…",
+      "website": null,
+      "address": "22-7th Avenue Parktown North",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Development-Group-International-Property-Management-Services"
+    },
+    {
+      "name": "Bush Baron Property Developers",
+      "website": null,
+      "address": "26 Vincent Road East London, Eastern Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bush-Baron-Property-Developers"
+    },
+    {
+      "name": "Selected Projects Estates",
+      "website": null,
+      "address": "414 Nedbank Centre Jan Smuts Avenue Randburg, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Selected-Projects-Estates"
+    },
+    {
+      "name": "Argyle Farms",
+      "website": null,
+      "address": "301 Leopont Pretoria, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Argyle-Farms"
+    },
+    {
+      "name": "AIRLIE ESTATES",
+      "website": null,
+      "address": "31 Tudor Chambers Pretoria, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/AIRLIE-ESTATES"
+    },
+    {
+      "name": "Fenford Asset Holding And Leasing",
+      "website": null,
+      "address": "1 Telford St Vereeniging, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fenford-Asset-Holding-And-Leasing"
+    },
+    {
+      "name": "KWA ZULU NATAL RACING SERVICES",
+      "website": null,
+      "address": "Jb Mcintosh Drive, Summerveld Hillcrest, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/KWA-ZULU-NATAL-RACING-SERVICES"
+    },
+    {
+      "name": "Protea Land",
+      "website": null,
+      "address": "Protea Building 66 Edith Cavell Street Hillbrow, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Protea-Land"
+    },
+    {
+      "name": "Bokgoni Property Developers",
+      "website": null,
+      "address": "1635 Zone 1 Ga-rankuwa, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bokgoni-Property-Developers"
+    },
+    {
+      "name": "Cirrus Property",
+      "website": null,
+      "address": "7 Centuria Park Centurion, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cirrus-Property"
+    },
+    {
+      "name": "The Power Estate And Trust Company",
+      "website": null,
+      "address": "32 Brockett Street Vereeniging, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Power-Estate-And-Trust-Company"
+    },
+    {
+      "name": "Chase And Sons",
+      "website": null,
+      "address": "17 Kruger Avenue & Leslie Str Vereeniging, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chase-And-Sons"
+    },
+    {
+      "name": "Woltrac Consulting",
+      "website": null,
+      "address": "77 Milford Rd Edenvale, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Woltrac-Consulting"
+    },
+    {
+      "name": "MANITZER MANAGEMENT SERVICES",
+      "website": null,
+      "address": "43 Ladygrey Street Paarl, Western Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MANITZER-MANAGEMENT-SERVICES"
+    },
+    {
+      "name": "Graaff Reinet Properties",
+      "website": null,
+      "address": "18 Northwood Mayer Port Elizabeth, Eastern Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Graaff-Reinet-Properties"
+    },
+    {
+      "name": "Maglio Investment Holdings",
+      "website": null,
+      "address": "22 St Kitts Street Klipspruit West Extension 1, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maglio-Investment-Holdings"
+    },
+    {
+      "name": "29 Vredenburg Lane",
+      "website": null,
+      "address": "29 Vredenburg Lane Cape Town, Western Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/29-Vredenburg-Lane"
+    },
+    {
+      "name": "OASIS HOMES",
+      "website": null,
+      "address": "216 Rosmead Avenue Cape Town, Western Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/OASIS-HOMES"
+    },
+    {
+      "name": "Contax Dienste",
+      "website": null,
+      "address": "15 Station St Johannesburg, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Contax-Dienste"
+    },
+    {
+      "name": "N HODGE",
+      "website": null,
+      "address": "46 Caledon Street Somerset West, Western Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/N-HODGE"
+    },
+    {
+      "name": "Daituz Property Developers",
+      "website": null,
+      "address": "Number 3 Vukuthu Street Umtata, Eastern Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Daituz-Property-Developers"
+    },
+    {
+      "name": "Francardo Properties",
+      "website": null,
+      "address": "65a Paterson Street East London, Eastern Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Francardo-Properties"
+    },
+    {
+      "name": "Mooikuil Boerdery",
+      "website": null,
+      "address": "Mediese Sentrumgebou Kamer 306,kerkstraat 109 Klerksdorp, North West Province",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mooikuil-Boerdery"
+    },
+    {
+      "name": "Utshungu Property Developers",
+      "website": null,
+      "address": "33 Lower Mount Street King William's Town, Eastern Cape",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Utshungu-Property-Developers"
+    },
+    {
+      "name": "Stesnus Investmens",
+      "website": null,
+      "address": "17 Guildford Manor Douglasdale, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Stesnus-Investmens"
+    },
+    {
+      "name": "KETJEN COMMERCIAL",
+      "website": null,
+      "address": "Suite 5a Schoemna St Forum 1157 Schoeman Str Pretoria",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/KETJEN-COMMERCIAL"
+    },
+    {
+      "name": "Mathloko Property Developers",
+      "website": null,
+      "address": "2351 Zone 2 Ga-rankuwa, Gauteng",
+      "page": 17,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mathloko-Property-Developers"
+    }
+  ]
+}

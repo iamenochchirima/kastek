@@ -1,0 +1,2174 @@
+{
+  "category": "Hardware",
+  "count": 223,
+  "listings": [
+    {
+      "name": "Jarben Air",
+      "website": "https://www.jarben.co.za",
+      "address": "14 Malone Road Westmead, Kwazulu Natal",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jarben-Air"
+    },
+    {
+      "name": "Baywood Technologies",
+      "website": "https://www.baywood.co.za",
+      "address": "Po Box 1686, Wandsbeck Westville, Kwazulu Natal",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Baywood-Technologies"
+    },
+    {
+      "name": "Domain Junction IT Specialist",
+      "website": "https://www.domainjunction.co.za",
+      "address": "12 Rayton Place South Hills, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Domain-Junction-IT-Specialist"
+    },
+    {
+      "name": "Matrix Warehouse Computers Rustenburg",
+      "website": "https://www.matrixwarehousertb.co.za",
+      "address": "Matrix Warehouse Rustenburg, 70 Brinks Street, Rustenburg Rustenburg, North West",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Matrix-Warehouse-Computers-Rustenburg"
+    },
+    {
+      "name": "DataSec IT Solutions",
+      "website": "https://www.datasec.yolasite.com",
+      "address": "Vereeniging, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/DataSec-IT-Solutions"
+    },
+    {
+      "name": "Buchel Hardware an Operation of Iliad A…",
+      "website": "https://buchel.co.za",
+      "address": "Church Street 472, Arcadia Pretora, Gauteng",
+      "page": 1,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Buchel-Hardware-an-Operation-of-Iliad-Africa-Trading"
+    },
+    {
+      "name": "House of Cupboards",
+      "website": "https://www.houseofcupboards.co.za",
+      "address": "Unit 3 Eastgate Ext Business Park, 22-14th Street, Marlboro Sandton, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/House-of-Cupboards"
+    },
+    {
+      "name": "global selective equipment cc",
+      "website": "https://www.gseequipment.co.za",
+      "address": "H/q 295a Deco Park, 214 Newmarket Rd Northriding, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/global-selective-equipment-cc"
+    },
+    {
+      "name": "Anping Ankai Hardware Wire Mesh Product…",
+      "website": "https://webwiremesh.com",
+      "address": "Wire Mesh Industrial Park Durban, Free State",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Anping-Ankai-Hardware-Wire-Mesh-Products-Company"
+    },
+    {
+      "name": "InfoTek",
+      "website": "https://www.infotek.co.za",
+      "address": "56 Garcia Street, Cambridge East London, Eastern Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/InfoTek"
+    },
+    {
+      "name": "NACMTC SA PTY (Ltd)",
+      "website": "https://www.nacmtc.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/NACMTC-SA"
+    },
+    {
+      "name": "Evolva",
+      "website": "https://www.evolvadsl.co.za",
+      "address": "Greenacres Port Elizabeth, Eastern Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Evolva"
+    },
+    {
+      "name": "TechXperts",
+      "website": "https://www.incredible.co.za/StandardContentNewsReviews.aspx?ID=135",
+      "address": "Rivonia, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/TechXperts"
+    },
+    {
+      "name": "Ambrose Welders And Engineers",
+      "website": "https://www.ambrosesa.co.za",
+      "address": "12 Mordaunt St, Wolhuter Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ambrose-Welders-And-Engineers"
+    },
+    {
+      "name": "Kenmac Industries",
+      "website": "https://www.kenmac.co.za",
+      "address": "12 Brunton Circle Modderfontein, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kenmac-Industries"
+    },
+    {
+      "name": "TOPTILES",
+      "website": "https://www.toptiles.co.za",
+      "address": "101 Diamant Street, Klerksoord Rosslyn, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/TOPTILES"
+    },
+    {
+      "name": "Bridge Conferencing Solutions",
+      "website": "https://www.bridgeconference.co.za",
+      "address": null,
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bridge-Conferencing-Solutions"
+    },
+    {
+      "name": "E N Building Supplies",
+      "website": "https://www.enbuilding.co.za",
+      "address": "41 Wessels Avenue Ermelo, Mpumalanga",
+      "page": 3,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/E-N-Building-Supplies"
+    },
+    {
+      "name": "Griptite Fasteners",
+      "website": "https://www.griptite.co.za",
+      "address": "781 Umgeni Road Durban Durban, Kwazulu Natal",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Griptite-Fasteners"
+    },
+    {
+      "name": "Spectrum Building Supplies",
+      "website": "https://www.spectrumbuildingsupplies.co.za",
+      "address": "Chronium Street 10, Uraniaville Klerksdorp, North West Province",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Spectrum-Building-Supplies"
+    },
+    {
+      "name": "M C M Digital",
+      "website": "https://www.mcmdigital.co.za",
+      "address": "Tesla Close Sunninghill Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/M-C-M-Digital"
+    },
+    {
+      "name": "Lumber City Upington",
+      "website": "https://www.lumbercityupt.co.za",
+      "address": "Soutpanstr 10 Upington, Northern Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lumber-City-Upington"
+    },
+    {
+      "name": "Cinemart cc",
+      "website": "https://www.cinemart.co.za",
+      "address": "20a Ladbrook Str Kenwyn, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cinemart-cc"
+    },
+    {
+      "name": "U Deal Direct shopping store",
+      "website": "https://www.udealdirect.co.za",
+      "address": "P.o Box 8964 Johannesburg Gp2000 Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/U-Deal-Direct-shopping-store"
+    },
+    {
+      "name": "Mammoth Brick &amp; Block",
+      "website": "https://[email&#160;protected]",
+      "address": "18 Industria Rd Gordon's Bay, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mammoth-Brick-Block"
+    },
+    {
+      "name": "Gauteng Brick Centre",
+      "website": "https://[email&#160;protected]",
+      "address": "Jan Fiskaal Str, Randfontein Randfontein, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gauteng-Brick-Centre"
+    },
+    {
+      "name": "Launch Your Practice",
+      "website": "https://www.launchyourpractice.biz",
+      "address": "Unit 4 Hampstead Mews, Hampstead Road, Kenilworth Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Launch-Your-Practice"
+    },
+    {
+      "name": "KamJo Induistries cc",
+      "website": "https://www.kamjo.co.za",
+      "address": "P.o.box 1402, Wandsbeck Westville, Kwazulu-nata",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/KamJo-Induistries-cc"
+    },
+    {
+      "name": "Rabtron Electronics",
+      "website": "https://www.shop.rabtron.co.za",
+      "address": "72 Voortrekker Street Vereeniging, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rabtron-Electronics"
+    },
+    {
+      "name": "A R INDUSTRIAL SUPPLIES CC",
+      "website": "https://www.arindustrial.edx.co.za-www.arindustrialcatalogue.co.za",
+      "address": "Unit 10 Ohm St Industrial Park Kya Sands, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-R-INDUSTRIAL-SUPPLIES-CC"
+    },
+    {
+      "name": "Builders4u",
+      "website": "https://builders4u.point2agent.com",
+      "address": "Ipg House, Beyers Naude Drive Honeydew, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Builders4u"
+    },
+    {
+      "name": "Toolboys",
+      "website": "https://toolboys.web.officelive.com/default.aspx",
+      "address": "Rendell Street, Osborne Rd Wadeville, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Toolboys"
+    },
+    {
+      "name": "New Century Windows &amp; Doors",
+      "website": "https://www.ncwd.co.za",
+      "address": "Unit 2 , Grand Prix Park, Forssman Close, Barbeque Downs Kyalami, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/New-Century-Windows-Doors"
+    },
+    {
+      "name": "p.m.manufacturing",
+      "website": "https://www.pmmanufacturing.co.za",
+      "address": "6 Nelmapius Chamdor, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/p-m-manufacturing"
+    },
+    {
+      "name": "silverton bolt &amp; nut",
+      "website": "https://www.silvertonbolt.co.za",
+      "address": "485 Pretoria Road, Silverton Silverton, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/silverton-bolt-nut"
+    },
+    {
+      "name": "Bonny International",
+      "website": "https://www.bonnyint.com",
+      "address": "198a Trichardts St Boksburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bonny-International"
+    },
+    {
+      "name": "AUTOMATIC MASS PRODUCTION (PTY) LTD",
+      "website": "https://www.boltamp.co.za",
+      "address": "8 Arnold Street, Alrode Alberton, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/AUTOMATIC-MASS-PRODUCTION"
+    },
+    {
+      "name": "nesta building works",
+      "website": "https://nestabuildingworks.co.za",
+      "address": "18 Roselane, Rosedale Uitenhage, Eastern Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/nesta-building-works"
+    },
+    {
+      "name": "Barneys Paint Centre Fourways",
+      "website": "https://www.barneys.co.za",
+      "address": "Mulbarton, William Nicol Four Ways, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Barneys-Paint-Centre-Fourways"
+    },
+    {
+      "name": "India Bolt &amp; Nut",
+      "website": "https://www.indiabolt.co.za",
+      "address": "79 Gahamstown Road, North End Port Elizabeth, Eastern Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/India-Bolt-Nut"
+    },
+    {
+      "name": "Maison Construction",
+      "website": "https://www.maison.co.za",
+      "address": "Kirstenbosch Ave Strand, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maison-Construction"
+    },
+    {
+      "name": "Axis Ironmongery Specialists",
+      "website": "https://www.axisironmongery.co.za",
+      "address": "57 Aries Street, Sundowner Ranburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Axis-Ironmongery-Specialists"
+    },
+    {
+      "name": "Monument Building Supplies",
+      "website": "https://www.monumenthardware.co.za",
+      "address": null,
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Monument-Building-Supplies"
+    },
+    {
+      "name": "EXODUS INDUSTRIAL SUPPLY CORPORATION cc",
+      "website": "https://[email&#160;protected]",
+      "address": "41 Brookside Road Hillary, Kwazulu-nata",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/EXODUS-INDUSTRIAL-SUPPLY-CORPORATION-cc"
+    },
+    {
+      "name": "Gas &amp; Hardware",
+      "website": "https://thegasguy.yolasite.com",
+      "address": "27 14th Ave, ( Gps 28 15 53e 26 12 25s ) Boksburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gas-Hardware"
+    },
+    {
+      "name": "Table Mountain Granite Cape",
+      "website": "https://tm-tools.co.za",
+      "address": "Unit 1, 52 Delson Circle, Somerset West Business Park",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Table-Mountain-Granite-Cape"
+    },
+    {
+      "name": "ARTLETIC South Africa",
+      "website": "https://www.artletic.co.za",
+      "address": "Palmietkuil 0902, Devon, East Rand Johannesburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ARTLETIC-South-Africa"
+    },
+    {
+      "name": "Zimline Trading",
+      "website": "https://www.zimlinetrading.co.za",
+      "address": "4 Grace Park, Spitfire Road Sunninghill, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zimline-Trading"
+    },
+    {
+      "name": "Hardware Tools",
+      "website": "https://www.hardwaretools.co.za",
+      "address": null,
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hardware-Tools"
+    },
+    {
+      "name": "Promade",
+      "website": "https://www.promade.co.za",
+      "address": "Pretoria, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Promade"
+    },
+    {
+      "name": "Kit It Out Corporate and Promotional Su…",
+      "website": "https://www.kio.co.za",
+      "address": "29 7th Ave Edenvale, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kit-It-Out-Corporate-and-Promotional-Suppliers"
+    },
+    {
+      "name": "Cape Deck n Floor",
+      "website": "https://www.capedecknfloor.co.za",
+      "address": "82 Bofors Circle, Epping 2 Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Deck-n-Floor"
+    },
+    {
+      "name": "Maloon&#39;s",
+      "website": "https://www.maloons.co.za",
+      "address": "211 Meyer Street Germiston , Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maloons"
+    },
+    {
+      "name": "HJ&amp;R BUILDING SUPPLIES",
+      "website": "https://www.hjrbuild.co.za",
+      "address": "172 Fortune Street, City Deep City Deep, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/HJ-R-BUILDING-SUPPLIES"
+    },
+    {
+      "name": "Alumni Trading 146 (Pty) Ltd",
+      "website": "https://www.alumnitrading146.co.za",
+      "address": "Pretoria, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alumni-Trading-146"
+    },
+    {
+      "name": "Gestetner Head Office",
+      "website": "https://www.gestetner.co.za",
+      "address": "Eastwood Office Park, 11 B Riley Road, Bedfordview Johannesburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gestetner-Head-Office"
+    },
+    {
+      "name": "Novo Technologies",
+      "website": "https://www.semiworldwide.net",
+      "address": "3 Saul Street Brackenfell, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Novo-Technologies"
+    },
+    {
+      "name": "AL&#39;S HARDWARE",
+      "website": "https://[email&#160;protected]",
+      "address": "231 Beyers Naude Drive,cresta Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/ALs-HARDWARE_512491"
+    },
+    {
+      "name": "CW Machines",
+      "website": "https://www.cwmachines.co.za",
+      "address": "1 Ulrich Rd Sharonlea Randburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CW-Machines"
+    },
+    {
+      "name": "ACS Cellular",
+      "website": "https://www.acscellular.co.za",
+      "address": "Germiston, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/ACS-Cellular"
+    },
+    {
+      "name": "TR Company",
+      "website": "https://www.trcorp.com",
+      "address": "Qingdao, China, Shandong Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/TR-Company"
+    },
+    {
+      "name": "Mydesktop.co.za",
+      "website": "https://www.mydesktop.co.za",
+      "address": "20 Bloemhof Street, Bellville, Tygervalley Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mydesktop-co-za"
+    },
+    {
+      "name": "Alert Steel",
+      "website": "https://www.alertsteel.co.za",
+      "address": "Hendrik Potgieter Cnr.vd Kloof Ruimsig, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Alert-Steel"
+    },
+    {
+      "name": "Phillip Consulting and Marketing",
+      "website": "https://www.signsandwonderz.co.za",
+      "address": "35 St Gotthard Street, Klipspruit West Ex1 Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Phillip-Consulting-and-Marketing"
+    },
+    {
+      "name": "KB&amp;C GROUP (Pty) Ltd",
+      "website": "https://www.kbcgroup.co.za",
+      "address": null,
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/KB-C-GROUP_536523"
+    },
+    {
+      "name": "Aquajacks",
+      "website": "https://www.aquajacks.com",
+      "address": "15a Kinnoull Road Pietermaritzburg, Kwazulu-nata",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aquajacks"
+    },
+    {
+      "name": "Zonge Technologies CC.",
+      "website": "https://www.zongetech.co.za",
+      "address": "35 Orchard Street, Crystal Park, Extension 3 Benoni, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zonge-Technologies-CC"
+    },
+    {
+      "name": "TM FASTENERS",
+      "website": "https://www.tmfasteners.co.za",
+      "address": "37 West Street Strret Kempton Park, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/TM-FASTENERS"
+    },
+    {
+      "name": "Pixel Technology",
+      "website": "https://www.pixeltech.co.za",
+      "address": "18 Garden Road, No 42 River Side Park, Bordeaux Randburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pixel-Technology"
+    },
+    {
+      "name": "You Can Fixit",
+      "website": "https://ycfixit.webs.com",
+      "address": "49 Seafarer Drive, Bayview, 7785 Mithchells Plain, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/You-Can-Fixit"
+    },
+    {
+      "name": "Jack Maharaj &amp; Sons",
+      "website": "https://jmssteel.webs.com",
+      "address": "12 Taurus Avenue Cassim Park Ermelo Ermelo, Mpumalanga",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jack-Maharaj-Sons"
+    },
+    {
+      "name": "Nobelis Solutions",
+      "website": "https://www.nobelis.co.za",
+      "address": "Pretoria, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nobelis-Solutions"
+    },
+    {
+      "name": "Acorn FAsteners (PTY)Ltd",
+      "website": "https://www.acornfasteners.co.za",
+      "address": "63 Jurg St, Hennopspark, Centurion Pretoria, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Acorn-FAsteners_548452"
+    },
+    {
+      "name": "Stahl Hardware &amp; Paint",
+      "website": "https://www.stahlhardware.co.za",
+      "address": "26 Van Dyk Road Boksburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Stahl-Hardware-Paint"
+    },
+    {
+      "name": "4 Hire SA",
+      "website": "https://www.4hiresa.co.za",
+      "address": "Durban, Kwazulu-nata",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/4-Hire-SA"
+    },
+    {
+      "name": "Semi Worldwide Consumer Division",
+      "website": "https://www.semiworldwide.net",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Semi-Worldwide-Consumer-Division"
+    },
+    {
+      "name": "PC Laptops",
+      "website": "https://www.pclaptops.co.za/16/home",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/PC-Laptops_551363"
+    },
+    {
+      "name": "TOOLSHED.CO.ZA - Online tool shop.",
+      "website": "https://www.toolshed.co.za",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/TOOLSHED-CO-ZA-Online-tool-shop"
+    },
+    {
+      "name": "Websitedesign1",
+      "website": "https://www.websitedesign1.co.za",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Websitedesign1"
+    },
+    {
+      "name": "SIYABONGA TRADING",
+      "website": "https://www.siyabongatrading.co.za",
+      "address": "69 Van Riebeeck Ave, Alberton Alberton, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SIYABONGA-TRADING"
+    },
+    {
+      "name": "Stuff Off",
+      "website": "https://bit.ly/13560q",
+      "address": "Trevor Gething Street, Faerie Glen Pretoria, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Stuff-Off"
+    },
+    {
+      "name": "The Knotty Pine Shop",
+      "website": "https://www.theknottypineshop.co.za",
+      "address": "Plot 49, Lavenderroad, Wonderboom Pretoria, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Knotty-Pine-Shop_865779"
+    },
+    {
+      "name": "Terabyte Technology",
+      "website": "https://www.terabyte-technology.co.za",
+      "address": "18 4th Street, Mount Vernon Durban, Kwazulu Natal",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Terabyte-Technology"
+    },
+    {
+      "name": "Solly&#39;s Superstore",
+      "website": "https://www.sollysuperstore.webs",
+      "address": "Corner Of Charl Cilliers And Oliver Thambo Secunda, Mpumalanga",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sollys-Superstore"
+    },
+    {
+      "name": "Q Unlimited Group",
+      "website": "https://www.qunlimited.net",
+      "address": "6389 Peperwortel Road, Braamfischerville Roodepoort, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Q-Unlimited-Group"
+    },
+    {
+      "name": "Laser Electronics computer / Laptop rep…",
+      "website": "https://www.laserelectronics.co.za",
+      "address": "Pretoria, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Laser-Electronics-computer-Laptop-repair-services-South-Africa"
+    },
+    {
+      "name": "Next Generation Systems",
+      "website": "https://www.nexgensys.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Next-Generation-Systems"
+    },
+    {
+      "name": "SEACO INTERNATIONAL DISTRIBUTORS",
+      "website": "https://www.seaco.co.za",
+      "address": "104 Brickfield Rd, Overport Durban Durban, Kwazulu Natal",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SEACO-INTERNATIONAL-DISTRIBUTORS"
+    },
+    {
+      "name": "SA Fusion",
+      "website": "https://www.safusion.co.za",
+      "address": "24th Avenue 757, Rietfontein Pretoria, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Fusion"
+    },
+    {
+      "name": "FLEXEM PAINT",
+      "website": "https://www.flexempaint.co.za",
+      "address": "C/o Barbara & Lucy Rd, Germiston Homestead, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/FLEXEM-PAINT"
+    },
+    {
+      "name": "Rynfield Hardware &amp; Paint Centre",
+      "website": "https://rynfieldhardware.co.za",
+      "address": "36b Miles Sharp Street, Rynfield Benoni, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rynfield-Hardware-Paint-Centre"
+    },
+    {
+      "name": "NanoGig Solutions",
+      "website": "https://www.wix.com/Nanogig/Solutions",
+      "address": "386 Nevada Crescent, Faerieglen Pretoria, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/NanoGig-Solutions"
+    },
+    {
+      "name": "Survey Instruments - Allen Instruments",
+      "website": "https://www.allbuildsurveyinstruments.co.za",
+      "address": "63 Stockley Road Kenwyn Cape Town Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Survey-Instruments-Allen-Instruments"
+    },
+    {
+      "name": "PlanetDvd",
+      "website": "https://www.planetdvd.co.za",
+      "address": "Sandton, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/PlanetDvd"
+    },
+    {
+      "name": "BJT Plumbing&amp; Hardware Supplies",
+      "website": "https://www.bjtplumbing.co.za",
+      "address": "9 Eagle Str Elspark Germiston Germiston, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BJT-Plumbing-Hardware-Supplies"
+    },
+    {
+      "name": "Build it Alberton",
+      "website": "https://www.builditalberton.co.za",
+      "address": "Bosworth Centre, Shop 1, 79 Bosworth Street, Potgieter Street Alberton, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Build-it-Alberton"
+    },
+    {
+      "name": "DMY INTERNATIONAL",
+      "website": "https://www.dmyinternational.com",
+      "address": "Unit 41, Tria Nisia Complex, Cornelius Street Weltevreden Park, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/DMY-INTERNATIONAL"
+    },
+    {
+      "name": "Faithful Computers &amp; Audovisual",
+      "website": "https://www.faithful.co.za",
+      "address": "7 Bird Street Stellenbosch, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Faithful-Computers-Audovisual"
+    },
+    {
+      "name": "Graphic Revelations",
+      "website": "https://www.graphicrevelations.co.za",
+      "address": "25 Patrol Street, Kensington Johannesburg, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Graphic-Revelations"
+    },
+    {
+      "name": "Coastal Commercial Brokers",
+      "website": "https://www.coastalbrokers.co.za",
+      "address": "16 Sylvia Rd, Freeland Park Scottburgh, Kwazulu Natal",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Coastal-Commercial-Brokers"
+    },
+    {
+      "name": "AcquirIT",
+      "website": "https://www.acquirit.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/AcquirIT"
+    },
+    {
+      "name": "PRETORIA SCHMIEDE CC",
+      "website": "https://www.pretoriaschmiede.co.za",
+      "address": "354 Derdepoort Str. Silverton, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/PRETORIA-SCHMIEDE-CC"
+    },
+    {
+      "name": "Symbol security solutions",
+      "website": "https://www.symbolsecurity.co.za",
+      "address": "48 Jan Meyer Street Alberton, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Symbol-security-solutions"
+    },
+    {
+      "name": "BLACK BIRD TRADING DELIVERIES INTO RETA…",
+      "website": "https://www.black-bird.co.za",
+      "address": "Capricorn Business Park, 1819 Capricorn Crescent Muizenberg, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BLACK-BIRD-TRADING-DELIVERIES-INTO-RETAIL"
+    },
+    {
+      "name": "e-profile",
+      "website": "https://www.eprofile.co.za",
+      "address": "45a Wessels Road Rivonia , Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/e-profile"
+    },
+    {
+      "name": "ADSL TECHNOLOGIES",
+      "website": "https://www.adsltech.co.za",
+      "address": "White River, Mpumalanga, 0828856312, [email&#160;protected] White River, Mpumalanga",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/ADSL-TECHNOLOGIES_863587"
+    },
+    {
+      "name": "Shandong Techgong Engineering Equipment…",
+      "website": "https://www.techgong.com",
+      "address": "Liaocheng Of Shandong, China Stoke, Cape Town",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shandong-Techgong-Engineering-Equipment"
+    },
+    {
+      "name": "black bird cc",
+      "website": "https://www.black-bird.co.za",
+      "address": "Muizenberg, 1819 Capricorn Crescent Muizenberg, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/black-bird-cc"
+    },
+    {
+      "name": "The Knotty Pine Shop",
+      "website": "https://theknottypineshop.co.za",
+      "address": "Plot 49, Lavenderroad, Wonderboom Pretoria North, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Knotty-Pine-Shop_865779"
+    },
+    {
+      "name": "Coastal Brokers",
+      "website": "https://www.coastalbrokers.co.za",
+      "address": "Unit 36 The Crest, Dawood Close Ballito, Kwazulu Natal",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Coastal-Brokers"
+    },
+    {
+      "name": "NullTech cc",
+      "website": "https://www.nulltech.co.za",
+      "address": "1 Waterview Close, Waterview Park, Century City Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/NullTech-cc"
+    },
+    {
+      "name": "Silknet",
+      "website": "https://www.igain.co.za",
+      "address": "Parklands Blouberg Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Silknet"
+    },
+    {
+      "name": "MAD IT",
+      "website": "https://www.madit.co.za",
+      "address": "Amanzimtoti, Kwazulu Natal",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/MAD-IT"
+    },
+    {
+      "name": "A to Z Buyers Guide",
+      "website": "https://atozbuyersguide.yolasite.com",
+      "address": "1 Grand Slam Street Langebaan, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-to-Z-Buyers-Guide"
+    },
+    {
+      "name": "Miracle Adverts",
+      "website": "https://miracleads.co.za",
+      "address": "3, Cade Southcrest/alberton, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Miracle-Adverts_885866"
+    },
+    {
+      "name": "Ace Office Supplies &amp; Services",
+      "website": "https://www.aceofficesupplies.co.za",
+      "address": "Bentel Road, Boksburg, Bentel Road, Boksburg Boksburg, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ace-Office-Supplies-Services"
+    },
+    {
+      "name": "Seaview Paint &amp; Hardware",
+      "website": "https://www.paintandhardware.co.za",
+      "address": "49 Main Rd, Seaview Port Elizabeth, Eastern Cape",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Seaview-Paint-Hardware"
+    },
+    {
+      "name": "CAITCO TOO SALES CC",
+      "website": "https://www.caitco.co.za",
+      "address": "Elsecar Streeet Kya Sands, Gauteng",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/CAITCO-TOO-SALES-CC"
+    },
+    {
+      "name": "TEAM PRECISION ENGINEERING (PTY) Ltd.",
+      "website": "https://www.tpe.co.za",
+      "address": "Sacks Circle, Bellville South Cape Town, Western Cape",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/TEAM-PRECISION-ENGINEERING"
+    },
+    {
+      "name": "Ivory Tower",
+      "website": "https://www.ivorytower.co.za",
+      "address": "Internet Solutions Pty Ltd, G3a Old Castle Brewery 6 Beach Road",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ivory-Tower"
+    },
+    {
+      "name": "Marloth Park",
+      "website": "https://www.visitafrica.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marloth-Park"
+    },
+    {
+      "name": "Hyperautomation",
+      "website": "https://www.hyperautomation.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hyperautomation"
+    },
+    {
+      "name": "Get Crafty",
+      "website": "https://www.get-crafty.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Get-Crafty"
+    },
+    {
+      "name": "Propertyinfo.co.za",
+      "website": "https://www.propertyinfo.co.za",
+      "address": "5 Bellingham Street, One Higveld Park Centurion",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Propertyinfo-co-za"
+    },
+    {
+      "name": "Antique Survey Instruments",
+      "website": "https://jalleninstrumentservices.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Antique-Survey-Instruments"
+    },
+    {
+      "name": "Weskus",
+      "website": "https://weskus.biz",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Weskus"
+    },
+    {
+      "name": "Malaka Supplies",
+      "website": "https://www.malakasupplies.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Malaka-Supplies"
+    },
+    {
+      "name": "Techcables",
+      "website": "https://www.techcables.co.za",
+      "address": "695 Frederika Street, Rietfontein Pretoria",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Techcables"
+    },
+    {
+      "name": "Kutu Hardware Distributors",
+      "website": "https://www.kutuhd.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kutu-Hardware-Distributors_404584"
+    },
+    {
+      "name": "Healthsciences Institute",
+      "website": "https://www.healthsciences.org",
+      "address": "3200 N Lake Shore Drive, Suite, Chicago Il 60657",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Healthsciences-Institute"
+    },
+    {
+      "name": "Bonsaisa",
+      "website": "https://www.bonsaisa.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bonsaisa"
+    },
+    {
+      "name": "Marketscope",
+      "website": "https://www.marketscope.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Marketscope"
+    },
+    {
+      "name": "Atlas Copco In Southern Africa",
+      "website": "https://www.atlascopco.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Atlas-Copco-In-Southern-Africa"
+    },
+    {
+      "name": "Tarsus Technologies",
+      "website": "https://www.tarsusgov.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tarsus-Technologies_405314"
+    },
+    {
+      "name": "Urethane Distributors And Mining Suppli…",
+      "website": "https://www.udms.co.za",
+      "address": "Unit 20, Jan Smuts Park, Jones Road Jet Park",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Urethane-Distributors-And-Mining-Supplies"
+    },
+    {
+      "name": "Jo-da Bonsai",
+      "website": "https://www.jodabonsai.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jo-da-Bonsai"
+    },
+    {
+      "name": "Tool Doctor",
+      "website": "https://www.tooldoctor.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tool-Doctor"
+    },
+    {
+      "name": "Gardale Solutions",
+      "website": "https://www.gardale.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gardale-Solutions_406730"
+    },
+    {
+      "name": "Zytek Integrated Solutions",
+      "website": "https://www.zytek.co.za",
+      "address": "3 Riley Road Bedfordview, Gauteng",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zytek-Integrated-Solutions"
+    },
+    {
+      "name": "Cupboard Hardware Centre",
+      "website": "https://www.cupboardhardwarecentre.co.za",
+      "address": "No 1 Rocky Road, Ferndale Randburg",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cupboard-Hardware-Centre"
+    },
+    {
+      "name": "Rn Software Support",
+      "website": "https://www.rnsoftware.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rn-Software-Support_411859"
+    },
+    {
+      "name": "Vida Experience",
+      "website": "https://www.vidaexperience.co.za",
+      "address": "peter & jill barklay 204 pretoria rd rynfield benoni",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vida-Experience"
+    },
+    {
+      "name": "Tlt Industrial Supplies",
+      "website": "https://www.hardwareindustrial.co.za",
+      "address": "48 rigger road spartan",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tlt-Industrial-Supplies"
+    },
+    {
+      "name": "W &amp; B Hardware",
+      "website": "https://www.wbh.co.za",
+      "address": "948 185 durban road bellville cape town",
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/W-B-Hardware"
+    },
+    {
+      "name": "Packspec",
+      "website": "https://www.packspec.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Packspec"
+    },
+    {
+      "name": "Imaging Innovations",
+      "website": "https://www.imaginginnovations.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Imaging-Innovations_412535"
+    },
+    {
+      "name": "Aveo Computing Solutions",
+      "website": "https://www.aveo.co.za",
+      "address": "1 pin oak timbavati street moreleta park pretoria",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aveo-Computing-Solutions_413519"
+    },
+    {
+      "name": "Logix Design And Development",
+      "website": "https://www.ldd.co.za",
+      "address": "19 lavendergate drive southgate business park durban amanzimtoti",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Logix-Design-And-Development_413597"
+    },
+    {
+      "name": "Rmc Project Management",
+      "website": "https://www.rmcproject.com",
+      "address": "mar 2-4 seattle wa mar 23-25",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rmc-Project-Management"
+    },
+    {
+      "name": "Hi-tech Machine Tools",
+      "website": "https://www.hitech.co.za",
+      "address": "6 nguni drive longmeadow west modderfontein",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hi-tech-Machine-Tools_415761"
+    },
+    {
+      "name": "Nrv",
+      "website": "https://www.nrv.co.za",
+      "address": "304 Commercial City Building 40 Commercial Street Durban",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nrv"
+    },
+    {
+      "name": "Manhattan Hardware",
+      "website": "https://www.manhattanhardware.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Manhattan-Hardware_499116"
+    },
+    {
+      "name": "Geniacs",
+      "website": "https://www.geniacs.co.za",
+      "address": "168 Runnymead Avenue Chartwell Postal",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Geniacs"
+    },
+    {
+      "name": "Claud&#39;s Hardware",
+      "website": "https://www.claudshardware.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Clauds-Hardware"
+    },
+    {
+      "name": "777 It",
+      "website": "https://www.777it.co.za",
+      "address": "20 Dechmont Avenue Bluff Durban",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/777-It"
+    },
+    {
+      "name": "Hireworld",
+      "website": "https://www.hireworld.co.za",
+      "address": "10 Laconga Road Off Jet Park Road Boksburg House",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hireworld"
+    },
+    {
+      "name": "Draco Control",
+      "website": "https://www.dracocontrol.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Draco-Control"
+    },
+    {
+      "name": "Microcon",
+      "website": "https://www.microcon.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Microcon"
+    },
+    {
+      "name": "Addata",
+      "website": "https://www.addata.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Addata"
+    },
+    {
+      "name": "Sintez",
+      "website": "https://www.sintez.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sintez"
+    },
+    {
+      "name": "Bongoo",
+      "website": "https://www.bongoo.net",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bongoo"
+    },
+    {
+      "name": "Avidan Trading",
+      "website": null,
+      "address": "81 Tsessebe Crescent, Corporatepark South Midrand, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Avidan-Trading"
+    },
+    {
+      "name": "The Toolmongers",
+      "website": null,
+      "address": "Main Road, Fishershill, Primrose Germiston, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Toolmongers"
+    },
+    {
+      "name": "Tru-Butt (PTY) Ltd",
+      "website": null,
+      "address": "15 Profab Crescent, Delville Extenstion 4 Germiston, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tru-Butt"
+    },
+    {
+      "name": "Pro-IT",
+      "website": null,
+      "address": "7 Crowned Eagle Crescent, Glen Eagle Estate, Glen Marais Kempton Park, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pro-IT"
+    },
+    {
+      "name": "ASMAL BROTHERS HARDWARE",
+      "website": null,
+      "address": "134 Wick Street Verulam, Kwazulu Natal",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ASMAL-BROTHERS-HARDWARE"
+    },
+    {
+      "name": "Raleigh Street Hardware",
+      "website": null,
+      "address": "53 Raleigh Street, Johannesburg Yeoville, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Raleigh-Street-Hardware"
+    },
+    {
+      "name": "IT Barracks",
+      "website": null,
+      "address": "1087 Haarhoff Street, Villieria Pretoria, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/IT-Barracks"
+    },
+    {
+      "name": "Dumakude Hardware,Lintels, Brick &amp; bloc…",
+      "website": null,
+      "address": null,
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dumakude-Hardware-Lintels-Brick-block-Civils-Construction"
+    },
+    {
+      "name": "Yasinda Mining Supplies",
+      "website": null,
+      "address": "21 Harley Street Randburg Ferndale, Kent And Harley Street Randburg, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Yasinda-Mining-Supplies"
+    },
+    {
+      "name": "Fairdeals Hardware",
+      "website": null,
+      "address": "22 De Beer Street Braamfontein Johannesburg, Gauteng",
+      "page": 1,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fairdeals-Hardware_554099"
+    },
+    {
+      "name": "VIVI HARDWARE AND WHOLESALERS",
+      "website": null,
+      "address": "Plot 243,moshate Crossing, N11, Dudu Madisha Masehlaneng, Limpopo",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/VIVI-HARDWARE-AND-WHOLESALERS"
+    },
+    {
+      "name": "Maverick Trading 1476 cc",
+      "website": null,
+      "address": "Range Rd Kenwyn, Western Cape",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maverick-Trading-1476-cc"
+    },
+    {
+      "name": "Mr Hardware &amp; Steel",
+      "website": null,
+      "address": "2557 Main Harding Road, Marburg Port Shepstone, Kwazulu Natal",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mr-Hardware-Steel"
+    },
+    {
+      "name": "Exilite 85 CC Welding and Industrial Su…",
+      "website": null,
+      "address": null,
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Exilite-85-CC-Welding-and-Industrial-Supplies"
+    },
+    {
+      "name": "Pool and Hardware",
+      "website": null,
+      "address": "Brackengate Shopping Centre, Cnr. Andries Str, Dewaal Str Brackendowns, Gauteng",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pool-and-Hardware"
+    },
+    {
+      "name": "HARDWARE CITY",
+      "website": null,
+      "address": "Giyani, Limpopo",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/HARDWARE-CITY_883772"
+    },
+    {
+      "name": "sccd seaglen paint and hardware",
+      "website": null,
+      "address": "17 Seaglen Drive Sea View Durban, Kwazulu Natal",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/sccd-seaglen-paint-and-hardware"
+    },
+    {
+      "name": "STRAND PAINT AND HARDWARE",
+      "website": null,
+      "address": null,
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/STRAND-PAINT-AND-HARDWARE"
+    },
+    {
+      "name": "Petit Bricks &amp; Buildware",
+      "website": null,
+      "address": "Pretoria Road, Petit Benoni, Gauteng",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Petit-Bricks-Buildware"
+    },
+    {
+      "name": "Mooketsi Hardware CC",
+      "website": null,
+      "address": "Farm 96, Giyani Main Road, Mooketsi Mooketsi, Limpopo",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mooketsi-Hardware-CC"
+    },
+    {
+      "name": "Freds Hardware",
+      "website": null,
+      "address": "18 Balmoral Centre, Shop No.1 De Deur, Gauteng",
+      "page": 3,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Freds-Hardware"
+    },
+    {
+      "name": "Quality Wooden Products ( Richard Metca…",
+      "website": null,
+      "address": "75 Mimosa St Elspark Boksburg, Gauteng",
+      "page": 5,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Quality-Wooden-Products-Richard-Metcalf"
+    },
+    {
+      "name": "Maitland Timber",
+      "website": null,
+      "address": "27 7th Avenue Cape Town, Western Cape",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Maitland-Timber"
+    },
+    {
+      "name": "Pilz Precision Tools (Pty) Ltd.",
+      "website": null,
+      "address": "23 Boomkruiper Street Birchacres X7, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pilz-Precision-Tools"
+    },
+    {
+      "name": "Hydro-Lec (Pty) Ltd",
+      "website": null,
+      "address": "30-4th Street, Booysens Reserve Johannesburg, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hydro-Lec"
+    },
+    {
+      "name": "Tango Trading",
+      "website": null,
+      "address": "9 Camelia Street, Roodekrans Roodepoort, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tango-Trading"
+    },
+    {
+      "name": "Elegant Roofing And Builders Supplies",
+      "website": null,
+      "address": "Lot 1802 Craigieburn Umkomaas, Kwazulu-natal",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Elegant-Roofing-And-Builders-Supplies"
+    },
+    {
+      "name": "Gallus Industries",
+      "website": null,
+      "address": null,
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gallus-Industries"
+    },
+    {
+      "name": "Kabelo-lefa Hardware And Suppliers",
+      "website": null,
+      "address": "3090 Shaleng Section Bodibe Village, North West Province",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kabelo-lefa-Hardware-And-Suppliers"
+    },
+    {
+      "name": "R V S Enterprises",
+      "website": null,
+      "address": "94 William Nicol Ext, Diepsloot Bryanston, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/R-V-S-Enterprises"
+    },
+    {
+      "name": "GLASSBRICKS",
+      "website": null,
+      "address": null,
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/GLASSBRICKS"
+    },
+    {
+      "name": "LINESCOPE OUTSOURCING SOLUTIONS cc",
+      "website": null,
+      "address": "Po Box 7151, Bonaero Park Kempton Park, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/LINESCOPE-OUTSOURCING-SOLUTIONS-cc"
+    },
+    {
+      "name": "Builders Market Vaal",
+      "website": null,
+      "address": "2 Faber, Nw7 Vanderbijlpark, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Builders-Market-Vaal"
+    },
+    {
+      "name": "JEMBAG Services and Supplies",
+      "website": null,
+      "address": "3 Klipdrif Street Postmasburg, Northern Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/JEMBAG-Services-and-Supplies"
+    },
+    {
+      "name": "R &amp; M Bolts and Nuts",
+      "website": null,
+      "address": "Nightingale Avenue, Extension 1 Lenasia, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/R-M-Bolts-and-Nuts"
+    },
+    {
+      "name": "HHP Hardware",
+      "website": null,
+      "address": "10 Constance Place, Koedoe Street Kempton Park, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/HHP-Hardware"
+    },
+    {
+      "name": "Paint Centre",
+      "website": null,
+      "address": "43 Anderson Nelspruit, Mpumalanga",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Paint-Centre_395220"
+    },
+    {
+      "name": "Omega Enterprises",
+      "website": null,
+      "address": "38 Industry Close, Industial Area Gansbaai, Western Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Omega-Enterprises"
+    },
+    {
+      "name": "Lumber Logistics International",
+      "website": null,
+      "address": "Suite 2, 19a Village Square, Village Road Kloof , Kwazulu-nata",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lumber-Logistics-International"
+    },
+    {
+      "name": "AAA BUILDERS AND PAVERS",
+      "website": null,
+      "address": "1263 De Villbois Mareuil Drive Moreletapark, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/AAA-BUILDERS-AND-PAVERS"
+    },
+    {
+      "name": "Magopie Enterprises",
+      "website": null,
+      "address": "5a Drakensberger Str. Mokopane, Limpopo",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Magopie-Enterprises"
+    },
+    {
+      "name": "ALRODE INDUSTRIAL SUPPLIES",
+      "website": null,
+      "address": "C/o Vereeniging & Dan Jacobs Alrode, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/ALRODE-INDUSTRIAL-SUPPLIES_396664"
+    },
+    {
+      "name": "FASTNER WAREHOUSE",
+      "website": null,
+      "address": "Higro Park No14, Fourie Street Brackenfell, Western Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/FASTNER-WAREHOUSE"
+    },
+    {
+      "name": "The Colour Box",
+      "website": null,
+      "address": "58 Main Road Gansbaai, Western Cape",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Colour-Box"
+    },
+    {
+      "name": "SUPERIOR CLAY BRICK MANUFACTURERS",
+      "website": null,
+      "address": "239 Peter Kerchhoff (chapel) Street Pietermaritzburg, Kwazulu Natal",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/SUPERIOR-CLAY-BRICK-MANUFACTURERS"
+    },
+    {
+      "name": "Mega Group Corporation",
+      "website": null,
+      "address": "2 Hebel Road East Rand, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mega-Group"
+    },
+    {
+      "name": "Target Automotive &amp; Tools Supplier, Dis…",
+      "website": null,
+      "address": "31 Piet Retief Street Zeerust , North West Province",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Target-Automotive-Tools-Supplier-Distributors-and-Exporters"
+    },
+    {
+      "name": "Head-on Industrial Supply",
+      "website": null,
+      "address": "The Gables, Aubrey Avenue, Horizon, Roodepoort West-rand, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Head-on-Industrial-Supply"
+    },
+    {
+      "name": "Sizisa Industrial Supplies",
+      "website": null,
+      "address": "Unit 18, 178 Babara Rd Elandsfontein, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sizisa-Industrial-Supplies"
+    },
+    {
+      "name": "Yasin Plumbing Store",
+      "website": null,
+      "address": "29 Mutale Ave Penina Park Polokwane, Limpopo",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Yasin-Plumbing-Store"
+    },
+    {
+      "name": "DESAI&#39;S HARDWARE &amp; ELECTRICAL",
+      "website": null,
+      "address": "178 Himalaya Drive Shallcross, Kwazulu-nata",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/DESAIs-HARDWARE-ELECTRICAL"
+    },
+    {
+      "name": "Joaida Procurement Solutions",
+      "website": null,
+      "address": "11, Martin St, Mac Mac Gardens Benoni, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Joaida-Procurement-Solutions"
+    },
+    {
+      "name": "COLOURCITY PLUMBING ELECTRICAL &amp; HARDWA…",
+      "website": null,
+      "address": "133 Praire Street Rosettenville, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/COLOURCITY-PLUMBING-ELECTRICAL-HARDWARE-SUPPLIES"
+    },
+    {
+      "name": "Metalworking News",
+      "website": null,
+      "address": "41, Arklow, Road Bryanston, Gauteng",
+      "page": 8,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Metalworking-News"
+    },
+    {
+      "name": "Blue Atlantic Consulting",
+      "website": null,
+      "address": "17 Muirfield End, Atlantic Beach, Melkbosstrand Cape Town, Western Cape",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Atlantic-Consulting"
+    },
+    {
+      "name": "Gauteng Hardware &amp; Electrical Distribut…",
+      "website": null,
+      "address": "7 Mpande Road, Sebenza Edenvale, Gauteng",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gauteng-Hardware-Electrical-Distributors"
+    },
+    {
+      "name": "MOEPENG HARDWARE",
+      "website": null,
+      "address": "19 Railway Street Brits , North West Province",
+      "page": 9,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MOEPENG-HARDWARE"
+    },
+    {
+      "name": "BILMAR ENGINEERING SUPPLIES",
+      "website": null,
+      "address": "Benoni, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/BILMAR-ENGINEERING-SUPPLIES"
+    },
+    {
+      "name": "MAB PRAISE GENERAL TRADING",
+      "website": null,
+      "address": null,
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MAB-PRAISE-GENERAL-TRADING"
+    },
+    {
+      "name": "Measuring And Control Instruments",
+      "website": null,
+      "address": "6 VERNON ROAD Johannesburg, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Measuring-And-Control-Instruments"
+    },
+    {
+      "name": "amt moulds",
+      "website": null,
+      "address": "Pretoria Pretoria North, Gauteng",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/amt-moulds"
+    },
+    {
+      "name": "Vredenburg Mica",
+      "website": null,
+      "address": "Entrance 3 Weskus Mall Saldanha Road Vredenburg, Western Cape",
+      "page": 14,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vredenburg-Mica"
+    }
+  ]
+}

@@ -1,0 +1,3295 @@
+{
+  "category": "restaurants",
+  "count": 332,
+  "listings": [
+    {
+      "name": "Lowveld Conference Centre",
+      "website": "https://www.lccvenue.co.za",
+      "address": "1 Aurora Street Nelspruit, Mpumalanga",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lowveld-Conference-Centre"
+    },
+    {
+      "name": "Catering Equipment Supplies",
+      "website": "https://www.bulkprinting.co.za",
+      "address": "Shop 12 Range Road, Port Shepstone Kwazulu Natal, Kwazulu-nata",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Catering-Equipment-Supplies"
+    },
+    {
+      "name": "Avron&#39;s Place",
+      "website": "https://www.avronsplace.co.za",
+      "address": "19 Regent Road Sea Point, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Avrons-Place"
+    },
+    {
+      "name": "lowveld country club",
+      "website": "https://www.lccvenue.co.za",
+      "address": "1 Aurora Str Nelspruit, Mpumalanga",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/lowveld-country-club"
+    },
+    {
+      "name": "Die Bloukamer Restaurant &amp; Catering",
+      "website": "https://www.diebloukamer.co.za",
+      "address": "Top Floor, Neelsie Student Centre, De Beer Street Stellenbosch, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Die-Bloukamer-Restaurant-Catering"
+    },
+    {
+      "name": "Irubin Consulting",
+      "website": "https://www.jbayonline.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Irubin-Consulting"
+    },
+    {
+      "name": "Psychedelic Stretch Tents &amp; Events",
+      "website": "https://www.psychedelic-tents.co.za",
+      "address": "78 Maplin Drive, Plettenberg Bay Plettenberg Bay, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Psychedelic-Stretch-Tents-Events"
+    },
+    {
+      "name": "Vaughn&#39;s Creations",
+      "website": "https://www.vaughnscreations.co.za",
+      "address": "P.o. Box 8177, Eden Glen, Eden Vale Gauteng, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vaughns-Creations"
+    },
+    {
+      "name": "Homeleigh Halt Guest House",
+      "website": "https://www.homeleighhalt.com",
+      "address": "253 Main Road, Walmer Port Elizabeth, Eastern Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Homeleigh-Halt-Guest-House"
+    },
+    {
+      "name": "Fusion Line",
+      "website": "https://www.fusionline.co.za",
+      "address": "83 High Johannesburg, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fusion-Line"
+    },
+    {
+      "name": "MOLLOH BUSINESS ENTERPRISES cc",
+      "website": "https://www.molloh.co.za",
+      "address": "1003 Denor House, 356 Smith Street, Durban Durban, Kwazulu-nata",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/MOLLOH-BUSINESS-ENTERPRISES-cc"
+    },
+    {
+      "name": "Lmh Productions",
+      "website": "https://www.lmhproductions.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lmh-Productions"
+    },
+    {
+      "name": "Centurion Hospitality",
+      "website": "https://www.centurionhospitality.co.za",
+      "address": "Po Box 89030 Heuweloord, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Centurion-Hospitality"
+    },
+    {
+      "name": "Classic Hiring",
+      "website": "https://www.classichiring.co.za",
+      "address": "326 Steynberg Street Erasmia, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Classic-Hiring"
+    },
+    {
+      "name": "Dwarsrivier Country Getaway",
+      "website": "https://www.dwarsriviercountrygetaway.co.za",
+      "address": "Dwarsrivier Farm Herbertsdale, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dwarsrivier-Country-Getaway"
+    },
+    {
+      "name": "Leisure Assets",
+      "website": "https://www.leisureassets.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Leisure-Assets"
+    },
+    {
+      "name": "Red Hot Catering",
+      "website": "https://www.redhotcatering.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Red-Hot-Catering"
+    },
+    {
+      "name": "Winelands Web",
+      "website": "https://www.winelandsweb.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Winelands-Web"
+    },
+    {
+      "name": "Jbayonline",
+      "website": "https://www.jbayonline.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jbayonline"
+    },
+    {
+      "name": "Just-in-time Caterers",
+      "website": "https://www.justintimecaterers.co.za",
+      "address": "28 Coloraine Drive Sandton, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Just-in-time-Caterers"
+    },
+    {
+      "name": "Sijouda",
+      "website": "https://www.sijouda.co.za",
+      "address": null,
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sijouda"
+    },
+    {
+      "name": "olives bistro",
+      "website": "https://www.diningout.co.za",
+      "address": "Van Buuren, Hawley Bedfordview, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/olives-bistro"
+    },
+    {
+      "name": "Cape Info SA Cape Town South Africa",
+      "website": "https://www.capeinfosa.co.za",
+      "address": "135 Main Rd, Green Point Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Info-SA-Cape-Town-South-Africa"
+    },
+    {
+      "name": "TastySpice",
+      "website": "https://www.tastyspice.co.za",
+      "address": "Bobaas Street Magalieskruin, Gauteng",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/TastySpice"
+    },
+    {
+      "name": "Fratelli Palmieri",
+      "website": "https://www.palbros.co.za",
+      "address": "Italian Club Of Cape Town, 16 Donegal Street, Rugby Cape Town, Western Cape",
+      "page": 2,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fratelli-Palmieri"
+    },
+    {
+      "name": "Yellow Piano Inn &amp; Burg Lengeling Backp…",
+      "website": "https://www.yellowpianoinn.co.za",
+      "address": "Manley Flats Grahamstown, Eastern Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Yellow-Piano-Inn-Burg-Lengeling-Backpackers"
+    },
+    {
+      "name": "Wilma&#39;s Accommodation",
+      "website": "https://www.wilmasaccommodation.co.za",
+      "address": "Unit 11, Northview Estate, 8th Road Noordwyk, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wilmas-Accommodation_428652"
+    },
+    {
+      "name": "Fanatic Tours",
+      "website": "https://www.fanatictours.synthasite.com",
+      "address": "Elsburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fanatic-Tours"
+    },
+    {
+      "name": "BizAdMag Online cc",
+      "website": "https://www.bizadmag.co.za",
+      "address": "Head Office, 22a Palm Street West, Edenglen Edenvale, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BizAdMag-Online-cc"
+    },
+    {
+      "name": "1st Hot Dog Co",
+      "website": "https://www.1sthotdogco.co.za",
+      "address": "80 Prairie Street, Rosettenville Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/1st-Hot-Dog"
+    },
+    {
+      "name": "barworx",
+      "website": "https://WWW.BARWORX.CO.ZA",
+      "address": "242 Lower Main Road Observitory, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/barworx"
+    },
+    {
+      "name": "Seppie&#39;s Tours And Transfers",
+      "website": "https://www.seppiestours.co.za",
+      "address": "6m Le Parc, De Grendel Road Bothasig, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Seppies-Tours-And-Transfers"
+    },
+    {
+      "name": "Corporate Catering &amp; Business Supplies",
+      "website": "https://www.caterhub.co.za",
+      "address": "9 Norwood Road, Umtentweni Port Shepstone, Kwazulu-nata",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Corporate-Catering-Business-Supplies"
+    },
+    {
+      "name": "Umdende Manor",
+      "website": "https://www.umdendemanor.co.za",
+      "address": "P O Box 1685, 224 Noord Street Vryheid, Kwazulu Natal",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Umdende-Manor"
+    },
+    {
+      "name": "Virtual Menu",
+      "website": "https://www.virtualmenu.co.za",
+      "address": null,
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Virtual-Menu"
+    },
+    {
+      "name": "Clean Vision Chemicals",
+      "website": "https://www.houseofsoap.co.za",
+      "address": null,
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Clean-Vision-Chemicals"
+    },
+    {
+      "name": "SOUTH COAST HALAAL BUTCHER AND DELI",
+      "website": "https://[email&#160;protected]",
+      "address": "02 Masonic Way Port Shepstone, Kwazulu-nata",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "Failed to parse URL from https://[email&#160;protected]",
+      "bizbayUrl": "https://bizbay.co.za/Company/SOUTH-COAST-HALAAL-BUTCHER-AND-DELI"
+    },
+    {
+      "name": "Odds &#39;n Ends Coffee House",
+      "website": "https://www.odds-n-ends.co.za",
+      "address": "21 Beuke Place, Die Wilgers, (just Behid The Wilgers Hospital) Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Odds-n-Ends-Coffee-House"
+    },
+    {
+      "name": "b",
+      "website": "https://www.shesha.biz",
+      "address": "1 Alternator Avenue Montague Gardens, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/b"
+    },
+    {
+      "name": "Byron de Carvalho",
+      "website": "https://www.shesha.biz",
+      "address": "Unit 1 Alternator Avenue Montague Gardens Montague, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Byron-de-Carvalho"
+    },
+    {
+      "name": "Narina Trogon",
+      "website": "https://www.narinatrogon.com",
+      "address": "81 De Korte Street, Braamfontein Johannesburg, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Narina-Trogon"
+    },
+    {
+      "name": "The Hussar Grill",
+      "website": "https://www.hussargrill.com",
+      "address": "Cape Town, Western Cape",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Hussar-Grill"
+    },
+    {
+      "name": "La Masseria",
+      "website": "https://www.lamasseria.co.za",
+      "address": null,
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/La-Masseria"
+    },
+    {
+      "name": "Cognito Catering",
+      "website": "https://www.cognitocatering.co.za",
+      "address": null,
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cognito-Catering"
+    },
+    {
+      "name": "Casbah Roadhouse Pretoria West",
+      "website": "https://www.roadhouse-casbah.com",
+      "address": "117-119 Church Street Pretoria West Pretoria, Gauteng",
+      "page": 3,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Casbah-Roadhouse-Pretoria-West"
+    },
+    {
+      "name": "Straightway Restaurant",
+      "website": "https://www.straightwayhead.blogspot.com",
+      "address": "175 Parel Valley Rd Somerset West, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Straightway-Restaurant"
+    },
+    {
+      "name": "PanoAfrica",
+      "website": "https://www.panoafrica.co.za",
+      "address": "Silver Lakes, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/PanoAfrica"
+    },
+    {
+      "name": "FREEBIES4U.CO.ZA",
+      "website": "https://www.freebies4u.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/FREEBIES4U-CO-ZA"
+    },
+    {
+      "name": "Soak Tank Solutions",
+      "website": "https://www.soaktank.co.za",
+      "address": "196 Eccleston Crescent, Klevehill Park Bryanston, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Soak-Tank-Solutions"
+    },
+    {
+      "name": "The Olive Station",
+      "website": "https://www.theolivestation.co.za",
+      "address": "Level 1 Rondebosch Main, Main Road, Rondebosch Cape Town, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Olive-Station"
+    },
+    {
+      "name": "Temperature Engineering",
+      "website": "https://www.fridges.co.za",
+      "address": "17 Denne Street, Cnr Puttick Ave, Sundowner Johannesburg, Gauteng",
+      "page": 4,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Temperature-Engineering"
+    },
+    {
+      "name": "Bridget Kitley Herbs and Potager Landsc…",
+      "website": "https://www.herb-nursery.co.za",
+      "address": "2 Klein Vallei, Cnr Jan Frederick/klein Vallei Stellenbosch, Western Cape",
+      "page": 4,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/b"
+    },
+    {
+      "name": "&quot;Glendini&quot; Escape Artist / Entertainer",
+      "website": "https://www.escapemagic.co.za",
+      "address": "Eagle Way, Bergvliet Bergvliet, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Glendini-Escape-Artist-Entertainer"
+    },
+    {
+      "name": "Bridge Diner",
+      "website": "https://bridgediner.yolasite.com",
+      "address": "51 Juta Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bridge-Diner"
+    },
+    {
+      "name": "Decadent Desserts",
+      "website": "https://www.chocolatefountains.co.za",
+      "address": "5 Carissa Street, Welgemoed, Bellville Cape Town, Western Cape",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Decadent-Desserts"
+    },
+    {
+      "name": "Afripulse",
+      "website": "https://www.afripulse.net",
+      "address": "P O Box 15624, Sinoville Sinoville, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Afripulse_539464"
+    },
+    {
+      "name": "Cullinan Online",
+      "website": "https://www.cullinanonline.com",
+      "address": "109 Oak Avenue Cullinan, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cullinan-Online"
+    },
+    {
+      "name": "Flaovour&#39;d by Jasmine",
+      "website": "https://www.chefjasmine.co.za",
+      "address": "24 Alfred Street, Robertsham Johannesburg, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Flaovour-d-by-Jasmine"
+    },
+    {
+      "name": "Midads",
+      "website": "https://www.midads.co.cc",
+      "address": "Middleburg, Mpumalanga",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Midads"
+    },
+    {
+      "name": "Just Gavin Steelworks",
+      "website": "https://www.justgavinsteelworks.webs.com",
+      "address": "188 Springs Road Denneoord, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Just-Gavin-Steelworks"
+    },
+    {
+      "name": "Spitbraai Caterers- Traditional lamb on…",
+      "website": "https://www.spitbraaicaterers.co.za",
+      "address": "Jhb North Gauteng, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Spitbraai-Caterers-Traditional-lamb-on-the-spit-braai"
+    },
+    {
+      "name": "Baking Bonanza Centurion",
+      "website": "https://www.bakingbonanzacenturion.co.za",
+      "address": "C/o Of Galway & Kilkenny Ave Centurion, Gauteng",
+      "page": 5,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Baking-Bonanza-Centurion"
+    },
+    {
+      "name": "Rockafellas Theatre of Food",
+      "website": "https://www.rockafellas.za.com",
+      "address": null,
+      "page": 5,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rockafellas-Theatre-of-Food"
+    },
+    {
+      "name": "Blend Catering &amp; Events Management",
+      "website": "https://blendevent.co.za",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blend-Catering-Events-Management"
+    },
+    {
+      "name": "Seek Accommodation",
+      "website": "https://www.seekaccommodation.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Seek-Accommodation"
+    },
+    {
+      "name": "Cazabella Exotic Designer Jewellery",
+      "website": "https://www.theguildcollection.co.za",
+      "address": "Table Bay Hotel, Waterfront Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cazabella-Exotic-Designer-Jewellery"
+    },
+    {
+      "name": "Spill - Food Blog",
+      "website": "https://www.spill.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Spill-Food-Blog"
+    },
+    {
+      "name": "Menlyn Ads",
+      "website": "https://Menlynads.yolasite.com",
+      "address": "Pretoria, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Menlyn-Ads"
+    },
+    {
+      "name": "Changing Tides 274 cc",
+      "website": "https://changingtides274.webs.com",
+      "address": "Unit 4, Electron Close, Kya Sand, Randburg Johannesburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Changing-Tides-274-cc"
+    },
+    {
+      "name": "BMG Retail &amp; Hospitality Point of Sale",
+      "website": "https://www.legendpos.co.za",
+      "address": "43 Chianti Villas, Van Roebeeckshof, Bellville Belliville, Cape Town",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/BMG-Retail-Hospitality-Point-of-Sale"
+    },
+    {
+      "name": "JobXchange (pty) ltd",
+      "website": "https://www.jobx.co.za",
+      "address": "14 Ballyclare Drive, Bryanston Sandton, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/JobXchange"
+    },
+    {
+      "name": "Pam Golding Properties - Knysna",
+      "website": "https://www.pamgolding.co.za/knysna",
+      "address": "34 Main Road, Cnr Main Road & Gray Street Knysna, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pam-Golding-Properties-Knysna"
+    },
+    {
+      "name": "IPower SA",
+      "website": "https://www.ipowersa.co.za",
+      "address": "23 Jasper Avenue Alberton, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/IPower-SA"
+    },
+    {
+      "name": "Overberg Business Online",
+      "website": "https://www.overbergbusinessonline.co.za",
+      "address": "5 Dirkie Uys Street Hermanus, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Overberg-Business-Online"
+    },
+    {
+      "name": "The Chef Shop Cape Town Branch",
+      "website": "https://thechefshop.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Chef-Shop-Cape-Town-Branch"
+    },
+    {
+      "name": "M&#39;s on R 62",
+      "website": "https://www.msonr62.co.za",
+      "address": "11 Tennanstreet Barrydale, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ms-on-R-62"
+    },
+    {
+      "name": "Joburg North - News, Information, Busin…",
+      "website": "https://www.joburgnorth.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Joburg-North-News-Information-Businesses-Forums-Free-Classifieds"
+    },
+    {
+      "name": "Hotspotz Entertainment",
+      "website": "https://www.hotspotz.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hotspotz-Entertainment"
+    },
+    {
+      "name": "All Bright Cleaning Services",
+      "website": "https://www.abclean.co.za",
+      "address": "Shop 9 Honeydew Village, Amplifier Street, John Vorster Radiokop, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/All-Bright-Cleaning-Services"
+    },
+    {
+      "name": "Cafenio",
+      "website": "https://www.facebook.com/pages/Cafénio/167209010003555#!/pages/Cafénio/167209010003555?sk=i",
+      "address": "121 Thomson Street Hatfield, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 400,
+      "error": "HTTP 400",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cafenio"
+    },
+    {
+      "name": "Coastal Commercial Brokers",
+      "website": "https://www.coastalbrokers.co.za",
+      "address": "16 Sylvia Rd, Freeland Park Scottburgh, Kwazulu Natal",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Coastal-Commercial-Brokers"
+    },
+    {
+      "name": "&quot;Glendini&quot; Children&#39;s Magician &amp; Escape…",
+      "website": "https://www.escapemagic.co.za",
+      "address": "1 Eagle Way Bergvliet, Cape Town",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Glendini-Childrens-Magician-Escape-Artist"
+    },
+    {
+      "name": "Dancing Divinity Dance Company",
+      "website": "https://www.dancingdivinity.com",
+      "address": "Corner Grosvenor Road And Cumberland Avenue Bryanston, Gauteng",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dancing-Divinity-Dance-Company"
+    },
+    {
+      "name": "black bird cc",
+      "website": "https://www.black-bird.co.za",
+      "address": "Muizenberg, 1819 Capricorn Crescent Muizenberg, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/black-bird-cc"
+    },
+    {
+      "name": "AdventAfrica.com",
+      "website": "https://AdventAfrica.com",
+      "address": "305 Chartwell, 26 Park Drive Port Elizabeth, Eastern Cape",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/AdventAfrica-com"
+    },
+    {
+      "name": "Li&#39;l Genius",
+      "website": "https://WWW.a1ads.co.za",
+      "address": "86 Marseilles Crescent, Briardene Durban, Kwazulu Natal",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Li-l-Genius"
+    },
+    {
+      "name": "ShowMe Cape Town",
+      "website": "https://www.showme.co.za/cape-town",
+      "address": "Creative Suites, 210 Long Street Cape Town, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 410,
+      "error": "HTTP 410",
+      "bizbayUrl": "https://bizbay.co.za/Company/ShowMe-Cape-Town"
+    },
+    {
+      "name": "Coastal Brokers",
+      "website": "https://www.coastalbrokers.co.za",
+      "address": "Unit 36 The Crest, Dawood Close Ballito, Kwazulu Natal",
+      "page": 6,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Coastal-Brokers"
+    },
+    {
+      "name": "A to Z Buyers Guide",
+      "website": "https://atozbuyersguide.yolasite.com",
+      "address": "1 Grand Slam Street Langebaan, Western Cape",
+      "page": 6,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/A-to-Z-Buyers-Guide"
+    },
+    {
+      "name": "Activate Audio Visual",
+      "website": "https://www.activateav.com",
+      "address": null,
+      "page": 6,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Activate-Audio-Visual"
+    },
+    {
+      "name": "Peteens Linen and Decor CC",
+      "website": "https://www.peteenslinenanddecor.co.za",
+      "address": "P O Box 288 Steenberg 7947, 20 Military Road Steenberg, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Peteens-Linen-and-Decor-CC"
+    },
+    {
+      "name": "Pavin Caffe, Coffee Distribution, Espre…",
+      "website": "https://www.pavincaffe.co.za/",
+      "address": "E.l.a. Distribution, South Africa Port Elizabeth, Eastern Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pavin-Caffe-Coffee-Distribution-Espresso-Port-Elizabeth"
+    },
+    {
+      "name": "De Rust Boutique Backpackers",
+      "website": "https://www.derustboutiquebackpackers.co.za",
+      "address": "43 Schoeman Street, De Rust, 6651 De Rust, Cape Town",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/De-Rust-Boutique-Backpackers_889535"
+    },
+    {
+      "name": "Cater Africa",
+      "website": "https://www.caterafrica.co.za",
+      "address": "11 Bezuidenhout Road, Hurlyvale Edenvale, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cater-Africa"
+    },
+    {
+      "name": "Vuselela Catering Equipment",
+      "website": "https://www.vuselelacateringequip.co.za",
+      "address": "2067 Riverside Str, Sunrise Park, Doornkop Ext1 Soweto, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vuselela-Catering-Equipment"
+    },
+    {
+      "name": "Mapunya Enterprise",
+      "website": "https://www.mapunya.co.za",
+      "address": "Berger Street Midrand, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mapunya-Enterprise"
+    },
+    {
+      "name": "Superbly Decor &amp; Catering CC",
+      "website": "https://www.superblydecor.co.za",
+      "address": "29 Ertjiebos Circle, Rosendal, Delft Belhar, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Superbly-Decor-Catering-CC"
+    },
+    {
+      "name": "Sure-Fire Catering &amp; Events",
+      "website": "https://www.sure-fire.co.za",
+      "address": "Kenilworth Cape Town, Western Cape",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sure-Fire-Catering-Events"
+    },
+    {
+      "name": "SocialGetTogether",
+      "website": "https://www.socialgettogether.com",
+      "address": "William Street Johannesburg, Gauteng",
+      "page": 7,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/SocialGetTogether"
+    },
+    {
+      "name": "Info Jeffreys Bay",
+      "website": "https://www.infojeffreysbay.com",
+      "address": "Da Gama Road, J Bay Box 2031",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Info-Jeffreys-Bay"
+    },
+    {
+      "name": "Sandown House B&amp;b",
+      "website": "https://www.sandownhouse.co.za",
+      "address": "90 Sandown Road, Rondebosch 7700 Cape Town",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sandown-House-B-b"
+    },
+    {
+      "name": "Limpopo Tourism And Leisure",
+      "website": "https://www.leisurelimpopo.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Limpopo-Tourism-And-Leisure"
+    },
+    {
+      "name": "Salt River Lodge",
+      "website": "https://www.saltriverlodge.co.za",
+      "address": "153 Old Cape Road, Knysna Garden Route, Western Cape",
+      "page": 8,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Salt-River-Lodge"
+    },
+    {
+      "name": "La Med",
+      "website": "https://www.lamed.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/La-Med"
+    },
+    {
+      "name": "Western Cape Accommodation",
+      "website": "https://www.westerncapeaccommodation.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Western-Cape-Accommodation"
+    },
+    {
+      "name": "Tranquille Manor",
+      "website": "https://www.tranquillemanor.co.za",
+      "address": "11 Buffalo Road Vygeboom - Durbanville",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tranquille-Manor"
+    },
+    {
+      "name": "The Sea Horse Cruising Restaurant And B…",
+      "website": "https://www.theseahorse.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Sea-Horse-Cruising-Restaurant-And-Bar"
+    },
+    {
+      "name": "Wild Olive Guest House",
+      "website": "https://www.wild-olive.co.za",
+      "address": "227 Hangklip Road, Pringle Bay, Po Box 300",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wild-Olive-Guest-House"
+    },
+    {
+      "name": "Lowveld Catering Equipment",
+      "website": "https://www.lowveldcatering.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lowveld-Catering-Equipment"
+    },
+    {
+      "name": "St Elmo&#39;s",
+      "website": "https://www.stelmos.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/St-Elmos_422437"
+    },
+    {
+      "name": "Chef",
+      "website": "https://www.chefrestaurant.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chef"
+    },
+    {
+      "name": "Atlantic Beach Accommodation",
+      "website": "https://www.atlanticbeachaccommodation.co.za",
+      "address": null,
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Atlantic-Beach-Accommodation"
+    },
+    {
+      "name": "Acquila Guesthouse",
+      "website": "https://www.acquilaguesthouse.co.za",
+      "address": "31 Assembly Road, Bluff Durban",
+      "page": 8,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Acquila-Guesthouse"
+    },
+    {
+      "name": "The Bayleaf",
+      "website": "https://www.thebayleaf.co.za/index.htm",
+      "address": "27 The Drive Camps Bay 8005",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Bayleaf"
+    },
+    {
+      "name": "Nox Rentals",
+      "website": "https://www.noxrentals.co.za",
+      "address": "1st Floor, 13 Totnes Avenue, Camps Bay Cape Town",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Nox-Rentals"
+    },
+    {
+      "name": "King&#39;s Tide",
+      "website": "https://www.kingstide.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kings-Tide"
+    },
+    {
+      "name": "Pretoria.co.za",
+      "website": "https://www.pretoria.co.za",
+      "address": "123 Amkor Ave, Lyttleton Manor Centurion",
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 526,
+      "error": "HTTP 526",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pretoria-co-za"
+    },
+    {
+      "name": "Palmiet Valley Estate",
+      "website": "https://www.palmiet.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Palmiet-Valley-Estate"
+    },
+    {
+      "name": "What2night.co.za",
+      "website": "https://www.what2night.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/What2night-co-za"
+    },
+    {
+      "name": "Rendezvous Tourism Centre",
+      "website": "https://www.rendez.co.za",
+      "address": "Main Street, Po Box 73 Hazyview, Mpumalanga",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Rendezvous-Tourism-Centre"
+    },
+    {
+      "name": "Water Meadow",
+      "website": "https://www.watermeadow.co.za",
+      "address": "4 Club Road, Leisure Isle Knysna",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Water-Meadow"
+    },
+    {
+      "name": "Lavender Hill Guest House",
+      "website": "https://www.lavenderhillgh.co.za",
+      "address": "22 Wilson Street, Hunters Home Knysna",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Lavender-Hill-Guest-House"
+    },
+    {
+      "name": "Driftsands Guesthouse",
+      "website": "https://www.driftsands.co.za",
+      "address": "2 Marshall Road, Humewood Port Elizabeth",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Driftsands-Guesthouse"
+    },
+    {
+      "name": "Sleep With Us",
+      "website": "https://www.sleepwithus.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sleep-With-Us"
+    },
+    {
+      "name": "Peggy&#39;s Place &amp; Plate",
+      "website": "https://www.peggysplace.co.za",
+      "address": "F14 Prime Park, Mocke Rd Diep River, Western Cape",
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Peggys-Place-Plate"
+    },
+    {
+      "name": "Letlole Gg Consultants",
+      "website": "https://www.letloleconsultants.co.za",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Letlole-Gg-Consultants_402372"
+    },
+    {
+      "name": "Stowe-away Guest Cottage",
+      "website": "https://www.johnson.co.za/stowe-away",
+      "address": null,
+      "page": 9,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Stowe-away-Guest-Cottage"
+    },
+    {
+      "name": "Highfields Backpackers",
+      "website": "https://www.highfieldsbackpackers.co.za",
+      "address": "2 Graham Street Knysna, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Highfields-Backpackers"
+    },
+    {
+      "name": "Destination Cape Town",
+      "website": "https://www.destinationcapetown.net",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Destination-Cape-Town"
+    },
+    {
+      "name": "Benoni Country Club",
+      "website": "https://www.benonicountryclub.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Benoni-Country-Club"
+    },
+    {
+      "name": "Aco Office Solutions",
+      "website": "https://www.aco24.com",
+      "address": "6 Albie de Waal St Brackenfell, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Aco-Office-Solutions"
+    },
+    {
+      "name": "Hedgehog Catering",
+      "website": "https://hedgehogcatering.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hedgehog-Catering"
+    },
+    {
+      "name": "Cakeinc",
+      "website": "https://www.cakeinc.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cakeinc"
+    },
+    {
+      "name": "Strike Point",
+      "website": "https://www.managedevents.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Strike-Point"
+    },
+    {
+      "name": "Avalon Castle",
+      "website": "https://www.avalon-castle.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Avalon-Castle"
+    },
+    {
+      "name": "Historic Holiday Places",
+      "website": "https://www.historicholidayplaces.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Historic-Holiday-Places"
+    },
+    {
+      "name": "Fridge Hire Cape Town",
+      "website": "https://www.fridgehirecapetown.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fridge-Hire-Cape-Town"
+    },
+    {
+      "name": "Click Pages",
+      "website": "https://www.clickpages.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Click-Pages"
+    },
+    {
+      "name": "Music By Mario",
+      "website": "https://www.musicbymario.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Music-By-Mario"
+    },
+    {
+      "name": "Cynthias",
+      "website": "https://www.cynthias.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "connection_refused",
+      "error": "Connection refused",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cynthias"
+    },
+    {
+      "name": "Cayman Villas",
+      "website": "https://www.caymanvillas.com",
+      "address": "7 mile beach south sound to east end little cayman",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cayman-Villas"
+    },
+    {
+      "name": "Equestria Palms",
+      "website": "https://www.equestriapalms.co.za",
+      "address": "154 furrow street equestria pretoria",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Equestria-Palms"
+    },
+    {
+      "name": "Taste Of Heaven",
+      "website": "https://www.tasteofheaven.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Taste-Of-Heaven"
+    },
+    {
+      "name": "Akkerlaan",
+      "website": "https://www.akkerlaan.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Akkerlaan"
+    },
+    {
+      "name": "De Oude Paarl",
+      "website": "https://www.deoudepaarl.com",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/De-Oude-Paarl"
+    },
+    {
+      "name": "The Dome Banqueting",
+      "website": "https://www.thedomebanqueting.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Dome-Banqueting"
+    },
+    {
+      "name": "Villa Zimbali",
+      "website": "https://www.villazimbali.co.za",
+      "address": "no 35 the beach estate",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Villa-Zimbali"
+    },
+    {
+      "name": "Black Rock Cottage",
+      "website": "https://www.blackrockcottage.co.za",
+      "address": null,
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Black-Rock-Cottage"
+    },
+    {
+      "name": "Bam Strategic Marketing",
+      "website": "https://www.cape-routes.co.za",
+      "address": "56 barnet street gardens cape town, Western Cape",
+      "page": 10,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bam-Strategic-Marketing"
+    },
+    {
+      "name": "Blackwood Log Cabin",
+      "website": "https://www.blackwoodlogcabin.com",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blackwood-Log-Cabin"
+    },
+    {
+      "name": "Fairycake",
+      "website": "https://www.fairycake.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fairycake"
+    },
+    {
+      "name": "Cape Dreams",
+      "website": "https://www.capedreams.net",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Dreams"
+    },
+    {
+      "name": "Pacific Sunset Inn",
+      "website": "https://www.pacificsunsetinn.com",
+      "address": "chetco ave brookings or 97415 phone",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pacific-Sunset-Inn"
+    },
+    {
+      "name": "Big Day Planners",
+      "website": "https://www.bigdayplanners.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Big-Day-Planners"
+    },
+    {
+      "name": "Preventative Health Care Solutions",
+      "website": "https://www.preventativehealth.co.za",
+      "address": "prevenative health care solutions 77 dunville road bluff",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Preventative-Health-Care-Solutions"
+    },
+    {
+      "name": "Constantia Village",
+      "website": "https://www.constantiavillage.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Constantia-Village"
+    },
+    {
+      "name": "The Wedding",
+      "website": "https://www.theweddingco.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Wedding"
+    },
+    {
+      "name": "Polokwane City",
+      "website": "https://www.polokwanecity.co.za",
+      "address": "webmaster 102 market street polokwane, Limpopo",
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Polokwane-City"
+    },
+    {
+      "name": "Visit Margate",
+      "website": "https://visitmargate.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Visit-Margate"
+    },
+    {
+      "name": "Deltash Caterers",
+      "website": "https://www.deltashcaterers.co.za",
+      "address": "30 star street woodhurst chatsworth durban",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Deltash-Caterers"
+    },
+    {
+      "name": "Beverley&#39;s Catering",
+      "website": "https://www.bev.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Beverleys-Catering"
+    },
+    {
+      "name": "Sandton Cater Hire",
+      "website": "https://www.sandtoncaterhire.co.za",
+      "address": "branch 001255 branch code account no",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sandton-Cater-Hire"
+    },
+    {
+      "name": "Deals On Meals",
+      "website": "https://www.dealsonmeals.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Deals-On-Meals"
+    },
+    {
+      "name": "Fourways Crossing",
+      "website": "https://www.fourwayscrossing.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Fourways-Crossing"
+    },
+    {
+      "name": "Golden Feathers Lodge",
+      "website": "https://www.goldenfeatherslodge.co.za",
+      "address": "141 fourth avenue rondebosch east cape town, Western Cape",
+      "page": 11,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Golden-Feathers-Lodge"
+    },
+    {
+      "name": "Eldrew B&amp;b",
+      "website": "https://www.eldrew.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Eldrew-B-b"
+    },
+    {
+      "name": "Table View Online",
+      "website": "https://www.tableviewonline.co.za",
+      "address": null,
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Table-View-Online"
+    },
+    {
+      "name": "Indulge Cooking Book",
+      "website": "https://www.indulgecookingbook.co.za",
+      "address": "shanaaz parker sp culinary academy p o box 117 retreat",
+      "page": 11,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Indulge-Cooking-Book"
+    },
+    {
+      "name": "Sakevriende",
+      "website": "https://www.sakevriende.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Sakevriende"
+    },
+    {
+      "name": "Startpage",
+      "website": "https://www.startpage.co.za",
+      "address": "hot careers24 sa best jobs more jobs",
+      "page": 12,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Startpage"
+    },
+    {
+      "name": "Far East Tours",
+      "website": "https://www.fetours.com",
+      "address": "last updated friday 12 september",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Far-East-Tours"
+    },
+    {
+      "name": "Olive Mystery",
+      "website": "https://www.olivemystery.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Olive-Mystery"
+    },
+    {
+      "name": "Malls On Call",
+      "website": "https://www.mallsoncall.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Malls-On-Call"
+    },
+    {
+      "name": "Emperors Meals",
+      "website": "https://www.emperorsmeals.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Emperors-Meals"
+    },
+    {
+      "name": "Cumin And Coriander",
+      "website": "https://www.cuminandcoriander.co.za",
+      "address": "153 queen street kensingnton johannesburg",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cumin-And-Coriander"
+    },
+    {
+      "name": "Tascadebelem",
+      "website": "https://www.tascadebelem.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Tascadebelem"
+    },
+    {
+      "name": "The Villa Guest House",
+      "website": "https://www.thevillaguesthouse.co.za",
+      "address": "40 pioneer road kloof kwazulu natal",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Villa-Guest-House"
+    },
+    {
+      "name": "Mariners Wharf",
+      "website": "https://www.marinerswharf.com",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mariners-Wharf_408938"
+    },
+    {
+      "name": "Miracle Engineering",
+      "website": "https://www.miracleengineering.co.za",
+      "address": "1 research road pretoria west industrial pretoria",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Miracle-Engineering"
+    },
+    {
+      "name": "Executive Twelve",
+      "website": "https://www.executivetwelve.co.za",
+      "address": "dolcé vita apartments 12 dolcé vita c/o jean avenue and gerhard street centurion",
+      "page": 12,
+      "status": "faulty",
+      "httpStatus": 503,
+      "error": "HTTP 503",
+      "bizbayUrl": "https://bizbay.co.za/Company/Executive-Twelve"
+    },
+    {
+      "name": "Teambuilding Adventures",
+      "website": "https://www.teambuildingadventures.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Teambuilding-Adventures"
+    },
+    {
+      "name": "Liquor Control",
+      "website": "https://www.liquorcontrol.co.za",
+      "address": "18 percy osborn road greyville durban",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Liquor-Control"
+    },
+    {
+      "name": "Bally High Guest House",
+      "website": "https://www.bally-high.co.za",
+      "address": "with easy access to the m4 and n2 highways armstrong avenue",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bally-High-Guest-House"
+    },
+    {
+      "name": "Chef Pons Asian Kitchen",
+      "website": "https://www.chefponsasiankitchen.co.za",
+      "address": "12 mill street gardens cape town",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chef-Pons-Asian-Kitchen"
+    },
+    {
+      "name": "Greenpointlife",
+      "website": "https://greenpointlife.co.za",
+      "address": null,
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Greenpointlife"
+    },
+    {
+      "name": "Villa Del Lago",
+      "website": "https://www.villa-del-lago.co.za",
+      "address": "russell & helen tarr 142 old cape road / access disa street knysna, Western Cape",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Villa-Del-Lago"
+    },
+    {
+      "name": "Mmuthlwa Lodge",
+      "website": "https://www.mmuthlwalodge.co.za",
+      "address": "101 norfolk road carlswald midrand, gauteng",
+      "page": 12,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mmuthlwa-Lodge"
+    },
+    {
+      "name": "Constantia Cuisine",
+      "website": "https://www.constantiacuisine.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Constantia-Cuisine"
+    },
+    {
+      "name": "Cedar Manor Guesthouse",
+      "website": "https://www.cedarmanorguesthouse.co.za",
+      "address": "37 cedar ave plantation boksburg, gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cedar-Manor-Guesthouse"
+    },
+    {
+      "name": "Status Entertainment",
+      "website": "https://www.status-entertainment.com",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Status-Entertainment"
+    },
+    {
+      "name": "Emoya",
+      "website": "https://www.emoya.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Emoya"
+    },
+    {
+      "name": "Cherry Nouveau",
+      "website": "https://www.cherrynouveau.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cherry-Nouveau"
+    },
+    {
+      "name": "Galleon Nook",
+      "website": "https://www.galleonnook.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Galleon-Nook"
+    },
+    {
+      "name": "Bite Catering",
+      "website": "https://www.bitecatering.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bite-Catering"
+    },
+    {
+      "name": "Bridal Wearhouse",
+      "website": "https://www.bridalwearhouse.co.za",
+      "address": "this site is best viewed in x 768 pixels",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bridal-Wearhouse"
+    },
+    {
+      "name": "Befores And Afters",
+      "website": "https://www.beforesandafters.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Befores-And-Afters"
+    },
+    {
+      "name": "Canto Latino",
+      "website": "https://cantolatino.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Canto-Latino"
+    },
+    {
+      "name": "Intaka Lodge",
+      "website": "https://www.intakalodge.co.za",
+      "address": "salem rd kenton-on-sea p o box 169 kenton on sea, Eastern Cape",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Intaka-Lodge"
+    },
+    {
+      "name": "Helicharter Backpacker",
+      "website": "https://www.helibackpacker.co.za",
+      "address": "23 windermere road humewood",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Helicharter-Backpacker"
+    },
+    {
+      "name": "Expo Centre Johannesburg",
+      "website": "https://expocentrejohannesburg.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Expo-Centre-Johannesburg"
+    },
+    {
+      "name": "Plett Self Catering Accommodation",
+      "website": "https://www.plettselfcateringaccommodation.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Plett-Self-Catering-Accommodation"
+    },
+    {
+      "name": "Vermiculture Africa",
+      "website": "https://www.vermicultureafrica.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Vermiculture-Africa"
+    },
+    {
+      "name": "Gartour",
+      "website": "https://www.gartour.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gartour"
+    },
+    {
+      "name": "Constantia Lodge",
+      "website": "https://www.constantialodge.com",
+      "address": "5 duntaw close off rhodes dr constantia",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Constantia-Lodge_412200"
+    },
+    {
+      "name": "Barnacle",
+      "website": "https://www.barnacle.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Barnacle"
+    },
+    {
+      "name": "Pristine Laundry",
+      "website": "https://www.pristinelaundry.co.za",
+      "address": "21 steenbok street koedoespoort pretoria, Gauteng",
+      "page": 13,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pristine-Laundry"
+    },
+    {
+      "name": "Garden Route Commercial",
+      "website": "https://www.gardenroute-commercial.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Garden-Route-Commercial"
+    },
+    {
+      "name": "Buzzy Jobs",
+      "website": "https://buzzyjobs.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Buzzy-Jobs"
+    },
+    {
+      "name": "Thaifoon",
+      "website": "https://www.thaifoon.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Thaifoon_412807"
+    },
+    {
+      "name": "Events4you",
+      "website": "https://www.events4you.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Events4you"
+    },
+    {
+      "name": "2 Peaz Catering",
+      "website": "https://www.2peaz.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/2-Peaz-Catering"
+    },
+    {
+      "name": "Urban Suites",
+      "website": "https://www.urbansuites.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Urban-Suites"
+    },
+    {
+      "name": "Conference Concepts",
+      "website": "https://www.conferenceconcepts.co.za",
+      "address": null,
+      "page": 13,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Conference-Concepts"
+    },
+    {
+      "name": "Culinary Productions",
+      "website": "https://www.culinaryproductions.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Culinary-Productions"
+    },
+    {
+      "name": "Festival Mall",
+      "website": "https://www.festivalmall.co.za",
+      "address": "321 - suite 2 kempton park",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Festival-Mall"
+    },
+    {
+      "name": "Harties Info",
+      "website": "https://www.hartiesinfo.net",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Harties-Info"
+    },
+    {
+      "name": "Louhallas",
+      "website": "https://www.louhallas.co.za",
+      "address": "121 7th avenue edenvale, gauteng",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Louhallas"
+    },
+    {
+      "name": "Blue Mountain Backpackers",
+      "website": "https://www.bluemountainbackpackers.co.za",
+      "address": "208 long street cape town, Western Cape",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Mountain-Backpackers"
+    },
+    {
+      "name": "Oscars Catering",
+      "website": "https://www.oscars-catering.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Oscars-Catering"
+    },
+    {
+      "name": "Carpet Wizzards",
+      "website": "https://www.carpetwizzards.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Carpet-Wizzards"
+    },
+    {
+      "name": "Guest House Krone",
+      "website": "https://www.guesthousekrone.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Guest-House-Krone"
+    },
+    {
+      "name": "Pascale Paint Effects",
+      "website": "https://www.pascalepaint.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Pascale-Paint-Effects"
+    },
+    {
+      "name": "The Z&#228;chel",
+      "website": "https://www.zaechel.co.za",
+      "address": "unit 12-12 the hydro park 86 grayston drive 12th floor sandton johannesburg",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Z%C3%A4chel"
+    },
+    {
+      "name": "Headline Leisure",
+      "website": "https://www.headlineleisure.co.za",
+      "address": "5 rutland mews cnr of main and keymer roads eastleigh edenvale",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Headline-Leisure"
+    },
+    {
+      "name": "Welile Caterers",
+      "website": "https://www.welilecaterers.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Welile-Caterers"
+    },
+    {
+      "name": "Brendon Magee Catering",
+      "website": "https://www.brendonmageecatering.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Brendon-Magee-Catering"
+    },
+    {
+      "name": "Ulwazi Group",
+      "website": "https://www.ulwazigroup.co.za",
+      "address": "corporate park south 22 reedbuck crescent emerald park 2",
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ulwazi-Group"
+    },
+    {
+      "name": "Saldanha Bay",
+      "website": "https://www.saldanhabay.com",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Saldanha-Bay"
+    },
+    {
+      "name": "Dullstroom Venues",
+      "website": "https://www.dullstroomvenues.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Dullstroom-Venues"
+    },
+    {
+      "name": "Worcester Wine Route",
+      "website": "https://www.worcesterwineroute.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Worcester-Wine-Route"
+    },
+    {
+      "name": "Magaliesberg Map",
+      "website": "https://www.magaliesbergmap.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Magaliesberg-Map"
+    },
+    {
+      "name": "Terua Enterprises",
+      "website": "https://www.terua-enterprises.com",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Terua-Enterprises_414570"
+    },
+    {
+      "name": "Little Switzerland",
+      "website": "https://www.littleswitzerland.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Little-Switzerland_414799"
+    },
+    {
+      "name": "Taste Holdings",
+      "website": "https://www.tasteholdings.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Taste-Holdings"
+    },
+    {
+      "name": "Didintle Maiphetlho Enterprise",
+      "website": "https://www.didienterprise.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Didintle-Maiphetlho-Enterprise"
+    },
+    {
+      "name": "Explore Free State",
+      "website": "https://www.explorefreestate.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Explore-Free-State"
+    },
+    {
+      "name": "Kapricorn Designs And Party Hire",
+      "website": "https://www.kapricorn.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kapricorn-Designs-And-Party-Hire"
+    },
+    {
+      "name": "Shikanda",
+      "website": "https://www.shikanda.co.za",
+      "address": "postnet suite 454 private bag x4 menlo park",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Shikanda"
+    },
+    {
+      "name": "Touareg Tents",
+      "website": "https://www.touaregtents.co.za",
+      "address": "no 5 fairway business park stibitz str westlake business park westlake",
+      "page": 14,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Touareg-Tents"
+    },
+    {
+      "name": "Choc Salami",
+      "website": "https://www.chocsalami.co.za",
+      "address": null,
+      "page": 14,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Choc-Salami"
+    },
+    {
+      "name": "Melliam Catering",
+      "website": "https://www.melliamcatering.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Melliam-Catering"
+    },
+    {
+      "name": "Chocolate Fountains",
+      "website": "https://www.chocolatefountains.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Chocolate-Fountains"
+    },
+    {
+      "name": "Flavour",
+      "website": "https://www.flavour.org.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Flavour"
+    },
+    {
+      "name": "Ambience Guest House",
+      "website": "https://www.ambienceguesthouse.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ambience-Guest-House"
+    },
+    {
+      "name": "Cantina Tequila",
+      "website": "https://www.cantinatequila.co.za",
+      "address": "86 edward street tygervalley bellville, Western Cape",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cantina-Tequila"
+    },
+    {
+      "name": "Kga Tours",
+      "website": "https://www.kgatours.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kga-Tours"
+    },
+    {
+      "name": "Hotel And Restaurant",
+      "website": "https://www.hotelandrestaurant.co.za",
+      "address": "5th floor north ridge rd morningside",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Hotel-And-Restaurant"
+    },
+    {
+      "name": "Amazing La Tours",
+      "website": "https://www.amazinglatours.com",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Amazing-La-Tours"
+    },
+    {
+      "name": "Plaka",
+      "website": "https://www.plaka.co.za",
+      "address": "shop g4 illovo thrupps centre 204 oxford road illovo",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Plaka"
+    },
+    {
+      "name": "Elzaan",
+      "website": "https://www.elzaan.co.za",
+      "address": "zambesie road 306 sinoville",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Elzaan"
+    },
+    {
+      "name": "Bronberg Online",
+      "website": "https://www.bronbergonline.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bronberg-Online"
+    },
+    {
+      "name": "Howela",
+      "website": "https://www.howela.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Howela"
+    },
+    {
+      "name": "Ron Salter &amp; Associates",
+      "website": "https://www.liquorlicences.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ron-Salter-Associates"
+    },
+    {
+      "name": "Cotswold Inn",
+      "website": "https://www.cotswoldinn.co.za",
+      "address": "123 acacia road blue hills midrand",
+      "page": 15,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cotswold-Inn"
+    },
+    {
+      "name": "Da Vincenzo",
+      "website": "https://www.davincenzo.co.za",
+      "address": "29 montrose road barbeque downs kyalami johannesburg",
+      "page": 15,
+      "status": "faulty",
+      "httpStatus": 404,
+      "error": "HTTP 404",
+      "bizbayUrl": "https://bizbay.co.za/Company/Da-Vincenzo"
+    },
+    {
+      "name": "Eat Greek",
+      "website": "https://www.eatgreek.co.za",
+      "address": null,
+      "page": 15,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Eat-Greek"
+    },
+    {
+      "name": "The Old Post Tree Square",
+      "website": "https://mossebayconference.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Old-Post-Tree-Square"
+    },
+    {
+      "name": "My Thai",
+      "website": "https://www.mythai.co.za",
+      "address": "417a innes road morningside durban",
+      "page": 16,
+      "status": "faulty",
+      "httpStatus": 405,
+      "error": "HTTP 405",
+      "bizbayUrl": "https://bizbay.co.za/Company/My-Thai"
+    },
+    {
+      "name": "Salsa Eventing",
+      "website": "https://www.salsaevents.co.za",
+      "address": "no 21 hope street kenilworth cape town",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Salsa-Eventing"
+    },
+    {
+      "name": "Taylored Properties",
+      "website": "https://www.tayloredproperties.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Taylored-Properties"
+    },
+    {
+      "name": "Celsius Hospitality",
+      "website": "https://www.celsius-hospitality.co.za",
+      "address": "173 st bernard street po box 38963 garsfontein ext 10 garsfontein east",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Celsius-Hospitality"
+    },
+    {
+      "name": "Herenhuis Restaurant",
+      "website": "https://www.herenhuis.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Herenhuis-Restaurant"
+    },
+    {
+      "name": "Asado Spitbraai",
+      "website": "https://www.asadospitbraai.co.za",
+      "address": "last update was on 12 february",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Asado-Spitbraai"
+    },
+    {
+      "name": "Mammarenes Catering",
+      "website": "https://www.mammarenescatering.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mammarenes-Catering"
+    },
+    {
+      "name": "Studio 35",
+      "website": "https://www.lighthouseapartments.co.za",
+      "address": "35 lighthouse towers chartwell drive umhlanga durban",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Studio-35"
+    },
+    {
+      "name": "People International",
+      "website": "https://www.peopleinternational.net",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/People-International"
+    },
+    {
+      "name": "Beach Boulevard Accommodation",
+      "website": "https://www.beachboulevard.co.za",
+      "address": "cc po box 60665 flamingo square cape town, Western Cape",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Beach-Boulevard-Accommodation_419487"
+    },
+    {
+      "name": "Schoongezicht Restaurant",
+      "website": "https://www.schoongezichtbuffet.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "connection_reset",
+      "error": "Connection reset",
+      "bizbayUrl": "https://bizbay.co.za/Company/Schoongezicht-Restaurant"
+    },
+    {
+      "name": "Bees Place",
+      "website": "https://www.beesplace.co.za",
+      "address": "1 holmpark place durban north",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bees-Place"
+    },
+    {
+      "name": "Choice",
+      "website": "https://www.bychoice.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Choice"
+    },
+    {
+      "name": "Weddings4u",
+      "website": "https://www.weddings4u.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Weddings4u"
+    },
+    {
+      "name": "Mel Abro Brokers",
+      "website": "https://melabrobrokers.co.za",
+      "address": "158 corlett drive bramley, Gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mel-Abro-Brokers"
+    },
+    {
+      "name": "Cactus House Guest House",
+      "website": "https://www.cactushouse.co.za",
+      "address": "200 site by stuart banks",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cactus-House-Guest-House"
+    },
+    {
+      "name": "Best Gourmet",
+      "website": "https://www.bestgourmet.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Best-Gourmet"
+    },
+    {
+      "name": "Party Tots",
+      "website": "https://www.partytots.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Party-Tots"
+    },
+    {
+      "name": "Wedding Fever",
+      "website": "https://www.weddingfever.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wedding-Fever"
+    },
+    {
+      "name": "Whale Rock House",
+      "website": "https://www.whalerockhouse.co.za",
+      "address": null,
+      "page": 16,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Whale-Rock-House"
+    },
+    {
+      "name": "Blind Pilot Productions",
+      "website": "https://blindpilot.co.za",
+      "address": "wingate park travalia str 725 pretoria, gauteng",
+      "page": 16,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blind-Pilot-Productions"
+    },
+    {
+      "name": "Signal Hill Lodge",
+      "website": "https://www.signalhilllodge.com",
+      "address": "29 military road cape town",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Signal-Hill-Lodge"
+    },
+    {
+      "name": "Cater For Me",
+      "website": "https://www.caterforme.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cater-For-Me"
+    },
+    {
+      "name": "Cape Self Catering",
+      "website": "https://www.capeselfcatering.co.za",
+      "address": "18 greenside charlton road fish hoek",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Self-Catering"
+    },
+    {
+      "name": "Gemini Caterers",
+      "website": "https://geminicaterers.co.za",
+      "address": "venues we have 1 guest online password remember me",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Gemini-Caterers"
+    },
+    {
+      "name": "Protea Gardens Mall",
+      "website": "https://www.proteagardensmall.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Protea-Gardens-Mall"
+    },
+    {
+      "name": "Flower Factory",
+      "website": "https://www.flower-factory.co.za",
+      "address": "no 148 monument road glen marais kempton park, gauteng",
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 500,
+      "error": "HTTP 500",
+      "bizbayUrl": "https://bizbay.co.za/Company/Flower-Factory"
+    },
+    {
+      "name": "Bluerain Productions",
+      "website": "https://www.bluerain.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Bluerain-Productions"
+    },
+    {
+      "name": "The Blue Pear",
+      "website": "https://www.bluepear.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Blue-Pear"
+    },
+    {
+      "name": "Ambrosia Catering",
+      "website": "https://www.ambrosia-catering.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ambrosia-Catering"
+    },
+    {
+      "name": "Platters Etc",
+      "website": "https://www.plattersetc.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Platters-Etc"
+    },
+    {
+      "name": "Zest Holidays",
+      "website": "https://www.zestholidays.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zest-Holidays"
+    },
+    {
+      "name": "Blue Whale Lodge",
+      "website": "https://www.bluewhalelodge.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Blue-Whale-Lodge"
+    },
+    {
+      "name": "Cape Holiday Villas",
+      "website": "https://www.capeholidayvillas.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Holiday-Villas"
+    },
+    {
+      "name": "St Elmos",
+      "website": "https://www.stelmos.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/St-Elmos_422437"
+    },
+    {
+      "name": "Cape Town Estate Agents",
+      "website": "https://www.capetown-estateagents.com",
+      "address": "constantia - - r 12 million 10 the avenue silverhurst constantia",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Town-Estate-Agents"
+    },
+    {
+      "name": "Cyber Find",
+      "website": "https://www.cyberfind.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Cyber-Find"
+    },
+    {
+      "name": "Indy",
+      "website": "https://www.indy.org",
+      "address": "30 south meridian street suite 410 indianapolis indiana 46204",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "unknown",
+      "error": "fetch failed",
+      "bizbayUrl": "https://bizbay.co.za/Company/Indy"
+    },
+    {
+      "name": "The Event Girls",
+      "website": "https://www.eventgirls.co.za",
+      "address": "21 estcourt street wierdapark centurion",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Event-Girls"
+    },
+    {
+      "name": "Point Of View",
+      "website": "https://www.pointofview.co.za",
+      "address": "43 st monica str schoemansville hartbeespoort dam",
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Point-Of-View"
+    },
+    {
+      "name": "The Island Diner",
+      "website": "https://www.islanddiner.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Island-Diner"
+    },
+    {
+      "name": "Kgatelo-pele Events And Marketing",
+      "website": "https://kgatelopeleevents.co.za",
+      "address": null,
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kgatelo-pele-Events-And-Marketing"
+    },
+    {
+      "name": "Whittlers Lodge",
+      "website": "https://www.whittlerslodge.co.za",
+      "address": "chapman's peak drive a mere 35 minutes",
+      "page": 17,
+      "status": "faulty",
+      "httpStatus": 403,
+      "error": "HTTP 403",
+      "bizbayUrl": "https://bizbay.co.za/Company/Whittlers-Lodge"
+    },
+    {
+      "name": "Parties And Occasions",
+      "website": "https://www.partiesandoccasions.co.za",
+      "address": "330 church street pretoria west",
+      "page": 17,
+      "status": "faulty",
+      "errorType": "dns_error",
+      "error": "Domain not found",
+      "bizbayUrl": "https://bizbay.co.za/Company/Parties-And-Occasions"
+    },
+    {
+      "name": "Ubomi Catering cc",
+      "website": null,
+      "address": null,
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ubomi-Catering-cc"
+    },
+    {
+      "name": "Monjafika&#39;s Foods",
+      "website": null,
+      "address": "Helderberg Close, P O Box 833, Cape Gate Cape Town, Western Cape",
+      "page": 2,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Monjafikas-Foods"
+    },
+    {
+      "name": "Ramkietjie Country Restaurant And Confe…",
+      "website": null,
+      "address": "35 Peter Road Honeydew, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Ramkietjie-Country-Restaurant-And-Conference-Centre"
+    },
+    {
+      "name": "Afrocentric driving school",
+      "website": null,
+      "address": "54 Elston Avenue Benoni, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Afrocentric-driving-school"
+    },
+    {
+      "name": "Regal Regale - Food Manufacturer",
+      "website": null,
+      "address": "521 Moreleta Street Silverton, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Regal-Regale-Food-Manufacturer"
+    },
+    {
+      "name": "Jaffelicious",
+      "website": null,
+      "address": "Libradene Boksburg, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Jaffelicious"
+    },
+    {
+      "name": "Victory Decor and Lighting",
+      "website": null,
+      "address": "11 Allandale Drive Pietermaritzburg Kwazulu-natal, Kwazulu-nata",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Victory-Decor-and-Lighting"
+    },
+    {
+      "name": "Amima General Trading cc",
+      "website": null,
+      "address": "1 Thomas Street, Po Box 16135, Amathole Valley King Williams Town, Eastern Cape",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Amima-General-Trading-cc"
+    },
+    {
+      "name": "The Old Berkshire B&amp;B and Self Catering…",
+      "website": null,
+      "address": "293 Old Howick Road Hilton, Kwazulu-nata",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Old-Berkshire-B-B-and-Self-Catering-Establishment"
+    },
+    {
+      "name": "K.G.B COURIER,CLEANING &amp; CATERING SERVI…",
+      "website": null,
+      "address": "335 Vundla Drive, Moroka Soweto, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/K-G-B-COURIER-CLEANING-CATERING-SERVICE"
+    },
+    {
+      "name": "KwantuEvents &amp; Caterers",
+      "website": null,
+      "address": "81 Emerald Gardens, Fouriesburg Street, Rooihuiskraal Centurion, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/KwantuEvents-Caterers"
+    },
+    {
+      "name": "Niza Catering &amp; Event Management",
+      "website": null,
+      "address": "138 Lewis Drive Amanzimtoti, Kwazulu-nata",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Niza-Catering-Event-Management"
+    },
+    {
+      "name": "smallbites trading",
+      "website": null,
+      "address": "3498 Blue Bush, Naturena Naturena, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/smallbites-trading"
+    },
+    {
+      "name": "The Gourmet Pantry",
+      "website": null,
+      "address": "141 Main Rd Diep River, Western Cape",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Gourmet-Pantry"
+    },
+    {
+      "name": "Mzansi Caterin Projects",
+      "website": null,
+      "address": "36 Melrose Boulevard Gauteng, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mzansi-Caterin-Projects"
+    },
+    {
+      "name": "Wiejan Catering",
+      "website": null,
+      "address": "9 Cape Manor, Hove Crescent, Dalpark Extension 1 Brakpan, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Wiejan-Catering"
+    },
+    {
+      "name": "Firehouse Steakmasters",
+      "website": null,
+      "address": "Illovo Square Shopping Center, Oxford Road, Illovo Illovo-johannesburg, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Firehouse-Steakmasters"
+    },
+    {
+      "name": "LEGACY SPORTS BAR",
+      "website": null,
+      "address": "Circular Drive, The Gardens Port Elizabeth, Eastern Cape",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/LEGACY-SPORTS-BAR"
+    },
+    {
+      "name": "Magic Entertainment",
+      "website": null,
+      "address": "P O Box 49699, Hercules Pretoria, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Magic-Entertainment"
+    },
+    {
+      "name": "Mimi the delicious food company",
+      "website": null,
+      "address": "107 Lower Main Road Observatory, Western Cape",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Mimi-the-delicious-food-company"
+    },
+    {
+      "name": "Kelly&#39;s North Indian Diner",
+      "website": null,
+      "address": "Gables Centre, C/o Hendrik Verwoerd & Galway Ave, Hennopspark Centurion, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Kellys-North-Indian-Diner"
+    },
+    {
+      "name": "Unlimited Business Solutions",
+      "website": null,
+      "address": "10 Zandspruit Rd, Farmall Fourways, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Unlimited-Business-Solutions"
+    },
+    {
+      "name": "Perfect Touch",
+      "website": null,
+      "address": "York Str Germiston, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Perfect-Touch_398534"
+    },
+    {
+      "name": "LoveBites Cafe",
+      "website": null,
+      "address": "Loveday Street, Between Marshal And Anderson Johannesburg Cbd, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/LoveBites-Cafe"
+    },
+    {
+      "name": "Monate Mnandi Catering and Events Cordi…",
+      "website": null,
+      "address": "48 Lobelia Road Simmerfield, Germiston, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Monate-Mnandi-Catering-and-Events-Cordinators"
+    },
+    {
+      "name": "MEG&#39;Z HIRING &amp; CATERING",
+      "website": null,
+      "address": "11-25th Avenue, Umhlatuzana Chatsworth Durban, Kwazulu-nata",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MEG-Z-HIRING-CATERING"
+    },
+    {
+      "name": "Zanekamva Cleaning Catering and Distrib…",
+      "website": null,
+      "address": "62 Bokwe Street, Mossel Bay, Mossel Bay Mossel Bay, Western Cape",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Zanekamva-Cleaning-Catering-and-Distribution-Services"
+    },
+    {
+      "name": "Birdies &amp; Bogeys golf cafe",
+      "website": null,
+      "address": "Cnr John Voster & Logan Avenue Highveld Centurion, Gauteng",
+      "page": 7,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Birdies-Bogeys-golf-cafe"
+    },
+    {
+      "name": "CATERING QUEEN",
+      "website": null,
+      "address": "16 LYNVALE PLACE, RYDALVALE Phoenix, KwaZulu-Nata",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/CATERING-QUEEN"
+    },
+    {
+      "name": "Disikeleni constructions and services",
+      "website": null,
+      "address": null,
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/Disikeleni-constructions-and-services"
+    },
+    {
+      "name": "MOIPONE AND MKEMELENG CATERING AND PROJ…",
+      "website": null,
+      "address": "12 Aloe Street Arconpark Vereeniging 1939 Arconpark Vereeniging 1939, Gauteng",
+      "page": 10,
+      "status": "no_website",
+      "error": "No website provided",
+      "bizbayUrl": "https://bizbay.co.za/Company/MOIPONE-AND-MKEMELENG-CATERING-AND-PROJECTS"
+    }
+  ]
+}

@@ -1,0 +1,2082 @@
+{
+  "category": "Business-Consulting",
+  "count": 228,
+  "listings": [
+    {
+      "name": "Neland Consulting",
+      "website": "https://www.nelandconsulting.co.za",
+      "address": "The Pavillion Office Park, Block C, 12 Wessels Road Rivonia, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Neland-Consulting"
+    },
+    {
+      "name": "Harmony Consulting",
+      "website": "https://www.harmonyconsulting.co.za",
+      "address": "1 Silver Close Kloofendal Roodepoort, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Harmony-Consulting"
+    },
+    {
+      "name": "Intellogic Africa Business Consulting",
+      "website": "https://www.intellogic.co.za",
+      "address": null,
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Intellogic-Africa-Business-Consulting"
+    },
+    {
+      "name": "Ravheka Rading",
+      "website": "https://www.ravhekatrading.co.za",
+      "address": "Campell Road, Inchanga Fourways, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ravheka-Rading"
+    },
+    {
+      "name": "Sebola Accountants",
+      "website": "https://www.collinssebolainc.co.za",
+      "address": null,
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sebola-Accountants"
+    },
+    {
+      "name": "Ke Thusa Business Consulting",
+      "website": "https://www.business-consulting.co.za",
+      "address": "329 14th Avenue, Rietfontein Pretoria, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ke-Thusa-Business-Consulting"
+    },
+    {
+      "name": "Kok Accountants",
+      "website": "https://www.kokaccountants.co.za",
+      "address": "131 Winterberg Estate, Equestria Pretoria, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kok-Accountants"
+    },
+    {
+      "name": "Octarine Communications",
+      "website": "https://www.octarine.co.za",
+      "address": "Po Box 201538 Durban North, Kwazulu-nata",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Octarine-Communications"
+    },
+    {
+      "name": "Malaikas Education and Resoucing Consul…",
+      "website": "https://www.malaikas.co.za",
+      "address": "31 Voortrekker Avenue, Benoni Benoni, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Malaikas-Education-and-Resoucing-Consultants"
+    },
+    {
+      "name": "Die Veldmuis Bemarking",
+      "website": "https://www.veldmuis.co.za",
+      "address": "Tygerbergweg 4, Bonnie Brae Kraaifontein, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Die-Veldmuis-Bemarking"
+    },
+    {
+      "name": "Bloemfontein Shelf Company Warehouse",
+      "website": "https://www.pty-online.co.za",
+      "address": "62 Kellner Street Westdene, Bloemfontein, Free State",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bloemfontein-Shelf-Company-Warehouse"
+    },
+    {
+      "name": "Healthcor SA Investment Brokers",
+      "website": "https://www.healthcor.co.za",
+      "address": "13 Beresford Road, Nahoon East London, Eastern Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Healthcor-SA-Investment-Brokers"
+    },
+    {
+      "name": "Quartz Technology cc",
+      "website": "https://www.quartzconsult.co.za",
+      "address": "1 Adrienne Rd, St Winifreds Amanzimtoti, Kwazulu Natal",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Quartz-Technology-cc"
+    },
+    {
+      "name": "Super-Cube Solutions",
+      "website": "https://www.super-cube.com",
+      "address": "Umhlanga Rocks, Kwazulu Natal",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Super-Cube-Solutions"
+    },
+    {
+      "name": "Broman Management Consultants",
+      "website": "https://www.broman.co.za",
+      "address": "Randburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Broman-Management-Consultants"
+    },
+    {
+      "name": "Opaque Reference Equipment",
+      "website": "https://www.opaque.co.za",
+      "address": "8 Hammerkop Rd, Springs Daggafontein, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Opaque-Reference-Equipment"
+    },
+    {
+      "name": "Maverick Financial Services",
+      "website": "https://www.maverickfinancial.co.za",
+      "address": "181 Longleat Avenue, Chartwell Country Estates Chartwell, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Maverick-Financial-Services"
+    },
+    {
+      "name": "Shelf Company Warehouse (Nelspruit)",
+      "website": "https://www.pty-online.co.za",
+      "address": "Suite 9, Promenade Centre Nelspruit, Mpumalanga",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Shelf-Company-Warehouse-Nelspruit"
+    },
+    {
+      "name": "Tseba Business Accountants",
+      "website": "https://www.tseba.co.za",
+      "address": "150 Zambezi Drive, Sinoville Pretoria, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Tseba-Business-Accountants"
+    },
+    {
+      "name": "Bandzishe Group",
+      "website": "https://www.bandzishe.com",
+      "address": "Montrose Street Midrand, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bandzishe-Group"
+    },
+    {
+      "name": "MJF Group",
+      "website": "https://www.mjfgroup.co.za",
+      "address": "22 Potgieter Glen Austin Ext1, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/MJF-Group"
+    },
+    {
+      "name": "Equanimity",
+      "website": "https://www.equanimity.co.za",
+      "address": "Randburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Equanimity"
+    },
+    {
+      "name": "Recro Business Consulting",
+      "website": "https://cmctaggart.findanaccountant.co.za",
+      "address": "7 Hendrik Verwoed Drive, Panorama Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Recro-Business-Consulting"
+    },
+    {
+      "name": "Slalom Marketing Consulting",
+      "website": "https://www.slalom.co.za",
+      "address": "Avalon Crescent, Magaliessig Johannesburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Slalom-Marketing-Consulting"
+    },
+    {
+      "name": "Vive",
+      "website": "https://www.vive.co.za",
+      "address": "401 Centre Point Loxton Road Milnerton Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vive"
+    },
+    {
+      "name": "Pay Matters",
+      "website": "https://www.paym.co.za",
+      "address": "13 Jobson Street Young Park, Port Elizabeth",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pay-Matters"
+    },
+    {
+      "name": "Remote Entry Systems",
+      "website": "https://remoteentrysystems.co.za",
+      "address": "Corner Of Verster And Synagogue Street Paarl, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Remote-Entry-Systems"
+    },
+    {
+      "name": "Hlongwane Bros Logistics",
+      "website": "https://www.hblogistics.co.za",
+      "address": "P.o. Box 143, 123 Elangeni Rd Kwa Dlangezwa, Kwazulu Natal",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hlongwane-Bros-Logistics"
+    },
+    {
+      "name": "HW Theron Inc.",
+      "website": "https://www.hwtinc.co.za",
+      "address": "536 Makou Street, Monument Park X1 Pretoria, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/HW-Theron"
+    },
+    {
+      "name": "ERP Solutions",
+      "website": "https://www.erpsolutions.co.za",
+      "address": "Po Box 3027, Saxonwold, Rosebank Sandton, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ERP-Solutions"
+    },
+    {
+      "name": "Storm Media",
+      "website": "https://www.stormmedia.co.za",
+      "address": "P.o.box 11824, Selcourt Selcourt, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Storm-Media"
+    },
+    {
+      "name": "Media Mosaics Marketing Communications",
+      "website": "https://www.mediamosaics.co.za",
+      "address": "274 Waterkloof Ave, Brooklyn Pretoria, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Media-Mosaics-Marketing-Communications"
+    },
+    {
+      "name": "Night Star Trade And Investments",
+      "website": "https://www.nightstar.co.za",
+      "address": "7 Abbey Road, Wynberg Wynberg, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Night-Star-Trade-And-Investments"
+    },
+    {
+      "name": "Dsgn Design",
+      "website": "https://www.dsgn.co.za",
+      "address": "1 Jellicoe Cnr. Jan Smuts Ave, Rosebank Johannesburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dsgn-Design"
+    },
+    {
+      "name": "A3 Architects (Pty) Ltd",
+      "website": "https://www.a3architects.co.za",
+      "address": null,
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/A3-Architects"
+    },
+    {
+      "name": "Murray Caterers",
+      "website": "https://www.krugersdorpgc.com",
+      "address": "Krugersdorp Golf Club, Nightingale Crescent, Rant En Dal Krugersdorp, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Murray-Caterers"
+    },
+    {
+      "name": "Paton Tupper",
+      "website": "https://www.patontupper.co.za",
+      "address": "10 Rydall Vale Park, Douglas Saunders Drive La Lucia Ridge, Kwazulu Natal",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Paton-Tupper"
+    },
+    {
+      "name": "Lange Carr &amp; Wessels inc",
+      "website": "https://www.phfirms.co.za",
+      "address": "Oasis Protea Lodge Building, 26 Schröderstreet Upington, Northern Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Lange-Carr-Wessels"
+    },
+    {
+      "name": "Mary Moir Consulting",
+      "website": "https://www.moirconsulting.co.za",
+      "address": "4 Silverwood Close, Steenberg Office Park, Westlake Cape Town, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mary-Moir-Consulting"
+    },
+    {
+      "name": "Global Phone And Security",
+      "website": "https://www.globalsec.co.za",
+      "address": null,
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Global-Phone-And-Security"
+    },
+    {
+      "name": "ASAP Digital Design And Printing",
+      "website": "https://www.asapdigital.co.za",
+      "address": "22 Oppimeer, Soutpansberg Drive, Van Riebeeckpark Kempton Park, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ASAP-Digital-Design-And-Printing"
+    },
+    {
+      "name": "Power Corporate Consultants",
+      "website": "https://www.powerconsulting.co.za",
+      "address": "34 Buckingham Avenue, Craighall Park Johannesburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Power-Corporate-Consultants"
+    },
+    {
+      "name": "RWFC Financial Consultants Inc. …",
+      "website": "https://www.rwfc.co.za",
+      "address": "33 Central Street Houghton Estate, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/RWFC-Financial-Consultants-Inc-Chartered-Accountants-SA"
+    },
+    {
+      "name": "Silver Cube Promotions",
+      "website": "https://www.silvercube.co.za",
+      "address": "400 Voortrekker Road, Maitland Cape Town, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Silver-Cube-Promotions"
+    },
+    {
+      "name": "Isazi Surveys",
+      "website": "https://www.isazisurveys.co.za",
+      "address": "573 Mendelsohn Street, Constantia Park Pretoria, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Isazi-Surveys"
+    },
+    {
+      "name": "David Muirhead&amp;Associates Interior Desi…",
+      "website": "https://www.davidmuirhead.com",
+      "address": "Po Box 413544,craighall,2024 Sandton, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/David-Muirhead-Associates-Interior-Design-and-Decoration"
+    },
+    {
+      "name": "Atlantic Business Consultants",
+      "website": "https://www.sgafc.co.za",
+      "address": "6th Floor, 132 Fox Street, Johannesburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Atlantic-Business-Consultants"
+    },
+    {
+      "name": "Backsberg Estate Cellars",
+      "website": "https://www.backsberg.co.za",
+      "address": "Simondium Road Paarl, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Backsberg-Estate-Cellars"
+    },
+    {
+      "name": "Walco Enterprises",
+      "website": "https://www.walco.co.za",
+      "address": "Panerto Building 201, 476 King's Highway Lynnwood Ridge, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Walco-Enterprises"
+    },
+    {
+      "name": "Outsource House",
+      "website": "https://outsourcehouse.co.za",
+      "address": "27, 13th Avenue Edenvale, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Outsource-House"
+    },
+    {
+      "name": "Private Ocean Islands",
+      "website": "https://www.privateoceanislands.com",
+      "address": "383 Vine Avenue, Ferndale, Randburg Johannesburg, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Private-Ocean-Islands"
+    },
+    {
+      "name": "Analytix Holdings",
+      "website": "https://www.analytix.co.za",
+      "address": "18 Fricker Road Illovo, Sandton, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Analytix-Holdings"
+    },
+    {
+      "name": "Istream International",
+      "website": "https://www.istream.co.za",
+      "address": "50 Cuyler Street, Central Port Elizabeth, Eastern Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Istream-International"
+    },
+    {
+      "name": "UITZICHT PRECISION ENGINEERING",
+      "website": "https://WWW.UITZICHTCNC.CO.ZA",
+      "address": "Unit 5, Nordyk Park 3, 33 Triangle Street Paarl, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/UITZICHT-PRECISION-ENGINEERING"
+    },
+    {
+      "name": "Jamanie Konsultante",
+      "website": "https://www.hanmag.co.za",
+      "address": "2 White Crescent, Rowhill Springs, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jamanie-Konsultante"
+    },
+    {
+      "name": "Toprope Cape Town",
+      "website": "https://www.toprope.co.za",
+      "address": "21 Cannon Street, Maitland Cape Town, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Toprope-Cape-Town"
+    },
+    {
+      "name": "Complete Environmental Services",
+      "website": "https://www.completenvironmental.co.za",
+      "address": "Maroelasfontein Farm Modimolle, Limpopo",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Complete-Environmental-Services"
+    },
+    {
+      "name": "Kib Consulting And Project Management",
+      "website": "https://sites.google.com/site/kibrsa",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kib-Consulting-And-Project-Management"
+    },
+    {
+      "name": "IGNITION MARKETING",
+      "website": "https://www.ignitionmarketing.co.za",
+      "address": "Unit 1 Block D Lonehill Business Park, Lone Close Lonehill, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/IGNITION-MARKETING"
+    },
+    {
+      "name": "Mampodi Coaching &amp; Leadership",
+      "website": "https://www.mampodi.co.za",
+      "address": "Block 13, Boardwalk Office Park, 78 Eros Street Faerie Glen, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mampodi-Coaching-Leadership"
+    },
+    {
+      "name": "Kolisa Consulting",
+      "website": "https://www.kolisa.co.za",
+      "address": "33 Victoria Street, Rosettenville Ext Johannesburg, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kolisa-Consulting"
+    },
+    {
+      "name": "HHA (Pty) Ltd",
+      "website": "https://www.hha.co.za",
+      "address": "P.o. Box 8947, Edenglen, 1613 Edenglen, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/HHA"
+    },
+    {
+      "name": "Cathtect Engineering",
+      "website": "https://www.cathtect.co.za",
+      "address": "1356 Staal Rd, Stormill Ext2. Roodepoort, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cathtect-Engineering"
+    },
+    {
+      "name": "VICI Business Solutions",
+      "website": "https://www.vici.co.za",
+      "address": "Po Box 6848 Cresta, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/VICI-Business-Solutions"
+    },
+    {
+      "name": "Rbj Marketing Solutions",
+      "website": "https://www.rbjmarketing.com",
+      "address": "Suite 1, 62 Gemsbok Street Monument Park, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rbj-Marketing-Solutions"
+    },
+    {
+      "name": "Advanced Lightning Protection",
+      "website": "https://www.advancedlp.co.za",
+      "address": "793 33rd Av Pretoria, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Advanced-Lightning-Protection"
+    },
+    {
+      "name": "Daisy Nteta Cleaning Services",
+      "website": "https://www.daisyclean.co.za",
+      "address": "P O Box 831 Riverclub, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Daisy-Nteta-Cleaning-Services"
+    },
+    {
+      "name": "Botlhale Management Consultants",
+      "website": "https://www.bbmc.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Botlhale-Management-Consultants"
+    },
+    {
+      "name": "Imvume Technology Solutions cc",
+      "website": "https://www.imvumetech.co.za",
+      "address": "38 Terminus Street East London, Eastern Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Imvume-Technology-Solutions-cc"
+    },
+    {
+      "name": "Charles Rudd Auctioneers cc t/a Rudd&#39;s",
+      "website": "https://www.rudds.co.za",
+      "address": "87 Bree Street Cape Town, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Charles-Rudd-Auctioneers-cc-Rudds"
+    },
+    {
+      "name": "UV + IR Engineering (Pty) Ltd",
+      "website": "https://www.uvir.co.za",
+      "address": "24 Production Road, Amalgam Johannesburg, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/UV-IR-Engineering"
+    },
+    {
+      "name": "Metako Projex",
+      "website": "https://www.metako.co.za",
+      "address": "30 Kyalami Boulevard, Kyalami Park, Kyalami, R55 Kyalami Johannesburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Metako-Projex"
+    },
+    {
+      "name": "Kumalogreen Training",
+      "website": "https://www.kumalogreen.co.za",
+      "address": "P O Box 1526, Cresta Johannesburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kumalogreen-Training"
+    },
+    {
+      "name": "Concargo",
+      "website": "https://www.concargo.com",
+      "address": "Concargo House 6 On Tierberg Parow East 7500 Parow, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Concargo"
+    },
+    {
+      "name": "eDisc CC",
+      "website": "https://www.edisc.co.za",
+      "address": "3 Oleander Avenue, Strelitzia Park Uitenhage, Eastern Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/eDisc-CC"
+    },
+    {
+      "name": "AA PROJECTS",
+      "website": "https://www.aaprojects.co.za",
+      "address": "P O Box 387, Glenvista Johannesburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/AA-PROJECTS"
+    },
+    {
+      "name": "Georem",
+      "website": "https://www.georem.co.za",
+      "address": "260 Kent Ave Randburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Georem"
+    },
+    {
+      "name": "Linkserv",
+      "website": "https://www.linkserv.co.za",
+      "address": "Unit 1 Burnside Office Park, 1 Buildersway Hillcrest, Kwazulu-nata",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Linkserv"
+    },
+    {
+      "name": "Generator Consulting",
+      "website": "https://www.generator.co.za",
+      "address": "P.o.box 549, Constantia Cape Town, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Generator-Consulting"
+    },
+    {
+      "name": "The Facilitators (Your Ultimate NHBRC S…",
+      "website": "https://www.the-facilitators.com",
+      "address": "174 Retief Ave, Lyttelton Manor Lyttelton, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Facilitators-Your-Ultimate-NHBRC-Solution-Lyttelton"
+    },
+    {
+      "name": "Vizual Security",
+      "website": "https://www.vizual.org.za",
+      "address": "36b Stella Rd Chempet, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vizual-Security"
+    },
+    {
+      "name": "Construction Training College - Nationw…",
+      "website": "https://www.ctc.co.za",
+      "address": "Head Office Lenchen South Centurion, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Construction-Training-College-Nationwide-offices"
+    },
+    {
+      "name": "Convergence Training College (PTY)Ltd",
+      "website": "https://www.ctc.co.za",
+      "address": "Main Rd Gauteng, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Convergence-Training-College"
+    },
+    {
+      "name": "Thoka Geosciences cc",
+      "website": "https://www.thokageo.co.za",
+      "address": "P O Box 1910, Silverton Pretoria, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Thoka-Geosciences-cc"
+    },
+    {
+      "name": "Shabir Goga Inc",
+      "website": "https://www.sgi.za.com",
+      "address": "81 Scott Street Newcastle, Kwazulu-nata",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Shabir-Goga_394292"
+    },
+    {
+      "name": "Paper St Print Company (Pty) Ltd",
+      "website": "https://www.paperstreet.co.za",
+      "address": "27a Colyn Road Village Deep, Johannesburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Paper-St-Print-Company"
+    },
+    {
+      "name": "Life of Difference Leadership Solutions",
+      "website": "https://www.lifeofdifference.co.za",
+      "address": "Bosbok Nook Zwartkops Pretoria, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Life-of-Difference-Leadership-Solutions"
+    },
+    {
+      "name": "BPAS Architecture",
+      "website": "https://www.bpas.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/BPAS-Architecture"
+    },
+    {
+      "name": "Taktho Environmental Strategy",
+      "website": "https://www.takenviro.co.za",
+      "address": "Poplar Street, Unit 32, Constantina Vill, Roodepoort West Roodepoort, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Taktho-Environmental-Strategy"
+    },
+    {
+      "name": "IRCA Global Pty Ltd",
+      "website": "https://www.irca.co.za",
+      "address": "279 Kent Avenue, Ferndale Randburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/IRCA-Global_395581"
+    },
+    {
+      "name": "Mandala Consulting Group Pty Ltd",
+      "website": "https://www.mandalaconsulting.co.za",
+      "address": "17 Friar Tuck Road, Robindale Randburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mandala-Consulting-Group"
+    },
+    {
+      "name": "Seamless Business Support CC",
+      "website": "https://www.sbs-rsa.co.za",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Seamless-Business-Support-CC"
+    },
+    {
+      "name": "Chris Boshoff Accountants Rekenmeesters",
+      "website": "https://www.accounting-services.co.za",
+      "address": "Unit 3 Steer Place, 17 Blaauwberg Road, West Beach Bloubergrant, Western Cape",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Chris-Boshoff-Accountants-Rekenmeesters"
+    },
+    {
+      "name": "M-Tech Consulting Engineers (Pty) Ltd",
+      "website": "https://www.m-tech.co.za",
+      "address": "15 Elgar Street, Sw5 Vanderbijlpark, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/M-Tech-Consulting-Engineers"
+    },
+    {
+      "name": "Network Engineering",
+      "website": "https://www.networkrecruitment.co.za",
+      "address": "Menlyn Business Park, Gobie Street Pretoria, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Network-Engineering"
+    },
+    {
+      "name": "INFOVATE",
+      "website": "https://www.infovate.co.za",
+      "address": "16 Desmond Rd, Sand Gate Office Park Sandton, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/INFOVATE"
+    },
+    {
+      "name": "Bokamoso Direct Talent Sourcing",
+      "website": "https://www.bdts.co.za",
+      "address": "P.o.box 2345, Randburg Fourways, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bokamoso-Direct-Talent-Sourcing"
+    },
+    {
+      "name": "OTB MEDIA MANAGEMENT",
+      "website": "https://www.otbmedia.co.za",
+      "address": "27 Robert Herrick Avenue, Chiltern Heights Westville, Kwazulu Natal",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/OTB-MEDIA-MANAGEMENT"
+    },
+    {
+      "name": "Fine Women Business Network",
+      "website": "https://www.finewomen.co.za",
+      "address": "17 Willow Road, Newslands Cape Town, Western Cape",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fine-Women-Business-Network"
+    },
+    {
+      "name": "In Touch Consulting",
+      "website": "https://www.intouchconsulting.co.za",
+      "address": "110 Kilcullen Estates, Witney St Bryanston, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/In-Touch-Consulting"
+    },
+    {
+      "name": "ActionCOACH Business &amp; Executive Coachi…",
+      "website": "https://www.actioncoach.com",
+      "address": "16 Anthony Road Durban North, Kwazulu-nata",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ActionCOACH-Business-Executive-Coaching"
+    },
+    {
+      "name": "FinFive Placements",
+      "website": "https://www.finfive.com",
+      "address": "8 Harvey Place, 271 Harley Road, Blackheath Johannesburg, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/FinFive-Placements"
+    },
+    {
+      "name": "HTI Consulting",
+      "website": "https://www.hticonsulting.co.za",
+      "address": "P.o.box 184, Douglasdale Fourways, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/HTI-Consulting"
+    },
+    {
+      "name": "Peakford Management Consultants",
+      "website": "https://www.peakford.co.za",
+      "address": "Oak Avenue, Randburg, P O Box 31947 Johannesburg, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Peakford-Management-Consultants"
+    },
+    {
+      "name": "Construction consultant",
+      "website": "https://www.constructionconsultant.co.za",
+      "address": "Pienaar Ave Kempton Park, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Construction-consultant"
+    },
+    {
+      "name": "emerging architecture",
+      "website": "https://www.emergingarchitecture.co.za",
+      "address": "169 Main Street Paarl, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/emerging-architecture"
+    },
+    {
+      "name": "Mechaneer",
+      "website": "https://www.mechaneer.co.za",
+      "address": "4 William Rd, Illiondale, Edenvale Johannesburg, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mechaneer"
+    },
+    {
+      "name": "James Durno Visual Communications",
+      "website": "https://james.durno.co.za",
+      "address": "5th Ave Melville, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/James-Durno-Visual-Communications"
+    },
+    {
+      "name": "RISK ASSESSEMENT SERVICES",
+      "website": "https://WWW.RASERVICES.CO.ZA",
+      "address": "Pinetown, Kwazulu-nata",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/RISK-ASSESSEMENT-SERVICES"
+    },
+    {
+      "name": "Forward Vision",
+      "website": "https://www.forwardvision.co.za",
+      "address": "Poplar Avenue, Craigavon, Fourways Sandton, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Forward-Vision"
+    },
+    {
+      "name": "XCubed Consulting",
+      "website": "https://www.xcubed.co.za",
+      "address": "1 Rhinoceros Ave, Weltevreden Park Roodepoort, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/XCubed-Consulting"
+    },
+    {
+      "name": "Kontak Recruitment",
+      "website": "https://www.kontak.co.za",
+      "address": "35 Suzanne Crescent Northcliff, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kontak-Recruitment"
+    },
+    {
+      "name": "Velthuizen Knowledge Management Associa…",
+      "website": "https://www.vkma.co.za",
+      "address": "Sinoville Pretoria, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Velthuizen-Knowledge-Management-Associates"
+    },
+    {
+      "name": "VACO",
+      "website": "https://www.vaco.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/VACO"
+    },
+    {
+      "name": "Thusega Financial and Business Consulti…",
+      "website": "https://www.thusega.co.za",
+      "address": "15 Kopane Building, Eric Louw Street Vanderbijlpark, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Thusega-Financial-and-Business-Consulting"
+    },
+    {
+      "name": "One2One Coaching",
+      "website": "https://www.one2onecoaching.co.za",
+      "address": "Van Riebeeckshof Rd Welgemoed, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/One2One-Coaching"
+    },
+    {
+      "name": "Selmec (Pty) Ltd",
+      "website": "https://www.selmec.co.za",
+      "address": "Plot 168 Dewar Rd, Derdepoort, Pretoria Pretoria North, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Selmec"
+    },
+    {
+      "name": "Simanyene Communications &amp; Logistics",
+      "website": "https://simanyeneshuttles.blogspot.com",
+      "address": "Bradford Street, Highveld, Centurion Pretoria, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Simanyene-Communications-Logistics"
+    },
+    {
+      "name": "Hi-Fly Marketing",
+      "website": "https://www.hiflymarketing.com",
+      "address": "24 Bloem Street Cape Town, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hi-Fly-Marketing"
+    },
+    {
+      "name": "Internex Pty (Ltd)",
+      "website": "https://www.internex.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Internex"
+    },
+    {
+      "name": "Fossil Asset Management",
+      "website": "https://www.fossilgroup.com",
+      "address": "41 Hendrick Van Eck Street, Rosslyn Pretoria, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fossil-Asset-Management"
+    },
+    {
+      "name": "Everett Computer Consultants cc",
+      "website": "https://www.everettinc.co.za",
+      "address": "87 Golf Club Terrace, Constantia Kloof Roodepoort, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Everett-Computer-Consultants-cc"
+    },
+    {
+      "name": "Moyo Business Advisory",
+      "website": "https://www.mba.za.com",
+      "address": "Centurion, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Moyo-Business-Advisory"
+    },
+    {
+      "name": "Labuschagne Business Consulting",
+      "website": "https://dlabuschagne.findanaccountant.co.za",
+      "address": "2 Comanchie Avenue, Helderkruin Roodepoort, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Labuschagne-Business-Consulting"
+    },
+    {
+      "name": "Cacfis Africa Consulting",
+      "website": "https://www.cacfis.com",
+      "address": "9 Blairathol, 20 Jacqueline Avenue, Northcliff Northcliff, Johannesburg, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cacfis-Africa-Consulting"
+    },
+    {
+      "name": "CommCentrix",
+      "website": "https://www.commcentrix.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/CommCentrix"
+    },
+    {
+      "name": "Trainers Without Borders",
+      "website": "https://www.trainerswithoutborders.co.za",
+      "address": "132 Market Street Johannesburg, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Trainers-Without-Borders"
+    },
+    {
+      "name": "Convergence Training Centre",
+      "website": "https://www.ctc.co.za",
+      "address": "130 Van Tonder, 130, Van Tonder Street Centurion, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Convergence-Training-Centre"
+    },
+    {
+      "name": "4 Chakras Recruitment",
+      "website": "https://www.4chakrasgroup.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/4-Chakras-Recruitment"
+    },
+    {
+      "name": "Managing Transformation Solutions (Pty)…",
+      "website": "https://www.transformationsolutions.co.za",
+      "address": "33 Sloane Street, Block H, Unit 101, Knightsbridge Manor Bryanston, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Managing-Transformation-Solutions"
+    },
+    {
+      "name": "Philmar Consulting",
+      "website": "https://www.philmar.co.za",
+      "address": "Pilkington Business Park, Johan Le Roux Stree, Morris Street Meyerton, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Philmar-Consulting"
+    },
+    {
+      "name": "Bearing 21",
+      "website": "https://www.bearing21.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bearing-21"
+    },
+    {
+      "name": "Kavana Consulting: Training and Consult…",
+      "website": "https://www.kavanaconsulting.co.za",
+      "address": "Cape Town, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kavana-Consulting-Training-and-Consulting-Interventions"
+    },
+    {
+      "name": "Luphahla IT Solutions",
+      "website": "https://www.luphahla.co.za",
+      "address": "Midrand, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Luphahla-IT-Solutions"
+    },
+    {
+      "name": "umAfrika Project Specialist",
+      "website": "https://www.umafrika.com",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/umAfrika-Project-Specialist"
+    },
+    {
+      "name": "lesedi accounting Services",
+      "website": "https://www.lesedisolutions.com",
+      "address": "Leslie Rd, Villaggie Due, Douglas Dale Randburg, Gauteng",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/lesedi-accounting-Services"
+    },
+    {
+      "name": "www.learnlife.co.za",
+      "website": "https://www.learnlife.co.za",
+      "address": "Randburg, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/www-learnlife-co-za"
+    },
+    {
+      "name": "Wilde Insights l The Wealth-Apprentice™",
+      "website": "https://www.wilde-insights.co.za",
+      "address": "38 Fernridge Estate Broadacres Drive Dainfern Johannesburg, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wilde-Insights-l-The-Wealth-Apprentice"
+    },
+    {
+      "name": "Mabu Technical Consultants",
+      "website": "https://www.mabutec.co.za",
+      "address": "50 Geranium Road Birch Acres Kempton Park, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mabu-Technical-Consultants"
+    },
+    {
+      "name": "Simple IT - Consulting",
+      "website": "https://www.simple-it.co.za",
+      "address": "Stephen Road Kibler Park Johannesburg Johannesburg, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Simple-IT-Consulting_537954"
+    },
+    {
+      "name": "Yucca Promotions",
+      "website": "https://www.yucca.co.za",
+      "address": "Hillcrest Office Park Woodpecker Place Pretoria, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Yucca-Promotions"
+    },
+    {
+      "name": "Phaki Personnel Management Services",
+      "website": "https://www.phakipersonnel.co.za",
+      "address": "06 Paul Kruger Street Central Town Polokwane Pietersburg, Limpopo",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Phaki-Personnel-Management-Services"
+    },
+    {
+      "name": "OutsourcedHR (Pty) Ltd",
+      "website": "https://www.outsourcedhr.com",
+      "address": null,
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/OutsourcedHR"
+    },
+    {
+      "name": "Cape Business Management",
+      "website": "https://cbmconsult.co.za",
+      "address": "Anansi Business Park 25 Chruch Street Durbanville Cape Town, Western Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Business-Management"
+    },
+    {
+      "name": "Prototype IT Consultants",
+      "website": "https://www.prototypeit.co.za",
+      "address": "152 Haig Road Durban, KwaZulu-Nata",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Prototype-IT-Consultants"
+    },
+    {
+      "name": "EC Security Services",
+      "website": "https://www.ecsecurity.co.za",
+      "address": "20 Saffraan Avenue Weltevredenpark Roodepoort, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/EC-Security-Services"
+    },
+    {
+      "name": "Power Business Systems (Pty) Ltd",
+      "website": "https://www.powerbs.co.za",
+      "address": null,
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Power-Business-Systems_544790"
+    },
+    {
+      "name": "6 Degrees",
+      "website": "https://www.6d.co.za",
+      "address": "23 Loots Street, Cnr Republic Road Blairgowrie Randburg, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/6-Degrees"
+    },
+    {
+      "name": "Medicare EMR",
+      "website": "https://www.medicare-emr.co.za",
+      "address": "Unit 56B Village Artisan Cabriere Street Franschhoek, Western Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Medicare-EMR_545526"
+    },
+    {
+      "name": "Debt review",
+      "website": "https://www.newdeal.org.za",
+      "address": "Pretoria, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Debt-review_546483"
+    },
+    {
+      "name": "BEEhive Specialised Staffing Solutions",
+      "website": "https://www.beehiveconsulting.co.za",
+      "address": "106 Willem Botha Street ELDORAIGNE X6 Centurion, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/BEEhive-Specialised-Staffing-Solutions"
+    },
+    {
+      "name": "ENLIVENING DHARMAR CONSULTING",
+      "website": "https://www.edconsulting.co.za",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ENLIVENING-DHARMAR-CONSULTING"
+    },
+    {
+      "name": "HMB Consultancy",
+      "website": "https://www.hmbconsult.com",
+      "address": "Kiewiet Place 3 Bankenveld Witbank, Mpumalanga",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/HMB-Consultancy"
+    },
+    {
+      "name": "EDGE Evolve - Business Consulting Servi…",
+      "website": "https://www.edgeevolve.com",
+      "address": "2nd Floor, Uplands 14 The Woodlands Office Park Sandton, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/EDGE-Evolve-Business-Consulting-Services-South-Africa"
+    },
+    {
+      "name": "Unisource",
+      "website": "https://www.unisource.co.za",
+      "address": "32 Lucas Lane Bedfordview Johannesburg, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Unisource_578785"
+    },
+    {
+      "name": "Hiraden Accounting",
+      "website": "https://www.hiraden.co.za",
+      "address": "Modderfontein Edenvale, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hiraden-Accounting"
+    },
+    {
+      "name": "Sisanet",
+      "website": "https://www.sisanet.co.za",
+      "address": "Durban, KwaZulu Natal",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sisanet"
+    },
+    {
+      "name": "Makoya Amanzi Environmental Solutions",
+      "website": "https://www.makoya.net",
+      "address": "9 Kelpie Rd Glen Austin Johannesburg, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Makoya-Amanzi-Environmental-Solutions"
+    },
+    {
+      "name": "Steven Bampa Chartered Accountants &amp; Au…",
+      "website": "https://finhelp.wordpress.com/",
+      "address": "22A Kerk Street PARYS, Free State",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Steven-Bampa-Chartered-Accountants-Auditors-Parys"
+    },
+    {
+      "name": "Resq Medix Private Ambulance Service",
+      "website": "https://www.resqmedix.co.za",
+      "address": "50A Louis Thibault Drive Edgemead, Western Cape",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Resq-Medix-Private-Ambulance-Service"
+    },
+    {
+      "name": "Audio Visual Lifestyle Solutions (AV)",
+      "website": "https://www.audiovis.co.za",
+      "address": "10 Boschendal Mews Boschendal Road Van Riebeeckshof, Western Cape",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Audio-Visual-Lifestyle-Solutions-AV"
+    },
+    {
+      "name": "Rambuda Accountants",
+      "website": "https://www.rambuda.co.za",
+      "address": "Smit Street Braamfontein, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rambuda-Accountants"
+    },
+    {
+      "name": "Coastal Accounting",
+      "website": "https://www.coas.co.za",
+      "address": "2 Berea Road Port Shepstone, KwaZulu Natal",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Coastal-Accounting"
+    },
+    {
+      "name": "The Dealmaker Programmes Company",
+      "website": "https://www.thedealmaker.com",
+      "address": "SAP Business Park 1 Woodmead Drive Woodmead Johannesburg, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Dealmaker-Programmes-Company"
+    },
+    {
+      "name": "Multi Electronic Technologies",
+      "website": "https://www.m-e-t.co.za",
+      "address": "PO Box 54443 Wierdapark, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Multi-Electronic-Technologies"
+    },
+    {
+      "name": "Leapfrog Computers",
+      "website": "https://www.leapfrogcomputers.co.za",
+      "address": "19 Charmaine Avenue, President Ridge Randburg, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Leapfrog-Computers"
+    },
+    {
+      "name": "Backstage Entertainment",
+      "website": "https://www.bse.co.za",
+      "address": "Leslie Rd Douglasdasle Fourways, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Backstage-Entertainment"
+    },
+    {
+      "name": "Ranti And Associates",
+      "website": "https://www.rnanet.co.za",
+      "address": "44 Uintjie Avenue Lamontagne, Gauteng",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ranti-And-Associates"
+    },
+    {
+      "name": "Execu-move",
+      "website": "https://execu-move.com",
+      "address": "14 Brentford Street Beaconvale, Western Cape",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Execu-move"
+    },
+    {
+      "name": "Total Leader and Coach Solutions",
+      "website": "https://www.tlcsolutions.com.au",
+      "address": "29 Griffell Way, Duncraig Perth, Australia, Gauteng",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Total-Leader-and-Coach-Solutions"
+    },
+    {
+      "name": "Paideia Associates",
+      "website": "https://www.paideia.co.za",
+      "address": "PostNet Suite 88 Private Bag X51 Rivonia, Gauteng",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Paideia-Associates"
+    },
+    {
+      "name": "Biz Solutions",
+      "website": "https://www.bizsolutions.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Biz-Solutions"
+    },
+    {
+      "name": "Knowledge Integration Dynamics",
+      "website": "https://www.kid.co.za",
+      "address": "1 Selbourne RD Maroelandal Johannesburg",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Knowledge-Integration-Dynamics"
+    },
+    {
+      "name": "Figure8 Information Studio",
+      "website": "https://www.figure8.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Figure8-Information-Studio"
+    },
+    {
+      "name": "Exhibitor",
+      "website": "https://www.exhibitor.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Exhibitor"
+    },
+    {
+      "name": "Bw Associates",
+      "website": "https://www.bwassociates.co.za",
+      "address": "2035 cnr northern parkway & handel roads ormonde",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bw-Associates"
+    },
+    {
+      "name": "Futureworld",
+      "website": "https://www.futureworld.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Futureworld"
+    },
+    {
+      "name": "Cicero Business Consulting",
+      "website": "https://www.cicero.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cicero-Business-Consulting"
+    },
+    {
+      "name": "Jtb Consulting",
+      "website": "https://www.jtbconsulting.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jtb-Consulting"
+    },
+    {
+      "name": "Careerweb",
+      "website": "https://www.careerweb.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Careerweb"
+    },
+    {
+      "name": "Sbs International",
+      "website": "https://sbsinternational.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sbs-International"
+    },
+    {
+      "name": "Denfo",
+      "website": "https://www.denfo.co.za",
+      "address": "986 bloedhond street garsfontein pretoria",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Denfo"
+    },
+    {
+      "name": "Beorganised",
+      "website": "https://www.beorganised.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Beorganised"
+    },
+    {
+      "name": "Bizsolutions",
+      "website": "https://www.bizsolutions.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bizsolutions"
+    },
+    {
+      "name": "Kr Accounting",
+      "website": "https://www.kraccounting.co.za",
+      "address": "po box 3384 somerset park",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kr-Accounting"
+    },
+    {
+      "name": "Flight Centre",
+      "website": "https://www.flightcentre.co.za",
+      "address": "2nts 4-star self-drive tsitsikamma r475 2nts self-drive",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Flight-Centre"
+    },
+    {
+      "name": "Blr Business Consulting",
+      "website": "https://blr.co.za",
+      "address": "69 carnoustie precinct boundary road northriding",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Blr-Business-Consulting"
+    },
+    {
+      "name": "Finlegal",
+      "website": "https://www.finlegal.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Finlegal"
+    },
+    {
+      "name": "Profitsystems",
+      "website": "https://www.profitsystems.com",
+      "address": "422 east vermijo avenue suite 100 colorado springs co 80903",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Profitsystems"
+    },
+    {
+      "name": "Dh Consultants",
+      "website": "https://www.dhconsultants.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dh-Consultants"
+    },
+    {
+      "name": "Timnet Consulting",
+      "website": "https://www.timnet.co.za",
+      "address": "establishing the practice in pretoria cbd in",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Timnet-Consulting"
+    },
+    {
+      "name": "Aqua It Consulting",
+      "website": "https://www.aquaconsulting.co.za",
+      "address": "benoni junction 108 tom jones str farrarmere benoni, Gauteng",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Aqua-It-Consulting"
+    },
+    {
+      "name": "Trish Holdengarde",
+      "website": "https://www.trishholdengarde.com",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Trish-Holdengarde"
+    },
+    {
+      "name": "Redheads",
+      "website": "https://www.redheads.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Redheads"
+    },
+    {
+      "name": "Mpowa",
+      "website": "https://www.mpowa.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mpowa"
+    },
+    {
+      "name": "R And R Solutions",
+      "website": "https://www.randrsolutions.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/R-And-R-Solutions"
+    },
+    {
+      "name": "Trinitas",
+      "website": "https://www.trinitas.co.za",
+      "address": "16 desmond street building 4 raizcorp building",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Trinitas"
+    },
+    {
+      "name": "Koto It Solutions",
+      "website": "https://www.koto.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Koto-It-Solutions"
+    },
+    {
+      "name": "Nielsen Norman Group",
+      "website": "https://www.nngroup.com",
+      "address": "san francisco june 22-27 sydney july 27-august 1",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Nielsen-Norman-Group"
+    },
+    {
+      "name": "ACRONET",
+      "website": "https://www.acronet.co.za",
+      "address": "1283 Phera Street Ipelegeng Community Centre White City, Jabavu Soweto, Gauteng",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ACRONET"
+    },
+    {
+      "name": "Bioss Southern Africa Pty Ltd",
+      "website": "https://www.bioss.co.za",
+      "address": "24 Lucas Lane Bedfordview, Gauteng",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bioss-Southern-Africa"
+    },
+    {
+      "name": "Amazing Spaces",
+      "website": "https://www.amazingspaces.co.za",
+      "address": "69 roodebloem road woodstock, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Amazing-Spaces"
+    },
+    {
+      "name": "Sapientis South Africa",
+      "website": "https://www.sapientissouthafrica.co.za",
+      "address": "Central Street, Houghton Estates Houghton, Gauteng",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sapientis-South-Africa"
+    },
+    {
+      "name": "Manchu Group (Pty) Ltd",
+      "website": "https://www.manchu.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Manchu-Group"
+    },
+    {
+      "name": "KL Project Management",
+      "website": "https://www.klprojects.co.za",
+      "address": "Po Box 40378, Redhill Durban, Kwazulu Natal",
+      "page": 1,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/KL-Project-Management"
+    },
+    {
+      "name": "1st Contact Recruitment",
+      "website": "https://www.1stcontactvisas.com",
+      "address": "Doncaster Road, Regent Square, Block 1 Kenilworth, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/1st-Contact-Recruitment"
+    },
+    {
+      "name": "Anton Apps International Recruitment Sp…",
+      "website": "https://www.antonapps.com",
+      "address": "135 Daisy Street, Sandown Sandton, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Anton-Apps-International-Recruitment-Specialists"
+    },
+    {
+      "name": "ITInews - Insurance Times &amp; Investments",
+      "website": "https://www.itinews.co.za",
+      "address": "57 Havelock Street, 57 Havelock Street, Centrahill Port Elizabeth, Eastern Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/ITInews-Insurance-Times-Investments"
+    },
+    {
+      "name": "Matjhabeng Management &amp; Technology Cons…",
+      "website": "https://www.iib.org.ws",
+      "address": "3 Leda Street Riebeeckstad/welkom, Free State",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Matjhabeng-Management-Technology-Consulting-CC"
+    },
+    {
+      "name": "Professional Candidate Place",
+      "website": "https://www.pcp.co.za",
+      "address": "Claim Street South Africa, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Professional-Candidate-Place"
+    },
+    {
+      "name": "Africa Business Group",
+      "website": "https://www.abghq.com",
+      "address": "37 Keyes Avenue Rosebank Johannesburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Africa-Business-Group"
+    },
+    {
+      "name": "Good Speed Ent",
+      "website": "https://www.goodspeed.co.za",
+      "address": "19 Kokkewiet Road, Randparkridge Randburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Good-Speed-Ent"
+    },
+    {
+      "name": "Ovenstone and Associates",
+      "website": "https://www.maryovenstone.com",
+      "address": "D Exeter Park, 6 Indian Road Kenilworth, Western Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ovenstone-and-Associates"
+    },
+    {
+      "name": "GENNDA Risk Management Services",
+      "website": "https://www.gennda.co.za",
+      "address": "98 Willow Run Street Centurion 98 Willow Run Street Pretoria-wes, Gauteng",
+      "page": 10,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/GENNDA-Risk-Management-Services"
+    },
+    {
+      "name": "Square Peg Consulting &amp; Facilitation",
+      "website": "https://www.squarepegconsulting.co.za",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Square-Peg-Consulting-Facilitation"
+    },
+    {
+      "name": "Andrew Levy Employee Relations Advisor",
+      "website": "https://www.andrewlevy.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 12,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Andrew-Levy-Employee-Relations-Advisor"
+    },
+    {
+      "name": "Malapile Group Holdings",
+      "website": "https://www.malapile-consulting.za.net",
+      "address": "117 Hofsanger Street Rooihuiskraal Pretoria Centurion, Gauteng",
+      "page": 13,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Malapile-Group-Holdings"
+    },
+    {
+      "name": "Digital Watermelon Consulting",
+      "website": "https://www.digitalwatermelon.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Digital-Watermelon-Consulting"
+    },
+    {
+      "name": "Cura Software Solutions",
+      "website": "https://www.curasoftware.com",
+      "address": "1st floor 9 west street houghton johannesburg, Gauteng",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cura-Software-Solutions_406539"
+    },
+    {
+      "name": "Including But Not",
+      "website": "https://www.flightcenter.co.za",
+      "address": "kruger park r4200 2nts safari kalahari",
+      "page": 15,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Including-But-Not"
+    },
+    {
+      "name": "Dot Easy",
+      "website": "https://www.doteasy.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dot-Easy"
+    },
+    {
+      "name": "Excellence To Success",
+      "website": "https://www.excellencetosuccess.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Excellence-To-Success"
+    },
+    {
+      "name": "Jegan",
+      "website": "https://www.jegan.co.za",
+      "address": "36 st joseph rd timour hall estate",
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jegan"
+    },
+    {
+      "name": "Baraka Technology Group",
+      "website": "https://www.baraka.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Baraka-Technology-Group"
+    },
+    {
+      "name": "Orion Consulting",
+      "website": "https://www.orionconsulting.co.za",
+      "address": "99 aliwal street durban postal",
+      "page": 16,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Orion-Consulting"
+    },
+    {
+      "name": "Rasetokolo Projects",
+      "website": "https://www.rasetokolo.co.za",
+      "address": "8 Gounod Street, S W 5 Ext 2, Vanderbijlpark Vanderbijlpark, Gauteng",
+      "page": 17,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rasetokolo-Projects"
+    },
+    {
+      "name": "JONAS MATHABATHA LOGISTICS SUPPORT",
+      "website": "https://www.jmls.co.za",
+      "address": "49 STAND MARULANENG GA MPHAHLELE 0737 LEBOWAKGOMO, Limpopo",
+      "page": 17,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/JONAS-MATHABATHA-LOGISTICS-SUPPORT"
+    },
+    {
+      "name": "GP Retail Operations",
+      "website": "https://www.gpretail.co.za",
+      "address": "Queen Wilhelmina Muckleneuk 19 Groenkloof, Gauteng",
+      "page": 17,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/GP-Retail-Operations"
+    }
+  ]
+}

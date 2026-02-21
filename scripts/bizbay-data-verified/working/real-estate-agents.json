@@ -1,0 +1,956 @@
+{
+  "category": "Real-Estate-Agents",
+  "count": 105,
+  "listings": [
+    {
+      "name": "CENTURY 21 South Africa",
+      "website": "https://www.century21.co.za",
+      "address": "Block A Wierda Mews, 41 Wierda Rd West, Wierda Valley Sandton, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/CENTURY-21-South-Africa"
+    },
+    {
+      "name": "100-2nd Ave Witpoort Estates",
+      "website": "https://www.att.com",
+      "address": "303 West Street, 26 Floor Old Mutual Building Durban, Kwazulu Natal",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/100-2nd-Ave-Witpoort-Estates"
+    },
+    {
+      "name": "Vered Estates",
+      "website": "https://www.vered.co.za",
+      "address": "Equity House, 18 Bompas Road, Dunkeld West Johannesburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vered-Estates_303834"
+    },
+    {
+      "name": "Marietjie Keet Eiendomme Auctioneers",
+      "website": "https://marietjiekeetauctioneers.co.za",
+      "address": "226 Lawleystreet Waterkloof, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Marietjie-Keet-Eiendomme-Auctioneers"
+    },
+    {
+      "name": "Atlantic Beach Property Sales",
+      "website": "https://www.atlanticbeach.co.za",
+      "address": "45 Sea Hare Circle, Atlantic Beach Golf Estate Melkbosstrand, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Atlantic-Beach-Property-Sales"
+    },
+    {
+      "name": "Jawitz Properties Knysna",
+      "website": "https://www.jawitz.co.za",
+      "address": "36 Main Street, 21 Waterfront Drive, Knysna Quays Knysna, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jawitz-Properties-Knysna"
+    },
+    {
+      "name": "Pam Golding Properties",
+      "website": "https://www.pamgolding.co.za",
+      "address": "Pinelands & Thornton Cape Town, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pam-Golding-Properties_393987"
+    },
+    {
+      "name": "Pro Runner Executive Errands",
+      "website": "https://www.prorunner.co.za",
+      "address": "65 Belvedere Road Midrand, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pro-Runner-Executive-Errands"
+    },
+    {
+      "name": "Amariam Productions",
+      "website": "https://www.amariam.co.za",
+      "address": "910 Imbali, 37 Mitchell Street, Berea Johannesburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Amariam-Productions"
+    },
+    {
+      "name": "Peermed Medical Centre",
+      "website": "https://www.peermed.co.za",
+      "address": "49 Kempton Square, Cnr Voortrekker And Monument Roads Kempton Park, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Peermed-Medical-Centre"
+    },
+    {
+      "name": "Kapstadt International Properties",
+      "website": "https://www.kapstadtinternational.co.za",
+      "address": "11a De Lorentz Street, Gardens Cape Town, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kapstadt-International-Properties"
+    },
+    {
+      "name": "City Living Rentals",
+      "website": "https://www.citylivingrentals.co.za",
+      "address": "Shop 9 Kloof Street Junction, Kloof Street, Gardens Cape Town, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/City-Living-Rentals"
+    },
+    {
+      "name": "Ipic Property Group",
+      "website": "https://www.ipicgroup.com",
+      "address": null,
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ipic-Property-Group"
+    },
+    {
+      "name": "property network",
+      "website": "https://www.propnetwork.co.za",
+      "address": "10 Naude Street Ermelo, Mpumalanga",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/property-network"
+    },
+    {
+      "name": "Exclusive Helderberg Business Directory",
+      "website": "https://www.helderberg.biz",
+      "address": "94 Helderzicht Street, Somerset West Somerset West , Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Exclusive-Helderberg-Business-Directory"
+    },
+    {
+      "name": "Pam Golding Properties",
+      "website": "https://www.pamgolding.co.za",
+      "address": "Shop No. 2, Bridgeport Centre, Anerley Hibberdene Kwazulu Natal, Kwazulu-nata",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pam-Golding-Properties_393987"
+    },
+    {
+      "name": "Agrisell - The source of prime property",
+      "website": "https://www.agrisell.co.za",
+      "address": "Bath Street Montagu, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Agrisell-The-source-of-prime-property"
+    },
+    {
+      "name": "Firzt Realty",
+      "website": "https://www.firzt.co.za",
+      "address": "82 Kroonarend Street Randvaal, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Firzt-Realty"
+    },
+    {
+      "name": "ALCOCKS HYGIENE SERVICES",
+      "website": "https://www.alcocks.co.za",
+      "address": null,
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ALCOCKS-HYGIENE-SERVICES"
+    },
+    {
+      "name": "Polokwane Info",
+      "website": "https://www.polokwane.info",
+      "address": "Polokwane Polokwane, Limpopo",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Polokwane-Info"
+    },
+    {
+      "name": "Jacana Properties",
+      "website": "https://www.jacanaproperties.com",
+      "address": "Mc Kenziestreet St Lucia Estuary, Kwazulu-nata",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jacana-Properties"
+    },
+    {
+      "name": "Bond Real Estate cc t\\a RB Properties",
+      "website": "https://www.bondrealestates.co.za",
+      "address": null,
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bond-Real-Estate-cc-t-a-RB-Properties"
+    },
+    {
+      "name": "Sagie Govender- Re/max Dolphin Realtors",
+      "website": "https://www.remaxdolphin.co.za",
+      "address": "Sandra Road Ballito, Kwazulu-nata",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sagie-Govender-Re-max-Dolphin-Realtors"
+    },
+    {
+      "name": "Ravele Properties",
+      "website": "https://www.raveleproperties.com",
+      "address": "12 Stellenberg Estate, Troupant Avenue, Magaliesig Sandton, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ravele-Properties"
+    },
+    {
+      "name": "GREEN DOME PROPERTY GROUP",
+      "website": "https://www.greendome.co.za",
+      "address": "45 Southbury Avenue, Eastbury Phoenix, Kwazulu Natal",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/GREEN-DOME-PROPERTY-GROUP"
+    },
+    {
+      "name": "ERA Steer Blaauwberg",
+      "website": "https://www.erasteer.co.za",
+      "address": "42 Raats Drive Table View, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ERA-Steer-Blaauwberg"
+    },
+    {
+      "name": "Marite Property Management",
+      "website": "https://www.marite.co.za",
+      "address": "Unit 3 Bracken Manor, Paradys Street Brackenfell, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Marite-Property-Management"
+    },
+    {
+      "name": "Alliance Group",
+      "website": "https://www.auction.co.za",
+      "address": "128 Strand Street, Cape Town, Cape Town Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Alliance-Group_411808"
+    },
+    {
+      "name": "Tyson Properties Upper South Coast",
+      "website": "https://www.tysonprop.co.za",
+      "address": "Shop 39, Scottburgh Mall, Old Main Road Scottburgh, Kwazulu-nata",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Tyson-Properties-Upper-South-Coast"
+    },
+    {
+      "name": "PROPERTY MAX - Property for sale throug…",
+      "website": "https://www.propertymax.co.za",
+      "address": "34 Parklands, Little Falls, Na Roodepoort, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/PROPERTY-MAX-Property-for-sale-throughout-South-Africa"
+    },
+    {
+      "name": "PROPERTY MAX - Property for sale",
+      "website": "https://www.propertymax.co.za",
+      "address": "44 Generaal Pienaar Str, Witpoortjie, Na Roodepoort, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/PROPERTY-MAX-Property-for-sale"
+    },
+    {
+      "name": "Property Max (Property for Sale in JHB)",
+      "website": "https://www.propertymax.co.za",
+      "address": "Web Based Johannesburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Property-Max-Property-for-Sale-in-JHB"
+    },
+    {
+      "name": "M.A Rentals",
+      "website": "https://www.marentals.co.za",
+      "address": "34 Keystone Complex Johannesburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/M-A-Rentals"
+    },
+    {
+      "name": "Wakefields at The Pearls",
+      "website": "https://www.thepearls.co.za",
+      "address": "6 Lagoon Drive Umhlanga Rocks, Kwazulu-nata",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wakefields-at-The-Pearls"
+    },
+    {
+      "name": "CENTURY21 PROPERTIES",
+      "website": "https://www.century21.co.za",
+      "address": "Office 10, Panorama Shopping Centre, Klipriver Drive Mulbarton, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/CENTURY21-PROPERTIES"
+    },
+    {
+      "name": "BLUE PEARL PROPERTIES (Laura Elena Arel…",
+      "website": "https://www.bluepearl.co.za",
+      "address": "P.o Box 1892 Noordheuwel X 4 Krugersdorp, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/BLUE-PEARL-PROPERTIES-Laura-Elena-Arellano"
+    },
+    {
+      "name": "Marjorie Bingham Attorneys",
+      "website": "https://www.bingham-law.co.za",
+      "address": "Century City, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Marjorie-Bingham-Attorneys"
+    },
+    {
+      "name": "STATS PROPERTIES",
+      "website": "https://www.statsproperties.co.za",
+      "address": "35 Glenwood Road Lynnwood Glen, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/STATS-PROPERTIES_430545"
+    },
+    {
+      "name": "Credit Matters",
+      "website": "https://www.creditmatters.co.za",
+      "address": "5th Floor, Pier House, Heerengracht Street Cape Town, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Credit-Matters"
+    },
+    {
+      "name": "Olemera Financial Services",
+      "website": "https://www.olemera.com",
+      "address": "10 Elder Avenue Bryanston Ext 3, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Olemera-Financial-Services_537155"
+    },
+    {
+      "name": "Galetti Commercial &amp; Industrial",
+      "website": "https://www.galetti.co.za",
+      "address": "Green Point, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Galetti-Commercial-Industrial"
+    },
+    {
+      "name": "Ariano Properties",
+      "website": "https://www.arianoproperties.co.za",
+      "address": "P O Box 53587, Troyville Johannesburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ariano-Properties"
+    },
+    {
+      "name": "&gt; Landlords :: West Coast",
+      "website": "https://www.landlords.sa.com",
+      "address": "49 Hendrik Verwoerd Drive, Panorama, Panorama Parow, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Landlords-West-Coast"
+    },
+    {
+      "name": "SJ Capital Group",
+      "website": "https://www.sjcapitalgroup.com",
+      "address": "1st Floor, Sandton Office Towers, 5th Street Sandton, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/SJ-Capital-Group"
+    },
+    {
+      "name": "VISAGE PROPERTY GROUP",
+      "website": "https://www.visageproperty.co.za",
+      "address": "Po Box 3113 Somerset West, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/VISAGE-PROPERTY-GROUP"
+    },
+    {
+      "name": "ADEK",
+      "website": "https://www.adek.co.za",
+      "address": null,
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/ADEK"
+    },
+    {
+      "name": "Permanent Trust Property Group",
+      "website": "https://www.permanenttrust.com",
+      "address": "4 Sandpiper Crescent, Okavango Park Brackenfell , Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Permanent-Trust-Property-Group"
+    },
+    {
+      "name": "BR-G Properties",
+      "website": "https://www.br-gp.com",
+      "address": "Johannesburg, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/BR-G-Properties"
+    },
+    {
+      "name": "Dennis Williams Realtors",
+      "website": "https://www.dwrealtors.co.za",
+      "address": "139 Old Main Road Pinetown, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dennis-Williams-Realtors"
+    },
+    {
+      "name": "Wildlife Property CC",
+      "website": "https://www.wildlifeproperty.co.za",
+      "address": "5 Park Street West Acres Nelspruit, Mpumalanga",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wildlife-Property-CC"
+    },
+    {
+      "name": "Olemera Financial Services",
+      "website": "https://www.olemera.com",
+      "address": "10 Elder Street, Bryanston Ext 3 Randburg, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Olemera-Financial-Services_537155"
+    },
+    {
+      "name": "Steenberg Property Sales &amp; Rentals Offi…",
+      "website": "https://www.steenbergproperty.com",
+      "address": "11128 Steenberg Estate, Tokai Road Tokai, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Steenberg-Property-Sales-Rentals-Office"
+    },
+    {
+      "name": "Vic Marini Real Estates",
+      "website": "https://www.vicmarini.co.za",
+      "address": "N. 3 Venus Street Sharonlea, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vic-Marini-Real-Estates"
+    },
+    {
+      "name": "Stuart River Estates",
+      "website": "https://www.riverproperties.co.za",
+      "address": "River Road,loch Vaal, Vanderbijlpark Vanderbijlpark, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Stuart-River-Estates"
+    },
+    {
+      "name": "Acutts Bluff - Estate Agent: Debbie van…",
+      "website": "https://durbanhomes.blogspot.com",
+      "address": "Shop 24, Bluff Towers, Tara Road Bluff, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Acutts-Bluff-Estate-Agent-Debbie-van-Wyk-Tel-079-195-5152"
+    },
+    {
+      "name": "gail@dolphinbeach",
+      "website": "https://www.dolphinbeachfront.co.za",
+      "address": "C104 Dolphin Beach Marine Drive, Bloubergrandt Cape Town, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/gail-dolphinbeach"
+    },
+    {
+      "name": "Bergplatz Property Investments cc",
+      "website": "https://www.bergplatz.com",
+      "address": "21 Debon Road, Riverclub Sandton, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bergplatz-Property-Investments-cc"
+    },
+    {
+      "name": "De Bruyn Commercial Property Brokers",
+      "website": "https://www.debruyncommercial.co.za",
+      "address": "Po Box 44 River Crescent, Mpumalanga",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/De-Bruyn-Commercial-Property-Brokers"
+    },
+    {
+      "name": "RED-i",
+      "website": "https://www.red-i.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/RED-i"
+    },
+    {
+      "name": "Harcourts Premier Estate Agents",
+      "website": "https://www.harcourts.co.za",
+      "address": "2 Village Road, Kloof, Kzn, 2 Village Road Kloof Kloof, Kwazulu Natal",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Harcourts-Premier-Estate-Agents"
+    },
+    {
+      "name": "Alcocks&#39;s Services Group",
+      "website": "https://www.alcocks.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Alcockss-Services-Group"
+    },
+    {
+      "name": "Durbanville Property estate agents",
+      "website": "https://www.durbanville-property.co.za",
+      "address": "11 Wonderboom Street, Eversdal Heights Durbanville, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Durbanville-Property-estate-agents"
+    },
+    {
+      "name": "KYOCERA MITA WESTERN CAPE",
+      "website": "https://www.kmwc.co.za",
+      "address": "4 Edison Way, Century Gate Business Park, Century City Canal Walk, Cape Town",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/KYOCERA-MITA-WESTERN-CAPE"
+    },
+    {
+      "name": "Engel &amp; V&#240;lkers Estate Agents",
+      "website": "https://www.engelvoelkers.com",
+      "address": "Church Corner Ground Floor, Courtnay Street George, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Engel-V%C3%B0lkers-Estate-Agents"
+    },
+    {
+      "name": "Geyer Estates",
+      "website": "https://www.geyerestates.co.za",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Geyer-Estates"
+    },
+    {
+      "name": "View-a-home",
+      "website": "https://www.view-a-home.co.za",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/View-a-home"
+    },
+    {
+      "name": "Plettrealestate.com",
+      "website": "https://www.plettrealestate.com",
+      "address": "Po Box, Plettenberg Bay6600, Main Street Plettenberg Bay",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Plettrealestate-com"
+    },
+    {
+      "name": "Round O&#39; Clock Estates",
+      "website": "https://www.propertyalberton.co.za",
+      "address": "36 Chrissie Street, Cnr Hennie Alberts, Brackenhurst Alberton",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Round-o-Clock-Estates"
+    },
+    {
+      "name": "Re/max Helderberg",
+      "website": "https://www.remax-helderberg.co.za",
+      "address": "Shop 33, Waterstone Village, Main Road Somerset West",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Re-max-Helderberg"
+    },
+    {
+      "name": "Robbergestates",
+      "website": "https://www.plettenbergbay.com",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Robbergestates"
+    },
+    {
+      "name": "George Dore Properties",
+      "website": "https://www.woodbridgeisland.co.za",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/George-Dore-Properties"
+    },
+    {
+      "name": "Hilary Mc Lean Properties",
+      "website": "https://www.hilarymclean.co.za",
+      "address": "1 Ceres Road, Bergvliet Cape Town",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hilary-Mc-Lean-Properties"
+    },
+    {
+      "name": "Chas Everitt East London",
+      "website": "https://www.everitt-eastlondon.co.za",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Chas-Everitt-East-London"
+    },
+    {
+      "name": "Propertunities",
+      "website": "https://www.propertunities.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Propertunities_401055"
+    },
+    {
+      "name": "Duncan Bailey Properties",
+      "website": "https://www.duncanbailey.co.za",
+      "address": "122 Irene Avenue Somerset West, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Duncan-Bailey-Properties"
+    },
+    {
+      "name": "Gallery Properties",
+      "website": "https://www.galleryproperties.co.za",
+      "address": "31a Tokai Road Tokai, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gallery-Properties"
+    },
+    {
+      "name": "De Kock Estates",
+      "website": "https://www.dekockestates.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/De-Kock-Estates"
+    },
+    {
+      "name": "Megaprop",
+      "website": "https://www.megaprop.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Megaprop"
+    },
+    {
+      "name": "Audies Real Estate",
+      "website": "https://www.wearethebest.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Audies-Real-Estate"
+    },
+    {
+      "name": "Swellendam Properties",
+      "website": "https://www.swellendamproperties.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Swellendam-Properties"
+    },
+    {
+      "name": "Realnet",
+      "website": "https://www.realnet.co.za",
+      "address": "Dunbrook Place, 151 Nicolson Street, Brooklyn Pretoria",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Realnet_402590"
+    },
+    {
+      "name": "Private Property",
+      "website": "https://www.privateproperty.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Private-Property"
+    },
+    {
+      "name": "Aida Heidelberg",
+      "website": "https://www.aidaheidelberg.co.za",
+      "address": "30 Du Preez Street Heidelberg 1438",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Aida-Heidelberg"
+    },
+    {
+      "name": "Huurkor",
+      "website": "https://www.huurkor.co.za",
+      "address": "347 Hilda Street, C/o Hilda Street, Arcadia Hatfield, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Huurkor"
+    },
+    {
+      "name": "Southbroom Estate Agency",
+      "website": "https://www.southbroomestateagency.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Southbroom-Estate-Agency_402899"
+    },
+    {
+      "name": "Kwazulu Natal Business Guide",
+      "website": "https://www.businesskzn.co.za",
+      "address": "Supplies, Accessories, 4x4 Off Road",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kwazulu-Natal-Business-Guide"
+    },
+    {
+      "name": "Smallholding",
+      "website": "https://www.smallholding.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Smallholding"
+    },
+    {
+      "name": "Cle Properties",
+      "website": "https://www.cleproperties.co.za",
+      "address": "Garden Route, Eastern Cape",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cle-Properties"
+    },
+    {
+      "name": "Borhay Property Group",
+      "website": "https://www.clemency.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Borhay-Property-Group"
+    },
+    {
+      "name": "Emfuleni Properties",
+      "website": "https://www.emfuleniproperties.co.za",
+      "address": "40 Fitzsimmons Street, Se 6 Vanderbijlpark",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Emfuleni-Properties"
+    },
+    {
+      "name": "Entegral",
+      "website": "https://www.entegral.net",
+      "address": "Visit, 272 West Street Centurion, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Entegral"
+    },
+    {
+      "name": "Crt Estates",
+      "website": "https://www.crtestates.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Crt-Estates"
+    },
+    {
+      "name": "Saiv",
+      "website": "https://www.saiv.org.za",
+      "address": "410 Main Road, Escobme, Queensburg P O Box 28060",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Saiv"
+    },
+    {
+      "name": "Villa Nova",
+      "website": "https://villa-nova.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Villa-Nova"
+    },
+    {
+      "name": "Plettenberg Bay",
+      "website": "https://www.plettenbergbay.com",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Plettenberg-Bay"
+    },
+    {
+      "name": "Fanie Booysen Estates",
+      "website": "https://www.faniebooysen.co.za",
+      "address": "Po Box 40600, Garsfontein East Pretoria",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fanie-Booysen-Estates"
+    },
+    {
+      "name": "Hart Properties",
+      "website": "https://www.hartproperties.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hart-Properties"
+    },
+    {
+      "name": "Square Metre Properties",
+      "website": "https://www.sqmproperties.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Square-Metre-Properties"
+    },
+    {
+      "name": "Sshadoworkss",
+      "website": "https://www.sshadoworkss.co.za",
+      "address": "What If The World Gallery, 208albert Rd Cape Town",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sshadoworkss"
+    },
+    {
+      "name": "Property Alberton",
+      "website": "https://www.propertyalberton.co.za",
+      "address": "P O Box 145546 Brackenhurst",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Property-Alberton"
+    },
+    {
+      "name": "Amanzimtoti Houses",
+      "website": "https://www.amanzimtotihouses.co.za",
+      "address": "Po Box 2122 Amanzimtoti, Kwazulu-nata",
+      "page": 2,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Amanzimtoti-Houses"
+    },
+    {
+      "name": "Cypriot Realty",
+      "website": "https://www.cypriotrealty.com",
+      "address": "Ground Floor, Liesbeek House, River Park, Gloucester Rd Mowbray, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cypriot-Realty"
+    },
+    {
+      "name": "Renprop - Johannesburg Real Estate",
+      "website": "https://www.renpropresidential.co.za/property",
+      "address": "The Courtyards, 32 Peter Place, Lyme Park Bryanston, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Renprop-Johannesburg-Real-Estate"
+    },
+    {
+      "name": "Waterkloof Properties",
+      "website": "https://www.waterkloofproperties.co.za",
+      "address": "369 Lois Avenue Pretoria",
+      "page": 6,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Waterkloof-Properties_400698"
+    },
+    {
+      "name": "Vacation Rentals On Maui",
+      "website": "https://www.vacationrentalsonmaui.com",
+      "address": "Lahaina Guest House, 2 Bedrooms, 2 Baths Gated Estate With Pool",
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vacation-Rentals-On-Maui"
+    }
+  ]
+}

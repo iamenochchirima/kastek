@@ -11,7 +11,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const [total, byStatus, bySource, recentLeads, recentConversations, conversationCount] = await Promise.all([
+  const [total, byStatus, bySource, recentLeads, recentConversations, conversationCount, outreachCampaigns] = await Promise.all([
     prisma.quoteRequest.count(),
     prisma.quoteRequest.groupBy({
       by: ["status"],
@@ -36,7 +36,14 @@ export default async function DashboardPage() {
       },
     }),
     prisma.conversation.count(),
+    prisma.outreachCampaign.findMany({
+      where: { status: { in: ["active", "draft"] } },
+    }),
   ]);
+
+  const outreachSent = outreachCampaigns.reduce((s, c) => s + c.emailsSent, 0);
+  const outreachReplies = outreachCampaigns.reduce((s, c) => s + c.replies, 0);
+  const outreachRate = outreachSent > 0 ? Math.round((outreachReplies / outreachSent) * 100) : 0;
 
   const statusMap = Object.fromEntries(
     byStatus.map((s) => [s.status, s._count])
@@ -58,12 +65,13 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <StatCard label="Total Leads" value={total} color="bg-surface-raised border border-border text-text" />
         <StatCard label="New" value={statusMap.new || 0} color="bg-blue-500/10 border border-blue-500/20 text-blue-400" />
         <StatCard label="Interested" value={statusMap.interested || 0} color="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400" />
         <StatCard label="Won" value={statusMap.won || 0} color="bg-green-500/10 border border-green-500/20 text-green-400" />
         <StatCard label="Conversations" value={conversationCount} color="bg-purple-500/10 border border-purple-500/20 text-purple-400" />
+        <StatCard label="Outreach Sent" value={outreachSent} color="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400" />
       </div>
 
       {/* Two column layout */}
@@ -147,6 +155,36 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+      {/* Outreach Summary */}
+      <div className="bg-surface-raised rounded-xl border border-border p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-text">Outreach Campaigns</h2>
+          <Link href="/outreach" className="text-primary text-sm font-medium hover:underline">
+            View all
+          </Link>
+        </div>
+        {outreachCampaigns.length === 0 ? (
+          <p className="text-text-faint text-sm">No active campaigns. <Link href="/outreach/import" className="text-primary hover:underline">Import leads</Link> to get started.</p>
+        ) : (
+          <div className="space-y-3">
+            {outreachCampaigns.slice(0, 5).map((c) => {
+              const rate = c.emailsSent > 0 ? Math.round((c.replies / c.emailsSent) * 100) : 0;
+              return (
+                <Link key={c.id} href={`/outreach/${c.id}`} className="flex items-center justify-between p-3 rounded-lg hover:bg-surface-overlay transition-colors">
+                  <div>
+                    <p className="font-medium text-sm text-text">{c.name}</p>
+                    <p className="text-text-faint text-xs">{c.totalLeads} leads &middot; {c.emailsSent} sent &middot; {rate}% rate</p>
+                  </div>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${c.status === "active" ? "bg-green-500/15 text-green-400" : "bg-white/5 text-text-faint"}`}>
+                    {c.status}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Recent Conversations */}
       <div className="bg-surface-raised rounded-xl border border-border p-6">
         <div className="flex items-center justify-between mb-4">

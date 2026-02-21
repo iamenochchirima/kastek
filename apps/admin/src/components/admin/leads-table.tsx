@@ -36,27 +36,29 @@ type Lead = {
 
 export default function LeadsTable({ leads }: { leads: Lead[] }) {
   const router = useRouter();
+  const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
   const allSelected = leads.length > 0 && selected.size === leads.length;
 
+  function enterSelectMode() {
+    setSelectMode(true);
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
   function toggleAll() {
-    if (allSelected) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(leads.map((l) => l.id)));
-    }
+    setSelected(allSelected ? new Set() : new Set(leads.map((l) => l.id)));
   }
 
   function toggleOne(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   }
@@ -79,32 +81,47 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
     }
 
     setSelected(new Set());
+    setSelectMode(false);
     setDeleting(false);
     router.refresh();
   }
 
   return (
     <>
-      {selected.size > 0 && (
-        <div className="flex items-center gap-3 bg-surface-raised border border-border rounded-xl px-4 py-3">
-          <span className="text-sm text-text-muted">
-            {selected.size} lead{selected.size > 1 ? "s" : ""} selected
-          </span>
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {!selectMode ? (
           <button
-            onClick={handleBulkDelete}
-            disabled={deleting}
-            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            onClick={enterSelectMode}
+            className="text-xs font-medium text-text-muted hover:text-text px-3 py-1.5 rounded-lg border border-border hover:bg-surface-overlay transition-colors"
           >
-            {deleting ? "Deleting..." : "Delete selected"}
+            Select
           </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            className="text-sm text-text-muted hover:text-text transition-colors"
-          >
-            Clear selection
-          </button>
-        </div>
-      )}
+        ) : (
+          <>
+            <button
+              onClick={exitSelectMode}
+              className="text-xs font-medium text-text-muted hover:text-text px-3 py-1.5 rounded-lg border border-border hover:bg-surface-overlay transition-colors"
+            >
+              Cancel
+            </button>
+            {selected.size > 0 && (
+              <>
+                <span className="text-xs text-text-muted">
+                  {selected.size} selected
+                </span>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={deleting}
+                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  {deleting ? "Deleting..." : "Delete selected"}
+                </button>
+              </>
+            )}
+          </>
+        )}
+      </div>
 
       <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
         {leads.length === 0 ? (
@@ -115,14 +132,16 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-surface-overlay">
-                <th className="px-4 py-3 w-10">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleAll}
-                    className="rounded border-border accent-primary"
-                  />
-                </th>
+                {selectMode && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleAll}
+                      className="rounded border-border accent-primary"
+                    />
+                  </th>
+                )}
                 <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
                   Business
                 </th>
@@ -142,15 +161,20 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
             </thead>
             <tbody className="divide-y divide-border">
               {leads.map((lead) => (
-                <tr key={lead.id} className="hover:bg-surface-overlay transition-colors">
-                  <td className="px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(lead.id)}
-                      onChange={() => toggleOne(lead.id)}
-                      className="rounded border-border accent-primary"
-                    />
-                  </td>
+                <tr
+                  key={lead.id}
+                  className={`hover:bg-surface-overlay transition-colors ${selectMode && selected.has(lead.id) ? "bg-primary/5" : ""}`}
+                >
+                  {selectMode && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(lead.id)}
+                        onChange={() => toggleOne(lead.id)}
+                        className="rounded border-border accent-primary"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <Link href={`/leads/${lead.id}`} className="hover:text-primary">
                       <p className="font-medium text-sm text-text">{lead.businessName}</p>

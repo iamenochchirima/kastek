@@ -1,0 +1,2661 @@
+{
+  "category": "restaurants",
+  "count": 292,
+  "listings": [
+    {
+      "name": "Hospitality Jobs Africa",
+      "website": "https://www.hospitalityjobsafrica.co.za",
+      "address": "Derwent Road, Tamboerskloo Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hospitality-Jobs-Africa"
+    },
+    {
+      "name": "Global Wrapps",
+      "website": "https://www.globalwrapps.co.za",
+      "address": "Rivonia Rd, Chilli Lane Shopping Centre Sunninghill, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Global-Wrapps_397067"
+    },
+    {
+      "name": "The Personal Touch hospitality and Tran…",
+      "website": "https://www.thepersonaltouch.co.za",
+      "address": "19 St Benedict Road Gresswold, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Personal-Touch-hospitality-and-Transport-solutions"
+    },
+    {
+      "name": "Polokwane Info",
+      "website": "https://www.polokwane.info",
+      "address": "Polokwane Polokwane, Limpopo",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Polokwane-Info"
+    },
+    {
+      "name": "Bientang&#39;s Cave",
+      "website": "https://www.bientangscave.com",
+      "address": "Below Marine Drive, On The Rocks Hermanus, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bientangs-Cave"
+    },
+    {
+      "name": "Business Broadcaster",
+      "website": "https://www.business-broadcaster.co.za",
+      "address": null,
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Business-Broadcaster"
+    },
+    {
+      "name": "The Chef",
+      "website": "https://www.thechef.co.za",
+      "address": "17 Menton Road, Richmond Johannesburg, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Chef"
+    },
+    {
+      "name": "Bella Baskets",
+      "website": "https://www.bellabaskets.co.za",
+      "address": null,
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bella-Baskets"
+    },
+    {
+      "name": "Fat Cats Catering",
+      "website": "https://www.fatcatscatering.co.za",
+      "address": "Etc Conference Centre, Spondo Road, Struandale Port Elizabeth, Eastern Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fat-Cats-Catering"
+    },
+    {
+      "name": "Alcocks Infrared Scans (Thermography)",
+      "website": "https://www.alcocks.co.za",
+      "address": "A8 Glen Murray Industrial Park, 13 Mooreland Drive, Redhill Durban, Kwazulu-nata",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Alcocks-Infrared-Scans-Thermography"
+    },
+    {
+      "name": "Cape Town Fish Market Cresta",
+      "website": "https://www.ctfm.co.za",
+      "address": null,
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Town-Fish-Market-Cresta"
+    },
+    {
+      "name": "Cape Town Fish Market Southdowns",
+      "website": "https://www.ctfm.co.za",
+      "address": null,
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Town-Fish-Market-Southdowns"
+    },
+    {
+      "name": "Beseated",
+      "website": "https://www.beseated.co.za",
+      "address": "2 Morester Close Bellville, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Beseated"
+    },
+    {
+      "name": "Wilson&#39;s Foods",
+      "website": "https://www.oliveoil.co.za",
+      "address": "Clifford Close, Ottery Cape Town, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wilsons-Foods"
+    },
+    {
+      "name": "www.entertainment4u.co.za",
+      "website": "https://www.entertainment4u.co.za",
+      "address": "P.o.box 73905, Lynnwood Ridge Pretoria, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/www-entertainment4u-co-za"
+    },
+    {
+      "name": "Il Giardino Degli Ulivi",
+      "website": "https://www.ilgiardino.co.za",
+      "address": "44 Stanley Avenue, Milpark Johannesburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Il-Giardino-Degli-Ulivi"
+    },
+    {
+      "name": "RJ&#39;s Hillcrest",
+      "website": "https://www.rjskzn.co.za",
+      "address": "17a Lillies Quarters Centre, Old Main Rd Hillcrest, Kwazulu-nata",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/RJs-Hillcrest"
+    },
+    {
+      "name": "Royal",
+      "website": "https://www.theroyal.co.za",
+      "address": "267 Smith Street, Po Box Durban",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Royal"
+    },
+    {
+      "name": "Jozikids.co.za",
+      "website": "https://www.jozikids.co.za",
+      "address": "P O Box 91398 Auckland Park, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jozikids-co-za"
+    },
+    {
+      "name": "Greenlea Guest House and Conferenc Cent…",
+      "website": "https://www.greenlea.co.za",
+      "address": "41 Krige Lane, Irene, Centurion Pretoria, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Greenlea-Guest-House-and-Conferenc-Centre"
+    },
+    {
+      "name": "Oxygen Catering",
+      "website": "https://www.rptgroup.co.za",
+      "address": "45 Gold Street Sophiatown , Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Oxygen-Catering_507255"
+    },
+    {
+      "name": "Chabivin (PTY) Ltd.",
+      "website": "https://www.chabivin.co.za",
+      "address": "Blaauwklippen Rd, Paradyskloof Stellenbosch, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Chabivin"
+    },
+    {
+      "name": "Under Oaks Wines",
+      "website": "https://www.underoaks.co.za",
+      "address": "P.o Box 777 Noord Agter Paarl, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Under-Oaks-Wines"
+    },
+    {
+      "name": "Used Catering Equipment",
+      "website": "https://www.usedcateringequipment.co.za",
+      "address": "21 Profab Cresent, Delville Business Park Germiston, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Used-Catering-Equipment"
+    },
+    {
+      "name": "Pestaway Pest Control",
+      "website": "https://www.pestaway.co.za",
+      "address": "6 Th Ave Melkbosstrand, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pestaway-Pest-Control"
+    },
+    {
+      "name": "Cornwall Hill Industries (Pty)Ltd",
+      "website": "https://www.chindustries.co.za",
+      "address": "18d Davies Road Wychwood, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cornwall-Hill-Industries"
+    },
+    {
+      "name": "Hotwireless",
+      "website": "https://www.hotwireless.co.za",
+      "address": "West Street, Kempton Park Kempton Park, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hotwireless"
+    },
+    {
+      "name": "&quot;COOL-RUNNINGS&quot; - TOBOGGAN FAMILY PARK …",
+      "website": "https://www.cool-runnings.co.za",
+      "address": null,
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/COOL-RUNNINGS-TOBOGGAN-FAMILY-PARK"
+    },
+    {
+      "name": "All Catering Equipment",
+      "website": "https://www.usedcateringequipment.co.za",
+      "address": "26 6th Avenue Wynberg Johannesburg, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/All-Catering-Equipment"
+    },
+    {
+      "name": "Occasions Desserts cc",
+      "website": "https://www.occasionsdesserts.co.za",
+      "address": "Unit 7, 46 Lindup Rd, Pietermaritzburg Scottsville, Kwazulu-nata",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Occasions-Desserts-cc"
+    },
+    {
+      "name": "A Touch of Spice Catering",
+      "website": "https://www.touchofspice.co.za",
+      "address": "P O Box 55486, Northlands, Cecil Road, Melrose Johannesburg, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/A-Touch-of-Spice-Catering"
+    },
+    {
+      "name": "Hermanus Weddings",
+      "website": "https://www.hermanusweddings.co.za",
+      "address": "Hermanus, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hermanus-Weddings"
+    },
+    {
+      "name": "Alberton Boulevard Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Voortrekker Rd Alberton, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Alberton-Boulevard-Sandwich-Baron"
+    },
+    {
+      "name": "SA Webs Internet Solutions",
+      "website": "https://www.sawebs.co.za",
+      "address": "510 Windermere Road Morningside Chambers Durban, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Webs-Internet-Solutions_537491"
+    },
+    {
+      "name": "Benoni Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "76 Elston Avenue Benoni, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Benoni-Sandwich-Baron"
+    },
+    {
+      "name": "Blairgowrie Express Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop 6, Blairgowrie Plaza, 70 Conrad Drive Blairgowrie, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Blairgowrie-Express-Sandwich-Baron"
+    },
+    {
+      "name": "Bloemfontein Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bloemfontein-Sandwich-Baron"
+    },
+    {
+      "name": "Brooklyn Groenkloof Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Brooklyn-Groenkloof-Sandwich-Baron"
+    },
+    {
+      "name": "Bryanston Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop2, Sloane Square, 18 Sloane Street Bryanston, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bryanston-Sandwich-Baron"
+    },
+    {
+      "name": "Campus Square Express Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop 13, Campus Square, Cnr University & Kingsway Road Auckland Park, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Campus-Square-Express-Sandwich-Baron"
+    },
+    {
+      "name": "Centurion Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Centurion-Sandwich-Baron"
+    },
+    {
+      "name": "Centurion Mall Express Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop 30a, Cnr Hendrik Verwoerd And Embankment, Centurion Mall Centurion, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Centurion-Mall-Express-Sandwich-Baron"
+    },
+    {
+      "name": "Durban Central Express Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "214 West Street, Liberty Towers Durban, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Durban-Central-Express-Sandwich-Baron"
+    },
+    {
+      "name": "Edenvale Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "8th Avenue, Edenvale Edenvale, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Edenvale-Sandwich-Baron"
+    },
+    {
+      "name": "Fourways Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Kingfisher Shopping Centre, Kingfisher Driver Fourways, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fourways-Sandwich-Baron"
+    },
+    {
+      "name": "Express Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Block A, The Field Centre, Cnr Burnette & Festival Streets Hatfield, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Express-Sandwich-Baron"
+    },
+    {
+      "name": "Highveld Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Highveld-Sandwich-Baron"
+    },
+    {
+      "name": "Illovo Express Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Oxford Road Illovo , Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Illovo-Express-Sandwich-Baron"
+    },
+    {
+      "name": "Isando/Croydon Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Something Fishy Office Park, Cnr Brabazon & Die Agora Croydon, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Isando-Croydon-Sandwich-Baron"
+    },
+    {
+      "name": "Kempton Square Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "88a Square Shopping Centre, Central Avenue Kempton Park, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kempton-Square-Sandwich-Baron"
+    },
+    {
+      "name": "Kengsington Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "148 Queen Street, Kensington South Hills, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kengsington-Sandwich-Baron"
+    },
+    {
+      "name": "Klerksdorp Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop 10, Flamwood Square, Central Avenue Flamwood, North West Province",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Klerksdorp-Sandwich-Baron"
+    },
+    {
+      "name": "Krugersdorp Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop No 28, Anthos Centre, Monument Krugersdorp, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Krugersdorp-Sandwich-Baron"
+    },
+    {
+      "name": "Kya Sands Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Riverplace Shopping Centre, River Road, Kya Sands Randburg, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kya-Sands-Sandwich-Baron"
+    },
+    {
+      "name": "Lambton Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Lambton-Sandwich-Baron"
+    },
+    {
+      "name": "Long Meadow Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "City Mtor Centre, Shop 2b, Brahman Crescent Long Meadow, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Long-Meadow-Sandwich-Baron"
+    },
+    {
+      "name": "Lynnwood Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop 19c, Lynnridge Mall, Cnr Lynnwood Rd & Jacobson Drive Lynnridge, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Lynnwood-Sandwich-Baron"
+    },
+    {
+      "name": "Melrose Crossing Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop F5, Melrose Crossing, 83 Corlett Drive, Melrose Arch Melrose, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Melrose-Crossing-Sandwich-Baron"
+    },
+    {
+      "name": "Midrand Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Motor City, 1801 Old Pretoria Road Midrand, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Midrand-Sandwich-Baron"
+    },
+    {
+      "name": "Midstream Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Cnr Brakfontein, Old Johannesburg Offramp, The Owl Village Midstream, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Midstream-Sandwich-Baron"
+    },
+    {
+      "name": "Montana Express Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "535 Breedt Street, Montana Ext 2 Pretoria, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Montana-Express-Sandwich-Baron"
+    },
+    {
+      "name": "Pietermaritzburg Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "182 Greyling Street Pietermaritzburg, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pietermaritzburg-Sandwich-Baron"
+    },
+    {
+      "name": "Potchefstroom Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Potchefstroom-Sandwich-Baron"
+    },
+    {
+      "name": "Pretoria Central Sandwich Baron",
+      "website": "https://www.sandwichbaron.com",
+      "address": "Shop 5, 224 Church Street Pretoria, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pretoria-Central-Sandwich-Baron"
+    },
+    {
+      "name": "Rand Park Ridge Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop 11, Randridge Mall, John Vorster Street Randparkridge, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rand-Park-Ridge-Sandwich-Baron"
+    },
+    {
+      "name": "Randburg Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Bond Street Centre, Bond Street, Ferndale Randburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Randburg-Sandwich-Baron"
+    },
+    {
+      "name": "Rivonia Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Edenburg Mall, 329 Rivonia Road Rivonia, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rivonia-Sandwich-Baron"
+    },
+    {
+      "name": "Roodepoort Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Cnr Ontdekkers And Louis Street, Ontdekkers Park Florida, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Roodepoort-Sandwich-Baron"
+    },
+    {
+      "name": "Rustenburg Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop 18, Kloof Centre, 171 Kock Street Rustenburg, North West Province",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rustenburg-Sandwich-Baron"
+    },
+    {
+      "name": "Silverton Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Silverton-Sandwich-Baron"
+    },
+    {
+      "name": "Springs Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "157 Second Street, No 3 George Grey Street Boksburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Springs-Sandwich-Baron"
+    },
+    {
+      "name": "Strydom Park Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "No 6 Jonarley, Cnr West And Oxford Streets, Ferndale Randburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Strydom-Park-Sandwich-Baron"
+    },
+    {
+      "name": "Sunninghill Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sunninghill-Sandwich-Baron"
+    },
+    {
+      "name": "Vanderbijlpark Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Checkers Hyperama, 49 Jan Van Riebeeck Boulevard Vanderbijlpark, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vanderbijlpark-Sandwich-Baron"
+    },
+    {
+      "name": "Vereeniging Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Cnr Service Road, 4 Leslie Street Vereeniging, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vereeniging-Sandwich-Baron"
+    },
+    {
+      "name": "Westgate Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Westgate Shopping Centre, Ondekkers Road Roodepoort, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Westgate-Sandwich-Baron"
+    },
+    {
+      "name": "Witbank Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Shop 3, Fruit And Veg Centre, Or Tambo And Mandela Drive Witbank, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Witbank-Sandwich-Baron"
+    },
+    {
+      "name": "Wonderpark Express Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Wonderpark Mall Wonderpark, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wonderpark-Express-Sandwich-Baron"
+    },
+    {
+      "name": "Woodmead Express Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "Woodmead Retail Park, Woodmead Drive Woodmead, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Woodmead-Express-Sandwich-Baron"
+    },
+    {
+      "name": "Wynberg Sandwich Baron",
+      "website": "https://www.sandwichbaron.co.za",
+      "address": "5th Street Wynberg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wynberg-Sandwich-Baron"
+    },
+    {
+      "name": "Two Little Fishies Seafood Supplies",
+      "website": "https://2fishies.weebly.com",
+      "address": "Pretoria, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Two-Little-Fishies-Seafood-Supplies"
+    },
+    {
+      "name": "Hops and beans",
+      "website": "https://www.hnb.co.za",
+      "address": "Brakfonteint Rd, Midstream Estate, Midrand. Midrand, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hops-and-beans_539118"
+    },
+    {
+      "name": "LMC Express",
+      "website": "https://www.lmcexpress.co.za",
+      "address": "Unit E10, Roete 24 Business Park, Herman Road, Meadowdale Edenvale, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/LMC-Express_539244"
+    },
+    {
+      "name": "Rooibos Cappuccino",
+      "website": "https://www.rooiboscappuccino.com",
+      "address": "Po Box 246, Green Point Cape Town, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rooibos-Cappuccino"
+    },
+    {
+      "name": "The mix Mobile Bars",
+      "website": "https://www.themix.co.za",
+      "address": "Johannesburg, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-mix-Mobile-Bars"
+    },
+    {
+      "name": "GOBBLE &#39;N GO FAST FOODS",
+      "website": "https://www.gobblengo.co.za",
+      "address": "Gunners Circle, Epping 1, Epping Industria Epping 1, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/GOBBLE-N-GO-FAST-FOODS"
+    },
+    {
+      "name": "Alpaco Catering &amp; Equipment cc",
+      "website": "https://www.alpaco.co.za",
+      "address": "95 Butler Road, Nuffield Springs, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Alpaco-Catering-Equipment-cc"
+    },
+    {
+      "name": "Auto Glaze",
+      "website": "https://www.autoglaze.co.za",
+      "address": "Sandton, Gauteng",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Auto-Glaze"
+    },
+    {
+      "name": "Aquila D&#39;oro Coffee and Roastery",
+      "website": "https://www.agl-unl.co.za",
+      "address": "Unit 7, Bolt Park, 11 Bolt Avenue Cape Town, Western Cape",
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Aquila-D-oro-Coffee-and-Roastery"
+    },
+    {
+      "name": "Bella Bay Cafe Catering",
+      "website": "https://www.bellabaskets.co.za",
+      "address": null,
+      "page": 5,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bella-Bay-Cafe-Catering"
+    },
+    {
+      "name": "Georder Eng",
+      "website": "https://www.yellowpages.co.za",
+      "address": "No 1. De Beer Alrode, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Georder-Eng"
+    },
+    {
+      "name": "MINI OCEANS cc",
+      "website": "https://www.minioceans.co.za",
+      "address": "Erf 191, Winery Road Somerset West, Cape Town",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/MINI-OCEANS-cc"
+    },
+    {
+      "name": "Accommodation South Africa",
+      "website": "https://www.accommodationhunter.co.za",
+      "address": "Camps Bay Cape Town, Western Cape",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Accommodation-South-Africa_552277"
+    },
+    {
+      "name": "AH&amp;A Electronics / Electrical",
+      "website": "https://www.ahaelectronics.co.za",
+      "address": "131 Luipaard Street Krugersdorp, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/AH-A-Electronics-Electrical"
+    },
+    {
+      "name": "Unwind Accommodation and Information",
+      "website": "https://www.unwind.co.za",
+      "address": "Magaliesburg Magaliesburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Unwind-Accommodation-and-Information"
+    },
+    {
+      "name": "East Rand Retail Park",
+      "website": "https://www.eastrandretailpark.co.za",
+      "address": "113 North Rand Road Boksburg, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/East-Rand-Retail-Park"
+    },
+    {
+      "name": "Magaliesburg Tourist Information",
+      "website": "https://www.unwind.co.za",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Magaliesburg-Tourist-Information"
+    },
+    {
+      "name": "Wild Waves",
+      "website": "https://www.wildwaves.co.za",
+      "address": "Lot 755, Shepstone Rd Shelly Beach Kzn, Kwazulu Natal",
+      "page": 6,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wild-Waves"
+    },
+    {
+      "name": "Caterworth Catering Supplies cc",
+      "website": "https://caterworth.co.za",
+      "address": "89 Albatross Drive Fourways, Gauteng",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Caterworth-Catering-Supplies-cc"
+    },
+    {
+      "name": "Caffe Granita",
+      "website": "https://www.theworkshopcentre.co.za",
+      "address": "99 Aliwal Street Durban Kwazulu Natal, Kwazulu-nata",
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Caffe-Granita"
+    },
+    {
+      "name": "The Admiralty Beach House",
+      "website": "https://www.theadmiralty.co.za",
+      "address": null,
+      "page": 7,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Admiralty-Beach-House"
+    },
+    {
+      "name": "Durban Catering Equipment",
+      "website": "https://www.durbancateringequipment.co.za",
+      "address": "95 Pine St Durban",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Durban-Catering-Equipment"
+    },
+    {
+      "name": "Asite - Hunting In America And Africa",
+      "website": "https://www.asite.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Asite-Hunting-In-America-And-Africa"
+    },
+    {
+      "name": "Pretoria Executive Cottages",
+      "website": "https://www.executives.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pretoria-Executive-Cottages"
+    },
+    {
+      "name": "Les Chambres Guest House",
+      "website": "https://www.leschambres.co.za",
+      "address": "3, Berg Street Franschhoek",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Les-Chambres-Guest-House"
+    },
+    {
+      "name": "Treetops",
+      "website": "https://www.treetopscape.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Treetops"
+    },
+    {
+      "name": "Pelham Place",
+      "website": "https://www.pelhamplace.co.za",
+      "address": "27 King's Street, Newlands Cape Town 7700",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pelham-Place"
+    },
+    {
+      "name": "Billsbest",
+      "website": "https://www.billsbest.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Billsbest"
+    },
+    {
+      "name": "Tradepage",
+      "website": "https://www.tradepage.co.za",
+      "address": "6 Blair Road, Pinetown, Kwa-zulu Natal Click Here To View Map",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Tradepage_399765"
+    },
+    {
+      "name": "Plettrealestate.com",
+      "website": "https://www.plettrealestate.com",
+      "address": "Po Box, Plettenberg Bay6600, Main Street Plettenberg Bay",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Plettrealestate-com"
+    },
+    {
+      "name": "The Grosvenor Guest House",
+      "website": "https://www.thegrosvenor.co.za",
+      "address": "111 St Georges Street Simon's Town",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Grosvenor-Guest-House"
+    },
+    {
+      "name": "Unwind",
+      "website": "https://www.unwind.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Unwind"
+    },
+    {
+      "name": "Villa Exner",
+      "website": "https://www.villaexner.com",
+      "address": "40 Kilometres, Drive Time",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Villa-Exner"
+    },
+    {
+      "name": "Swallow&#39;s Loft",
+      "website": "https://www.swallowsloft.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Swallows-Loft"
+    },
+    {
+      "name": "The Wild Fig Restaurant",
+      "website": "https://www.thewildfig.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Wild-Fig-Restaurant_400234"
+    },
+    {
+      "name": "Paradise Found",
+      "website": "https://www.paradisefound.co.za",
+      "address": "30km 25 Minutes, Storms River And Tsitsikamma National Park 95km",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Paradise-Found"
+    },
+    {
+      "name": "Shakespeare Inn",
+      "website": "https://www.shakespeare.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Shakespeare-Inn"
+    },
+    {
+      "name": "Balfour Place",
+      "website": "https://www.balfour-place.com",
+      "address": "19 Blinkwater Road Camps Bay",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Balfour-Place"
+    },
+    {
+      "name": "Montagu",
+      "website": "https://www.montagu.org.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Montagu"
+    },
+    {
+      "name": "Vaal Meander",
+      "website": "https://www.vaalmeander.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vaal-Meander_400721"
+    },
+    {
+      "name": "Lallas",
+      "website": "https://www.lallas.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Lallas"
+    },
+    {
+      "name": "Cape Nelson Guest House",
+      "website": "https://www.capenelsonguesthouse.co.za",
+      "address": "18 Mount Nelson Road Sea Point",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Nelson-Guest-House_400888"
+    },
+    {
+      "name": "Bbrw",
+      "website": "https://www.bbrw.co.za",
+      "address": "24 Park Drive, Mayfair Johannesburg, Gauteng",
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bbrw"
+    },
+    {
+      "name": "Riverside Hotel",
+      "website": "https://www.riversidehotel.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Riverside-Hotel_400979"
+    },
+    {
+      "name": "Badplaas Golf Club",
+      "website": "https://www.golfleisure.co.za",
+      "address": null,
+      "page": 8,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Badplaas-Golf-Club"
+    },
+    {
+      "name": "2 Swans",
+      "website": "https://www.2swans.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/2-Swans"
+    },
+    {
+      "name": "Mint Interiors",
+      "website": "https://www.mintinteriors.co.za",
+      "address": "Unit 4, 51 Vervoer Str, Kya Sand Randburg",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mint-Interiors"
+    },
+    {
+      "name": "Spitbraai Catering",
+      "website": "https://www.spitbraaicatering.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Spitbraai-Catering"
+    },
+    {
+      "name": "Schulphoek Guest House",
+      "website": "https://www.schulphoek.co.za",
+      "address": "181 Piet Retief Crescent/str Hermanus",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Schulphoek-Guest-House"
+    },
+    {
+      "name": "Laguna Grove",
+      "website": "https://www.lagunagrove.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Laguna-Grove_422152"
+    },
+    {
+      "name": "Dining-out.co.za",
+      "website": "https://www.dining-out.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dining-out-co-za"
+    },
+    {
+      "name": "Guest Accommodation &amp; Activities Associ…",
+      "website": "https://www.plettenbergbayinfo.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Guest-Accommodation-Activities-Association-Plettenberg-Bay"
+    },
+    {
+      "name": "The Chapman",
+      "website": "https://www.chapman.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Chapman"
+    },
+    {
+      "name": "Abalone Lodges",
+      "website": "https://www.abalonelodges.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Abalone-Lodges"
+    },
+    {
+      "name": "Zimbali House",
+      "website": "https://www.zimbalihouse.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Zimbali-House"
+    },
+    {
+      "name": "L &amp; J Tours",
+      "website": "https://www.ljtours.com",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/L-J-Tours"
+    },
+    {
+      "name": "Manhattan Lofts",
+      "website": "https://www.capetownaccommodation.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Manhattan-Lofts"
+    },
+    {
+      "name": "Whale Rock Lodge",
+      "website": "https://www.whalerock.co.za",
+      "address": "26 Springfield Avenue, Westcliff Hermanus",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Whale-Rock-Lodge"
+    },
+    {
+      "name": "Margate",
+      "website": "https://www.margate.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Margate"
+    },
+    {
+      "name": "La Cabri&#232;re Country House",
+      "website": "https://www.lacabriere.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/La-Cabri%C3%A8re-Country-House"
+    },
+    {
+      "name": "Ruslamere",
+      "website": "https://www.ruslamere.co.za",
+      "address": "14 Langeberg Road, Durbanville Cape Town, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ruslamere"
+    },
+    {
+      "name": "Robertson Tourism Bureau",
+      "website": "https://robertsonr62.com",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Robertson-Tourism-Bureau"
+    },
+    {
+      "name": "Restaurants.co.za",
+      "website": "https://www.restaurants.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Restaurants-co-za"
+    },
+    {
+      "name": "Magalies Park",
+      "website": "https://www.magaliespark.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Magalies-Park"
+    },
+    {
+      "name": "Camps Bay Tourism",
+      "website": "https://www.campsbaytourism.com",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Camps-Bay-Tourism"
+    },
+    {
+      "name": "Atlantic Beach Golf Club",
+      "website": "https://www.atlanticbeachgolfclub.co.za",
+      "address": "1 Fairway Drive Melkbosstrand, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Atlantic-Beach-Golf-Club"
+    },
+    {
+      "name": "Extra Mile Tours",
+      "website": "https://www.theextramiletours.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Extra-Mile-Tours"
+    },
+    {
+      "name": "De Oude Welgemoed",
+      "website": "https://www.deoude.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/De-Oude-Welgemoed"
+    },
+    {
+      "name": "Hermanus",
+      "website": "https://www.hermanus.co.za",
+      "address": "Rothnick Croft Building, 155 Main Road Hermanus, Western Cape",
+      "page": 9,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hermanus"
+    },
+    {
+      "name": "A Whale Of A Time",
+      "website": "https://www.awhaleofatime.co.za",
+      "address": "11 echo road fish hoek cape town",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/A-Whale-Of-A-Time"
+    },
+    {
+      "name": "Ataraxia Tours &amp; Travel",
+      "website": "https://www.ataraxiatours.co.za",
+      "address": "11 brabazon road croydon kempton park",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Ataraxia-Tours-Travel"
+    },
+    {
+      "name": "Palms Guest House",
+      "website": "https://www.palmsguesthouse.co.za",
+      "address": "613b solomon street eloffsdal pretoria",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Palms-Guest-House"
+    },
+    {
+      "name": "Bass Lake Adventures",
+      "website": "https://www.basslake.co.za",
+      "address": null,
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bass-Lake-Adventures"
+    },
+    {
+      "name": "Pmm Properties",
+      "website": "https://www.pmmproperties.co.za",
+      "address": null,
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pmm-Properties"
+    },
+    {
+      "name": "In-house Paging Systems",
+      "website": "https://ihps.co.za",
+      "address": null,
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/In-house-Paging-Systems_403956"
+    },
+    {
+      "name": "Helderberg Info",
+      "website": "https://www.helderberg-info.co.za",
+      "address": "2 day forecast extended forecast",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Helderberg-Info"
+    },
+    {
+      "name": "Vrede Self Catering",
+      "website": "https://www.vredeselfcatering.co.za",
+      "address": null,
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Vrede-Self-Catering"
+    },
+    {
+      "name": "Rocky Ridge Estate",
+      "website": "https://www.rockyridgeestate.co.za",
+      "address": "ah 944 loerie street kameeldrift-oos phone",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rocky-Ridge-Estate"
+    },
+    {
+      "name": "Chatsworth Centre",
+      "website": "https://www.chatsworthshoppingcentre.co.za",
+      "address": "17 joyhurst street chatsworth",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Chatsworth-Centre"
+    },
+    {
+      "name": "Idc",
+      "website": "https://www.idc.co.za",
+      "address": "lizo ntloko- regional manager 2 riebeeck street cape town",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Idc_404342"
+    },
+    {
+      "name": "Whispering Waters",
+      "website": "https://www.whisperingwaters.co.za",
+      "address": null,
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Whispering-Waters"
+    },
+    {
+      "name": "Atterbury Value Mart",
+      "website": "https://www.atterburyvaluemart.co.za",
+      "address": null,
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Atterbury-Value-Mart"
+    },
+    {
+      "name": "Courtlands",
+      "website": "https://www.courtlands.co.za",
+      "address": "59 new street grahamstown, Eastern Cape",
+      "page": 10,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Courtlands"
+    },
+    {
+      "name": "San Diegan",
+      "website": "https://www.sandiegan.com",
+      "address": "lusk boulevard suite f-202 california 92121",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/San-Diegan"
+    },
+    {
+      "name": "Langebaan Holiday",
+      "website": "https://www.langebaanholiday.co.za",
+      "address": "west coast 90 min drive from cape town",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Langebaan-Holiday"
+    },
+    {
+      "name": "Knysna Accommodation",
+      "website": "https://www.knysnaaccommodation.co.za",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Knysna-Accommodation_405794"
+    },
+    {
+      "name": "Prue Leith",
+      "website": "https://www.prueleith.co.za",
+      "address": "262 rhino street hennopspark centurion, Gauteng",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Prue-Leith"
+    },
+    {
+      "name": "Dollars",
+      "website": "https://dollarsinc.co.za",
+      "address": "fast foods 65 albert road salt river nazier",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dollars"
+    },
+    {
+      "name": "Transfair Usa",
+      "website": "https://www.fairtradecertified.org",
+      "address": "august 14",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Transfair-Usa"
+    },
+    {
+      "name": "Shaanti Lodge",
+      "website": "https://www.shaantilodge.co.za",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Shaanti-Lodge"
+    },
+    {
+      "name": "Sweet Lemon Catering",
+      "website": "https://www.sweetlemoncatering.co.za",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sweet-Lemon-Catering"
+    },
+    {
+      "name": "Quays",
+      "website": "https://www.quays.co.za",
+      "address": "the marine building 22 gardener street durban",
+      "page": 11,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Quays"
+    },
+    {
+      "name": "Beyond The Moon",
+      "website": "https://beyondthemoon.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Beyond-The-Moon"
+    },
+    {
+      "name": "Odyssey Gauteng",
+      "website": "https://www.odysseygauteng.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Odyssey-Gauteng"
+    },
+    {
+      "name": "Cape Town Alive",
+      "website": "https://capetownalive.co.za",
+      "address": "one of the tightest of the election contests, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Town-Alive"
+    },
+    {
+      "name": "Leslinc",
+      "website": "https://www.leslinc.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Leslinc"
+    },
+    {
+      "name": "Carmichael House",
+      "website": "https://www.carmichaelhouse.co.za",
+      "address": "11 wolmunster road upper rosebank cape town directions",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Carmichael-House_408341"
+    },
+    {
+      "name": "Entertainment4u",
+      "website": "https://www.entertainment4u.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Entertainment4u"
+    },
+    {
+      "name": "La Ferme",
+      "website": "https://www.laferme.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/La-Ferme"
+    },
+    {
+      "name": "Casalinga",
+      "website": "https://www.casalinga.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Casalinga"
+    },
+    {
+      "name": "Gensetsa",
+      "website": "https://www.gensetsa.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gensetsa"
+    },
+    {
+      "name": "Kingfishers",
+      "website": "https://www.kingfishers.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kingfishers"
+    },
+    {
+      "name": "Just Refrigeration",
+      "website": "https://www.justrefrigeration.com",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Just-Refrigeration"
+    },
+    {
+      "name": "Spier",
+      "website": "https://www.spier.co.za",
+      "address": "r310 lynedoch road po box",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Spier"
+    },
+    {
+      "name": "Moemas",
+      "website": "https://www.moemas.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Moemas"
+    },
+    {
+      "name": "Oliphantskop",
+      "website": "https://www.oliphantskop.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Oliphantskop"
+    },
+    {
+      "name": "Scout Cape Town",
+      "website": "https://www.scoutcapetown.co.za",
+      "address": "4 gordon street gardens cape town",
+      "page": 12,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Scout-Cape-Town"
+    },
+    {
+      "name": "Appetite Catering",
+      "website": "https://www.appetitecatering.co.za",
+      "address": null,
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Appetite-Catering"
+    },
+    {
+      "name": "Megaplex",
+      "website": "https://www.megaplex.co.za",
+      "address": "directions to 126 kelvin drive morningside manor sandton",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Megaplex"
+    },
+    {
+      "name": "Catatac Innovations",
+      "website": "https://www.catatac.co.za",
+      "address": null,
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Catatac-Innovations"
+    },
+    {
+      "name": "Venues For Conferences In Africa",
+      "website": "https://www.venues.co.za",
+      "address": null,
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Venues-For-Conferences-In-Africa"
+    },
+    {
+      "name": "Chc Catering",
+      "website": "https://www.chccatering.co.za",
+      "address": "jon kleu or wade coetzer 35 burger street pietermaritzburg",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Chc-Catering"
+    },
+    {
+      "name": "Kdh",
+      "website": "https://www.kdh.co.za",
+      "address": "catering design concepts cc 4 balmoral street bryanston sandton",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kdh"
+    },
+    {
+      "name": "Periwinkle Lodge",
+      "website": "https://www.periwinklelodge.co.za",
+      "address": null,
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Periwinkle-Lodge"
+    },
+    {
+      "name": "D Ouwe Werf Hotel Stellenbosch South Af…",
+      "website": "https://www.ouwewerf.co.za",
+      "address": "30 church street",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/D-Ouwe-Werf-Hotel-Stellenbosch-South-Africa"
+    },
+    {
+      "name": "Andrew Howes Photographics",
+      "website": "https://www.ahphotography.co.za",
+      "address": "121 the studio 11th street parkmore sandton",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Andrew-Howes-Photographics"
+    },
+    {
+      "name": "The Blue Peter Hotel",
+      "website": "https://www.bluepeter.co.za",
+      "address": "within 15 to 25 minutes are the waterfront canal walk theme park aquarium",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Blue-Peter-Hotel"
+    },
+    {
+      "name": "Tuscany Guesthouse",
+      "website": "https://www.tuscanyguesthouse.co.za",
+      "address": "275 mimosa road northcliff johannesburg, Gauteng",
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Tuscany-Guesthouse"
+    },
+    {
+      "name": "Swiss Cottage",
+      "website": "https://www.swisscottage.co.za",
+      "address": null,
+      "page": 13,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Swiss-Cottage"
+    },
+    {
+      "name": "Joypak",
+      "website": "https://www.joypak.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Joypak"
+    },
+    {
+      "name": "Indian Delights",
+      "website": "https://www.indian-delights.co.za",
+      "address": "374 brickfield road overport durban",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Indian-Delights"
+    },
+    {
+      "name": "City Harvest",
+      "website": "https://www.cityharvest.org",
+      "address": "575 eighth avenue 4th floor ny ny 10018",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/City-Harvest"
+    },
+    {
+      "name": "Hatfield Plaza",
+      "website": "https://www.hatfieldplaza.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hatfield-Plaza"
+    },
+    {
+      "name": "Gold Restaurant",
+      "website": "https://www.goldrestaurant.co.za",
+      "address": "96 strand street cape town, Western Cape",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gold-Restaurant"
+    },
+    {
+      "name": "Duck Pond",
+      "website": "https://www.duckpond.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Duck-Pond"
+    },
+    {
+      "name": "Steak",
+      "website": "https://www.thesteak.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Steak"
+    },
+    {
+      "name": "Say It With Chocolate",
+      "website": "https://www.sayitwithchocolate.co.za",
+      "address": null,
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Say-It-With-Chocolate"
+    },
+    {
+      "name": "Platterxpress",
+      "website": "https://www.platterxpress.co.za",
+      "address": "132 fourth street parkmore johannesburg",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Platterxpress"
+    },
+    {
+      "name": "Local Grill",
+      "website": "https://www.localgrill.co.za",
+      "address": "parktown north cnr 3rd & 7th avenue parktown north, gauteng",
+      "page": 14,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Local-Grill"
+    },
+    {
+      "name": "Club Elani",
+      "website": "https://www.clubelani.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Club-Elani"
+    },
+    {
+      "name": "Killarney Mall",
+      "website": "https://www.killarneymall.co.za",
+      "address": "60 riviera rd killarney johannesburg",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Killarney-Mall"
+    },
+    {
+      "name": "Mac Brothers",
+      "website": "https://www.macbrothers.co.za",
+      "address": "unit 4 40 circuit road westmead durban",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mac-Brothers"
+    },
+    {
+      "name": "Squirrels Corner",
+      "website": "https://www.squirrelscorner.co.za",
+      "address": "3 bloem street montagu, Western Cape",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Squirrels-Corner"
+    },
+    {
+      "name": "Dlite",
+      "website": "https://dlite.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dlite"
+    },
+    {
+      "name": "Write Associates",
+      "website": "https://www.writeassociates.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Write-Associates"
+    },
+    {
+      "name": "The King Fisher Seafood Restaurant",
+      "website": "https://thekingfisher.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-King-Fisher-Seafood-Restaurant"
+    },
+    {
+      "name": "Market Caterers",
+      "website": "https://www.marketcaterers.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Market-Caterers"
+    },
+    {
+      "name": "45 Broadway",
+      "website": "https://www.45broadway.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/45-Broadway"
+    },
+    {
+      "name": "Grandiflora",
+      "website": "https://www.grandiflora.co.za",
+      "address": "09h00 - 13h00 from 1 august closed on religious holidays",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Grandiflora"
+    },
+    {
+      "name": "Micros Fidelio South Africa",
+      "website": "https://www.micros.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Micros-Fidelio-South-Africa_416871"
+    },
+    {
+      "name": "Kingfisher Recruitment",
+      "website": "https://www.kingfisherrecruitment.co.za",
+      "address": "21 Abbotsford Avenue Constantia, Western Cape",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Kingfisher-Recruitment"
+    },
+    {
+      "name": "Brighton Lodge",
+      "website": "https://www.brightonlodge.co.za",
+      "address": "21 brighton drive summerstrand port elizabeth",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Brighton-Lodge"
+    },
+    {
+      "name": "Nooitgedacht Estate",
+      "website": "https://www.nooitgedachtestate.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Nooitgedacht-Estate"
+    },
+    {
+      "name": "Mr Spitbraai",
+      "website": "https://mrspitbraai.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mr-Spitbraai"
+    },
+    {
+      "name": "Farmhouse Bed And Breakfast Guesthouse",
+      "website": "https://www.cityfarmhouse.co.za",
+      "address": "56 fifth ave walmer port elizabeth r s a",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Farmhouse-Bed-And-Breakfast-Guesthouse"
+    },
+    {
+      "name": "Niagara Falls Hotels",
+      "website": "https://www.niagarafallshotels.com",
+      "address": "4-d movies and the new 125 000 square foot fallsview indoor water park",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Niagara-Falls-Hotels"
+    },
+    {
+      "name": "French Corner",
+      "website": "https://www.frenchcorner.co.za",
+      "address": "93 duke of york avenue northcliff",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/French-Corner_417583"
+    },
+    {
+      "name": "Maxi&#39;s",
+      "website": "https://www.maxisfood.com",
+      "address": "6 national highway caltex service station are now open",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Maxis_417856"
+    },
+    {
+      "name": "Remote Site Solutions",
+      "website": "https://www.remotesitesolutions.com",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Remote-Site-Solutions"
+    },
+    {
+      "name": "Cape Catering",
+      "website": "https://www.capecatering.co.za",
+      "address": "5 foregate street woodstock, Western Cape",
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Catering"
+    },
+    {
+      "name": "Berluda",
+      "website": "https://www.berluda.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Berluda"
+    },
+    {
+      "name": "Verdicchio",
+      "website": "https://www.verdicchio.co.za",
+      "address": null,
+      "page": 15,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Verdicchio"
+    },
+    {
+      "name": "Around The World Venue",
+      "website": "https://www.aroundtheworldvenue.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Around-The-World-Venue"
+    },
+    {
+      "name": "Scottburgh",
+      "website": "https://www.scottburgh.info",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Scottburgh"
+    },
+    {
+      "name": "Southgate Mall",
+      "website": "https://www.southgatemall.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Southgate-Mall"
+    },
+    {
+      "name": "Green Mountain",
+      "website": "https://www.greenmountain.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Green-Mountain"
+    },
+    {
+      "name": "Hot Werx",
+      "website": "https://www.hotwerx.co.za",
+      "address": "2 kameel doring street pretoria, Gauteng",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hot-Werx"
+    },
+    {
+      "name": "4travel",
+      "website": "https://www.4travel.co.za",
+      "address": "10 places to visit 10 self-drive routes important links",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/4travel"
+    },
+    {
+      "name": "Hotads",
+      "website": "https://www.hotads.co.za",
+      "address": "latest 10 ads view categories ads by province search",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hotads"
+    },
+    {
+      "name": "Knights Catering",
+      "website": "https://www.knightscatering.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Knights-Catering"
+    },
+    {
+      "name": "Jobfinder",
+      "website": "https://www.jobfinder.co.za",
+      "address": "po box 15133 impala park",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jobfinder"
+    },
+    {
+      "name": "Network Conferences",
+      "website": "https://www.networkconferences.co.za",
+      "address": "70 greenfield rd greenside johannesburg",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Network-Conferences"
+    },
+    {
+      "name": "Sacks Butchery",
+      "website": "https://www.sacksbutchery.co.za",
+      "address": "5 westlake drive westlake tokai",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sacks-Butchery_420401"
+    },
+    {
+      "name": "Savannah Mall",
+      "website": "https://www.savannahmall.co.za",
+      "address": "p o box 2 fauna park polokwane",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Savannah-Mall_420455"
+    },
+    {
+      "name": "Status Hire",
+      "website": "https://www.statushire.co.za",
+      "address": "222 lynnwood road east pretoria p o box 73086",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Status-Hire"
+    },
+    {
+      "name": "Cape Rose Cottage Camps Bay",
+      "website": "https://www.caperosecottage.co.za",
+      "address": "8 hoopoe avenue camps bay",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cape-Rose-Cottage-Camps-Bay"
+    },
+    {
+      "name": "Les Chambres",
+      "website": "https://www.leschambres.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Les-Chambres"
+    },
+    {
+      "name": "Oudtshoorn Self Catering Family Accommo…",
+      "website": "https://www.berluda-oudtshoorn.co.za",
+      "address": null,
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Oudtshoorn-Self-Catering-Family-Accommodation-Oudtshoorn"
+    },
+    {
+      "name": "Blowfish Restaurant",
+      "website": "https://www.blowfishrestaurant.co.za",
+      "address": "Dolphin Beach Hotel 1 Marine Drive Bloubergstrand, Western Cape",
+      "page": 16,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Blowfish-Restaurant_420903"
+    },
+    {
+      "name": "Riverlodge",
+      "website": "https://www.riverlodge.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Riverlodge"
+    },
+    {
+      "name": "Gourmet Goodies",
+      "website": "https://www.gourmetgoodies.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gourmet-Goodies"
+    },
+    {
+      "name": "Dunes Restaurant",
+      "website": "https://www.dunesrestaurant.co.za",
+      "address": "1 beach road hout bay, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Dunes-Restaurant_421599"
+    },
+    {
+      "name": "Jabulani Lapa",
+      "website": "https://www.jabulanilapa.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jabulani-Lapa"
+    },
+    {
+      "name": "Rossouws Restaurants",
+      "website": "https://www.rossouwsrestaurants.com",
+      "address": "topsi and co 7 reservoir str west",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rossouws-Restaurants"
+    },
+    {
+      "name": "Chefettes",
+      "website": "https://www.chefettes.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Chefettes"
+    },
+    {
+      "name": "Medleyhouse",
+      "website": "https://www.medleyhouse.co.za",
+      "address": "9 lark street brakpan",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Medleyhouse"
+    },
+    {
+      "name": "Bellwood",
+      "website": "https://www.bellwood.co.za",
+      "address": "2 5km from the village of nottingham road horses cabbages and maize",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bellwood"
+    },
+    {
+      "name": "Southgate Value Market",
+      "website": "https://southgatevaluemarket.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Southgate-Value-Market"
+    },
+    {
+      "name": "Laguna Grove",
+      "website": "https://www.lagunagrove.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Laguna-Grove_422152"
+    },
+    {
+      "name": "Decordirect",
+      "website": "https://www.decordirect.co.za",
+      "address": "1 hiddingh ave gardens cape town, Western Cape",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Decordirect"
+    },
+    {
+      "name": "Matrix Outdoor Blinds",
+      "website": "https://www.matrixoutdoorblinds.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Matrix-Outdoor-Blinds"
+    },
+    {
+      "name": "Col&#39;cacchio Pizzeria",
+      "website": "https://www.colcacchio.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Col-cacchio-Pizzeria_422599"
+    },
+    {
+      "name": "Fabulous Functions",
+      "website": "https://www.fabulousfunctions.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fabulous-Functions"
+    },
+    {
+      "name": "Wine Tour Specialist Stellenbosch South…",
+      "website": "https://www.tsibatsiba.co.za",
+      "address": "on request from 7 to 46 seats weddings special events",
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wine-Tour-Specialist-Stellenbosch-South-Africa"
+    },
+    {
+      "name": "Jjs Restaurant, Knysna",
+      "website": "https://www.jjsrestaurant.co.za",
+      "address": null,
+      "page": 17,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Jjs-Restaurant-Knysna"
+    },
+    {
+      "name": "The Viper Lounge",
+      "website": "https://www.viperlounge.co.za",
+      "address": "Marine Circle, Table View Table View, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Viper-Lounge"
+    },
+    {
+      "name": "Cazabella Gauteng",
+      "website": "https://www.propertyweek.co.za",
+      "address": "62 Jones Avenue, Brakpan Central Brakpan, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Cazabella-Gauteng"
+    },
+    {
+      "name": "A Romi Catering Sales",
+      "website": "https://www.foodtrailers.co.za",
+      "address": "Centurion Pretoria, Gauteng",
+      "page": 6,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/A-Romi-Catering-Sales"
+    },
+    {
+      "name": "African Cuisine Restaurant",
+      "website": "https://www.restaurant.co.za",
+      "address": null,
+      "page": 6,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Cuisine-Restaurant"
+    },
+    {
+      "name": "The Blue Plumbago",
+      "website": "https://www.theblueplumbago.za.net",
+      "address": "Forest Lane, Lower Kologha Stutterheim, Eastern Cape",
+      "page": 6,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/The-Blue-Plumbago"
+    },
+    {
+      "name": "Makaron Restaurant",
+      "website": "https://www.makaronrestaurant.co.za",
+      "address": "26 – 32 Houtkapper Street, Paradyskloof Stellenbosch, Western Cape",
+      "page": 7,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Makaron-Restaurant"
+    },
+    {
+      "name": "Africas Zoo Lodge Backpackers",
+      "website": "https://www.zoolodge.co.za",
+      "address": "233a Jan Smuts Avenue, Parktown North Johannesburg",
+      "page": 8,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Africas-Zoo-Lodge-Backpackers_400873"
+    },
+    {
+      "name": "Wining And Dining",
+      "website": "https://www.wininganddining.co.za",
+      "address": null,
+      "page": 9,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wining-And-Dining"
+    },
+    {
+      "name": "Societynews",
+      "website": "https://www.societynews.co.za",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Societynews"
+    },
+    {
+      "name": "Spitmaster",
+      "website": "https://www.spitmaster.co.za",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Spitmaster"
+    },
+    {
+      "name": "Hospitality",
+      "website": "https://www.hospitality.co.za",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hospitality"
+    },
+    {
+      "name": "Corporate Accommodation",
+      "website": "https://www.corporateaccommodation.co.za",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Corporate-Accommodation"
+    },
+    {
+      "name": "Slxs",
+      "website": "https://slxs.co.za",
+      "address": "july 01st posted in uncategorized",
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Slxs"
+    },
+    {
+      "name": "Thornridge",
+      "website": "https://www.thornridge.co.za",
+      "address": null,
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Thornridge"
+    },
+    {
+      "name": "Figtree",
+      "website": "https://www.figtreeretirement.co.za",
+      "address": "271 beyers naude drive rustenburg",
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Figtree"
+    },
+    {
+      "name": "Greenfields Guest House",
+      "website": "https://www.greenfieldsguesthouse.co.za",
+      "address": "67 fore street alberante",
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Greenfields-Guest-House"
+    },
+    {
+      "name": "Beach Belle",
+      "website": "https://www.beachbelle.co.za",
+      "address": "subbutton4-4 button5 bbutton6/b search",
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Beach-Belle_407266"
+    },
+    {
+      "name": "Gcinensa Cleaning",
+      "website": "https://www.gcinensacleaning.co.za",
+      "address": "suite 217 salisbury center west street durban",
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gcinensa-Cleaning"
+    },
+    {
+      "name": "Remarkable Buzz",
+      "website": "https://www.remarkablebuzz.com",
+      "address": "25 highland park village",
+      "page": 11,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Remarkable-Buzz"
+    },
+    {
+      "name": "Gift Culture",
+      "website": "https://www.giftculture.co.za",
+      "address": "50 sandspruit street farmall randburg",
+      "page": 12,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Gift-Culture"
+    },
+    {
+      "name": "Hsn Travel",
+      "website": "https://www.hsntravel.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hsn-Travel"
+    },
+    {
+      "name": "Paarl Taxis &amp; Tours",
+      "website": "https://www.paarltaxisandtours.co.za",
+      "address": "11 loop street paarl, Western Cape",
+      "page": 12,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Paarl-Taxis-Tours"
+    },
+    {
+      "name": "Pinelandsdirectory",
+      "website": "https://www.pinelandsdirectory.co.za",
+      "address": null,
+      "page": 12,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pinelandsdirectory"
+    },
+    {
+      "name": "Southern Butchery",
+      "website": "https://www.southernbutchery.co.za",
+      "address": "7 webber street germiston orders",
+      "page": 12,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Southern-Butchery"
+    },
+    {
+      "name": "Imvusa Technologies",
+      "website": "https://www.imvusatech.co.za",
+      "address": "Unit 5 Greenwich Place Capricorn Crescent Capricorn Park Cape Town, Western Cape",
+      "page": 13,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Imvusa-Technologies"
+    },
+    {
+      "name": "Isiphiwo Guest House",
+      "website": "https://www.isiphiwo.co.za",
+      "address": "plot 31 mountain drive derdepoort pretoria",
+      "page": 14,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Isiphiwo-Guest-House"
+    },
+    {
+      "name": "Almasi B&amp;b And Self-catering",
+      "website": "https://www.almasi.co.za",
+      "address": "show 5 highworth road sea point",
+      "page": 14,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Almasi-B-b-And-Self-catering"
+    }
+  ]
+}

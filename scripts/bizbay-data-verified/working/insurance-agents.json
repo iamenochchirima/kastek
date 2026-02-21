@@ -1,0 +1,454 @@
+{
+  "category": "Insurance-Agents",
+  "count": 49,
+  "listings": [
+    {
+      "name": "Healthcor SA Investment Brokers",
+      "website": "https://www.healthcor.co.za",
+      "address": "13 Beresford Road, Nahoon East London, Eastern Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Healthcor-SA-Investment-Brokers"
+    },
+    {
+      "name": "Recoveri Tag Whats Yours",
+      "website": "https://www.recoveri.net",
+      "address": "1 St Margaret Str Hurlyvale, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Recoveri-Tag-Whats-Yours"
+    },
+    {
+      "name": "Assure Net PTY LTD",
+      "website": "https://www.assurenet.co.za",
+      "address": "Fairways Office Park, Niblick Way Somerset West, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Assure-Net"
+    },
+    {
+      "name": "Voorpos Diensmakelaars",
+      "website": "https://www.voorpos.co.za",
+      "address": "Po Box 501, Schoeman Street 7 Polokwane, Limpopo",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Voorpos-Diensmakelaars"
+    },
+    {
+      "name": "Compendium Insurance Group E Cape",
+      "website": "https://www.cigec.co.za",
+      "address": "79a Newton Street, Newton Park Port Elizabeth, Eastern Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Compendium-Insurance-Group-E-Cape"
+    },
+    {
+      "name": "Oojah Travel Protection",
+      "website": "https://www.oojahtravel.co.za",
+      "address": "71 Steenbok Avenue, Monument Office Park Monument Park, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Oojah-Travel-Protection"
+    },
+    {
+      "name": "Hollard Insurance",
+      "website": "https://www.hollard.co.za",
+      "address": "22 Oxford Road Johannesburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hollard-Insurance"
+    },
+    {
+      "name": "Mirrin Business Risks (Pty) Ltd",
+      "website": "https://www.mirrin.co.za",
+      "address": "183, Lynnwood Road, Brooklyn Pretoria, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mirrin-Business-Risks"
+    },
+    {
+      "name": "Sabrina Rekenmeesters",
+      "website": "https://www.sabrina.co.za",
+      "address": "Cotton Sa Buildings, 90 Cycad Place, Val De Grace Pretoria, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Sabrina-Rekenmeesters"
+    },
+    {
+      "name": "Bastian Financial Services",
+      "website": "https://www.bastian.co.za",
+      "address": "148 Corlett Drive Bramley, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bastian-Financial-Services"
+    },
+    {
+      "name": "Oaksure Insurance Brokers",
+      "website": "https://www.oaksure.co.za",
+      "address": "367 Oak Avenue Randburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Oaksure-Insurance-Brokers"
+    },
+    {
+      "name": "Bikeline Motorcycle Insurance specialist",
+      "website": "https://www.bikeline.co.za",
+      "address": "113 Vuurlelie Str Roodekrans, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bikeline-Motorcycle-Insurance-specialist"
+    },
+    {
+      "name": "Multi-Prof Insurance Brokers",
+      "website": "https://www.multiprof.co.za",
+      "address": "Po Box 46028 Durbanville, Western Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Multi-Prof-Insurance-Brokers"
+    },
+    {
+      "name": "Insurance",
+      "website": "https://www.carinsurance.co.za",
+      "address": "Block D, The Village, Cnr Oberon & Glenwood, Faerie Glen Pretoria, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Insurance"
+    },
+    {
+      "name": "Hunter Insurance Brokers (Pty) Ltd",
+      "website": "https://www.cig.co.za",
+      "address": "219 Cape Road Port Elizabeth, Eastern Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Hunter-Insurance-Brokers"
+    },
+    {
+      "name": "Olemera Financial Services",
+      "website": "https://www.olemera.com",
+      "address": "10 Elder Avenue Bryanston Ext 3, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Olemera-Financial-Services"
+    },
+    {
+      "name": "FORTUNE INSURANCE BROKERS",
+      "website": "https://www.fortuneinsurance.co.za",
+      "address": "136 Taronga Road, Crawford Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/FORTUNE-INSURANCE-BROKERS"
+    },
+    {
+      "name": "SA Finance Corporation",
+      "website": "https://www.safincorp.co.za",
+      "address": "25 Graaf Straat, Plattekloof Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/SA-Finance"
+    },
+    {
+      "name": "Rosebank Travel Service (Pty) Ltd",
+      "website": "https://www.rosebanktravel.com",
+      "address": "8 Arnold Road Rosebank, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Rosebank-Travel-Service"
+    },
+    {
+      "name": "Lean&#39;On Funeral Plan",
+      "website": "https://www.leanon.co.za",
+      "address": "104 Duggan Street Belfast, Mpumalanga",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Lean-On-Funeral-Plan"
+    },
+    {
+      "name": "Independent Financial Consultants",
+      "website": "https://www.medicalaid-quotes.co.za",
+      "address": "Unit A3 Voortrekker Road, Maitalnd Park, Maitland Cape Town, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Independent-Financial-Consultants"
+    },
+    {
+      "name": "CIB Insurance",
+      "website": "https://www.cib.co.za",
+      "address": "Riley Road Office Park, 15e Riley Road Bedfordview, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/CIB-Insurance"
+    },
+    {
+      "name": "Mont Blanc Insurance",
+      "website": "https://www.mbfs.co.za",
+      "address": "Second Floor, The Ium Building, 17 Bradford Road Bedfordview, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mont-Blanc-Insurance"
+    },
+    {
+      "name": "Veritas Insurance Brokers",
+      "website": "https://www.veritascc.co.za",
+      "address": "Suite 4, Bondville Park, 56 Amstrong Ave La Lucia, Kwazulu Natal",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Veritas-Insurance-Brokers"
+    },
+    {
+      "name": "Julian Denny &amp; Associates",
+      "website": "https://juliandenny.com",
+      "address": "65 12th Street, Parkmore Sandton, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Julian-Denny-Associates"
+    },
+    {
+      "name": "Machrie Makelaars",
+      "website": "https://www.machrie.co.za",
+      "address": "5&7 Bekker Street Secunda/ Trichardt , Mpumalanga",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Machrie-Makelaars"
+    },
+    {
+      "name": "Stumke Makelaars",
+      "website": "https://www.stumke.co.za",
+      "address": "Fairview Office Park, First Street George, Western Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Stumke-Makelaars"
+    },
+    {
+      "name": "Daberistic Financial Services",
+      "website": "https://www.daberistic.com",
+      "address": "4th Floor, Oak Park, 352 Oak Avenue Ferndale, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Daberistic-Financial-Services"
+    },
+    {
+      "name": "Texas Insurance Group",
+      "website": "https://www.tig.net",
+      "address": "428 Harwood Rd Bedford, Eastern Cape",
+      "page": 3,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Texas-Insurance-Group"
+    },
+    {
+      "name": "Anna Kotze Consult",
+      "website": "https://www.annakotze.com",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Anna-Kotze-Consult"
+    },
+    {
+      "name": "Pomsun &amp; Associates CC",
+      "website": "https://www.pomsun.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Pomsun-Associates-CC"
+    },
+    {
+      "name": "Mazars Moores Rowland Financial Service…",
+      "website": "https://www.mazars.co.za",
+      "address": "30 Bird Street Port Elizabeth, Eastern Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mazars-Moores-Rowland-Financial-Services-EC"
+    },
+    {
+      "name": "Wendy Pohl Associates",
+      "website": "https://wpassociates.blogspot.com",
+      "address": "1-57 Macinnes Road Glenferness, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Wendy-Pohl-Associates"
+    },
+    {
+      "name": "Everlast Insurance Brokers (short Term …",
+      "website": "https://www.everlast.co.za",
+      "address": "47 Annet Drive Reservoir Hills, Durban, Kwazulu-nata",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Everlast-Insurance-Brokers-short-Term-Division"
+    },
+    {
+      "name": "Solid Brokers",
+      "website": "https://www.solidbrokers.co.za",
+      "address": "36 Saxby Avenue, Eldoraigne Centurion, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Solid-Brokers"
+    },
+    {
+      "name": "Athena Capital",
+      "website": "https://www.athenacapital.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Athena-Capital"
+    },
+    {
+      "name": "Bambelela Lodge",
+      "website": "https://www.bambelela-lodge.co.za",
+      "address": null,
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bambelela-Lodge"
+    },
+    {
+      "name": "African Unity Insurance",
+      "website": "https://www.africanunity.co.za",
+      "address": "28 Bird Street, Central Port Elizabeth, Eastern Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/African-Unity-Insurance_508776"
+    },
+    {
+      "name": "TOWING ROADSIDE ACCIDENT TOW JUMPSTART",
+      "website": "https://www.utasa.co.za",
+      "address": "33 Cachet Street Lambton, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/TOWING-ROADSIDE-ACCIDENT-TOW-JUMPSTART"
+    },
+    {
+      "name": "Eden Wealth Management",
+      "website": "https://www.edenwealth.co.za",
+      "address": "22 Akasie Street, George George, Western Cape",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Eden-Wealth-Management"
+    },
+    {
+      "name": "Machrie Makelaars BK",
+      "website": "https://www.machrie.co.za",
+      "address": "Bekkerstreet 7 Trichardt , Mpumalanga",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Machrie-Makelaars-BK"
+    },
+    {
+      "name": "Mike Kiley And Associates",
+      "website": "https://mikekiley.homestead.com",
+      "address": "72 13th Street, Parkmore Sandton, Gauteng",
+      "page": 4,
+      "status": "working",
+      "httpStatus": 200,
+      "bizbayUrl": "https://bizbay.co.za/Company/Mike-Kiley-And-Associates"
+    },
+    {
+      "name": "Fundamental Investments",
+      "website": "https://www.pension.co.za",
+      "address": "5 Autumn Street, Baobab House, 1st Floor Rivonia, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fundamental-Investments"
+    },
+    {
+      "name": "Telesure Group Services",
+      "website": "https://www.telesure.co.za",
+      "address": "1 Queens Road, Richmond Johannesburg, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Telesure-Group-Services"
+    },
+    {
+      "name": "ITInews - Insurance Times &amp; Investments",
+      "website": "https://www.itinews.co.za",
+      "address": "57 Havelock Street, 57 Havelock Street, Centrahill Port Elizabeth, Eastern Cape",
+      "page": 1,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/ITInews-Insurance-Times-Investments"
+    },
+    {
+      "name": "Bluecare Brokers",
+      "website": "https://www.bluecare.co.za",
+      "address": "Amandelboomweg Pretoria, Gauteng",
+      "page": 1,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Bluecare-Brokers"
+    },
+    {
+      "name": "Martin&#39;s Funerals - Kempton Park",
+      "website": "https://www.martinskemptonpark.co.za",
+      "address": "19 Heide Street Kempton Park, Gauteng",
+      "page": 2,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Martins-Funerals-Kempton-Park"
+    },
+    {
+      "name": "Fiduciary Finacial Service",
+      "website": "https://www.fiduciary.co.za",
+      "address": "6 Tierberg Road, Parow East, Parow Parow, Western Cape",
+      "page": 2,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Fiduciary-Finacial-Service"
+    },
+    {
+      "name": "Adams Chrambanis &amp; Associates",
+      "website": "https://www.adamschrambanis.co.za",
+      "address": "Menin Road, Delville Germiston, Gauteng",
+      "page": 3,
+      "status": "working",
+      "httpStatus": null,
+      "movedFromTimeout": true,
+      "bizbayUrl": "https://bizbay.co.za/Company/Adams-Chrambanis-Associates"
+    }
+  ]
+}
