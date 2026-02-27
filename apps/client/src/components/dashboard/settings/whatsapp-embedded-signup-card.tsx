@@ -1,0 +1,420 @@
+"use client";
+
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+
+type WhatsappConnectionView = {
+  id: string;
+  phoneNumberId: string;
+  phoneDisplayNumber: string | null;
+  wabaId: string;
+  currentQualityRating: string;
+  dailyLimitEstimate: number | null;
+  verified: boolean;
+  createdAt: string;
+};
+
+type ConnectionHealth = {
+  healthy: boolean;
+  tokenValid: boolean;
+  webhookSubscribed: boolean;
+  steps: Array<{ step: string; ok: boolean; detail: string }>;
+};
+
+type EmbeddedSignupFinishData = {
+  wabaId?: string;
+  phoneNumberId?: string;
+};
+
+type FbAuthResponse = {
+  code?: string;
+};
+
+type FbLoginResponse = {
+  authResponse?: FbAuthResponse;
+  status?: string;
+};
+
+type FbSdk = {
+  init: (config: Record<string, unknown>) => void;
+  login: (
+    callback: (response: FbLoginResponse) => void,
+    options: Record<string, unknown>
+  ) => void;
+};
+
+declare global {
+  interface Window {
+    FB?: FbSdk;
+    fbAsyncInit?: () => void;
+  }
+}
+
+const SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
+
+function parseEmbeddedSignupMessage(rawData: unknown):
+  | { type: "FINISH"; data: EmbeddedSignupFinishData }
+  | { type: "CANCEL"; data?: Record<string, unknown> }
+  | { type: "ERROR"; data?: Record<string, unknown> }
+  | null {
+  let payload: unknown = rawData;
+
+  if (typeof payload === "string") {
+    try {
+      payload = JSON.parse(payload);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!payload || typeof payload !== "object") return null;
+
+  const root = payload as {
+    type?: string;
+    event?: string;
+    data?: Record<string, unknown>;
+  };
+
+  if (root.type !== "WA_EMBEDDED_SIGNUP") return null;
+
+  const event = root.event || "";
+  const data = root.data || {};
+
+  if (event === "FINISH") {
+    return {
+      type: "FINISH",
+      data: {
+        wabaId:
+          (typeof data.waba_id === "string" ? data.waba_id : undefined) ||
+          (typeof data.wabaId === "string" ? data.wabaId : undefined),
+        phoneNumberId:
+          (typeof data.phone_number_id === "string" ? data.phone_number_id : undefined) ||
+          (typeof data.phoneNumberId === "string" ? data.phoneNumberId : undefined),
+      },
+    };
+  }
+
+  if (event === "CANCEL") {
+    return { type: "CANCEL", data };
+  }
+
+  if (event === "ERROR") {
+    return { type: "ERROR", data };
+  }
+
+  return null;
+}
+
+export default function WhatsappEmbeddedSignupCard({
+  connections,
+}: {
+  connections: WhatsappConnectionView[];
+}) {
+  const router = useRouter();
+  const [sdkReady, setSdkReady] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [healthLoadingId, setHealthLoadingId] = useState<string | null>(null);
+  const [healthByConnectionId, setHealthByConnectionId] = useState<
+    Record<string, ConnectionHealth>
+  >({});
+
+  const finishDataRef = useRef<EmbeddedSignupFinishData | null>(null);
+
+  const appId = process.env.NEXT_PUBLIC_META_APP_ID || "";
+  const configId = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || "";
+
+  const envMissing = useMemo(() => {
+    const missing: string[] = [];
+    if (!appId) missing.push("NEXT_PUBLIC_META_APP_ID");
+    if (!configId) missing.push("NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID");
+    return missing;
+  }, [appId, configId]);
+
+  useEffect(() => {
+    if (envMissing.length > 0) return;
+
+    let cancelled = false;
+
+    const existing = document.querySelector(`script[src=\"${SDK_SRC}\"]`);
+    if (!existing) {
+      const script = document.createElement("script");
+      script.src = SDK_SRC;
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+    }
+
+    window.fbAsyncInit = () => {
+      if (!window.FB || cancelled) return;
+
+      window.FB.init({
+        appId,
+        autoLogAppEvents: true,
+        xfbml: false,
+        version: "v19.0",
+      });
+
+      setSdkReady(true);
+    };
+
+    const onMessage = (event: MessageEvent) => {
+      if (!event.origin.includes("facebook.com")) return;
+      const parsed = parseEmbeddedSignupMessage(event.data);
+      if (!parsed) return;
+
+      if (parsed.type === "FINISH") {
+        finishDataRef.current = parsed.data;
+        setNotice("WhatsApp account selected. Finalizing connection...");
+      }
+
+      if (parsed.type === "CANCEL") {
+        setNotice("Embedded signup canceled.");
+      }
+
+      if (parsed.type === "ERROR") {
+        setError("Embedded signup reported an error. Please try again.");
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("message", onMessage);
+    };
+  }, [appId, envMissing.length]);
+
+  async function finalizeSignup(code: string) {
+    const finishData = finishDataRef.current;
+
+    const res = await fetch("/api/whatsapp/onboarding/complete", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        code,
+        wabaId: finishData?.wabaId,
+        phoneNumberId: finishData?.phoneNumberId,
+      }),
+    });
+
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || "Failed to complete WhatsApp onboarding");
+    }
+
+    const diagnostics = JSON.stringify(body.diagnostics || []);
+    const message = body.webhookSubscribed
+      ? "WhatsApp Business connected successfully."
+      : body.webhookError ||
+        "Connection saved, but webhook subscription needs attention.";
+
+    const params = new URLSearchParams({
+      status: "success",
+      message,
+      diagnostics,
+      connectionId: body.connection?.id || "",
+      number: body.connection?.phoneDisplayNumber || body.connection?.phoneNumberId || "",
+      templates: String(body.templateSync?.synced || 0),
+    });
+
+    router.push(`/dashboard/settings/whatsapp-onboarding?${params.toString()}`);
+  }
+
+  async function runHealthCheck(connectionId: string) {
+    setHealthLoadingId(connectionId);
+    setError("");
+    setNotice("");
+
+    try {
+      const res = await fetch(`/api/whatsapp/connections/${connectionId}/health`);
+      const body = await res.json();
+
+      if (!res.ok) {
+        throw new Error(body.error || "Health check failed");
+      }
+
+      setHealthByConnectionId((prev) => ({
+        ...prev,
+        [connectionId]: body as ConnectionHealth,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Health check failed");
+    } finally {
+      setHealthLoadingId(null);
+    }
+  }
+
+  function startEmbeddedSignup() {
+    setError("");
+    setNotice("");
+    finishDataRef.current = null;
+
+    if (envMissing.length > 0) {
+      setError(`Missing env vars: ${envMissing.join(", ")}`);
+      return;
+    }
+
+    if (!window.FB) {
+      setError("Meta SDK is not ready. Refresh and try again.");
+      return;
+    }
+
+    setLoading(true);
+
+    window.FB.login(
+      async (response) => {
+        const code = response.authResponse?.code;
+
+        if (!code) {
+          setLoading(false);
+          setError("Meta did not return an authorization code.");
+          return;
+        }
+
+        try {
+          await finalizeSignup(code);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Failed to connect WhatsApp";
+          const params = new URLSearchParams({
+            status: "error",
+            message,
+            diagnostics: JSON.stringify([
+              {
+                step: "finalize_signup",
+                ok: false,
+                detail: message,
+              },
+            ]),
+          });
+          router.push(`/dashboard/settings/whatsapp-onboarding?${params.toString()}`);
+        } finally {
+          setLoading(false);
+        }
+      },
+      {
+        config_id: configId,
+        response_type: "code",
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+        },
+      }
+    );
+  }
+
+  return (
+    <section className="rounded-xl border border-border bg-surface p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-text">WhatsApp Business</h2>
+          <p className="text-sm text-text-muted">
+            Connect a WhatsApp Business Account using Meta Embedded Signup.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={startEmbeddedSignup}
+          disabled={loading || !sdkReady || envMissing.length > 0}
+          className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
+        >
+          {loading ? "Connecting..." : connections.length ? "Connect Another" : "Connect WhatsApp"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+          {error}
+        </div>
+      )}
+
+      {notice && (
+        <div className="mb-3 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-300">
+          {notice}
+        </div>
+      )}
+
+      {envMissing.length > 0 && (
+        <p className="mb-3 text-xs text-amber-300">
+          Configure: {envMissing.join(", ")} in your env file.
+        </p>
+      )}
+
+      {connections.length === 0 ? (
+        <p className="text-sm text-text-muted">No WhatsApp numbers connected yet.</p>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-2 text-text-muted">
+              <tr>
+                <th className="px-3 py-2 text-left">Number</th>
+                <th className="px-3 py-2 text-left">Quality</th>
+                <th className="px-3 py-2 text-left">Verified</th>
+                <th className="px-3 py-2 text-left">Daily Limit</th>
+                <th className="px-3 py-2 text-left">Health</th>
+              </tr>
+            </thead>
+            <tbody>
+              {connections.map((connection) => (
+                <Fragment key={connection.id}>
+                  <tr className="border-t border-border">
+                    <td className="px-3 py-2">
+                      {connection.phoneDisplayNumber || connection.phoneNumberId}
+                    </td>
+                    <td className="px-3 py-2">{connection.currentQualityRating}</td>
+                    <td className="px-3 py-2">{connection.verified ? "Yes" : "No"}</td>
+                    <td className="px-3 py-2">{connection.dailyLimitEstimate || "-"}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => runHealthCheck(connection.id)}
+                        className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                        disabled={healthLoadingId === connection.id}
+                      >
+                        {healthLoadingId === connection.id ? "Checking..." : "Check health"}
+                      </button>
+                    </td>
+                  </tr>
+
+                  {healthByConnectionId[connection.id] ? (
+                    <tr className="border-t border-border bg-surface-2/60">
+                      <td className="px-3 py-2 text-xs text-text-muted" colSpan={5}>
+                        <p className="mb-1">
+                          Overall:{" "}
+                          <span
+                            className={
+                              healthByConnectionId[connection.id].healthy
+                                ? "text-green-300"
+                                : "text-red-300"
+                            }
+                          >
+                            {healthByConnectionId[connection.id].healthy ? "Healthy" : "Needs attention"}
+                          </span>
+                        </p>
+                        <div className="space-y-1">
+                          {healthByConnectionId[connection.id].steps.map((step) => (
+                            <p key={step.step}>
+                              {step.step}:{" "}
+                              <span className={step.ok ? "text-green-300" : "text-red-300"}>
+                                {step.ok ? "ok" : "failed"}
+                              </span>{" "}
+                              · {step.detail}
+                            </p>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}

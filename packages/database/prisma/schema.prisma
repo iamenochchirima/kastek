@@ -24,6 +24,11 @@ model User {
   businessProfile   BusinessProfile?
   botConfigurations BotConfiguration[]
   conversations     OnboardingConversation[]
+  whatsappConnections WhatsappConnection[]
+  whatsappContacts    WhatsappContact[]
+  whatsappTemplates   WhatsappTemplate[]
+  whatsappCampaigns   WhatsappCampaign[]
+  whatsappSendEvents  WhatsappSendEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -278,4 +283,232 @@ model Message {
   timestamp      DateTime     @default(now())
 
   @@index([conversationId])
+}
+
+enum WhatsappConnectionQualityRating {
+  UNKNOWN
+  GREEN
+  YELLOW
+  RED
+}
+
+enum WhatsappTemplateCategory {
+  MARKETING
+}
+
+enum WhatsappTemplateStatus {
+  APPROVED
+  PENDING
+  REJECTED
+  DISABLED
+}
+
+enum WhatsappCampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  PAUSED
+  COMPLETED
+  FAILED
+}
+
+enum WhatsappRecipientStatus {
+  PENDING
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  BLOCKED
+  UNSUBSCRIBED
+  SKIPPED
+}
+
+model WhatsappConnection {
+  id                   String   @id @default(cuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  phoneNumberId        String   @unique
+  phoneDisplayNumber   String?
+  accessTokenEncrypted String   @db.Text
+  wabaId               String
+
+  currentQualityRating WhatsappConnectionQualityRating @default(UNKNOWN)
+  dailyLimitEstimate   Int?
+  verified             Boolean  @default(false)
+
+  templates            WhatsappTemplate[]
+  campaigns            WhatsappCampaign[]
+  sendEvents           WhatsappSendEvent[]
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([userId])
+  @@index([wabaId])
+}
+
+model WhatsappContact {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  phone             String
+  fullName          String?
+  tags              String[]
+  location          String?
+
+  optIn             Boolean  @default(false)
+  optInSource       String?
+  optInDate         DateTime?
+
+  lastMarketingSent DateTime?
+  excluded          Boolean  @default(false)
+  notes             String?  @db.Text
+
+  recipients        WhatsappCampaignRecipient[]
+  sendEvents        WhatsappSendEvent[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, phone])
+  @@index([userId, optIn, excluded])
+  @@index([lastMarketingSent])
+}
+
+model WhatsappTemplate {
+  id             String                   @id @default(cuid())
+  userId         String
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  connectionId   String?
+  connection     WhatsappConnection?      @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  templateName   String
+  language       String
+  category       WhatsappTemplateCategory @default(MARKETING)
+  header         String?                  @db.Text
+  body           String?                  @db.Text
+  footer         String?                  @db.Text
+  buttons        Json?
+  variablesCount Int                      @default(0)
+  status         WhatsappTemplateStatus   @default(PENDING)
+  lastSynced     DateTime?
+
+  campaigns      WhatsappCampaign[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, templateName, language])
+  @@index([userId, status, category])
+}
+
+model WhatsappCampaign {
+  id                String                @id @default(cuid())
+  userId            String
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  connectionId      String
+  connection        WhatsappConnection    @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+
+  templateId        String?
+  template          WhatsappTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  name              String
+  description       String?               @db.Text
+  templateName      String
+  templateLanguage  String
+  variableMappings  Json?
+
+  status            WhatsappCampaignStatus @default(DRAFT)
+  scheduledAt       DateTime?
+  launchedAt        DateTime?
+  completedAt       DateTime?
+
+  totalRecipients   Int                    @default(0)
+  sentCount         Int                    @default(0)
+  deliveredCount    Int                    @default(0)
+  readCount         Int                    @default(0)
+  failedCount       Int                    @default(0)
+  blockedCount      Int                    @default(0)
+  unsubscribedCount Int                    @default(0)
+
+  recipients        WhatsappCampaignRecipient[]
+  sendEvents        WhatsappSendEvent[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([connectionId])
+  @@index([templateId])
+  @@index([scheduledAt])
+}
+
+model WhatsappCampaignRecipient {
+  id             String                 @id @default(cuid())
+  campaignId     String
+  campaign       WhatsappCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  contactId      String
+  contact        WhatsappContact        @relation(fields: [contactId], references: [id], onDelete: Restrict)
+
+  status         WhatsappRecipientStatus @default(PENDING)
+  waMessageId    String?
+
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  failedAt       DateTime?
+  errorCode      String?
+  errorMessage   String?                @db.Text
+
+  sendEvents     WhatsappSendEvent[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([campaignId, contactId])
+  @@index([campaignId, status])
+  @@index([contactId])
+  @@index([waMessageId])
+}
+
+model WhatsappSendEvent {
+  id                   String                    @id @default(cuid())
+  userId               String
+  user                 User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  connectionId         String
+  connection           WhatsappConnection        @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  campaignId           String?
+  campaign             WhatsappCampaign?         @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  recipientId          String?
+  recipient            WhatsappCampaignRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+
+  contactId            String?
+  contact              WhatsappContact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  phone                String
+  templateName         String
+  status               WhatsappRecipientStatus
+  whatsappMessageId    String?
+
+  requestPayload       Json?
+  responsePayload      Json?
+  errorCode            String?
+  errorMessage         String?                   @db.Text
+
+  createdAt            DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([campaignId])
+  @@index([recipientId])
+  @@index([contactId])
+  @@index([status])
 }

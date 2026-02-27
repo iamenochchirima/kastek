@@ -87,3 +87,33 @@ export type Conversation = Prisma.ConversationModel
  * 
  */
 export type Message = Prisma.MessageModel
+/**
+ * Model WhatsappConnection
+ * 
+ */
+export type WhatsappConnection = Prisma.WhatsappConnectionModel
+/**
+ * Model WhatsappContact
+ * 
+ */
+export type WhatsappContact = Prisma.WhatsappContactModel
+/**
+ * Model WhatsappTemplate
+ * 
+ */
+export type WhatsappTemplate = Prisma.WhatsappTemplateModel
+/**
+ * Model WhatsappCampaign
+ * 
+ */
+export type WhatsappCampaign = Prisma.WhatsappCampaignModel
+/**
+ * Model WhatsappCampaignRecipient
+ * 
+ */
+export type WhatsappCampaignRecipient = Prisma.WhatsappCampaignRecipientModel
+/**
+ * Model WhatsappSendEvent
+ * 
+ */
+export type WhatsappSendEvent = Prisma.WhatsappSendEventModel

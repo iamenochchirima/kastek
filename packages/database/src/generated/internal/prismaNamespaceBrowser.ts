@@ -64,7 +64,13 @@ export const ModelName = {
   OutreachLead: 'OutreachLead',
   WebServiceLead: 'WebServiceLead',
   Conversation: 'Conversation',
-  Message: 'Message'
+  Message: 'Message',
+  WhatsappConnection: 'WhatsappConnection',
+  WhatsappContact: 'WhatsappContact',
+  WhatsappTemplate: 'WhatsappTemplate',
+  WhatsappCampaign: 'WhatsappCampaign',
+  WhatsappCampaignRecipient: 'WhatsappCampaignRecipient',
+  WhatsappSendEvent: 'WhatsappSendEvent'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -308,6 +314,132 @@ export const MessageScalarFieldEnum = {
 } as const
 
 export type MessageScalarFieldEnum = (typeof MessageScalarFieldEnum)[keyof typeof MessageScalarFieldEnum]
+
+
+export const WhatsappConnectionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  phoneNumberId: 'phoneNumberId',
+  phoneDisplayNumber: 'phoneDisplayNumber',
+  accessTokenEncrypted: 'accessTokenEncrypted',
+  wabaId: 'wabaId',
+  currentQualityRating: 'currentQualityRating',
+  dailyLimitEstimate: 'dailyLimitEstimate',
+  verified: 'verified',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WhatsappConnectionScalarFieldEnum = (typeof WhatsappConnectionScalarFieldEnum)[keyof typeof WhatsappConnectionScalarFieldEnum]
+
+
+export const WhatsappContactScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  phone: 'phone',
+  fullName: 'fullName',
+  tags: 'tags',
+  location: 'location',
+  optIn: 'optIn',
+  optInSource: 'optInSource',
+  optInDate: 'optInDate',
+  lastMarketingSent: 'lastMarketingSent',
+  excluded: 'excluded',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WhatsappContactScalarFieldEnum = (typeof WhatsappContactScalarFieldEnum)[keyof typeof WhatsappContactScalarFieldEnum]
+
+
+export const WhatsappTemplateScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  connectionId: 'connectionId',
+  templateName: 'templateName',
+  language: 'language',
+  category: 'category',
+  header: 'header',
+  body: 'body',
+  footer: 'footer',
+  buttons: 'buttons',
+  variablesCount: 'variablesCount',
+  status: 'status',
+  lastSynced: 'lastSynced',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WhatsappTemplateScalarFieldEnum = (typeof WhatsappTemplateScalarFieldEnum)[keyof typeof WhatsappTemplateScalarFieldEnum]
+
+
+export const WhatsappCampaignScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  connectionId: 'connectionId',
+  templateId: 'templateId',
+  name: 'name',
+  description: 'description',
+  templateName: 'templateName',
+  templateLanguage: 'templateLanguage',
+  variableMappings: 'variableMappings',
+  status: 'status',
+  scheduledAt: 'scheduledAt',
+  launchedAt: 'launchedAt',
+  completedAt: 'completedAt',
+  totalRecipients: 'totalRecipients',
+  sentCount: 'sentCount',
+  deliveredCount: 'deliveredCount',
+  readCount: 'readCount',
+  failedCount: 'failedCount',
+  blockedCount: 'blockedCount',
+  unsubscribedCount: 'unsubscribedCount',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WhatsappCampaignScalarFieldEnum = (typeof WhatsappCampaignScalarFieldEnum)[keyof typeof WhatsappCampaignScalarFieldEnum]
+
+
+export const WhatsappCampaignRecipientScalarFieldEnum = {
+  id: 'id',
+  campaignId: 'campaignId',
+  contactId: 'contactId',
+  status: 'status',
+  waMessageId: 'waMessageId',
+  sentAt: 'sentAt',
+  deliveredAt: 'deliveredAt',
+  readAt: 'readAt',
+  failedAt: 'failedAt',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WhatsappCampaignRecipientScalarFieldEnum = (typeof WhatsappCampaignRecipientScalarFieldEnum)[keyof typeof WhatsappCampaignRecipientScalarFieldEnum]
+
+
+export const WhatsappSendEventScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  connectionId: 'connectionId',
+  campaignId: 'campaignId',
+  recipientId: 'recipientId',
+  contactId: 'contactId',
+  phone: 'phone',
+  templateName: 'templateName',
+  status: 'status',
+  whatsappMessageId: 'whatsappMessageId',
+  requestPayload: 'requestPayload',
+  responsePayload: 'responsePayload',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt'
+} as const
+
+export type WhatsappSendEventScalarFieldEnum = (typeof WhatsappSendEventScalarFieldEnum)[keyof typeof WhatsappSendEventScalarFieldEnum]
 
 
 export const SortOrder = {

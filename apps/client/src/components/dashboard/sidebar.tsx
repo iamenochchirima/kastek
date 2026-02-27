@@ -8,6 +8,7 @@ const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: "◻" },
   { label: "Onboarding", href: "/dashboard/onboarding", icon: "💬" },
   { label: "My Bots", href: "/dashboard/bots", icon: "⚡" },
+  { label: "Campaigns", href: "/dashboard/campaigns", icon: "📣" },
   { label: "Settings", href: "/dashboard/settings", icon: "⚙" },
 ];
 

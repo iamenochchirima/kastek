@@ -5,11 +5,33 @@ import { PrismaAdapter } from "@/lib/auth-adapter";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
+const authSecret =
+  process.env.AUTH_SECRET ??
+  process.env.NEXTAUTH_SECRET ??
+  (process.env.NODE_ENV === "production"
+    ? undefined
+    : "dev-only-secret-change-this");
+const googleClientId =
+  process.env.AUTH_GOOGLE_ID ?? process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret =
+  process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET;
+
+if (!authSecret && process.env.NODE_ENV === "production") {
+  throw new Error("Missing AUTH_SECRET/NEXTAUTH_SECRET in production");
+}
+if ((!googleClientId || !googleClientSecret) && process.env.NODE_ENV === "production") {
+  throw new Error("Missing Google OAuth credentials in production");
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(),
+  secret: authSecret,
 
   providers: [
-    Google,
+    Google({
+      clientId: googleClientId || "",
+      clientSecret: googleClientSecret || "",
+    }),
     Credentials({
       credentials: {
         email: { label: "Email", type: "email" },

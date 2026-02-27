@@ -29,12 +29,12 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* <a
+        <a
           href="/login"
           className="text-sm text-text-muted no-underline transition-colors hover:text-text"
         >
           Log In
-        </a> */}
+        </a>
         <a
           href="/get-quote"
           className="bg-accent text-bg px-6 py-2.5 rounded-full font-semibold text-sm no-underline transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(196,240,77,0.25)]"

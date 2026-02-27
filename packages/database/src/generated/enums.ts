@@ -9,7 +9,55 @@
 * 🟢 You can import this file directly.
 */
 
+export const WhatsappConnectionQualityRating = {
+  UNKNOWN: 'UNKNOWN',
+  GREEN: 'GREEN',
+  YELLOW: 'YELLOW',
+  RED: 'RED'
+} as const
+
+export type WhatsappConnectionQualityRating = (typeof WhatsappConnectionQualityRating)[keyof typeof WhatsappConnectionQualityRating]
 
 
-// This file is empty because there are no enums in the schema.
-export {}
+export const WhatsappTemplateCategory = {
+  MARKETING: 'MARKETING'
+} as const
+
+export type WhatsappTemplateCategory = (typeof WhatsappTemplateCategory)[keyof typeof WhatsappTemplateCategory]
+
+
+export const WhatsappTemplateStatus = {
+  APPROVED: 'APPROVED',
+  PENDING: 'PENDING',
+  REJECTED: 'REJECTED',
+  DISABLED: 'DISABLED'
+} as const
+
+export type WhatsappTemplateStatus = (typeof WhatsappTemplateStatus)[keyof typeof WhatsappTemplateStatus]
+
+
+export const WhatsappCampaignStatus = {
+  DRAFT: 'DRAFT',
+  SCHEDULED: 'SCHEDULED',
+  SENDING: 'SENDING',
+  PAUSED: 'PAUSED',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED'
+} as const
+
+export type WhatsappCampaignStatus = (typeof WhatsappCampaignStatus)[keyof typeof WhatsappCampaignStatus]
+
+
+export const WhatsappRecipientStatus = {
+  PENDING: 'PENDING',
+  QUEUED: 'QUEUED',
+  SENT: 'SENT',
+  DELIVERED: 'DELIVERED',
+  READ: 'READ',
+  FAILED: 'FAILED',
+  BLOCKED: 'BLOCKED',
+  UNSUBSCRIBED: 'UNSUBSCRIBED',
+  SKIPPED: 'SKIPPED'
+} as const
+
+export type WhatsappRecipientStatus = (typeof WhatsappRecipientStatus)[keyof typeof WhatsappRecipientStatus]
