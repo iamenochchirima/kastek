@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { encryptSecret } from "@/lib/whatsapp/crypto";
+import { decryptSecret, encryptSecret } from "@/lib/whatsapp/crypto";
 import type { Prisma } from "@kasiai/database";
 
 const GRAPH_BASE = "https://graph.facebook.com/v19.0";
@@ -11,6 +11,7 @@ type GraphPhoneNumber = {
   quality_rating?: string;
   code_verification_status?: string;
   name_status?: string;
+  messaging_limit_tier?: string;
 };
 
 type GraphTemplate = {
@@ -31,6 +32,14 @@ type EmbeddedSignupCompleteInput = {
   code: string;
   wabaId?: string;
   phoneNumberId?: string;
+};
+
+type ManualConnectionInput = {
+  userId: string;
+  wabaId: string;
+  phoneNumberId: string;
+  accessToken: string;
+  phoneDisplayNumber?: string;
 };
 
 function getRequiredEnv(name: string): string {
@@ -260,6 +269,256 @@ async function syncMarketingTemplates(
     fetched: response.data?.length || 0,
     marketing: templates.length,
     synced,
+  };
+}
+
+function estimateDailyLimitFromTier(tier?: string): number | null {
+  const normalized = tier?.toUpperCase();
+  if (normalized === "TIER_1") return 1000;
+  if (normalized === "TIER_2") return 10000;
+  if (normalized === "TIER_3") return 100000;
+  if (normalized === "TIER_4") return 1_000_000;
+  return null;
+}
+
+async function fetchConnectionPhone(accessToken: string, phoneNumberId: string) {
+  return fetchGraphJson<GraphPhoneNumber>(
+    `${GRAPH_BASE}/${phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,name_status,messaging_limit_tier&access_token=${encodeURIComponent(accessToken)}`
+  );
+}
+
+export async function connectManualWhatsappConnection(input: ManualConnectionInput) {
+  const diagnostics: Array<{ step: string; ok: boolean; detail: string }> = [];
+
+  const accessToken = input.accessToken.trim();
+  const phoneNumberId = input.phoneNumberId.trim();
+  const wabaId = input.wabaId.trim();
+
+  if (!accessToken || !phoneNumberId || !wabaId) {
+    throw new Error("WABA ID, phone number ID, and access token are required");
+  }
+
+  const phone = await fetchConnectionPhone(accessToken, phoneNumberId);
+  diagnostics.push({
+    step: "validate_phone",
+    ok: true,
+    detail: `Phone number validated: ${phone.id}`,
+  });
+
+  const existing = await prisma.whatsappConnection.findUnique({
+    where: {
+      phoneNumberId,
+    },
+    select: {
+      id: true,
+      userId: true,
+    },
+  });
+
+  if (existing && existing.userId !== input.userId) {
+    throw new Error("This WhatsApp number is already connected to another account");
+  }
+
+  const encryptedToken = encryptSecret(accessToken);
+  const defaultDailyLimit = Number(process.env.WHATSAPP_DEFAULT_DAILY_LIMIT || "250");
+
+  const connection = await prisma.whatsappConnection.upsert({
+    where: {
+      phoneNumberId,
+    },
+    update: {
+      userId: input.userId,
+      wabaId,
+      phoneDisplayNumber:
+        input.phoneDisplayNumber?.trim() || phone.display_phone_number || null,
+      accessTokenEncrypted: encryptedToken,
+      currentQualityRating: mapQualityRating(phone.quality_rating),
+      verified:
+        phone.code_verification_status === "VERIFIED" ||
+        phone.name_status === "APPROVED" ||
+        false,
+      dailyLimitEstimate:
+        estimateDailyLimitFromTier(phone.messaging_limit_tier) || defaultDailyLimit,
+    },
+    create: {
+      userId: input.userId,
+      wabaId,
+      phoneNumberId,
+      phoneDisplayNumber:
+        input.phoneDisplayNumber?.trim() || phone.display_phone_number || null,
+      accessTokenEncrypted: encryptedToken,
+      currentQualityRating: mapQualityRating(phone.quality_rating),
+      verified:
+        phone.code_verification_status === "VERIFIED" ||
+        phone.name_status === "APPROVED" ||
+        false,
+      dailyLimitEstimate:
+        estimateDailyLimitFromTier(phone.messaging_limit_tier) || defaultDailyLimit,
+    },
+    select: {
+      id: true,
+      phoneNumberId: true,
+      phoneDisplayNumber: true,
+      wabaId: true,
+      currentQualityRating: true,
+      verified: true,
+      dailyLimitEstimate: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  diagnostics.push({
+    step: "save_connection",
+    ok: true,
+    detail: "Connection saved and token encrypted.",
+  });
+
+  let webhookSubscribed = true;
+  let webhookError: string | null = null;
+
+  try {
+    await subscribeWabaWebhook(accessToken, wabaId);
+    diagnostics.push({
+      step: "subscribe_webhook",
+      ok: true,
+      detail: "Webhook subscribed to messages events.",
+    });
+  } catch (error) {
+    webhookSubscribed = false;
+    webhookError = error instanceof Error ? error.message : "Webhook subscription failed";
+    diagnostics.push({
+      step: "subscribe_webhook",
+      ok: false,
+      detail: webhookError,
+    });
+  }
+
+  let templateSync = {
+    attempted: true,
+    success: true,
+    fetched: 0,
+    marketing: 0,
+    synced: 0,
+    error: null as string | null,
+  };
+
+  try {
+    const syncResult = await syncMarketingTemplates(accessToken, input.userId, wabaId, connection.id);
+    templateSync = {
+      ...templateSync,
+      fetched: syncResult.fetched,
+      marketing: syncResult.marketing,
+      synced: syncResult.synced,
+    };
+    diagnostics.push({
+      step: "sync_templates",
+      ok: true,
+      detail: `Synced ${syncResult.synced} marketing templates.`,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Template sync failed";
+    templateSync = {
+      ...templateSync,
+      success: false,
+      error: message,
+    };
+    diagnostics.push({
+      step: "sync_templates",
+      ok: false,
+      detail: message,
+    });
+  }
+
+  return {
+    connection,
+    webhookSubscribed,
+    webhookError,
+    templateSync,
+    diagnostics,
+  };
+}
+
+export async function syncWhatsappConnectionTemplates(userId: string, connectionId: string) {
+  const connection = await prisma.whatsappConnection.findFirst({
+    where: {
+      id: connectionId,
+      userId,
+    },
+    select: {
+      id: true,
+      wabaId: true,
+      accessTokenEncrypted: true,
+    },
+  });
+
+  if (!connection) {
+    throw new Error("Connection not found");
+  }
+
+  const accessToken = decryptSecret(connection.accessTokenEncrypted);
+  const syncResult = await syncMarketingTemplates(
+    accessToken,
+    userId,
+    connection.wabaId,
+    connection.id
+  );
+
+  return {
+    connectionId: connection.id,
+    ...syncResult,
+  };
+}
+
+export async function refreshWhatsappConnection(userId: string, connectionId: string) {
+  const connection = await prisma.whatsappConnection.findFirst({
+    where: {
+      id: connectionId,
+      userId,
+    },
+    select: {
+      id: true,
+      accessTokenEncrypted: true,
+      phoneNumberId: true,
+    },
+  });
+
+  if (!connection) {
+    throw new Error("Connection not found");
+  }
+
+  const accessToken = decryptSecret(connection.accessTokenEncrypted);
+  const phone = await fetchConnectionPhone(accessToken, connection.phoneNumberId);
+  const defaultDailyLimit = Number(process.env.WHATSAPP_DEFAULT_DAILY_LIMIT || "250");
+
+  const updated = await prisma.whatsappConnection.update({
+    where: {
+      id: connection.id,
+    },
+    data: {
+      phoneDisplayNumber: phone.display_phone_number || null,
+      currentQualityRating: mapQualityRating(phone.quality_rating),
+      verified:
+        phone.code_verification_status === "VERIFIED" ||
+        phone.name_status === "APPROVED" ||
+        false,
+      dailyLimitEstimate:
+        estimateDailyLimitFromTier(phone.messaging_limit_tier) || defaultDailyLimit,
+    },
+    select: {
+      id: true,
+      phoneNumberId: true,
+      phoneDisplayNumber: true,
+      wabaId: true,
+      currentQualityRating: true,
+      verified: true,
+      dailyLimitEstimate: true,
+      updatedAt: true,
+    },
+  });
+
+  return {
+    connection: updated,
+    messagingLimitTier: phone.messaging_limit_tier || null,
   };
 }
 

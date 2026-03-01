@@ -60,6 +60,7 @@ export const ModelName = {
   BotConfiguration: 'BotConfiguration',
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
+  Quotation: 'Quotation',
   OutreachCampaign: 'OutreachCampaign',
   OutreachLead: 'OutreachLead',
   WebServiceLead: 'WebServiceLead',
@@ -231,6 +232,39 @@ export const QuoteRequestScalarFieldEnum = {
 } as const
 
 export type QuoteRequestScalarFieldEnum = (typeof QuoteRequestScalarFieldEnum)[keyof typeof QuoteRequestScalarFieldEnum]
+
+
+export const QuotationScalarFieldEnum = {
+  id: 'id',
+  businessName: 'businessName',
+  contactPerson: 'contactPerson',
+  contactEmail: 'contactEmail',
+  contactPhone: 'contactPhone',
+  date: 'date',
+  serviceType: 'serviceType',
+  title: 'title',
+  introduction: 'introduction',
+  scopeOfWork: 'scopeOfWork',
+  deliverables: 'deliverables',
+  implementationSteps: 'implementationSteps',
+  pricingItems: 'pricingItems',
+  maintenanceIncludes: 'maintenanceIncludes',
+  termsAndNotes: 'termsAndNotes',
+  includedFunctionality: 'includedFunctionality',
+  knowledgeBaseScope: 'knowledgeBaseScope',
+  importantNotes: 'importantNotes',
+  supportIncludes: 'supportIncludes',
+  setupFee: 'setupFee',
+  monthlyFee: 'monthlyFee',
+  deliveryTimeline: 'deliveryTimeline',
+  validityDays: 'validityDays',
+  status: 'status',
+  quoteRequestId: 'quoteRequestId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type QuotationScalarFieldEnum = (typeof QuotationScalarFieldEnum)[keyof typeof QuotationScalarFieldEnum]
 
 
 export const OutreachCampaignScalarFieldEnum = {

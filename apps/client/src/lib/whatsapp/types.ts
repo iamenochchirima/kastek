@@ -13,12 +13,28 @@ export type MarketingVariableMapping = {
   key: string;
 };
 
+export type WhatsappAudienceOptInStatus = "all" | "opted_in" | "not_opted_in";
+
+export type WhatsappAudienceExcludedStatus = "all" | "active_only" | "excluded_only";
+
+export type WhatsappAudienceCooldownStatus = "all" | "passed" | "recent";
+
+export type WhatsappAudienceFilter = {
+  tags?: string[];
+  location?: string;
+  search?: string;
+  optInStatus?: WhatsappAudienceOptInStatus;
+  excludedStatus?: WhatsappAudienceExcludedStatus;
+  cooldownStatus?: WhatsappAudienceCooldownStatus;
+};
+
 export type CreateWhatsappCampaignInput = {
   name: string;
   description?: string;
   connectionId: string;
   templateId: string;
   recipientIds?: string[];
+  audience?: WhatsappAudienceFilter;
   scheduledAt?: string;
   variableMappings?: MarketingVariableMapping[];
 };
@@ -26,6 +42,12 @@ export type CreateWhatsappCampaignInput = {
 export type LaunchWhatsappCampaignInput = {
   scheduledAt?: string;
 };
+
+export type UpdateWhatsappCampaignAction =
+  | "pause"
+  | "resume"
+  | "cancel"
+  | "retry_failed";
 
 export type CampaignEligibilitySummary = {
   eligibleContactIds: string[];

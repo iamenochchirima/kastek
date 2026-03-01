@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import CampaignStatusBadge from "@/components/dashboard/campaigns/campaign-status-badge";
+import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 
 export const metadata = {
   title: "Campaigns | KasiAI",
@@ -12,28 +13,48 @@ export default async function CampaignsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const campaigns = await prisma.whatsappCampaign.findMany({
-    where: {
-      userId: session.user.id,
-    },
-    include: {
-      connection: {
-        select: {
-          phoneDisplayNumber: true,
-          phoneNumberId: true,
+  const [campaigns, connections] = await Promise.all([
+    prisma.whatsappCampaign.findMany({
+      where: {
+        userId: session.user.id,
+      },
+      include: {
+        connection: {
+          select: {
+            phoneDisplayNumber: true,
+            phoneNumberId: true,
+          },
+        },
+        template: {
+          select: {
+            templateName: true,
+            language: true,
+          },
         },
       },
-      template: {
-        select: {
-          templateName: true,
-          language: true,
-        },
+      orderBy: {
+        createdAt: "desc",
       },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+    }),
+    prisma.whatsappConnection.findMany({
+      where: {
+        userId: session.user.id,
+      },
+      select: {
+        id: true,
+        phoneNumberId: true,
+        phoneDisplayNumber: true,
+        wabaId: true,
+        currentQualityRating: true,
+        dailyLimitEstimate: true,
+        verified: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+  ]);
 
   return (
     <div>
@@ -53,7 +74,26 @@ export default async function CampaignsPage() {
         </Link>
       </div>
 
-      {campaigns.length === 0 ? (
+      {!connections.length ? (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-dashed border-border bg-surface py-12 text-center">
+            <div className="mb-3 text-4xl text-text-dim">📣</div>
+            <h2 className="mb-2 font-serif text-xl">Connect WhatsApp to start campaigning</h2>
+            <p className="mx-auto max-w-2xl text-sm text-text-muted">
+              Campaigns are the main WhatsApp workflow. Connect your Meta WhatsApp Cloud API here,
+              then create templates, choose recipients, and launch broadcasts.
+            </p>
+          </div>
+
+          <WhatsappManualConnectionCard
+            connections={connections.map((connection) => ({
+              ...connection,
+              createdAt: connection.createdAt.toISOString(),
+            }))}
+            mode="setup"
+          />
+        </div>
+      ) : campaigns.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-surface py-16 text-center">
           <div className="mb-3 text-4xl text-text-dim">📣</div>
           <h2 className="mb-2 font-serif text-xl">No campaigns yet</h2>

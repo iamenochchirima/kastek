@@ -116,6 +116,7 @@ export default function WhatsappEmbeddedSignupCard({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [healthLoadingId, setHealthLoadingId] = useState<string | null>(null);
+  const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null);
   const [healthByConnectionId, setHealthByConnectionId] = useState<
     Record<string, ConnectionHealth>
   >({});
@@ -248,6 +249,45 @@ export default function WhatsappEmbeddedSignupCard({
     }
   }
 
+  async function runConnectionAction(
+    connectionId: string,
+    action: "refresh" | "sync_templates"
+  ) {
+    setActionLoadingKey(`${connectionId}:${action}`);
+    setError("");
+    setNotice("");
+
+    try {
+      const endpoint =
+        action === "refresh"
+          ? `/api/whatsapp/connections/${connectionId}/refresh`
+          : `/api/whatsapp/connections/${connectionId}/templates/sync`;
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+      });
+      const body = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          body.error ||
+            (action === "refresh" ? "Failed to refresh connection" : "Failed to sync templates")
+        );
+      }
+
+      setNotice(
+        action === "refresh"
+          ? "Connection details refreshed."
+          : `Template sync completed. Synced ${body.synced || 0} marketing templates.`
+      );
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setActionLoadingKey(null);
+    }
+  }
+
   function startEmbeddedSignup() {
     setError("");
     setNotice("");
@@ -356,6 +396,7 @@ export default function WhatsappEmbeddedSignupCard({
                 <th className="px-3 py-2 text-left">Verified</th>
                 <th className="px-3 py-2 text-left">Daily Limit</th>
                 <th className="px-3 py-2 text-left">Health</th>
+                <th className="px-3 py-2 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -378,11 +419,35 @@ export default function WhatsappEmbeddedSignupCard({
                         {healthLoadingId === connection.id ? "Checking..." : "Check health"}
                       </button>
                     </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => runConnectionAction(connection.id, "refresh")}
+                          className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                          disabled={actionLoadingKey === `${connection.id}:refresh`}
+                        >
+                          {actionLoadingKey === `${connection.id}:refresh`
+                            ? "Refreshing..."
+                            : "Refresh"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => runConnectionAction(connection.id, "sync_templates")}
+                          className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                          disabled={actionLoadingKey === `${connection.id}:sync_templates`}
+                        >
+                          {actionLoadingKey === `${connection.id}:sync_templates`
+                            ? "Syncing..."
+                            : "Sync templates"}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
 
                   {healthByConnectionId[connection.id] ? (
                     <tr className="border-t border-border bg-surface-2/60">
-                      <td className="px-3 py-2 text-xs text-text-muted" colSpan={5}>
+                      <td className="px-3 py-2 text-xs text-text-muted" colSpan={6}>
                         <p className="mb-1">
                           Overall:{" "}
                           <span

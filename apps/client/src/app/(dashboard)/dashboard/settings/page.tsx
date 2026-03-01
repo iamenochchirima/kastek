@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import WhatsappEmbeddedSignupCard from "@/components/dashboard/settings/whatsapp-embedded-signup-card";
+import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 
 export const metadata = {
   title: "Settings | KasiAI",
@@ -33,13 +33,16 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="mb-2 font-serif text-3xl">Settings</h1>
-      <p className="text-text-muted">Manage your account and integrations.</p>
+      <p className="text-text-muted">
+        Manage existing integrations. New WhatsApp connections now start from Campaigns.
+      </p>
 
-      <WhatsappEmbeddedSignupCard
+      <WhatsappManualConnectionCard
         connections={connections.map((connection) => ({
           ...connection,
           createdAt: connection.createdAt.toISOString(),
         }))}
+        mode="maintenance"
       />
     </div>
   );

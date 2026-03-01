@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import CreateCampaignForm from "@/components/dashboard/campaigns/create-campaign-form";
+import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 
 export const metadata = {
   title: "Create Campaign | KasiAI",
@@ -54,6 +55,7 @@ export default async function NewCampaignPage() {
         id: true,
         fullName: true,
         phone: true,
+        tags: true,
         location: true,
         optIn: true,
         excluded: true,
@@ -76,20 +78,33 @@ export default async function NewCampaignPage() {
       </Link>
 
       <h1 className="mb-2 font-serif text-3xl">Create campaign</h1>
-      <p className="mb-8 text-text-muted">
-        Build a compliant marketing broadcast with approved templates and opted-in recipients.
-      </p>
+      {!connections.length ? (
+        <>
+          <p className="mb-8 text-text-muted">
+            Step 1 is connecting your WhatsApp Cloud API. Once that is done, this page becomes the
+            campaign builder.
+          </p>
 
-      <CreateCampaignForm
-        connections={connections}
-        templates={templates}
-        contacts={contacts.map((contact) => ({
-          ...contact,
-          lastMarketingSent: contact.lastMarketingSent
-            ? contact.lastMarketingSent.toISOString()
-            : null,
-        }))}
-      />
+          <WhatsappManualConnectionCard connections={[]} mode="setup" />
+        </>
+      ) : (
+        <>
+          <p className="mb-8 text-text-muted">
+            Build a compliant marketing broadcast with approved templates and opted-in recipients.
+          </p>
+
+          <CreateCampaignForm
+            connections={connections}
+            templates={templates}
+            contacts={contacts.map((contact) => ({
+              ...contact,
+              lastMarketingSent: contact.lastMarketingSent
+                ? contact.lastMarketingSent.toISOString()
+                : null,
+            }))}
+          />
+        </>
+      )}
     </div>
   );
 }

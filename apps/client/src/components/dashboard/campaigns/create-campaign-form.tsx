@@ -25,6 +25,7 @@ type ContactOption = {
   id: string;
   fullName: string | null;
   phone: string;
+  tags: string[];
   location: string | null;
   optIn: boolean;
   excluded: boolean;
@@ -50,6 +51,54 @@ function canSendAgain(lastMarketingSent: string | null) {
   return Date.now() - then >= minMs;
 }
 
+function matchesAudience(
+  contact: ContactOption,
+  filters: {
+    search: string;
+    location: string;
+    tags: string[];
+    optInStatus: "all" | "opted_in" | "not_opted_in";
+    excludedStatus: "all" | "active_only" | "excluded_only";
+    cooldownStatus: "all" | "passed" | "recent";
+  }
+) {
+  const query = filters.search.trim().toLowerCase();
+  if (query) {
+    const haystack = [
+      contact.fullName || "",
+      contact.phone,
+      contact.location || "",
+      contact.tags.join(" "),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    if (!haystack.includes(query)) return false;
+  }
+
+  if (
+    filters.location.trim() &&
+    !(contact.location || "").toLowerCase().includes(filters.location.trim().toLowerCase())
+  ) {
+    return false;
+  }
+
+  if (filters.tags.length > 0 && !filters.tags.some((tag) => contact.tags.includes(tag))) {
+    return false;
+  }
+
+  if (filters.optInStatus === "opted_in" && !contact.optIn) return false;
+  if (filters.optInStatus === "not_opted_in" && contact.optIn) return false;
+  if (filters.excludedStatus === "active_only" && contact.excluded) return false;
+  if (filters.excludedStatus === "excluded_only" && !contact.excluded) return false;
+
+  const cooldownPassed = canSendAgain(contact.lastMarketingSent);
+  if (filters.cooldownStatus === "passed" && !cooldownPassed) return false;
+  if (filters.cooldownStatus === "recent" && cooldownPassed) return false;
+
+  return true;
+}
+
 export default function CreateCampaignForm({
   connections,
   templates,
@@ -72,6 +121,14 @@ export default function CreateCampaignForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [audienceSearch, setAudienceSearch] = useState("");
+  const [audienceLocation, setAudienceLocation] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [optInStatus, setOptInStatus] = useState<"all" | "opted_in" | "not_opted_in">("opted_in");
+  const [excludedStatus, setExcludedStatus] = useState<"all" | "active_only" | "excluded_only">(
+    "active_only"
+  );
+  const [cooldownStatus, setCooldownStatus] = useState<"all" | "passed" | "recent">("passed");
 
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [defaultOptIn, setDefaultOptIn] = useState(true);
@@ -88,11 +145,29 @@ export default function CreateCampaignForm({
       : []
   );
 
+  const tagOptions = useMemo(
+    () => Array.from(new Set(contacts.flatMap((contact) => contact.tags))).sort((a, b) => a.localeCompare(b)),
+    [contacts]
+  );
+
+  const audienceContacts = useMemo(() => {
+    return contacts.filter((contact) =>
+      matchesAudience(contact, {
+        search: audienceSearch,
+        location: audienceLocation,
+        tags: selectedTags,
+        optInStatus,
+        excludedStatus,
+        cooldownStatus,
+      })
+    );
+  }, [audienceLocation, audienceSearch, contacts, cooldownStatus, excludedStatus, optInStatus, selectedTags]);
+
   const eligibleContacts = useMemo(() => {
-    return contacts.filter(
+    return audienceContacts.filter(
       (contact) => contact.optIn && !contact.excluded && canSendAgain(contact.lastMarketingSent)
     );
-  }, [contacts]);
+  }, [audienceContacts]);
 
   const visibleContacts = useAllEligible
     ? eligibleContacts
@@ -195,6 +270,16 @@ export default function CreateCampaignForm({
           connectionId,
           templateId,
           recipientIds: useAllEligible ? undefined : selectedContactIds,
+          audience: useAllEligible
+            ? {
+                search: audienceSearch || undefined,
+                location: audienceLocation || undefined,
+                tags: selectedTags,
+                optInStatus,
+                excludedStatus,
+                cooldownStatus,
+              }
+            : undefined,
           scheduledAt: scheduleAt || undefined,
           variableMappings,
         }),
@@ -379,6 +464,111 @@ export default function CreateCampaignForm({
       )}
 
       <section className="rounded-xl border border-border bg-surface p-5">
+        <h2 className="mb-4 text-sm font-semibold">Audience segmentation</h2>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <label className="space-y-2 text-sm">
+            <span className="text-text-muted">Search</span>
+            <input
+              value={audienceSearch}
+              onChange={(event) => setAudienceSearch(event.target.value)}
+              placeholder="Name, phone, tag, location"
+              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text outline-none ring-accent/30 focus:ring"
+            />
+          </label>
+
+          <label className="space-y-2 text-sm">
+            <span className="text-text-muted">Location</span>
+            <input
+              value={audienceLocation}
+              onChange={(event) => setAudienceLocation(event.target.value)}
+              placeholder="Johannesburg"
+              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text outline-none ring-accent/30 focus:ring"
+            />
+          </label>
+
+          <label className="space-y-2 text-sm">
+            <span className="text-text-muted">Opt-in filter</span>
+            <select
+              value={optInStatus}
+              onChange={(event) =>
+                setOptInStatus(event.target.value as "all" | "opted_in" | "not_opted_in")
+              }
+              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text outline-none ring-accent/30 focus:ring"
+            >
+              <option value="opted_in">Opted in only</option>
+              <option value="all">All contacts</option>
+              <option value="not_opted_in">Not opted in only</option>
+            </select>
+          </label>
+
+          <label className="space-y-2 text-sm">
+            <span className="text-text-muted">Exclusion filter</span>
+            <select
+              value={excludedStatus}
+              onChange={(event) =>
+                setExcludedStatus(event.target.value as "all" | "active_only" | "excluded_only")
+              }
+              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text outline-none ring-accent/30 focus:ring"
+            >
+              <option value="active_only">Active only</option>
+              <option value="all">All contacts</option>
+              <option value="excluded_only">Excluded only</option>
+            </select>
+          </label>
+
+          <label className="space-y-2 text-sm">
+            <span className="text-text-muted">Recent-send cooldown</span>
+            <select
+              value={cooldownStatus}
+              onChange={(event) =>
+                setCooldownStatus(event.target.value as "all" | "passed" | "recent")
+              }
+              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text outline-none ring-accent/30 focus:ring"
+            >
+              <option value="passed">Passed cooldown only</option>
+              <option value="all">All contacts</option>
+              <option value="recent">Recent sends only</option>
+            </select>
+          </label>
+        </div>
+
+        {tagOptions.length > 0 ? (
+          <div className="mt-4 space-y-2 text-sm">
+            <span className="block text-text-muted">Tags</span>
+            <div className="flex flex-wrap gap-2">
+              {tagOptions.map((tag) => {
+                const active = selectedTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() =>
+                      setSelectedTags((prev) =>
+                        prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]
+                      )
+                    }
+                    className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                      active
+                        ? "border-accent bg-accent/10 text-accent"
+                        : "border-border bg-surface-2 text-text-muted"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <p className="mt-4 text-xs text-text-muted">
+          Audience matches: {audienceContacts.length} contacts. Eligible after WhatsApp marketing
+          safety checks: {eligibleContacts.length}.
+        </p>
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm font-semibold">Recipients ({eligibleContacts.length} eligible)</h2>
           <label className="flex items-center gap-2 text-xs text-text-muted">
@@ -400,6 +590,7 @@ export default function CreateCampaignForm({
                   <th className="px-3 py-2 text-left">Name</th>
                   <th className="px-3 py-2 text-left">Phone</th>
                   <th className="px-3 py-2 text-left">Location</th>
+                  <th className="px-3 py-2 text-left">Tags</th>
                 </tr>
               </thead>
               <tbody>
@@ -415,6 +606,7 @@ export default function CreateCampaignForm({
                     <td className="px-3 py-2">{contact.fullName || "-"}</td>
                     <td className="px-3 py-2">{contact.phone}</td>
                     <td className="px-3 py-2">{contact.location || "-"}</td>
+                    <td className="px-3 py-2">{contact.tags.join(", ") || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -424,8 +616,8 @@ export default function CreateCampaignForm({
 
         {useAllEligible && (
           <p className="text-sm text-text-muted">
-            This campaign will target all opted-in contacts that are not excluded and have passed
-            the 10-day marketing cooldown.
+            This campaign will target all audience-matched contacts that are still eligible under
+            opt-in, exclusion, and 10-day cooldown rules.
           </p>
         )}
       </section>

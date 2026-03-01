@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeToE164 } from "@/lib/whatsapp/phone";
 import { recomputeWhatsappCampaignStats } from "@/lib/whatsapp/campaign-service";
+import { findOrCreateWhatsappConversation } from "@/lib/whatsapp/inbox";
 import type { WebhookStatusPayload } from "@/lib/whatsapp/types";
 
 export const runtime = "nodejs";
@@ -133,6 +134,7 @@ async function handleStatus(statusPayload: WebhookStatusPayload) {
 async function handleIncomingMessage(value: Record<string, unknown>) {
   const metadata = value.metadata as { phone_number_id?: string } | undefined;
   const messages = (value.messages as Array<Record<string, unknown>> | undefined) || [];
+  const contacts = (value.contacts as Array<Record<string, unknown>> | undefined) || [];
 
   if (!metadata?.phone_number_id || !messages.length) return;
 
@@ -157,24 +159,62 @@ async function handleIncomingMessage(value: Record<string, unknown>) {
     const normalizedPhone = normalizeToE164(from);
     if (!normalizedPhone || !textBody) continue;
 
-    const keyword = textBody.trim().toLowerCase();
-    if (!STOP_KEYWORDS.has(keyword)) continue;
+    const matchingContact = contacts.find((contact) => String(contact.wa_id || "") === from);
+    const profileName =
+      ((matchingContact?.profile as { name?: string } | undefined)?.name || "").trim() || null;
 
-    const contact = await prisma.whatsappContact.findFirst({
+    const conversation = await findOrCreateWhatsappConversation({
+      connectionId: connection.id,
+      phone: normalizedPhone,
+      customerName: profileName,
+    });
+
+    const customerContact = await prisma.whatsappContact.upsert({
       where: {
+        userId_phone: {
+          userId: connection.userId,
+          phone: normalizedPhone,
+        },
+      },
+      update: {
+        fullName: profileName || undefined,
+      },
+      create: {
         userId: connection.userId,
         phone: normalizedPhone,
+        fullName: profileName,
+        optIn: false,
+        excluded: false,
       },
       select: {
         id: true,
       },
     });
 
-    if (!contact) continue;
+    await prisma.$transaction(async (tx) => {
+      await tx.message.create({
+        data: {
+          conversationId: conversation.id,
+          sender: "customer",
+          content: textBody,
+        },
+      });
+
+      await tx.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessageAt: new Date(),
+          status: "active",
+        },
+      });
+    });
+
+    const keyword = textBody.trim().toLowerCase();
+    if (!STOP_KEYWORDS.has(keyword)) continue;
 
     const pendingRecipients = await prisma.whatsappCampaignRecipient.findMany({
       where: {
-        contactId: contact.id,
+        contactId: customerContact.id,
         status: {
           in: ["PENDING", "QUEUED"],
         },
@@ -186,7 +226,7 @@ async function handleIncomingMessage(value: Record<string, unknown>) {
 
     await prisma.$transaction(async (tx) => {
       await tx.whatsappContact.update({
-        where: { id: contact.id },
+        where: { id: customerContact.id },
         data: {
           excluded: true,
           optIn: false,
@@ -196,7 +236,7 @@ async function handleIncomingMessage(value: Record<string, unknown>) {
 
       await tx.whatsappCampaignRecipient.updateMany({
         where: {
-          contactId: contact.id,
+          contactId: customerContact.id,
           status: {
             in: ["PENDING", "QUEUED"],
           },

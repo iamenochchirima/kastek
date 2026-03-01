@@ -55,6 +55,12 @@ export default async function LeadDetailPage({
         </div>
         <div className="flex items-center gap-2">
           <Link
+            href={`/quotations/new?leadId=${lead.id}`}
+            className="border border-border hover:bg-surface-overlay px-4 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+          >
+            New Quotation
+          </Link>
+          <Link
             href={`/leads/${lead.id}/edit`}
             className="border border-border hover:bg-surface-overlay px-4 py-2 rounded-lg text-sm font-medium text-text transition-colors"
           >

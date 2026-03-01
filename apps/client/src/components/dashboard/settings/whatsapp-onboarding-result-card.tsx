@@ -15,6 +15,7 @@ function label(step: string) {
     exchange_code: "Code Exchange",
     resolve_waba: "Resolve Business Account",
     resolve_phone: "Resolve Phone Number",
+    validate_phone: "Validate Phone Number",
     save_connection: "Save Connection",
     subscribe_webhook: "Subscribe Webhook",
     sync_templates: "Sync Templates",
@@ -61,7 +62,7 @@ export default function WhatsappOnboardingResultCard() {
         }`}
       >
         <h1 className="mb-2 font-serif text-3xl">
-          {ok ? "WhatsApp Connected" : "WhatsApp Onboarding Error"}
+          {ok ? "WhatsApp Connected" : "WhatsApp Connection Error"}
         </h1>
         <p className="text-sm text-text-muted">{message}</p>
 

@@ -67,7 +67,11 @@ const worker = new Worker<QueueSendJobData>(
       return;
     }
 
-    if (!["QUEUED", "PENDING", "FAILED"].includes(recipient.status)) {
+    if (recipient.status !== "QUEUED") {
+      return;
+    }
+
+    if (!["SENDING", "SCHEDULED"].includes(recipient.campaign.status)) {
       return;
     }
 

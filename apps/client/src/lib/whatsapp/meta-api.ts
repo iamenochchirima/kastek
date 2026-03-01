@@ -67,3 +67,51 @@ export async function sendMarketingTemplate(
     raw,
   };
 }
+
+export async function sendTextMessage(input: {
+  phoneNumberId: string;
+  accessToken: string;
+  recipientPhone: string;
+  text: string;
+}) {
+  const url = `https://graph.facebook.com/v19.0/${input.phoneNumberId}/messages`;
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to: input.recipientPhone,
+    type: "text",
+    text: {
+      body: input.text,
+    },
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${input.accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const raw = await response.json();
+
+  if (!response.ok) {
+    const errorPayload = raw as {
+      error?: { message?: string };
+    };
+
+    throw new Error(
+      `WhatsApp Cloud API text send failed (${response.status}): ${errorPayload.error?.message || "Unknown error"}`
+    );
+  }
+
+  const successPayload = raw as {
+    messages?: Array<{ id?: string }>;
+  };
+
+  return {
+    messageId: successPayload.messages?.[0]?.id || null,
+    raw,
+  };
+}

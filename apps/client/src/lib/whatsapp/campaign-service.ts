@@ -4,6 +4,7 @@ import type {
   CreateCampaignResult,
   CreateWhatsappCampaignInput,
   MarketingVariableMapping,
+  WhatsappAudienceFilter,
 } from "./types";
 import { getWhatsappMarketingQueue } from "./queue";
 
@@ -16,6 +17,116 @@ function hasMarketingCooldownExpired(lastMarketingSent: Date | null | undefined)
 
   const minIntervalMs = MIN_MARKETING_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
   return Date.now() - lastMarketingSent.getTime() >= minIntervalMs;
+}
+
+function normalizeAudienceFilter(audience?: WhatsappAudienceFilter) {
+  if (!audience) return null;
+
+  return {
+    search: audience.search?.trim() || "",
+    location: audience.location?.trim() || "",
+    tags: (audience.tags || []).filter(Boolean),
+    optInStatus: audience.optInStatus || "all",
+    excludedStatus: audience.excludedStatus || "active_only",
+    cooldownStatus: audience.cooldownStatus || "passed",
+  };
+}
+
+function buildAudienceWhere(
+  userId: string,
+  audience?: WhatsappAudienceFilter
+): Prisma.WhatsappContactWhereInput {
+  const normalized = normalizeAudienceFilter(audience);
+  if (!normalized) {
+    return { userId };
+  }
+
+  const and: Prisma.WhatsappContactWhereInput[] = [{ userId }];
+
+  if (normalized.search) {
+    and.push({
+      OR: [
+        { fullName: { contains: normalized.search, mode: "insensitive" } },
+        { phone: { contains: normalized.search, mode: "insensitive" } },
+        { location: { contains: normalized.search, mode: "insensitive" } },
+        { tags: { has: normalized.search } },
+      ],
+    });
+  }
+
+  if (normalized.location) {
+    and.push({
+      location: {
+        contains: normalized.location,
+        mode: "insensitive",
+      },
+    });
+  }
+
+  if (normalized.tags.length > 0) {
+    and.push({
+      tags: {
+        hasSome: normalized.tags,
+      },
+    });
+  }
+
+  if (normalized.optInStatus === "opted_in") {
+    and.push({ optIn: true });
+  } else if (normalized.optInStatus === "not_opted_in") {
+    and.push({ optIn: false });
+  }
+
+  if (normalized.excludedStatus === "active_only") {
+    and.push({ excluded: false });
+  } else if (normalized.excludedStatus === "excluded_only") {
+    and.push({ excluded: true });
+  }
+
+  if (normalized.cooldownStatus === "passed") {
+    and.push({
+      OR: [
+        { lastMarketingSent: null },
+        {
+          lastMarketingSent: {
+            lte: new Date(Date.now() - MIN_MARKETING_INTERVAL_DAYS * 24 * 60 * 60 * 1000),
+          },
+        },
+      ],
+    });
+  } else if (normalized.cooldownStatus === "recent") {
+    and.push({
+      lastMarketingSent: {
+        gt: new Date(Date.now() - MIN_MARKETING_INTERVAL_DAYS * 24 * 60 * 60 * 1000),
+      },
+    });
+  }
+
+  return { AND: and };
+}
+
+async function enqueueRecipients(
+  userId: string,
+  campaignId: string,
+  recipientIds: string[],
+  delay: number
+) {
+  const queue = getWhatsappMarketingQueue();
+
+  await queue.addBulk(
+    recipientIds.map((recipientId) => ({
+      name: "send-marketing-template",
+      data: {
+        campaignId,
+        recipientId,
+        userId,
+      },
+      opts: {
+        delay,
+        jobId: `${campaignId}:${recipientId}`,
+      },
+    }))
+  );
 }
 
 export function isContactEligibleForMarketing(contact: {
@@ -72,16 +183,14 @@ export async function createWhatsappCampaign(
   }
 
   const contacts = await prisma.whatsappContact.findMany({
-    where: {
-      userId,
-      ...(input.recipientIds?.length
-        ? {
-            id: {
-              in: input.recipientIds,
-            },
-          }
-        : {}),
-    },
+    where: input.recipientIds?.length
+      ? {
+          userId,
+          id: {
+            in: input.recipientIds,
+          },
+        }
+      : buildAudienceWhere(userId, input.audience),
     select: {
       id: true,
       optIn: true,
@@ -217,8 +326,6 @@ export async function launchWhatsappCampaign(
     );
   }
 
-  const queue = getWhatsappMarketingQueue();
-
   const requestedScheduledAt = launchInput.scheduledAt
     ? new Date(launchInput.scheduledAt)
     : campaign.scheduledAt;
@@ -258,19 +365,11 @@ export async function launchWhatsappCampaign(
   });
 
   try {
-    await queue.addBulk(
-      campaign.recipients.map((recipient) => ({
-        name: "send-marketing-template",
-        data: {
-          campaignId: campaign.id,
-          recipientId: recipient.id,
-          userId,
-        },
-        opts: {
-          delay,
-          jobId: `${campaign.id}:${recipient.id}`,
-        },
-      }))
+    await enqueueRecipients(
+      userId,
+      campaign.id,
+      campaign.recipients.map((recipient) => recipient.id),
+      delay
     );
   } catch (error) {
     await prisma.$transaction(async (tx) => {
@@ -301,6 +400,305 @@ export async function launchWhatsappCampaign(
     queuedRecipients: campaign.recipients.length,
     scheduledAt: requestedScheduledAt,
     status: shouldSchedule ? "SCHEDULED" : "SENDING",
+  };
+}
+
+export async function pauseWhatsappCampaign(userId: string, campaignId: string) {
+  const campaign = await prisma.whatsappCampaign.findFirst({
+    where: {
+      id: campaignId,
+      userId,
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
+  if (!campaign) {
+    throw new Error("Campaign not found");
+  }
+
+  if (!["SENDING", "SCHEDULED"].includes(campaign.status)) {
+    throw new Error("Only active or scheduled campaigns can be paused");
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedRecipients = await tx.whatsappCampaignRecipient.updateMany({
+      where: {
+        campaignId,
+        status: "QUEUED",
+      },
+      data: {
+        status: "PENDING",
+      },
+    });
+
+    await tx.whatsappCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: "PAUSED",
+      },
+    });
+
+    return updatedRecipients.count;
+  });
+
+  await recomputeWhatsappCampaignStats(campaignId);
+
+  return {
+    campaignId,
+    pausedRecipients: result,
+    status: "PAUSED",
+  };
+}
+
+export async function resumeWhatsappCampaign(
+  userId: string,
+  campaignId: string,
+  launchInput: { scheduledAt?: string | null }
+) {
+  const campaign = await prisma.whatsappCampaign.findFirst({
+    where: {
+      id: campaignId,
+      userId,
+    },
+    include: {
+      connection: true,
+      recipients: {
+        where: {
+          status: "PENDING",
+        },
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!campaign) {
+    throw new Error("Campaign not found");
+  }
+
+  if (campaign.status !== "PAUSED") {
+    throw new Error("Only paused campaigns can be resumed");
+  }
+
+  if (!campaign.recipients.length) {
+    throw new Error("Campaign has no paused recipients to resume");
+  }
+
+  if (
+    campaign.connection.dailyLimitEstimate &&
+    campaign.recipients.length > campaign.connection.dailyLimitEstimate
+  ) {
+    throw new Error(
+      `Campaign size (${campaign.recipients.length}) exceeds estimated daily portfolio limit (${campaign.connection.dailyLimitEstimate})`
+    );
+  }
+
+  const requestedScheduledAt = launchInput.scheduledAt
+    ? new Date(launchInput.scheduledAt)
+    : campaign.scheduledAt;
+  const shouldSchedule = Boolean(
+    requestedScheduledAt && requestedScheduledAt.getTime() > Date.now()
+  );
+  const delay = shouldSchedule
+    ? Math.max(0, requestedScheduledAt!.getTime() - Date.now())
+    : 0;
+  const recipientIds = campaign.recipients.map((recipient) => recipient.id);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.whatsappCampaignRecipient.updateMany({
+      where: {
+        id: {
+          in: recipientIds,
+        },
+      },
+      data: {
+        status: "QUEUED",
+        errorCode: null,
+        errorMessage: null,
+      },
+    });
+
+    await tx.whatsappCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: shouldSchedule ? "SCHEDULED" : "SENDING",
+        scheduledAt: requestedScheduledAt || null,
+        launchedAt: shouldSchedule ? campaign.launchedAt : new Date(),
+        completedAt: null,
+      },
+    });
+  });
+
+  try {
+    await enqueueRecipients(userId, campaignId, recipientIds, delay);
+  } catch (error) {
+    await prisma.$transaction(async (tx) => {
+      await tx.whatsappCampaignRecipient.updateMany({
+        where: {
+          id: {
+            in: recipientIds,
+          },
+        },
+        data: {
+          status: "PENDING",
+        },
+      });
+
+      await tx.whatsappCampaign.update({
+        where: { id: campaignId },
+        data: {
+          status: "PAUSED",
+        },
+      });
+    });
+
+    throw error;
+  }
+
+  return {
+    campaignId,
+    resumedRecipients: recipientIds.length,
+    status: shouldSchedule ? "SCHEDULED" : "SENDING",
+  };
+}
+
+export async function cancelWhatsappCampaign(userId: string, campaignId: string) {
+  const campaign = await prisma.whatsappCampaign.findFirst({
+    where: {
+      id: campaignId,
+      userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!campaign) {
+    throw new Error("Campaign not found");
+  }
+
+  const cancelledCount = await prisma.$transaction(async (tx) => {
+    const result = await tx.whatsappCampaignRecipient.updateMany({
+      where: {
+        campaignId,
+        status: {
+          in: ["PENDING", "QUEUED", "FAILED"],
+        },
+      },
+      data: {
+        status: "SKIPPED",
+        errorCode: "cancelled",
+        errorMessage: "Campaign cancelled before send completed",
+      },
+    });
+
+    await tx.whatsappCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: "FAILED",
+        completedAt: new Date(),
+      },
+    });
+
+    return result.count;
+  });
+
+  await recomputeWhatsappCampaignStats(campaignId);
+
+  return {
+    campaignId,
+    cancelledRecipients: cancelledCount,
+    status: "FAILED",
+  };
+}
+
+export async function retryFailedWhatsappCampaign(userId: string, campaignId: string) {
+  const campaign = await prisma.whatsappCampaign.findFirst({
+    where: {
+      id: campaignId,
+      userId,
+    },
+    include: {
+      recipients: {
+        where: {
+          status: "FAILED",
+        },
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!campaign) {
+    throw new Error("Campaign not found");
+  }
+
+  if (!campaign.recipients.length) {
+    throw new Error("Campaign has no failed recipients to retry");
+  }
+
+  const recipientIds = campaign.recipients.map((recipient) => recipient.id);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.whatsappCampaignRecipient.updateMany({
+      where: {
+        id: {
+          in: recipientIds,
+        },
+      },
+      data: {
+        status: "QUEUED",
+        errorCode: null,
+        errorMessage: null,
+        failedAt: null,
+      },
+    });
+
+    await tx.whatsappCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: "SENDING",
+        launchedAt: new Date(),
+        completedAt: null,
+      },
+    });
+  });
+
+  try {
+    await enqueueRecipients(userId, campaignId, recipientIds, 0);
+  } catch (error) {
+    await prisma.$transaction(async (tx) => {
+      await tx.whatsappCampaignRecipient.updateMany({
+        where: {
+          id: {
+            in: recipientIds,
+          },
+        },
+        data: {
+          status: "FAILED",
+        },
+      });
+
+      await tx.whatsappCampaign.update({
+        where: { id: campaignId },
+        data: {
+          status: "FAILED",
+        },
+      });
+    });
+
+    throw error;
+  }
+
+  return {
+    campaignId,
+    retriedRecipients: recipientIds.length,
+    status: "SENDING",
   };
 }
 

@@ -393,6 +393,7 @@ export const ModelName = {
   BotConfiguration: 'BotConfiguration',
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
+  Quotation: 'Quotation',
   OutreachCampaign: 'OutreachCampaign',
   OutreachLead: 'OutreachLead',
   WebServiceLead: 'WebServiceLead',
@@ -419,7 +420,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "outreachCampaign" | "outreachLead" | "webServiceLead" | "conversation" | "message" | "whatsappConnection" | "whatsappContact" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
+    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "quotation" | "outreachCampaign" | "outreachLead" | "webServiceLead" | "conversation" | "message" | "whatsappConnection" | "whatsappContact" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1086,6 +1087,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.QuoteRequestCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.QuoteRequestCountAggregateOutputType> | number
+        }
+      }
+    }
+    Quotation: {
+      payload: Prisma.$QuotationPayload<ExtArgs>
+      fields: Prisma.QuotationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.QuotationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.QuotationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload>
+        }
+        findFirst: {
+          args: Prisma.QuotationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.QuotationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload>
+        }
+        findMany: {
+          args: Prisma.QuotationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload>[]
+        }
+        create: {
+          args: Prisma.QuotationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload>
+        }
+        createMany: {
+          args: Prisma.QuotationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.QuotationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload>[]
+        }
+        delete: {
+          args: Prisma.QuotationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload>
+        }
+        update: {
+          args: Prisma.QuotationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload>
+        }
+        deleteMany: {
+          args: Prisma.QuotationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.QuotationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.QuotationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload>[]
+        }
+        upsert: {
+          args: Prisma.QuotationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$QuotationPayload>
+        }
+        aggregate: {
+          args: Prisma.QuotationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateQuotation>
+        }
+        groupBy: {
+          args: Prisma.QuotationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.QuotationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.QuotationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.QuotationCountAggregateOutputType> | number
         }
       }
     }
@@ -2086,6 +2161,39 @@ export const QuoteRequestScalarFieldEnum = {
 export type QuoteRequestScalarFieldEnum = (typeof QuoteRequestScalarFieldEnum)[keyof typeof QuoteRequestScalarFieldEnum]
 
 
+export const QuotationScalarFieldEnum = {
+  id: 'id',
+  businessName: 'businessName',
+  contactPerson: 'contactPerson',
+  contactEmail: 'contactEmail',
+  contactPhone: 'contactPhone',
+  date: 'date',
+  serviceType: 'serviceType',
+  title: 'title',
+  introduction: 'introduction',
+  scopeOfWork: 'scopeOfWork',
+  deliverables: 'deliverables',
+  implementationSteps: 'implementationSteps',
+  pricingItems: 'pricingItems',
+  maintenanceIncludes: 'maintenanceIncludes',
+  termsAndNotes: 'termsAndNotes',
+  includedFunctionality: 'includedFunctionality',
+  knowledgeBaseScope: 'knowledgeBaseScope',
+  importantNotes: 'importantNotes',
+  supportIncludes: 'supportIncludes',
+  setupFee: 'setupFee',
+  monthlyFee: 'monthlyFee',
+  deliveryTimeline: 'deliveryTimeline',
+  validityDays: 'validityDays',
+  status: 'status',
+  quoteRequestId: 'quoteRequestId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type QuotationScalarFieldEnum = (typeof QuotationScalarFieldEnum)[keyof typeof QuotationScalarFieldEnum]
+
+
 export const OutreachCampaignScalarFieldEnum = {
   id: 'id',
   name: 'name',
@@ -2599,6 +2707,7 @@ export type GlobalOmitConfig = {
   botConfiguration?: Prisma.BotConfigurationOmit
   onboardingConversation?: Prisma.OnboardingConversationOmit
   quoteRequest?: Prisma.QuoteRequestOmit
+  quotation?: Prisma.QuotationOmit
   outreachCampaign?: Prisma.OutreachCampaignOmit
   outreachLead?: Prisma.OutreachLeadOmit
   webServiceLead?: Prisma.WebServiceLeadOmit

@@ -14,12 +14,14 @@ export default function LaunchCampaignControls({
   const [scheduledAt, setScheduledAt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   const isLocked = ["SENDING", "COMPLETED"].includes(status);
 
   async function launch(shouldSchedule: boolean) {
     setLoading(true);
     setError("");
+    setNotice("");
 
     try {
       const res = await fetch(`/api/whatsapp/campaigns/${campaignId}/launch`, {
@@ -38,8 +40,43 @@ export default function LaunchCampaignControls({
       }
 
       router.refresh();
+      setNotice(shouldSchedule ? "Campaign scheduled." : "Campaign launched.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Launch failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateCampaign(
+    action: "pause" | "resume" | "cancel" | "retry_failed",
+    successMessage: string
+  ) {
+    setLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const res = await fetch(`/api/whatsapp/campaigns/${campaignId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action,
+          scheduledAt: action === "resume" ? scheduledAt || undefined : undefined,
+        }),
+      });
+
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.error || "Campaign update failed");
+      }
+
+      setNotice(successMessage);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Campaign update failed");
     } finally {
       setLoading(false);
     }
@@ -52,6 +89,12 @@ export default function LaunchCampaignControls({
       {error && (
         <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
           {error}
+        </div>
+      )}
+
+      {notice && (
+        <div className="mb-3 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-300">
+          {notice}
         </div>
       )}
 
@@ -85,9 +128,54 @@ export default function LaunchCampaignControls({
 
       {isLocked && (
         <p className="mt-3 text-xs text-text-muted">
-          Campaign is already active or completed. Launch controls are disabled.
+          Direct launch is disabled while the campaign is already sending or completed. Use the
+          action buttons below to pause, cancel, or retry.
         </p>
       )}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {["SENDING", "SCHEDULED"].includes(status) ? (
+          <button
+            type="button"
+            onClick={() => updateCampaign("pause", "Campaign paused.")}
+            disabled={loading}
+            className="rounded-lg border border-border px-4 py-2 text-sm text-text transition-colors hover:border-border-light disabled:opacity-60"
+          >
+            {loading ? "Working..." : "Pause"}
+          </button>
+        ) : null}
+
+        {status === "PAUSED" ? (
+          <button
+            type="button"
+            onClick={() => updateCampaign("resume", "Campaign resumed.")}
+            disabled={loading}
+            className="rounded-lg border border-border px-4 py-2 text-sm text-text transition-colors hover:border-border-light disabled:opacity-60"
+          >
+            {loading ? "Working..." : "Resume"}
+          </button>
+        ) : null}
+
+        {!["COMPLETED"].includes(status) ? (
+          <button
+            type="button"
+            onClick={() => updateCampaign("cancel", "Campaign cancelled.")}
+            disabled={loading}
+            className="rounded-lg border border-red-500/30 px-4 py-2 text-sm text-red-300 transition-colors hover:border-red-400/40 disabled:opacity-60"
+          >
+            {loading ? "Working..." : "Cancel"}
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => updateCampaign("retry_failed", "Failed recipients requeued.")}
+          disabled={loading}
+          className="rounded-lg border border-border px-4 py-2 text-sm text-text transition-colors hover:border-border-light disabled:opacity-60"
+        >
+          {loading ? "Working..." : "Retry failed"}
+        </button>
+      </div>
     </div>
   );
 }
