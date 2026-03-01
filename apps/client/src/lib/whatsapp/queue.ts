@@ -1,4 +1,5 @@
 import { Queue } from "bullmq";
+import type { ConnectionOptions } from "bullmq";
 import IORedis from "ioredis";
 import type { QueueSendJobData } from "./types";
 
@@ -31,13 +32,19 @@ function getRedisConnection(): IORedis {
   return connection;
 }
 
+function getBullConnection() {
+  // BullMQ and the app can end up resolving slightly different ioredis types at build time.
+  // The runtime object is still a valid Redis connection.
+  return getRedisConnection() as unknown as ConnectionOptions;
+}
+
 export function getWhatsappMarketingQueue(): Queue<QueueSendJobData> {
   if (globalForQueue.whatsappMarketingQueue) {
     return globalForQueue.whatsappMarketingQueue;
   }
 
   const queue = new Queue<QueueSendJobData>(WHATSAPP_MARKETING_QUEUE_NAME, {
-    connection: getRedisConnection(),
+    connection: getBullConnection(),
     defaultJobOptions: {
       attempts: 3,
       removeOnComplete: 1000,

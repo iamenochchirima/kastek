@@ -1,4 +1,5 @@
 import { Worker } from "bullmq";
+import type { ConnectionOptions } from "bullmq";
 import IORedis from "ioredis";
 import type { Prisma } from "@kasiai/database";
 import { prisma } from "../lib/prisma";
@@ -25,6 +26,10 @@ const connection = new IORedis(redisUrl, {
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
 });
+
+function getBullConnection() {
+  return connection as unknown as ConnectionOptions;
+}
 
 function parseFailure(error: unknown): { code?: string; message: string; blocked: boolean } {
   if (error instanceof Error) {
@@ -212,7 +217,7 @@ const worker = new Worker<QueueSendJobData>(
     }
   },
   {
-    connection,
+    connection: getBullConnection(),
     concurrency: 20,
     limiter: {
       max: sendRatePerSecond,
