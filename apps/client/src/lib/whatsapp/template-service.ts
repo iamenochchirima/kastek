@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/whatsapp/crypto";
 import type { Prisma } from "@kasiai/database";
+import {
+  NotificationRecipientType,
+  NotificationScopeType,
+  NotificationSeverity,
+  publishNotificationEvent,
+} from "@kasiai/database";
 
 const GRAPH_BASE = "https://graph.facebook.com/v19.0";
 
@@ -367,6 +373,19 @@ export async function refreshTemplateFromWebhook(input: {
 
   if (!connection) return;
 
+  const nextStatus = mapTemplateStatus(input.status || input.event);
+  const existingTemplates = await prisma.whatsappTemplate.findMany({
+    where: {
+      userId: connection.userId,
+      templateName,
+      language,
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
   await prisma.whatsappTemplate.updateMany({
     where: {
       userId: connection.userId,
@@ -375,8 +394,54 @@ export async function refreshTemplateFromWebhook(input: {
     },
     data: {
       connectionId: connection.id,
-      status: mapTemplateStatus(input.status || input.event),
+      status: nextStatus,
       lastSynced: new Date(),
     },
   });
+
+  const changed = existingTemplates.some((template) => template.status !== nextStatus);
+  if (!changed) return;
+
+  const titles: Record<"APPROVED" | "REJECTED" | "DISABLED", string> = {
+    APPROVED: "Template approved",
+    REJECTED: "Template rejected",
+    DISABLED: "Template disabled",
+  };
+  const messages: Record<"APPROVED" | "REJECTED" | "DISABLED", string> = {
+    APPROVED: `Your WhatsApp template "${templateName}" was approved and is ready to use.`,
+    REJECTED: `Your WhatsApp template "${templateName}" was rejected by Meta and needs review.`,
+    DISABLED: `Your WhatsApp template "${templateName}" was disabled and can no longer be used.`,
+  };
+  const severities: Record<"APPROVED" | "REJECTED" | "DISABLED", NotificationSeverity> = {
+    APPROVED: NotificationSeverity.SUCCESS,
+    REJECTED: NotificationSeverity.WARNING,
+    DISABLED: NotificationSeverity.CRITICAL,
+  };
+
+  if (nextStatus === "APPROVED" || nextStatus === "REJECTED" || nextStatus === "DISABLED") {
+    await publishNotificationEvent({
+      scopeType: NotificationScopeType.USER,
+      scopeId: connection.userId,
+      eventType: `template.${nextStatus.toLowerCase()}`,
+      title: titles[nextStatus],
+      message: messages[nextStatus],
+      severity: severities[nextStatus],
+      entityType: "template",
+      entityId: existingTemplates[0]?.id,
+      payload: {
+        templateName,
+        language,
+        status: nextStatus,
+        connectionId: connection.id,
+      },
+      dedupeKey: `template:${templateName}:${language}:${nextStatus}`,
+      dedupeWindowMinutes: 30,
+      recipients: [
+        {
+          recipientType: NotificationRecipientType.USER,
+          recipientId: connection.userId,
+        },
+      ],
+    });
+  }
 }

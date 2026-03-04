@@ -105,6 +105,17 @@ function CampaignIcon({ active = false, className = "" }: IconProps) {
   );
 }
 
+function NotificationIcon({ active = false, className = "" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path d="M6 16.5h12" />
+      <path d="M8 16.5v-4.8a4 4 0 1 1 8 0v4.8" className={active ? "fill-current/12" : ""} />
+      <path d="M5 16.5h14l-1.2 2H6.2L5 16.5Z" className={active ? "fill-current/12" : ""} />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
 function SettingsIcon({ active = false, className = "" }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
@@ -163,6 +174,7 @@ const navItems: NavItem[] = [
     icon: CampaignIcon,
     subItems: [{ label: "WhatsApp", href: "/dashboard/campaigns/whatsapp" }],
   },
+  { label: "Notifications", href: "/dashboard/notifications", icon: NotificationIcon },
   { label: "Settings", href: "/dashboard/settings", icon: SettingsIcon },
 ];
 

@@ -53,6 +53,7 @@ export async function findOrCreateWhatsappConversation(input: {
       customerIdentifier,
       customerName: input.customerName || null,
       status: "active",
+      unreadCount: 0,
     },
   });
 }

@@ -7,6 +7,7 @@ import { getWhatsappConnectionStats } from "@/lib/whatsapp/connection-stats";
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 import InboxRefreshButton from "@/components/dashboard/inbox/inbox-refresh-button";
 import NewWhatsappConversationCard from "@/components/dashboard/inbox/new-whatsapp-conversation-card";
+import LiveWhatsappConversationList from "@/components/dashboard/inbox/live-whatsapp-conversation-list";
 
 export const metadata = {
   title: "WhatsApp Inbox | KasiAI",
@@ -189,55 +190,26 @@ export default async function WhatsappInboxPage({
         templates={templates}
       />
 
-      <div className="overflow-hidden rounded-xl border border-border bg-surface">
-        {conversations.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="text-sm text-text-muted">
-              No WhatsApp conversations captured yet. New messages will appear here from the time
-              your number is connected to KasiAI.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {conversations.map((conversation) => {
-              const lastMessage = conversation.messages[0];
-              const parsed = parseWhatsappConversationIdentifier(conversation.customerIdentifier);
-              return (
-                <Link
-                  key={conversation.id}
-                  href={`/dashboard/inbox/whatsapp/${conversation.id}`}
-                  className="flex items-center gap-4 px-4 py-4 no-underline transition-colors hover:bg-surface-2/40"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/15 text-lg text-green-300">
-                    💬
-                  </div>
+      <LiveWhatsappConversationList
+        initialConversations={conversations.map((conversation) => {
+          const lastMessage = conversation.messages[0];
+          const parsed = parseWhatsappConversationIdentifier(conversation.customerIdentifier);
 
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-0.5 flex items-center gap-2">
-                      <p className="truncate text-sm font-medium text-text">
-                        {conversation.customerName || parsed?.phone || "Unknown"}
-                      </p>
-                    </div>
-                    <p className="text-xs text-text-dim">
-                      {parsed?.phone || conversation.customerIdentifier}
-                    </p>
-                    {lastMessage ? (
-                      <p className="mt-1 truncate text-xs text-text-muted">
-                        {lastMessage.sender === "bot" ? "You: " : ""}
-                        {lastMessage.content}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="shrink-0 text-xs text-text-dim">
-                    {conversation.lastMessageAt.toLocaleDateString("en-ZA")}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
+          return {
+            id: conversation.id,
+            customerName: conversation.customerName,
+            phone: parsed?.phone || conversation.customerIdentifier,
+            lastMessageAt: conversation.lastMessageAt.toISOString(),
+            unreadCount: conversation.unreadCount,
+            lastMessage: lastMessage
+              ? {
+                  sender: lastMessage.sender as "customer" | "bot",
+                  content: lastMessage.content,
+                }
+              : null,
+          };
+        })}
+      />
     </div>
   );
 }

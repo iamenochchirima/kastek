@@ -1,19 +1,30 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export default function ReplyBox({ conversationId }: { conversationId: string }) {
-  const router = useRouter();
+export default function ReplyBox({
+  conversationId,
+  streamError,
+  onOptimisticSend,
+  onOptimisticSendFailed,
+}: {
+  conversationId: string;
+  streamError?: string;
+  onOptimisticSend?: (text: string) => void;
+  onOptimisticSendFailed?: (text: string) => void;
+}) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function sendReply() {
-    if (!text.trim()) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
 
     setLoading(true);
     setError("");
+    onOptimisticSend?.(trimmed);
+    setText("");
 
     try {
       const res = await fetch(`/api/whatsapp/inbox/${conversationId}/messages`, {
@@ -22,7 +33,7 @@ export default function ReplyBox({ conversationId }: { conversationId: string })
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          text: text.trim(),
+          text: trimmed,
         }),
       });
 
@@ -30,11 +41,10 @@ export default function ReplyBox({ conversationId }: { conversationId: string })
       if (!res.ok) {
         throw new Error(body.error || "Failed to send reply");
       }
-
-      setText("");
-      router.refresh();
     } catch (err) {
+      onOptimisticSendFailed?.(trimmed);
       setError(err instanceof Error ? err.message : "Failed to send reply");
+      setText(trimmed);
     } finally {
       setLoading(false);
     }
@@ -49,9 +59,9 @@ export default function ReplyBox({ conversationId }: { conversationId: string })
         </p>
       </div>
 
-      {error ? (
+      {error || streamError ? (
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-          {error}
+          {error || streamError}
         </div>
       ) : null}
 
@@ -70,7 +80,7 @@ export default function ReplyBox({ conversationId }: { conversationId: string })
           disabled={loading || !text.trim()}
           className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg disabled:opacity-60"
         >
-          {loading ? "Sending..." : "Send reply"}
+          {loading ? "Queueing..." : "Send reply"}
         </button>
       </div>
     </div>

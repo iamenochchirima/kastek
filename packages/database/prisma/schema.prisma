@@ -300,6 +300,8 @@ model Conversation {
   customerName       String?
   status             String   @default("active") // active | closed
   lastMessageAt      DateTime @default(now())
+  lastReadAt         DateTime?
+  unreadCount        Int      @default(0)
 
   messages Message[]
 
@@ -317,9 +319,131 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         String       // customer | bot
   content        String       @db.Text
+  whatsappMessageId String?
+  whatsappStatus    String?
+  errorCode         String?
+  errorMessage      String?   @db.Text
   timestamp      DateTime     @default(now())
 
   @@index([conversationId])
+  @@index([whatsappMessageId])
+  @@index([whatsappStatus])
+}
+
+enum NotificationScopeType {
+  USER
+  ADMIN
+  SYSTEM
+}
+
+enum NotificationRecipientType {
+  USER
+  ADMIN
+}
+
+enum NotificationSeverity {
+  INFO
+  SUCCESS
+  WARNING
+  CRITICAL
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+  DISMISSED
+}
+
+enum NotificationFrequency {
+  INSTANT
+  DIGEST
+  MUTE
+}
+
+model NotificationEvent {
+  id         String                @id @default(cuid())
+  scopeType  NotificationScopeType
+  scopeId    String
+  eventType  String
+  title      String
+  message    String                @db.Text
+  severity   NotificationSeverity  @default(INFO)
+  entityType String?
+  entityId   String?
+  actorType  String?
+  actorId    String?
+  payload    Json?
+  dedupeKey  String?
+
+  notifications Notification[]
+
+  createdAt  DateTime @default(now())
+
+  @@index([scopeType, scopeId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([dedupeKey])
+}
+
+model Notification {
+  id            String                    @id @default(cuid())
+  eventId       String
+  event         NotificationEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  recipientType NotificationRecipientType
+  recipientId   String
+  channel       NotificationChannel
+  status        NotificationStatus        @default(PENDING)
+  readAt        DateTime?
+  sentAt        DateTime?
+  failedAt      DateTime?
+  errorMessage  String?                   @db.Text
+
+  deliveryLogs  NotificationDeliveryLog[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([recipientType, recipientId, channel, createdAt])
+  @@index([recipientType, recipientId, channel, readAt])
+  @@index([status, channel, createdAt])
+}
+
+model NotificationPreference {
+  id            String                    @id @default(cuid())
+  recipientType NotificationRecipientType
+  recipientId   String
+  eventType     String
+  channel       NotificationChannel
+  enabled       Boolean                   @default(true)
+  frequency     NotificationFrequency     @default(INSTANT)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([recipientType, recipientId, eventType, channel])
+  @@index([recipientType, recipientId])
+}
+
+model NotificationDeliveryLog {
+  id                String             @id @default(cuid())
+  notificationId    String
+  notification      Notification       @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  attempt           Int                @default(1)
+  provider          String
+  providerMessageId String?
+  status            NotificationStatus
+  responsePayload   Json?
+  errorMessage      String?            @db.Text
+
+  createdAt         DateTime @default(now())
+
+  @@index([notificationId, createdAt])
 }
 
 enum WhatsappConnectionQualityRating {

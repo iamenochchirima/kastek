@@ -29,6 +29,10 @@ export type MessageMinAggregateOutputType = {
   conversationId: string | null
   sender: string | null
   content: string | null
+  whatsappMessageId: string | null
+  whatsappStatus: string | null
+  errorCode: string | null
+  errorMessage: string | null
   timestamp: Date | null
 }
 
@@ -37,6 +41,10 @@ export type MessageMaxAggregateOutputType = {
   conversationId: string | null
   sender: string | null
   content: string | null
+  whatsappMessageId: string | null
+  whatsappStatus: string | null
+  errorCode: string | null
+  errorMessage: string | null
   timestamp: Date | null
 }
 
@@ -45,6 +53,10 @@ export type MessageCountAggregateOutputType = {
   conversationId: number
   sender: number
   content: number
+  whatsappMessageId: number
+  whatsappStatus: number
+  errorCode: number
+  errorMessage: number
   timestamp: number
   _all: number
 }
@@ -55,6 +67,10 @@ export type MessageMinAggregateInputType = {
   conversationId?: true
   sender?: true
   content?: true
+  whatsappMessageId?: true
+  whatsappStatus?: true
+  errorCode?: true
+  errorMessage?: true
   timestamp?: true
 }
 
@@ -63,6 +79,10 @@ export type MessageMaxAggregateInputType = {
   conversationId?: true
   sender?: true
   content?: true
+  whatsappMessageId?: true
+  whatsappStatus?: true
+  errorCode?: true
+  errorMessage?: true
   timestamp?: true
 }
 
@@ -71,6 +91,10 @@ export type MessageCountAggregateInputType = {
   conversationId?: true
   sender?: true
   content?: true
+  whatsappMessageId?: true
+  whatsappStatus?: true
+  errorCode?: true
+  errorMessage?: true
   timestamp?: true
   _all?: true
 }
@@ -152,6 +176,10 @@ export type MessageGroupByOutputType = {
   conversationId: string
   sender: string
   content: string
+  whatsappMessageId: string | null
+  whatsappStatus: string | null
+  errorCode: string | null
+  errorMessage: string | null
   timestamp: Date
   _count: MessageCountAggregateOutputType | null
   _min: MessageMinAggregateOutputType | null
@@ -181,6 +209,10 @@ export type MessageWhereInput = {
   conversationId?: Prisma.StringFilter<"Message"> | string
   sender?: Prisma.StringFilter<"Message"> | string
   content?: Prisma.StringFilter<"Message"> | string
+  whatsappMessageId?: Prisma.StringNullableFilter<"Message"> | string | null
+  whatsappStatus?: Prisma.StringNullableFilter<"Message"> | string | null
+  errorCode?: Prisma.StringNullableFilter<"Message"> | string | null
+  errorMessage?: Prisma.StringNullableFilter<"Message"> | string | null
   timestamp?: Prisma.DateTimeFilter<"Message"> | Date | string
   conversation?: Prisma.XOR<Prisma.ConversationScalarRelationFilter, Prisma.ConversationWhereInput>
 }
@@ -190,6 +222,10 @@ export type MessageOrderByWithRelationInput = {
   conversationId?: Prisma.SortOrder
   sender?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  whatsappMessageId?: Prisma.SortOrderInput | Prisma.SortOrder
+  whatsappStatus?: Prisma.SortOrderInput | Prisma.SortOrder
+  errorCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  errorMessage?: Prisma.SortOrderInput | Prisma.SortOrder
   timestamp?: Prisma.SortOrder
   conversation?: Prisma.ConversationOrderByWithRelationInput
 }
@@ -202,6 +238,10 @@ export type MessageWhereUniqueInput = Prisma.AtLeast<{
   conversationId?: Prisma.StringFilter<"Message"> | string
   sender?: Prisma.StringFilter<"Message"> | string
   content?: Prisma.StringFilter<"Message"> | string
+  whatsappMessageId?: Prisma.StringNullableFilter<"Message"> | string | null
+  whatsappStatus?: Prisma.StringNullableFilter<"Message"> | string | null
+  errorCode?: Prisma.StringNullableFilter<"Message"> | string | null
+  errorMessage?: Prisma.StringNullableFilter<"Message"> | string | null
   timestamp?: Prisma.DateTimeFilter<"Message"> | Date | string
   conversation?: Prisma.XOR<Prisma.ConversationScalarRelationFilter, Prisma.ConversationWhereInput>
 }, "id">
@@ -211,6 +251,10 @@ export type MessageOrderByWithAggregationInput = {
   conversationId?: Prisma.SortOrder
   sender?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  whatsappMessageId?: Prisma.SortOrderInput | Prisma.SortOrder
+  whatsappStatus?: Prisma.SortOrderInput | Prisma.SortOrder
+  errorCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  errorMessage?: Prisma.SortOrderInput | Prisma.SortOrder
   timestamp?: Prisma.SortOrder
   _count?: Prisma.MessageCountOrderByAggregateInput
   _max?: Prisma.MessageMaxOrderByAggregateInput
@@ -225,6 +269,10 @@ export type MessageScalarWhereWithAggregatesInput = {
   conversationId?: Prisma.StringWithAggregatesFilter<"Message"> | string
   sender?: Prisma.StringWithAggregatesFilter<"Message"> | string
   content?: Prisma.StringWithAggregatesFilter<"Message"> | string
+  whatsappMessageId?: Prisma.StringNullableWithAggregatesFilter<"Message"> | string | null
+  whatsappStatus?: Prisma.StringNullableWithAggregatesFilter<"Message"> | string | null
+  errorCode?: Prisma.StringNullableWithAggregatesFilter<"Message"> | string | null
+  errorMessage?: Prisma.StringNullableWithAggregatesFilter<"Message"> | string | null
   timestamp?: Prisma.DateTimeWithAggregatesFilter<"Message"> | Date | string
 }
 
@@ -232,6 +280,10 @@ export type MessageCreateInput = {
   id?: string
   sender: string
   content: string
+  whatsappMessageId?: string | null
+  whatsappStatus?: string | null
+  errorCode?: string | null
+  errorMessage?: string | null
   timestamp?: Date | string
   conversation: Prisma.ConversationCreateNestedOneWithoutMessagesInput
 }
@@ -241,6 +293,10 @@ export type MessageUncheckedCreateInput = {
   conversationId: string
   sender: string
   content: string
+  whatsappMessageId?: string | null
+  whatsappStatus?: string | null
+  errorCode?: string | null
+  errorMessage?: string | null
   timestamp?: Date | string
 }
 
@@ -248,6 +304,10 @@ export type MessageUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sender?: Prisma.StringFieldUpdateOperationsInput | string
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  whatsappMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestamp?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   conversation?: Prisma.ConversationUpdateOneRequiredWithoutMessagesNestedInput
 }
@@ -257,6 +317,10 @@ export type MessageUncheckedUpdateInput = {
   conversationId?: Prisma.StringFieldUpdateOperationsInput | string
   sender?: Prisma.StringFieldUpdateOperationsInput | string
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  whatsappMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestamp?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -265,6 +329,10 @@ export type MessageCreateManyInput = {
   conversationId: string
   sender: string
   content: string
+  whatsappMessageId?: string | null
+  whatsappStatus?: string | null
+  errorCode?: string | null
+  errorMessage?: string | null
   timestamp?: Date | string
 }
 
@@ -272,6 +340,10 @@ export type MessageUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sender?: Prisma.StringFieldUpdateOperationsInput | string
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  whatsappMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestamp?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -280,6 +352,10 @@ export type MessageUncheckedUpdateManyInput = {
   conversationId?: Prisma.StringFieldUpdateOperationsInput | string
   sender?: Prisma.StringFieldUpdateOperationsInput | string
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  whatsappMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestamp?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -298,6 +374,10 @@ export type MessageCountOrderByAggregateInput = {
   conversationId?: Prisma.SortOrder
   sender?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  whatsappMessageId?: Prisma.SortOrder
+  whatsappStatus?: Prisma.SortOrder
+  errorCode?: Prisma.SortOrder
+  errorMessage?: Prisma.SortOrder
   timestamp?: Prisma.SortOrder
 }
 
@@ -306,6 +386,10 @@ export type MessageMaxOrderByAggregateInput = {
   conversationId?: Prisma.SortOrder
   sender?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  whatsappMessageId?: Prisma.SortOrder
+  whatsappStatus?: Prisma.SortOrder
+  errorCode?: Prisma.SortOrder
+  errorMessage?: Prisma.SortOrder
   timestamp?: Prisma.SortOrder
 }
 
@@ -314,6 +398,10 @@ export type MessageMinOrderByAggregateInput = {
   conversationId?: Prisma.SortOrder
   sender?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  whatsappMessageId?: Prisma.SortOrder
+  whatsappStatus?: Prisma.SortOrder
+  errorCode?: Prisma.SortOrder
+  errorMessage?: Prisma.SortOrder
   timestamp?: Prisma.SortOrder
 }
 
@@ -363,6 +451,10 @@ export type MessageCreateWithoutConversationInput = {
   id?: string
   sender: string
   content: string
+  whatsappMessageId?: string | null
+  whatsappStatus?: string | null
+  errorCode?: string | null
+  errorMessage?: string | null
   timestamp?: Date | string
 }
 
@@ -370,6 +462,10 @@ export type MessageUncheckedCreateWithoutConversationInput = {
   id?: string
   sender: string
   content: string
+  whatsappMessageId?: string | null
+  whatsappStatus?: string | null
+  errorCode?: string | null
+  errorMessage?: string | null
   timestamp?: Date | string
 }
 
@@ -407,6 +503,10 @@ export type MessageScalarWhereInput = {
   conversationId?: Prisma.StringFilter<"Message"> | string
   sender?: Prisma.StringFilter<"Message"> | string
   content?: Prisma.StringFilter<"Message"> | string
+  whatsappMessageId?: Prisma.StringNullableFilter<"Message"> | string | null
+  whatsappStatus?: Prisma.StringNullableFilter<"Message"> | string | null
+  errorCode?: Prisma.StringNullableFilter<"Message"> | string | null
+  errorMessage?: Prisma.StringNullableFilter<"Message"> | string | null
   timestamp?: Prisma.DateTimeFilter<"Message"> | Date | string
 }
 
@@ -414,6 +514,10 @@ export type MessageCreateManyConversationInput = {
   id?: string
   sender: string
   content: string
+  whatsappMessageId?: string | null
+  whatsappStatus?: string | null
+  errorCode?: string | null
+  errorMessage?: string | null
   timestamp?: Date | string
 }
 
@@ -421,6 +525,10 @@ export type MessageUpdateWithoutConversationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sender?: Prisma.StringFieldUpdateOperationsInput | string
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  whatsappMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestamp?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -428,6 +536,10 @@ export type MessageUncheckedUpdateWithoutConversationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sender?: Prisma.StringFieldUpdateOperationsInput | string
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  whatsappMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestamp?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -435,6 +547,10 @@ export type MessageUncheckedUpdateManyWithoutConversationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sender?: Prisma.StringFieldUpdateOperationsInput | string
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  whatsappMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestamp?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -445,6 +561,10 @@ export type MessageSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   conversationId?: boolean
   sender?: boolean
   content?: boolean
+  whatsappMessageId?: boolean
+  whatsappStatus?: boolean
+  errorCode?: boolean
+  errorMessage?: boolean
   timestamp?: boolean
   conversation?: boolean | Prisma.ConversationDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["message"]>
@@ -454,6 +574,10 @@ export type MessageSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   conversationId?: boolean
   sender?: boolean
   content?: boolean
+  whatsappMessageId?: boolean
+  whatsappStatus?: boolean
+  errorCode?: boolean
+  errorMessage?: boolean
   timestamp?: boolean
   conversation?: boolean | Prisma.ConversationDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["message"]>
@@ -463,6 +587,10 @@ export type MessageSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   conversationId?: boolean
   sender?: boolean
   content?: boolean
+  whatsappMessageId?: boolean
+  whatsappStatus?: boolean
+  errorCode?: boolean
+  errorMessage?: boolean
   timestamp?: boolean
   conversation?: boolean | Prisma.ConversationDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["message"]>
@@ -472,10 +600,14 @@ export type MessageSelectScalar = {
   conversationId?: boolean
   sender?: boolean
   content?: boolean
+  whatsappMessageId?: boolean
+  whatsappStatus?: boolean
+  errorCode?: boolean
+  errorMessage?: boolean
   timestamp?: boolean
 }
 
-export type MessageOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "conversationId" | "sender" | "content" | "timestamp", ExtArgs["result"]["message"]>
+export type MessageOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "conversationId" | "sender" | "content" | "whatsappMessageId" | "whatsappStatus" | "errorCode" | "errorMessage" | "timestamp", ExtArgs["result"]["message"]>
 export type MessageInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   conversation?: boolean | Prisma.ConversationDefaultArgs<ExtArgs>
 }
@@ -496,6 +628,10 @@ export type $MessagePayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     conversationId: string
     sender: string
     content: string
+    whatsappMessageId: string | null
+    whatsappStatus: string | null
+    errorCode: string | null
+    errorMessage: string | null
     timestamp: Date
   }, ExtArgs["result"]["message"]>
   composites: {}
@@ -925,6 +1061,10 @@ export interface MessageFieldRefs {
   readonly conversationId: Prisma.FieldRef<"Message", 'String'>
   readonly sender: Prisma.FieldRef<"Message", 'String'>
   readonly content: Prisma.FieldRef<"Message", 'String'>
+  readonly whatsappMessageId: Prisma.FieldRef<"Message", 'String'>
+  readonly whatsappStatus: Prisma.FieldRef<"Message", 'String'>
+  readonly errorCode: Prisma.FieldRef<"Message", 'String'>
+  readonly errorMessage: Prisma.FieldRef<"Message", 'String'>
   readonly timestamp: Prisma.FieldRef<"Message", 'DateTime'>
 }
     

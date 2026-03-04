@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
+import {
+  NotificationRecipientType,
+  NotificationScopeType,
+  NotificationSeverity,
+  publishNotificationEvent,
+} from "@kasiai/database";
 
 const VALID_BUSINESS_TYPES = [
   "restaurant",
@@ -80,6 +86,40 @@ export async function POST(req: Request) {
         description: description || null,
       },
     });
+
+    const adminRecipients = await prisma.adminUser.findMany({
+      select: {
+        id: true,
+      },
+    });
+
+    if (adminRecipients.length > 0) {
+      await publishNotificationEvent({
+        scopeType: NotificationScopeType.ADMIN,
+        scopeId: "global",
+        eventType: "quote_request.created",
+        title: "New quote request",
+        message: `${businessName} submitted a new quote request for ${services.length} service${
+          services.length === 1 ? "" : "s"
+        }.`,
+        severity: NotificationSeverity.SUCCESS,
+        entityType: "quote_request",
+        entityId: quoteRequest.id,
+        payload: {
+          businessName,
+          contactPerson,
+          phone,
+          email,
+          businessType,
+          services,
+        },
+        dedupeKey: `quote_request.created:${quoteRequest.id}`,
+        recipients: adminRecipients.map((admin) => ({
+          recipientType: NotificationRecipientType.ADMIN,
+          recipientId: admin.id,
+        })),
+      });
+    }
 
     const serviceLabels: Record<string, string> = {
       whatsapp_chatbot: "WhatsApp Chatbot",

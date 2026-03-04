@@ -56,6 +56,7 @@ export default function NewWhatsappConversationCard({
   templates: TemplateView[];
 }) {
   const router = useRouter();
+  const shouldChooseConnection = connections.length > 2;
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -76,6 +77,7 @@ export default function NewWhatsappConversationCard({
   );
 
   const selectedTemplate = availableTemplates.find((template) => template.id === templateId) || null;
+  const selectedConnection = connections.find((connection) => connection.id === connectionId) || null;
   const readyForStepTwo = Boolean(connectionId && phone.trim());
   const readyForStepThree = Boolean(selectedTemplate && selectedTemplate.status === "APPROVED");
 
@@ -206,30 +208,13 @@ export default function NewWhatsappConversationCard({
                   <div>
                     <h3 className="text-base font-semibold text-text">Who are you messaging?</h3>
                     <p className="mt-1 text-sm text-text-muted">
-                      Choose the sending number and enter the recipient’s WhatsApp number.
+                      {shouldChooseConnection
+                        ? "Choose the sending number and enter the recipient’s WhatsApp number."
+                        : "Enter the recipient’s WhatsApp number to start the conversation."}
                     </p>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
-                    <label className="space-y-2 text-sm">
-                      <span className="text-text-muted">Connection</span>
-                      <select
-                        value={connectionId}
-                        onChange={(event) => {
-                          setConnectionId(event.target.value);
-                          setTemplateId("");
-                          setBodyParameters([]);
-                        }}
-                        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-text"
-                      >
-                        {connections.map((connection) => (
-                          <option key={connection.id} value={connection.id}>
-                            {connection.phoneDisplayNumber || connection.phoneNumberId}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
                     <label className="space-y-2 text-sm">
                       <span className="text-text-muted">Recipient phone</span>
                       <input
@@ -239,6 +224,34 @@ export default function NewWhatsappConversationCard({
                         className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-text"
                       />
                     </label>
+
+                    {shouldChooseConnection ? (
+                      <label className="space-y-2 text-sm">
+                        <span className="text-text-muted">Connection</span>
+                        <select
+                          value={connectionId}
+                          onChange={(event) => {
+                            setConnectionId(event.target.value);
+                            setTemplateId("");
+                            setBodyParameters([]);
+                          }}
+                          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-text"
+                        >
+                          {connections.map((connection) => (
+                            <option key={connection.id} value={connection.id}>
+                              {connection.phoneDisplayNumber || connection.phoneNumberId}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <div className="space-y-2 text-sm">
+                        <span className="text-text-muted">Using connection</span>
+                        <div className="rounded-lg border border-border bg-surface px-3 py-2 text-text">
+                          {selectedConnection?.phoneDisplayNumber || selectedConnection?.phoneNumberId || "-"}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <label className="space-y-2 text-sm">
@@ -262,7 +275,7 @@ export default function NewWhatsappConversationCard({
                       disabled={!readyForStepTwo}
                       className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      Continue to templates
+                      Continue
                     </button>
                   </div>
                 </div>
@@ -379,7 +392,7 @@ export default function NewWhatsappConversationCard({
                       disabled={submitting || !readyForStepThree}
                       className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {submitting ? "Sending..." : "Send template"}
+                      {submitting ? "Sending..." : "Send Message"}
                     </button>
                   </div>
                 </div>

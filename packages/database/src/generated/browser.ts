@@ -93,6 +93,26 @@ export type Conversation = Prisma.ConversationModel
  */
 export type Message = Prisma.MessageModel
 /**
+ * Model NotificationEvent
+ * 
+ */
+export type NotificationEvent = Prisma.NotificationEventModel
+/**
+ * Model Notification
+ * 
+ */
+export type Notification = Prisma.NotificationModel
+/**
+ * Model NotificationPreference
+ * 
+ */
+export type NotificationPreference = Prisma.NotificationPreferenceModel
+/**
+ * Model NotificationDeliveryLog
+ * 
+ */
+export type NotificationDeliveryLog = Prisma.NotificationDeliveryLogModel
+/**
  * Model WhatsappConnection
  * 
  */

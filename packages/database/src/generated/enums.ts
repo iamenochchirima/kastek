@@ -9,6 +9,61 @@
 * 🟢 You can import this file directly.
 */
 
+export const NotificationScopeType = {
+  USER: 'USER',
+  ADMIN: 'ADMIN',
+  SYSTEM: 'SYSTEM'
+} as const
+
+export type NotificationScopeType = (typeof NotificationScopeType)[keyof typeof NotificationScopeType]
+
+
+export const NotificationRecipientType = {
+  USER: 'USER',
+  ADMIN: 'ADMIN'
+} as const
+
+export type NotificationRecipientType = (typeof NotificationRecipientType)[keyof typeof NotificationRecipientType]
+
+
+export const NotificationSeverity = {
+  INFO: 'INFO',
+  SUCCESS: 'SUCCESS',
+  WARNING: 'WARNING',
+  CRITICAL: 'CRITICAL'
+} as const
+
+export type NotificationSeverity = (typeof NotificationSeverity)[keyof typeof NotificationSeverity]
+
+
+export const NotificationChannel = {
+  IN_APP: 'IN_APP',
+  EMAIL: 'EMAIL'
+} as const
+
+export type NotificationChannel = (typeof NotificationChannel)[keyof typeof NotificationChannel]
+
+
+export const NotificationStatus = {
+  PENDING: 'PENDING',
+  SENT: 'SENT',
+  FAILED: 'FAILED',
+  READ: 'READ',
+  DISMISSED: 'DISMISSED'
+} as const
+
+export type NotificationStatus = (typeof NotificationStatus)[keyof typeof NotificationStatus]
+
+
+export const NotificationFrequency = {
+  INSTANT: 'INSTANT',
+  DIGEST: 'DIGEST',
+  MUTE: 'MUTE'
+} as const
+
+export type NotificationFrequency = (typeof NotificationFrequency)[keyof typeof NotificationFrequency]
+
+
 export const WhatsappConnectionQualityRating = {
   UNKNOWN: 'UNKNOWN',
   GREEN: 'GREEN',

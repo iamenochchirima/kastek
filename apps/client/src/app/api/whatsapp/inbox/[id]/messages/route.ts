@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { decryptSecret } from "@/lib/whatsapp/crypto";
-import {
-  parseWhatsappConversationIdentifier,
-} from "@/lib/whatsapp/inbox";
-import { sendTextMessage } from "@/lib/whatsapp/meta-api";
+import { getWhatsappInboxSendQueue } from "@/lib/whatsapp/queue";
 
 export const runtime = "nodejs";
 
@@ -29,18 +25,25 @@ export async function POST(
       return NextResponse.json({ error: "Reply text is required" }, { status: 400 });
     }
 
+    const connections = await prisma.whatsappConnection.findMany({
+      where: { userId },
+      select: {
+        id: true,
+      },
+    });
+
     const conversation = await prisma.conversation.findFirst({
       where: {
         id,
         channel: "whatsapp",
-      },
-      include: {
-        messages: {
-          orderBy: {
-            timestamp: "desc",
+        OR: connections.map((connection) => ({
+          customerIdentifier: {
+            startsWith: `wa:${connection.id}:`,
           },
-          take: 1,
-        },
+        })),
+      },
+      select: {
+        id: true,
       },
     });
 
@@ -48,59 +51,17 @@ export async function POST(
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
 
-    const parsed = parseWhatsappConversationIdentifier(conversation.customerIdentifier);
-    if (!parsed) {
-      return NextResponse.json({ error: "Invalid WhatsApp conversation identifier" }, { status: 400 });
-    }
-
-    const connection = await prisma.whatsappConnection.findFirst({
-      where: {
-        id: parsed.connectionId,
-        userId,
-      },
-      select: {
-        id: true,
-        phoneNumberId: true,
-        accessTokenEncrypted: true,
-      },
-    });
-
-    if (!connection) {
-      return NextResponse.json({ error: "WhatsApp connection not found" }, { status: 404 });
-    }
-
-    const accessToken = decryptSecret(connection.accessTokenEncrypted);
-    const sendResult = await sendTextMessage({
-      phoneNumberId: connection.phoneNumberId,
-      accessToken,
-      recipientPhone: parsed.phone,
+    const queue = getWhatsappInboxSendQueue();
+    await queue.add("send-service-message", {
+      conversationId: conversation.id,
+      userId,
       text,
-    });
-
-    await prisma.$transaction(async (tx) => {
-      await tx.message.create({
-        data: {
-          conversationId: conversation.id,
-          sender: "bot",
-          content: text,
-        },
-      });
-
-      await tx.conversation.update({
-        where: {
-          id: conversation.id,
-        },
-        data: {
-          lastMessageAt: new Date(),
-          status: "active",
-        },
-      });
     });
 
     return NextResponse.json({
       success: true,
-      messageId: sendResult.messageId,
-    });
+      queued: true,
+    }, { status: 202 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to send reply";
     return NextResponse.json({ error: message }, { status: 400 });

@@ -66,6 +66,10 @@ export const ModelName = {
   WebServiceLead: 'WebServiceLead',
   Conversation: 'Conversation',
   Message: 'Message',
+  NotificationEvent: 'NotificationEvent',
+  Notification: 'Notification',
+  NotificationPreference: 'NotificationPreference',
+  NotificationDeliveryLog: 'NotificationDeliveryLog',
   WhatsappConnection: 'WhatsappConnection',
   WhatsappContact: 'WhatsappContact',
   WhatsappTemplate: 'WhatsappTemplate',
@@ -332,6 +336,8 @@ export const ConversationScalarFieldEnum = {
   customerName: 'customerName',
   status: 'status',
   lastMessageAt: 'lastMessageAt',
+  lastReadAt: 'lastReadAt',
+  unreadCount: 'unreadCount',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -344,10 +350,82 @@ export const MessageScalarFieldEnum = {
   conversationId: 'conversationId',
   sender: 'sender',
   content: 'content',
+  whatsappMessageId: 'whatsappMessageId',
+  whatsappStatus: 'whatsappStatus',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
   timestamp: 'timestamp'
 } as const
 
 export type MessageScalarFieldEnum = (typeof MessageScalarFieldEnum)[keyof typeof MessageScalarFieldEnum]
+
+
+export const NotificationEventScalarFieldEnum = {
+  id: 'id',
+  scopeType: 'scopeType',
+  scopeId: 'scopeId',
+  eventType: 'eventType',
+  title: 'title',
+  message: 'message',
+  severity: 'severity',
+  entityType: 'entityType',
+  entityId: 'entityId',
+  actorType: 'actorType',
+  actorId: 'actorId',
+  payload: 'payload',
+  dedupeKey: 'dedupeKey',
+  createdAt: 'createdAt'
+} as const
+
+export type NotificationEventScalarFieldEnum = (typeof NotificationEventScalarFieldEnum)[keyof typeof NotificationEventScalarFieldEnum]
+
+
+export const NotificationScalarFieldEnum = {
+  id: 'id',
+  eventId: 'eventId',
+  recipientType: 'recipientType',
+  recipientId: 'recipientId',
+  channel: 'channel',
+  status: 'status',
+  readAt: 'readAt',
+  sentAt: 'sentAt',
+  failedAt: 'failedAt',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type NotificationScalarFieldEnum = (typeof NotificationScalarFieldEnum)[keyof typeof NotificationScalarFieldEnum]
+
+
+export const NotificationPreferenceScalarFieldEnum = {
+  id: 'id',
+  recipientType: 'recipientType',
+  recipientId: 'recipientId',
+  eventType: 'eventType',
+  channel: 'channel',
+  enabled: 'enabled',
+  frequency: 'frequency',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type NotificationPreferenceScalarFieldEnum = (typeof NotificationPreferenceScalarFieldEnum)[keyof typeof NotificationPreferenceScalarFieldEnum]
+
+
+export const NotificationDeliveryLogScalarFieldEnum = {
+  id: 'id',
+  notificationId: 'notificationId',
+  attempt: 'attempt',
+  provider: 'provider',
+  providerMessageId: 'providerMessageId',
+  status: 'status',
+  responsePayload: 'responsePayload',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt'
+} as const
+
+export type NotificationDeliveryLogScalarFieldEnum = (typeof NotificationDeliveryLogScalarFieldEnum)[keyof typeof NotificationDeliveryLogScalarFieldEnum]
 
 
 export const WhatsappConnectionScalarFieldEnum = {

@@ -115,3 +115,40 @@ export async function sendTextMessage(input: {
     raw,
   };
 }
+
+export async function markWhatsappMessageAsRead(input: {
+  phoneNumberId: string;
+  accessToken: string;
+  messageId: string;
+}) {
+  const url = `https://graph.facebook.com/v19.0/${input.phoneNumberId}/messages`;
+
+  const payload = {
+    messaging_product: "whatsapp",
+    status: "read",
+    message_id: input.messageId,
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${input.accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const raw = await response.json();
+
+  if (!response.ok) {
+    const errorPayload = raw as {
+      error?: { message?: string };
+    };
+
+    throw new Error(
+      `WhatsApp mark-as-read failed (${response.status}): ${errorPayload.error?.message || "Unknown error"}`
+    );
+  }
+
+  return raw;
+}

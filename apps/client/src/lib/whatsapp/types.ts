@@ -94,6 +94,17 @@ export type QueueSendJobData = {
   userId: string;
 };
 
+export type QueueInboxSendJobData = {
+  conversationId: string;
+  userId: string;
+  text: string;
+};
+
+export type QueueWebhookJobData = {
+  field?: string;
+  value: Record<string, unknown>;
+};
+
 export type WebhookStatusPayload = {
   id?: string;
   recipient_id?: string;
@@ -105,3 +116,46 @@ export type WebhookStatusPayload = {
     message?: string;
   }>;
 };
+
+export type WhatsappRealtimeEvent =
+  | {
+      type: "message.created";
+      conversationId: string;
+      conversation?: {
+        customerName: string | null;
+      };
+      message: {
+        id: string;
+        sender: "customer" | "bot";
+        content: string;
+        timestamp: string;
+        whatsappStatus?: "SENT" | "DELIVERED" | "READ" | "FAILED" | "BLOCKED";
+      };
+    }
+  | {
+      type: "message.updated";
+      conversationId: string;
+      message: {
+        id: string;
+        whatsappStatus: "SENT" | "DELIVERED" | "READ" | "FAILED" | "BLOCKED";
+        errorCode?: string | null;
+        errorMessage?: string | null;
+      };
+    }
+  | {
+      type: "conversation.updated";
+      conversationId: string;
+      conversation: {
+        id: string;
+        customerName: string | null;
+        phone: string;
+        lastMessageAt: string;
+        unreadCount: number;
+      };
+    }
+  | {
+      type: "message.send_failed";
+      conversationId: string;
+      error: string;
+      text?: string;
+    };
