@@ -57,7 +57,7 @@ export default async function BotDetailPage({
 
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="mb-1 font-serif text-3xl">{bot.name}</h1>
+          <h1 className="mb-1 text-3xl font-semibold tracking-tight">{bot.name}</h1>
           <p className="text-sm text-text-muted">
             {typeLabels[bot.type] || bot.type}
           </p>

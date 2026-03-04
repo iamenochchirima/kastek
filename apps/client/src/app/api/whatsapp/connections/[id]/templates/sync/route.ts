@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { syncWhatsappConnectionTemplates } from "@/lib/whatsapp/onboarding-service";
+import { toWhatsappTemplateErrorMessage } from "@/lib/whatsapp/template-service";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,7 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to sync templates";
+    const message = toWhatsappTemplateErrorMessage(error);
     const status = message.includes("not found") ? 404 : 400;
     return NextResponse.json({ error: message }, { status });
   }

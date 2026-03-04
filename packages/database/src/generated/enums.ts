@@ -20,7 +20,9 @@ export type WhatsappConnectionQualityRating = (typeof WhatsappConnectionQualityR
 
 
 export const WhatsappTemplateCategory = {
-  MARKETING: 'MARKETING'
+  MARKETING: 'MARKETING',
+  UTILITY: 'UTILITY',
+  AUTHENTICATION: 'AUTHENTICATION'
 } as const
 
 export type WhatsappTemplateCategory = (typeof WhatsappTemplateCategory)[keyof typeof WhatsappTemplateCategory]

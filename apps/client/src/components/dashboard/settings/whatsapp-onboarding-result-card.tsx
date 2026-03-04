@@ -61,7 +61,7 @@ export default function WhatsappOnboardingResultCard() {
             : "border-red-500/30 bg-red-500/10"
         }`}
       >
-        <h1 className="mb-2 font-serif text-3xl">
+        <h1 className="mb-2 text-3xl font-semibold tracking-tight">
           {ok ? "WhatsApp Connected" : "WhatsApp Connection Error"}
         </h1>
         <p className="text-sm text-text-muted">{message}</p>
@@ -114,7 +114,7 @@ export default function WhatsappOnboardingResultCard() {
           Back to Settings
         </Link>
         <Link
-          href="/dashboard/campaigns/new"
+          href="/dashboard/campaigns/whatsapp"
           className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg no-underline"
         >
           Go to Campaigns

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { decryptSecret, encryptSecret } from "@/lib/whatsapp/crypto";
-import type { Prisma } from "@kasiai/database";
+import { syncWhatsappTemplates } from "@/lib/whatsapp/template-service";
 
 const GRAPH_BASE = "https://graph.facebook.com/v19.0";
 
@@ -12,19 +12,6 @@ type GraphPhoneNumber = {
   code_verification_status?: string;
   name_status?: string;
   messaging_limit_tier?: string;
-};
-
-type GraphTemplate = {
-  name?: string;
-  language?: string;
-  status?: string;
-  category?: string;
-  components?: Array<{
-    type?: string;
-    text?: string;
-    format?: string;
-    buttons?: Array<Record<string, unknown>>;
-  }>;
 };
 
 type EmbeddedSignupCompleteInput = {
@@ -162,114 +149,16 @@ async function subscribeWabaWebhook(accessToken: string, wabaId: string): Promis
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        subscribed_fields: ["messages"],
+        subscribed_fields: [
+          "messages",
+          "message_template_status_update",
+          "message_template_quality_update",
+          "message_template_components_update",
+        ],
         access_token: accessToken,
       }),
     }
   );
-}
-
-function mapTemplateStatus(value?: string): "APPROVED" | "PENDING" | "REJECTED" | "DISABLED" {
-  const normalized = value?.toUpperCase();
-  if (normalized === "APPROVED") return "APPROVED";
-  if (normalized === "PENDING") return "PENDING";
-  if (normalized === "REJECTED") return "REJECTED";
-  return "DISABLED";
-}
-
-function extractTemplateParts(template: GraphTemplate) {
-  const parts = template.components || [];
-  const header = parts.find((part) => part.type === "HEADER");
-  const body = parts.find((part) => part.type === "BODY");
-  const footer = parts.find((part) => part.type === "FOOTER");
-  const buttons = parts.find((part) => part.type === "BUTTONS");
-
-  return {
-    header: header?.text || null,
-    body: body?.text || null,
-    footer: footer?.text || null,
-    buttons: buttons?.buttons || null,
-  };
-}
-
-function toJsonValue(value: unknown): Prisma.InputJsonValue | undefined {
-  if (value === null || value === undefined) return undefined;
-  return value as Prisma.InputJsonValue;
-}
-
-function inferVariablesCount(bodyText?: string | null): number {
-  if (!bodyText) return 0;
-
-  const matches = bodyText.match(/{{\d+}}/g) || [];
-  return matches.length;
-}
-
-async function syncMarketingTemplates(
-  accessToken: string,
-  userId: string,
-  wabaId: string,
-  connectionId: string
-) {
-  const response = await fetchGraphJson<{ data?: GraphTemplate[] }>(
-    `${GRAPH_BASE}/${wabaId}/message_templates?fields=name,language,status,category,components&limit=250&access_token=${encodeURIComponent(accessToken)}`
-  );
-
-  const templates = (response.data || []).filter(
-    (template) => template.category?.toUpperCase() === "MARKETING"
-  );
-
-  let synced = 0;
-
-  for (const template of templates) {
-    const templateName = template.name;
-    const language = template.language;
-    if (!templateName || !language) continue;
-
-    const parts = extractTemplateParts(template);
-
-    await prisma.whatsappTemplate.upsert({
-      where: {
-        userId_templateName_language: {
-          userId,
-          templateName,
-          language,
-        },
-      },
-      update: {
-        connectionId,
-        category: "MARKETING",
-        status: mapTemplateStatus(template.status),
-        header: parts.header,
-        body: parts.body,
-        footer: parts.footer,
-        buttons: toJsonValue(parts.buttons),
-        variablesCount: inferVariablesCount(parts.body),
-        lastSynced: new Date(),
-      },
-      create: {
-        userId,
-        connectionId,
-        templateName,
-        language,
-        category: "MARKETING",
-        status: mapTemplateStatus(template.status),
-        header: parts.header,
-        body: parts.body,
-        footer: parts.footer,
-        buttons: toJsonValue(parts.buttons),
-        variablesCount: inferVariablesCount(parts.body),
-        lastSynced: new Date(),
-      },
-    });
-
-    synced += 1;
-  }
-
-  return {
-    fetched: response.data?.length || 0,
-    marketing: templates.length,
-    synced,
-  };
 }
 
 function estimateDailyLimitFromTier(tier?: string): number | null {
@@ -403,7 +292,7 @@ export async function connectManualWhatsappConnection(input: ManualConnectionInp
   };
 
   try {
-    const syncResult = await syncMarketingTemplates(accessToken, input.userId, wabaId, connection.id);
+    const syncResult = await syncWhatsappTemplates(accessToken, input.userId, wabaId, connection.id);
     templateSync = {
       ...templateSync,
       fetched: syncResult.fetched,
@@ -413,7 +302,7 @@ export async function connectManualWhatsappConnection(input: ManualConnectionInp
     diagnostics.push({
       step: "sync_templates",
       ok: true,
-      detail: `Synced ${syncResult.synced} marketing templates.`,
+      detail: `Synced ${syncResult.synced} WhatsApp templates.`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Template sync failed";
@@ -456,7 +345,7 @@ export async function syncWhatsappConnectionTemplates(userId: string, connection
   }
 
   const accessToken = decryptSecret(connection.accessTokenEncrypted);
-  const syncResult = await syncMarketingTemplates(
+  const syncResult = await syncWhatsappTemplates(
     accessToken,
     userId,
     connection.wabaId,
@@ -519,6 +408,104 @@ export async function refreshWhatsappConnection(userId: string, connectionId: st
   return {
     connection: updated,
     messagingLimitTier: phone.messaging_limit_tier || null,
+  };
+}
+
+export async function updateWhatsappConnectionAccessToken(
+  userId: string,
+  connectionId: string,
+  accessTokenInput: string
+) {
+  const accessToken = accessTokenInput.trim();
+  if (!accessToken) {
+    throw new Error("Access token is required");
+  }
+
+  const connection = await prisma.whatsappConnection.findFirst({
+    where: {
+      id: connectionId,
+      userId,
+    },
+    select: {
+      id: true,
+      wabaId: true,
+      phoneNumberId: true,
+      phoneDisplayNumber: true,
+    },
+  });
+
+  if (!connection) {
+    throw new Error("Connection not found");
+  }
+
+  const diagnostics: Array<{ step: string; ok: boolean; detail: string }> = [];
+  const phone = await fetchConnectionPhone(accessToken, connection.phoneNumberId);
+  diagnostics.push({
+    step: "validate_token",
+    ok: true,
+    detail: `Access token validated for phone ${phone.id}.`,
+  });
+
+  const defaultDailyLimit = Number(process.env.WHATSAPP_DEFAULT_DAILY_LIMIT || "250");
+  const encryptedToken = encryptSecret(accessToken);
+
+  const updated = await prisma.whatsappConnection.update({
+    where: {
+      id: connection.id,
+    },
+    data: {
+      accessTokenEncrypted: encryptedToken,
+      phoneDisplayNumber: connection.phoneDisplayNumber || phone.display_phone_number || null,
+      currentQualityRating: mapQualityRating(phone.quality_rating),
+      verified:
+        phone.code_verification_status === "VERIFIED" ||
+        phone.name_status === "APPROVED" ||
+        false,
+      dailyLimitEstimate:
+        estimateDailyLimitFromTier(phone.messaging_limit_tier) || defaultDailyLimit,
+    },
+    select: {
+      id: true,
+      phoneNumberId: true,
+      phoneDisplayNumber: true,
+      wabaId: true,
+      currentQualityRating: true,
+      verified: true,
+      dailyLimitEstimate: true,
+      updatedAt: true,
+    },
+  });
+  diagnostics.push({
+    step: "save_token",
+    ok: true,
+    detail: "Encrypted token saved to the connection.",
+  });
+
+  let webhookSubscribed = true;
+  let webhookError: string | null = null;
+
+  try {
+    await subscribeWabaWebhook(accessToken, connection.wabaId);
+    diagnostics.push({
+      step: "subscribe_webhook",
+      ok: true,
+      detail: "Webhook subscription refreshed for this connection.",
+    });
+  } catch (error) {
+    webhookSubscribed = false;
+    webhookError = error instanceof Error ? error.message : "Webhook subscription failed";
+    diagnostics.push({
+      step: "subscribe_webhook",
+      ok: false,
+      detail: webhookError,
+    });
+  }
+
+  return {
+    connection: updated,
+    webhookSubscribed,
+    webhookError,
+    diagnostics,
   };
 }
 
@@ -640,7 +627,7 @@ export async function completeEmbeddedSignup(input: EmbeddedSignupCompleteInput)
   };
 
   try {
-    const syncResult = await syncMarketingTemplates(
+    const syncResult = await syncWhatsappTemplates(
       accessToken,
       input.userId,
       wabaId,
@@ -657,7 +644,7 @@ export async function completeEmbeddedSignup(input: EmbeddedSignupCompleteInput)
     diagnostics.push({
       step: "sync_templates",
       ok: true,
-      detail: `Synced ${syncResult.synced} marketing templates.`,
+      detail: `Synced ${syncResult.synced} WhatsApp templates.`,
     });
   } catch (error) {
     const message =

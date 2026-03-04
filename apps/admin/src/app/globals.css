@@ -1,23 +1,84 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-primary: #3b82f6;
-  --color-primary-dark: #2563eb;
+  --color-primary: var(--theme-primary);
+  --color-primary-dark: var(--theme-primary-dark);
   --color-accent: #c4f04d;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  --color-surface: #111111;
-  --color-surface-raised: #1a1a1a;
-  --color-surface-overlay: #222222;
-  --color-border: #2a2a2a;
-  --color-border-light: #333333;
-  --color-text: #e5e5e5;
-  --color-text-muted: #888888;
-  --color-text-faint: #555555;
+  --color-success: var(--theme-success);
+  --color-warning: var(--theme-warning);
+  --color-danger: var(--theme-danger);
+  --color-surface: var(--theme-surface);
+  --color-surface-raised: var(--theme-surface-raised);
+  --color-surface-overlay: var(--theme-surface-overlay);
+  --color-border: var(--theme-border);
+  --color-border-light: var(--theme-border-light);
+  --color-text: var(--theme-text);
+  --color-text-muted: var(--theme-text-muted);
+  --color-text-faint: var(--theme-text-faint);
+}
+
+:root {
+  --theme-primary: #2563eb;
+  --theme-primary-dark: #1d4ed8;
+  --theme-success: #15803d;
+  --theme-warning: #b45309;
+  --theme-danger: #b91c1c;
+  --theme-surface: #f4f7fb;
+  --theme-surface-raised: #ffffff;
+  --theme-surface-overlay: #edf2f9;
+  --theme-border: #d7dfeb;
+  --theme-border-light: #c6d2e1;
+  --theme-text: #142033;
+  --theme-text-muted: #607089;
+  --theme-text-faint: #7f8ca3;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --theme-primary: #60a5fa;
+  --theme-primary-dark: #3b82f6;
+  --theme-success: #86efac;
+  --theme-warning: #fbbf24;
+  --theme-danger: #fca5a5;
+  --theme-surface: #111111;
+  --theme-surface-raised: #1a1a1a;
+  --theme-surface-overlay: #222222;
+  --theme-border: #2a2a2a;
+  --theme-border-light: #333333;
+  --theme-text: #e5e5e5;
+  --theme-text-muted: #888888;
+  --theme-text-faint: #555555;
+  color-scheme: dark;
+}
+
+html {
+  background: var(--color-surface);
 }
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+a,
+button,
+input,
+textarea,
+select {
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.24);
+  color: var(--color-text);
 }

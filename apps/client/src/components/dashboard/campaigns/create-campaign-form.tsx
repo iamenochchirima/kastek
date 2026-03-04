@@ -309,7 +309,7 @@ export default function CreateCampaignForm({
         }
       }
 
-      router.push(`/dashboard/campaigns/${campaignId}`);
+      router.push(`/dashboard/campaigns/whatsapp/${campaignId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create campaign");
       setSubmitting(false);

@@ -32,7 +32,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="mb-2 font-serif text-3xl">Settings</h1>
+      <h1 className="mb-2 text-3xl font-semibold tracking-tight">Settings</h1>
       <p className="text-text-muted">
         Manage existing integrations. New WhatsApp connections now start from Campaigns.
       </p>

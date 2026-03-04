@@ -54,8 +54,8 @@ export default function FAQ() {
         Frequently asked questions
       </h2>
       <p className="text-text-muted max-w-[550px] mb-14 text-lg leading-relaxed">
-        Got questions? We've got answers. If you don't see yours here, just reach
-        out on WhatsApp.
+        Got questions? We&apos;ve got answers. If you don&apos;t see yours here, just reach out on
+        WhatsApp.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-border border border-border rounded-2xl overflow-hidden">

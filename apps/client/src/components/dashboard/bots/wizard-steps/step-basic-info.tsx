@@ -37,7 +37,7 @@ export default function StepBasicInfo({
 }: StepBasicInfoProps) {
   return (
     <div>
-      <h2 className="mb-2 font-serif text-2xl">Basic information</h2>
+      <h2 className="mb-2 text-2xl font-semibold tracking-tight">Basic information</h2>
       <p className="mb-6 text-sm text-text-muted">
         Give your bot a name and tell us about your business.
       </p>

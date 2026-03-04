@@ -54,8 +54,8 @@ export default function ChatWidget() {
         align-items: center !important;
         gap: 8px !important;
         padding: 8px 12px !important;
-        border-top: 1px solid #e0e0e0 !important;
-        background: #fff !important;
+        border-top: 1px solid var(--theme-chat-input-border) !important;
+        background: var(--theme-chat-panel-bg) !important;
       }
       .n8n-chat .chat-input textarea {
         all: unset !important;
@@ -64,14 +64,14 @@ export default function ChatWidget() {
         min-height: 36px !important;
         max-height: 100px !important;
         padding: 8px 12px !important;
-        border: 1px solid #ccc !important;
+        border: 1px solid var(--theme-chat-input-border) !important;
         border-radius: 18px !important;
         font-size: 14px !important;
         line-height: 1.4 !important;
         resize: none !important;
         overflow-y: auto !important;
-        background: #f9f9f9 !important;
-        color: #333 !important;
+        background: var(--theme-chat-input-bg) !important;
+        color: var(--theme-chat-panel-text) !important;
         box-sizing: border-box !important;
         font-family: inherit !important;
         white-space: pre-wrap !important;
@@ -82,7 +82,7 @@ export default function ChatWidget() {
         border-color: #4a90e2 !important;
       }
       .n8n-chat .chat-input textarea::placeholder {
-        color: #999 !important;
+        color: var(--theme-chat-placeholder) !important;
       }
       .n8n-chat .chat-input button {
         all: unset !important;
@@ -103,6 +103,13 @@ export default function ChatWidget() {
       .n8n-chat .chat-input button:disabled {
         background: #ccc !important;
         cursor: not-allowed !important;
+      }
+      .n8n-chat .chat-layout,
+      .n8n-chat .chat-window,
+      .n8n-chat .chat-body,
+      .n8n-chat .chat-header {
+        background: var(--theme-chat-panel-bg) !important;
+        color: var(--theme-chat-panel-text) !important;
       }
     `;
     document.head.appendChild(style);

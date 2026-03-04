@@ -278,7 +278,7 @@ export default function WhatsappEmbeddedSignupCard({
       setNotice(
         action === "refresh"
           ? "Connection details refreshed."
-          : `Template sync completed. Synced ${body.synced || 0} marketing templates.`
+          : `Template sync completed. Synced ${body.synced || 0} WhatsApp templates.`
       );
       router.refresh();
     } catch (err) {

@@ -22,7 +22,7 @@ export default async function BotsPage() {
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="mb-1 font-serif text-3xl">My Bots</h1>
+          <h1 className="mb-1 text-3xl font-semibold tracking-tight">My Bots</h1>
           <p className="text-text-muted">
             Create and manage your WhatsApp chatbots.
           </p>

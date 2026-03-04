@@ -169,7 +169,7 @@ export default function ContactsManager({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="mb-2 font-serif text-3xl">Contacts</h1>
+        <h1 className="mb-2 text-3xl font-semibold tracking-tight">Contacts</h1>
         <p className="text-text-muted">
           Import WhatsApp recipients, manage opt-in, and keep your marketing list clean.
         </p>

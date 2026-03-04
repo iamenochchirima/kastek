@@ -36,6 +36,9 @@ export default function WhatsappManualConnectionCard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [editingTokenConnectionId, setEditingTokenConnectionId] = useState<string | null>(null);
+  const [updatedAccessToken, setUpdatedAccessToken] = useState("");
+  const [tokenUpdateLoadingId, setTokenUpdateLoadingId] = useState<string | null>(null);
   const [healthLoadingId, setHealthLoadingId] = useState<string | null>(null);
   const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null);
   const [healthByConnectionId, setHealthByConnectionId] = useState<
@@ -144,13 +147,49 @@ export default function WhatsappManualConnectionCard({
       setNotice(
         action === "refresh"
           ? "Connection details refreshed."
-          : `Template sync completed. Synced ${body.synced || 0} marketing templates.`
+          : `Template sync completed. Synced ${body.synced || 0} WhatsApp templates.`
       );
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed");
     } finally {
       setActionLoadingKey(null);
+    }
+  }
+
+  async function updateAccessToken(connectionId: string) {
+    setTokenUpdateLoadingId(connectionId);
+    setError("");
+    setNotice("");
+
+    try {
+      const res = await fetch(`/api/whatsapp/connections/${connectionId}/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          accessToken: updatedAccessToken,
+        }),
+      });
+      const body = await res.json();
+
+      if (!res.ok) {
+        throw new Error(body.error || "Failed to update access token");
+      }
+
+      setNotice(
+        body.webhookSubscribed
+          ? "Access token updated successfully."
+          : body.webhookError || "Token updated, but webhook subscription needs attention."
+      );
+      setEditingTokenConnectionId(null);
+      setUpdatedAccessToken("");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update access token");
+    } finally {
+      setTokenUpdateLoadingId(null);
     }
   }
 
@@ -326,9 +365,61 @@ export default function WhatsappManualConnectionCard({
                               ? "Syncing..."
                               : "Sync templates"}
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingTokenConnectionId((current) =>
+                                current === connection.id ? null : connection.id
+                              );
+                              setUpdatedAccessToken("");
+                            }}
+                            className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                          >
+                            {editingTokenConnectionId === connection.id ? "Cancel" : "Update token"}
+                          </button>
                         </div>
                       </td>
                     </tr>
+
+                    {editingTokenConnectionId === connection.id ? (
+                      <tr className="border-t border-border bg-surface-2/40">
+                        <td className="px-3 py-3" colSpan={6}>
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-sm font-medium text-text">Rotate access token</p>
+                              <p className="mt-1 text-xs text-text-muted">
+                                Paste the new Meta system-user token for this connected number. The
+                                existing connection record will be updated in place.
+                              </p>
+                            </div>
+
+                            <textarea
+                              value={updatedAccessToken}
+                              onChange={(event) => setUpdatedAccessToken(event.target.value)}
+                              rows={4}
+                              placeholder="Paste your new Meta access token"
+                              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+                            />
+
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => updateAccessToken(connection.id)}
+                                disabled={
+                                  tokenUpdateLoadingId === connection.id ||
+                                  !updatedAccessToken.trim()
+                                }
+                                className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {tokenUpdateLoadingId === connection.id
+                                  ? "Updating..."
+                                  : "Save new token"}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
 
                     {healthByConnectionId[connection.id] ? (
                       <tr className="border-t border-border bg-surface-2/60">

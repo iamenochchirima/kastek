@@ -17,7 +17,7 @@ export default function StepBusinessDetails({
 }: StepBusinessDetailsProps) {
   return (
     <div>
-      <h2 className="mb-2 font-serif text-2xl">Business details</h2>
+      <h2 className="mb-2 text-2xl font-semibold tracking-tight">Business details</h2>
       <p className="mb-6 text-sm text-text-muted">
         Help your bot understand your business so it can assist customers better.
       </p>

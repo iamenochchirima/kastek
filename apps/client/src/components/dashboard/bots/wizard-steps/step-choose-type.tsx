@@ -25,7 +25,7 @@ const botTypes = [
 export default function StepChooseType({ selected, onSelect }: StepChooseTypeProps) {
   return (
     <div>
-      <h2 className="mb-2 font-serif text-2xl">Choose your bot type</h2>
+      <h2 className="mb-2 text-2xl font-semibold tracking-tight">Choose your bot type</h2>
       <p className="mb-6 text-sm text-text-muted">
         Select the type of WhatsApp chatbot that fits your business needs.
       </p>

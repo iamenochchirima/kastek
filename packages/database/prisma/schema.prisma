@@ -331,6 +331,8 @@ enum WhatsappConnectionQualityRating {
 
 enum WhatsappTemplateCategory {
   MARKETING
+  UTILITY
+  AUTHENTICATION
 }
 
 enum WhatsappTemplateStatus {

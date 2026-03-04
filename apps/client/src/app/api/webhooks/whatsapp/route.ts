@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeToE164 } from "@/lib/whatsapp/phone";
 import { recomputeWhatsappCampaignStats } from "@/lib/whatsapp/campaign-service";
 import { findOrCreateWhatsappConversation } from "@/lib/whatsapp/inbox";
+import { refreshTemplateFromWebhook } from "@/lib/whatsapp/template-service";
 import type { WebhookStatusPayload } from "@/lib/whatsapp/types";
 
 export const runtime = "nodejs";
@@ -255,6 +256,52 @@ async function handleIncomingMessage(value: Record<string, unknown>) {
   }
 }
 
+function getString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+async function handleTemplateWebhook(
+  field: string | undefined,
+  value: Record<string, unknown>
+) {
+  if (
+    !field ||
+    ![
+      "message_template_status_update",
+      "message_template_quality_update",
+      "message_template_components_update",
+    ].includes(field)
+  ) {
+    return;
+  }
+
+  const event = (value.event as Record<string, unknown> | undefined) || value;
+  const metadata = value.metadata as { phone_number_id?: string } | undefined;
+
+  await refreshTemplateFromWebhook({
+    connectionPhoneNumberId: metadata?.phone_number_id || getString(value.phone_number_id),
+    templateName:
+      getString(event.message_template_name) ||
+      getString(event.template_name) ||
+      getString(event.name) ||
+      getString(value.message_template_name) ||
+      getString(value.template_name) ||
+      getString(value.name),
+    language:
+      getString(event.message_template_language) ||
+      getString(event.language) ||
+      getString(value.message_template_language) ||
+      getString(value.language),
+    status:
+      getString(event.message_template_status) ||
+      getString(event.status) ||
+      getString(value.message_template_status) ||
+      getString(value.status) ||
+      field,
+    event: field,
+  });
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get("hub.mode");
@@ -277,6 +324,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       entry?: Array<{
         changes?: Array<{
+          field?: string;
           value?: Record<string, unknown>;
         }>;
       }>;
@@ -292,6 +340,7 @@ export async function POST(req: Request) {
           await handleStatus(statusPayload);
         }
 
+        await handleTemplateWebhook(change.field, value);
         await handleIncomingMessage(value);
       }
     }

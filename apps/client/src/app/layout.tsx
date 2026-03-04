@@ -3,6 +3,7 @@ import { DM_Sans, Instrument_Serif } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/auth";
 import ChatWidget from "@/components/chat-widget";
+import ThemeScript from "@/components/theme-script";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -35,7 +36,10 @@ export default async function RootLayout({
   const session = await auth();
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
       <body
         className={`${dmSans.variable} ${instrumentSerif.variable} font-sans antialiased`}
       >

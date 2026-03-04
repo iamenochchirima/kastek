@@ -30,7 +30,7 @@ const languageLabels: Record<string, string> = {
 export default function StepReview({ data }: StepReviewProps) {
   return (
     <div>
-      <h2 className="mb-2 font-serif text-2xl">Review your bot</h2>
+      <h2 className="mb-2 text-2xl font-semibold tracking-tight">Review your bot</h2>
       <p className="mb-6 text-sm text-text-muted">
         Check the details below before creating your bot.
       </p>
