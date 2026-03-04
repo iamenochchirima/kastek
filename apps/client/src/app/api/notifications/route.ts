@@ -3,7 +3,7 @@ import {
   NotificationRecipientType,
   listNotificationInbox,
   markAllNotificationsAsRead,
-} from "@kasiai/database";
+} from "@kasitek/database";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";

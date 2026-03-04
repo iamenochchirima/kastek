@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 
 export async function GET(req: Request) {
   const session = await auth();

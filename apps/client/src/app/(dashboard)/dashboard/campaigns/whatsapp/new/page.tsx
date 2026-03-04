@@ -6,7 +6,7 @@ import CreateCampaignForm from "@/components/dashboard/campaigns/create-campaign
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 
 export const metadata = {
-  title: "Create WhatsApp Campaign | KasiAI",
+  title: "Create WhatsApp Campaign | KasiTek",
 };
 
 export default async function NewWhatsappCampaignPage() {

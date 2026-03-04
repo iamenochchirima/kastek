@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Templates | KasiAI",
+  title: "Templates | KasiTek",
 };
 
 const sections = [

@@ -7,7 +7,7 @@ import { getWhatsappConnectionStats } from "@/lib/whatsapp/connection-stats";
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 
 export const metadata = {
-  title: "WhatsApp Campaigns | KasiAI",
+  title: "WhatsApp Campaigns | KasiTek",
 };
 
 export default async function WhatsappCampaignsPage() {

@@ -1,7 +1,7 @@
 import SetPasswordForm from "@/components/auth/set-password-form";
 
 export const metadata = {
-  title: "Set Password | KasiAI",
+  title: "Set Password | KasiTek",
 };
 
 export default function SetPasswordPage({

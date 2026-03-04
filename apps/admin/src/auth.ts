@@ -1,12 +1,12 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 import bcrypt from "bcryptjs";
 
 const authSecret =
   process.env.AUTH_SECRET ??
   process.env.NEXTAUTH_SECRET ??
-  (process.env.NODE_ENV === "production" ? undefined : "kasiai-dev-secret");
+  (process.env.NODE_ENV === "production" ? undefined : "kasitek-dev-secret");
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: authSecret,

@@ -2,7 +2,7 @@ import {
   listPendingEmailNotifications,
   markNotificationEmailFailed,
   markNotificationEmailSent,
-} from "@kasiai/database";
+} from "@kasitek/database";
 import { Resend } from "resend";
 
 const resendApiKey = process.env.AUTH_RESEND_KEY;
@@ -84,17 +84,17 @@ async function processBatch() {
         notification.event.payload
       );
       const response = await resend.emails.send({
-        from: "KasiAI <onboarding@resend.dev>",
+        from: "KasiTek <onboarding@resend.dev>",
         to: notification.recipientEmail,
         subject: notification.event.title,
         html: `
           <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
             <div style="padding: 24px; border-radius: 18px; background: #0f1115; color: #f8fafc;">
-              <div style="display: inline-block; margin-bottom: 16px; padding: 6px 10px; border-radius: 999px; background: rgba(196,240,77,0.12); color: #c4f04d; font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;">KasiAI Notification</div>
+              <div style="display: inline-block; margin-bottom: 16px; padding: 6px 10px; border-radius: 999px; background: rgba(196,240,77,0.12); color: #c4f04d; font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;">KasiTek Notification</div>
               <h1 style="margin: 0 0 12px; font-size: 24px; line-height: 1.2;">${escapeHtml(notification.event.title)}</h1>
               <p style="margin: 0 0 16px; color: #cbd5e1; font-size: 15px; line-height: 1.6;">${escapeHtml(notification.event.message)}</p>
               <p style="margin: 0 0 20px; color: #94a3b8; font-size: 13px;">Logged at ${notification.createdAt.toLocaleString("en-ZA")}</p>
-              <a href="${targetUrl}" style="display: inline-block; padding: 12px 18px; border-radius: 999px; background: #c4f04d; color: #111827; text-decoration: none; font-weight: 700;">Open in KasiAI</a>
+              <a href="${targetUrl}" style="display: inline-block; padding: 12px 18px; border-radius: 999px; background: #c4f04d; color: #111827; text-decoration: none; font-weight: 700;">Open in KasiTek</a>
             </div>
           </div>
         `,

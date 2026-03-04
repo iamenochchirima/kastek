@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/whatsapp/crypto";
-import type { Prisma } from "@kasiai/database";
+import type { Prisma } from "@kasitek/database";
 import {
   NotificationRecipientType,
   NotificationScopeType,
   NotificationSeverity,
   publishNotificationEvent,
-} from "@kasiai/database";
+} from "@kasitek/database";
 
 const GRAPH_BASE = "https://graph.facebook.com/v19.0";
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import WhatsappTemplateManager from "@/components/dashboard/campaigns/whatsapp-template-manager";
 
 export const metadata = {
-  title: "Your Templates | KasiAI",
+  title: "Your Templates | KasiTek",
 };
 
 export default async function WhatsappTemplatesManagementPage({

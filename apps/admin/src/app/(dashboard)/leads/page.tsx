@@ -1,4 +1,4 @@
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 import Link from "next/link";
 import LeadFilters from "@/components/admin/lead-filters";
 import LeadsTable from "@/components/admin/leads-table";

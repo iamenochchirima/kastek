@@ -25,7 +25,7 @@ export async function generateMetadata({
 }) {
   const { id } = await params;
   const bot = await prisma.botConfiguration.findUnique({ where: { id } });
-  return { title: bot ? `${bot.name} | KasiAI` : "Bot | KasiAI" };
+  return { title: bot ? `${bot.name} | KasiTek` : "Bot | KasiTek" };
 }
 
 export default async function BotDetailPage({

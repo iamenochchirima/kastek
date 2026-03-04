@@ -3,7 +3,7 @@ import Footer from "@/components/Footer";
 import QuoteRequestForm from "@/components/quote/quote-request-form";
 
 export const metadata = {
-  title: "Get a Quote | KasiAI",
+  title: "Get a Quote | KasiTek",
   description:
     "Request a free quote for AI automation solutions for your South African business.",
 };

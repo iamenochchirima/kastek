@@ -3,12 +3,12 @@ import NotificationActions from "@/components/dashboard/notifications/notificati
 import {
   NotificationRecipientType,
   listNotificationInbox,
-} from "@kasiai/database";
+} from "@kasitek/database";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export const metadata = {
-  title: "Notifications | KasiAI",
+  title: "Notifications | KasiTek",
 };
 
 export default async function NotificationsPage({

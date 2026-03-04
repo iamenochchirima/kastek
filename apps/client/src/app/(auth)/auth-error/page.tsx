@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Authentication Error | KasiAI",
+  title: "Authentication Error | KasiTek",
 };
 
 export default function AuthErrorPage() {

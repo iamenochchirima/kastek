@@ -283,8 +283,8 @@ export default function Sidebar({ user, inboxUnreadCount = 0 }: SidebarProps) {
     Object.fromEntries(navItems.filter((item) => item.subItems?.length).map((item) => [item.href, isItemActive(pathname, item.href)])),
   );
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const identity = user.name ?? "KasiAI User";
-  const secondary = user.email ?? "@kasiai";
+  const identity = user.name ?? "KasiTek User";
+  const secondary = user.email ?? "@kasitek";
   const initials = (user.name || user.email || "K")
     .split(" ")
     .filter(Boolean)
@@ -365,10 +365,10 @@ export default function Sidebar({ user, inboxUnreadCount = 0 }: SidebarProps) {
       <div className="border-b border-border/80 px-6 pb-5 pt-6">
         <Link href="/" className="block text-text no-underline">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">
-            KasiAI Workspace
+            KasiTek Workspace
           </div>
           <div className="text-[28px] font-semibold leading-none tracking-tight">
-            Kasi<span className="text-accent">AI</span>
+            Kasi<span className="text-accent">Tek</span>
           </div>
         </Link>
       </div>

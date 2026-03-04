@@ -1,4 +1,4 @@
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 import Link from "next/link";
 
 const CHANNEL_BADGES: Record<string, string> = {

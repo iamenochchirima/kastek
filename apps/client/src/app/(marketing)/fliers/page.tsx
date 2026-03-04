@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import DownloadableCard from "@/components/fliers/downloadable-card";
 
 export const metadata = {
-  title: "Marketing Fliers | KasiAI",
+  title: "Marketing Fliers | KasiTek",
   robots: "noindex",
 };
 
@@ -24,7 +24,7 @@ export default function FliersPage() {
         <div className="p-14">
           {/* Logo */}
           <div className="flex items-center gap-4 mb-8">
-            <img src="/logo.png" alt="KasiAI" className="h-16 w-16" />
+            <img src="/logo.png" alt="KasiTek" className="h-16 w-16" />
             <div>
               <span className="font-serif text-5xl text-white tracking-tight font-bold">
                 Kasi<span className="text-[#c4f04d]">AI</span>
@@ -106,7 +106,7 @@ export default function FliersPage() {
         <div className="bg-[#c4f04d] px-14 py-6 flex items-center justify-between">
           <div>
             <p className="text-[#0a0a0a] text-xl font-black uppercase">Get a Free Quote</p>
-            <p className="text-[#0a0a0a]/60 text-sm font-bold">kasiai.site/get-quote</p>
+            <p className="text-[#0a0a0a]/60 text-sm font-bold">kasitek.site/get-quote</p>
           </div>
           <div className="text-right">
             <p className="text-[#0a0a0a] text-xl font-black">+27 73 123 1909</p>
@@ -123,7 +123,7 @@ export default function FliersPage() {
 
         <div className="p-14">
           <div className="flex items-center gap-4 mb-10">
-            <img src="/logo.png" alt="KasiAI" className="h-14 w-14" />
+            <img src="/logo.png" alt="KasiTek" className="h-14 w-14" />
             <span className="font-serif text-4xl text-white tracking-tight font-bold">
               Kasi<span className="text-[#c4f04d]">AI</span>
             </span>
@@ -174,7 +174,7 @@ export default function FliersPage() {
         <div className="bg-[#c4f04d] px-14 py-6 flex items-center justify-between">
           <div>
             <p className="text-[#0a0a0a] text-xl font-black uppercase">Get a Free Quote</p>
-            <p className="text-[#0a0a0a]/60 text-sm font-bold">kasiai.site/get-quote</p>
+            <p className="text-[#0a0a0a]/60 text-sm font-bold">kasitek.site/get-quote</p>
           </div>
           <div className="text-right">
             <p className="text-[#0a0a0a] text-xl font-black">+27 73 123 1909</p>
@@ -184,14 +184,14 @@ export default function FliersPage() {
       </div>
       </DownloadableCard>
 
-      {/* Card 3: Why KasiAI */}
+      {/* Card 3: Why KasiTek */}
       <DownloadableCard filename="kasiai-why-choose-us">
       <div className="w-[700px] bg-gradient-to-b from-[#0c0c0c] to-[#060606] rounded-none p-0 relative overflow-hidden shadow-2xl">
         <div className="h-2 bg-gradient-to-r from-[#c4f04d] via-[#a8d43a] to-[#c4f04d]" />
 
         <div className="p-14">
           <div className="flex items-center gap-4 mb-10">
-            <img src="/logo.png" alt="KasiAI" className="h-14 w-14" />
+            <img src="/logo.png" alt="KasiTek" className="h-14 w-14" />
             <span className="font-serif text-4xl text-white tracking-tight font-bold">
               Kasi<span className="text-[#c4f04d]">AI</span>
             </span>
@@ -200,7 +200,7 @@ export default function FliersPage() {
           <h2 className="text-[3.2rem] text-white leading-[1.05] mb-2 font-black uppercase">
             Why Businesses
             <br />
-            <span className="text-[#c4f04d]">Choose KasiAI</span>
+            <span className="text-[#c4f04d]">Choose KasiTek</span>
           </h2>
           <p className="text-white/65 text-lg mb-10 font-medium">
             Built for businesses that want to grow smarter.
@@ -231,7 +231,7 @@ export default function FliersPage() {
         <div className="bg-[#c4f04d] px-14 py-6 flex items-center justify-between">
           <div>
             <p className="text-[#0a0a0a] text-xl font-black uppercase">Get a Free Quote</p>
-            <p className="text-[#0a0a0a]/60 text-sm font-bold">kasiai.site/get-quote</p>
+            <p className="text-[#0a0a0a]/60 text-sm font-bold">kasitek.site/get-quote</p>
           </div>
           <div className="text-right">
             <p className="text-[#0a0a0a] text-xl font-black">+27 73 123 1909</p>
@@ -247,7 +247,7 @@ export default function FliersPage() {
         <div className="h-2 bg-gradient-to-r from-[#c4f04d] via-[#a8d43a] to-[#c4f04d]" />
 
         <div className="flex-1 flex flex-col items-center justify-center text-center p-14">
-          <img src="/logo.png" alt="KasiAI" className="h-24 w-24 mb-8" />
+          <img src="/logo.png" alt="KasiTek" className="h-24 w-24 mb-8" />
           <h2 className="text-6xl text-white tracking-tight font-black uppercase mb-2">
             Kasi<span className="text-[#c4f04d]">AI</span>
           </h2>
@@ -266,7 +266,7 @@ export default function FliersPage() {
 
           <div className="h-1 w-16 bg-[#c4f04d] mb-10" />
 
-          <p className="text-[#c4f04d] text-2xl font-black">kasiai.site</p>
+          <p className="text-[#c4f04d] text-2xl font-black">kasitek.site</p>
           <p className="text-white/65 text-lg font-bold">WhatsApp or Call: +27 73 123 1909</p>
         </div>
 
@@ -281,7 +281,7 @@ export default function FliersPage() {
 
         <div className="flex-1 flex flex-col justify-between p-14">
           <div className="flex items-center gap-4">
-            <img src="/logo.png" alt="KasiAI" className="h-14 w-14" />
+            <img src="/logo.png" alt="KasiTek" className="h-14 w-14" />
             <span className="font-serif text-4xl text-white tracking-tight font-bold">
               Kasi<span className="text-[#c4f04d]">AI</span>
             </span>
@@ -305,10 +305,10 @@ export default function FliersPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[#c4f04d] text-lg font-black uppercase">Get a Free Quote</p>
-              <p className="text-white/60 text-sm font-bold">kasiai.site | +27 73 123 1909</p>
+              <p className="text-white/60 text-sm font-bold">kasitek.site | +27 73 123 1909</p>
             </div>
             <div className="bg-[#c4f04d] text-[#0a0a0a] px-8 py-4 text-lg font-black uppercase">
-              kasiai.site
+              kasitek.site
             </div>
           </div>
         </div>
@@ -323,7 +323,7 @@ export default function FliersPage() {
         <div className="p-14">
           {/* Header */}
           <div className="flex items-center gap-4 mb-8">
-            <img src="/logo.png" alt="KasiAI" className="h-14 w-14" />
+            <img src="/logo.png" alt="KasiTek" className="h-14 w-14" />
             <div>
               <span className="font-serif text-4xl text-white tracking-tight font-bold">
                 Kasi<span className="text-[#c4f04d]">AI</span>
@@ -460,7 +460,7 @@ export default function FliersPage() {
         <div className="bg-[#c4f04d] px-14 py-6 flex items-center justify-between">
           <div>
             <p className="text-[#0a0a0a] text-xl font-black uppercase">Get a Free Quote</p>
-            <p className="text-[#0a0a0a]/60 text-sm font-bold">kasiai.site/get-quote</p>
+            <p className="text-[#0a0a0a]/60 text-sm font-bold">kasitek.site/get-quote</p>
           </div>
           <div className="text-right">
             <p className="text-[#0a0a0a] text-xl font-black">+27 73 123 1909</p>
@@ -491,7 +491,7 @@ export default function FliersPage() {
 
           <div className="relative z-10 flex flex-col items-center text-center">
             <div className="flex items-center gap-4 mb-3">
-              <img src="/logo.png" alt="KasiAI" className="h-14 w-14" />
+              <img src="/logo.png" alt="KasiTek" className="h-14 w-14" />
               <span className="font-serif text-5xl text-white tracking-tight font-bold">
                 Kasi<span className="text-[#c4f04d]">AI</span>
               </span>
@@ -521,7 +521,7 @@ export default function FliersPage() {
           {/* Left side */}
           <div className="flex-1 flex flex-col justify-center pl-14 pr-6">
             <div className="flex items-center gap-3 mb-4">
-              <img src="/logo.png" alt="KasiAI" className="h-10 w-10" />
+              <img src="/logo.png" alt="KasiTek" className="h-10 w-10" />
               <span className="font-serif text-3xl text-white tracking-tight font-bold">
                 Kasi<span className="text-[#c4f04d]">AI</span>
               </span>
@@ -534,7 +534,7 @@ export default function FliersPage() {
               <span className="text-[#c4f04d]">Business</span>
             </h2>
             <p className="text-white/70 text-xs font-bold mt-3 uppercase tracking-wider">
-              kasiai.site &nbsp;|&nbsp; +27 73 123 1909
+              kasitek.site &nbsp;|&nbsp; +27 73 123 1909
             </p>
           </div>
 
@@ -586,12 +586,12 @@ export default function FliersPage() {
             </div>
 
             <div className="flex flex-col items-center gap-3">
-              <img src="/logo.png" alt="KasiAI" className="h-16 w-16" />
+              <img src="/logo.png" alt="KasiTek" className="h-16 w-16" />
               <span className="font-serif text-3xl text-white tracking-tight font-bold">
                 Kasi<span className="text-[#c4f04d]">AI</span>
               </span>
               <div className="bg-[#c4f04d] text-[#0a0a0a] px-5 py-2 text-xs font-black uppercase tracking-wide">
-                kasiai.site
+                kasitek.site
               </div>
             </div>
           </div>
@@ -607,7 +607,7 @@ export default function FliersPage() {
           <div className="pl-16 pr-14 flex items-center justify-between w-full">
             {/* Left: Logo + Name */}
             <div className="flex items-center gap-5">
-              <img src="/logo.png" alt="KasiAI" className="h-20 w-20" />
+              <img src="/logo.png" alt="KasiTek" className="h-20 w-20" />
               <div>
                 <span className="font-serif text-5xl text-white tracking-tight font-bold block">
                   Kasi<span className="text-[#c4f04d]">AI</span>
@@ -627,7 +627,7 @@ export default function FliersPage() {
               </div>
               <div className="h-0.5 w-full bg-white/10" />
               <div>
-                <p className="text-[#c4f04d] text-base font-black">kasiai.site</p>
+                <p className="text-[#c4f04d] text-base font-black">kasitek.site</p>
                 <p className="text-white/70 text-xs font-bold">+27 73 123 1909 &nbsp;|&nbsp; WhatsApp or Call</p>
               </div>
             </div>

@@ -185,7 +185,7 @@ export default function LiveWhatsappConversationList({
           <p className="text-sm text-text-muted">
             {filter.trim()
               ? "No chats match your search."
-              : "No WhatsApp conversations captured yet. New messages will appear here from the time your number is connected to KasiAI."}
+              : "No WhatsApp conversations captured yet. New messages will appear here from the time your number is connected to KasiTek."}
           </p>
         </div>
       ) : (

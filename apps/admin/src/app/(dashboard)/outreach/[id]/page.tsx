@@ -1,4 +1,4 @@
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import OutreachLeadsTable from "@/components/admin/outreach-leads-table";

@@ -19,7 +19,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "KasiAI | AI Solutions for Your Business",
+  title: "KasiTek | AI Solutions for Your Business",
   description:
     "We build WhatsApp chatbots, AI voice agents, and smart automations that handle your customer inquiries, bookings, and admin.",
   icons: {

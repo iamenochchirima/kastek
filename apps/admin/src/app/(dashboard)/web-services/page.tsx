@@ -1,4 +1,4 @@
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 import Link from "next/link";
 import WebServicesTable from "@/components/admin/web-services-table";
 import WebServicesFilters from "@/components/admin/web-services-filters";

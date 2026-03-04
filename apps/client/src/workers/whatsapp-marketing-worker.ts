@@ -1,7 +1,7 @@
 import { Worker } from "bullmq";
 import type { ConnectionOptions } from "bullmq";
 import IORedis from "ioredis";
-import type { Prisma } from "@kasiai/database";
+import type { Prisma } from "@kasitek/database";
 import { prisma } from "../lib/prisma";
 import {
   buildBodyParameters,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 
-const API_KEY = process.env.CONVERSATIONS_API_KEY || "kasiai-conversations-secret";
+const API_KEY = process.env.CONVERSATIONS_API_KEY || "kasitek-conversations-secret";
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-api-key");

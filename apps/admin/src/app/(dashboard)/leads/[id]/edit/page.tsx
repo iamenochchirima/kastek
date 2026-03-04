@@ -1,4 +1,4 @@
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import LeadForm from "@/components/admin/lead-form";

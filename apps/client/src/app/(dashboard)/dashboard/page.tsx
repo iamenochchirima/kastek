@@ -5,7 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export const metadata = {
-  title: "Overview | KasiAI",
+  title: "Overview | KasiTek",
 };
 
 const ACTIVE_CAMPAIGN_STATUSES = ["DRAFT", "SCHEDULED", "SENDING", "PAUSED"] as const;

@@ -56,13 +56,13 @@ export async function POST(req: Request) {
         const setupUrl = `${process.env.AUTH_URL}/set-password?token=${token}&email=${encodeURIComponent(email)}`;
 
         await resend.emails.send({
-          from: "KasiAI <onboarding@resend.dev>",
+          from: "KasiTek <onboarding@resend.dev>",
           to: email,
-          subject: "Set up a password for your KasiAI account",
+          subject: "Set up a password for your KasiTek account",
           html: `
             <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
               <h2>Set Up a Password</h2>
-              <p>You already have a KasiAI account linked to Google. Click the button below to set up a password so you can sign in with either method.</p>
+              <p>You already have a KasiTek account linked to Google. Click the button below to set up a password so you can sign in with either method.</p>
               <a href="${setupUrl}" style="display: inline-block; background: #c4f04d; color: #0a0a0a; padding: 12px 24px; border-radius: 100px; text-decoration: none; font-weight: 600;">
                 Set Password
               </a>
@@ -117,12 +117,12 @@ export async function POST(req: Request) {
     const verifyUrl = `${process.env.AUTH_URL}/api/auth/verify-email?token=${token}&email=${encodeURIComponent(email)}`;
 
     await resend.emails.send({
-      from: "KasiAI <onboarding@resend.dev>",
+      from: "KasiTek <onboarding@resend.dev>",
       to: email,
-      subject: "Verify your KasiAI account",
+      subject: "Verify your KasiTek account",
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2>Welcome to KasiAI</h2>
+          <h2>Welcome to KasiTek</h2>
           <p>Click the button below to verify your email address.</p>
           <a href="${verifyUrl}" style="display: inline-block; background: #c4f04d; color: #0a0a0a; padding: 12px 24px; border-radius: 100px; text-decoration: none; font-weight: 600;">
             Verify Email

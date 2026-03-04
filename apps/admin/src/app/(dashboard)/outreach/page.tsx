@@ -1,4 +1,4 @@
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 import Link from "next/link";
 import CampaignsTable from "@/components/admin/campaigns-table";
 import OutreachDeleteAllButton from "@/components/admin/outreach-delete-all";

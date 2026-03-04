@@ -60,13 +60,13 @@ export async function POST(req: Request) {
     const setupUrl = `${process.env.AUTH_URL}/set-password?token=${token}&email=${encodeURIComponent(email)}`;
 
     await resend.emails.send({
-      from: "KasiAI <onboarding@resend.dev>",
+      from: "KasiTek <onboarding@resend.dev>",
       to: email,
-      subject: "Set up a password for your KasiAI account",
+      subject: "Set up a password for your KasiTek account",
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
           <h2>Set Up a Password</h2>
-          <p>You already have a KasiAI account linked to Google. Click the button below to set up a password so you can sign in with either method.</p>
+          <p>You already have a KasiTek account linked to Google. Click the button below to set up a password so you can sign in with either method.</p>
           <a href="${setupUrl}" style="display: inline-block; background: #c4f04d; color: #0a0a0a; padding: 12px 24px; border-radius: 100px; text-decoration: none; font-weight: 600;">
             Set Password
           </a>

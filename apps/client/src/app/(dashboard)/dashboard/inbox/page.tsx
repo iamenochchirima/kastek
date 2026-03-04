@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Inbox | KasiAI",
+  title: "Inbox | KasiTek",
 };
 
 const channels = [

@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Data Deletion | KasiAI",
+  title: "Data Deletion | KasiTek",
 };
 
 export default function DataDeletionPage() {
@@ -14,7 +14,7 @@ export default function DataDeletionPage() {
 
         <section className="space-y-4 text-base leading-8 text-text-muted">
           <p>
-            If you would like KasiAI to delete personal or business data associated with your
+            If you would like KasiTek to delete personal or business data associated with your
             account or use of our services, you may submit a request by email.
           </p>
           <p>
@@ -27,8 +27,8 @@ export default function DataDeletionPage() {
           <h2 className="text-2xl font-bold uppercase">How To Request Deletion</h2>
           <p className="text-base leading-8 text-text-muted">
             Send your request to{" "}
-            <a className="text-accent hover:underline" href="mailto:info@kasiai.site?subject=Data%20Deletion%20Request">
-              info@kasiai.site
+            <a className="text-accent hover:underline" href="mailto:info@kasitek.site?subject=Data%20Deletion%20Request">
+              info@kasitek.site
             </a>
             {" "}with the subject line `Data Deletion Request`.
           </p>
@@ -37,7 +37,7 @@ export default function DataDeletionPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold uppercase">Verification</h2>
           <p className="text-base leading-8 text-text-muted">
-            KasiAI may request additional information to verify identity and confirm authority over
+            KasiTek may request additional information to verify identity and confirm authority over
             the account or data before processing deletion.
           </p>
         </section>

@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Privacy Policy | KasiAI",
+  title: "Privacy Policy | KasiTek",
 };
 
 export default function PrivacyPolicyPage() {
@@ -14,7 +14,7 @@ export default function PrivacyPolicyPage() {
 
         <section className="space-y-4 text-base leading-8 text-text-muted">
           <p>
-            KasiAI collects and processes information that is necessary to provide websites, AI
+            KasiTek collects and processes information that is necessary to provide websites, AI
             agents, automation systems, customer support, and related digital services.
           </p>
           <p>
@@ -36,7 +36,7 @@ export default function PrivacyPolicyPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold uppercase">How We Use Information</h2>
           <div className="space-y-3 text-base leading-8 text-text-muted">
-            <p>To deliver, maintain, improve, and support KasiAI services.</p>
+            <p>To deliver, maintain, improve, and support KasiTek services.</p>
             <p>To communicate with clients about projects, billing, updates, and support.</p>
             <p>To operate account access, onboarding, analytics, and security controls.</p>
             <p>To comply with legal obligations and enforce our service terms.</p>
@@ -47,7 +47,7 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-2xl font-bold uppercase">Sharing Of Information</h2>
           <div className="space-y-3 text-base leading-8 text-text-muted">
             <p>
-              KasiAI may share information with infrastructure, hosting, analytics, messaging,
+              KasiTek may share information with infrastructure, hosting, analytics, messaging,
               payment, and authentication providers where necessary to operate the service.
             </p>
             <p>
@@ -60,7 +60,7 @@ export default function PrivacyPolicyPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold uppercase">Data Retention</h2>
           <p className="text-base leading-8 text-text-muted">
-            KasiAI retains personal and business data only for as long as it is reasonably needed
+            KasiTek retains personal and business data only for as long as it is reasonably needed
             to deliver services, maintain records, meet legal obligations, resolve disputes, and
             support legitimate business operations.
           </p>
@@ -69,7 +69,7 @@ export default function PrivacyPolicyPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold uppercase">Your Rights</h2>
           <p className="text-base leading-8 text-text-muted">
-            You may request access to, correction of, or deletion of personal data held by KasiAI,
+            You may request access to, correction of, or deletion of personal data held by KasiTek,
             subject to legal, operational, and security requirements. Data deletion requests can be
             submitted through our dedicated data deletion page.
           </p>
@@ -78,9 +78,9 @@ export default function PrivacyPolicyPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold uppercase">Contact</h2>
           <p className="text-base leading-8 text-text-muted">
-            For privacy-related questions, contact KasiAI at{" "}
-            <a className="text-accent hover:underline" href="mailto:info@kasiai.site">
-              info@kasiai.site
+            For privacy-related questions, contact KasiTek at{" "}
+            <a className="text-accent hover:underline" href="mailto:info@kasitek.site">
+              info@kasitek.site
             </a>
             .
           </p>

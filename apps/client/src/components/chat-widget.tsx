@@ -156,11 +156,11 @@ export default function ChatWidget() {
         enableStreaming: false,
         initialMessages: [
           'Hi there! 👋',
-          "I'm KasiAI's assistant. How can I help you today?"
+          "I'm KasiTek's assistant. How can I help you today?"
         ],
         i18n: {
           en: {
-            title: 'KasiAI',
+            title: 'KasiTek',
             subtitle: 'Ask us anything about our AI solutions.',
             footer: '',
             getStarted: 'New Conversation',

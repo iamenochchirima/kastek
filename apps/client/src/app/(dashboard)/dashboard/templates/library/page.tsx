@@ -2,7 +2,7 @@ import Link from "next/link";
 import { TEMPLATE_CATEGORY_OPTIONS, TEMPLATE_LIBRARY, categoryLabel } from "@/lib/whatsapp/template-library";
 
 export const metadata = {
-  title: "Template Library | KasiAI",
+  title: "Template Library | KasiTek",
 };
 
 const FILTER_OPTIONS = [

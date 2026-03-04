@@ -1,2 +1,2 @@
 // Re-export prisma from the shared database package
-export { prisma } from "@kasiai/database";
+export { prisma } from "@kasitek/database";

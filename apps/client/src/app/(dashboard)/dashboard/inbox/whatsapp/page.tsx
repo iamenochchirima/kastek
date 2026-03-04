@@ -10,7 +10,7 @@ import NewWhatsappConversationCard from "@/components/dashboard/inbox/new-whatsa
 import LiveWhatsappConversationList from "@/components/dashboard/inbox/live-whatsapp-conversation-list";
 
 export const metadata = {
-  title: "WhatsApp Inbox | KasiAI",
+  title: "WhatsApp Inbox | KasiTek",
 };
 
 export default async function WhatsappInboxPage({
@@ -122,7 +122,7 @@ export default async function WhatsappInboxPage({
           </Link>
           <h1 className="mb-2 text-3xl font-semibold tracking-tight">WhatsApp Inbox</h1>
           <p className="text-text-muted">
-            View WhatsApp conversations captured after your number was connected to KasiAI.
+            View WhatsApp conversations captured after your number was connected to KasiTek.
           </p>
         </div>
         <div className="flex items-center gap-3">

@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { NotificationRecipientType, markNotificationAsRead } from "@kasiai/database";
+import { NotificationRecipientType, markNotificationAsRead } from "@kasitek/database";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";

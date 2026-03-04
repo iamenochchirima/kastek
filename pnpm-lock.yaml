@@ -10,7 +10,7 @@ importers:
 
   apps/admin:
     dependencies:
-      '@kasiai/database':
+      '@kasitek/database':
         specifier: workspace:*
         version: link:../../packages/database
       bcryptjs:
@@ -68,7 +68,7 @@ importers:
       '@emoji-mart/react':
         specifier: ^1.1.1
         version: 1.1.1(emoji-mart@5.6.0)(react@19.2.3)
-      '@kasiai/database':
+      '@kasitek/database':
         specifier: workspace:*
         version: link:../../packages/database
       '@neondatabase/serverless':

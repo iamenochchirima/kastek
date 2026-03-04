@@ -13,13 +13,13 @@ import {
 import { publishWhatsappRealtimeEvent } from "@/lib/whatsapp/realtime";
 import { refreshTemplateFromWebhook } from "@/lib/whatsapp/template-service";
 import type { WebhookStatusPayload } from "@/lib/whatsapp/types";
-import type { Prisma } from "@kasiai/database";
+import type { Prisma } from "@kasitek/database";
 import {
   NotificationRecipientType,
   NotificationScopeType,
   NotificationSeverity,
   publishNotificationEvent,
-} from "@kasiai/database";
+} from "@kasitek/database";
 const WEBHOOK_DEBUG = process.env.WHATSAPP_WEBHOOK_DEBUG === "1";
 
 function debugWebhookLog(stage: string, payload: Record<string, unknown>) {

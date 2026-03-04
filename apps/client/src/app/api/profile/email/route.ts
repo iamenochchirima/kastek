@@ -80,13 +80,13 @@ export async function POST(req: Request) {
   const verifyUrl = `${process.env.AUTH_URL}/api/profile/email/verify?token=${token}&change=${encodeURIComponent(identifier)}`;
 
   await resend.emails.send({
-    from: "KasiAI <onboarding@resend.dev>",
+    from: "KasiTek <onboarding@resend.dev>",
     to: nextEmail,
-    subject: "Confirm your new KasiAI email address",
+    subject: "Confirm your new KasiTek email address",
     html: `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
         <h2>Confirm your new email address</h2>
-        <p>Click the button below to confirm this email address for your KasiAI account.</p>
+        <p>Click the button below to confirm this email address for your KasiTek account.</p>
         <a href="${verifyUrl}" style="display: inline-block; background: #c4f04d; color: #0a0a0a; padding: 12px 24px; border-radius: 100px; text-decoration: none; font-weight: 600;">
           Confirm Email Change
         </a>

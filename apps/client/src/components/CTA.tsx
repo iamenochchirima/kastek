@@ -23,7 +23,7 @@ export default function CTA() {
             Get a Free Quote &rarr;
           </a>
           <a
-            href="https://wa.me/27731231909?text=Hi%20KasiAI%2C%20I'm%20interested%20in%20AI%20automation%20for%20my%20business"
+            href="https://wa.me/27731231909?text=Hi%20KasiTek%2C%20I'm%20interested%20in%20AI%20automation%20for%20my%20business"
             className="inline-flex items-center gap-2 border border-border-light text-text px-8 py-3.5 rounded-full font-medium text-base no-underline transition-all hover:border-text-muted"
           >
             Or Chat on WhatsApp

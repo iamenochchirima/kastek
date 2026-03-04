@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 import { buildQuotationPdf, quotationRecordToDraft } from "@/lib/quotation";
 
 export async function GET(

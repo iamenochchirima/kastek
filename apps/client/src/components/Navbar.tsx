@@ -19,9 +19,9 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 z-100 w-full flex items-center justify-between px-8 py-4 bg-bg/85 backdrop-blur-xl border-b border-border max-sm:px-4">
       <Link href="/" className="flex items-center gap-2 no-underline">
-        <img src="/logo.png" alt="KasiAI" className="h-8 w-8" />
+        <img src="/logo.png" alt="KasiTek" className="h-8 w-8" />
         <span className="font-serif text-2xl text-text tracking-tight">
-          Kasi<span className="text-accent">AI</span>
+          Kasi<span className="text-accent">Tek</span>
         </span>
       </Link>
 

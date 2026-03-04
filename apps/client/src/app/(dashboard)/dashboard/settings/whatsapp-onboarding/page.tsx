@@ -1,7 +1,7 @@
 import WhatsappOnboardingResultCard from "@/components/dashboard/settings/whatsapp-onboarding-result-card";
 
 export const metadata = {
-  title: "WhatsApp Onboarding | KasiAI",
+  title: "WhatsApp Onboarding | KasiTek",
 };
 
 export default function WhatsappOnboardingResultPage() {

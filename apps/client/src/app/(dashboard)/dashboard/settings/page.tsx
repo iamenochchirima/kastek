@@ -5,7 +5,7 @@ import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsa
 import InboxAlertControls from "@/components/dashboard/inbox/inbox-alert-controls";
 
 export const metadata = {
-  title: "Settings | KasiAI",
+  title: "Settings | KasiTek",
 };
 
 export default async function SettingsPage() {
@@ -45,7 +45,7 @@ export default async function SettingsPage() {
           is open in your browser.
         </p>
         <div className="mt-4">
-          <InboxAlertControls title="KasiAI Inbox Alerts" showStatus compact={false} />
+          <InboxAlertControls title="KasiTek Inbox Alerts" showStatus compact={false} />
         </div>
       </section>
 

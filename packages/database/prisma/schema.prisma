@@ -85,7 +85,7 @@ model AdminUser {
   updatedAt DateTime @updatedAt
 }
 
-// ─── KasiAI Domain Tables ──────────────────────────────────
+// ─── KasiTek Domain Tables ──────────────────────────────────
 
 model BusinessProfile {
   id     String @id @default(cuid())

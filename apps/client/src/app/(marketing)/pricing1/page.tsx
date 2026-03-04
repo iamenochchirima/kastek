@@ -4,7 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
-  title: "Pricing 1 | KasiAI",
+  title: "Pricing 1 | KasiTek",
   description:
     "Pricing for web presence, AI agents, and growth systems.",
 };
@@ -191,7 +191,7 @@ export default function PricingDraftPage() {
                   Request a Quote
                 </Link>
                 <a
-                  href="https://wa.me/27731231909?text=Hi%20KasiAI%2C%20I%27d%20like%20help%20with%20pricing"
+                  href="https://wa.me/27731231909?text=Hi%20KasiTek%2C%20I%27d%20like%20help%20with%20pricing"
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-full border border-border px-7 py-3 text-sm font-bold uppercase tracking-[0.12em] text-text transition hover:bg-surface"

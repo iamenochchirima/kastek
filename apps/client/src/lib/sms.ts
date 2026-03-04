@@ -42,7 +42,7 @@ export async function sendOTP(phone: string) {
     },
   });
 
-  await sendSMS(phone, `Your KasiAI verification code is: ${code}`);
+  await sendSMS(phone, `Your KasiTek verification code is: ${code}`);
 }
 
 export async function verifyOTP(phone: string, code: string): Promise<boolean> {

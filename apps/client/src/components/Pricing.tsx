@@ -113,7 +113,7 @@ export default function Pricing() {
                 Get a Quote
               </a>
               <a
-                href="https://wa.me/27731231909?text=Hi%20KasiAI%2C%20I'm%20interested%20in%20the%20${encodeURIComponent(plan.name)}%20plan"
+                href="https://wa.me/27731231909?text=Hi%20KasiTek%2C%20I'm%20interested%20in%20the%20${encodeURIComponent(plan.name)}%20plan"
                 className="flex-1 block text-center py-3 rounded-full font-semibold text-sm no-underline border border-border-light text-text-muted transition-all hover:border-text-muted"
               >
                 Contact Us

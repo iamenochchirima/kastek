@@ -4,7 +4,7 @@ import type {
   WhatsappConnection,
   WhatsappContact,
   WhatsappTemplate,
-} from "@kasiai/database";
+} from "@kasitek/database";
 
 export type MarketingVariableSource = "static" | "contact";
 

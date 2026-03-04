@@ -458,10 +458,10 @@ export function formatQuotationNumber(draft: Pick<QuotationDraft, "id" | "date">
 
 export function getPreparedByDetails() {
   return {
-    company: "KasiAI",
+    company: "KasiTek",
     descriptor: "AI automation solutions",
     phone: "+27 73 123 1909",
-    website: "kasiai.site",
+    website: "kasitek.site",
   };
 }
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@kasiai/database";
+import type { Prisma } from "@kasitek/database";
 import type {
   CreateCampaignResult,
   CreateWhatsappCampaignInput,

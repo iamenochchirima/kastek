@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 import Sidebar from "@/components/admin/sidebar";
 import Header from "@/components/admin/header";
 

@@ -38,9 +38,9 @@ function Nav({ isAuthenticated }: { isAuthenticated: boolean }) {
     <nav className="sticky top-0 z-50 border-b border-border bg-bg/82 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 md:px-10">
         <Link href="/" className="flex items-center gap-2 no-underline">
-          <img src="/logo.png" alt="KasiAI" className="h-8 w-8" />
+          <img src="/logo.png" alt="KasiTek" className="h-8 w-8" />
           <span className="text-2xl font-semibold tracking-tight text-text">
-            Kasi<span className="text-accent">AI</span>
+            Kasi<span className="text-accent">Tek</span>
           </span>
         </Link>
 
@@ -107,7 +107,7 @@ export default async function LandingV3Page() {
               <SequentialHeroLines />
 
               <p className="mt-7 max-w-3xl text-lg leading-8 text-text-muted">
-                KasiAI helps businesses look better online, respond faster to customers, and grow
+                KasiTek helps businesses look better online, respond faster to customers, and grow
                 with connected systems across websites, AI agents, messaging, follow-up, and
                 campaigns.
               </p>
@@ -117,7 +117,7 @@ export default async function LandingV3Page() {
                   href="/get-quote"
                   className="rounded-full bg-accent px-7 py-3 text-sm font-bold uppercase tracking-[0.12em] text-bg transition hover:-translate-y-0.5"
                 >
-                  Start With KasiAI
+                  Start With KasiTek
                 </Link>
                 <a
                   href="#packages"

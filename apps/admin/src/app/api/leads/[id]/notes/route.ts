@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { prisma, Prisma } from "@kasiai/database";
+import { prisma, Prisma } from "@kasitek/database";
 
 export async function POST(
   req: Request,

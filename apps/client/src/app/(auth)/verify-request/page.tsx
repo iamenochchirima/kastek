@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Check Your Email | KasiAI",
+  title: "Check Your Email | KasiTek",
 };
 
 export default function VerifyRequestPage() {

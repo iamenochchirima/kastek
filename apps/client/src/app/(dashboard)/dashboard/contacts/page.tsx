@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import ContactsManager from "@/components/dashboard/contacts/contacts-manager";
 
 export const metadata = {
-  title: "Contacts | KasiAI",
+  title: "Contacts | KasiTek",
 };
 
 export default async function ContactsPage({

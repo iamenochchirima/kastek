@@ -12,7 +12,7 @@ Your site also covers an enormous amount of ground. With hundreds of categories 
 
 This is something we can help with.
 
-My name is Enock Chirima, founder of KasiAI, an AI automation consultancy based in South Africa. We help businesses automate customer communication with three affordable solutions:
+My name is Enock Chirima, founder of KasiTek, an AI automation consultancy based in South Africa. We help businesses automate customer communication with three affordable solutions:
 
 AI WhatsApp Chatbot
 - Responds to every message instantly, 24/7
@@ -45,11 +45,11 @@ No technical skills needed, no contracts, live in 3-7 days.
 You can test out how the AI agents work from here:
 
 → Try our WhatsApp Agent: https://wa.me/+27761073792
-→ See our Website Agent in action: https://kasiai.site
+→ See our Website Agent in action: https://kasitek.site
 
 I'd love a quick chat to explore whether this is a fit for Polokwane Info. No obligation, just reply here or message me on WhatsApp.
 
 Warm regards,
 Enock Chirima
-Founder, KasiAI
-kasiai.site | +27 73 123 1909
+Founder, KasiTek
+kasitek.site | +27 73 123 1909

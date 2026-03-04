@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Terms | KasiAI",
+  title: "Terms | KasiTek",
 };
 
 export default function TermsPage() {
@@ -14,11 +14,11 @@ export default function TermsPage() {
 
         <section className="space-y-4 text-base leading-8 text-text-muted">
           <p>
-            These terms govern access to and use of KasiAI websites, software, AI agents,
+            These terms govern access to and use of KasiTek websites, software, AI agents,
             messaging systems, automation services, and related deliverables.
           </p>
           <p>
-            By using KasiAI services, you agree to these terms and any applicable project-specific
+            By using KasiTek services, you agree to these terms and any applicable project-specific
             agreements, quotations, or service schedules.
           </p>
         </section>
@@ -26,7 +26,7 @@ export default function TermsPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold uppercase">Services</h2>
           <p className="text-base leading-8 text-text-muted">
-            KasiAI provides digital services including websites, AI agents, campaigns, outreach
+            KasiTek provides digital services including websites, AI agents, campaigns, outreach
             systems, automation workflows, and related support. Exact scope, pricing, timelines,
             and deliverables are defined in the relevant quotation, agreement, or project terms.
           </p>
@@ -37,7 +37,7 @@ export default function TermsPage() {
           <div className="space-y-3 text-base leading-8 text-text-muted">
             <p>Clients must provide accurate information, required approvals, and timely access to systems and accounts.</p>
             <p>Clients remain responsible for third-party platform accounts, policy compliance, and content they provide.</p>
-            <p>Clients must ensure they have the right to use any data, assets, or materials supplied to KasiAI.</p>
+            <p>Clients must ensure they have the right to use any data, assets, or materials supplied to KasiTek.</p>
           </div>
         </section>
 
@@ -53,7 +53,7 @@ export default function TermsPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold uppercase">Intellectual Property</h2>
           <p className="text-base leading-8 text-text-muted">
-            KasiAI retains ownership of its pre-existing tools, systems, methods, templates, and
+            KasiTek retains ownership of its pre-existing tools, systems, methods, templates, and
             platform components. Client-owned content, branding, and proprietary business materials
             remain the property of the client unless otherwise agreed.
           </p>
@@ -62,7 +62,7 @@ export default function TermsPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold uppercase">No Warranty</h2>
           <p className="text-base leading-8 text-text-muted">
-            Services are provided on a reasonable-efforts basis. KasiAI does not guarantee specific
+            Services are provided on a reasonable-efforts basis. KasiTek does not guarantee specific
             business outcomes, uninterrupted third-party platform availability, or error-free
             operation at all times.
           </p>
@@ -71,7 +71,7 @@ export default function TermsPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold uppercase">Limitation Of Liability</h2>
           <p className="text-base leading-8 text-text-muted">
-            To the maximum extent permitted by law, KasiAI is not liable for indirect, incidental,
+            To the maximum extent permitted by law, KasiTek is not liable for indirect, incidental,
             special, consequential, or lost-profit damages arising from use of the service or from
             third-party platforms and integrations.
           </p>
@@ -80,7 +80,7 @@ export default function TermsPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold uppercase">Termination</h2>
           <p className="text-base leading-8 text-text-muted">
-            KasiAI may suspend or terminate service access for non-payment, policy violations,
+            KasiTek may suspend or terminate service access for non-payment, policy violations,
             abuse, security concerns, or material breach of agreement. Clients may discontinue
             services according to the applicable notice or contract terms.
           </p>
@@ -90,8 +90,8 @@ export default function TermsPage() {
           <h2 className="text-2xl font-bold uppercase">Contact</h2>
           <p className="text-base leading-8 text-text-muted">
             For questions about these terms, contact{" "}
-            <a className="text-accent hover:underline" href="mailto:info@kasiai.site">
-              info@kasiai.site
+            <a className="text-accent hover:underline" href="mailto:info@kasitek.site">
+              info@kasitek.site
             </a>
             .
           </p>

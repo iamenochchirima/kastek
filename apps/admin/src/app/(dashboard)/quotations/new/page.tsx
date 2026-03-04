@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@kasiai/database";
+import { prisma } from "@kasitek/database";
 import QuotationBuilder from "@/components/admin/quotation-builder";
 import { getDefaultQuotationDraft, getTemplateDraft } from "@/lib/quotation";
 

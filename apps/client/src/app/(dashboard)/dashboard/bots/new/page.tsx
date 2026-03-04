@@ -1,7 +1,7 @@
 import CreateBotWizard from "@/components/dashboard/bots/create-bot-wizard";
 
 export const metadata = {
-  title: "Create Bot | KasiAI",
+  title: "Create Bot | KasiTek",
 };
 
 export default function NewBotPage() {

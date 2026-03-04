@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import ProfileForm from "@/components/dashboard/profile/profile-form";
 
 export const metadata = {
-  title: "Profile | KasiAI",
+  title: "Profile | KasiTek",
 };
 
 export default async function ProfilePage() {

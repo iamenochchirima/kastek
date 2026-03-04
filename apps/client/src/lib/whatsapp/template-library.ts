@@ -42,7 +42,7 @@ export const TEMPLATE_LIBRARY: TemplateLibraryItem[] = [
     title: "Product Launch",
     category: "MARKETING",
     description: "Announce a new product or offer with one personalized slot.",
-    header: "KasiAI Update",
+    header: "KasiTek Update",
     body: "Hi {{1}}, our new launch is live. Tap into the offer before it ends.",
     footer: "Reply STOP to unsubscribe",
   },
@@ -79,7 +79,7 @@ export const TEMPLATE_LIBRARY: TemplateLibraryItem[] = [
     category: "AUTHENTICATION",
     description: "One-time passcode for login or verification.",
     header: "Verification code",
-    body: "Your KasiAI verification code is {{1}}. It expires in {{2}} minutes.",
+    body: "Your KasiTek verification code is {{1}}. It expires in {{2}} minutes.",
     footer: "Do not share this code",
   },
   {
@@ -88,7 +88,7 @@ export const TEMPLATE_LIBRARY: TemplateLibraryItem[] = [
     category: "AUTHENTICATION",
     description: "Secure sign-in confirmation for the account owner.",
     header: "Secure sign-in",
-    body: "Use {{1}} to complete your sign-in request on KasiAI.",
+    body: "Use {{1}} to complete your sign-in request on KasiTek.",
     footer: "Ignore if this was not you",
   },
 ];

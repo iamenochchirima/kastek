@@ -26,7 +26,7 @@ export default function Hero() {
           Get a Free Quote &rarr;
         </a>
         <a
-          href="https://wa.me/27731231909?text=Hi%20KasiAI%2C%20I'm%20interested%20in%20AI%20automation%20for%20my%20business"
+          href="https://wa.me/27731231909?text=Hi%20KasiTek%2C%20I'm%20interested%20in%20AI%20automation%20for%20my%20business"
           className="bg-transparent text-text px-8 py-3.5 rounded-full font-medium text-base no-underline border border-border-light transition-all hover:border-text-muted inline-flex items-center gap-2 max-sm:text-center max-sm:justify-center"
         >
           Chat on WhatsApp

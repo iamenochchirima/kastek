@@ -6,7 +6,7 @@ import {
   NotificationScopeType,
   NotificationSeverity,
   publishNotificationEvent,
-} from "@kasiai/database";
+} from "@kasitek/database";
 
 const VALID_BUSINESS_TYPES = [
   "restaurant",
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
     try {
       const resend = new Resend(process.env.AUTH_RESEND_KEY);
       await resend.emails.send({
-        from: "KasiAI <onboarding@resend.dev>",
+        from: "KasiTek <onboarding@resend.dev>",
         to: process.env.ADMIN_EMAIL || "iamenochchirima@gmail.com",
         subject: `New Quote Request: ${businessName}`,
         html: `

@@ -1,7 +1,7 @@
 # Quotation
 
 **Prepared for:** Sandwich Baron  
-**Prepared by:** KasiAI  
+**Prepared by:** KasiTek  
 **Date:** 2026-02-27  
 
 ## Website Agent for Sandwich Baron
@@ -69,6 +69,6 @@ This quotation is valid for **14 days** from **2026-02-27**.
 
 ---
 
-**KasiAI**  
+**KasiTek**  
 WhatsApp/Call: +27 73 123 1909  
-Website: kasiai.site
+Website: kasitek.site

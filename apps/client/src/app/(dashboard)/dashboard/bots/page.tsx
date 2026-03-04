@@ -6,7 +6,7 @@ import BotCard from "@/components/dashboard/bots/bot-card";
 import EmptyState from "@/components/dashboard/bots/empty-state";
 
 export const metadata = {
-  title: "My Bots | KasiAI",
+  title: "My Bots | KasiTek",
 };
 
 export default async function BotsPage() {

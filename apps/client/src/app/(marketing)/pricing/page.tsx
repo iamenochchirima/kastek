@@ -3,7 +3,7 @@ import Footer from "@/components/Footer";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pricing | KasiAI",
+  title: "Pricing | KasiTek",
   description:
     "Transparent, tiered pricing for AI WhatsApp chatbots, website agents, voice agents, and custom automations.",
 };
@@ -335,7 +335,7 @@ export default function PricingPage() {
                 Get a Free Quote &rarr;
               </a>
               <a
-                href="https://wa.me/27731231909?text=Hi%20KasiAI%2C%20I%27d%20like%20to%20discuss%20pricing"
+                href="https://wa.me/27731231909?text=Hi%20KasiTek%2C%20I%27d%20like%20to%20discuss%20pricing"
                 className="border border-border-light text-text px-8 py-3 rounded-full font-semibold text-sm no-underline transition-all hover:border-text-muted"
               >
                 Chat on WhatsApp
