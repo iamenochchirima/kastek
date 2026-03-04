@@ -80,6 +80,7 @@ export default function WhatsappTemplateManager({
   initialLibraryItemId?: string;
 }) {
   const router = useRouter();
+  const shouldChooseConnection = connections.length > 2;
   const [connectionId, setConnectionId] = useState(connections[0]?.id || "");
   const [templateName, setTemplateName] = useState("");
   const [language, setLanguage] = useState("en_US");
@@ -353,20 +354,29 @@ export default function WhatsappTemplateManager({
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_380px]">
               <div className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm">
-                    <span className="text-text-muted">Connection</span>
-                    <select
-                      value={connectionId}
-                      onChange={(event) => setConnectionId(event.target.value)}
-                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
-                    >
-                      {connections.map((connection) => (
-                        <option key={connection.id} value={connection.id}>
-                          {connection.phoneDisplayNumber || connection.phoneNumberId}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  {shouldChooseConnection ? (
+                    <label className="space-y-2 text-sm">
+                      <span className="text-text-muted">Connection</span>
+                      <select
+                        value={connectionId}
+                        onChange={(event) => setConnectionId(event.target.value)}
+                        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                      >
+                        {connections.map((connection) => (
+                          <option key={connection.id} value={connection.id}>
+                            {connection.phoneDisplayNumber || connection.phoneNumberId}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <div className="space-y-2 text-sm">
+                      <span className="text-text-muted">Using connection</span>
+                      <div className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-text">
+                        {activeConnection?.phoneDisplayNumber || activeConnection?.phoneNumberId || "-"}
+                      </div>
+                    </div>
+                  )}
 
                   <label className="space-y-2 text-sm">
                     <span className="text-text-muted">Language</span>

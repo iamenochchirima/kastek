@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { auth } from "@/auth";
+import SignOutButton from "@/components/auth/sign-out-button";
 import Footer from "@/components/Footer";
 import SequentialHeroLines from "@/components/sequential-hero-lines";
 
@@ -31,7 +33,7 @@ const packages = [
   },
 ];
 
-function Nav() {
+function Nav({ isAuthenticated }: { isAuthenticated: boolean }) {
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-bg/82 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 md:px-10">
@@ -49,28 +51,39 @@ function Nav() {
           <a href="#packages" className="text-sm text-text-muted transition hover:text-text">
             Services
           </a>
-        </div>
-
-        <div className="flex items-center gap-3">
           <Link href="/pricing" className="text-sm text-text-muted transition hover:text-text">
             Pricing
           </Link>
-          <Link
-            href="/get-quote"
-            className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg transition hover:-translate-y-0.5"
-          >
-            Get a Quote
-          </Link>
+          <a href="#faq" className="text-sm text-text-muted transition hover:text-text">
+            FAQ
+          </a>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {isAuthenticated ? (
+            <>
+              <Link href="/dashboard" className="text-sm text-text-muted transition hover:text-text">
+                Dashboard
+              </Link>
+              <SignOutButton />
+            </>
+          ) : (
+            <Link href="/login" className="text-sm text-text-muted transition hover:text-text">
+              Log In
+            </Link>
+          )}
         </div>
       </div>
     </nav>
   );
 }
 
-export default function LandingV3Page() {
+export default async function LandingV3Page() {
+  const session = await auth();
+
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Nav />
+      <Nav isAuthenticated={!!session?.user} />
 
       <main>
         <section className="relative overflow-hidden">

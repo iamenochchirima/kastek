@@ -109,6 +109,7 @@ export default function CreateCampaignForm({
   contacts: ContactOption[];
 }) {
   const router = useRouter();
+  const shouldChooseConnection = connections.length > 2;
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -367,21 +368,32 @@ export default function CreateCampaignForm({
         </label>
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="space-y-2 text-sm">
-            <span className="text-text-muted">WhatsApp connection</span>
-            <select
-              value={connectionId}
-              onChange={(event) => setConnectionId(event.target.value)}
-              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text outline-none ring-accent/30 focus:ring"
-            >
-              {connections.map((connection) => (
-                <option key={connection.id} value={connection.id}>
-                  {(connection.phoneDisplayNumber || connection.phoneNumberId) +
-                    ` · ${connection.currentQualityRating}`}
-                </option>
-              ))}
-            </select>
-          </label>
+          {shouldChooseConnection ? (
+            <label className="space-y-2 text-sm">
+              <span className="text-text-muted">WhatsApp connection</span>
+              <select
+                value={connectionId}
+                onChange={(event) => setConnectionId(event.target.value)}
+                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text outline-none ring-accent/30 focus:ring"
+              >
+                {connections.map((connection) => (
+                  <option key={connection.id} value={connection.id}>
+                    {(connection.phoneDisplayNumber || connection.phoneNumberId) +
+                      ` · ${connection.currentQualityRating}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div className="space-y-2 text-sm">
+              <span className="text-text-muted">Using connection</span>
+              <div className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-text">
+                {selectedConnection
+                  ? `${selectedConnection.phoneDisplayNumber || selectedConnection.phoneNumberId} · ${selectedConnection.currentQualityRating}`
+                  : "-"}
+              </div>
+            </div>
+          )}
 
           <label className="space-y-2 text-sm">
             <span className="text-text-muted">Approved template</span>
