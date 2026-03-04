@@ -1,15 +1,11 @@
 import { auth } from "@/auth";
 import NotificationActions from "@/components/dashboard/notifications/notification-actions";
 import {
-  NotificationChannel,
   NotificationRecipientType,
-  NotificationStatus,
-  listNotifications,
-  prisma,
+  listNotificationInbox,
 } from "@kasiai/database";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import type { ReactNode } from "react";
 
 export const metadata = {
   title: "Notifications | KasiAI",
@@ -18,49 +14,20 @@ export const metadata = {
 export default async function NotificationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ channel?: string; unread?: string }>;
+  searchParams: Promise<{ cursor?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
   const params = await searchParams;
-  const unreadOnly = params.unread === "true";
-  const channel =
-    params.channel === NotificationChannel.EMAIL || params.channel === NotificationChannel.IN_APP
-      ? params.channel
-      : undefined;
-
-  const [notifications, counts, unreadCount] = await Promise.all([
-    listNotifications(NotificationRecipientType.USER, session.user.id, {
-      channel,
-      unreadOnly,
-      limit: 100,
-    }),
-    prisma.notification.groupBy({
-      by: ["channel"],
-      where: {
-        recipientType: NotificationRecipientType.USER,
-        recipientId: session.user.id,
-      },
-      _count: true,
-    }),
-    prisma.notification.count({
-      where: {
-        recipientType: NotificationRecipientType.USER,
-        recipientId: session.user.id,
-        channel: NotificationChannel.IN_APP,
-        readAt: null,
-        status: {
-          notIn: [NotificationStatus.DISMISSED, NotificationStatus.FAILED],
-        },
-      },
-    }),
-  ]);
-
-  const channelCounts = Object.fromEntries(counts.map((item) => [item.channel, item._count])) as Record<
-    string,
-    number
-  >;
+  const { items, unreadCount, nextCursor } = await listNotificationInbox(
+    NotificationRecipientType.USER,
+    session.user.id,
+    {
+      limit: 30,
+      cursor: params.cursor,
+    }
+  );
 
   return (
     <div className="space-y-6">
@@ -68,69 +35,35 @@ export default async function NotificationsPage({
         <div>
           <h1 className="mb-2 text-3xl font-semibold tracking-tight">Notifications</h1>
           <p className="text-text-muted">
-            Review inbox, template, campaign, and system notifications in one place. Email-worthy
-            events are logged here as well.
+            Important template, campaign, and system updates appear here.
           </p>
         </div>
 
         <NotificationActions />
       </div>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <MetricCard label="Unread In-App" value={unreadCount.toString()} />
-        <MetricCard
-          label="In-App Logged"
-          value={String(channelCounts[NotificationChannel.IN_APP] || 0)}
-        />
-        <MetricCard
-          label="Email Logged"
-          value={String(channelCounts[NotificationChannel.EMAIL] || 0)}
-        />
-      </section>
-
-      <section className="flex flex-wrap gap-2">
-        <FilterLink href="/dashboard/notifications" active={!channel && !unreadOnly}>
-          All
-        </FilterLink>
-        <FilterLink href="/dashboard/notifications?unread=true" active={unreadOnly && !channel}>
-          Unread
-        </FilterLink>
-        <FilterLink
-          href={`/dashboard/notifications?channel=${NotificationChannel.IN_APP}`}
-          active={channel === NotificationChannel.IN_APP}
-        >
-          In-App
-        </FilterLink>
-        <FilterLink
-          href={`/dashboard/notifications?channel=${NotificationChannel.EMAIL}`}
-          active={channel === NotificationChannel.EMAIL}
-        >
-          Email
-        </FilterLink>
+      <section className="grid gap-4 md:grid-cols-2">
+        <MetricCard label="Unread" value={unreadCount.toString()} />
+        <MetricCard label="On this page" value={items.length.toString()} />
       </section>
 
       <section className="space-y-3">
-        {notifications.length === 0 ? (
+        {items.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-surface p-10 text-center text-sm text-text-muted">
-            No notifications match the current filter.
+            No notifications yet.
           </div>
         ) : (
-          notifications.map((notification) => {
-            const latestDelivery = notification.deliveryLogs[0];
+          items.map((notification) => {
             const entityHref = buildNotificationHref(
-              notification.event.entityType,
-              notification.event.entityId,
-              notification.event.payload
+              notification.entityType,
+              notification.entityId,
+              notification.payload
             );
-            const isUnread =
-              notification.channel === NotificationChannel.IN_APP &&
-              notification.readAt === null &&
-              notification.status !== NotificationStatus.DISMISSED &&
-              notification.status !== NotificationStatus.FAILED;
+            const isUnread = notification.isUnread;
 
             return (
               <div
-                key={notification.id}
+                key={notification.eventId}
                 className={`rounded-2xl border p-5 ${
                   isUnread ? "border-accent/30 bg-accent/5" : "border-border bg-surface"
                 }`}
@@ -140,24 +73,28 @@ export default async function NotificationsPage({
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <span
                         className={`rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] ${severityClass(
-                          notification.event.severity
+                          notification.severity
                         )}`}
                       >
-                        {notification.event.severity}
-                      </span>
-                      <span className="rounded-full border border-border px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-text-muted">
-                        {notification.channel === NotificationChannel.EMAIL ? "Email" : "In-App"}
+                        {notification.severity}
                       </span>
                       <span className="rounded-full border border-border px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-text-dim">
                         {notification.status}
                       </span>
                     </div>
 
-                    <h2 className="text-lg font-semibold text-text">{notification.event.title}</h2>
-                    <p className="mt-1 text-sm text-text-muted">{notification.event.message}</p>
+                    <h2 className="text-lg font-semibold text-text">{notification.title}</h2>
+                    <p className="mt-1 text-sm text-text-muted">{notification.message}</p>
                     <p className="mt-3 text-xs text-text-dim">
                       {notification.createdAt.toLocaleString("en-ZA")}
                     </p>
+
+                    {notification.emailDeliveryStatus ? (
+                      <p className="mt-2 text-xs text-text-dim">
+                        Email delivery: {notification.emailDeliveryStatus}
+                        {notification.emailDeliveryError ? ` · ${notification.emailDeliveryError}` : ""}
+                      </p>
+                    ) : null}
                   </div>
 
                   {entityHref ? (
@@ -169,54 +106,23 @@ export default async function NotificationsPage({
                     </Link>
                   ) : null}
                 </div>
-
-                {notification.channel === NotificationChannel.EMAIL ? (
-                  <div className="mt-4 rounded-xl border border-border bg-surface-2 p-4 text-sm text-text-muted">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <span>Email delivery status</span>
-                      <span className="font-medium text-text">
-                        {latestDelivery?.status || notification.status}
-                      </span>
-                    </div>
-                    {latestDelivery?.provider ? (
-                      <p className="mt-2 text-xs text-text-dim">Provider: {latestDelivery.provider}</p>
-                    ) : null}
-                    {latestDelivery?.errorMessage || notification.errorMessage ? (
-                      <p className="mt-2 text-xs text-red-300">
-                        {latestDelivery?.errorMessage || notification.errorMessage}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
               </div>
             );
           })
         )}
+
+        {nextCursor ? (
+          <div className="pt-1">
+            <Link
+              href={`/dashboard/notifications?cursor=${encodeURIComponent(nextCursor)}`}
+              className="inline-flex rounded-full border border-border px-4 py-2 text-sm font-medium text-text no-underline transition-colors hover:border-border-light hover:bg-surface-2"
+            >
+              Load older notifications
+            </Link>
+          </div>
+        ) : null}
       </section>
     </div>
-  );
-}
-
-function FilterLink({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-full border px-3 py-1.5 text-sm no-underline transition-colors ${
-        active
-          ? "border-accent/30 bg-accent/10 text-accent"
-          : "border-border bg-surface text-text-muted hover:border-border-light hover:text-text"
-      }`}
-    >
-      {children}
-    </Link>
   );
 }
 

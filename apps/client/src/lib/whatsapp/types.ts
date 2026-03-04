@@ -97,7 +97,17 @@ export type QueueSendJobData = {
 export type QueueInboxSendJobData = {
   conversationId: string;
   userId: string;
-  text: string;
+  text?: string;
+  media?: {
+    kind: "image" | "video" | "audio" | "document";
+    mediaId: string;
+    mimeType?: string | null;
+    caption?: string | null;
+    filename?: string | null;
+  };
+  replyToMessageId?: string;
+  replyPreview?: string;
+  replyToWhatsappMessageId?: string;
 };
 
 export type QueueWebhookJobData = {
@@ -110,6 +120,19 @@ export type WebhookStatusPayload = {
   recipient_id?: string;
   status?: string;
   timestamp?: string;
+  conversation?: {
+    id?: string;
+    expiration_timestamp?: string;
+    origin?: {
+      type?: string;
+    };
+  };
+  pricing?: {
+    billable?: boolean | string;
+    pricing_model?: string;
+    category?: string;
+    type?: string;
+  };
   errors?: Array<{
     code?: number;
     title?: string;

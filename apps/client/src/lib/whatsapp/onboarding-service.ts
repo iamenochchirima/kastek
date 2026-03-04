@@ -170,6 +170,21 @@ function estimateDailyLimitFromTier(tier?: string): number | null {
   return null;
 }
 
+function getConnectionDisplayLabel(
+  phone: Pick<GraphPhoneNumber, "verified_name" | "display_phone_number">,
+  manualLabel?: string
+) {
+  const custom = manualLabel?.trim();
+  if (custom) return custom;
+  return phone.verified_name?.trim() || phone.display_phone_number || null;
+}
+
+function isLikelyPhoneLabel(value?: string | null) {
+  if (!value) return false;
+  const normalized = value.replace(/\s+/g, "");
+  return /^\+?\d{6,}$/.test(normalized);
+}
+
 async function fetchConnectionPhone(accessToken: string, phoneNumberId: string) {
   return fetchGraphJson<GraphPhoneNumber>(
     `${GRAPH_BASE}/${phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,name_status,messaging_limit_tier&access_token=${encodeURIComponent(accessToken)}`
@@ -218,8 +233,7 @@ export async function connectManualWhatsappConnection(input: ManualConnectionInp
     update: {
       userId: input.userId,
       wabaId,
-      phoneDisplayNumber:
-        input.phoneDisplayNumber?.trim() || phone.display_phone_number || null,
+      phoneDisplayNumber: getConnectionDisplayLabel(phone, input.phoneDisplayNumber),
       accessTokenEncrypted: encryptedToken,
       currentQualityRating: mapQualityRating(phone.quality_rating),
       verified:
@@ -233,8 +247,7 @@ export async function connectManualWhatsappConnection(input: ManualConnectionInp
       userId: input.userId,
       wabaId,
       phoneNumberId,
-      phoneDisplayNumber:
-        input.phoneDisplayNumber?.trim() || phone.display_phone_number || null,
+      phoneDisplayNumber: getConnectionDisplayLabel(phone, input.phoneDisplayNumber),
       accessTokenEncrypted: encryptedToken,
       currentQualityRating: mapQualityRating(phone.quality_rating),
       verified:
@@ -384,7 +397,7 @@ export async function refreshWhatsappConnection(userId: string, connectionId: st
       id: connection.id,
     },
     data: {
-      phoneDisplayNumber: phone.display_phone_number || null,
+      phoneDisplayNumber: getConnectionDisplayLabel(phone),
       currentQualityRating: mapQualityRating(phone.quality_rating),
       verified:
         phone.code_verification_status === "VERIFIED" ||
@@ -455,7 +468,12 @@ export async function updateWhatsappConnectionAccessToken(
     },
     data: {
       accessTokenEncrypted: encryptedToken,
-      phoneDisplayNumber: connection.phoneDisplayNumber || phone.display_phone_number || null,
+      phoneDisplayNumber: getConnectionDisplayLabel(
+        phone,
+        connection.phoneDisplayNumber && !isLikelyPhoneLabel(connection.phoneDisplayNumber)
+          ? connection.phoneDisplayNumber
+          : undefined
+      ),
       currentQualityRating: mapQualityRating(phone.quality_rating),
       verified:
         phone.code_verification_status === "VERIFIED" ||
@@ -557,7 +575,7 @@ export async function completeEmbeddedSignup(input: EmbeddedSignupCompleteInput)
     update: {
       userId: input.userId,
       wabaId,
-      phoneDisplayNumber: phone.display_phone_number || null,
+      phoneDisplayNumber: getConnectionDisplayLabel(phone),
       accessTokenEncrypted: encryptedToken,
       currentQualityRating: mapQualityRating(phone.quality_rating),
       verified:
@@ -570,7 +588,7 @@ export async function completeEmbeddedSignup(input: EmbeddedSignupCompleteInput)
       userId: input.userId,
       wabaId,
       phoneNumberId: phone.id,
-      phoneDisplayNumber: phone.display_phone_number || null,
+      phoneDisplayNumber: getConnectionDisplayLabel(phone),
       accessTokenEncrypted: encryptedToken,
       currentQualityRating: mapQualityRating(phone.quality_rating),
       verified:

@@ -1,10 +1,11 @@
 "use client";
 
 import SignOutButton from "@/components/auth/sign-out-button";
+import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
 import ThemeToggle from "@/components/theme-toggle";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type IconProps = {
   active?: boolean;
@@ -29,6 +30,7 @@ type SidebarProps = {
     email?: string | null;
     image?: string | null;
   };
+  inboxUnreadCount?: number;
 };
 
 function DashboardIcon({ active = false, className = "" }: IconProps) {
@@ -174,7 +176,6 @@ const navItems: NavItem[] = [
     icon: CampaignIcon,
     subItems: [{ label: "WhatsApp", href: "/dashboard/campaigns/whatsapp" }],
   },
-  { label: "Notifications", href: "/dashboard/notifications", icon: NotificationIcon },
   { label: "Settings", href: "/dashboard/settings", icon: SettingsIcon },
 ];
 
@@ -186,11 +187,13 @@ function SidebarNavItem({
   item,
   pathname,
   open,
+  inboxUnreadCount,
   onToggle,
 }: {
   item: NavItem;
   pathname: string;
   open: boolean;
+  inboxUnreadCount: number;
   onToggle: () => void;
 }) {
   const active = isItemActive(pathname, item.href);
@@ -218,6 +221,11 @@ function SidebarNavItem({
             <Icon active={active} className="h-5 w-5" />
           </span>
           <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
+          {item.href === "/dashboard/inbox" && inboxUnreadCount > 0 ? (
+            <span className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-bg">
+              {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
+            </span>
+          ) : null}
           {hasSubmenu ? (
             <button
               type="button"
@@ -267,8 +275,10 @@ function SidebarNavItem({
   );
 }
 
-export default function Sidebar({ user }: SidebarProps) {
+export default function Sidebar({ user, inboxUnreadCount = 0 }: SidebarProps) {
   const pathname = usePathname();
+  const [liveInboxUnreadCount, setLiveInboxUnreadCount] = useState(inboxUnreadCount);
+  const reconcileTimerRef = useRef<number | null>(null);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(navItems.filter((item) => item.subItems?.length).map((item) => [item.href, isItemActive(pathname, item.href)])),
   );
@@ -282,8 +292,76 @@ export default function Sidebar({ user }: SidebarProps) {
     .map((part) => part[0]?.toUpperCase())
     .join("");
 
+  useEffect(() => {
+    setLiveInboxUnreadCount(inboxUnreadCount);
+  }, [inboxUnreadCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncUnreadCount = async () => {
+      try {
+        const response = await fetch("/api/whatsapp/inbox/unread-count", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as { unreadCount?: number };
+        if (cancelled || typeof payload.unreadCount !== "number") {
+          return;
+        }
+
+        setLiveInboxUnreadCount(Math.max(0, payload.unreadCount));
+      } catch {
+        // Ignore transient network errors and retry on the next event.
+      }
+    };
+
+    const scheduleSync = () => {
+      if (reconcileTimerRef.current !== null) {
+        window.clearTimeout(reconcileTimerRef.current);
+      }
+
+      reconcileTimerRef.current = window.setTimeout(() => {
+        void syncUnreadCount();
+      }, 250);
+    };
+
+    const source = new EventSource("/api/realtime/whatsapp");
+
+    source.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as WhatsappRealtimeEvent;
+
+        if (payload.type === "message.created" && payload.message.sender === "customer") {
+          setLiveInboxUnreadCount((current) => current + 1);
+          scheduleSync();
+          return;
+        }
+
+        if (payload.type === "conversation.updated") {
+          scheduleSync();
+        }
+      } catch {
+        // Ignore malformed realtime payloads.
+      }
+    };
+
+    return () => {
+      cancelled = true;
+      source.close();
+      if (reconcileTimerRef.current !== null) {
+        window.clearTimeout(reconcileTimerRef.current);
+        reconcileTimerRef.current = null;
+      }
+    };
+  }, []);
+
   return (
-    <aside className="hidden w-72 shrink-0 border-r border-border/80 bg-[radial-gradient(circle_at_top,rgba(196,240,77,0.06),transparent_22%),var(--color-surface)] md:flex md:flex-col">
+    <aside className="sticky top-0 hidden h-screen w-72 shrink-0 self-start border-r border-border/80 bg-[radial-gradient(circle_at_top,rgba(196,240,77,0.06),transparent_22%),var(--color-surface)] md:flex md:flex-col">
       <div className="border-b border-border/80 px-6 pb-5 pt-6">
         <Link href="/" className="block text-text no-underline">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -295,13 +373,14 @@ export default function Sidebar({ user }: SidebarProps) {
         </Link>
       </div>
 
-      <nav className="flex-1 px-4 py-4">
+      <nav className="flex-1 overflow-y-auto px-4 py-4">
         {navItems.map((item) => (
           <SidebarNavItem
             key={item.href}
             item={item}
             pathname={pathname}
             open={isItemActive(pathname, item.href) || !!openMenus[item.href]}
+            inboxUnreadCount={liveInboxUnreadCount}
             onToggle={() =>
               setOpenMenus((current) => ({
                 ...current,
@@ -313,6 +392,28 @@ export default function Sidebar({ user }: SidebarProps) {
       </nav>
 
       <div className="relative px-4 pb-4">
+        <div className="mb-3">
+          <Link
+            href="/dashboard/notifications"
+            className={`group flex min-w-0 items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm no-underline transition-all ${
+              isItemActive(pathname, "/dashboard/notifications")
+                ? "bg-[linear-gradient(135deg,rgba(196,240,77,0.14),rgba(196,240,77,0.04))] text-text shadow-[inset_0_0_0_1px_rgba(196,240,77,0.18)]"
+                : "text-text-muted hover:bg-surface-2 hover:text-text"
+            }`}
+          >
+            <span
+              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
+                isItemActive(pathname, "/dashboard/notifications")
+                  ? "border-accent/25 bg-accent/10 text-accent"
+                  : "border-border bg-bg/50 text-text-dim group-hover:border-border-light group-hover:text-text"
+              }`}
+            >
+              <NotificationIcon active={isItemActive(pathname, "/dashboard/notifications")} className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1 truncate font-medium">Notifications</span>
+          </Link>
+        </div>
+
         {accountMenuOpen ? (
           <div className="absolute inset-x-4 bottom-[88px] rounded-[28px] border border-border/90 bg-[rgba(32,32,32,0.96)] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl">
             <div className="flex items-center gap-3 rounded-2xl px-3 py-2.5">

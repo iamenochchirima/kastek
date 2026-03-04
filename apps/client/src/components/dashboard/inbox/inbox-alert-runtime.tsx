@@ -4,6 +4,7 @@ import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
+import { getWhatsappMessagePreview } from "@/lib/whatsapp/message-content";
 import {
   ALERT_SETTINGS_EVENT,
   readInboxAlertPreferences,
@@ -64,7 +65,7 @@ export default function InboxAlertRuntime() {
         }
 
         const contactName = payload.conversation?.customerName || "New contact";
-        const preview = payload.message.content.trim().slice(0, 140);
+        const preview = getWhatsappMessagePreview(payload.message.content, 140);
 
         if (preferences.soundAlertsEnabled) {
           playAlertSound(audioContextRef);

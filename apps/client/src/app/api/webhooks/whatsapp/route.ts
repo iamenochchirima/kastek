@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { getWhatsappWebhookQueue } from "@/lib/whatsapp/queue";
+import { processWhatsappWebhookChange } from "@/lib/whatsapp/webhook-service";
 
 export const runtime = "nodejs";
+const WEBHOOK_DEBUG = process.env.WHATSAPP_WEBHOOK_DEBUG === "1";
+const PROCESS_INLINE =
+  process.env.NODE_ENV !== "production" &&
+  process.env.WHATSAPP_WEBHOOK_USE_QUEUE !== "1";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -23,7 +28,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const queue = getWhatsappWebhookQueue();
+    const queue = PROCESS_INLINE ? null : getWhatsappWebhookQueue();
     const body = (await req.json()) as {
       entry?: Array<{
         changes?: Array<{
@@ -32,8 +37,22 @@ export async function POST(req: Request) {
         }>;
       }>;
     };
+    let queuedCount = 0;
 
-    for (const entry of body.entry || []) {
+    if (WEBHOOK_DEBUG) {
+      console.info("[whatsapp:webhook:route] received", {
+        entries: body.entry?.length || 0,
+      });
+    }
+
+    for (const [entryIndex, entry] of (body.entry || []).entries()) {
+      if (WEBHOOK_DEBUG) {
+        console.info("[whatsapp:webhook:route] entry", {
+          entryIndex,
+          changes: entry.changes?.length || 0,
+        });
+      }
+
       for (const [index, change] of (entry.changes || []).entries()) {
         const value = change.value;
         if (!value) continue;
@@ -43,17 +62,44 @@ export async function POST(req: Request) {
           .update(JSON.stringify({ entry, index, field: change.field, value }))
           .digest("hex");
 
-        await queue.add(
-          "process-webhook-change",
-          {
+        if (PROCESS_INLINE) {
+          await processWhatsappWebhookChange({
             field: change.field,
             value,
-          },
-          {
+          });
+        } else {
+          await queue!.add(
+            "process-webhook-change",
+            {
+              field: change.field,
+              value,
+            },
+            {
+              jobId,
+            }
+          );
+        }
+        queuedCount += 1;
+
+        if (WEBHOOK_DEBUG) {
+          console.info("[whatsapp:webhook:route] queued", {
+            entryIndex,
+            changeIndex: index,
+            field: change.field || "unknown",
             jobId,
-          }
-        );
+            processingMode: PROCESS_INLINE ? "inline" : "queue",
+            valueKeys: Object.keys(value),
+            hasMessages: Array.isArray((value as { messages?: unknown }).messages),
+            hasStatuses: Array.isArray((value as { statuses?: unknown }).statuses),
+          });
+        }
       }
+    }
+
+    if (WEBHOOK_DEBUG) {
+      console.info("[whatsapp:webhook:route] completed", {
+        queuedCount,
+      });
     }
 
     return NextResponse.json({ success: true, queued: true });

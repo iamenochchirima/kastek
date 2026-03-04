@@ -1,8 +1,7 @@
 import { auth } from "@/auth";
 import {
-  NotificationChannel,
   NotificationRecipientType,
-  listNotifications,
+  listNotificationInbox,
   markAllNotificationsAsRead,
 } from "@kasiai/database";
 import { NextResponse } from "next/server";
@@ -16,25 +15,19 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
-  const unreadOnly = searchParams.get("unreadOnly") === "true";
   const limit = Number.parseInt(searchParams.get("limit") || "20", 10);
-  const channelParam = searchParams.get("channel");
-  const channel =
-    channelParam === NotificationChannel.EMAIL || channelParam === NotificationChannel.IN_APP
-      ? channelParam
-      : undefined;
+  const cursor = searchParams.get("cursor") || undefined;
 
-  const notifications = await listNotifications(
+  const inbox = await listNotificationInbox(
     NotificationRecipientType.USER,
     session.user.id,
     {
-      channel,
-      unreadOnly,
       limit: Number.isNaN(limit) ? 20 : Math.min(Math.max(limit, 1), 100),
+      cursor,
     }
   );
 
-  return NextResponse.json({ notifications });
+  return NextResponse.json(inbox);
 }
 
 export async function POST(req: Request) {

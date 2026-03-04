@@ -4,7 +4,11 @@ import IORedis from "ioredis";
 import { prisma } from "../lib/prisma";
 import { decryptSecret } from "../lib/whatsapp/crypto";
 import { parseWhatsappConversationIdentifier } from "../lib/whatsapp/inbox";
-import { sendTextMessage } from "../lib/whatsapp/meta-api";
+import {
+  encodeStoredWhatsappMedia,
+  encodeStoredWhatsappReplyEnvelope,
+} from "../lib/whatsapp/message-content";
+import { sendMediaMessage, sendTextMessage } from "../lib/whatsapp/meta-api";
 import { WHATSAPP_INBOX_SEND_QUEUE_NAME } from "../lib/whatsapp/queue";
 import { publishWhatsappRealtimeEvent } from "../lib/whatsapp/realtime";
 import type { QueueInboxSendJobData } from "../lib/whatsapp/types";
@@ -66,19 +70,60 @@ const worker = new Worker<QueueInboxSendJobData>(
     }
 
     const accessToken = decryptSecret(connectionRecord.accessTokenEncrypted);
-    const sendResult = await sendTextMessage({
-      phoneNumberId: connectionRecord.phoneNumberId,
-      accessToken,
-      recipientPhone: parsed.phone,
-      text: job.data.text,
-    });
+    const hasMedia = Boolean(job.data.media?.mediaId);
+    const hasText = Boolean(job.data.text?.trim());
+
+    if (!hasMedia && !hasText) {
+      throw new Error("Inbox send job must include text or media");
+    }
+
+    const sendResult = hasMedia
+      ? await sendMediaMessage({
+          phoneNumberId: connectionRecord.phoneNumberId,
+          accessToken,
+          recipientPhone: parsed.phone,
+          kind: job.data.media!.kind,
+          mediaId: job.data.media!.mediaId,
+          caption: job.data.media?.caption || undefined,
+          filename: job.data.media?.filename || undefined,
+          contextMessageId: job.data.replyToWhatsappMessageId,
+        })
+      : await sendTextMessage({
+          phoneNumberId: connectionRecord.phoneNumberId,
+          accessToken,
+          recipientPhone: parsed.phone,
+          text: job.data.text!.trim(),
+          contextMessageId: job.data.replyToWhatsappMessageId,
+        });
+
+    const baseContent = hasMedia
+      ? encodeStoredWhatsappMedia({
+          version: 1,
+          kind: job.data.media!.kind,
+          mediaId: job.data.media!.mediaId,
+          mimeType: job.data.media?.mimeType || null,
+          caption: job.data.media?.caption || null,
+          filename: job.data.media?.filename || null,
+          sha256: null,
+        })
+      : job.data.text!.trim();
+
+    const persistedContent =
+      job.data.replyToMessageId && job.data.replyPreview
+        ? encodeStoredWhatsappReplyEnvelope({
+            version: 1,
+            replyToMessageId: job.data.replyToMessageId,
+            replyPreview: job.data.replyPreview,
+            content: baseContent,
+          })
+        : baseContent;
 
     const createdMessage = await prisma.$transaction(async (tx) => {
       const created = await tx.message.create({
         data: {
           conversationId: conversation.id,
           sender: "bot",
-          content: job.data.text,
+          content: persistedContent,
           whatsappMessageId: sendResult.messageId,
           whatsappStatus: "SENT",
         },

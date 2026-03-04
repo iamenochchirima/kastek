@@ -321,6 +321,13 @@ model Message {
   content        String       @db.Text
   whatsappMessageId String?
   whatsappStatus    String?
+  whatsappConversationId      String?
+  whatsappConversationOrigin  String?
+  whatsappConversationExpires DateTime?
+  whatsappPricingBillable     Boolean?
+  whatsappPricingCategory     String?
+  whatsappPricingModel        String?
+  whatsappPricingType         String?
   errorCode         String?
   errorMessage      String?   @db.Text
   timestamp      DateTime     @default(now())
@@ -661,6 +668,13 @@ model WhatsappSendEvent {
   templateName         String
   status               WhatsappRecipientStatus
   whatsappMessageId    String?
+  whatsappConversationId      String?
+  whatsappConversationOrigin  String?
+  whatsappConversationExpires DateTime?
+  whatsappPricingBillable     Boolean?
+  whatsappPricingCategory     String?
+  whatsappPricingModel        String?
+  whatsappPricingType         String?
 
   requestPayload       Json?
   responsePayload      Json?

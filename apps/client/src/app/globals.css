@@ -57,8 +57,8 @@
   --theme-border: #222222;
   --theme-border-light: #2a2a2a;
   --theme-text: #e8e4df;
-  --theme-text-muted: #8a8580;
-  --theme-text-dim: #5a5550;
+  --theme-text-muted: #b4ada5;
+  --theme-text-dim: #8f887f;
   --theme-success: #86efac;
   --theme-warning: #fbbf24;
   --theme-danger: #fca5a5;
@@ -70,7 +70,7 @@
   --theme-chat-input-border: #2f2f2f;
   --theme-chat-panel-bg: #141414;
   --theme-chat-panel-text: #e8e4df;
-  --theme-chat-placeholder: #8a8580;
+  --theme-chat-placeholder: #a49d95;
   color-scheme: dark;
 }
 
@@ -108,4 +108,32 @@ select {
 ::selection {
   background: rgba(196, 240, 77, 0.28);
   color: var(--color-text);
+}
+
+.whatsapp-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 240, 77, 0.45) rgba(255, 255, 255, 0.05);
+}
+
+.whatsapp-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.whatsapp-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.whatsapp-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(196, 240, 77, 0.7), rgba(196, 240, 77, 0.35));
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+.whatsapp-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(196, 240, 77, 0.9), rgba(196, 240, 77, 0.5));
+  border: 2px solid transparent;
+  background-clip: content-box;
 }

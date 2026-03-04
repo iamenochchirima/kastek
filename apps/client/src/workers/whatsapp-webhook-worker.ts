@@ -4,6 +4,7 @@ import IORedis from "ioredis";
 import { processWhatsappWebhookChange } from "../lib/whatsapp/webhook-service";
 import { WHATSAPP_WEBHOOK_QUEUE_NAME } from "../lib/whatsapp/queue";
 import type { QueueWebhookJobData } from "../lib/whatsapp/types";
+const WEBHOOK_DEBUG = process.env.WHATSAPP_WEBHOOK_DEBUG === "1";
 
 const redisUrl = process.env.REDIS_URL;
 if (!redisUrl) {
@@ -21,8 +22,29 @@ function getBullConnection() {
 
 const worker = new Worker<QueueWebhookJobData>(
   WHATSAPP_WEBHOOK_QUEUE_NAME,
-  async (job: { data: QueueWebhookJobData }) => {
+  async (job: { id?: string; data: QueueWebhookJobData }) => {
+    if (WEBHOOK_DEBUG) {
+      console.info("[whatsapp:webhook:worker] start", {
+        jobId: job.id,
+        field: job.data.field || "unknown",
+        valueKeys: Object.keys(job.data.value || {}),
+        messageCount: Array.isArray(job.data.value?.messages)
+          ? (job.data.value.messages as unknown[]).length
+          : 0,
+        statusCount: Array.isArray(job.data.value?.statuses)
+          ? (job.data.value.statuses as unknown[]).length
+          : 0,
+      });
+    }
+
     await processWhatsappWebhookChange(job.data);
+
+    if (WEBHOOK_DEBUG) {
+      console.info("[whatsapp:webhook:worker] done", {
+        jobId: job.id,
+        field: job.data.field || "unknown",
+      });
+    }
   },
   {
     connection: getBullConnection(),
