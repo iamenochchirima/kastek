@@ -1,349 +1,211 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Pricing | KasiTek",
-  description:
-    "Transparent, tiered pricing for AI WhatsApp chatbots, website agents, voice agents, and custom automations.",
+  description: "Pricing for web presence, AI agents, and growth systems.",
 };
 
-const services = [
+const sections = [
   {
-    icon: "💬",
-    name: "AI WhatsApp Chatbot",
-    description:
-      "An AI assistant on your WhatsApp that handles customer queries, bookings, and lead capture around the clock.",
-    tiers: [
+    id: "web-presence",
+    title: "Web Presence",
+    cards: [
       {
-        tier: "Basic",
-        setup: "R1,500 – R3,000",
-        monthly: "R150 – R300/mo",
-        features: [
-          "AI-powered FAQ responses",
-          "Business hours auto-responder",
-          "Basic lead capture & notifications",
-          "Knowledge base from your info",
-          "Email support",
-        ],
-        ideal: "Small businesses needing 24/7 customer support",
+        name: "Landing Page",
+        price: "From R2,000",
+        meta: "Once-off",
+        items: ["Single-page build", "Lead capture section", "Mobile-friendly layout"],
       },
       {
-        tier: "Standard",
-        setup: "R3,000 – R5,000",
-        monthly: "R300 – R500/mo",
-        features: [
-          "Everything in Basic",
-          "Lead qualification forms",
-          "Automated follow-up messages",
-          "Multi-flow conversations",
-          "Basic CRM integration",
-          "Priority support",
-        ],
-        ideal: "Growing businesses with active lead pipelines",
+        name: "Business Website",
+        price: "From R3,500",
+        meta: "Once-off",
+        items: ["Multi-section website", "Core business pages", "Conversion-focused structure"],
       },
       {
-        tier: "Advanced",
-        setup: "R5,000 – R8,000",
-        monthly: "R500 – R800/mo",
-        features: [
-          "Everything in Standard",
-          "Full CRM integration",
-          "Appointment & booking system",
-          "Payment reminders & invoicing",
-          "Custom multi-step workflows",
-          "Dedicated account manager",
-        ],
-        ideal: "Businesses needing end-to-end automation",
+        name: "Website Redesign",
+        price: "Custom quote",
+        meta: "Quoted",
+        items: ["Design refresh", "Structure improvements", "Scope-based pricing"],
       },
     ],
   },
   {
-    icon: "🌐",
-    name: "AI Website Agent",
-    description:
-      "A smart chat widget on your website that engages visitors, answers questions, and converts them into leads.",
-    tiers: [
+    id: "ai-agents",
+    title: "AI Agents",
+    cards: [
       {
-        tier: "Basic",
-        setup: "R1,500 – R3,000",
-        monthly: "R150 – R300/mo",
-        features: [
-          "AI chat widget on your site",
-          "FAQ & product/service Q&A",
-          "Basic lead capture",
-          "Branded to match your site",
-          "Email support",
+        name: "Starter",
+        price: "Setup from R2,500",
+        meta: "R300/month",
+        items: [
+          "Basic FAQ and enquiry handling",
+          "Lead capture flow",
+          "Knowledge base setup",
+          "Single channel (website or WhatsApp)",
+          "Basic human handover",
         ],
-        ideal: "Businesses wanting instant website engagement",
       },
       {
-        tier: "Standard",
-        setup: "R3,000 – R5,000",
-        monthly: "R300 – R500/mo",
-        features: [
-          "Everything in Basic",
-          "Lead qualification flows",
-          "Product recommendations",
-          "Multi-page context awareness",
-          "Basic CRM integration",
+        name: "Growth",
+        price: "Setup from R4,500",
+        meta: "R750/month",
+        items: [
+          "Everything in Starter",
+          "Multi-step lead qualification",
+          "Structured lead capture",
+          "Simple integrations (sheet/CRM)",
           "Priority support",
         ],
-        ideal: "E-commerce and service businesses with complex offerings",
       },
       {
-        tier: "Advanced",
-        setup: "R5,000 – R8,000",
-        monthly: "R500 – R800/mo",
-        features: [
-          "Everything in Standard",
-          "Full CRM integration",
-          "Custom actions & triggers",
-          "Booking & scheduling integration",
-          "Multi-step guided flows",
-          "Dedicated account manager",
+        name: "Scale",
+        price: "Setup: R8,500+",
+        meta: "R1,500+/month",
+        items: [
+          "Everything in Growth",
+          "Advanced routing and escalation",
+          "Multi-channel and inbox workflows",
+          "Deeper integrations and automations",
+          "Ongoing optimization support",
         ],
-        ideal: "High-traffic sites needing full automation",
       },
     ],
   },
   {
-    icon: "📞",
-    name: "AI Voice Agent",
-    description:
-      "An AI receptionist that answers calls, qualifies leads, and books appointments in a natural, human-like voice.",
-    tiers: [
+    id: "growth-systems",
+    title: "Growth Systems",
+    cards: [
       {
-        tier: "Basic",
-        setup: "R3,000 – R5,000",
-        monthly: "R300 – R500/mo",
-        features: [
-          "Inbound call handling",
-          "After-hours AI reception",
-          "Message taking & forwarding",
-          "Basic call scripts",
-          "Email support",
+        name: "Bulk WhatsApp Campaigns",
+        price: "Setup from R3,500",
+        meta: "R350/month",
+        items: [
+          "Audience segmentation setup",
+          "Template campaign setup",
+          "Broadcast workflow setup",
+          "Basic campaign tracking",
+          "Meta usage fees billed separately",
         ],
-        ideal: "Businesses missing calls after hours",
       },
       {
-        tier: "Standard",
-        setup: "R5,000 – R7,000",
-        monthly: "R500 – R700/mo",
-        features: [
-          "Everything in Basic",
-          "Smart call routing",
-          "Appointment booking",
-          "Appointment reminders",
-          "Payment follow-ups",
-          "Priority support",
+        name: "Lead Follow-Up Automation",
+        price: "Setup from R2,500",
+        meta: "R500/month",
+        items: [
+          "Instant lead acknowledgement",
+          "Follow-up sequences (WhatsApp/email)",
+          "Missed-lead recovery flows",
+          "Basic CRM or sheet syncing",
         ],
-        ideal: "Service businesses with high call volume",
       },
       {
-        tier: "Advanced",
-        setup: "R7,000 – R10,000",
-        monthly: "R700 – R1,000/mo",
-        features: [
-          "Everything in Standard",
-          "Multi-department routing",
-          "Full CRM integration",
-          "Call analytics & reporting",
-          "Custom voice & scripts",
-          "Dedicated account manager",
+        name: "Reactivation & Retention",
+        price: "Setup from R4,000",
+        meta: "R750/month",
+        items: [
+          "Win-back campaigns for old clients",
+          "Reminder flows (appointments/payments/check-ins)",
+          "Repeat-purchase nudges",
+          "Customer lifecycle messaging",
         ],
-        ideal: "Call centres and multi-location businesses",
-      },
-    ],
-  },
-  {
-    icon: "⚡",
-    name: "Custom AI Workflows",
-    description:
-      "Purpose-built automations that connect your tools and eliminate repetitive admin work.",
-    tiers: [
-      {
-        tier: "Basic",
-        setup: "R2,000 – R4,000",
-        monthly: "R200 – R400/mo",
-        features: [
-          "Single workflow automation",
-          "Connect 2–3 tools",
-          "Basic triggers & actions",
-          "Email notifications",
-          "Email support",
-        ],
-        ideal: "Automating one specific repetitive task",
-      },
-      {
-        tier: "Standard",
-        setup: "R4,000 – R6,000",
-        monthly: "R400 – R600/mo",
-        features: [
-          "Everything in Basic",
-          "Multi-step workflows",
-          "Connect 4–6 tools",
-          "Conditional logic & branching",
-          "Error handling & retries",
-          "Priority support",
-        ],
-        ideal: "Automating entire business processes",
-      },
-      {
-        tier: "Advanced",
-        setup: "R6,000 – R10,000",
-        monthly: "R600 – R1,000/mo",
-        features: [
-          "Everything in Standard",
-          "Complex multi-workflow systems",
-          "AI-powered decision making",
-          "Custom integrations & APIs",
-          "Analytics dashboard",
-          "Dedicated account manager",
-        ],
-        ideal: "Full business automation suites",
       },
     ],
   },
 ];
 
-const TIER_STYLES: Record<string, { border: string; badge: string }> = {
-  Basic: {
-    border: "border-border",
-    badge: "bg-white/[0.06] text-text-muted",
-  },
-  Standard: {
-    border: "border-accent/30",
-    badge: "bg-accent/10 text-accent",
-  },
-  Advanced: {
-    border: "border-warm/30",
-    badge: "bg-warm/10 text-warm",
-  },
-};
-
 export default function PricingPage() {
   return (
     <>
       <Navbar />
-      <main className="pt-24 pb-16">
-        {/* Hero */}
-        <section className="px-8 max-w-[1100px] mx-auto text-center mb-20 max-sm:px-6">
-          <div className="text-xs uppercase tracking-[0.15em] text-accent mb-4 font-semibold">
-            Pricing
-          </div>
-          <h1 className="font-serif text-[clamp(2.2rem,5vw,3.5rem)] tracking-tight mb-5 font-normal">
-            Transparent, tiered pricing
+
+      <main className="min-h-screen bg-bg text-text">
+        <section className="mx-auto max-w-7xl px-6 pb-6 pt-10 text-center md:px-10">
+          <h1 className="text-4xl font-black uppercase tracking-[-0.03em] md:text-5xl">
+            Pricing Plans
           </h1>
-          <p className="text-text-muted max-w-[600px] mx-auto text-lg leading-relaxed">
-            Every business is different. Pick the tier that matches your needs
-            today, and scale up as you grow. No hidden fees.
+          <p className="mx-auto mt-3 max-w-3xl text-base text-text-muted">
+            Clear starting prices for web presence, AI agents, and growth systems.
           </p>
         </section>
 
-        {/* Services */}
-        {services.map((service) => (
+        {sections.map((section) => (
           <section
-            key={service.name}
-            className="px-8 max-w-[1100px] mx-auto mb-20 max-sm:px-6"
+            key={section.id}
+            id={section.id}
+            className="mx-auto max-w-7xl px-6 py-16 md:px-10 md:py-18"
           >
-            {/* Service header */}
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-2xl">{service.icon}</span>
-              <h2 className="font-serif text-[clamp(1.5rem,3vw,2rem)] tracking-tight font-normal">
-                {service.name}
+            <div className="mb-8">
+              <h2 className="text-4xl font-black uppercase leading-[0.95] tracking-[-0.04em]">
+                {section.title}
               </h2>
             </div>
-            <p className="text-text-muted mb-8 max-w-[600px]">
-              {service.description}
-            </p>
 
-            {/* Tier cards */}
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-5 max-sm:grid-cols-1">
-              {service.tiers.map((t) => {
-                const style = TIER_STYLES[t.tier] || TIER_STYLES.Basic;
-                return (
-                  <div
-                    key={t.tier}
-                    className={`bg-surface border rounded-2xl p-8 flex flex-col ${style.border}`}
-                  >
-                    <span
-                      className={`text-[11px] uppercase tracking-[0.12em] font-semibold px-2.5 py-1 rounded-full self-start mb-4 ${style.badge}`}
-                    >
-                      {t.tier}
-                    </span>
-
-                    <div className="mb-1">
-                      <span className="font-serif text-[clamp(1.3rem,2.5vw,1.75rem)] tracking-tight">
-                        {t.setup}
-                      </span>
-                      <span className="text-sm text-text-muted ml-1.5">
-                        setup
-                      </span>
+            <div className="grid gap-5 lg:grid-cols-3">
+              {section.cards.map((card) => (
+                <div key={card.name} className="rounded-[2rem] border border-border bg-surface p-8">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-2xl font-black uppercase">{card.name}</h3>
+                      <p className="mt-2 text-sm uppercase tracking-[0.16em] text-text-muted">
+                        {card.meta}
+                      </p>
                     </div>
-                    <p className="text-sm text-text-muted mb-6">
-                      then {t.monthly}
-                    </p>
-
-                    <ul className="list-none space-y-2 mb-6 flex-1">
-                      {t.features.map((f) => (
-                        <li
-                          key={f}
-                          className="text-sm text-text-muted pl-5 relative before:content-['→'] before:absolute before:left-0 before:text-accent before:text-xs"
-                        >
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-
-                    <p className="text-xs text-text-dim mb-5 border-t border-border pt-4">
-                      Ideal for: {t.ideal}
-                    </p>
-
-                    <a
-                      href="/get-quote"
-                      className={`block text-center py-3 rounded-full font-semibold text-sm no-underline transition-all ${
-                        t.tier === "Standard"
-                          ? "bg-accent text-bg border border-accent"
-                          : "border border-border-light text-text hover:border-text-muted"
-                      }`}
-                    >
-                      Get a Quote
-                    </a>
+                    <div className="text-right text-lg font-black text-accent">{card.price}</div>
                   </div>
-                );
-              })}
+
+                  <div className="my-8 h-px bg-border" />
+
+                  <div className="space-y-4">
+                    {card.items.map((item) => (
+                      <div key={item} className="text-sm leading-7 text-text">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         ))}
 
-        {/* CTA */}
-        <section className="px-8 max-w-[1100px] mx-auto text-center mt-8 max-sm:px-6">
-          <div className="bg-surface border border-border rounded-2xl p-12 max-sm:p-8">
-            <h2 className="font-serif text-[clamp(1.5rem,3vw,2.2rem)] tracking-tight mb-3 font-normal">
-              Not sure which tier you need?
-            </h2>
-            <p className="text-text-muted mb-8 max-w-[500px] mx-auto">
-              Tell us about your business and we&apos;ll recommend the right
-              solution and give you an exact quote. No obligation.
-            </p>
-            <div className="flex items-center justify-center gap-4 flex-wrap">
-              <a
-                href="/get-quote"
-                className="bg-accent text-bg px-8 py-3 rounded-full font-semibold text-sm no-underline transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(196,240,77,0.25)]"
-              >
-                Get a Free Quote &rarr;
-              </a>
-              <a
-                href="https://wa.me/27731231909?text=Hi%20KasiTek%2C%20I%27d%20like%20to%20discuss%20pricing"
-                className="border border-border-light text-text px-8 py-3 rounded-full font-semibold text-sm no-underline transition-all hover:border-text-muted"
-              >
-                Chat on WhatsApp
-              </a>
+        <section className="mx-auto max-w-7xl px-6 pb-20 md:px-10">
+          <div className="rounded-[2rem] border border-accent/35 bg-[linear-gradient(135deg,rgba(196,240,77,0.16),rgba(196,240,77,0.04)_28%,rgba(255,255,255,0.02)_100%)] p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl">
+                <h2 className="text-3xl font-black uppercase leading-[0.95]">
+                  Need exact pricing for your business?
+                </h2>
+                <p className="mt-4 text-base leading-8 text-text">
+                  More advanced, bundled, or platform-dependent work is best handled through a
+                  tailored quote.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-4">
+                <Link
+                  href="/get-quote"
+                  className="rounded-full bg-text px-7 py-3 text-sm font-bold uppercase tracking-[0.12em] text-bg transition hover:-translate-y-0.5"
+                >
+                  Request a Quote
+                </Link>
+                <a
+                  href="https://wa.me/27731231909?text=Hi%20KasiTek%2C%20I%27d%20like%20help%20with%20pricing"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border border-border px-7 py-3 text-sm font-bold uppercase tracking-[0.12em] text-text transition hover:bg-surface"
+                >
+                  Chat on WhatsApp
+                </a>
+              </div>
             </div>
           </div>
         </section>
       </main>
+
       <Footer />
     </>
   );

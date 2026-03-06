@@ -52,6 +52,8 @@ export async function PATCH(
       pricingItems: body.pricingItems,
       maintenanceIncludes: body.maintenanceIncludes,
       termsAndNotes: body.termsAndNotes,
+      includedFunctionality: body.sectionOrder ?? undefined,
+      importantNotes: body.noteSections ?? undefined,
       validityDays: body.validityDays ? Number(body.validityDays) : undefined,
       status: body.status,
     },

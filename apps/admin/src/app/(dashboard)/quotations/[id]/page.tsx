@@ -20,7 +20,7 @@ export default async function QuotationDetailPage({
   const draft = quotationRecordToDraft(quotation);
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="max-w-none space-y-6">
       <div>
         <Link
           href="/quotations"

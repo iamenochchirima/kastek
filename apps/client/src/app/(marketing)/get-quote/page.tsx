@@ -12,7 +12,7 @@ export default function GetQuotePage() {
   return (
     <>
       <Navbar />
-      <div className="flex flex-col items-center px-8 pt-32 pb-16 max-w-[640px] mx-auto min-h-screen max-sm:px-6 max-sm:pt-28 max-sm:pb-12">
+      <div className="flex flex-col items-center px-8 pt-12 pb-16 max-w-[640px] mx-auto min-h-screen max-sm:px-6 max-sm:pt-10 max-sm:pb-12">
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 bg-surface border border-border px-4 py-1.5 rounded-full text-sm text-text-muted mb-6">
             <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse-dot" />

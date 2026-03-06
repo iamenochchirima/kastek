@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { auth } from "@/auth";
-import SignOutButton from "@/components/auth/sign-out-button";
 import Footer from "@/components/Footer";
 import SequentialHeroLines from "@/components/sequential-hero-lines";
+import Navbar from "@/components/Navbar";
 
 const packages = [
   {
@@ -33,57 +32,10 @@ const packages = [
   },
 ];
 
-function Nav({ isAuthenticated }: { isAuthenticated: boolean }) {
-  return (
-    <nav className="sticky top-0 z-50 border-b border-border bg-bg/82 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 md:px-10">
-        <Link href="/" className="flex items-center gap-2 no-underline">
-          <img src="/logo.png" alt="KasiTek" className="h-8 w-8" />
-          <span className="text-2xl font-semibold tracking-tight text-text">
-            Kasi<span className="text-accent">Tek</span>
-          </span>
-        </Link>
-
-        <div className="hidden items-center gap-6 lg:flex">
-          <a href="#packages" className="text-sm text-text-muted transition hover:text-text">
-            Packages
-          </a>
-          <a href="#packages" className="text-sm text-text-muted transition hover:text-text">
-            Services
-          </a>
-          <Link href="/pricing" className="text-sm text-text-muted transition hover:text-text">
-            Pricing
-          </Link>
-          <a href="#faq" className="text-sm text-text-muted transition hover:text-text">
-            FAQ
-          </a>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {isAuthenticated ? (
-            <>
-              <Link href="/dashboard" className="text-sm text-text-muted transition hover:text-text">
-                Dashboard
-              </Link>
-              <SignOutButton />
-            </>
-          ) : (
-            <Link href="/login" className="text-sm text-text-muted transition hover:text-text">
-              Log In
-            </Link>
-          )}
-        </div>
-      </div>
-    </nav>
-  );
-}
-
 export default async function LandingV3Page() {
-  const session = await auth();
-
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Nav isAuthenticated={!!session?.user} />
+      <Navbar />
 
       <main>
         <section className="relative overflow-hidden">
