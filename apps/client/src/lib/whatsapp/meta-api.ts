@@ -139,9 +139,10 @@ export async function uploadWhatsappMedia(input: {
   const form = new FormData();
   form.append("messaging_product", "whatsapp");
   form.append("type", input.mimeType);
+  const normalizedBytes = input.bytes.slice();
   form.append(
     "file",
-    new Blob([input.bytes], { type: input.mimeType }),
+    new Blob([normalizedBytes], { type: input.mimeType }),
     input.filename
   );
 

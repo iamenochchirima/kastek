@@ -93,9 +93,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         if (currentUser) {
-          session.user.name = currentUser.name;
-          session.user.email = currentUser.email;
-          session.user.image = currentUser.image;
+          session.user.name = currentUser.name ?? "";
+          session.user.email = currentUser.email ?? "";
+          session.user.image = currentUser.image ?? "";
         }
       }
       return session;

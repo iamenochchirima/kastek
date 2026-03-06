@@ -327,13 +327,13 @@ export default async function DashboardPage() {
               Status activity pulled from send events in the last 30 days.
             </p>
             <div className="mt-5 space-y-3">
-              {[
+              {([
                 ["DELIVERED", sendStatusMap.DELIVERED || 0],
                 ["READ", sendStatusMap.READ || 0],
                 ["FAILED", sendStatusMap.FAILED || 0],
                 ["BLOCKED", sendStatusMap.BLOCKED || 0],
                 ["SENT", sendStatusMap.SENT || 0],
-              ].map(([label, count]) => (
+              ] as Array<[string, number]>).map(([label, count]) => (
                 <StatusRow
                   key={label}
                   label={label}

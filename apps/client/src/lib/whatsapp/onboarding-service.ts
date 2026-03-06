@@ -299,7 +299,6 @@ export async function connectManualWhatsappConnection(input: ManualConnectionInp
     attempted: true,
     success: true,
     fetched: 0,
-    marketing: 0,
     synced: 0,
     error: null as string | null,
   };
@@ -309,7 +308,6 @@ export async function connectManualWhatsappConnection(input: ManualConnectionInp
     templateSync = {
       ...templateSync,
       fetched: syncResult.fetched,
-      marketing: syncResult.marketing,
       synced: syncResult.synced,
     };
     diagnostics.push({
@@ -639,7 +637,6 @@ export async function completeEmbeddedSignup(input: EmbeddedSignupCompleteInput)
     attempted: true,
     success: true,
     fetched: 0,
-    marketing: 0,
     synced: 0,
     error: null as string | null,
   };
@@ -655,7 +652,6 @@ export async function completeEmbeddedSignup(input: EmbeddedSignupCompleteInput)
     templateSync = {
       ...templateSync,
       fetched: syncResult.fetched,
-      marketing: syncResult.marketing,
       synced: syncResult.synced,
     };
 
