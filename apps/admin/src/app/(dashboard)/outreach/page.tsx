@@ -84,6 +84,12 @@ export default async function OutreachPage() {
           AI Services ({campaigns.length} campaigns)
         </h1>
         <div className="flex items-center gap-3">
+          <Link
+            href="/outreach/drafts"
+            className="border border-border hover:bg-surface-overlay text-text px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            Browse Draft Emails
+          </Link>
           {campaigns.length > 0 && <OutreachDeleteAllButton campaignCount={campaigns.length} leadCount={totalLeads} />}
           {campaigns.length > 0 && (
             <AddOutreachLead
