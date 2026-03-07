@@ -17,19 +17,35 @@ const sections = [
         name: "Landing Page",
         price: "From R2,000",
         meta: "Once-off",
-        items: ["Single-page build", "Lead capture section", "Mobile-friendly layout"],
+        items: [
+          "Single-page build",
+          "Lead capture section",
+          "Mobile-friendly layout",
+          "Basic on-page SEO setup",
+        ],
       },
       {
         name: "Business Website",
         price: "From R3,500",
         meta: "Once-off",
-        items: ["Multi-section website", "Core business pages", "Conversion-focused structure"],
+        items: [
+          "Multi-section website",
+          "Core business pages",
+          "Conversion-focused structure",
+          "SEO optimization foundation",
+          "Professional business email setup support",
+        ],
       },
       {
         name: "Website Redesign",
         price: "Custom quote",
         meta: "Quoted",
-        items: ["Design refresh", "Structure improvements", "Scope-based pricing"],
+        items: [
+          "Design refresh",
+          "Structure improvements",
+          "Scope-based pricing",
+          "SEO/content structure cleanup",
+        ],
       },
     ],
   },
@@ -115,6 +131,45 @@ const sections = [
       },
     ],
   },
+  {
+    id: "integrations-data-systems",
+    title: "Integrations & Data Systems",
+    cards: [
+      {
+        name: "Payments Integration",
+        price: "Custom quote",
+        meta: "Quoted",
+        items: [
+          "Payfast integration",
+          "Ozow integration",
+          "Paystack integration",
+          "Checkout and payment flow setup",
+        ],
+      },
+      {
+        name: "Custom Dashboards",
+        price: "Custom quote",
+        meta: "Quoted",
+        items: [
+          "Operations dashboard setup",
+          "Sales and lead visibility",
+          "Team reporting views",
+          "KPI-focused layout",
+        ],
+      },
+      {
+        name: "Real-time Analytics",
+        price: "Custom quote",
+        meta: "Quoted",
+        items: [
+          "Real-time reporting pipelines",
+          "Conversion and campaign analytics",
+          "Lead source performance tracking",
+          "CRM/forms/workflow integrations",
+        ],
+      },
+    ],
+  },
 ];
 
 export default function PricingPage() {
@@ -165,6 +220,15 @@ export default function PricingPage() {
                         {item}
                       </div>
                     ))}
+                  </div>
+
+                  <div className="mt-8">
+                    <Link
+                      href={`/get-quote?service=${encodeURIComponent(card.name)}`}
+                      className="inline-flex rounded-full border border-accent/35 bg-accent/10 px-5 py-2 text-xs font-bold uppercase tracking-[0.12em] text-accent transition hover:bg-accent hover:text-bg"
+                    >
+                      Get a Quote
+                    </Link>
                   </div>
                 </div>
               ))}

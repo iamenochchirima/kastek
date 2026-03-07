@@ -321,6 +321,7 @@ export type OutreachLeadWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"OutreachLead"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"OutreachLead"> | Date | string
   campaign?: Prisma.XOR<Prisma.OutreachCampaignScalarRelationFilter, Prisma.OutreachCampaignWhereInput>
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogListRelationFilter
 }
 
 export type OutreachLeadOrderByWithRelationInput = {
@@ -343,6 +344,7 @@ export type OutreachLeadOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   campaign?: Prisma.OutreachCampaignOrderByWithRelationInput
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogOrderByRelationAggregateInput
 }
 
 export type OutreachLeadWhereUniqueInput = Prisma.AtLeast<{
@@ -368,6 +370,7 @@ export type OutreachLeadWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"OutreachLead"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"OutreachLead"> | Date | string
   campaign?: Prisma.XOR<Prisma.OutreachCampaignScalarRelationFilter, Prisma.OutreachCampaignWhereInput>
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogListRelationFilter
 }, "id">
 
 export type OutreachLeadOrderByWithAggregationInput = {
@@ -439,6 +442,7 @@ export type OutreachLeadCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   campaign: Prisma.OutreachCampaignCreateNestedOneWithoutLeadsInput
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogCreateNestedManyWithoutLeadInput
 }
 
 export type OutreachLeadUncheckedCreateInput = {
@@ -460,6 +464,7 @@ export type OutreachLeadUncheckedCreateInput = {
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogUncheckedCreateNestedManyWithoutLeadInput
 }
 
 export type OutreachLeadUpdateInput = {
@@ -481,6 +486,7 @@ export type OutreachLeadUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   campaign?: Prisma.OutreachCampaignUpdateOneRequiredWithoutLeadsNestedInput
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogUpdateManyWithoutLeadNestedInput
 }
 
 export type OutreachLeadUncheckedUpdateInput = {
@@ -502,6 +508,7 @@ export type OutreachLeadUncheckedUpdateInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogUncheckedUpdateManyWithoutLeadNestedInput
 }
 
 export type OutreachLeadCreateManyInput = {
@@ -647,6 +654,11 @@ export type OutreachLeadSumOrderByAggregateInput = {
   followUpCount?: Prisma.SortOrder
 }
 
+export type OutreachLeadNullableScalarRelationFilter = {
+  is?: Prisma.OutreachLeadWhereInput | null
+  isNot?: Prisma.OutreachLeadWhereInput | null
+}
+
 export type OutreachLeadCreateNestedManyWithoutCampaignInput = {
   create?: Prisma.XOR<Prisma.OutreachLeadCreateWithoutCampaignInput, Prisma.OutreachLeadUncheckedCreateWithoutCampaignInput> | Prisma.OutreachLeadCreateWithoutCampaignInput[] | Prisma.OutreachLeadUncheckedCreateWithoutCampaignInput[]
   connectOrCreate?: Prisma.OutreachLeadCreateOrConnectWithoutCampaignInput | Prisma.OutreachLeadCreateOrConnectWithoutCampaignInput[]
@@ -689,6 +701,22 @@ export type OutreachLeadUncheckedUpdateManyWithoutCampaignNestedInput = {
   deleteMany?: Prisma.OutreachLeadScalarWhereInput | Prisma.OutreachLeadScalarWhereInput[]
 }
 
+export type OutreachLeadCreateNestedOneWithoutDeliveryLogsInput = {
+  create?: Prisma.XOR<Prisma.OutreachLeadCreateWithoutDeliveryLogsInput, Prisma.OutreachLeadUncheckedCreateWithoutDeliveryLogsInput>
+  connectOrCreate?: Prisma.OutreachLeadCreateOrConnectWithoutDeliveryLogsInput
+  connect?: Prisma.OutreachLeadWhereUniqueInput
+}
+
+export type OutreachLeadUpdateOneWithoutDeliveryLogsNestedInput = {
+  create?: Prisma.XOR<Prisma.OutreachLeadCreateWithoutDeliveryLogsInput, Prisma.OutreachLeadUncheckedCreateWithoutDeliveryLogsInput>
+  connectOrCreate?: Prisma.OutreachLeadCreateOrConnectWithoutDeliveryLogsInput
+  upsert?: Prisma.OutreachLeadUpsertWithoutDeliveryLogsInput
+  disconnect?: Prisma.OutreachLeadWhereInput | boolean
+  delete?: Prisma.OutreachLeadWhereInput | boolean
+  connect?: Prisma.OutreachLeadWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OutreachLeadUpdateToOneWithWhereWithoutDeliveryLogsInput, Prisma.OutreachLeadUpdateWithoutDeliveryLogsInput>, Prisma.OutreachLeadUncheckedUpdateWithoutDeliveryLogsInput>
+}
+
 export type OutreachLeadCreateWithoutCampaignInput = {
   id?: string
   businessName: string
@@ -707,6 +735,7 @@ export type OutreachLeadCreateWithoutCampaignInput = {
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogCreateNestedManyWithoutLeadInput
 }
 
 export type OutreachLeadUncheckedCreateWithoutCampaignInput = {
@@ -727,6 +756,7 @@ export type OutreachLeadUncheckedCreateWithoutCampaignInput = {
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogUncheckedCreateNestedManyWithoutLeadInput
 }
 
 export type OutreachLeadCreateOrConnectWithoutCampaignInput = {
@@ -779,6 +809,106 @@ export type OutreachLeadScalarWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"OutreachLead"> | Date | string
 }
 
+export type OutreachLeadCreateWithoutDeliveryLogsInput = {
+  id?: string
+  businessName: string
+  website?: string | null
+  address?: string | null
+  bizbayUrl?: string | null
+  category: string
+  phone?: string | null
+  emailStatus?: string
+  emailAddress?: string | null
+  emailSentAt?: Date | string | null
+  emailTemplate?: string | null
+  followUpCount?: number
+  lastFollowUp?: Date | string | null
+  nextFollowUp?: Date | string | null
+  notes?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  campaign: Prisma.OutreachCampaignCreateNestedOneWithoutLeadsInput
+}
+
+export type OutreachLeadUncheckedCreateWithoutDeliveryLogsInput = {
+  id?: string
+  campaignId: string
+  businessName: string
+  website?: string | null
+  address?: string | null
+  bizbayUrl?: string | null
+  category: string
+  phone?: string | null
+  emailStatus?: string
+  emailAddress?: string | null
+  emailSentAt?: Date | string | null
+  emailTemplate?: string | null
+  followUpCount?: number
+  lastFollowUp?: Date | string | null
+  nextFollowUp?: Date | string | null
+  notes?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type OutreachLeadCreateOrConnectWithoutDeliveryLogsInput = {
+  where: Prisma.OutreachLeadWhereUniqueInput
+  create: Prisma.XOR<Prisma.OutreachLeadCreateWithoutDeliveryLogsInput, Prisma.OutreachLeadUncheckedCreateWithoutDeliveryLogsInput>
+}
+
+export type OutreachLeadUpsertWithoutDeliveryLogsInput = {
+  update: Prisma.XOR<Prisma.OutreachLeadUpdateWithoutDeliveryLogsInput, Prisma.OutreachLeadUncheckedUpdateWithoutDeliveryLogsInput>
+  create: Prisma.XOR<Prisma.OutreachLeadCreateWithoutDeliveryLogsInput, Prisma.OutreachLeadUncheckedCreateWithoutDeliveryLogsInput>
+  where?: Prisma.OutreachLeadWhereInput
+}
+
+export type OutreachLeadUpdateToOneWithWhereWithoutDeliveryLogsInput = {
+  where?: Prisma.OutreachLeadWhereInput
+  data: Prisma.XOR<Prisma.OutreachLeadUpdateWithoutDeliveryLogsInput, Prisma.OutreachLeadUncheckedUpdateWithoutDeliveryLogsInput>
+}
+
+export type OutreachLeadUpdateWithoutDeliveryLogsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bizbayUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  emailAddress?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  emailTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  followUpCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastFollowUp?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  nextFollowUp?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  campaign?: Prisma.OutreachCampaignUpdateOneRequiredWithoutLeadsNestedInput
+}
+
+export type OutreachLeadUncheckedUpdateWithoutDeliveryLogsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  campaignId?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bizbayUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  emailAddress?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  emailTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  followUpCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastFollowUp?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  nextFollowUp?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
 export type OutreachLeadCreateManyCampaignInput = {
   id?: string
   businessName: string
@@ -817,6 +947,7 @@ export type OutreachLeadUpdateWithoutCampaignInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogUpdateManyWithoutLeadNestedInput
 }
 
 export type OutreachLeadUncheckedUpdateWithoutCampaignInput = {
@@ -837,6 +968,7 @@ export type OutreachLeadUncheckedUpdateWithoutCampaignInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deliveryLogs?: Prisma.OutreachEmailDeliveryLogUncheckedUpdateManyWithoutLeadNestedInput
 }
 
 export type OutreachLeadUncheckedUpdateManyWithoutCampaignInput = {
@@ -860,6 +992,35 @@ export type OutreachLeadUncheckedUpdateManyWithoutCampaignInput = {
 }
 
 
+/**
+ * Count Type OutreachLeadCountOutputType
+ */
+
+export type OutreachLeadCountOutputType = {
+  deliveryLogs: number
+}
+
+export type OutreachLeadCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  deliveryLogs?: boolean | OutreachLeadCountOutputTypeCountDeliveryLogsArgs
+}
+
+/**
+ * OutreachLeadCountOutputType without action
+ */
+export type OutreachLeadCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the OutreachLeadCountOutputType
+   */
+  select?: Prisma.OutreachLeadCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * OutreachLeadCountOutputType without action
+ */
+export type OutreachLeadCountOutputTypeCountDeliveryLogsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.OutreachEmailDeliveryLogWhereInput
+}
+
 
 export type OutreachLeadSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -881,6 +1042,8 @@ export type OutreachLeadSelect<ExtArgs extends runtime.Types.Extensions.Internal
   createdAt?: boolean
   updatedAt?: boolean
   campaign?: boolean | Prisma.OutreachCampaignDefaultArgs<ExtArgs>
+  deliveryLogs?: boolean | Prisma.OutreachLead$deliveryLogsArgs<ExtArgs>
+  _count?: boolean | Prisma.OutreachLeadCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["outreachLead"]>
 
 export type OutreachLeadSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -951,6 +1114,8 @@ export type OutreachLeadSelectScalar = {
 export type OutreachLeadOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "campaignId" | "businessName" | "website" | "address" | "bizbayUrl" | "category" | "phone" | "emailStatus" | "emailAddress" | "emailSentAt" | "emailTemplate" | "followUpCount" | "lastFollowUp" | "nextFollowUp" | "notes" | "createdAt" | "updatedAt", ExtArgs["result"]["outreachLead"]>
 export type OutreachLeadInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   campaign?: boolean | Prisma.OutreachCampaignDefaultArgs<ExtArgs>
+  deliveryLogs?: boolean | Prisma.OutreachLead$deliveryLogsArgs<ExtArgs>
+  _count?: boolean | Prisma.OutreachLeadCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type OutreachLeadIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   campaign?: boolean | Prisma.OutreachCampaignDefaultArgs<ExtArgs>
@@ -963,6 +1128,7 @@ export type $OutreachLeadPayload<ExtArgs extends runtime.Types.Extensions.Intern
   name: "OutreachLead"
   objects: {
     campaign: Prisma.$OutreachCampaignPayload<ExtArgs>
+    deliveryLogs: Prisma.$OutreachEmailDeliveryLogPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1378,6 +1544,7 @@ readonly fields: OutreachLeadFieldRefs;
 export interface Prisma__OutreachLeadClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   campaign<T extends Prisma.OutreachCampaignDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OutreachCampaignDefaultArgs<ExtArgs>>): Prisma.Prisma__OutreachCampaignClient<runtime.Types.Result.GetResult<Prisma.$OutreachCampaignPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  deliveryLogs<T extends Prisma.OutreachLead$deliveryLogsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OutreachLead$deliveryLogsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OutreachEmailDeliveryLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1818,6 +1985,30 @@ export type OutreachLeadDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.
    * Limit how many OutreachLeads to delete.
    */
   limit?: number
+}
+
+/**
+ * OutreachLead.deliveryLogs
+ */
+export type OutreachLead$deliveryLogsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the OutreachEmailDeliveryLog
+   */
+  select?: Prisma.OutreachEmailDeliveryLogSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the OutreachEmailDeliveryLog
+   */
+  omit?: Prisma.OutreachEmailDeliveryLogOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OutreachEmailDeliveryLogInclude<ExtArgs> | null
+  where?: Prisma.OutreachEmailDeliveryLogWhereInput
+  orderBy?: Prisma.OutreachEmailDeliveryLogOrderByWithRelationInput | Prisma.OutreachEmailDeliveryLogOrderByWithRelationInput[]
+  cursor?: Prisma.OutreachEmailDeliveryLogWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.OutreachEmailDeliveryLogScalarFieldEnum | Prisma.OutreachEmailDeliveryLogScalarFieldEnum[]
 }
 
 /**

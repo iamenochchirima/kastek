@@ -21,7 +21,18 @@ const VALID_BUSINESS_TYPES = [
   "other",
 ];
 
-const VALID_SERVICES = ["whatsapp_chatbot", "voice_agent", "website_chatbot", "custom_agent"];
+const VALID_SERVICES = [
+  "website_presence",
+  "website_chatbot",
+  "whatsapp_chatbot",
+  "bulk_whatsapp",
+  "integrations_systems",
+  "seo_optimization",
+  "professional_email",
+  "dashboard_analytics",
+  "voice_agent",
+  "custom_agent",
+];
 
 export async function POST(req: Request) {
   try {
@@ -65,10 +76,19 @@ export async function POST(req: Request) {
       );
     }
 
-    if (
-      !Array.isArray(services) ||
-      !services.every((s: string) => VALID_SERVICES.includes(s))
-    ) {
+    const normalizedServices = Array.isArray(services)
+      ? services
+          .map((service: unknown) => String(service || "").trim())
+          .filter(Boolean)
+      : [];
+
+    const hasInvalidService = normalizedServices.some((service: string) => {
+      if (VALID_SERVICES.includes(service)) return false;
+      // Allow custom typed services as plain text.
+      return service.length > 120;
+    });
+
+    if (normalizedServices.length === 0 || hasInvalidService) {
       return NextResponse.json(
         { error: "Invalid service selection" },
         { status: 400 }
@@ -82,7 +102,7 @@ export async function POST(req: Request) {
         phone,
         email,
         businessType,
-        services,
+        services: normalizedServices,
         description: description || null,
       },
     });
@@ -99,8 +119,8 @@ export async function POST(req: Request) {
         scopeId: "global",
         eventType: "quote_request.created",
         title: "New quote request",
-        message: `${businessName} submitted a new quote request for ${services.length} service${
-          services.length === 1 ? "" : "s"
+        message: `${businessName} submitted a new quote request for ${normalizedServices.length} service${
+          normalizedServices.length === 1 ? "" : "s"
         }.`,
         severity: NotificationSeverity.SUCCESS,
         entityType: "quote_request",
@@ -111,7 +131,7 @@ export async function POST(req: Request) {
           phone,
           email,
           businessType,
-          services,
+          services: normalizedServices,
         },
         dedupeKey: `quote_request.created:${quoteRequest.id}`,
         recipients: adminRecipients.map((admin) => ({
@@ -122,10 +142,16 @@ export async function POST(req: Request) {
     }
 
     const serviceLabels: Record<string, string> = {
-      whatsapp_chatbot: "WhatsApp Chatbot",
+      website_presence: "Website Development / Redesign",
+      website_chatbot: "Website AI Agent",
+      whatsapp_chatbot: "WhatsApp AI Agent",
+      bulk_whatsapp: "Bulk WhatsApp Campaign System",
+      integrations_systems: "Integrations & Payment Systems",
+      seo_optimization: "SEO Optimization",
+      professional_email: "Professional Email Setup",
+      dashboard_analytics: "Custom Dashboards & Analytics",
       voice_agent: "AI Voice Agent",
-      website_chatbot: "Website Chatbot",
-      custom_agent: "Custom AI Agent",
+      custom_agent: "Custom AI / Automation",
     };
 
     try {
@@ -145,7 +171,7 @@ export async function POST(req: Request) {
               <tr><td style="padding: 8px 0; color: #888;">Phone</td><td style="padding: 8px 0;">${phone}</td></tr>
               <tr><td style="padding: 8px 0; color: #888;">Email</td><td style="padding: 8px 0;">${email}</td></tr>
               <tr><td style="padding: 8px 0; color: #888;">Type</td><td style="padding: 8px 0;">${businessType.replace(/_/g, " ")}</td></tr>
-              <tr><td style="padding: 8px 0; color: #888;">Services</td><td style="padding: 8px 0;">${services.map((s: string) => serviceLabels[s] || s).join(", ")}</td></tr>
+              <tr><td style="padding: 8px 0; color: #888;">Services</td><td style="padding: 8px 0;">${normalizedServices.map((s: string) => serviceLabels[s] || s).join(", ")}</td></tr>
               ${description ? `<tr><td style="padding: 8px 0; color: #888; vertical-align: top;">Description</td><td style="padding: 8px 0;">${description}</td></tr>` : ""}
             </table>
           </div>

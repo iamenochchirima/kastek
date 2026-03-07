@@ -1,4 +1,5 @@
 import LoginForm from "@/components/auth/login-form";
+import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Sign In | KasiTek",
@@ -9,6 +10,10 @@ export default function LoginPage({
 }: {
   searchParams: Promise<{ callbackUrl?: string }>;
 }) {
+  if (process.env.NODE_ENV === "production") {
+    redirect("/");
+  }
+
   return (
     <div className="space-y-8">
       <div className="text-center">

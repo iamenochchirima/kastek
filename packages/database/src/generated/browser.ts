@@ -78,6 +78,11 @@ export type OutreachCampaign = Prisma.OutreachCampaignModel
  */
 export type OutreachLead = Prisma.OutreachLeadModel
 /**
+ * Model OutreachEmailDeliveryLog
+ * 
+ */
+export type OutreachEmailDeliveryLog = Prisma.OutreachEmailDeliveryLogModel
+/**
  * Model WebServiceLead
  * 
  */

@@ -3,6 +3,7 @@ import Link from "next/link";
 import CampaignsTable from "@/components/admin/campaigns-table";
 import OutreachDeleteAllButton from "@/components/admin/outreach-delete-all";
 import AddOutreachLead from "@/components/admin/add-outreach-lead";
+import OutreachSyncDraftsButton from "@/components/admin/outreach-sync-drafts-button";
 
 export default async function OutreachPage() {
   const [campaigns, statusBreakdown, categoryBreakdown] = await Promise.all([
@@ -85,11 +86,18 @@ export default async function OutreachPage() {
         </h1>
         <div className="flex items-center gap-3">
           <Link
+            href="/outreach/delivery"
+            className="border border-border hover:bg-surface-overlay text-text px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            Delivery Monitoring
+          </Link>
+          <Link
             href="/outreach/drafts"
             className="border border-border hover:bg-surface-overlay text-text px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             Browse Draft Emails
           </Link>
+          <OutreachSyncDraftsButton />
           {campaigns.length > 0 && <OutreachDeleteAllButton campaignCount={campaigns.length} leadCount={totalLeads} />}
           {campaigns.length > 0 && (
             <AddOutreachLead

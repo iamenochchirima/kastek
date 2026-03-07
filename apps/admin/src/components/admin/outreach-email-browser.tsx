@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type FileOption = {
   key: string;
@@ -33,20 +33,90 @@ export default function OutreachEmailBrowser({
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [isReaderOpen, setIsReaderOpen] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testLeadIndex, setTestLeadIndex] = useState<string>("");
 
-  const filteredLeads = useMemo(() => {
+  const filteredLeadRows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return leads;
-    return leads.filter((lead) => {
-      return (
-        lead.business_name.toLowerCase().includes(q) ||
-        lead.subject.toLowerCase().includes(q) ||
-        lead.website.toLowerCase().includes(q) ||
-        lead.contact_emails.join(" ").toLowerCase().includes(q) ||
-        (lead.source_file || "").toLowerCase().includes(q)
-      );
-    });
+    return leads
+      .map((lead, index) => ({ lead, index }))
+      .filter(({ lead }) => {
+        if (!q) return true;
+        return (
+          lead.business_name.toLowerCase().includes(q) ||
+          lead.subject.toLowerCase().includes(q) ||
+          lead.website.toLowerCase().includes(q) ||
+          lead.contact_emails.join(" ").toLowerCase().includes(q) ||
+          (lead.source_file || "").toLowerCase().includes(q)
+        );
+      });
   }, [leads, query]);
+
+  const filteredLeads = useMemo(
+    () => filteredLeadRows.map((row) => row.lead),
+    [filteredLeadRows]
+  );
+
+  useEffect(() => {
+    if (filteredLeadRows.length === 0) {
+      if (testLeadIndex) setTestLeadIndex("");
+      return;
+    }
+    if (!testLeadIndex) {
+      setTestLeadIndex(String(filteredLeadRows[0].index));
+      return;
+    }
+    const exists = filteredLeadRows.some((row) => String(row.index) === testLeadIndex);
+    if (!exists) {
+      setTestLeadIndex(String(filteredLeadRows[0].index));
+    }
+  }, [filteredLeadRows, testLeadIndex]);
+
+  const selectedTestLead = useMemo(() => {
+    if (!testLeadIndex) return null;
+    const index = Number(testLeadIndex);
+    if (!Number.isInteger(index) || index < 0 || index >= leads.length) return null;
+    return leads[index];
+  }, [testLeadIndex, leads]);
+
+  async function sendTestEmail() {
+    if (!testTo.trim()) {
+      setTestResult("Enter a recipient email first.");
+      return;
+    }
+    if (!selectedTestLead) {
+      setTestResult("Select a draft first.");
+      return;
+    }
+
+    setTestSending(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/outreach/email/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: testTo.trim(),
+          subject: selectedTestLead.subject,
+          text: selectedTestLead.email_body,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setTestResult(data?.error || "Failed to send test email.");
+      } else {
+        setTestResult(
+          `Test sent to ${testTo.trim()} using: ${selectedTestLead.business_name}`
+        );
+      }
+    } catch {
+      setTestResult("Failed to send test email.");
+    } finally {
+      setTestSending(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -101,14 +171,55 @@ export default function OutreachEmailBrowser({
             </div>
           </div>
 
+          <div className="rounded-lg border border-border bg-surface p-3 space-y-2">
+            <p className="text-xs text-text-faint">
+              Test send: choose the exact draft you want to send.
+            </p>
+            <select
+              value={testLeadIndex}
+              onChange={(event) => setTestLeadIndex(event.target.value)}
+              disabled={filteredLeadRows.length === 0}
+              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-text outline-none focus:border-primary disabled:opacity-40"
+            >
+              {filteredLeadRows.map(({ lead, index }) => (
+                <option key={`${lead.business_name}-${lead.subject}-${index}`} value={String(index)}>
+                  {lead.business_name} · {lead.subject}
+                </option>
+              ))}
+            </select>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                value={testTo}
+                onChange={(event) => setTestTo(event.target.value)}
+                placeholder="your@email.com"
+                className="w-full sm:w-80 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-text outline-none focus:border-primary"
+              />
+              <button
+                type="button"
+                onClick={sendTestEmail}
+                disabled={testSending || !selectedTestLead}
+                className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary-dark disabled:opacity-40"
+              >
+                {testSending ? "Sending..." : "Send Test"}
+              </button>
+            </div>
+            {selectedTestLead ? (
+              <p className="text-xs text-text-muted">
+                Selected draft: {selectedTestLead.business_name} · {selectedTestLead.subject}
+              </p>
+            ) : null}
+            {testResult ? <p className="text-xs text-text-muted">{testResult}</p> : null}
+          </div>
+
           <p className="text-xs text-text-faint">
             Showing {filteredLeads.length} of {leads.length} lead drafts
           </p>
 
           <div className="space-y-3 max-h-[72vh] overflow-y-auto pr-1">
-            {filteredLeads.map((lead) => {
+            {filteredLeadRows.map(({ lead, index }) => {
               const key = `${lead.business_name}-${lead.subject}`;
               const open = expanded === key;
+              const selectedForTest = testLeadIndex === String(index);
               return (
                 <article key={key} className="rounded-lg border border-border bg-surface p-3 space-y-2">
                   <div className="flex items-start justify-between gap-3">
@@ -130,13 +241,26 @@ export default function OutreachEmailBrowser({
                         {lead.contact_emails.join(", ") || "No contact email"}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setExpanded(open ? null : key)}
-                      className="text-xs px-2 py-1 rounded border border-border hover:bg-surface-overlay"
-                    >
-                      {open ? "Hide" : "View"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTestLeadIndex(String(index))}
+                        className={`text-xs px-2 py-1 rounded border transition-colors ${
+                          selectedForTest
+                            ? "border-primary/60 bg-primary/10 text-primary"
+                            : "border-border hover:bg-surface-overlay text-text"
+                        }`}
+                      >
+                        {selectedForTest ? "Selected for test" : "Use for test"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExpanded(open ? null : key)}
+                        className="text-xs px-2 py-1 rounded border border-border hover:bg-surface-overlay"
+                      >
+                        {open ? "Hide" : "View"}
+                      </button>
+                    </div>
                   </div>
 
                   <p className="text-sm text-text font-medium">{lead.subject}</p>

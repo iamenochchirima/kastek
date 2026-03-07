@@ -18,10 +18,10 @@ export default function GetQuotePage() {
             <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse-dot" />
             Free, no-obligation quote
           </div>
-          <h1 className="font-serif text-[clamp(2rem,4vw,3rem)] leading-[1.1] tracking-tight mb-4 font-normal">
+          <h1 className="text-[clamp(2.1rem,4.2vw,3.2rem)] leading-[1.05] tracking-[-0.02em] mb-4 font-black uppercase">
             Get a Quote for Your
             <br />
-            <em className="text-accent">AI Solution</em>
+            <span className="text-accent">AI Solution</span>
           </h1>
           <p className="text-text-muted max-w-[480px] mx-auto leading-relaxed">
             Tell us about your business and what you need. We&apos;ll get back to you

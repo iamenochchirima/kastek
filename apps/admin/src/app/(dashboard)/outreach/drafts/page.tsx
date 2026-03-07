@@ -134,12 +134,9 @@ function dedupeLeads(leads: LeadRecord[]) {
 
 async function resolveOutreachBaseDir() {
   const candidates = [
-    path.join(process.cwd(), "local-work", "outreach-emails", "organized"),
-    path.join(process.cwd(), "..", "..", "local-work", "outreach-emails", "organized"),
-    path.join(process.cwd(), "..", "local-work", "outreach-emails", "organized"),
-    path.join(process.cwd(), "local-work", "outreach-emails"),
-    path.join(process.cwd(), "..", "..", "local-work", "outreach-emails"),
-    path.join(process.cwd(), "..", "local-work", "outreach-emails"),
+    path.join(process.cwd(), "local-work", "outreach-emails", "organized", "categories"),
+    path.join(process.cwd(), "..", "..", "local-work", "outreach-emails", "organized", "categories"),
+    path.join(process.cwd(), "..", "local-work", "outreach-emails", "organized", "categories"),
   ];
 
   for (const candidate of candidates) {

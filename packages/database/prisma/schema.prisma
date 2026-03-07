@@ -232,6 +232,7 @@ model OutreachCampaign {
   replies    Int      @default(0)
 
   leads OutreachLead[]
+  deliveryLogs OutreachEmailDeliveryLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -260,12 +261,36 @@ model OutreachLead {
   nextFollowUp  DateTime?
 
   notes String? @db.Text
+  deliveryLogs OutreachEmailDeliveryLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([campaignId])
   @@index([emailStatus])
+}
+
+model OutreachEmailDeliveryLog {
+  id         String   @id @default(cuid())
+  campaignId String?
+  campaign   OutreachCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  leadId     String?
+  lead       OutreachLead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  isTest     Boolean  @default(false)
+
+  recipient         String
+  subject           String
+  status            String   // sent | failed
+  provider          String   @default("smtp")
+  providerMessageId String?
+  providerResponse  String?  @db.Text
+  errorMessage      String?  @db.Text
+  attemptedAt       DateTime @default(now())
+
+  @@index([campaignId, attemptedAt])
+  @@index([leadId, attemptedAt])
+  @@index([status])
+  @@index([isTest, attemptedAt])
 }
 
 // ─── Web Services Leads (Cold Call) ──────────────────────────

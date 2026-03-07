@@ -63,6 +63,7 @@ export const ModelName = {
   Quotation: 'Quotation',
   OutreachCampaign: 'OutreachCampaign',
   OutreachLead: 'OutreachLead',
+  OutreachEmailDeliveryLog: 'OutreachEmailDeliveryLog',
   WebServiceLead: 'WebServiceLead',
   Conversation: 'Conversation',
   Message: 'Message',
@@ -308,6 +309,24 @@ export const OutreachLeadScalarFieldEnum = {
 } as const
 
 export type OutreachLeadScalarFieldEnum = (typeof OutreachLeadScalarFieldEnum)[keyof typeof OutreachLeadScalarFieldEnum]
+
+
+export const OutreachEmailDeliveryLogScalarFieldEnum = {
+  id: 'id',
+  campaignId: 'campaignId',
+  leadId: 'leadId',
+  isTest: 'isTest',
+  recipient: 'recipient',
+  subject: 'subject',
+  status: 'status',
+  provider: 'provider',
+  providerMessageId: 'providerMessageId',
+  providerResponse: 'providerResponse',
+  errorMessage: 'errorMessage',
+  attemptedAt: 'attemptedAt'
+} as const
+
+export type OutreachEmailDeliveryLogScalarFieldEnum = (typeof OutreachEmailDeliveryLogScalarFieldEnum)[keyof typeof OutreachEmailDeliveryLogScalarFieldEnum]
 
 
 export const WebServiceLeadScalarFieldEnum = {

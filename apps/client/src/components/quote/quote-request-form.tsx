@@ -17,10 +17,16 @@ const businessTypes = [
 ];
 
 const serviceOptions = [
-  { value: "whatsapp_chatbot", label: "WhatsApp Chatbot" },
+  { value: "website_presence", label: "Website Development / Redesign" },
+  { value: "website_chatbot", label: "Website AI Agent" },
+  { value: "whatsapp_chatbot", label: "WhatsApp AI Agent" },
+  { value: "bulk_whatsapp", label: "Bulk WhatsApp Campaign System" },
+  { value: "integrations_systems", label: "Integrations & Payment Systems" },
+  { value: "seo_optimization", label: "SEO Optimization" },
+  { value: "professional_email", label: "Professional Email Setup" },
+  { value: "dashboard_analytics", label: "Custom Dashboards & Analytics" },
   { value: "voice_agent", label: "AI Voice Agent" },
-  { value: "website_chatbot", label: "Website Chatbot" },
-  { value: "custom_agent", label: "Custom AI Agent" },
+  { value: "custom_agent", label: "Custom AI / Automation" },
 ];
 
 export default function QuoteRequestForm() {
@@ -30,6 +36,7 @@ export default function QuoteRequestForm() {
   const [email, setEmail] = useState("");
   const [businessType, setBusinessType] = useState("");
   const [services, setServices] = useState<string[]>([]);
+  const [customService, setCustomService] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -41,6 +48,17 @@ export default function QuoteRequestForm() {
         ? prev.filter((s) => s !== value)
         : [...prev, value]
     );
+  };
+
+  const addCustomService = () => {
+    const value = customService.trim();
+    if (!value) return;
+    setServices((prev) => (prev.includes(value) ? prev : [...prev, value]));
+    setCustomService("");
+  };
+
+  const removeService = (value: string) => {
+    setServices((prev) => prev.filter((service) => service !== value));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -119,98 +137,118 @@ export default function QuoteRequestForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
-            Business Name <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="text"
-            value={businessName}
-            onChange={(e) => setBusinessName(e.target.value)}
-            placeholder="e.g. Mama's Kitchen"
-            required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
-          />
-        </div>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <section className="rounded-2xl border border-border bg-bg/40 p-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-text">Business Details</h3>
+            <p className="mt-1 text-xs text-text-dim">Tell us who the quote is for.</p>
+          </div>
 
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
-            Contact Person <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="text"
-            value={contactPerson}
-            onChange={(e) => setContactPerson(e.target.value)}
-            placeholder="Your full name"
-            required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-text">
-              Phone Number <span className="text-red-400">*</span>
+              Business Name <span className="text-red-400">*</span>
             </label>
             <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+27 72 123 4567"
+              type="text"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              placeholder="e.g. Mama's Kitchen"
               required
               className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
             />
           </div>
+
           <div>
             <label className="mb-1.5 block text-sm font-medium text-text">
-              Email <span className="text-red-400">*</span>
+              Business Type <span className="text-red-400">*</span>
             </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="your@email.com"
+            <select
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value)}
               required
-              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
-            Business Type <span className="text-red-400">*</span>
-          </label>
-          <select
-            value={businessType}
-            onChange={(e) => setBusinessType(e.target.value)}
-            required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text focus:border-accent focus:outline-none appearance-none"
-          >
-            <option value="" disabled>
-              Select your business type
-            </option>
-            {businessTypes.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
+              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text focus:border-accent focus:outline-none appearance-none"
+            >
+              <option value="" disabled>
+                Select your business type
               </option>
-            ))}
-          </select>
-        </div>
+              {businessTypes.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
 
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
-            Services Needed <span className="text-red-400">*</span>
-          </label>
-          <div className="flex flex-wrap gap-3 mt-1">
+        <section className="rounded-2xl border border-border bg-bg/40 p-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-text">Contact Details</h3>
+            <p className="mt-1 text-xs text-text-dim">Who should we contact for this proposal?</p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-text">
+              Contact Person <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={contactPerson}
+              onChange={(e) => setContactPerson(e.target.value)}
+              placeholder="Your full name"
+              required
+              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-text">
+                Phone Number <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+27 72 123 4567"
+                required
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-text">
+                Email <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                required
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-bg/40 p-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-text">
+              Services Needed <span className="text-red-400">*</span>
+            </h3>
+            <p className="mt-1 text-xs text-text-dim">
+              Select one or more services, or add your own custom request.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {serviceOptions.map((service) => (
               <button
                 key={service.value}
                 type="button"
                 onClick={() => toggleService(service.value)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                className={`rounded-xl px-4 py-2.5 text-left text-sm font-medium transition-all ${
                   services.includes(service.value)
-                    ? "bg-accent text-bg"
+                    ? "border border-accent bg-accent/15 text-accent"
                     : "border border-border bg-surface text-text-muted hover:border-text-muted"
                 }`}
               >
@@ -218,21 +256,44 @@ export default function QuoteRequestForm() {
               </button>
             ))}
           </div>
-        </div>
 
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
-            Tell us about your business{" "}
-            <span className="text-text-dim font-normal">(optional)</span>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              value={customService}
+              onChange={(e) => setCustomService(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addCustomService();
+                }
+              }}
+              placeholder="Other service (type and add)"
+              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={addCustomService}
+              className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-text transition hover:border-accent/50 hover:text-accent"
+            >
+              Add
+            </button>
+          </div>
+
+        </section>
+
+        <section className="rounded-2xl border border-border bg-bg/40 p-4 space-y-3">
+          <label className="block text-sm font-medium text-text">
+            Project Notes <span className="text-text-dim font-normal">(optional)</span>
           </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="What does your business do? What problems are you looking to solve with AI?"
+            placeholder="What does your business do? What problems should this solution solve?"
             rows={4}
             className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none resize-none"
           />
-        </div>
+        </section>
 
         <button
           type="submit"

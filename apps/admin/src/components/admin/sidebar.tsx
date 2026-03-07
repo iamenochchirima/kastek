@@ -10,6 +10,7 @@ const navItems = [
   { href: "/quotations", label: "Quotations", icon: "📄" },
   { href: "/outreach", label: "AI Services", icon: "📧" },
   { href: "/outreach/drafts", label: "Email Drafts", icon: "📝" },
+  { href: "/outreach/delivery", label: "Delivery Log", icon: "📬" },
   { href: "/web-services", label: "Web Services", icon: "🌐" },
   { href: "/conversations", label: "Conversations", icon: "💬" },
 ];

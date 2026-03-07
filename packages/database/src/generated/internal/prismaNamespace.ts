@@ -396,6 +396,7 @@ export const ModelName = {
   Quotation: 'Quotation',
   OutreachCampaign: 'OutreachCampaign',
   OutreachLead: 'OutreachLead',
+  OutreachEmailDeliveryLog: 'OutreachEmailDeliveryLog',
   WebServiceLead: 'WebServiceLead',
   Conversation: 'Conversation',
   Message: 'Message',
@@ -424,7 +425,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "quotation" | "outreachCampaign" | "outreachLead" | "webServiceLead" | "conversation" | "message" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappContact" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
+    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "quotation" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "conversation" | "message" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappContact" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1313,6 +1314,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.OutreachLeadCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.OutreachLeadCountAggregateOutputType> | number
+        }
+      }
+    }
+    OutreachEmailDeliveryLog: {
+      payload: Prisma.$OutreachEmailDeliveryLogPayload<ExtArgs>
+      fields: Prisma.OutreachEmailDeliveryLogFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OutreachEmailDeliveryLogFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OutreachEmailDeliveryLogFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload>
+        }
+        findFirst: {
+          args: Prisma.OutreachEmailDeliveryLogFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OutreachEmailDeliveryLogFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload>
+        }
+        findMany: {
+          args: Prisma.OutreachEmailDeliveryLogFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload>[]
+        }
+        create: {
+          args: Prisma.OutreachEmailDeliveryLogCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload>
+        }
+        createMany: {
+          args: Prisma.OutreachEmailDeliveryLogCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OutreachEmailDeliveryLogCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload>[]
+        }
+        delete: {
+          args: Prisma.OutreachEmailDeliveryLogDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload>
+        }
+        update: {
+          args: Prisma.OutreachEmailDeliveryLogUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload>
+        }
+        deleteMany: {
+          args: Prisma.OutreachEmailDeliveryLogDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OutreachEmailDeliveryLogUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OutreachEmailDeliveryLogUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload>[]
+        }
+        upsert: {
+          args: Prisma.OutreachEmailDeliveryLogUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutreachEmailDeliveryLogPayload>
+        }
+        aggregate: {
+          args: Prisma.OutreachEmailDeliveryLogAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOutreachEmailDeliveryLog>
+        }
+        groupBy: {
+          args: Prisma.OutreachEmailDeliveryLogGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OutreachEmailDeliveryLogGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OutreachEmailDeliveryLogCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OutreachEmailDeliveryLogCountAggregateOutputType> | number
         }
       }
     }
@@ -2533,6 +2608,24 @@ export const OutreachLeadScalarFieldEnum = {
 export type OutreachLeadScalarFieldEnum = (typeof OutreachLeadScalarFieldEnum)[keyof typeof OutreachLeadScalarFieldEnum]
 
 
+export const OutreachEmailDeliveryLogScalarFieldEnum = {
+  id: 'id',
+  campaignId: 'campaignId',
+  leadId: 'leadId',
+  isTest: 'isTest',
+  recipient: 'recipient',
+  subject: 'subject',
+  status: 'status',
+  provider: 'provider',
+  providerMessageId: 'providerMessageId',
+  providerResponse: 'providerResponse',
+  errorMessage: 'errorMessage',
+  attemptedAt: 'attemptedAt'
+} as const
+
+export type OutreachEmailDeliveryLogScalarFieldEnum = (typeof OutreachEmailDeliveryLogScalarFieldEnum)[keyof typeof OutreachEmailDeliveryLogScalarFieldEnum]
+
+
 export const WebServiceLeadScalarFieldEnum = {
   id: 'id',
   businessName: 'businessName',
@@ -3182,6 +3275,7 @@ export type GlobalOmitConfig = {
   quotation?: Prisma.QuotationOmit
   outreachCampaign?: Prisma.OutreachCampaignOmit
   outreachLead?: Prisma.OutreachLeadOmit
+  outreachEmailDeliveryLog?: Prisma.OutreachEmailDeliveryLogOmit
   webServiceLead?: Prisma.WebServiceLeadOmit
   conversation?: Prisma.ConversationOmit
   message?: Prisma.MessageOmit
