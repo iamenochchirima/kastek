@@ -67,6 +67,10 @@ export default function OutreachLeadsTable({
   const [bulkResult, setBulkResult] = useState<string | null>(null);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [bulkSentLeadIds, setBulkSentLeadIds] = useState<Set<string>>(new Set());
+  const [bulkCooldownSeconds, setBulkCooldownSeconds] = useState<number | null>(null);
+  const [bulkStopping, setBulkStopping] = useState(false);
+  const [bulkRunMode, setBulkRunMode] = useState<"selected" | "all" | null>(null);
+  const [bulkRunRequestedCount, setBulkRunRequestedCount] = useState(0);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [allCampaignLeads, setAllCampaignLeads] = useState<Lead[] | null>(null);
   const [loadingAllLeads, setLoadingAllLeads] = useState(false);
@@ -99,6 +103,7 @@ export default function OutreachLeadsTable({
   const bulkTargets = bulkMode === "selected" ? selectedWithDrafts : allWithDrafts;
   const bulkVisibleTargets = bulkTargets.filter((lead) => !bulkSentLeadIds.has(lead.id));
   const bulkMissingCount = bulkMode === "selected" ? selectedMissingRequired : allMissingRequired;
+  const bulkStopRequestedRef = useRef(false);
 
   function showToast(type: "success" | "error", message: string) {
     setToast({ type, message });
@@ -175,55 +180,6 @@ export default function OutreachLeadsTable({
     }
   }
 
-  useEffect(() => {
-    if (!showBulkSendModal) return;
-    const scopeLeads = bulkMode === "selected" ? selectedLeads : sourceAllLeads;
-    const rows = scopeLeads.map((lead) => {
-      const hasEmail = Boolean(
-        (lead.sendToEmails || []).some((e) => Boolean(e?.trim())) || lead.emailAddress?.trim()
-      );
-      const hasTemplate = Boolean(lead.emailTemplate?.trim());
-      const subject = getLeadSubject(lead);
-      const hasSubject = Boolean(subject);
-      return {
-        leadId: lead.id,
-        businessName: lead.businessName,
-        website: lead.website || "",
-        email: lead.emailAddress || "",
-        hasEmail,
-        hasTemplate,
-        hasSubject,
-        subject,
-        sendable: hasEmail && hasTemplate && hasSubject,
-        reason: !hasEmail
-          ? "missing emailAddress"
-          : !hasTemplate
-            ? "missing emailTemplate"
-            : !hasSubject
-              ? "missing OUTREACH_SUBJECT in notes"
-              : "ok",
-      };
-    });
-
-    const summary = rows.reduce(
-      (acc, row) => {
-        if (row.sendable) acc.sendable += 1;
-        else if (row.reason === "missing emailAddress") acc.missingEmail += 1;
-        else if (row.reason === "missing emailTemplate") acc.missingTemplate += 1;
-        else if (row.reason === "missing OUTREACH_SUBJECT in notes") acc.missingSubject += 1;
-        return acc;
-      },
-      { sendable: 0, missingEmail: 0, missingTemplate: 0, missingSubject: 0 }
-    );
-
-    console.log("[BulkSend Debug] Scope", {
-      mode: bulkMode,
-      inScope: scopeLeads.length,
-      ...summary,
-    });
-    console.table(rows.slice(0, 200));
-  }, [showBulkSendModal, bulkMode, selectedLeads, sourceAllLeads]);
-
   function enterSelectMode() {
     setSelectMode(true);
   }
@@ -285,6 +241,162 @@ export default function OutreachLeadsTable({
     router.refresh();
   }
 
+  function requestStopBulkSend() {
+    if (!bulkSending || bulkStopping) return;
+    bulkStopRequestedRef.current = true;
+    setBulkStopping(true);
+    setBulkResult("Stopping after current email...");
+  }
+
+  async function startBulkSendRun(requestedCount: number) {
+    if (bulkSending) return;
+    const targetSnapshot = [...bulkTargets];
+    const sendQueue = targetSnapshot.slice(0, Math.max(0, requestedCount));
+    const missingCountSnapshot = bulkMissingCount;
+    const totalAvailableSnapshot = targetSnapshot.length;
+    const modeSnapshot = bulkMode;
+
+    bulkStopRequestedRef.current = false;
+    setBulkStopping(false);
+    setBulkRunMode(modeSnapshot);
+    setBulkRunRequestedCount(sendQueue.length);
+    setBulkSending(true);
+    setBulkResult(null);
+    setBulkProgress({ done: 0, total: sendQueue.length });
+    setBulkSentLeadIds(new Set());
+    setBulkCooldownSeconds(null);
+
+    let sent = 0;
+    let failed = 0;
+    let done = 0;
+    let blockedByPolicy = false;
+
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    function getRandomDelayMs() {
+      // Keep at least 45s and vary timing to avoid fixed automation cadence.
+      const min = 45_000;
+      const max = 75_000;
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    async function runCooldown(delayMs: number) {
+      let remaining = Math.ceil(delayMs / 1000);
+      setBulkCooldownSeconds(remaining);
+      while (remaining > 0) {
+        if (bulkStopRequestedRef.current) {
+          setBulkCooldownSeconds(null);
+          return;
+        }
+        await sleep(1000);
+        remaining -= 1;
+        setBulkCooldownSeconds(remaining > 0 ? remaining : null);
+      }
+    }
+
+    async function sendOne(lead: Lead) {
+      const renderedSubject = getLeadSubject(lead);
+      if (!renderedSubject) {
+        failed += 1;
+        done += 1;
+        setBulkProgress({ done, total: sendQueue.length });
+        return { policyBlocked: false };
+      }
+      if (isAlreadySent(lead)) {
+        done += 1;
+        setBulkProgress({ done, total: sendQueue.length });
+        return { policyBlocked: false };
+      }
+      const text = lead.emailTemplate?.trim();
+      if (!text) {
+        failed += 1;
+        done += 1;
+        setBulkProgress({ done, total: sendQueue.length });
+        return { policyBlocked: false };
+      }
+      const recipients = (lead.sendToEmails || [])
+        .map((e) => e?.trim())
+        .filter((e): e is string => Boolean(e));
+      const primaryTo = recipients[0] || lead.emailAddress?.trim() || "";
+      if (!primaryTo) {
+        failed += 1;
+        done += 1;
+        setBulkProgress({ done, total: sendQueue.length });
+        return { policyBlocked: false };
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      try {
+        const res = await fetch(`/api/outreach/${campaignId}/leads/${lead.id}/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: recipients.length ? recipients : [primaryTo],
+            primaryTo,
+            subject: renderedSubject,
+            text,
+          }),
+          signal: controller.signal,
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (res.ok) {
+          sent += 1;
+          setBulkSentLeadIds((prev) => {
+            const next = new Set(prev);
+            next.add(lead.id);
+            return next;
+          });
+          return { policyBlocked: false };
+        }
+        failed += 1;
+        const errMsg = String(payload?.error || "");
+        if (errMsg.includes("550 5.4.6")) {
+          return { policyBlocked: true };
+        }
+        return { policyBlocked: false };
+      } catch {
+        failed += 1;
+        return { policyBlocked: false };
+      } finally {
+        clearTimeout(timeout);
+        done += 1;
+        setBulkProgress({ done, total: sendQueue.length });
+      }
+    }
+
+    for (let i = 0; i < sendQueue.length; i += 1) {
+      if (bulkStopRequestedRef.current) break;
+      const lead = sendQueue[i];
+      const outcome = await sendOne(lead);
+      if (outcome.policyBlocked) {
+        blockedByPolicy = true;
+        break;
+      }
+      if (bulkStopRequestedRef.current) break;
+      if (i < sendQueue.length - 1) {
+        const delayMs = getRandomDelayMs();
+        await runCooldown(delayMs);
+      }
+    }
+
+    setBulkSending(false);
+    setBulkStopping(false);
+    setBulkCooldownSeconds(null);
+    const deferred = Math.max(0, totalAvailableSnapshot - sendQueue.length);
+    const unsentInBatch = Math.max(0, sendQueue.length - done);
+    const stoppedByUser = bulkStopRequestedRef.current;
+    const completionMessage = blockedByPolicy
+      ? `Stopped by Zoho policy signal (550 5.4.6). ${sent} sent, ${failed} failed, ${unsentInBatch} unsent in this batch, ${missingCountSnapshot} skipped, ${deferred} deferred for later.`
+      : stoppedByUser
+        ? `Stopped by user. ${sent} sent, ${failed} failed, ${unsentInBatch} unsent in this batch, ${missingCountSnapshot} skipped, ${deferred} deferred for later.`
+        : `Bulk send complete: ${sent} sent, ${failed} failed, ${missingCountSnapshot} skipped (missing email/template), ${deferred} deferred for later.`;
+    setBulkResult(completionMessage);
+    showToast(failed > 0 ? "error" : "success", completionMessage);
+    setBulkProgress(null);
+    router.refresh();
+  }
+
   return (
     <>
       {/* Toolbar */}
@@ -319,7 +431,8 @@ export default function OutreachLeadsTable({
                 setShowBulkSendModal(true);
                 await loadAllCampaignLeads();
               }}
-              className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded-full text-xs font-medium transition-colors"
+              disabled={bulkSending}
+              className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Bulk Send
             </button>
@@ -362,8 +475,8 @@ export default function OutreachLeadsTable({
                     setShowBulkSendModal(true);
                     await loadAllCampaignLeads();
                   }}
-                  disabled={updating}
-                  className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
+                  disabled={updating || bulkSending}
+                  className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Bulk Send
                 </button>
@@ -372,6 +485,30 @@ export default function OutreachLeadsTable({
           </>
         )}
       </div>
+      {bulkSending || bulkStopping ? (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
+          <p className="text-xs text-text">
+            Bulk send running in background ({bulkRunMode === "selected" ? "selected" : "all"} scope)
+            {bulkProgress ? `: ${bulkProgress.done}/${bulkProgress.total}` : ""}
+            {bulkCooldownSeconds !== null ? ` · next send in ${bulkCooldownSeconds}s` : ""}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBulkSendModal(true)}
+              className="rounded border border-border px-2 py-1 text-xs text-text-muted hover:text-text"
+            >
+              Open details
+            </button>
+            <button
+              onClick={requestStopBulkSend}
+              disabled={bulkStopping}
+              className="rounded border border-red-500/50 px-2 py-1 text-xs text-red-300 hover:text-red-200 disabled:opacity-50"
+            >
+              {bulkStopping ? "Stopping..." : "Stop"}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
         {leads.length === 0 ? (
@@ -526,93 +663,12 @@ export default function OutreachLeadsTable({
           allLeadsError={allLeadsError}
           result={bulkResult}
           onCancel={() => setShowBulkSendModal(false)}
-          onSend={async (requestedCount) => {
-            const sendQueue = bulkTargets.slice(0, Math.max(0, requestedCount));
-            setBulkSending(true);
-            setBulkResult(null);
-            setBulkProgress({ done: 0, total: sendQueue.length });
-            setBulkSentLeadIds(new Set());
-
-            let sent = 0;
-            let failed = 0;
-            let done = 0;
-            const CONCURRENCY = 5;
-
-            async function sendOne(lead: Lead) {
-              const renderedSubject = getLeadSubject(lead);
-              if (!renderedSubject) {
-                failed += 1;
-                done += 1;
-                setBulkProgress({ done, total: sendQueue.length });
-                return;
-              }
-              if (isAlreadySent(lead)) {
-                done += 1;
-                setBulkProgress({ done, total: sendQueue.length });
-                return;
-              }
-              const text = lead.emailTemplate?.trim();
-              if (!text) {
-                failed += 1;
-                done += 1;
-                setBulkProgress({ done, total: sendQueue.length });
-                return;
-              }
-              const recipients = (lead.sendToEmails || [])
-                .map((e) => e?.trim())
-                .filter((e): e is string => Boolean(e));
-              const primaryTo = recipients[0] || lead.emailAddress?.trim() || "";
-              if (!primaryTo) {
-                failed += 1;
-                done += 1;
-                setBulkProgress({ done, total: sendQueue.length });
-                return;
-              }
-              const controller = new AbortController();
-              const timeout = setTimeout(() => controller.abort(), 25000);
-              try {
-                const res = await fetch(`/api/outreach/${campaignId}/leads/${lead.id}/send`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    to: recipients.length ? recipients : [primaryTo],
-                    primaryTo,
-                    subject: renderedSubject,
-                    text,
-                  }),
-                  signal: controller.signal,
-                });
-                if (res.ok) {
-                  sent += 1;
-                  setBulkSentLeadIds((prev) => {
-                    const next = new Set(prev);
-                    next.add(lead.id);
-                    return next;
-                  });
-                } else failed += 1;
-              } catch {
-                failed += 1;
-              } finally {
-                clearTimeout(timeout);
-                done += 1;
-                setBulkProgress({ done, total: sendQueue.length });
-              }
-            }
-
-            for (let i = 0; i < sendQueue.length; i += CONCURRENCY) {
-              const chunk = sendQueue.slice(i, i + CONCURRENCY);
-              await Promise.all(chunk.map((lead) => sendOne(lead)));
-            }
-
-            setBulkSending(false);
-            const deferred = Math.max(0, bulkTargets.length - sendQueue.length);
-            const completionMessage = `Bulk send complete: ${sent} sent, ${failed} failed, ${bulkMissingCount} skipped (missing email/template), ${deferred} deferred for later.`;
-            setBulkResult(completionMessage);
-            showToast(failed > 0 ? "error" : "success", completionMessage);
-            setBulkProgress(null);
-            router.refresh();
-          }}
+          onSend={startBulkSendRun}
           progress={bulkProgress}
+          cooldownSeconds={bulkCooldownSeconds}
+          onStop={requestStopBulkSend}
+          stopLoading={bulkStopping}
+          runRequestedCount={bulkRunRequestedCount}
         />
       ) : null}
 
@@ -727,8 +783,12 @@ function BulkSendModal({
   allLeadsError,
   result,
   progress,
+  cooldownSeconds,
   onCancel,
   onSend,
+  onStop,
+  stopLoading,
+  runRequestedCount,
 }: {
   mode: "selected" | "all";
   selectedCount: number;
@@ -741,8 +801,12 @@ function BulkSendModal({
   allLeadsError: string | null;
   result: string | null;
   progress: { done: number; total: number } | null;
+  cooldownSeconds: number | null;
   onCancel: () => void;
   onSend: (requestedCount: number) => void;
+  onStop: () => void;
+  stopLoading: boolean;
+  runRequestedCount: number;
 }) {
   const [activeLeadId, setActiveLeadId] = useState<string | null>(leads[0]?.id || null);
   const [confirmReady, setConfirmReady] = useState(false);
@@ -913,6 +977,16 @@ function BulkSendModal({
               {Math.max(0, progress.total - progress.done)}
             </p>
           ) : null}
+          {loading ? (
+            <p className="text-xs text-text-faint">
+              You can close this modal. Sending will continue in the background.
+            </p>
+          ) : null}
+          {loading && cooldownSeconds !== null ? (
+            <p className="text-xs text-primary">
+              Waiting before next send: {cooldownSeconds}s
+            </p>
+          ) : null}
           {sendDisabledReason ? (
             <p className="text-xs text-yellow-300">{sendDisabledReason}</p>
           ) : null}
@@ -923,15 +997,24 @@ function BulkSendModal({
             onClick={onCancel}
             className="rounded-lg border border-border px-3 py-2 text-xs text-text-muted hover:text-text"
           >
-            Cancel
+            {loading ? "Close (keep running)" : "Cancel"}
           </button>
+          {loading ? (
+            <button
+              onClick={onStop}
+              disabled={stopLoading}
+              className="rounded-lg border border-red-500/50 px-3 py-2 text-xs font-medium text-red-300 hover:text-red-200 disabled:opacity-50"
+            >
+              {stopLoading ? "Stopping..." : "Stop Sending"}
+            </button>
+          ) : null}
           <button
             onClick={() => onSend(requestedCount)}
             disabled={Boolean(sendDisabledReason)}
             title={sendDisabledReason || `Send ${requestedCount} emails now`}
             className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary-dark disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {loading ? "Sending..." : `Send ${requestedCount} Emails`}
+            {loading ? `Sending ${runRequestedCount || requestedCount}...` : `Send ${requestedCount} Emails`}
           </button>
         </div>
       </div>
