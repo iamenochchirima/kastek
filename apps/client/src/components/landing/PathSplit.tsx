@@ -28,7 +28,7 @@ export function PathSplit() {
             <span className="inline-block px-3 py-1 bg-white/5 border border-white/10 rounded text-xs font-medium text-muted-foreground mb-6 group-hover:bg-white/10 transition-colors">
               Self-Serve
             </span>
-            <h3 className="landing-font-display mb-4 text-4xl transition-colors group-hover:text-primary">Ready-to-use Products</h3>
+            <h3 className="font-display text-4xl mb-4 group-hover:text-primary transition-colors">Ready-to-use Products</h3>
             <p className="text-muted-foreground leading-relaxed max-w-md">
               Sign up, connect your channels, and go live. No technical setup required. Built for business owners who want results fast.
             </p>
@@ -59,7 +59,7 @@ export function PathSplit() {
             <span className="inline-block px-3 py-1 bg-white/5 border border-white/10 rounded text-xs font-medium text-muted-foreground mb-6 group-hover:bg-white/10 transition-colors">
               Done For You
             </span>
-            <h3 className="landing-font-display mb-4 text-4xl transition-colors group-hover:text-primary">We Build It For You</h3>
+            <h3 className="font-display text-4xl mb-4 group-hover:text-primary transition-colors">We Build It For You</h3>
             <p className="text-muted-foreground leading-relaxed max-w-md">
               Complex integrations, voice agents, custom workflows. We scope it, build it, and hand it over — or manage it for you on retainer.
             </p>

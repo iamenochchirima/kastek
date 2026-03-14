@@ -55,7 +55,7 @@ export function Hero() {
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
               exit={{ opacity: 0, y: -30, filter: "blur(8px)" }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="landing-font-display absolute inset-0 text-6xl leading-[0.85] tracking-tight sm:text-7xl md:text-9xl"
+              className="absolute inset-0 font-display text-6xl sm:text-7xl md:text-9xl leading-[0.85] tracking-tight"
             >
               <span className="block text-foreground">{headlines[index].top}</span>
               <span className={cn("block transition-colors duration-300", headlines[index].color)}>
@@ -72,11 +72,7 @@ export function Hero() {
             transition={{ delay: 0.4, duration: 0.6 }}
             className="text-muted-foreground text-sm sm:text-base leading-relaxed md:max-w-md"
           >
-            <strong className="text-foreground font-semibold">
-              AI agents, marketing automation, and growth systems
-            </strong>{" "}
-            for businesses ready to scale. KasiTek gives you the tools and services to respond
-            to every lead, run marketing campaigns, and grow without adding headcount.
+            <strong className="text-foreground font-semibold">AI agents, marketing automation, and growth systems</strong> for businesses ready to scale. KasiTek gives you the tools and services to respond to every lead, run marketing campaigns, and grow without adding headcount.
           </motion.p>
 
           <motion.div 
@@ -87,15 +83,13 @@ export function Hero() {
           >
             <p className="text-xs font-semibold tracking-wider uppercase text-muted-foreground">Choose your path</p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <button
-                type="button"
+              <button 
                 onClick={() => scrollTo("products")}
                 className="px-8 py-4 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 hover:-translate-y-0.5 transition-all duration-200 shadow-[0_0_20px_rgba(232,160,32,0.3)] hover:shadow-[0_0_30px_rgba(232,160,32,0.5)]"
               >
                 Explore Products
               </button>
-              <button
-                type="button"
+              <button 
                 onClick={() => scrollTo("services")}
                 className="px-8 py-4 rounded-lg bg-card text-foreground border border-border font-semibold hover:bg-white/5 hover:-translate-y-0.5 transition-all duration-200"
               >

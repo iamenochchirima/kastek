@@ -21,9 +21,8 @@ export function CTA() {
       >
         <p className="text-sm font-semibold tracking-wider text-primary uppercase mb-6">Ready to start</p>
         
-        <h2 className="landing-font-display mb-8 text-5xl leading-[0.9] text-balance md:text-7xl lg:text-8xl">
-          Your business should be working{" "}
-          <span className="landing-font-serif font-normal italic text-white/70">while you sleep.</span>
+        <h2 className="font-display text-5xl md:text-7xl lg:text-8xl leading-[0.9] mb-8 text-balance">
+          Your business should be working <span className="font-serif italic text-white/70 font-normal">while you sleep.</span>
         </h2>
         
         <p className="text-muted-foreground text-lg mb-12 max-w-lg text-balance">
@@ -37,8 +36,7 @@ export function CTA() {
           >
             Talk to KasiTek
           </a>
-          <button
-            type="button"
+          <button 
             onClick={() => scrollTo("products")}
             className="px-8 py-4 rounded-lg bg-transparent text-foreground border border-border font-semibold hover:bg-white/5 hover:-translate-y-0.5 transition-all duration-200 text-center"
           >

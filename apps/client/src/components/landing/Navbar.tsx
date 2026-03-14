@@ -33,10 +33,7 @@ export function Navbar() {
         scrolled ? "bg-background/80 backdrop-blur-md border-b border-border shadow-lg shadow-black/20 py-4" : "bg-transparent py-6"
       )}
     >
-      <a
-        href="#home"
-        className="flex items-center gap-3 transition-opacity hover:opacity-80"
-      >
+      <a href="#" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
         <Image
           src="/logo.png"
           alt="KasiTek"
@@ -44,30 +41,29 @@ export function Navbar() {
           height={36}
           className="h-9 w-9 rounded-md object-contain"
         />
-        <span className="landing-font-display text-2xl tracking-widest text-white">
+        <span className="font-display text-2xl tracking-widest text-white">
           Kasi<span className="text-primary">Tek</span>
         </span>
       </a>
 
       <ul className="hidden md:flex items-center gap-8 text-sm font-medium">
         <li>
-          <button type="button" onClick={() => scrollTo("products")} className="text-muted-foreground transition-colors hover:text-white">
+          <button onClick={() => scrollTo("products")} className="text-muted-foreground hover:text-white transition-colors">
             Products
           </button>
         </li>
         <li>
-          <button type="button" onClick={() => scrollTo("services")} className="text-muted-foreground transition-colors hover:text-white">
+          <button onClick={() => scrollTo("services")} className="text-muted-foreground hover:text-white transition-colors">
             Services
           </button>
         </li>
         <li>
-          <button type="button" onClick={() => scrollTo("footer")} className="text-muted-foreground transition-colors hover:text-white">
+          <button onClick={() => scrollTo("footer")} className="text-muted-foreground hover:text-white transition-colors">
             About
           </button>
         </li>
         <li>
-          <button
-            type="button"
+          <button 
             onClick={() => scrollTo("contact")}
             className="px-5 py-2.5 bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary hover:text-primary-foreground transition-all duration-300 font-semibold"
           >

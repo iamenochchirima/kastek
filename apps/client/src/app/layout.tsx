@@ -1,22 +1,9 @@
 import type { Metadata } from "next";
-import { DM_Sans, Instrument_Serif } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/auth";
 import ChatWidget from "@/components/chat-widget";
 import ThemeScript from "@/components/theme-script";
 import "./globals.css";
-
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-});
-
-const instrumentSerif = Instrument_Serif({
-  variable: "--font-instrument-serif",
-  weight: "400",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-});
 
 export const metadata: Metadata = {
   title: "KasiTek | AI Solutions for Your Business",
@@ -40,9 +27,7 @@ export default async function RootLayout({
       <head>
         <ThemeScript />
       </head>
-      <body
-        className={`${dmSans.variable} ${instrumentSerif.variable} font-sans antialiased`}
-      >
+      <body className="font-sans antialiased">
         <SessionProvider session={session}>
           {children}
           <ChatWidget />

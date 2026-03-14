@@ -8,7 +8,7 @@ import { Services } from "@/components/landing/Services";
 
 export default function HomePage() {
   return (
-    <main className="landing-shell relative min-h-screen w-full selection:bg-primary/30 selection:text-primary">
+    <main className="relative min-h-screen w-full selection:bg-primary/30 selection:text-primary">
       <div className="bg-noise" />
       <Navbar />
       <Hero />

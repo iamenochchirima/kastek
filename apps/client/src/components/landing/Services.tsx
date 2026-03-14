@@ -48,7 +48,7 @@ export function Services() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-16 md:mb-24 items-end">
           <div>
             <p className="text-sm font-semibold tracking-wider text-primary uppercase mb-4">Services</p>
-            <h2 className="landing-font-display text-5xl md:text-7xl">We build it<br/>for you</h2>
+            <h2 className="font-display text-5xl md:text-7xl">We build it<br/>for you</h2>
           </div>
           <p className="text-muted-foreground md:max-w-md text-base leading-relaxed">
             When your setup is too specific for a self-serve product, we build it custom. Scoped, built, and delivered — with optional ongoing management.
@@ -68,7 +68,7 @@ export function Services() {
               {/* Hover Top Border */}
               <div className="absolute top-0 left-0 w-full h-[2px] bg-primary origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out z-20" />
               
-              <div className="landing-font-display mb-6 text-6xl leading-none text-white/5 transition-colors group-hover:text-primary/10">
+              <div className="font-display text-6xl text-white/5 mb-6 leading-none transition-colors group-hover:text-primary/10">
                 {svc.num}
               </div>
               
@@ -100,7 +100,7 @@ export function Services() {
             { label: "Uptime guarantee", val: "99%" },
           ].map((stat, i) => (
             <div key={i} className="bg-[#0D0D0D] p-10 text-center flex flex-col justify-center items-center group hover:bg-black transition-colors">
-              <span className="landing-font-display mb-2 text-5xl text-primary transition-transform duration-300 group-hover:scale-110 md:text-6xl">{stat.val}</span>
+              <span className="font-display text-5xl md:text-6xl text-primary mb-2 group-hover:scale-110 transition-transform duration-300">{stat.val}</span>
               <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{stat.label}</span>
             </div>
           ))}

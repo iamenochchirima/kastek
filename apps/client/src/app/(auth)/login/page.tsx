@@ -1,17 +1,19 @@
 import LoginForm from "@/components/auth/login-form";
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Sign In | KasiTek",
 };
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ callbackUrl?: string }>;
 }) {
-  if (process.env.NODE_ENV === "production") {
-    redirect("/");
+  const session = await auth();
+  if (session?.user?.id) {
+    redirect("/dashboard");
   }
 
   return (

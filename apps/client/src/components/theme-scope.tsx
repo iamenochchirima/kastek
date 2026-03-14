@@ -17,6 +17,7 @@ export default function ThemeScope({ mode }: { mode: ThemeMode }) {
   useEffect(() => {
     const nextTheme = mode === "dark" ? "dark" : getStoredTheme();
     document.documentElement.dataset.theme = nextTheme;
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
   }, [mode]);
 
   return null;

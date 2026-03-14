@@ -1,3 +1,4 @@
+import "./marketing-prototype.css";
 import ThemeScope from "@/components/theme-scope";
 
 export default function MarketingLayout({
@@ -8,7 +9,7 @@ export default function MarketingLayout({
   return (
     <>
       <ThemeScope mode="dark" />
-      {children}
+      <div className="landing-shell min-h-screen">{children}</div>
     </>
   );
 }
