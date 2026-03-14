@@ -5,18 +5,6 @@ import Navbar from "@/components/Navbar";
 
 const packages = [
   {
-    name: "Web Presence",
-    text: "Build a stronger web foundation that turns visits into real leads.",
-    items: [
-      "Business website",
-      "Landing pages",
-      "Redesigns",
-      "Conversion-focused structure",
-      "SEO optimization",
-      "Professional business email setup",
-    ],
-  },
-  {
     name: "AI Agents",
     text: "Automate customer chats, qualification, and handover with less manual effort.",
     items: [
@@ -35,16 +23,6 @@ const packages = [
       "Follow-up automation",
       "WhatsApp marketing",
       "Outreach systems",
-    ],
-  },
-  {
-    name: "Integrations & Data Systems",
-    text: "Connect payments, tools, and reporting into one operational view.",
-    items: [
-      "Payment gateway integrations (Payfast, Ozow, Paystack)",
-      "Custom dashboards",
-      "Real-time analytics",
-      "CRM, forms, and workflow integrations",
     ],
   },
 ];
@@ -76,9 +54,9 @@ export default async function HomePage() {
               <SequentialHeroLines />
 
               <p className="mt-7 max-w-3xl text-lg leading-8 text-text-muted">
-                KasiTek helps businesses look better online, respond faster to customers, and grow
-                with connected systems across websites, AI agents, messaging, follow-up, and
-                campaigns.
+                KasiTek helps businesses respond faster, capture better leads, and grow with AI
+                agents, messaging automation, follow-up systems, and campaigns. When needed, we
+                also build the digital infrastructure that supports those systems.
               </p>
 
               <div className="mt-10 flex flex-wrap justify-center gap-4">
@@ -105,16 +83,16 @@ export default async function HomePage() {
               Start with the layer your business needs most, then expand.
             </h2>
             <p className="max-w-xl text-sm leading-7 text-text-muted">
-              The offer should be easy to buy into at the beginning, but clearly structured so a
-              client can grow into a larger system.
+              Launch with the system that solves the biggest bottleneck first, then expand into a
+              more connected growth setup over time.
             </p>
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-4">
+          <div className="mx-auto grid max-w-5xl gap-5 lg:grid-cols-2">
             {packages.map((pkg) => (
               <div
                 key={pkg.name}
-                className={`rounded-[2rem] border p-8 ${
+                className={`flex h-full flex-col rounded-[2rem] border p-8 ${
                   pkg.featured ? "border-accent/50 bg-accent/10" : "border-border bg-surface"
                 }`}
               >
@@ -128,8 +106,16 @@ export default async function HomePage() {
                     </div>
                   ))}
                 </div>
+                <div className="mt-8" />
               </div>
             ))}
+          </div>
+
+          <div className="mx-auto mt-6 max-w-5xl rounded-[2rem] border border-border bg-surface px-8 py-6">
+            <p className="max-w-4xl text-sm leading-7 text-text-muted">
+              Supporting infrastructure is available where needed, including websites, landing
+              pages, dashboards, and custom web tools that help these systems perform better.
+            </p>
           </div>
         </section>
       </main>

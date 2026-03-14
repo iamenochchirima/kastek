@@ -68,6 +68,11 @@ export type QuoteRequest = Prisma.QuoteRequestModel
  */
 export type Quotation = Prisma.QuotationModel
 /**
+ * Model Invoice
+ * 
+ */
+export type Invoice = Prisma.InvoiceModel
+/**
  * Model OutreachCampaign
  * 
  */

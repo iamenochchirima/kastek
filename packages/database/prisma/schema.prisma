@@ -175,6 +175,7 @@ model QuoteRequest {
   assignedToId  String?
   assignedTo    AdminUser? @relation("AssignedLeads", fields: [assignedToId], references: [id])
   quotations    Quotation[]
+  invoices      Invoice[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -209,6 +210,42 @@ model Quotation {
   deliveryTimeline      String?
   validityDays          Int      @default(14)
   status                String   @default("draft") // draft | sent | accepted | rejected | expired
+
+  quoteRequestId        String?
+  quoteRequest          QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([status])
+  @@index([quoteRequestId])
+}
+
+model Invoice {
+  id                    String   @id @default(cuid())
+  businessName          String
+  contactPerson         String
+  contactEmail          String
+  contactPhone          String
+  date                  DateTime
+  serviceType           String   @default("website_agent")
+  title                 String
+  introduction          String?  @db.Text
+  scopeOfWork           Json     @default("[]")
+  deliverables          Json     @default("[]")
+  implementationSteps   Json     @default("[]")
+  pricingItems          Json     @default("[]")
+  maintenanceIncludes   Json     @default("[]")
+  termsAndNotes         Json     @default("[]")
+  includedFunctionality Json     @default("[]")
+  knowledgeBaseScope    Json     @default("[]")
+  importantNotes        Json     @default("[]")
+  supportIncludes       Json     @default("[]")
+  setupFee              String
+  monthlyFee            String
+  deliveryTimeline      String?
+  validityDays          Int      @default(14)
+  status                String   @default("draft") // draft | sent | paid | overdue | cancelled
 
   quoteRequestId        String?
   quoteRequest          QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)

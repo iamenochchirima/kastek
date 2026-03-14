@@ -5,50 +5,10 @@ import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Pricing | KasiTek",
-  description: "Pricing for web presence, AI agents, and growth systems.",
+  description: "Pricing for AI agents and growth systems.",
 };
 
 const sections = [
-  {
-    id: "web-presence",
-    title: "Web Presence",
-    cards: [
-      {
-        name: "Landing Page",
-        price: "From R2,000",
-        meta: "Once-off",
-        items: [
-          "Single-page build",
-          "Lead capture section",
-          "Mobile-friendly layout",
-          "Basic on-page SEO setup",
-        ],
-      },
-      {
-        name: "Business Website",
-        price: "From R3,500",
-        meta: "Once-off",
-        items: [
-          "Multi-section website",
-          "Core business pages",
-          "Conversion-focused structure",
-          "SEO optimization foundation",
-          "Professional business email setup support",
-        ],
-      },
-      {
-        name: "Website Redesign",
-        price: "Custom quote",
-        meta: "Quoted",
-        items: [
-          "Design refresh",
-          "Structure improvements",
-          "Scope-based pricing",
-          "SEO/content structure cleanup",
-        ],
-      },
-    ],
-  },
   {
     id: "ai-agents",
     title: "AI Agents",
@@ -131,45 +91,6 @@ const sections = [
       },
     ],
   },
-  {
-    id: "integrations-data-systems",
-    title: "Integrations & Data Systems",
-    cards: [
-      {
-        name: "Payments Integration",
-        price: "Custom quote",
-        meta: "Quoted",
-        items: [
-          "Payfast integration",
-          "Ozow integration",
-          "Paystack integration",
-          "Checkout and payment flow setup",
-        ],
-      },
-      {
-        name: "Custom Dashboards",
-        price: "Custom quote",
-        meta: "Quoted",
-        items: [
-          "Operations dashboard setup",
-          "Sales and lead visibility",
-          "Team reporting views",
-          "KPI-focused layout",
-        ],
-      },
-      {
-        name: "Real-time Analytics",
-        price: "Custom quote",
-        meta: "Quoted",
-        items: [
-          "Real-time reporting pipelines",
-          "Conversion and campaign analytics",
-          "Lead source performance tracking",
-          "CRM/forms/workflow integrations",
-        ],
-      },
-    ],
-  },
 ];
 
 export default function PricingPage() {
@@ -183,7 +104,7 @@ export default function PricingPage() {
             Pricing Plans
           </h1>
           <p className="mx-auto mt-3 max-w-3xl text-base text-text-muted">
-            Clear starting prices for web presence, AI agents, and growth systems.
+            Clear starting prices for AI agents and growth systems.
           </p>
         </section>
 
@@ -236,6 +157,17 @@ export default function PricingPage() {
           </section>
         ))}
 
+        <section className="mx-auto max-w-7xl px-6 pb-8 md:px-10">
+          <div className="rounded-[2rem] border border-border bg-surface p-8">
+            <h2 className="text-2xl font-black uppercase leading-[0.95]">Supporting Build Work</h2>
+            <p className="mt-4 max-w-3xl text-base leading-8 text-text-muted">
+              If your automation project also needs supporting infrastructure such as a website,
+              landing page, dashboard, or custom web app, we scope that as part of a tailored
+              quote.
+            </p>
+          </div>
+        </section>
+
         <section className="mx-auto max-w-7xl px-6 pb-20 md:px-10">
           <div className="rounded-[2rem] border border-accent/35 bg-[linear-gradient(135deg,rgba(196,240,77,0.16),rgba(196,240,77,0.04)_28%,rgba(255,255,255,0.02)_100%)] p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -244,7 +176,7 @@ export default function PricingPage() {
                   Need exact pricing for your business?
                 </h2>
                 <p className="mt-4 text-base leading-8 text-text">
-                  More advanced, bundled, or platform-dependent work is best handled through a
+                  More advanced, bundled, or infrastructure-heavy work is best handled through a
                   tailored quote.
                 </p>
               </div>
