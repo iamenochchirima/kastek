@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Serif+Display:ital@0;1&family=Sora:wght@300;400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme inline {
@@ -17,9 +18,21 @@
   --color-success: var(--theme-success);
   --color-warning: var(--theme-warning);
   --color-danger: var(--theme-danger);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent-foreground: hsl(var(--accent-foreground));
 
   --font-sans: var(--font-dm-sans), system-ui, sans-serif;
   --font-serif: var(--font-instrument-serif), Georgia, serif;
+  --font-display: "Bebas Neue", sans-serif;
 
   --animate-pulse-dot: pulse-dot 2s infinite;
 }
@@ -79,6 +92,18 @@
   50% { opacity: 0.4; }
 }
 
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0) scale(0.92);
+    opacity: 0.45;
+  }
+
+  30% {
+    transform: translateY(-5px) scale(1);
+    opacity: 1;
+  }
+}
+
 html {
   background: var(--color-bg);
 }
@@ -110,6 +135,49 @@ select {
   color: var(--color-text);
 }
 
+.landing-shell {
+  --background: 0 0% 3%;
+  --foreground: 30 14% 93%;
+  --card: 0 0% 7%;
+  --card-foreground: 30 14% 93%;
+  --border: 0 0% 13%;
+  --input: 0 0% 13%;
+  --ring: 37 79% 52%;
+  --primary: 37 79% 52%;
+  --primary-foreground: 0 0% 3%;
+  --muted: 0 0% 9%;
+  --muted-foreground: 25 6% 46%;
+  --accent: 153 51% 48%;
+  --accent-foreground: 0 0% 3%;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: "Sora", sans-serif;
+}
+
+.landing-font-sans {
+  font-family: "Sora", sans-serif;
+}
+
+.landing-font-display {
+  font-family: "Bebas Neue", sans-serif;
+}
+
+.landing-font-serif {
+  font-family: "DM Serif Display", serif;
+}
+
+.bg-noise {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
 .whatsapp-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgba(196, 240, 77, 0.45) rgba(255, 255, 255, 0.05);
@@ -136,4 +204,21 @@ select {
   background: linear-gradient(180deg, rgba(196, 240, 77, 0.9), rgba(196, 240, 77, 0.5));
   border: 2px solid transparent;
   background-clip: content-box;
+}
+
+.chat-widget-textarea {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overflow: hidden auto;
+  appearance: none;
+}
+
+.chat-widget-textarea::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.chat-widget-textarea::-webkit-scrollbar-button {
+  display: none;
 }
