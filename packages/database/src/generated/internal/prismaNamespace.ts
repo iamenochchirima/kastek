@@ -406,6 +406,9 @@ export const ModelName = {
   NotificationPreference: 'NotificationPreference',
   NotificationDeliveryLog: 'NotificationDeliveryLog',
   WhatsappConnection: 'WhatsappConnection',
+  SocialChannelConnection: 'SocialChannelConnection',
+  SocialPost: 'SocialPost',
+  SocialPublishJob: 'SocialPublishJob',
   WhatsappContact: 'WhatsappContact',
   WhatsappTemplate: 'WhatsappTemplate',
   WhatsappCampaign: 'WhatsappCampaign',
@@ -426,7 +429,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "quotation" | "invoice" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "conversation" | "message" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappContact" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
+    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "quotation" | "invoice" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "conversation" | "message" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "socialChannelConnection" | "socialPost" | "socialPublishJob" | "whatsappContact" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2058,6 +2061,228 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    SocialChannelConnection: {
+      payload: Prisma.$SocialChannelConnectionPayload<ExtArgs>
+      fields: Prisma.SocialChannelConnectionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SocialChannelConnectionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SocialChannelConnectionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload>
+        }
+        findFirst: {
+          args: Prisma.SocialChannelConnectionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SocialChannelConnectionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload>
+        }
+        findMany: {
+          args: Prisma.SocialChannelConnectionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload>[]
+        }
+        create: {
+          args: Prisma.SocialChannelConnectionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload>
+        }
+        createMany: {
+          args: Prisma.SocialChannelConnectionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SocialChannelConnectionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload>[]
+        }
+        delete: {
+          args: Prisma.SocialChannelConnectionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload>
+        }
+        update: {
+          args: Prisma.SocialChannelConnectionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload>
+        }
+        deleteMany: {
+          args: Prisma.SocialChannelConnectionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SocialChannelConnectionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SocialChannelConnectionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload>[]
+        }
+        upsert: {
+          args: Prisma.SocialChannelConnectionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialChannelConnectionPayload>
+        }
+        aggregate: {
+          args: Prisma.SocialChannelConnectionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSocialChannelConnection>
+        }
+        groupBy: {
+          args: Prisma.SocialChannelConnectionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SocialChannelConnectionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SocialChannelConnectionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SocialChannelConnectionCountAggregateOutputType> | number
+        }
+      }
+    }
+    SocialPost: {
+      payload: Prisma.$SocialPostPayload<ExtArgs>
+      fields: Prisma.SocialPostFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SocialPostFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SocialPostFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload>
+        }
+        findFirst: {
+          args: Prisma.SocialPostFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SocialPostFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload>
+        }
+        findMany: {
+          args: Prisma.SocialPostFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload>[]
+        }
+        create: {
+          args: Prisma.SocialPostCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload>
+        }
+        createMany: {
+          args: Prisma.SocialPostCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SocialPostCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload>[]
+        }
+        delete: {
+          args: Prisma.SocialPostDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload>
+        }
+        update: {
+          args: Prisma.SocialPostUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload>
+        }
+        deleteMany: {
+          args: Prisma.SocialPostDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SocialPostUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SocialPostUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload>[]
+        }
+        upsert: {
+          args: Prisma.SocialPostUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostPayload>
+        }
+        aggregate: {
+          args: Prisma.SocialPostAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSocialPost>
+        }
+        groupBy: {
+          args: Prisma.SocialPostGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SocialPostGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SocialPostCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SocialPostCountAggregateOutputType> | number
+        }
+      }
+    }
+    SocialPublishJob: {
+      payload: Prisma.$SocialPublishJobPayload<ExtArgs>
+      fields: Prisma.SocialPublishJobFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SocialPublishJobFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SocialPublishJobFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload>
+        }
+        findFirst: {
+          args: Prisma.SocialPublishJobFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SocialPublishJobFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload>
+        }
+        findMany: {
+          args: Prisma.SocialPublishJobFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload>[]
+        }
+        create: {
+          args: Prisma.SocialPublishJobCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload>
+        }
+        createMany: {
+          args: Prisma.SocialPublishJobCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SocialPublishJobCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload>[]
+        }
+        delete: {
+          args: Prisma.SocialPublishJobDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload>
+        }
+        update: {
+          args: Prisma.SocialPublishJobUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload>
+        }
+        deleteMany: {
+          args: Prisma.SocialPublishJobDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SocialPublishJobUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SocialPublishJobUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload>[]
+        }
+        upsert: {
+          args: Prisma.SocialPublishJobUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPublishJobPayload>
+        }
+        aggregate: {
+          args: Prisma.SocialPublishJobAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSocialPublishJob>
+        }
+        groupBy: {
+          args: Prisma.SocialPublishJobGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SocialPublishJobGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SocialPublishJobCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SocialPublishJobCountAggregateOutputType> | number
+        }
+      }
+    }
     WhatsappContact: {
       payload: Prisma.$WhatsappContactPayload<ExtArgs>
       fields: Prisma.WhatsappContactFieldRefs
@@ -2876,6 +3101,63 @@ export const WhatsappConnectionScalarFieldEnum = {
 export type WhatsappConnectionScalarFieldEnum = (typeof WhatsappConnectionScalarFieldEnum)[keyof typeof WhatsappConnectionScalarFieldEnum]
 
 
+export const SocialChannelConnectionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  platform: 'platform',
+  status: 'status',
+  displayName: 'displayName',
+  handle: 'handle',
+  externalAccountId: 'externalAccountId',
+  accessToken: 'accessToken',
+  refreshToken: 'refreshToken',
+  metadata: 'metadata',
+  lastSyncedAt: 'lastSyncedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SocialChannelConnectionScalarFieldEnum = (typeof SocialChannelConnectionScalarFieldEnum)[keyof typeof SocialChannelConnectionScalarFieldEnum]
+
+
+export const SocialPostScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  primaryChannelId: 'primaryChannelId',
+  title: 'title',
+  prompt: 'prompt',
+  content: 'content',
+  channels: 'channels',
+  status: 'status',
+  scheduledFor: 'scheduledFor',
+  publishedAt: 'publishedAt',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SocialPostScalarFieldEnum = (typeof SocialPostScalarFieldEnum)[keyof typeof SocialPostScalarFieldEnum]
+
+
+export const SocialPublishJobScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  postId: 'postId',
+  channelConnectionId: 'channelConnectionId',
+  platform: 'platform',
+  status: 'status',
+  scheduledFor: 'scheduledFor',
+  publishedAt: 'publishedAt',
+  externalPostId: 'externalPostId',
+  errorMessage: 'errorMessage',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SocialPublishJobScalarFieldEnum = (typeof SocialPublishJobScalarFieldEnum)[keyof typeof SocialPublishJobScalarFieldEnum]
+
+
 export const WhatsappContactScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
@@ -3222,6 +3504,62 @@ export type ListEnumWhatsappConnectionQualityRatingFieldRefInput<$PrismaModel> =
 
 
 /**
+ * Reference to a field of type 'SocialPlatform'
+ */
+export type EnumSocialPlatformFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SocialPlatform'>
+    
+
+
+/**
+ * Reference to a field of type 'SocialPlatform[]'
+ */
+export type ListEnumSocialPlatformFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SocialPlatform[]'>
+    
+
+
+/**
+ * Reference to a field of type 'SocialChannelStatus'
+ */
+export type EnumSocialChannelStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SocialChannelStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'SocialChannelStatus[]'
+ */
+export type ListEnumSocialChannelStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SocialChannelStatus[]'>
+    
+
+
+/**
+ * Reference to a field of type 'SocialPostStatus'
+ */
+export type EnumSocialPostStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SocialPostStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'SocialPostStatus[]'
+ */
+export type ListEnumSocialPostStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SocialPostStatus[]'>
+    
+
+
+/**
+ * Reference to a field of type 'SocialPublishJobStatus'
+ */
+export type EnumSocialPublishJobStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SocialPublishJobStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'SocialPublishJobStatus[]'
+ */
+export type ListEnumSocialPublishJobStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SocialPublishJobStatus[]'>
+    
+
+
+/**
  * Reference to a field of type 'WhatsappTemplateCategory'
  */
 export type EnumWhatsappTemplateCategoryFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'WhatsappTemplateCategory'>
@@ -3393,6 +3731,9 @@ export type GlobalOmitConfig = {
   notificationPreference?: Prisma.NotificationPreferenceOmit
   notificationDeliveryLog?: Prisma.NotificationDeliveryLogOmit
   whatsappConnection?: Prisma.WhatsappConnectionOmit
+  socialChannelConnection?: Prisma.SocialChannelConnectionOmit
+  socialPost?: Prisma.SocialPostOmit
+  socialPublishJob?: Prisma.SocialPublishJobOmit
   whatsappContact?: Prisma.WhatsappContactOmit
   whatsappTemplate?: Prisma.WhatsappTemplateOmit
   whatsappCampaign?: Prisma.WhatsappCampaignOmit

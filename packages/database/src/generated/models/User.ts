@@ -219,6 +219,9 @@ export type UserWhereInput = {
   businessProfile?: Prisma.XOR<Prisma.BusinessProfileNullableScalarRelationFilter, Prisma.BusinessProfileWhereInput> | null
   botConfigurations?: Prisma.BotConfigurationListRelationFilter
   conversations?: Prisma.OnboardingConversationListRelationFilter
+  socialChannelConnections?: Prisma.SocialChannelConnectionListRelationFilter
+  socialPosts?: Prisma.SocialPostListRelationFilter
+  socialPublishJobs?: Prisma.SocialPublishJobListRelationFilter
   whatsappConnections?: Prisma.WhatsappConnectionListRelationFilter
   whatsappContacts?: Prisma.WhatsappContactListRelationFilter
   whatsappTemplates?: Prisma.WhatsappTemplateListRelationFilter
@@ -241,6 +244,9 @@ export type UserOrderByWithRelationInput = {
   businessProfile?: Prisma.BusinessProfileOrderByWithRelationInput
   botConfigurations?: Prisma.BotConfigurationOrderByRelationAggregateInput
   conversations?: Prisma.OnboardingConversationOrderByRelationAggregateInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionOrderByRelationAggregateInput
+  socialPosts?: Prisma.SocialPostOrderByRelationAggregateInput
+  socialPublishJobs?: Prisma.SocialPublishJobOrderByRelationAggregateInput
   whatsappConnections?: Prisma.WhatsappConnectionOrderByRelationAggregateInput
   whatsappContacts?: Prisma.WhatsappContactOrderByRelationAggregateInput
   whatsappTemplates?: Prisma.WhatsappTemplateOrderByRelationAggregateInput
@@ -266,6 +272,9 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   businessProfile?: Prisma.XOR<Prisma.BusinessProfileNullableScalarRelationFilter, Prisma.BusinessProfileWhereInput> | null
   botConfigurations?: Prisma.BotConfigurationListRelationFilter
   conversations?: Prisma.OnboardingConversationListRelationFilter
+  socialChannelConnections?: Prisma.SocialChannelConnectionListRelationFilter
+  socialPosts?: Prisma.SocialPostListRelationFilter
+  socialPublishJobs?: Prisma.SocialPublishJobListRelationFilter
   whatsappConnections?: Prisma.WhatsappConnectionListRelationFilter
   whatsappContacts?: Prisma.WhatsappContactListRelationFilter
   whatsappTemplates?: Prisma.WhatsappTemplateListRelationFilter
@@ -318,6 +327,9 @@ export type UserCreateInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
@@ -340,6 +352,9 @@ export type UserUncheckedCreateInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
@@ -362,6 +377,9 @@ export type UserUpdateInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
@@ -384,6 +402,9 @@ export type UserUncheckedUpdateInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
@@ -568,6 +589,48 @@ export type UserUpdateOneRequiredWithoutWhatsappConnectionsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutWhatsappConnectionsInput, Prisma.UserUpdateWithoutWhatsappConnectionsInput>, Prisma.UserUncheckedUpdateWithoutWhatsappConnectionsInput>
 }
 
+export type UserCreateNestedOneWithoutSocialChannelConnectionsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutSocialChannelConnectionsInput, Prisma.UserUncheckedCreateWithoutSocialChannelConnectionsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutSocialChannelConnectionsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutSocialChannelConnectionsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutSocialChannelConnectionsInput, Prisma.UserUncheckedCreateWithoutSocialChannelConnectionsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutSocialChannelConnectionsInput
+  upsert?: Prisma.UserUpsertWithoutSocialChannelConnectionsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutSocialChannelConnectionsInput, Prisma.UserUpdateWithoutSocialChannelConnectionsInput>, Prisma.UserUncheckedUpdateWithoutSocialChannelConnectionsInput>
+}
+
+export type UserCreateNestedOneWithoutSocialPostsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutSocialPostsInput, Prisma.UserUncheckedCreateWithoutSocialPostsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutSocialPostsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutSocialPostsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutSocialPostsInput, Prisma.UserUncheckedCreateWithoutSocialPostsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutSocialPostsInput
+  upsert?: Prisma.UserUpsertWithoutSocialPostsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutSocialPostsInput, Prisma.UserUpdateWithoutSocialPostsInput>, Prisma.UserUncheckedUpdateWithoutSocialPostsInput>
+}
+
+export type UserCreateNestedOneWithoutSocialPublishJobsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutSocialPublishJobsInput, Prisma.UserUncheckedCreateWithoutSocialPublishJobsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutSocialPublishJobsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutSocialPublishJobsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutSocialPublishJobsInput, Prisma.UserUncheckedCreateWithoutSocialPublishJobsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutSocialPublishJobsInput
+  upsert?: Prisma.UserUpsertWithoutSocialPublishJobsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutSocialPublishJobsInput, Prisma.UserUpdateWithoutSocialPublishJobsInput>, Prisma.UserUncheckedUpdateWithoutSocialPublishJobsInput>
+}
+
 export type UserCreateNestedOneWithoutWhatsappContactsInput = {
   create?: Prisma.XOR<Prisma.UserCreateWithoutWhatsappContactsInput, Prisma.UserUncheckedCreateWithoutWhatsappContactsInput>
   connectOrCreate?: Prisma.UserCreateOrConnectWithoutWhatsappContactsInput
@@ -638,6 +701,9 @@ export type UserCreateWithoutAccountsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
@@ -659,6 +725,9 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
@@ -696,6 +765,9 @@ export type UserUpdateWithoutAccountsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
@@ -717,6 +789,9 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
@@ -738,6 +813,9 @@ export type UserCreateWithoutSessionsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
@@ -759,6 +837,9 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
@@ -796,6 +877,9 @@ export type UserUpdateWithoutSessionsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
@@ -817,6 +901,9 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
@@ -838,6 +925,9 @@ export type UserCreateWithoutBusinessProfileInput = {
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
@@ -859,6 +949,9 @@ export type UserUncheckedCreateWithoutBusinessProfileInput = {
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
@@ -896,6 +989,9 @@ export type UserUpdateWithoutBusinessProfileInput = {
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
@@ -917,6 +1013,9 @@ export type UserUncheckedUpdateWithoutBusinessProfileInput = {
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
@@ -938,6 +1037,9 @@ export type UserCreateWithoutBotConfigurationsInput = {
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
@@ -959,6 +1061,9 @@ export type UserUncheckedCreateWithoutBotConfigurationsInput = {
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
@@ -996,6 +1101,9 @@ export type UserUpdateWithoutBotConfigurationsInput = {
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
@@ -1017,6 +1125,9 @@ export type UserUncheckedUpdateWithoutBotConfigurationsInput = {
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
@@ -1038,6 +1149,9 @@ export type UserCreateWithoutConversationsInput = {
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
@@ -1059,6 +1173,9 @@ export type UserUncheckedCreateWithoutConversationsInput = {
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
@@ -1096,6 +1213,9 @@ export type UserUpdateWithoutConversationsInput = {
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
@@ -1117,6 +1237,9 @@ export type UserUncheckedUpdateWithoutConversationsInput = {
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
@@ -1139,6 +1262,9 @@ export type UserCreateWithoutWhatsappConnectionsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
   whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
@@ -1160,6 +1286,9 @@ export type UserUncheckedCreateWithoutWhatsappConnectionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
@@ -1197,6 +1326,9 @@ export type UserUpdateWithoutWhatsappConnectionsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
   whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
@@ -1218,6 +1350,345 @@ export type UserUncheckedUpdateWithoutWhatsappConnectionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutSocialChannelConnectionsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
+  botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
+  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutSocialChannelConnectionsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
+  botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
+  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutSocialChannelConnectionsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutSocialChannelConnectionsInput, Prisma.UserUncheckedCreateWithoutSocialChannelConnectionsInput>
+}
+
+export type UserUpsertWithoutSocialChannelConnectionsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutSocialChannelConnectionsInput, Prisma.UserUncheckedUpdateWithoutSocialChannelConnectionsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutSocialChannelConnectionsInput, Prisma.UserUncheckedCreateWithoutSocialChannelConnectionsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutSocialChannelConnectionsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutSocialChannelConnectionsInput, Prisma.UserUncheckedUpdateWithoutSocialChannelConnectionsInput>
+}
+
+export type UserUpdateWithoutSocialChannelConnectionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
+  botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutSocialChannelConnectionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
+  botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutSocialPostsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
+  botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
+  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutSocialPostsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
+  botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
+  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutSocialPostsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutSocialPostsInput, Prisma.UserUncheckedCreateWithoutSocialPostsInput>
+}
+
+export type UserUpsertWithoutSocialPostsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutSocialPostsInput, Prisma.UserUncheckedUpdateWithoutSocialPostsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutSocialPostsInput, Prisma.UserUncheckedCreateWithoutSocialPostsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutSocialPostsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutSocialPostsInput, Prisma.UserUncheckedUpdateWithoutSocialPostsInput>
+}
+
+export type UserUpdateWithoutSocialPostsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
+  botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutSocialPostsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
+  botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutSocialPublishJobsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
+  botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
+  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutSocialPublishJobsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
+  botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
+  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutSocialPublishJobsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutSocialPublishJobsInput, Prisma.UserUncheckedCreateWithoutSocialPublishJobsInput>
+}
+
+export type UserUpsertWithoutSocialPublishJobsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutSocialPublishJobsInput, Prisma.UserUncheckedUpdateWithoutSocialPublishJobsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutSocialPublishJobsInput, Prisma.UserUncheckedCreateWithoutSocialPublishJobsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutSocialPublishJobsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutSocialPublishJobsInput, Prisma.UserUncheckedUpdateWithoutSocialPublishJobsInput>
+}
+
+export type UserUpdateWithoutSocialPublishJobsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
+  botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutSocialPublishJobsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
+  botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
@@ -1239,6 +1710,9 @@ export type UserCreateWithoutWhatsappContactsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
   whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
@@ -1260,6 +1734,9 @@ export type UserUncheckedCreateWithoutWhatsappContactsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
@@ -1297,6 +1774,9 @@ export type UserUpdateWithoutWhatsappContactsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
   whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
@@ -1318,6 +1798,9 @@ export type UserUncheckedUpdateWithoutWhatsappContactsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
@@ -1339,6 +1822,9 @@ export type UserCreateWithoutWhatsappTemplatesInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
   whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
@@ -1360,6 +1846,9 @@ export type UserUncheckedCreateWithoutWhatsappTemplatesInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
@@ -1397,6 +1886,9 @@ export type UserUpdateWithoutWhatsappTemplatesInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
   whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
@@ -1418,6 +1910,9 @@ export type UserUncheckedUpdateWithoutWhatsappTemplatesInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
@@ -1439,6 +1934,9 @@ export type UserCreateWithoutWhatsappCampaignsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
@@ -1460,6 +1958,9 @@ export type UserUncheckedCreateWithoutWhatsappCampaignsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
@@ -1497,6 +1998,9 @@ export type UserUpdateWithoutWhatsappCampaignsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
@@ -1518,6 +2022,9 @@ export type UserUncheckedUpdateWithoutWhatsappCampaignsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
@@ -1539,6 +2046,9 @@ export type UserCreateWithoutWhatsappSendEventsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
@@ -1560,6 +2070,9 @@ export type UserUncheckedCreateWithoutWhatsappSendEventsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   botConfigurations?: Prisma.BotConfigurationUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
@@ -1597,6 +2110,9 @@ export type UserUpdateWithoutWhatsappSendEventsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
@@ -1618,6 +2134,9 @@ export type UserUncheckedUpdateWithoutWhatsappSendEventsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   botConfigurations?: Prisma.BotConfigurationUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
   whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
@@ -1634,6 +2153,9 @@ export type UserCountOutputType = {
   sessions: number
   botConfigurations: number
   conversations: number
+  socialChannelConnections: number
+  socialPosts: number
+  socialPublishJobs: number
   whatsappConnections: number
   whatsappContacts: number
   whatsappTemplates: number
@@ -1646,6 +2168,9 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   sessions?: boolean | UserCountOutputTypeCountSessionsArgs
   botConfigurations?: boolean | UserCountOutputTypeCountBotConfigurationsArgs
   conversations?: boolean | UserCountOutputTypeCountConversationsArgs
+  socialChannelConnections?: boolean | UserCountOutputTypeCountSocialChannelConnectionsArgs
+  socialPosts?: boolean | UserCountOutputTypeCountSocialPostsArgs
+  socialPublishJobs?: boolean | UserCountOutputTypeCountSocialPublishJobsArgs
   whatsappConnections?: boolean | UserCountOutputTypeCountWhatsappConnectionsArgs
   whatsappContacts?: boolean | UserCountOutputTypeCountWhatsappContactsArgs
   whatsappTemplates?: boolean | UserCountOutputTypeCountWhatsappTemplatesArgs
@@ -1689,6 +2214,27 @@ export type UserCountOutputTypeCountBotConfigurationsArgs<ExtArgs extends runtim
  */
 export type UserCountOutputTypeCountConversationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.OnboardingConversationWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountSocialChannelConnectionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SocialChannelConnectionWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountSocialPostsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SocialPostWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountSocialPublishJobsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SocialPublishJobWhereInput
 }
 
 /**
@@ -1742,6 +2288,9 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   businessProfile?: boolean | Prisma.User$businessProfileArgs<ExtArgs>
   botConfigurations?: boolean | Prisma.User$botConfigurationsArgs<ExtArgs>
   conversations?: boolean | Prisma.User$conversationsArgs<ExtArgs>
+  socialChannelConnections?: boolean | Prisma.User$socialChannelConnectionsArgs<ExtArgs>
+  socialPosts?: boolean | Prisma.User$socialPostsArgs<ExtArgs>
+  socialPublishJobs?: boolean | Prisma.User$socialPublishJobsArgs<ExtArgs>
   whatsappConnections?: boolean | Prisma.User$whatsappConnectionsArgs<ExtArgs>
   whatsappContacts?: boolean | Prisma.User$whatsappContactsArgs<ExtArgs>
   whatsappTemplates?: boolean | Prisma.User$whatsappTemplatesArgs<ExtArgs>
@@ -1793,6 +2342,9 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   businessProfile?: boolean | Prisma.User$businessProfileArgs<ExtArgs>
   botConfigurations?: boolean | Prisma.User$botConfigurationsArgs<ExtArgs>
   conversations?: boolean | Prisma.User$conversationsArgs<ExtArgs>
+  socialChannelConnections?: boolean | Prisma.User$socialChannelConnectionsArgs<ExtArgs>
+  socialPosts?: boolean | Prisma.User$socialPostsArgs<ExtArgs>
+  socialPublishJobs?: boolean | Prisma.User$socialPublishJobsArgs<ExtArgs>
   whatsappConnections?: boolean | Prisma.User$whatsappConnectionsArgs<ExtArgs>
   whatsappContacts?: boolean | Prisma.User$whatsappContactsArgs<ExtArgs>
   whatsappTemplates?: boolean | Prisma.User$whatsappTemplatesArgs<ExtArgs>
@@ -1811,6 +2363,9 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     businessProfile: Prisma.$BusinessProfilePayload<ExtArgs> | null
     botConfigurations: Prisma.$BotConfigurationPayload<ExtArgs>[]
     conversations: Prisma.$OnboardingConversationPayload<ExtArgs>[]
+    socialChannelConnections: Prisma.$SocialChannelConnectionPayload<ExtArgs>[]
+    socialPosts: Prisma.$SocialPostPayload<ExtArgs>[]
+    socialPublishJobs: Prisma.$SocialPublishJobPayload<ExtArgs>[]
     whatsappConnections: Prisma.$WhatsappConnectionPayload<ExtArgs>[]
     whatsappContacts: Prisma.$WhatsappContactPayload<ExtArgs>[]
     whatsappTemplates: Prisma.$WhatsappTemplatePayload<ExtArgs>[]
@@ -2226,6 +2781,9 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   businessProfile<T extends Prisma.User$businessProfileArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$businessProfileArgs<ExtArgs>>): Prisma.Prisma__BusinessProfileClient<runtime.Types.Result.GetResult<Prisma.$BusinessProfilePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   botConfigurations<T extends Prisma.User$botConfigurationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$botConfigurationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BotConfigurationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   conversations<T extends Prisma.User$conversationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$conversationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OnboardingConversationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  socialChannelConnections<T extends Prisma.User$socialChannelConnectionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$socialChannelConnectionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialChannelConnectionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  socialPosts<T extends Prisma.User$socialPostsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$socialPostsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  socialPublishJobs<T extends Prisma.User$socialPublishJobsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$socialPublishJobsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPublishJobPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   whatsappConnections<T extends Prisma.User$whatsappConnectionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$whatsappConnectionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappConnectionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   whatsappContacts<T extends Prisma.User$whatsappContactsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$whatsappContactsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappContactPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   whatsappTemplates<T extends Prisma.User$whatsappTemplatesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$whatsappTemplatesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappTemplatePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -2769,6 +3327,78 @@ export type User$conversationsArgs<ExtArgs extends runtime.Types.Extensions.Inte
   take?: number
   skip?: number
   distinct?: Prisma.OnboardingConversationScalarFieldEnum | Prisma.OnboardingConversationScalarFieldEnum[]
+}
+
+/**
+ * User.socialChannelConnections
+ */
+export type User$socialChannelConnectionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SocialChannelConnection
+   */
+  select?: Prisma.SocialChannelConnectionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SocialChannelConnection
+   */
+  omit?: Prisma.SocialChannelConnectionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SocialChannelConnectionInclude<ExtArgs> | null
+  where?: Prisma.SocialChannelConnectionWhereInput
+  orderBy?: Prisma.SocialChannelConnectionOrderByWithRelationInput | Prisma.SocialChannelConnectionOrderByWithRelationInput[]
+  cursor?: Prisma.SocialChannelConnectionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.SocialChannelConnectionScalarFieldEnum | Prisma.SocialChannelConnectionScalarFieldEnum[]
+}
+
+/**
+ * User.socialPosts
+ */
+export type User$socialPostsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SocialPost
+   */
+  select?: Prisma.SocialPostSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SocialPost
+   */
+  omit?: Prisma.SocialPostOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SocialPostInclude<ExtArgs> | null
+  where?: Prisma.SocialPostWhereInput
+  orderBy?: Prisma.SocialPostOrderByWithRelationInput | Prisma.SocialPostOrderByWithRelationInput[]
+  cursor?: Prisma.SocialPostWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.SocialPostScalarFieldEnum | Prisma.SocialPostScalarFieldEnum[]
+}
+
+/**
+ * User.socialPublishJobs
+ */
+export type User$socialPublishJobsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SocialPublishJob
+   */
+  select?: Prisma.SocialPublishJobSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SocialPublishJob
+   */
+  omit?: Prisma.SocialPublishJobOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SocialPublishJobInclude<ExtArgs> | null
+  where?: Prisma.SocialPublishJobWhereInput
+  orderBy?: Prisma.SocialPublishJobOrderByWithRelationInput | Prisma.SocialPublishJobOrderByWithRelationInput[]
+  cursor?: Prisma.SocialPublishJobWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.SocialPublishJobScalarFieldEnum | Prisma.SocialPublishJobScalarFieldEnum[]
 }
 
 /**

@@ -73,6 +73,9 @@ export const ModelName = {
   NotificationPreference: 'NotificationPreference',
   NotificationDeliveryLog: 'NotificationDeliveryLog',
   WhatsappConnection: 'WhatsappConnection',
+  SocialChannelConnection: 'SocialChannelConnection',
+  SocialPost: 'SocialPost',
+  SocialPublishJob: 'SocialPublishJob',
   WhatsappContact: 'WhatsappContact',
   WhatsappTemplate: 'WhatsappTemplate',
   WhatsappCampaign: 'WhatsappCampaign',
@@ -503,6 +506,63 @@ export const WhatsappConnectionScalarFieldEnum = {
 } as const
 
 export type WhatsappConnectionScalarFieldEnum = (typeof WhatsappConnectionScalarFieldEnum)[keyof typeof WhatsappConnectionScalarFieldEnum]
+
+
+export const SocialChannelConnectionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  platform: 'platform',
+  status: 'status',
+  displayName: 'displayName',
+  handle: 'handle',
+  externalAccountId: 'externalAccountId',
+  accessToken: 'accessToken',
+  refreshToken: 'refreshToken',
+  metadata: 'metadata',
+  lastSyncedAt: 'lastSyncedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SocialChannelConnectionScalarFieldEnum = (typeof SocialChannelConnectionScalarFieldEnum)[keyof typeof SocialChannelConnectionScalarFieldEnum]
+
+
+export const SocialPostScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  primaryChannelId: 'primaryChannelId',
+  title: 'title',
+  prompt: 'prompt',
+  content: 'content',
+  channels: 'channels',
+  status: 'status',
+  scheduledFor: 'scheduledFor',
+  publishedAt: 'publishedAt',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SocialPostScalarFieldEnum = (typeof SocialPostScalarFieldEnum)[keyof typeof SocialPostScalarFieldEnum]
+
+
+export const SocialPublishJobScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  postId: 'postId',
+  channelConnectionId: 'channelConnectionId',
+  platform: 'platform',
+  status: 'status',
+  scheduledFor: 'scheduledFor',
+  publishedAt: 'publishedAt',
+  externalPostId: 'externalPostId',
+  errorMessage: 'errorMessage',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SocialPublishJobScalarFieldEnum = (typeof SocialPublishJobScalarFieldEnum)[keyof typeof SocialPublishJobScalarFieldEnum]
 
 
 export const WhatsappContactScalarFieldEnum = {

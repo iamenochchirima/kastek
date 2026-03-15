@@ -463,6 +463,74 @@ export type EnumWhatsappConnectionQualityRatingWithAggregatesFilter<$PrismaModel
   _max?: Prisma.NestedEnumWhatsappConnectionQualityRatingFilter<$PrismaModel>
 }
 
+export type EnumSocialPlatformFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPlatform | Prisma.EnumSocialPlatformFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPlatform[] | Prisma.ListEnumSocialPlatformFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPlatform[] | Prisma.ListEnumSocialPlatformFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPlatformFilter<$PrismaModel> | $Enums.SocialPlatform
+}
+
+export type EnumSocialChannelStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialChannelStatus | Prisma.EnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialChannelStatus[] | Prisma.ListEnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialChannelStatus[] | Prisma.ListEnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialChannelStatusFilter<$PrismaModel> | $Enums.SocialChannelStatus
+}
+
+export type EnumSocialPlatformWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPlatform | Prisma.EnumSocialPlatformFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPlatform[] | Prisma.ListEnumSocialPlatformFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPlatform[] | Prisma.ListEnumSocialPlatformFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPlatformWithAggregatesFilter<$PrismaModel> | $Enums.SocialPlatform
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSocialPlatformFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSocialPlatformFilter<$PrismaModel>
+}
+
+export type EnumSocialChannelStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialChannelStatus | Prisma.EnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialChannelStatus[] | Prisma.ListEnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialChannelStatus[] | Prisma.ListEnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialChannelStatusWithAggregatesFilter<$PrismaModel> | $Enums.SocialChannelStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSocialChannelStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSocialChannelStatusFilter<$PrismaModel>
+}
+
+export type EnumSocialPostStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPostStatus | Prisma.EnumSocialPostStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPostStatus[] | Prisma.ListEnumSocialPostStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPostStatus[] | Prisma.ListEnumSocialPostStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPostStatusFilter<$PrismaModel> | $Enums.SocialPostStatus
+}
+
+export type EnumSocialPostStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPostStatus | Prisma.EnumSocialPostStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPostStatus[] | Prisma.ListEnumSocialPostStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPostStatus[] | Prisma.ListEnumSocialPostStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPostStatusWithAggregatesFilter<$PrismaModel> | $Enums.SocialPostStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSocialPostStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSocialPostStatusFilter<$PrismaModel>
+}
+
+export type EnumSocialPublishJobStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPublishJobStatus | Prisma.EnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPublishJobStatus[] | Prisma.ListEnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPublishJobStatus[] | Prisma.ListEnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPublishJobStatusFilter<$PrismaModel> | $Enums.SocialPublishJobStatus
+}
+
+export type EnumSocialPublishJobStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPublishJobStatus | Prisma.EnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPublishJobStatus[] | Prisma.ListEnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPublishJobStatus[] | Prisma.ListEnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPublishJobStatusWithAggregatesFilter<$PrismaModel> | $Enums.SocialPublishJobStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSocialPublishJobStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSocialPublishJobStatusFilter<$PrismaModel>
+}
+
 export type EnumWhatsappTemplateCategoryFilter<$PrismaModel = never> = {
   equals?: $Enums.WhatsappTemplateCategory | Prisma.EnumWhatsappTemplateCategoryFieldRefInput<$PrismaModel>
   in?: $Enums.WhatsappTemplateCategory[] | Prisma.ListEnumWhatsappTemplateCategoryFieldRefInput<$PrismaModel>
@@ -926,6 +994,74 @@ export type NestedEnumWhatsappConnectionQualityRatingWithAggregatesFilter<$Prism
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumWhatsappConnectionQualityRatingFilter<$PrismaModel>
   _max?: Prisma.NestedEnumWhatsappConnectionQualityRatingFilter<$PrismaModel>
+}
+
+export type NestedEnumSocialPlatformFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPlatform | Prisma.EnumSocialPlatformFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPlatform[] | Prisma.ListEnumSocialPlatformFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPlatform[] | Prisma.ListEnumSocialPlatformFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPlatformFilter<$PrismaModel> | $Enums.SocialPlatform
+}
+
+export type NestedEnumSocialChannelStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialChannelStatus | Prisma.EnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialChannelStatus[] | Prisma.ListEnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialChannelStatus[] | Prisma.ListEnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialChannelStatusFilter<$PrismaModel> | $Enums.SocialChannelStatus
+}
+
+export type NestedEnumSocialPlatformWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPlatform | Prisma.EnumSocialPlatformFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPlatform[] | Prisma.ListEnumSocialPlatformFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPlatform[] | Prisma.ListEnumSocialPlatformFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPlatformWithAggregatesFilter<$PrismaModel> | $Enums.SocialPlatform
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSocialPlatformFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSocialPlatformFilter<$PrismaModel>
+}
+
+export type NestedEnumSocialChannelStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialChannelStatus | Prisma.EnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialChannelStatus[] | Prisma.ListEnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialChannelStatus[] | Prisma.ListEnumSocialChannelStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialChannelStatusWithAggregatesFilter<$PrismaModel> | $Enums.SocialChannelStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSocialChannelStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSocialChannelStatusFilter<$PrismaModel>
+}
+
+export type NestedEnumSocialPostStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPostStatus | Prisma.EnumSocialPostStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPostStatus[] | Prisma.ListEnumSocialPostStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPostStatus[] | Prisma.ListEnumSocialPostStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPostStatusFilter<$PrismaModel> | $Enums.SocialPostStatus
+}
+
+export type NestedEnumSocialPostStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPostStatus | Prisma.EnumSocialPostStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPostStatus[] | Prisma.ListEnumSocialPostStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPostStatus[] | Prisma.ListEnumSocialPostStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPostStatusWithAggregatesFilter<$PrismaModel> | $Enums.SocialPostStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSocialPostStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSocialPostStatusFilter<$PrismaModel>
+}
+
+export type NestedEnumSocialPublishJobStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPublishJobStatus | Prisma.EnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPublishJobStatus[] | Prisma.ListEnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPublishJobStatus[] | Prisma.ListEnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPublishJobStatusFilter<$PrismaModel> | $Enums.SocialPublishJobStatus
+}
+
+export type NestedEnumSocialPublishJobStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialPublishJobStatus | Prisma.EnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialPublishJobStatus[] | Prisma.ListEnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialPublishJobStatus[] | Prisma.ListEnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialPublishJobStatusWithAggregatesFilter<$PrismaModel> | $Enums.SocialPublishJobStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSocialPublishJobStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSocialPublishJobStatusFilter<$PrismaModel>
 }
 
 export type NestedEnumWhatsappTemplateCategoryFilter<$PrismaModel = never> = {

@@ -74,6 +74,49 @@ export const WhatsappConnectionQualityRating = {
 export type WhatsappConnectionQualityRating = (typeof WhatsappConnectionQualityRating)[keyof typeof WhatsappConnectionQualityRating]
 
 
+export const SocialPlatform = {
+  FACEBOOK: 'FACEBOOK',
+  INSTAGRAM: 'INSTAGRAM',
+  LINKEDIN: 'LINKEDIN',
+  X: 'X',
+  WHATSAPP_STATUS: 'WHATSAPP_STATUS'
+} as const
+
+export type SocialPlatform = (typeof SocialPlatform)[keyof typeof SocialPlatform]
+
+
+export const SocialChannelStatus = {
+  CONNECTED: 'CONNECTED',
+  DISCONNECTED: 'DISCONNECTED',
+  NEEDS_REAUTH: 'NEEDS_REAUTH'
+} as const
+
+export type SocialChannelStatus = (typeof SocialChannelStatus)[keyof typeof SocialChannelStatus]
+
+
+export const SocialPostStatus = {
+  DRAFT: 'DRAFT',
+  SCHEDULED: 'SCHEDULED',
+  PROCESSING: 'PROCESSING',
+  PUBLISHED: 'PUBLISHED',
+  FAILED: 'FAILED'
+} as const
+
+export type SocialPostStatus = (typeof SocialPostStatus)[keyof typeof SocialPostStatus]
+
+
+export const SocialPublishJobStatus = {
+  PENDING: 'PENDING',
+  QUEUED: 'QUEUED',
+  PROCESSING: 'PROCESSING',
+  PUBLISHED: 'PUBLISHED',
+  FAILED: 'FAILED',
+  CANCELED: 'CANCELED'
+} as const
+
+export type SocialPublishJobStatus = (typeof SocialPublishJobStatus)[keyof typeof SocialPublishJobStatus]
+
+
 export const WhatsappTemplateCategory = {
   MARKETING: 'MARKETING',
   UTILITY: 'UTILITY',

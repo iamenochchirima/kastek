@@ -216,7 +216,7 @@ export function Products() {
 
               <ul className="flex flex-col gap-3 mb-10">
                 {[
-                  "Post to Facebook, Instagram, LinkedIn, and Google Business simultaneously",
+                  "Post to Facebook, Instagram, LinkedIn, and X simultaneously",
                   "AI caption generator — describe your offer, get post-ready copy instantly",
                   "Visual content calendar — see your whole month at a glance",
                   "WhatsApp Status scheduling — the gap no other tool fills",

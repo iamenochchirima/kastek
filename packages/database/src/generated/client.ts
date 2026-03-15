@@ -150,6 +150,21 @@ export type NotificationDeliveryLog = Prisma.NotificationDeliveryLogModel
  */
 export type WhatsappConnection = Prisma.WhatsappConnectionModel
 /**
+ * Model SocialChannelConnection
+ * 
+ */
+export type SocialChannelConnection = Prisma.SocialChannelConnectionModel
+/**
+ * Model SocialPost
+ * 
+ */
+export type SocialPost = Prisma.SocialPostModel
+/**
+ * Model SocialPublishJob
+ * 
+ */
+export type SocialPublishJob = Prisma.SocialPublishJobModel
+/**
  * Model WhatsappContact
  * 
  */

@@ -24,6 +24,9 @@ model User {
   businessProfile   BusinessProfile?
   botConfigurations BotConfiguration[]
   conversations     OnboardingConversation[]
+  socialChannelConnections SocialChannelConnection[]
+  socialPosts              SocialPost[]
+  socialPublishJobs        SocialPublishJob[]
   whatsappConnections WhatsappConnection[]
   whatsappContacts    WhatsappContact[]
   whatsappTemplates   WhatsappTemplate[]
@@ -522,6 +525,37 @@ enum WhatsappConnectionQualityRating {
   RED
 }
 
+enum SocialPlatform {
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  X
+  WHATSAPP_STATUS
+}
+
+enum SocialChannelStatus {
+  CONNECTED
+  DISCONNECTED
+  NEEDS_REAUTH
+}
+
+enum SocialPostStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  PUBLISHED
+  FAILED
+}
+
+enum SocialPublishJobStatus {
+  PENDING
+  QUEUED
+  PROCESSING
+  PUBLISHED
+  FAILED
+  CANCELED
+}
+
 enum WhatsappTemplateCategory {
   MARKETING
   UTILITY
@@ -579,6 +613,88 @@ model WhatsappConnection {
 
   @@index([userId])
   @@index([wabaId])
+}
+
+model SocialChannelConnection {
+  id                String              @id @default(cuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  platform          SocialPlatform
+  status            SocialChannelStatus @default(CONNECTED)
+  displayName       String
+  handle            String?
+  externalAccountId String?
+
+  accessToken       String?             @db.Text
+  refreshToken      String?             @db.Text
+  metadata          Json?
+  lastSyncedAt      DateTime?
+
+  posts             SocialPost[]
+  publishJobs       SocialPublishJob[]
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([userId, platform, externalAccountId])
+  @@index([userId, platform])
+  @@index([userId, status])
+}
+
+model SocialPost {
+  id                String             @id @default(cuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  primaryChannelId  String?
+  primaryChannel    SocialChannelConnection? @relation(fields: [primaryChannelId], references: [id], onDelete: SetNull)
+
+  title             String?
+  prompt            String?            @db.Text
+  content           String             @db.Text
+  channels          SocialPlatform[]
+  status            SocialPostStatus   @default(DRAFT)
+  scheduledFor      DateTime?
+  publishedAt       DateTime?
+  metadata          Json?
+
+  publishJobs       SocialPublishJob[]
+
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([scheduledFor])
+  @@index([primaryChannelId])
+}
+
+model SocialPublishJob {
+  id                String                 @id @default(cuid())
+  userId            String
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId            String
+  post              SocialPost             @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  channelConnectionId String?
+  channelConnection SocialChannelConnection? @relation(fields: [channelConnectionId], references: [id], onDelete: SetNull)
+
+  platform          SocialPlatform
+  status            SocialPublishJobStatus @default(PENDING)
+  scheduledFor      DateTime?
+  publishedAt       DateTime?
+  externalPostId    String?
+  errorMessage      String?                @db.Text
+  metadata          Json?
+
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([userId, status])
+  @@index([postId, platform])
+  @@index([channelConnectionId])
+  @@index([scheduledFor])
 }
 
 model WhatsappContact {
