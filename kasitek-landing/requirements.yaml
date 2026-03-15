@@ -1,4 +1,0 @@
-packages:
-  "framer-motion": "For complex scroll animations, stagger reveals, and the cycling hero text."
-  "clsx": "Utility for constructing className strings conditionally."
-  "tailwind-merge": "Utility to safely merge tailwind classes."
