@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, SendHorizontal, Sparkles, X } from "lucide-react";
 
@@ -11,6 +12,16 @@ type ChatMessage = {
 };
 
 const storageKey = "kasitek-chat-session-id";
+const marketingPaths = new Set([
+  "/",
+  "/pricing",
+  "/pricing1",
+  "/fliers",
+  "/get-quote",
+  "/privacy-policy",
+  "/terms",
+  "/data-deletion",
+]);
 const initialMessages: ChatMessage[] = [
   {
     id: "welcome-1",
@@ -49,6 +60,7 @@ function formatMessage(text: string) {
 }
 
 export default function ChatWidget() {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState("");
@@ -149,6 +161,10 @@ export default function ChatWidget() {
       event.preventDefault();
       void handleSend();
     }
+  }
+
+  if (!marketingPaths.has(pathname)) {
+    return null;
   }
 
   return (

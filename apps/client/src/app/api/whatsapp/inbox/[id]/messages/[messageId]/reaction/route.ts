@@ -50,6 +50,11 @@ export async function POST(
     });
 
     if (!conversation) {
+      console.error("[dashboard2 reaction debug] conversation not found", {
+        conversationId,
+        messageId,
+        userId,
+      });
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
 
@@ -65,6 +70,11 @@ export async function POST(
     });
 
     if (!targetMessage?.whatsappMessageId) {
+      console.error("[dashboard2 reaction debug] target missing whatsappMessageId", {
+        conversationId,
+        messageId,
+        targetMessageId: targetMessage?.id || null,
+      });
       return NextResponse.json(
         { error: "Target message is not available for reactions yet" },
         { status: 400 }
@@ -73,11 +83,22 @@ export async function POST(
 
     const parsed = parseWhatsappConversationIdentifier(conversation.customerIdentifier);
     if (!parsed) {
+      console.error("[dashboard2 reaction debug] invalid conversation identifier", {
+        conversationId,
+        messageId,
+        customerIdentifier: conversation.customerIdentifier,
+      });
       return NextResponse.json({ error: "Invalid conversation identifier" }, { status: 400 });
     }
 
     const connection = connections.find((item) => item.id === parsed.connectionId);
     if (!connection) {
+      console.error("[dashboard2 reaction debug] connection not found", {
+        conversationId,
+        messageId,
+        connectionId: parsed.connectionId,
+        userId,
+      });
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
@@ -106,6 +127,9 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("[dashboard2 reaction debug] route failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     const message = error instanceof Error ? error.message : "Failed to send reaction";
     return NextResponse.json({ error: message }, { status: 400 });
   }

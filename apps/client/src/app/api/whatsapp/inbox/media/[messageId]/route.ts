@@ -62,6 +62,7 @@ export async function GET(
     });
 
     if (!message) {
+      console.error("[dashboard2 media debug] message not found", { messageId, userId });
       if (MEDIA_DEBUG) {
         console.warn("[whatsapp:media] message not found", { messageId, userId });
       }
@@ -70,6 +71,10 @@ export async function GET(
 
     const media = parseStoredWhatsappMedia(message.content);
     if (!media) {
+      console.error("[dashboard2 media debug] not media payload", {
+        messageId,
+        contentPreview: message.content.slice(0, 180),
+      });
       if (MEDIA_DEBUG) {
         console.warn("[whatsapp:media] not media payload", { messageId });
       }
@@ -80,6 +85,10 @@ export async function GET(
       message.conversation.customerIdentifier
     );
     if (!parsedConversation?.connectionId) {
+      console.error("[dashboard2 media debug] invalid conversation identifier", {
+        messageId,
+        customerIdentifier: message.conversation.customerIdentifier,
+      });
       if (MEDIA_DEBUG) {
         console.warn("[whatsapp:media] invalid conversation identifier", { messageId });
       }
@@ -97,6 +106,11 @@ export async function GET(
     });
 
     if (!connection) {
+      console.error("[dashboard2 media debug] connection not found", {
+        messageId,
+        connectionId: parsedConversation.connectionId,
+        userId,
+      });
       if (MEDIA_DEBUG) {
         console.warn("[whatsapp:media] connection not found", {
           messageId,
@@ -126,6 +140,9 @@ export async function GET(
       },
     });
   } catch (error) {
+    console.error("[dashboard2 media debug] route failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     console.error("[whatsapp:media] failed", {
       error: error instanceof Error ? error.message : String(error),
     });

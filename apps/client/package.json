@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/run-dev.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "worker:whatsapp": "node scripts/run-whatsapp-workers.mjs",
     "worker:whatsapp-marketing": "tsx src/workers/whatsapp-marketing-worker.ts",
     "worker:whatsapp-webhook": "tsx src/workers/whatsapp-webhook-worker.ts",
     "worker:whatsapp-inbox": "tsx src/workers/whatsapp-inbox-send-worker.ts",

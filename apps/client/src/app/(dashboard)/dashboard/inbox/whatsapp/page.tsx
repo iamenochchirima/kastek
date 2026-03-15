@@ -57,6 +57,60 @@ export default async function WhatsappInboxPage({
     orderBy: { updatedAt: "desc" },
   });
 
+  {
+    const [allConnections, recentWhatsappConversations] = await Promise.all([
+      prisma.whatsappConnection.findMany({
+        select: {
+          id: true,
+          userId: true,
+          phoneNumberId: true,
+          phoneDisplayNumber: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 10,
+      }),
+      prisma.conversation.findMany({
+        where: { channel: "whatsapp" },
+        select: {
+          id: true,
+          customerIdentifier: true,
+          customerName: true,
+          lastMessageAt: true,
+          unreadCount: true,
+        },
+        orderBy: { lastMessageAt: "desc" },
+        take: 10,
+      }),
+    ]);
+
+    const snapshot = {
+      sessionUserId: session.user.id,
+      matchedConnectionIds: connections.map((connection) => connection.id),
+      matchedConnectionCount: connections.length,
+      allConnections: allConnections.map((connection) => ({
+        ...connection,
+        createdAt: connection.createdAt.toISOString(),
+        updatedAt: connection.updatedAt.toISOString(),
+      })),
+      recentWhatsappConversations: recentWhatsappConversations.map((conversation) => {
+        const parsed = parseWhatsappConversationIdentifier(conversation.customerIdentifier);
+        return {
+          id: conversation.id,
+          customerName: conversation.customerName,
+          customerIdentifier: conversation.customerIdentifier,
+          parsedConnectionId: parsed?.connectionId ?? null,
+          parsedPhone: parsed?.phone ?? null,
+          unreadCount: conversation.unreadCount,
+          lastMessageAt: conversation.lastMessageAt.toISOString(),
+        };
+      }),
+    };
+
+    console.log("[whatsapp inbox debug]", JSON.stringify(snapshot, null, 2));
+  }
+
   if (!connections.length) {
     return (
       <div className="space-y-6">

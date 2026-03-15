@@ -9,6 +9,65 @@ import { getWhatsappInboxSendQueue } from "@/lib/whatsapp/queue";
 
 export const runtime = "nodejs";
 
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    const connections = await prisma.whatsappConnection.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id,
+        channel: "whatsapp",
+        OR: connections.map((connection) => ({
+          customerIdentifier: {
+            startsWith: `wa:${connection.id}:`,
+          },
+        })),
+      },
+      include: {
+        messages: {
+          orderBy: { timestamp: "asc" },
+        },
+      },
+    });
+
+    if (!conversation) {
+      return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      messages: conversation.messages.map((message) => ({
+        id: message.id,
+        sender: message.sender,
+        whatsappMessageId: message.whatsappMessageId,
+        content: message.content,
+        text: getWhatsappMessageDisplayText(message.content),
+        time: message.timestamp.toISOString(),
+        status: message.whatsappStatus || undefined,
+        canReply: Boolean(message.whatsappMessageId),
+        canReact: Boolean(message.whatsappMessageId),
+      })),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load messages";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

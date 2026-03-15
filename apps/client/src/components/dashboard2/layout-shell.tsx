@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Archive, BarChart3, Bell, Bot, ChevronDown, ChevronLeft, ChevronRight, Clock, FileText, LayoutGrid, List, LogOut, Menu, Moon, Plus, Send, Settings, Sun, Users, Zap } from "lucide-react";
 
 type NavItem = {
@@ -83,13 +84,17 @@ function SidebarContent({
   collapsed,
   setCollapsed,
   user,
+  inboxUnreadCount = 0,
 }: {
   collapsed: boolean;
   setCollapsed?: (v: boolean) => void;
   user?: { name?: string | null; email?: string | null; image?: string | null };
+  inboxUnreadCount?: number;
 }) {
   const pathname = usePathname();
   const [openSubmenus, setOpenSubmenus] = useState<string[]>([]);
+  const [liveInboxUnreadCount, setLiveInboxUnreadCount] = useState(inboxUnreadCount);
+  const reconcileTimerRef = useRef<number | null>(null);
 
   const toggleSubmenu = (name: string) => {
     setOpenSubmenus((prev) => (prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name]));
@@ -101,6 +106,70 @@ function SidebarContent({
   const accountEmail = user?.email ?? "admin@kasitek.com";
   const initialsSource = accountName.includes(" ") ? accountName.split(" ").filter(Boolean).slice(0, 2) : (accountEmail.split("@")[0] || accountName).split(/[\s._-]+/).filter(Boolean).slice(0, 2);
   const initials = initialsSource.map((part) => part.slice(0, 1).toUpperCase()).join("") || "AD";
+
+  useEffect(() => {
+    setLiveInboxUnreadCount(inboxUnreadCount);
+  }, [inboxUnreadCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncUnreadCount = async () => {
+      try {
+        const response = await fetch("/api/whatsapp/inbox/unread-count", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { unreadCount?: number };
+        if (cancelled || typeof payload.unreadCount !== "number") return;
+
+        setLiveInboxUnreadCount(Math.max(0, payload.unreadCount));
+      } catch {
+        // Ignore transient network errors and reconcile again on the next event.
+      }
+    };
+
+    const scheduleSync = () => {
+      if (reconcileTimerRef.current !== null) {
+        window.clearTimeout(reconcileTimerRef.current);
+      }
+
+      reconcileTimerRef.current = window.setTimeout(() => {
+        void syncUnreadCount();
+      }, 250);
+    };
+
+    const source = new EventSource("/api/realtime/whatsapp");
+
+    source.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as WhatsappRealtimeEvent;
+
+        if (payload.type === "message.created" && payload.message.sender === "customer") {
+          setLiveInboxUnreadCount((current) => current + 1);
+          scheduleSync();
+          return;
+        }
+
+        if (payload.type === "conversation.updated") {
+          scheduleSync();
+        }
+      } catch {
+        // Ignore malformed realtime payloads.
+      }
+    };
+
+    return () => {
+      cancelled = true;
+      source.close();
+      if (reconcileTimerRef.current !== null) {
+        window.clearTimeout(reconcileTimerRef.current);
+        reconcileTimerRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="flex h-full flex-col bg-card border-r border-border">
@@ -174,6 +243,11 @@ function SidebarContent({
             >
               <item.icon className={cn("h-5 w-5 shrink-0", isActive && "text-primary")} />
               {!collapsed ? <span className="flex-1">{item.name}</span> : null}
+              {item.href === "/dashboard2/inbox" && liveInboxUnreadCount > 0 ? (
+                <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
+                  {liveInboxUnreadCount > 99 ? "99+" : liveInboxUnreadCount}
+                </span>
+              ) : null}
             </Link>
           );
         })}
@@ -233,16 +307,23 @@ function SidebarContent({
 export function LayoutShell({
   children,
   user,
+  inboxUnreadCount = 0,
 }: {
   children: React.ReactNode;
   user?: { name?: string | null; email?: string | null; image?: string | null };
+  inboxUnreadCount?: number;
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className="dashboard2-theme flex h-screen bg-background">
       <aside className={cn("hidden lg:flex lg:flex-col", collapsed ? "w-[72px]" : "w-64")}>
-        <SidebarContent collapsed={collapsed} setCollapsed={setCollapsed} user={user} />
+        <SidebarContent
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          user={user}
+          inboxUnreadCount={inboxUnreadCount}
+        />
       </aside>
       <Sheet>
         <SheetTrigger asChild>
@@ -251,7 +332,7 @@ export function LayoutShell({
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
-          <SidebarContent collapsed={false} user={user} />
+          <SidebarContent collapsed={false} user={user} inboxUnreadCount={inboxUnreadCount} />
         </SheetContent>
       </Sheet>
       <main className="flex-1 overflow-auto">{children}</main>
