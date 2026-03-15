@@ -126,10 +126,8 @@ export function getWhatsappMessageDisplayText(content: string) {
 
   const kindLabel = media.kind[0].toUpperCase() + media.kind.slice(1);
   const caption = media.caption?.trim();
-  const filename = media.filename?.trim();
 
-  if (caption) return `${kindLabel}: ${caption}`;
-  if (filename) return `${kindLabel}: ${filename}`;
+  if (caption) return caption;
   return `${kindLabel} attachment`;
 }
 

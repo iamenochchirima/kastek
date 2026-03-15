@@ -726,7 +726,7 @@ function MessageBubbleContent({
         onClick={() => onOpenMedia(mediaUrl, media.kind, caption)}
         className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface/70 px-3 py-2 text-sm text-text hover:border-border-light"
       >
-        {media.filename || `View ${getMediaLabel(media.kind)}`}
+        {`View ${getMediaLabel(media.kind)}`}
       </button>
       <p className="whitespace-pre-wrap text-[14px] leading-relaxed">
         {caption || getWhatsappMessageDisplayText(message.content)}
