@@ -360,13 +360,14 @@ export default function InboxPageClient({
       return;
     }
 
+    const conversationId = selectedConversationId;
     let cancelled = false;
 
     async function loadMessages() {
       setMessagesLoading(true);
 
       try {
-        const response = await fetch(`/api/whatsapp/inbox/${selectedConversationId}/messages`, {
+        const response = await fetch(`/api/whatsapp/inbox/${conversationId}/messages`, {
           cache: "no-store",
         });
         const payload = (await response.json()) as {
@@ -381,7 +382,7 @@ export default function InboxPageClient({
 
         setMessagesByConversationId((current) => ({
           ...current,
-          [selectedConversationId]: (payload.messages || []).map((message) => ({
+          [conversationId]: (payload.messages || []).map((message) => ({
             ...message,
             time: new Date(message.time).toLocaleTimeString("en-ZA", {
               hour: "2-digit",
@@ -394,7 +395,7 @@ export default function InboxPageClient({
         if (cancelled) return;
         setMessagesByConversationId((current) => ({
           ...current,
-          [selectedConversationId]: [],
+          [conversationId]: [],
         }));
       } finally {
         if (!cancelled) {
@@ -733,9 +734,10 @@ export default function InboxPageClient({
 
   async function deleteMessage(messageId: string) {
     if (!selectedConversationId) return;
+    const conversationId = selectedConversationId;
 
     const response = await fetch(
-      `/api/whatsapp/inbox/${selectedConversationId}/messages/${messageId}`,
+      `/api/whatsapp/inbox/${conversationId}/messages/${messageId}`,
       { method: "DELETE" },
     );
 
@@ -743,7 +745,7 @@ export default function InboxPageClient({
 
     setMessagesByConversationId((current) => ({
       ...current,
-      [selectedConversationId]: (current[selectedConversationId] || []).filter(
+      [conversationId]: (current[conversationId] || []).filter(
         (message) => message.id !== messageId,
       ),
     }));
@@ -751,6 +753,7 @@ export default function InboxPageClient({
 
   async function sendMessage() {
     if (!selectedConversationId) return;
+    const conversationId = selectedConversationId;
 
     const trimmed = messageInput.trim();
     if (!trimmed && !selectedFile) return;
@@ -772,8 +775,8 @@ export default function InboxPageClient({
 
       setMessagesByConversationId((current) => ({
         ...current,
-        [selectedConversationId]: [
-          ...(current[selectedConversationId] || []),
+        [conversationId]: [
+          ...(current[conversationId] || []),
           {
             id: optimisticId,
             sender: "bot",
@@ -795,7 +798,7 @@ export default function InboxPageClient({
     if (selectedFile) formData.append("file", selectedFile);
     if (replyDraft?.messageId) formData.append("replyToMessageId", replyDraft.messageId);
 
-    const response = await fetch(`/api/whatsapp/inbox/${selectedConversationId}/messages`, {
+    const response = await fetch(`/api/whatsapp/inbox/${conversationId}/messages`, {
       method: "POST",
       body: formData,
     });
@@ -805,7 +808,7 @@ export default function InboxPageClient({
       setComposerError(payload.error || "Failed to send message");
       setMessagesByConversationId((current) => ({
         ...current,
-        [selectedConversationId]: (current[selectedConversationId] || []).filter(
+        [conversationId]: (current[conversationId] || []).filter(
           (message) => message.id !== optimisticId,
         ),
       }));
