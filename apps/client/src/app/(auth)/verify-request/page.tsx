@@ -8,8 +8,8 @@ export default function VerifyRequestPage() {
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/15 bg-accent-glow text-2xl">
         ✉️
       </div>
-      <h1 className="font-serif text-2xl text-text">Check your email</h1>
-      <p className="text-text-muted">
+      <h1 className="font-serif text-2xl text-foreground">Check your email</h1>
+      <p className="text-muted-foreground">
         We sent a magic sign-in link to your email address. Click the link to
         sign in.
       </p>

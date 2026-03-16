@@ -47,7 +47,7 @@ export default function ThemeToggle() {
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       aria-pressed={theme === "dark"}
       suppressHydrationWarning
-      className="inline-flex h-11 items-center gap-2 rounded-full border border-border/80 bg-surface/90 px-3.5 text-sm font-medium text-text shadow-[var(--theme-shadow-panel)] backdrop-blur-xl transition-colors hover:border-accent/40 hover:text-accent"
+      className="inline-flex h-11 items-center gap-2 rounded-full border border-border/80 bg-card/90 px-3.5 text-sm font-medium text-foreground shadow-[var(--theme-shadow-panel)] backdrop-blur-xl transition-colors hover:border-primary/30 hover:text-primary"
     >
       <span suppressHydrationWarning>{theme === "dark" ? <SunIcon /> : <MoonIcon />}</span>
       <span suppressHydrationWarning>{theme === "dark" ? "Light" : "Dark"}</span>

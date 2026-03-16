@@ -177,7 +177,7 @@ export default function QuoteRequestForm() {
               value={businessType}
               onChange={(e) => setBusinessType(e.target.value)}
               required
-              className="w-full appearance-none rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text focus:border-accent focus:outline-none"
+              className="w-full appearance-none rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/45 focus:bg-black/35"
             >
               <option value="" disabled>
                 Select your business type

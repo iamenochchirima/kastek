@@ -113,9 +113,9 @@ export default function SignupForm() {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/15 bg-accent-glow text-2xl">
           ✉️
         </div>
-        <h2 className="font-serif text-2xl text-text">Check your email</h2>
-        <p className="text-text-muted">
-          We sent a verification link to <strong className="text-text">{email}</strong>.
+        <h2 className="font-serif text-2xl text-foreground">Check your email</h2>
+        <p className="text-muted-foreground">
+          We sent a verification link to <strong className="text-foreground">{email}</strong>.
           Click the link to activate your account.
         </p>
         <Link
@@ -134,10 +134,10 @@ export default function SignupForm() {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/15 bg-accent-glow text-2xl">
           ✉️
         </div>
-        <h2 className="font-serif text-2xl text-text">Google account found</h2>
-        <p className="text-text-muted">
+        <h2 className="font-serif text-2xl text-foreground">Google account found</h2>
+        <p className="text-muted-foreground">
           You already have an account linked to Google. We sent a link to{" "}
-          <strong className="text-text">{email}</strong> to set up a password so
+          <strong className="text-foreground">{email}</strong> to set up a password so
           you can sign in with either method.
         </p>
         <Link
@@ -160,7 +160,7 @@ export default function SignupForm() {
 
       <button
         onClick={handleGoogleSignIn}
-        className="flex w-full items-center justify-center gap-3 rounded-full border border-border-light bg-surface px-6 py-3 text-sm font-semibold text-text transition-all hover:border-text-muted"
+        className="flex w-full items-center justify-center gap-3 rounded-full border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-all hover:border-primary/20 hover:bg-secondary/30"
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24">
           <path
@@ -185,13 +185,13 @@ export default function SignupForm() {
 
       <div className="flex items-center gap-4">
         <div className="h-px flex-1 bg-border" />
-        <span className="text-xs text-text-dim">or</span>
+        <span className="text-xs text-muted-foreground">or</span>
         <div className="h-px flex-1 bg-border" />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Name
           </label>
           <input
@@ -199,11 +199,11 @@ export default function SignupForm() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Email
           </label>
           <input
@@ -212,11 +212,11 @@ export default function SignupForm() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
             required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Phone Number
           </label>
           <div className="flex gap-2">
@@ -234,7 +234,7 @@ export default function SignupForm() {
               placeholder="e.g. +27 72 123 4567"
               required
               disabled={phoneVerified}
-              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none disabled:opacity-60"
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-60"
             />
             {!phoneVerified && !otpSent && (
               <button
@@ -260,7 +260,7 @@ export default function SignupForm() {
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="Enter 6-digit code"
                 maxLength={6}
-                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+                className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
               <button
                 type="button"
@@ -277,14 +277,14 @@ export default function SignupForm() {
               type="button"
               onClick={handleSendOtp}
               disabled={otpLoading}
-              className="mt-1.5 text-xs text-text-dim hover:text-accent"
+              className="mt-1.5 text-xs text-muted-foreground hover:text-primary"
             >
               Resend code
             </button>
           )}
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Password
           </label>
           <input
@@ -294,11 +294,11 @@ export default function SignupForm() {
             placeholder="Enter a unique password"
             required
             minLength={8}
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Confirm Password
           </label>
           <input
@@ -308,24 +308,24 @@ export default function SignupForm() {
             placeholder="Confirm your password"
             required
             minLength={8}
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-accent px-6 py-3 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(196,240,77,0.25)] disabled:opacity-50 disabled:hover:translate-y-0"
+          className="w-full rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {loading ? "Creating account..." : "Continue"}
         </button>
       </form>
 
-      <p className="text-center text-xs text-text-dim">
+      <p className="text-center text-xs text-muted-foreground">
         By creating an account you agree to the Terms of Service and our Privacy
         Policy.
       </p>
 
-      <p className="text-center text-sm text-text-muted">
+      <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link href="/login" className="text-accent hover:underline">
           Log in

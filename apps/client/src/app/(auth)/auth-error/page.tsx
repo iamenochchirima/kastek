@@ -10,8 +10,8 @@ export default function AuthErrorPage() {
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-red-500/15 bg-red-500/10 text-2xl">
         ✕
       </div>
-      <h1 className="font-serif text-2xl text-text">Something went wrong</h1>
-      <p className="text-text-muted">
+      <h1 className="font-serif text-2xl text-foreground">Something went wrong</h1>
+      <p className="text-muted-foreground">
         There was a problem signing you in. Please try again.
       </p>
       <Link

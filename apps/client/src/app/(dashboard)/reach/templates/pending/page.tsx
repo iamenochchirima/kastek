@@ -1,1 +1,5 @@
-export { default } from "../../../dashboard/templates/pending/page";
+import { redirect } from "next/navigation";
+
+export default function ReachTemplatesPendingPage() {
+  redirect("/reach/templates?status=PENDING");
+}

@@ -64,32 +64,32 @@ export default function WhatsappOnboardingResultCard() {
         <h1 className="mb-2 text-3xl font-semibold tracking-tight">
           {ok ? "WhatsApp Connected" : "WhatsApp Connection Error"}
         </h1>
-        <p className="text-sm text-text-muted">{message}</p>
+        <p className="text-sm text-muted-foreground">{message}</p>
 
         {ok && (
-          <div className="mt-3 text-sm text-text">
+          <div className="mt-3 text-sm text-foreground">
             <p>Number: {number || "-"}</p>
             <p>Templates synced: {templates}</p>
             {connectionId ? (
               <p>
-                Connection ID: <span className="text-text-muted">{connectionId}</span>
+                Connection ID: <span className="text-muted-foreground">{connectionId}</span>
               </p>
             ) : null}
           </div>
         )}
       </div>
 
-      <section className="rounded-xl border border-border bg-surface p-5">
+      <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="mb-3 text-sm font-semibold">Step-by-step diagnostics</h2>
 
         {diagnostics.length === 0 ? (
-          <p className="text-sm text-text-muted">No diagnostics were captured.</p>
+          <p className="text-sm text-muted-foreground">No diagnostics were captured.</p>
         ) : (
           <div className="space-y-2">
             {diagnostics.map((item, index) => (
               <div
                 key={`${item.step}-${index}`}
-                className="rounded-lg border border-border bg-surface-2 p-3"
+                className="rounded-lg border border-border bg-secondary/40 p-3"
               >
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium">{label(item.step)}</p>
@@ -99,7 +99,7 @@ export default function WhatsappOnboardingResultCard() {
                     {item.ok ? "OK" : "FAILED"}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-text-muted">{item.detail}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{item.detail}</p>
               </div>
             ))}
           </div>
@@ -108,14 +108,14 @@ export default function WhatsappOnboardingResultCard() {
 
       <div className="flex flex-wrap gap-3">
         <Link
-          href="/dashboard/settings"
-          className="rounded-lg border border-border px-4 py-2 text-sm text-text no-underline hover:border-border-light"
+          href="/reach/settings"
+          className="rounded-lg border border-border px-4 py-2 text-sm text-foreground no-underline hover:border-primary/20"
         >
           Back to Settings
         </Link>
         <Link
-          href="/dashboard/campaigns"
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg no-underline"
+          href="/reach/campaigns"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground no-underline"
         >
           Go to Campaigns
         </Link>

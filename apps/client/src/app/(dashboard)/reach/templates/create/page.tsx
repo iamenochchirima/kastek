@@ -1,1 +1,5 @@
-export { default } from "../../../dashboard/templates/create/page";
+import { redirect } from "next/navigation";
+
+export default function ReachTemplatesCreatePage() {
+  redirect("/reach/templates?create=1");
+}

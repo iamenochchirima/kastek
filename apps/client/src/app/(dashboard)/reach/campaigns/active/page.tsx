@@ -1,1 +1,5 @@
-export { default } from "../../../dashboard/campaigns/active/page";
+import { redirect } from "next/navigation";
+
+export default function ReachCampaignsActivePage() {
+  redirect("/reach/campaigns");
+}

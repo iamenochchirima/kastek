@@ -1,2 +1,9 @@
-export { metadata } from "../../../dashboard/settings/whatsapp-onboarding/page";
-export { default } from "../../../dashboard/settings/whatsapp-onboarding/page";
+import WhatsappOnboardingResultCard from "@/components/dashboard/settings/whatsapp-onboarding-result-card";
+
+export const metadata = {
+  title: "WhatsApp Onboarding | KasiTek",
+};
+
+export default function ReachWhatsappOnboardingResultPage() {
+  return <WhatsappOnboardingResultCard />;
+}

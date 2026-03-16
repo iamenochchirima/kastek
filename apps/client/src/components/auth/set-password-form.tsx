@@ -51,10 +51,10 @@ function RequestSetupForm() {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/15 bg-accent-glow text-2xl">
           ✉️
         </div>
-        <h2 className="font-serif text-2xl text-text">Check your email</h2>
-        <p className="text-text-muted">
+        <h2 className="font-serif text-2xl text-foreground">Check your email</h2>
+        <p className="text-muted-foreground">
           If a Google-linked account exists for{" "}
-          <strong className="text-text">{email}</strong>, we sent a link to set
+          <strong className="text-foreground">{email}</strong>, we sent a link to set
           up your password.
         </p>
         <Link
@@ -75,14 +75,14 @@ function RequestSetupForm() {
         </div>
       )}
 
-      <p className="text-center text-sm text-text-muted">
+      <p className="text-center text-sm text-muted-foreground">
         Enter the email you used with Google and we&apos;ll send you a link to
         set up a password.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Email
           </label>
           <input
@@ -91,19 +91,19 @@ function RequestSetupForm() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
             required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-accent px-6 py-3 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(196,240,77,0.25)] disabled:opacity-50 disabled:hover:translate-y-0"
+          className="w-full rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {loading ? "Sending..." : "Send Setup Link"}
         </button>
       </form>
 
-      <p className="text-center text-sm text-text-muted">
+      <p className="text-center text-sm text-muted-foreground">
         <Link href="/login" className="text-accent hover:underline">
           Back to Sign In
         </Link>
@@ -158,14 +158,14 @@ function PasswordSetupForm({
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/15 bg-accent-glow text-2xl">
           ✓
         </div>
-        <h2 className="font-serif text-2xl text-text">Password Set</h2>
-        <p className="text-text-muted">
+        <h2 className="font-serif text-2xl text-foreground">Password Set</h2>
+        <p className="text-muted-foreground">
           You can now sign in with your email and password, or continue using
           Google.
         </p>
         <Link
           href="/login"
-          className="inline-block rounded-full bg-accent px-6 py-2.5 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5"
+          className="inline-block rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90"
         >
           Sign In
         </Link>
@@ -181,13 +181,13 @@ function PasswordSetupForm({
         </div>
       )}
 
-      <p className="text-center text-sm text-text-muted">
-        Setting password for <strong className="text-text">{email}</strong>
+      <p className="text-center text-sm text-muted-foreground">
+        Setting password for <strong className="text-foreground">{email}</strong>
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Password
           </label>
           <input
@@ -197,11 +197,11 @@ function PasswordSetupForm({
             placeholder="Enter a password"
             required
             minLength={8}
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Confirm Password
           </label>
           <input
@@ -211,13 +211,13 @@ function PasswordSetupForm({
             placeholder="Confirm your password"
             required
             minLength={8}
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-accent px-6 py-3 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(196,240,77,0.25)] disabled:opacity-50 disabled:hover:translate-y-0"
+          className="w-full rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {loading ? "Setting password..." : "Set Password"}
         </button>

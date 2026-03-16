@@ -68,7 +68,7 @@ export default function LoginForm({
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-center text-sm text-red-400">
           {error}
           {isGoogleOnly && (
-            <p className="mt-2 text-xs text-text-dim">
+            <p className="mt-2 text-xs text-muted-foreground">
               Want to use email and password instead?{" "}
               <Link href="/set-password" className="text-accent hover:underline">
                 Set up a password
@@ -80,7 +80,7 @@ export default function LoginForm({
 
       <button
         onClick={handleGoogleSignIn}
-        className="flex w-full items-center justify-center gap-3 rounded-full border border-border-light bg-surface px-6 py-3 text-sm font-semibold text-text transition-all hover:border-text-muted"
+        className="flex w-full items-center justify-center gap-3 rounded-full border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-all hover:border-primary/20 hover:bg-secondary/30"
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24">
           <path
@@ -105,13 +105,13 @@ export default function LoginForm({
 
       <div className="flex items-center gap-4">
         <div className="h-px flex-1 bg-border" />
-        <span className="text-xs text-text-dim">or</span>
+        <span className="text-xs text-muted-foreground">or</span>
         <div className="h-px flex-1 bg-border" />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Email
           </label>
           <input
@@ -120,11 +120,11 @@ export default function LoginForm({
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
             required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Password
           </label>
           <input
@@ -133,19 +133,19 @@ export default function LoginForm({
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
             required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-accent px-6 py-3 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(196,240,77,0.25)] disabled:opacity-50 disabled:hover:translate-y-0"
+          className="w-full rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {loading ? "Signing in..." : "Sign In"}
         </button>
       </form>
 
-      <p className="text-center text-sm text-text-muted">
+      <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
         <Link href="/signup" className="text-accent hover:underline">
           Sign up

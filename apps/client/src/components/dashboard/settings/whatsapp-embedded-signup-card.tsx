@@ -330,7 +330,7 @@ export default function WhatsappEmbeddedSignupCard({
               },
             ]),
           });
-          router.push(`/dashboard/settings/whatsapp-onboarding?${params.toString()}`);
+          router.push(`/reach/settings/whatsapp-onboarding?${params.toString()}`);
         } finally {
           setLoading(false);
         }
@@ -347,11 +347,11 @@ export default function WhatsappEmbeddedSignupCard({
   }
 
   return (
-    <section className="rounded-xl border border-border bg-surface p-5">
+    <section className="rounded-xl border border-border bg-card p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-text">WhatsApp Business</h2>
-          <p className="text-sm text-text-muted">
+          <h2 className="text-lg font-semibold text-foreground">WhatsApp Business</h2>
+          <p className="text-sm text-muted-foreground">
             Connect a WhatsApp Business Account using Meta Embedded Signup.
           </p>
         </div>
@@ -360,7 +360,7 @@ export default function WhatsappEmbeddedSignupCard({
           type="button"
           onClick={startEmbeddedSignup}
           disabled={loading || !sdkReady || envMissing.length > 0}
-          className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
+          className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-60 disabled:hover:translate-y-0"
         >
           {loading ? "Connecting..." : connections.length ? "Connect Another" : "Connect WhatsApp"}
         </button>
@@ -385,11 +385,11 @@ export default function WhatsappEmbeddedSignupCard({
       )}
 
       {connections.length === 0 ? (
-        <p className="text-sm text-text-muted">No WhatsApp numbers connected yet.</p>
+        <p className="text-sm text-muted-foreground">No WhatsApp numbers connected yet.</p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-surface-2 text-text-muted">
+            <thead className="bg-secondary/40 text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 text-left">Number</th>
                 <th className="px-3 py-2 text-left">Quality</th>
@@ -413,7 +413,7 @@ export default function WhatsappEmbeddedSignupCard({
                       <button
                         type="button"
                         onClick={() => runHealthCheck(connection.id)}
-                        className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                        className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
                         disabled={healthLoadingId === connection.id}
                       >
                         {healthLoadingId === connection.id ? "Checking..." : "Check health"}
@@ -424,7 +424,7 @@ export default function WhatsappEmbeddedSignupCard({
                         <button
                           type="button"
                           onClick={() => runConnectionAction(connection.id, "refresh")}
-                          className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                          className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
                           disabled={actionLoadingKey === `${connection.id}:refresh`}
                         >
                           {actionLoadingKey === `${connection.id}:refresh`
@@ -434,7 +434,7 @@ export default function WhatsappEmbeddedSignupCard({
                         <button
                           type="button"
                           onClick={() => runConnectionAction(connection.id, "sync_templates")}
-                          className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                          className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
                           disabled={actionLoadingKey === `${connection.id}:sync_templates`}
                         >
                           {actionLoadingKey === `${connection.id}:sync_templates`
@@ -446,8 +446,8 @@ export default function WhatsappEmbeddedSignupCard({
                   </tr>
 
                   {healthByConnectionId[connection.id] ? (
-                    <tr className="border-t border-border bg-surface-2/60">
-                      <td className="px-3 py-2 text-xs text-text-muted" colSpan={6}>
+                    <tr className="border-t border-border bg-secondary/30">
+                      <td className="px-3 py-2 text-xs text-muted-foreground" colSpan={6}>
                         <p className="mb-1">
                           Overall:{" "}
                           <span
