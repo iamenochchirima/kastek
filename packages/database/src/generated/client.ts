@@ -85,6 +85,11 @@ export type OnboardingConversation = Prisma.OnboardingConversationModel
  */
 export type QuoteRequest = Prisma.QuoteRequestModel
 /**
+ * Model ProductWaitlistEntry
+ * 
+ */
+export type ProductWaitlistEntry = Prisma.ProductWaitlistEntryModel
+/**
  * Model Quotation
  * 
  */

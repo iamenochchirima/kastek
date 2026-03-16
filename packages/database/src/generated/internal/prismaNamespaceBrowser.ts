@@ -60,6 +60,7 @@ export const ModelName = {
   BotConfiguration: 'BotConfiguration',
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
+  ProductWaitlistEntry: 'ProductWaitlistEntry',
   Quotation: 'Quotation',
   Invoice: 'Invoice',
   OutreachCampaign: 'OutreachCampaign',
@@ -242,6 +243,24 @@ export const QuoteRequestScalarFieldEnum = {
 } as const
 
 export type QuoteRequestScalarFieldEnum = (typeof QuoteRequestScalarFieldEnum)[keyof typeof QuoteRequestScalarFieldEnum]
+
+
+export const ProductWaitlistEntryScalarFieldEnum = {
+  id: 'id',
+  businessName: 'businessName',
+  contactPerson: 'contactPerson',
+  phone: 'phone',
+  email: 'email',
+  businessType: 'businessType',
+  products: 'products',
+  notes: 'notes',
+  source: 'source',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ProductWaitlistEntryScalarFieldEnum = (typeof ProductWaitlistEntryScalarFieldEnum)[keyof typeof ProductWaitlistEntryScalarFieldEnum]
 
 
 export const QuotationScalarFieldEnum = {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Bot, CalendarRange, CheckCircle2, Megaphone, Wand2 } from "lucide-react";
 
@@ -13,7 +14,7 @@ export function Products() {
             <h2 className="font-display text-5xl md:text-7xl">Tools you can<br/>run yourself</h2>
           </div>
           <p className="text-muted-foreground md:max-w-md text-base leading-relaxed">
-            Subscribe, connect, and start using. No agency calls, no waiting. Each product is built specifically for the way SMBs operate.
+            Built as subscription products for SMBs. Join the waitlist now and get notified as access opens up.
           </p>
         </div>
 
@@ -59,9 +60,9 @@ export function Products() {
               </ul>
 
               <div className="mt-auto">
-                <a href="#contact" className="inline-flex items-center font-semibold text-primary hover:text-primary-foreground hover:bg-primary px-5 py-2.5 rounded-lg transition-colors border border-primary">
+                <Link href="/waitlist?product=kasiagents" className="inline-flex items-center rounded-lg border border-primary px-5 py-2.5 font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground">
                   Get early access &rarr;
-                </a>
+                </Link>
               </div>
             </div>
 
@@ -145,9 +146,9 @@ export function Products() {
               </ul>
 
               <div className="mt-auto">
-                <a href="#contact" className="inline-flex items-center font-semibold text-foreground hover:text-primary transition-colors">
+                <Link href="/waitlist?product=kasireach" className="inline-flex items-center font-semibold text-foreground transition-colors hover:text-primary">
                   Join waitlist &rarr;
-                </a>
+                </Link>
               </div>
             </div>
 
@@ -230,9 +231,9 @@ export function Products() {
               </ul>
 
               <div className="mt-auto">
-                <a href="#contact" className="inline-flex items-center font-semibold text-foreground hover:text-primary transition-colors">
+                <Link href="/waitlist?product=kasisocial" className="inline-flex items-center font-semibold text-foreground transition-colors hover:text-primary">
                   Join waitlist &rarr;
-                </a>
+                </Link>
               </div>
             </div>
 

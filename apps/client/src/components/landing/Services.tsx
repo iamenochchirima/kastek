@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 
 const services = [
@@ -86,6 +87,15 @@ export function Services() {
                     {tag}
                   </span>
                 ))}
+              </div>
+
+              <div className="relative z-10 mt-8">
+                <Link
+                  href={`/get-quote?service=${encodeURIComponent(svc.title)}`}
+                  className="inline-flex items-center rounded-lg border border-primary/15 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-white/58 transition-colors hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+                >
+                  Get Quote
+                </Link>
               </div>
             </motion.div>
           ))}

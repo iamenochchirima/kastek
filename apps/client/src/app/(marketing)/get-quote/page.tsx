@@ -33,12 +33,12 @@ export default function GetQuotePage() {
               </div>
 
               <h1 className="mt-6 font-display text-5xl leading-[0.9] tracking-tight text-foreground sm:text-6xl md:text-8xl">
-                Tell us what you need. We&apos;ll scope the right solution.
+                Tell us what service you need. We&apos;ll scope the right solution.
               </h1>
 
               <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
-                Use this form if you want pricing for a KasiTek product, custom implementation
-                work, or a full rollout plan tailored to your business.
+                Use this form for custom services like chatbots, voice agents, workflows,
+                integrations, and implementation work tailored to your business.
               </p>
 
               <div className="mt-8 rounded-[28px] border border-border bg-card/45 p-6 backdrop-blur-sm">

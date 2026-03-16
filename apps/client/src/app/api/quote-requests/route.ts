@@ -22,16 +22,12 @@ const VALID_BUSINESS_TYPES = [
 ];
 
 const VALID_SERVICES = [
-  "website_presence",
-  "website_chatbot",
-  "whatsapp_chatbot",
-  "bulk_whatsapp",
-  "integrations_systems",
-  "seo_optimization",
-  "professional_email",
-  "dashboard_analytics",
-  "voice_agent",
-  "custom_agent",
+  "custom_ai_chatbots",
+  "voice_agents",
+  "growth_workflows",
+  "system_integrations",
+  "digital_infrastructure",
+  "managed_retainers",
 ];
 
 export async function POST(req: Request) {
@@ -142,16 +138,12 @@ export async function POST(req: Request) {
     }
 
     const serviceLabels: Record<string, string> = {
-      website_presence: "Website Development / Redesign",
-      website_chatbot: "Website AI Agent",
-      whatsapp_chatbot: "WhatsApp AI Agent",
-      bulk_whatsapp: "Bulk WhatsApp Campaign System",
-      integrations_systems: "Integrations & Payment Systems",
-      seo_optimization: "SEO Optimization",
-      professional_email: "Professional Email Setup",
-      dashboard_analytics: "Custom Dashboards & Analytics",
-      voice_agent: "AI Voice Agent",
-      custom_agent: "Custom AI / Automation",
+      custom_ai_chatbots: "Custom AI Chatbots",
+      voice_agents: "Voice Agents",
+      growth_workflows: "Growth Workflows",
+      system_integrations: "System Integrations",
+      digital_infrastructure: "Digital Infrastructure",
+      managed_retainers: "Managed Retainers",
     };
 
     try {

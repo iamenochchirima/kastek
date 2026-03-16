@@ -393,6 +393,7 @@ export const ModelName = {
   BotConfiguration: 'BotConfiguration',
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
+  ProductWaitlistEntry: 'ProductWaitlistEntry',
   Quotation: 'Quotation',
   Invoice: 'Invoice',
   OutreachCampaign: 'OutreachCampaign',
@@ -430,7 +431,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "quotation" | "invoice" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "conversation" | "message" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "socialChannelConnection" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "whatsappContact" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
+    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "quotation" | "invoice" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "conversation" | "message" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "socialChannelConnection" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "whatsappContact" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1097,6 +1098,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.QuoteRequestCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.QuoteRequestCountAggregateOutputType> | number
+        }
+      }
+    }
+    ProductWaitlistEntry: {
+      payload: Prisma.$ProductWaitlistEntryPayload<ExtArgs>
+      fields: Prisma.ProductWaitlistEntryFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ProductWaitlistEntryFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ProductWaitlistEntryFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload>
+        }
+        findFirst: {
+          args: Prisma.ProductWaitlistEntryFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ProductWaitlistEntryFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload>
+        }
+        findMany: {
+          args: Prisma.ProductWaitlistEntryFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload>[]
+        }
+        create: {
+          args: Prisma.ProductWaitlistEntryCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload>
+        }
+        createMany: {
+          args: Prisma.ProductWaitlistEntryCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ProductWaitlistEntryCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload>[]
+        }
+        delete: {
+          args: Prisma.ProductWaitlistEntryDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload>
+        }
+        update: {
+          args: Prisma.ProductWaitlistEntryUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload>
+        }
+        deleteMany: {
+          args: Prisma.ProductWaitlistEntryDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ProductWaitlistEntryUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ProductWaitlistEntryUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload>[]
+        }
+        upsert: {
+          args: Prisma.ProductWaitlistEntryUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEntryPayload>
+        }
+        aggregate: {
+          args: Prisma.ProductWaitlistEntryAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateProductWaitlistEntry>
+        }
+        groupBy: {
+          args: Prisma.ProductWaitlistEntryGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProductWaitlistEntryGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ProductWaitlistEntryCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProductWaitlistEntryCountAggregateOutputType> | number
         }
       }
     }
@@ -2911,6 +2986,24 @@ export const QuoteRequestScalarFieldEnum = {
 export type QuoteRequestScalarFieldEnum = (typeof QuoteRequestScalarFieldEnum)[keyof typeof QuoteRequestScalarFieldEnum]
 
 
+export const ProductWaitlistEntryScalarFieldEnum = {
+  id: 'id',
+  businessName: 'businessName',
+  contactPerson: 'contactPerson',
+  phone: 'phone',
+  email: 'email',
+  businessType: 'businessType',
+  products: 'products',
+  notes: 'notes',
+  source: 'source',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ProductWaitlistEntryScalarFieldEnum = (typeof ProductWaitlistEntryScalarFieldEnum)[keyof typeof ProductWaitlistEntryScalarFieldEnum]
+
+
 export const QuotationScalarFieldEnum = {
   id: 'id',
   businessName: 'businessName',
@@ -3823,6 +3916,7 @@ export type GlobalOmitConfig = {
   botConfiguration?: Prisma.BotConfigurationOmit
   onboardingConversation?: Prisma.OnboardingConversationOmit
   quoteRequest?: Prisma.QuoteRequestOmit
+  productWaitlistEntry?: Prisma.ProductWaitlistEntryOmit
   quotation?: Prisma.QuotationOmit
   invoice?: Prisma.InvoiceOmit
   outreachCampaign?: Prisma.OutreachCampaignOmit

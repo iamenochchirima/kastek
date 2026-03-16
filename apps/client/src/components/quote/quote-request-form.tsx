@@ -16,15 +16,6 @@ const businessTypes = [
   { value: "other", label: "Other" },
 ];
 
-const productOptions = [
-  { value: "kasitek_product_basic", label: "KasiTek Basic Plan" },
-  { value: "kasitek_product_growth", label: "KasiTek Growth Plan" },
-  { value: "kasitek_product_scale", label: "KasiTek Scale Plan" },
-  { value: "kasiagents", label: "KasiAgents" },
-  { value: "kasireach", label: "KasiReach" },
-  { value: "kasisocial", label: "KasiSocial" },
-];
-
 const serviceOptions = [
   { value: "custom_ai_chatbots", label: "Custom AI Chatbots" },
   { value: "voice_agents", label: "Voice Agents" },
@@ -35,15 +26,6 @@ const serviceOptions = [
 ];
 
 const serviceAliasMap: Record<string, string> = {
-  "basic product plan": "kasitek_product_basic",
-  "growth product plan": "kasitek_product_growth",
-  "scale product plan": "kasitek_product_scale",
-  basic: "kasitek_product_basic",
-  growth: "kasitek_product_growth",
-  scale: "kasitek_product_scale",
-  kasiagents: "kasiagents",
-  kasireach: "kasireach",
-  kasisocial: "kasisocial",
   "custom ai chatbots": "custom_ai_chatbots",
   "voice agents": "voice_agents",
   "growth workflows": "growth_workflows",
@@ -262,57 +244,28 @@ export default function QuoteRequestForm() {
         <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground">
-              What are you interested in? <span className="text-red-400">*</span>
+              Services Needed <span className="text-red-400">*</span>
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Select one or more products or services, or add your own custom request.
+              Select one or more custom services, or add your own request.
             </p>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Products
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {productOptions.map((service) => (
-                  <button
-                    key={service.value}
-                    type="button"
-                    onClick={() => toggleService(service.value)}
-                    className={`rounded-xl px-4 py-2.5 text-left text-sm font-medium transition-all ${
-                      services.includes(service.value)
-                        ? "border border-primary/35 bg-primary/12 text-primary shadow-[0_0_22px_rgba(232,160,32,0.08)]"
-                        : "border border-white/10 bg-black/20 text-muted-foreground hover:border-white/20 hover:bg-white/[0.04] hover:text-foreground"
-                    }`}
-                  >
-                    {service.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Custom Services
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {serviceOptions.map((service) => (
-                  <button
-                    key={service.value}
-                    type="button"
-                    onClick={() => toggleService(service.value)}
-                    className={`rounded-xl px-4 py-2.5 text-left text-sm font-medium transition-all ${
-                      services.includes(service.value)
-                        ? "border border-primary/35 bg-primary/12 text-primary shadow-[0_0_22px_rgba(232,160,32,0.08)]"
-                        : "border border-white/10 bg-black/20 text-muted-foreground hover:border-white/20 hover:bg-white/[0.04] hover:text-foreground"
-                    }`}
-                  >
-                    {service.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {serviceOptions.map((service) => (
+              <button
+                key={service.value}
+                type="button"
+                onClick={() => toggleService(service.value)}
+                className={`rounded-xl px-4 py-2.5 text-left text-sm font-medium transition-all ${
+                  services.includes(service.value)
+                    ? "border border-primary/35 bg-primary/12 text-primary shadow-[0_0_22px_rgba(232,160,32,0.08)]"
+                    : "border border-white/10 bg-black/20 text-muted-foreground hover:border-white/20 hover:bg-white/[0.04] hover:text-foreground"
+                }`}
+              >
+                {service.label}
+              </button>
+            ))}
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -326,7 +279,7 @@ export default function QuoteRequestForm() {
                   addCustomService();
                 }
               }}
-              placeholder="Other product or service"
+              placeholder="Other service"
               className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-sm text-foreground placeholder:text-white/30 outline-none transition focus:border-primary/45 focus:bg-black/35"
             />
             <button

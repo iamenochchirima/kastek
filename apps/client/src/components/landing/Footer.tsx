@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 
 export function Footer() {
   const scrollTo = (id: string) => {
@@ -12,7 +13,10 @@ export function Footer() {
     <footer className="border-t border-border px-6 md:px-12 py-8 bg-background relative z-10" id="footer">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
         
-        <div className="flex items-center gap-3 opacity-80 hover:opacity-100 transition-opacity cursor-default">
+        <Link
+          href="/"
+          className="flex items-center gap-3 opacity-80 transition-opacity hover:opacity-100"
+        >
           <Image
             src="/logo.png"
             alt="KasiTek"
@@ -23,7 +27,7 @@ export function Footer() {
           <div className="font-display text-2xl tracking-widest text-white">
             Kasi<span className="text-primary">Tek</span>
           </div>
-        </div>
+        </Link>
 
         <div className="text-xs text-muted-foreground font-medium">
           © {new Date().getFullYear()} KasiTek · Built for SMBs
@@ -32,7 +36,6 @@ export function Footer() {
         <div className="flex items-center gap-6 text-sm font-medium">
           <button onClick={() => scrollTo("products")} className="text-muted-foreground hover:text-white transition-colors">Products</button>
           <button onClick={() => scrollTo("services")} className="text-muted-foreground hover:text-white transition-colors">Services</button>
-          <a href="mailto:hello@kasitek.co.za" className="text-muted-foreground hover:text-primary transition-colors">hello@kasitek.co.za</a>
         </div>
 
       </div>

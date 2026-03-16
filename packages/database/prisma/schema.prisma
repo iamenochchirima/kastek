@@ -188,6 +188,25 @@ model QuoteRequest {
   @@index([assignedToId])
 }
 
+model ProductWaitlistEntry {
+  id            String   @id @default(cuid())
+  businessName  String
+  contactPerson String
+  phone         String?
+  email         String
+  businessType  String?
+  products      String[]
+  notes         String?  @db.Text
+  source        String   @default("website")
+  status        String   @default("new")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([source])
+}
+
 model Quotation {
   id                    String   @id @default(cuid())
   businessName          String

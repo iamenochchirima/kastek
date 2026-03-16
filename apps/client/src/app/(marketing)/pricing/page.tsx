@@ -169,10 +169,10 @@ export default function PricingPage() {
 
                 <div className="mt-8">
                   <Link
-                    href={`/get-quote?service=${encodeURIComponent(`${tier.name} Product Plan`)}`}
+                    href={`/waitlist?product=${encodeURIComponent(tier.name.toLowerCase())}`}
                     className="inline-flex rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary/90"
                   >
-                    Coming soon
+                    Join Waitlist
                   </Link>
                 </div>
               </div>

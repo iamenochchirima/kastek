@@ -34,7 +34,7 @@ export function Navbar() {
         scrolled ? "bg-background/80 backdrop-blur-md border-b border-border shadow-lg shadow-black/20 py-4" : "bg-transparent py-6"
       )}
     >
-      <a href="#home" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+      <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
         <Image
           src="/logo.png"
           alt="KasiTek"
@@ -45,7 +45,7 @@ export function Navbar() {
         <span className="font-display text-2xl tracking-widest text-white">
           Kasi<span className="text-primary">Tek</span>
         </span>
-      </a>
+      </Link>
 
       <div className="flex items-center gap-3">
         <Link
