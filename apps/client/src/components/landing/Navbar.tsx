@@ -8,12 +8,23 @@ import { cn } from "@/lib/utils";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [showLocalLogin] = useState(() => {
+    if (typeof window === "undefined") return false;
+
+    const { hostname } = window.location;
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1"
+    );
+  });
 
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 40);
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -55,10 +66,10 @@ export function Navbar() {
           Pricing
         </Link>
         <Link
-          href="/login"
-          className="rounded-lg border border-white/12 bg-white/5 px-4 py-2 text-sm font-semibold text-white/82 transition hover:border-white/20 hover:bg-white/8 hover:text-white md:hidden"
+          href="/waitlist"
+          className="rounded-lg border border-primary/18 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/28 hover:bg-primary/14 md:hidden"
         >
-          Login
+          Waitlist
         </Link>
 
         <ul className="hidden md:flex items-center gap-8 text-sm font-medium">
@@ -85,22 +96,31 @@ export function Navbar() {
             Pricing
           </Link>
         </li>
+        {showLocalLogin ? (
+          <li>
+            <Link
+              href="/login"
+              className="text-muted-foreground transition-colors hover:text-white"
+            >
+              Login
+            </Link>
+          </li>
+        ) : null}
         <li>
           <Link
-            href="/login"
-            className="text-muted-foreground transition-colors hover:text-white"
+            href="/get-quote"
+            className="rounded-lg border border-primary/15 bg-white/5 px-5 py-2.5 font-semibold text-white/82 transition-all duration-300 hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
           >
-            Login
+            Get Quote
           </Link>
         </li>
         <li>
-          <button
-            type="button"
-            onClick={() => scrollTo("contact")}
-            className="px-5 py-2.5 bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary hover:text-primary-foreground transition-all duration-300 font-semibold"
+          <Link
+            href="/waitlist"
+            className="rounded-lg border border-primary/20 bg-primary/10 px-5 py-2.5 font-semibold text-primary transition-all duration-300 hover:bg-primary hover:text-primary-foreground"
           >
-            Get Started
-          </button>
+            Join Waitlist
+          </Link>
         </li>
         </ul>
       </div>
