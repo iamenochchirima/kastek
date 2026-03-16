@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, SendHorizontal, Sparkles, X } from "lucide-react";
+import { MessageCircle, SendHorizontal, X } from "lucide-react";
 
 type ChatMessage = {
   id: string;
@@ -168,7 +168,7 @@ export default function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-28 right-3 z-[2147483645] w-[calc(100vw-24px)] max-w-[360px] sm:bottom-32 sm:right-5 sm:w-[360px]">
+    <div className="fixed bottom-5 right-3 z-[2147483645] w-[calc(100vw-24px)] max-w-[360px] sm:bottom-6 sm:right-4 sm:w-[360px]">
       {isOpen ? (
         <div className="relative">
           <div className="absolute inset-x-8 bottom-[-26px] -z-30 h-16 rounded-full bg-black/70 blur-2xl" />
@@ -203,10 +203,6 @@ export default function ChatWidget() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
-                    <Sparkles className="h-3 w-3" />
-                    live
-                  </div>
                   <button
                     type="button"
                     onClick={() => setIsOpen(false)}
@@ -284,19 +280,14 @@ export default function ChatWidget() {
           <button
             type="button"
             onClick={() => setIsOpen(true)}
-            className="group flex items-center gap-3 rounded-[18px] border border-white/16 bg-[#090909]/92 px-4 py-3 text-left shadow-[0_20px_55px_rgba(0,0,0,0.5)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-white/24"
+            className="group relative flex h-14 w-14 items-center justify-center rounded-full border border-white/14 bg-[#090909]/92 text-left shadow-[0_20px_55px_rgba(0,0,0,0.5)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-white/24"
             aria-label="Open chat"
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-primary/20 bg-primary text-primary-foreground shadow-[0_0_24px_rgba(232,160,32,0.28)]">
+            <span className="pointer-events-none absolute bottom-full right-0 mb-3 origin-bottom-right rounded-xl border border-white/12 bg-[#090909]/96 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-white/72 opacity-0 shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-200 group-hover:opacity-100">
+              Open assistant
+            </span>
+            <div className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary text-primary-foreground shadow-[0_0_24px_rgba(232,160,32,0.28)]">
               <MessageCircle className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="landing-font-display text-[1.35rem] leading-none tracking-[0.08em] text-white">
-                KasiTek
-              </div>
-              <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.16em] text-white/52">
-                Open assistant
-              </div>
             </div>
           </button>
         </div>

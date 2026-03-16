@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check, Zap } from "lucide-react";
+import { Check } from "lucide-react";
 import { Navbar } from "@/components/landing/Navbar";
 import { Footer } from "@/components/landing/Footer";
 
@@ -12,35 +12,32 @@ export const metadata: Metadata = {
 const productTiers = [
   {
     name: "Basic",
-    monthly: "R999/month",
-    setup: "Setup from R2,500",
+    monthly: "R450/month",
     description: "For businesses starting with one core product and a lighter automation footprint.",
     features: [
       "Access to one KasiTek product workspace",
       "Core AI agent or campaign functionality",
-      "Basic onboarding and setup support",
-      "Single brand/business setup",
+      "Basic onboarding support",
+      "Single brand/business workspace",
       "Standard maintenance and updates",
     ],
   },
   {
     name: "Growth",
-    monthly: "R2,499/month",
-    setup: "Setup from R4,500",
+    monthly: "R799/month",
     featured: true,
     description: "For growing teams using multiple products and stronger automation across sales and marketing.",
     features: [
       "Access to multiple KasiTek product modules",
       "Higher usage and more active workflows",
-      "Advanced setup and system tailoring",
+      "Advanced system tailoring",
       "Priority support",
       "Better fit for multi-channel growth",
     ],
   },
   {
     name: "Scale",
-    monthly: "R4,999+/month",
-    setup: "Setup from R8,500+",
+    monthly: "R1,299/month",
     description: "For businesses that need deeper automation, more complex workflows, and heavier operational support.",
     features: [
       "Expanded product access and higher limits",
@@ -103,33 +100,14 @@ export default function PricingPage() {
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(232,160,32,0.12),transparent_42%)]" />
         <div className="relative mx-auto max-w-7xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-3 py-1.5 shadow-sm backdrop-blur-sm">
-            <Zap className="h-3.5 w-3.5 text-primary" fill="currentColor" />
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Pricing
-            </span>
-          </div>
-
-          <div className="mt-8 grid gap-12 border-t border-border/50 pt-8 lg:grid-cols-[minmax(0,1.3fr)_360px] lg:items-end">
-            <div>
+          <div className="border-t border-border/50 pt-8">
+            <div className="max-w-4xl">
               <h1 className="font-display text-5xl leading-[0.9] tracking-tight text-foreground sm:text-6xl md:text-8xl">
-                Clear pricing for <span className="text-primary">products</span>, flexible pricing for services.
+                Pricing for products and services.
               </h1>
               <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
-                Self-serve products should have cleaner monthly pricing. Bespoke services should
-                stay flexible, with starting ranges that help people understand budget expectations.
+                Monthly plans for KasiTek products. Custom quotes for tailored implementation work.
               </p>
-            </div>
-
-            <div className="rounded-[28px] border border-border bg-card/60 p-6 backdrop-blur-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                How to read this page
-              </p>
-              <div className="mt-4 space-y-3 text-sm leading-6 text-muted-foreground">
-                <p>Setup covers implementation, configuration, and initial deployment.</p>
-                <p>Monthly pricing covers hosting, maintenance, and product support.</p>
-                <p>More advanced or bundled work is scoped as a tailored quote.</p>
-              </div>
             </div>
           </div>
         </div>
@@ -173,9 +151,6 @@ export default function PricingPage() {
                   <div className="text-4xl font-semibold tracking-tight text-foreground">
                     {tier.monthly}
                   </div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    {tier.setup}
-                  </p>
                   <p className="text-sm leading-6 text-muted-foreground">{tier.description}</p>
                 </div>
 
@@ -197,7 +172,7 @@ export default function PricingPage() {
                     href={`/get-quote?service=${encodeURIComponent(`${tier.name} Product Plan`)}`}
                     className="inline-flex rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary/90"
                   >
-                    Get Started
+                    Coming soon
                   </Link>
                 </div>
               </div>
@@ -262,7 +237,7 @@ export default function PricingPage() {
             Move from pricing to a real rollout plan.
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-muted-foreground">
-            If you already know the direction, the next step is turning it into a scoped setup,
+            If you already know the direction, the next step is turning it into a scoped plan,
             timeline, and rollout recommendation.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
