@@ -50,7 +50,7 @@ export async function POST(
     });
 
     if (!conversation) {
-      console.error("[dashboard2 reaction debug] conversation not found", {
+      console.error("[dashboard reaction debug] conversation not found", {
         conversationId,
         messageId,
         userId,
@@ -70,7 +70,7 @@ export async function POST(
     });
 
     if (!targetMessage?.whatsappMessageId) {
-      console.error("[dashboard2 reaction debug] target missing whatsappMessageId", {
+      console.error("[dashboard reaction debug] target missing whatsappMessageId", {
         conversationId,
         messageId,
         targetMessageId: targetMessage?.id || null,
@@ -83,7 +83,7 @@ export async function POST(
 
     const parsed = parseWhatsappConversationIdentifier(conversation.customerIdentifier);
     if (!parsed) {
-      console.error("[dashboard2 reaction debug] invalid conversation identifier", {
+      console.error("[dashboard reaction debug] invalid conversation identifier", {
         conversationId,
         messageId,
         customerIdentifier: conversation.customerIdentifier,
@@ -93,7 +93,7 @@ export async function POST(
 
     const connection = connections.find((item) => item.id === parsed.connectionId);
     if (!connection) {
-      console.error("[dashboard2 reaction debug] connection not found", {
+      console.error("[dashboard reaction debug] connection not found", {
         conversationId,
         messageId,
         connectionId: parsed.connectionId,
@@ -127,7 +127,7 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[dashboard2 reaction debug] route failed", {
+    console.error("[dashboard reaction debug] route failed", {
       error: error instanceof Error ? error.message : String(error),
     });
     const message = error instanceof Error ? error.message : "Failed to send reaction";

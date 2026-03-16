@@ -161,7 +161,7 @@ function SidebarContent({
           {!collapsed ? <span className="text-sm text-muted-foreground">Theme</span> : null}
         </div>
         <Link
-          href="/dashboard2"
+          href="/dashboard"
           className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground no-underline transition-all duration-200 hover:bg-secondary hover:text-foreground"
         >
           <Settings2 className="h-5 w-5 shrink-0" />
@@ -224,7 +224,7 @@ export function SocialLayoutShell({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="dashboard2-theme flex h-screen bg-background">
+    <div className="dashboard-theme flex h-screen bg-background">
       <aside className={cn("hidden lg:flex lg:flex-col", collapsed ? "w-[72px]" : "w-64")}>
         <SidebarContent collapsed={collapsed} setCollapsed={setCollapsed} user={user} />
       </aside>

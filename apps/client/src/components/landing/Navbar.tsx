@@ -49,6 +49,12 @@ export function Navbar() {
 
       <div className="flex items-center gap-3">
         <Link
+          href="/pricing"
+          className="rounded-lg border border-white/12 bg-white/5 px-4 py-2 text-sm font-semibold text-white/82 transition hover:border-white/20 hover:bg-white/8 hover:text-white md:hidden"
+        >
+          Pricing
+        </Link>
+        <Link
           href="/login"
           className="rounded-lg border border-white/12 bg-white/5 px-4 py-2 text-sm font-semibold text-white/82 transition hover:border-white/20 hover:bg-white/8 hover:text-white md:hidden"
         >
@@ -70,6 +76,14 @@ export function Navbar() {
           <button type="button" onClick={() => scrollTo("footer")} className="text-muted-foreground transition-colors hover:text-white">
             About
           </button>
+        </li>
+        <li>
+          <Link
+            href="/pricing"
+            className="text-muted-foreground transition-colors hover:text-white"
+          >
+            Pricing
+          </Link>
         </li>
         <li>
           <Link

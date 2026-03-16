@@ -1,72 +1,112 @@
-import Link from "next/link";
+import { auth } from "@/auth";
+import InboxPageClient from "@/components/dashboard/inbox-page";
+import { prisma } from "@/lib/prisma";
+import { parseWhatsappConversationIdentifier } from "@/lib/whatsapp/inbox";
+import { getWhatsappMessagePreview } from "@/lib/whatsapp/message-content";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Inbox | KasiTek",
-};
+export default async function DashboardInboxPage() {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
 
-const channels = [
-  {
-    title: "WhatsApp",
-    description: "Manage live WhatsApp conversations, reply to customers, and handle bot handoff.",
-    href: "/dashboard/inbox/whatsapp",
-    icon: "💬",
-    status: "Available now",
-  },
-  {
-    title: "Instagram",
-    description: "Bring Instagram DMs into the same agent workspace.",
-    href: "#",
-    icon: "📸",
-    status: "Coming next",
-  },
-  {
-    title: "Messenger",
-    description: "Handle Facebook Messenger conversations from the same inbox hub.",
-    href: "#",
-    icon: "📨",
-    status: "Planned",
-  },
-];
+  const connections = await prisma.whatsappConnection.findMany({
+    where: { userId: session.user.id },
+    select: {
+      id: true,
+      phoneNumberId: true,
+      phoneDisplayNumber: true,
+      wabaId: true,
+      currentQualityRating: true,
+      dailyLimitEstimate: true,
+      verified: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
-export default function InboxOverviewPage() {
+  const conversationWhere = connections.length
+    ? {
+        channel: "whatsapp" as const,
+        OR: connections.map((connection) => ({
+          customerIdentifier: {
+            startsWith: `wa:${connection.id}:`,
+          },
+        })),
+      }
+    : null;
+
+  const conversations = conversationWhere
+    ? await prisma.conversation.findMany({
+        where: conversationWhere,
+        orderBy: { lastMessageAt: "desc" },
+        take: 50,
+        include: {
+          messages: {
+            orderBy: { timestamp: "desc" },
+            take: 1,
+          },
+        },
+      })
+    : [];
+
+  const whatsappUnreadCount = conversations.reduce(
+    (total, conversation) => total + conversation.unreadCount,
+    0,
+  );
+
+  const inboxConversations = conversations.map((conversation) => {
+    const parsed = parseWhatsappConversationIdentifier(conversation.customerIdentifier);
+    const lastMessage = conversation.messages[0];
+
+    return {
+      id: conversation.id,
+      name: conversation.customerName || parsed?.phone || "Unknown contact",
+      handle: parsed?.phone || conversation.customerIdentifier,
+      lastMessage: lastMessage ? getWhatsappMessagePreview(lastMessage.content) : "No messages yet",
+      time: conversation.lastMessageAt.toISOString(),
+      unread: conversation.unreadCount > 0,
+      starred: false,
+      channel: "whatsapp" as const,
+      avatar:
+        (conversation.customerName || parsed?.phone || "?")
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0]?.toUpperCase() || "")
+          .join("")
+          .slice(0, 2) || "?",
+      status: "offline" as const,
+      tags: [],
+    };
+  });
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="mb-2 text-3xl font-semibold tracking-tight">Inbox</h1>
-        <p className="max-w-2xl text-text-muted">
-          Inbox is the parent workspace for all conversation channels. WhatsApp is live first, with
-          other channels following the same operating model.
-        </p>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {channels.map((channel) => (
-          <div key={channel.title} className="rounded-xl border border-border bg-surface p-5">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div className="text-3xl">{channel.icon}</div>
-              <span className="rounded-full border border-border px-2.5 py-1 text-xs text-text-muted">
-                {channel.status}
-              </span>
-            </div>
-
-            <h2 className="mb-2 text-lg font-semibold text-text">{channel.title}</h2>
-            <p className="mb-5 text-sm text-text-muted">{channel.description}</p>
-
-            {channel.href === "#" ? (
-              <span className="inline-flex rounded-lg border border-border px-4 py-2 text-sm text-text-dim">
-                Not available yet
-              </span>
-            ) : (
-              <Link
-                href={channel.href}
-                className="inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg no-underline"
-              >
-                Open {channel.title}
-              </Link>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+    <InboxPageClient
+      whatsappConnections={connections.map((connection) => ({
+        ...connection,
+        createdAt: connection.createdAt.toISOString(),
+      }))}
+      conversations={inboxConversations}
+      channelCounts={{
+        whatsapp: {
+          connected: connections.length > 0,
+          connectionCount: connections.length,
+          unreadCount: whatsappUnreadCount,
+          conversationCount: conversations.length,
+        },
+        instagram: {
+          connected: false,
+          connectionCount: 0,
+          unreadCount: 0,
+          conversationCount: 0,
+        },
+        facebook: {
+          connected: false,
+          connectionCount: 0,
+          unreadCount: 0,
+          conversationCount: 0,
+        },
+      }}
+    />
   );
 }

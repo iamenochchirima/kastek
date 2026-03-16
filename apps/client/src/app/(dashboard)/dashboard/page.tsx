@@ -1,482 +1,184 @@
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { getWhatsappConnectionStats } from "@/lib/whatsapp/connection-stats";
-import Link from "next/link";
-import { redirect } from "next/navigation";
+"use client";
 
-export const metadata = {
-  title: "Overview | KasiTek",
-};
+import { motion } from "framer-motion";
+import { ArrowUpRight, Eye, Megaphone, MessageSquare, Phone, TrendingUp, UserCheck, Users, UserX, XCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
-const ACTIVE_CAMPAIGN_STATUSES = ["DRAFT", "SCHEDULED", "SENDING", "PAUSED"] as const;
+const statsCards = [
+  { label: "Connected Numbers", value: "3", sublabel: "3 verified", icon: Phone, trend: "+1 this week" },
+  { label: "Templates Ready", value: "12", sublabel: "2 pending review", icon: MessageSquare, trend: "4 approved today" },
+  { label: "Active Campaigns", value: "5", sublabel: "8 total campaigns", icon: Megaphone, trend: "2 scheduled" },
+  { label: "Opted-in Contacts", value: "2,847", sublabel: "156 excluded", icon: UserCheck, trend: "+89 this week" },
+];
 
-export default async function DashboardPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+const metricsCards = [
+  { label: "Delivery Rate", value: "94.2%", sublabel: "2,682 delivered from 2,847 recipients", icon: TrendingUp },
+  { label: "Read Rate", value: "67.8%", sublabel: "1,818 reads across all campaigns", icon: Eye },
+  { label: "Avg Remaining Today", value: "847", sublabel: "Estimated remaining sends per connected number", icon: Phone },
+];
 
-  const [timeRow] = await prisma.$queryRaw<Array<{ now: Date }>>`SELECT NOW() as now`;
-  const currentDate = timeRow?.now || new Date("2026-03-03T00:00:00.000Z");
-  const since30Days = new Date(currentDate);
-  since30Days.setDate(since30Days.getDate() - 30);
+const recentCampaigns = [
+  { name: "Spring Sale Promo", status: "Active", sent: 1247, read: 823, time: "2 hours ago" },
+  { name: "Welcome Series #3", status: "Active", sent: 892, read: 654, time: "5 hours ago" },
+  { name: "Re-engagement Flow", status: "Paused", sent: 456, read: 198, time: "1 day ago" },
+];
 
-  const [
-    connections,
-    templatesByStatus,
-    campaignsAggregate,
-    activeCampaigns,
-    recentCampaigns,
-    contactsAggregate,
-    sendBreakdown,
-    reviewQueue,
-  ] = await Promise.all([
-    prisma.whatsappConnection.findMany({
-      where: { userId: session.user.id },
-      select: {
-        id: true,
-        phoneDisplayNumber: true,
-        phoneNumberId: true,
-        currentQualityRating: true,
-        dailyLimitEstimate: true,
-        verified: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.whatsappTemplate.groupBy({
-      by: ["status"],
-      where: { userId: session.user.id },
-      _count: true,
-    }),
-    prisma.whatsappCampaign.aggregate({
-      where: { userId: session.user.id },
-      _count: { _all: true },
-      _sum: {
-        totalRecipients: true,
-        deliveredCount: true,
-        readCount: true,
-        failedCount: true,
-        blockedCount: true,
-      },
-    }),
-    prisma.whatsappCampaign.count({
-      where: {
-        userId: session.user.id,
-        status: { in: [...ACTIVE_CAMPAIGN_STATUSES] },
-      },
-    }),
-    prisma.whatsappCampaign.findMany({
-      where: { userId: session.user.id },
-      include: {
-        connection: {
-          select: {
-            phoneDisplayNumber: true,
-            phoneNumberId: true,
-          },
-        },
-        template: {
-          select: {
-            templateName: true,
-            language: true,
-          },
-        },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 5,
-    }),
-    prisma.whatsappContact.aggregate({
-      where: { userId: session.user.id },
-      _count: { _all: true },
-    }),
-    prisma.whatsappSendEvent.groupBy({
-      by: ["status"],
-      where: {
-        userId: session.user.id,
-        createdAt: { gte: since30Days },
-      },
-      _count: true,
-    }),
-    prisma.whatsappTemplate.findMany({
-      where: {
-        userId: session.user.id,
-        status: { in: ["PENDING", "REJECTED"] },
-      },
-      include: {
-        connection: {
-          select: {
-            phoneDisplayNumber: true,
-            phoneNumberId: true,
-          },
-        },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 4,
-    }),
-  ]);
+const reviewQueue = [
+  { name: "Order Confirmation v2", status: "Pending", submitted: "2 hours ago" },
+  { name: "Shipping Update", status: "Approved", submitted: "1 day ago" },
+  { name: "Feedback Request", status: "Rejected", submitted: "3 days ago" },
+];
 
-  const [optedInContacts, excludedContacts] = await Promise.all([
-    prisma.whatsappContact.count({
-      where: { userId: session.user.id, optIn: true },
-    }),
-    prisma.whatsappContact.count({
-      where: { userId: session.user.id, excluded: true },
-    }),
-  ]);
+const contactStats = [
+  { label: "All Contacts", value: "3,003", sublabel: "Total contact records available to segment and target", icon: Users },
+  { label: "Excluded Contacts", value: "156", sublabel: "Contacts currently excluded from marketing sends", icon: UserX },
+  { label: "Failures Recorded", value: "101", sublabel: "Combined failed and blocked outcomes across all campaigns", icon: XCircle },
+];
 
-  const statsByConnection = await getWhatsappConnectionStats(connections.map((connection) => connection.id));
+const connectionHealth = [
+  { number: "+1 (555) 123-4567", quality: 95, status: "Excellent" },
+  { number: "+1 (555) 987-6543", quality: 78, status: "Good" },
+  { number: "+1 (555) 456-7890", quality: 45, status: "Warning" },
+];
 
-  const templateStatusMap = Object.fromEntries(
-    templatesByStatus.map((entry) => [entry.status, entry._count])
-  ) as Record<string, number>;
-  const sendStatusMap = Object.fromEntries(
-    sendBreakdown.map((entry) => [entry.status, entry._count])
-  ) as Record<string, number>;
-
-  const totalDelivered = campaignsAggregate._sum.deliveredCount || 0;
-  const totalRead = campaignsAggregate._sum.readCount || 0;
-  const totalFailures =
-    (campaignsAggregate._sum.failedCount || 0) + (campaignsAggregate._sum.blockedCount || 0);
-  const totalRecipients = campaignsAggregate._sum.totalRecipients || 0;
-  const deliveryRate = totalRecipients ? Math.round((totalDelivered / totalRecipients) * 100) : 0;
-  const readRate = totalDelivered ? Math.round((totalRead / totalDelivered) * 100) : 0;
-  const averageRemainingToday =
-    connections.length > 0
-      ? Math.round(
-          connections.reduce((sum, connection) => {
-            const remaining = statsByConnection.get(connection.id)?.estimatedRemainingToday;
-            return sum + (remaining || 0);
-          }, 0) / connections.length
-        )
-      : 0;
-
+export default function DashboardPage() {
   return (
-    <div className="space-y-8">
-      <section className="rounded-[32px] border border-border bg-[radial-gradient(circle_at_top_left,rgba(196,240,77,0.12),transparent_26%),linear-gradient(180deg,rgba(31,31,31,0.98),rgba(20,20,20,0.98))] p-7">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div className="max-w-3xl">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
-              Workspace Pulse
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-text">
-              Welcome back, {session.user.name ?? "there"}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-text-muted">
-              Keep an eye on connected numbers, template approvals, campaign performance, and how
-              much sending capacity you still have today.
-            </p>
+    <div className="min-h-screen p-6 lg:p-8">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-[1600px] space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <Badge className="mb-2 border-primary/30 bg-primary/5 text-primary">Workspace Pulse</Badge>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Welcome back, Admin</h1>
+            <p className="mt-1 max-w-xl text-muted-foreground">Keep an eye on connected numbers, template approvals, campaign performance, and how much sending capacity you still have today.</p>
           </div>
-
-          <Link
-            href="/dashboard/campaigns/whatsapp/new"
-            className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg no-underline transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(196,240,77,0.25)]"
-          >
-            Launch Campaign
-          </Link>
+          <Button className="shrink-0 gap-2"><Megaphone className="h-4 w-4" />Launch Campaign</Button>
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <HeroMetric
-            label="Connected Numbers"
-            value={connections.length.toString()}
-            helper={`${connections.filter((item) => item.verified).length} verified`}
-          />
-          <HeroMetric
-            label="Templates Ready"
-            value={(templateStatusMap.APPROVED || 0).toString()}
-            helper={`${templateStatusMap.PENDING || 0} pending review`}
-          />
-          <HeroMetric
-            label="Active Campaigns"
-            value={activeCampaigns.toString()}
-            helper={`${campaignsAggregate._count._all} total campaigns`}
-          />
-          <HeroMetric
-            label="Opted-in Contacts"
-            value={optedInContacts.toString()}
-            helper={`${excludedContacts} excluded`}
-          />
-        </div>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_360px]">
-        <div className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <MetricCard
-              label="Delivery Rate"
-              value={`${deliveryRate}%`}
-              helper={`${totalDelivered.toLocaleString("en-ZA")} delivered from ${totalRecipients.toLocaleString("en-ZA")} recipients`}
-            />
-            <MetricCard
-              label="Read Rate"
-              value={`${readRate}%`}
-              helper={`${totalRead.toLocaleString("en-ZA")} reads across all campaigns`}
-            />
-            <MetricCard
-              label="Avg Remaining Today"
-              value={averageRemainingToday.toLocaleString("en-ZA")}
-              helper="Estimated remaining sends per connected number"
-            />
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            <section className="rounded-2xl border border-border bg-surface p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-text">Recent Campaigns</h2>
-                  <p className="text-sm text-text-muted">Latest updates across your outbound WhatsApp work.</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {statsCards.map((stat) => (
+            <Card key={stat.label}>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">{stat.label}</p>
+                    <p className="text-3xl font-semibold text-foreground">{stat.value}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{stat.sublabel}</p>
+                  </div>
+                  <div className="rounded-md bg-primary/10 p-2">
+                    <stat.icon className="h-5 w-5 text-primary" />
+                  </div>
                 </div>
-                <Link
-                  href="/dashboard/campaigns/whatsapp"
-                  className="text-sm font-medium text-accent no-underline hover:underline"
-                >
-                  Open campaigns
-                </Link>
-              </div>
-
-              {recentCampaigns.length === 0 ? (
-                <EmptyState text="No campaigns yet. Create your first WhatsApp campaign to start building activity here." />
-              ) : (
-                <div className="space-y-3">
-                  {recentCampaigns.map((campaign) => (
-                    <Link
-                      key={campaign.id}
-                      href={`/dashboard/campaigns/whatsapp/${campaign.id}`}
-                      className="block rounded-2xl border border-border bg-surface-2 p-4 no-underline transition-colors hover:border-border-light hover:bg-surface"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="font-medium text-text">{campaign.name}</h3>
-                          <p className="mt-1 text-xs text-text-dim">
-                            {campaign.connection.phoneDisplayNumber || campaign.connection.phoneNumberId}
-                          </p>
-                        </div>
-                        <span className="rounded-full border border-border px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-text-muted">
-                          {campaign.status}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                        <MiniMetric label="Recipients" value={campaign.totalRecipients} />
-                        <MiniMetric label="Delivered" value={campaign.deliveredCount} />
-                        <MiniMetric label="Read" value={campaign.readCount} />
-                      </div>
-
-                      <p className="mt-3 text-xs text-text-dim">
-                        {campaign.template?.templateName || campaign.templateName} ·{" "}
-                        {(campaign.template?.language || campaign.templateLanguage).replace("_", "-")} · updated{" "}
-                        {campaign.updatedAt.toLocaleDateString("en-ZA")}
-                      </p>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="rounded-2xl border border-border bg-surface p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-text">Review Queue</h2>
-                  <p className="text-sm text-text-muted">Templates that still need attention from Meta or from you.</p>
-                </div>
-                <Link
-                  href="/dashboard/templates/whatsapp"
-                  className="text-sm font-medium text-accent no-underline hover:underline"
-                >
-                  Open templates
-                </Link>
-              </div>
-
-              {reviewQueue.length === 0 ? (
-                <EmptyState text="No pending or rejected templates right now." />
-              ) : (
-                <div className="space-y-3">
-                  {reviewQueue.map((template) => (
-                    <div key={template.id} className="rounded-2xl border border-border bg-surface-2 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="font-medium text-text">{template.templateName}</h3>
-                          <p className="mt-1 text-xs text-text-dim">
-                            {template.connection?.phoneDisplayNumber || template.connection?.phoneNumberId || "No connection"}
-                          </p>
-                        </div>
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] ${
-                            template.status === "REJECTED"
-                              ? "border-red-500/30 bg-red-500/10 text-red-300"
-                              : "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                          }`}
-                        >
-                          {template.status}
-                        </span>
-                      </div>
-                      <p className="mt-3 text-sm text-text-muted">
-                        {template.body?.slice(0, 120) || "No body saved."}
-                        {template.body && template.body.length > 120 ? "..." : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
+                <p className="mt-3 flex items-center gap-1 text-xs text-accent"><TrendingUp className="h-3 w-3" />{stat.trend}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        <div className="space-y-6">
-          <section className="rounded-2xl border border-border bg-surface p-5">
-            <h2 className="text-lg font-semibold text-text">30-Day Send Breakdown</h2>
-            <p className="mt-1 text-sm text-text-muted">
-              Status activity pulled from send events in the last 30 days.
-            </p>
-            <div className="mt-5 space-y-3">
-              {([
-                ["DELIVERED", sendStatusMap.DELIVERED || 0],
-                ["READ", sendStatusMap.READ || 0],
-                ["FAILED", sendStatusMap.FAILED || 0],
-                ["BLOCKED", sendStatusMap.BLOCKED || 0],
-                ["SENT", sendStatusMap.SENT || 0],
-              ] as Array<[string, number]>).map(([label, count]) => (
-                <StatusRow
-                  key={label}
-                  label={label}
-                  value={count}
-                  total={Math.max(Object.values(sendStatusMap).reduce((sum, value) => sum + value, 0), 1)}
-                />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {metricsCards.map((metric) => (
+                <Card key={metric.label} className="bg-secondary/50">
+                  <CardContent className="p-5">
+                    <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">{metric.label}</p>
+                    <p className="text-3xl font-semibold text-foreground">{metric.value}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{metric.sublabel}</p>
+                  </CardContent>
+                </Card>
               ))}
             </div>
-          </section>
 
-          <section className="rounded-2xl border border-border bg-surface p-5">
-            <h2 className="text-lg font-semibold text-text">Connection Health</h2>
-            <p className="mt-1 text-sm text-text-muted">Quality rating and throughput headroom for each number.</p>
-            <div className="mt-5 space-y-3">
-              {connections.length === 0 ? (
-                <EmptyState text="No WhatsApp numbers connected yet." compact />
-              ) : (
-                connections.map((connection) => {
-                  const stats = statsByConnection.get(connection.id);
-                  return (
-                    <div key={connection.id} className="rounded-2xl border border-border bg-surface-2 p-4">
-                      <div className="flex items-start justify-between gap-3">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <div>
+                    <CardTitle className="text-base">Recent Campaigns</CardTitle>
+                    <CardDescription>Latest updates across your outbound WhatsApp work.</CardDescription>
+                  </div>
+                  <Button variant="link" className="gap-1 p-0">Open campaigns<ArrowUpRight className="h-3 w-3" /></Button>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {recentCampaigns.map((campaign) => (
+                    <div key={campaign.name} className="flex items-center justify-between rounded-md bg-secondary/50 p-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-2 w-2 rounded-full ${campaign.status === "Active" ? "bg-accent" : "bg-muted-foreground"}`} />
                         <div>
-                          <h3 className="font-medium text-text">
-                            {connection.phoneDisplayNumber || connection.phoneNumberId}
-                          </h3>
-                          <p className="mt-1 text-xs text-text-dim">{connection.phoneNumberId}</p>
+                          <p className="text-sm font-medium text-foreground">{campaign.name}</p>
+                          <p className="text-xs text-muted-foreground">{campaign.time}</p>
                         </div>
-                        <span className="rounded-full border border-border px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-text-muted">
-                          {connection.currentQualityRating}
-                        </span>
                       </div>
-                      <div className="mt-3 grid gap-3 grid-cols-2">
-                        <MiniMetric label="Sent 24h" value={stats?.sentLast24h || 0} />
-                        <MiniMetric label="Remaining" value={stats?.estimatedRemainingToday || 0} />
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-foreground">{campaign.read}/{campaign.sent}</p>
+                        <p className="text-xs text-muted-foreground">read / sent</p>
                       </div>
                     </div>
-                  );
-                })
-              )}
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <div>
+                    <CardTitle className="text-base">Review Queue</CardTitle>
+                    <CardDescription>Templates that still need attention from Meta or from you.</CardDescription>
+                  </div>
+                  <Button variant="link" className="gap-1 p-0">Open templates<ArrowUpRight className="h-3 w-3" /></Button>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {reviewQueue.map((template) => (
+                    <div key={template.name} className="flex items-center justify-between rounded-md bg-secondary/50 p-3">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{template.name}</p>
+                        <p className="text-xs text-muted-foreground">{template.submitted}</p>
+                      </div>
+                      <Badge className={template.status === "Approved" ? "border-accent/30 bg-accent/10 text-accent" : template.status === "Rejected" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-primary/30 bg-primary/10 text-primary"}>{template.status}</Badge>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
             </div>
-          </section>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {contactStats.map((stat) => (
+                <Card key={stat.label}>
+                  <CardContent className="p-5">
+                    <div className="mb-3 flex items-start justify-between">
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">{stat.label}</p>
+                      <stat.icon className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <p className="text-3xl font-semibold text-foreground">{stat.value}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{stat.sublabel}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Connection Health</CardTitle>
+                <CardDescription>Review quality before the next large launch.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {connectionHealth.map((connection) => (
+                  <div key={connection.number} className="space-y-2 rounded-md bg-secondary/50 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-foreground">{connection.number}</span>
+                      <span className="text-xs text-muted-foreground">{connection.status}</span>
+                    </div>
+                    <Progress value={connection.quality} />
+                    <div className="text-xs text-muted-foreground">{connection.quality}% quality score</div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        <MetricCard
-          label="All Contacts"
-          value={contactsAggregate._count._all.toLocaleString("en-ZA")}
-          helper="Total contact records available to segment and target"
-        />
-        <MetricCard
-          label="Excluded Contacts"
-          value={excludedContacts.toLocaleString("en-ZA")}
-          helper="Contacts currently excluded from marketing sends"
-        />
-        <MetricCard
-          label="Failures Recorded"
-          value={totalFailures.toLocaleString("en-ZA")}
-          helper="Combined failed and blocked outcomes across all campaigns"
-        />
-      </section>
-    </div>
-  );
-}
-
-function HeroMetric({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-      <p className="text-[11px] uppercase tracking-[0.18em] text-text-dim">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-text">{value}</p>
-      <p className="mt-2 text-sm text-text-muted">{helper}</p>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-text-dim">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-text">{value}</p>
-      <p className="mt-2 text-sm text-text-muted">{helper}</p>
-    </div>
-  );
-}
-
-function MiniMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-border bg-bg/50 p-3">
-      <p className="text-[10px] uppercase tracking-[0.15em] text-text-dim">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-text">{value.toLocaleString("en-ZA")}</p>
-    </div>
-  );
-}
-
-function StatusRow({
-  label,
-  value,
-  total,
-}: {
-  label: string;
-  value: number;
-  total: number;
-}) {
-  const width = `${Math.max((value / total) * 100, value > 0 ? 8 : 0)}%`;
-
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="text-text-muted">{label}</span>
-        <span className="font-medium text-text">{value.toLocaleString("en-ZA")}</span>
-      </div>
-      <div className="h-2 rounded-full bg-surface-2">
-        <div className="h-full rounded-full bg-accent" style={{ width }} />
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({ text, compact = false }: { text: string; compact?: boolean }) {
-  return (
-    <div
-      className={`rounded-2xl border border-dashed border-border bg-surface-2 text-center text-text-muted ${
-        compact ? "px-4 py-6 text-sm" : "px-6 py-12 text-sm"
-      }`}
-    >
-      {text}
+      </motion.div>
     </div>
   );
 }

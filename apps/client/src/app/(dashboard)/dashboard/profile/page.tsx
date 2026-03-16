@@ -1,13 +1,13 @@
 import { auth } from "@/auth";
+import ProfileForm from "@/components/dashboard/profile/profile-form";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import ProfileForm from "@/components/dashboard/profile/profile-form";
 
 export const metadata = {
   title: "Profile | KasiTek",
 };
 
-export default async function ProfilePage() {
+export default async function DashboardProfilePage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
@@ -26,24 +26,26 @@ export default async function ProfilePage() {
   if (!user) redirect("/login");
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="mb-2 text-3xl font-semibold tracking-tight">Profile</h1>
-        <p className="text-text-muted">
-          Manage your personal account details separately from workspace integrations and channels.
-        </p>
-      </div>
+    <div className="min-h-screen p-6 lg:p-8">
+      <div className="mx-auto max-w-[1600px] space-y-6">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Profile</h1>
+          <p className="mt-2 text-muted-foreground">
+            Manage your personal account details separately from workspace integrations and channels.
+          </p>
+        </div>
 
-      <ProfileForm
-        user={{
-          name: user.name,
-          email: user.email,
-          emailVerified: !!user.emailVerified,
-          phone: user.phone,
-          image: user.image,
-          hasPassword: !!user.password,
-        }}
-      />
+        <ProfileForm
+          user={{
+            name: user.name,
+            email: user.email,
+            emailVerified: !!user.emailVerified,
+            phone: user.phone,
+            image: user.image,
+            hasPassword: !!user.password,
+          }}
+        />
+      </div>
     </div>
   );
 }

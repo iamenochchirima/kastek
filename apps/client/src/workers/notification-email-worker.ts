@@ -30,15 +30,15 @@ function buildNotificationUrl(
   if (entityType === "conversation") {
     const conversationId =
       entityId || (typeof eventPayload.conversationId === "string" ? eventPayload.conversationId : null);
-    return conversationId ? `${baseUrl}/dashboard/inbox/whatsapp/${conversationId}` : null;
+    return conversationId ? `${baseUrl}/dashboard/inbox` : null;
   }
 
   if (entityType === "campaign" && entityId) {
-    return `${baseUrl}/dashboard/campaigns/whatsapp/${entityId}`;
+    return `${baseUrl}/dashboard/campaigns`;
   }
 
   if (entityType === "template") {
-    return `${baseUrl}/dashboard/templates/whatsapp`;
+    return `${baseUrl}/dashboard/templates`;
   }
 
   if (entityType === "connection") {

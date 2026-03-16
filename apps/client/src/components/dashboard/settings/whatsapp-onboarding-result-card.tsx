@@ -114,7 +114,7 @@ export default function WhatsappOnboardingResultCard() {
           Back to Settings
         </Link>
         <Link
-          href="/dashboard/campaigns/whatsapp"
+          href="/dashboard/campaigns"
           className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg no-underline"
         >
           Go to Campaigns

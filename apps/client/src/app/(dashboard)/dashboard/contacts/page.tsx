@@ -1,13 +1,13 @@
 import { auth } from "@/auth";
+import ContactsManager from "@/components/dashboard/contacts/contacts-manager";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import ContactsManager from "@/components/dashboard/contacts/contacts-manager";
 
 export const metadata = {
   title: "Contacts | KasiTek",
 };
 
-export default async function ContactsPage({
+export default async function DashboardContactsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -49,30 +49,29 @@ export default async function ContactsPage({
       : {}),
   };
 
-  const [contacts, allTags, totalContacts, optedInContacts, excludedContacts] =
-    await Promise.all([
-      prisma.whatsappContact.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        take: 500,
-      }),
-      prisma.whatsappContact.findMany({
-        where: { userId: session.user.id },
-        select: { tags: true },
-      }),
-      prisma.whatsappContact.count({
-        where: { userId: session.user.id },
-      }),
-      prisma.whatsappContact.count({
-        where: { userId: session.user.id, optIn: true },
-      }),
-      prisma.whatsappContact.count({
-        where: { userId: session.user.id, excluded: true },
-      }),
-    ]);
+  const [contacts, allTags, totalContacts, optedInContacts, excludedContacts] = await Promise.all([
+    prisma.whatsappContact.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 500,
+    }),
+    prisma.whatsappContact.findMany({
+      where: { userId: session.user.id },
+      select: { tags: true },
+    }),
+    prisma.whatsappContact.count({
+      where: { userId: session.user.id },
+    }),
+    prisma.whatsappContact.count({
+      where: { userId: session.user.id, optIn: true },
+    }),
+    prisma.whatsappContact.count({
+      where: { userId: session.user.id, excluded: true },
+    }),
+  ]);
 
   const tagOptions = Array.from(new Set(allTags.flatMap((item) => item.tags))).sort((a, b) =>
-    a.localeCompare(b)
+    a.localeCompare(b),
   );
 
   return (

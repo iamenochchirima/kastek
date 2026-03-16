@@ -1,49 +1,88 @@
-import Link from "next/link";
+import { auth } from "@/auth";
+import WhatsappTemplateManager from "@/components/dashboard/campaigns/whatsapp-template-manager";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Templates | KasiTek",
 };
 
-const sections = [
-  {
-    title: "Template Library",
-    description: "Browse reusable starter templates and jump into customization from a cleaner catalog.",
-    href: "/dashboard/templates/library",
-    icon: "🧩",
-  },
-  {
-    title: "Your Templates",
-    description: "Create, sync, and manage the WhatsApp templates tied to your account.",
-    href: "/dashboard/templates/whatsapp",
-    icon: "🗂",
-  },
-];
+export default async function DashboardTemplatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ starter?: string; status?: string; create?: string }>;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
 
-export default function TemplatesOverviewPage() {
+  const params = await searchParams;
+  const requestedStatus = typeof params.status === "string" ? params.status.toUpperCase() : "";
+  const allowedStatuses = new Set(["APPROVED", "PENDING", "REJECTED", "DISABLED"]);
+
+  const [templates, connections] = await Promise.all([
+    prisma.whatsappTemplate.findMany({
+      where: {
+        userId: session.user.id,
+        ...(allowedStatuses.has(requestedStatus)
+          ? { status: requestedStatus as "APPROVED" | "PENDING" | "REJECTED" | "DISABLED" }
+          : {}),
+      },
+      include: {
+        connection: {
+          select: {
+            phoneDisplayNumber: true,
+            phoneNumberId: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.whatsappConnection.findMany({
+      where: {
+        userId: session.user.id,
+      },
+      select: {
+        id: true,
+        phoneDisplayNumber: true,
+        phoneNumberId: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="mb-2 text-3xl font-semibold tracking-tight">Templates</h1>
-        <p className="max-w-2xl text-text-muted">
-          Manage reusable message templates from one place. Start with the library, then move into
-          your own approved and pending templates.
-        </p>
-      </div>
+    <div className="min-h-screen p-6 lg:p-8">
+      <div className="mx-auto max-w-[1600px] space-y-6">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Templates</h1>
+          <p className="mt-1 max-w-2xl text-muted-foreground">
+            Create, submit, sync, and manage the WhatsApp templates attached to your account.
+          </p>
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {sections.map((section) => (
-          <div key={section.title} className="rounded-xl border border-border bg-surface p-5">
-            <div className="mb-4 text-3xl">{section.icon}</div>
-            <h2 className="mb-2 text-lg font-semibold text-text">{section.title}</h2>
-            <p className="mb-5 text-sm text-text-muted">{section.description}</p>
-            <Link
-              href={section.href}
-              className="inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg no-underline"
-            >
-              Open {section.title}
-            </Link>
+        {connections.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card p-8 text-sm text-muted-foreground">
+            Connect a WhatsApp number first before managing templates.
           </div>
-        ))}
+        ) : (
+          <WhatsappTemplateManager
+            connections={connections}
+            forceCreateForm={params.create === "1"}
+            initialLibraryItemId={params.starter}
+            templates={templates.map((template) => ({
+              id: template.id,
+              templateName: template.templateName,
+              language: template.language,
+              category: template.category,
+              status: template.status,
+              variablesCount: template.variablesCount,
+              body: template.body,
+              lastSynced: template.lastSynced ? template.lastSynced.toISOString() : null,
+              connectionLabel:
+                template.connection?.phoneDisplayNumber || template.connection?.phoneNumberId || "-",
+            }))}
+          />
+        )}
       </div>
     </div>
   );
