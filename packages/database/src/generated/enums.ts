@@ -117,6 +117,15 @@ export const SocialPublishJobStatus = {
 export type SocialPublishJobStatus = (typeof SocialPublishJobStatus)[keyof typeof SocialPublishJobStatus]
 
 
+export const SocialVariantStatus = {
+  DRAFT: 'DRAFT',
+  APPROVED: 'APPROVED',
+  NEEDS_EDITS: 'NEEDS_EDITS'
+} as const
+
+export type SocialVariantStatus = (typeof SocialVariantStatus)[keyof typeof SocialVariantStatus]
+
+
 export const WhatsappTemplateCategory = {
   MARKETING: 'MARKETING',
   UTILITY: 'UTILITY',

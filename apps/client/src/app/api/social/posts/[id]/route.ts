@@ -1,27 +1,68 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { socialChannelPublicSelect } from "@/lib/social/db";
 import {
   SocialPlatform,
   SocialPostStatus,
   SocialPublishJobStatus,
+  SocialVariantStatus,
 } from "@kasitek/database";
 
 export const runtime = "nodejs";
 
 const platformValues = Object.values(SocialPlatform);
-const statusValues = Object.values(SocialPostStatus);
+const postStatusValues = Object.values(SocialPostStatus);
+const variantStatusValues = Object.values(SocialVariantStatus);
 
 function isValidDate(value?: string | null) {
   if (!value) return false;
   return !Number.isNaN(new Date(value).valueOf());
 }
 
+function normalizeVariants({
+  variants,
+  channels,
+  fallbackContent,
+}: {
+  variants:
+    | Array<{
+        platform: SocialPlatform;
+        content: string;
+        status?: SocialVariantStatus;
+        aiGenerated?: boolean;
+        metadata?: unknown;
+      }>
+    | undefined;
+  channels: SocialPlatform[];
+  fallbackContent: string;
+}) {
+  return channels.map((platform) => {
+    const existing = variants?.find((variant) => variant.platform === platform);
+
+    return {
+      platform,
+      content: existing?.content?.trim() || fallbackContent,
+      status:
+        existing?.status && variantStatusValues.includes(existing.status)
+          ? existing.status
+          : SocialVariantStatus.DRAFT,
+      aiGenerated: Boolean(existing?.aiGenerated),
+      metadata: (existing?.metadata as object | undefined) || undefined,
+    };
+  });
+}
+
 async function getScopedPost(userId: string, id: string) {
   return prisma.socialPost.findFirst({
     where: { id, userId },
     include: {
-      primaryChannel: true,
+      primaryChannel: {
+        select: socialChannelPublicSelect,
+      },
+      variants: {
+        orderBy: { createdAt: "asc" },
+      },
       publishJobs: {
         orderBy: { createdAt: "desc" },
       },
@@ -31,7 +72,7 @@ async function getScopedPost(userId: string, id: string) {
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const session = await auth();
@@ -52,14 +93,14 @@ export async function GET(
   } catch {
     return NextResponse.json(
       { error: "Failed to fetch social post" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const session = await auth();
@@ -72,6 +113,7 @@ export async function PATCH(
     const { id } = await params;
     const existing = await prisma.socialPost.findFirst({
       where: { id, userId },
+      include: { variants: true },
     });
 
     if (!existing) {
@@ -86,13 +128,20 @@ export async function PATCH(
       status?: SocialPostStatus;
       scheduledFor?: string | null;
       primaryChannelId?: string | null;
+      variants?: Array<{
+        platform: SocialPlatform;
+        content: string;
+        status?: SocialVariantStatus;
+        aiGenerated?: boolean;
+        metadata?: unknown;
+      }>;
       metadata?: unknown;
     };
 
     if (body.content !== undefined && !body.content.trim()) {
       return NextResponse.json(
         { error: "Post content cannot be empty" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -104,21 +153,21 @@ export async function PATCH(
     if (channels.length === 0) {
       return NextResponse.json(
         { error: "At least one publishing channel is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    if (body.status && !statusValues.includes(body.status)) {
+    if (body.status && !postStatusValues.includes(body.status)) {
       return NextResponse.json(
         { error: "Invalid post status" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (body.scheduledFor && !isValidDate(body.scheduledFor)) {
       return NextResponse.json(
         { error: "Scheduled time is invalid" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -134,7 +183,7 @@ export async function PATCH(
         if (!channel) {
           return NextResponse.json(
             { error: "Primary channel was not found" },
-            { status: 404 }
+            { status: 404 },
           );
         }
 
@@ -142,22 +191,31 @@ export async function PATCH(
       }
     }
 
+    const nextContent =
+      body.content === undefined ? existing.content : body.content.trim();
+    const normalizedVariants = normalizeVariants({
+      variants: body.variants,
+      channels,
+      fallbackContent: nextContent,
+    });
+    const nextStatus = body.status ?? existing.status;
+    const nextScheduledFor =
+      body.scheduledFor === undefined
+        ? existing.scheduledFor
+        : body.scheduledFor
+          ? new Date(body.scheduledFor)
+          : null;
+
     await prisma.$transaction(async (tx) => {
       await tx.socialPost.update({
         where: { id },
         data: {
           title: body.title === undefined ? existing.title : body.title?.trim() || null,
-          prompt:
-            body.prompt === undefined ? existing.prompt : body.prompt?.trim() || null,
-          content: body.content === undefined ? existing.content : body.content.trim(),
+          prompt: body.prompt === undefined ? existing.prompt : body.prompt?.trim() || null,
+          content: nextContent,
           channels,
-          status: body.status ?? existing.status,
-          scheduledFor:
-            body.scheduledFor === undefined
-              ? existing.scheduledFor
-              : body.scheduledFor
-                ? new Date(body.scheduledFor)
-                : null,
+          status: nextStatus,
+          scheduledFor: nextScheduledFor,
           primaryChannelId,
           metadata:
             body.metadata === undefined
@@ -166,43 +224,57 @@ export async function PATCH(
         },
       });
 
+      await tx.socialPostVariant.deleteMany({
+        where: { postId: id },
+      });
+
+      await tx.socialPostVariant.createMany({
+        data: normalizedVariants.map((variant) => ({
+          postId: id,
+          platform: variant.platform,
+          content: variant.content,
+          status: variant.status,
+          aiGenerated: variant.aiGenerated,
+          metadata: variant.metadata,
+        })),
+      });
+
       await tx.socialPublishJob.deleteMany({
         where: { postId: id },
       });
 
+      const savedVariants = await tx.socialPostVariant.findMany({
+        where: { postId: id },
+      });
+
       await tx.socialPublishJob.createMany({
-        data: channels.map((platform) => ({
+        data: savedVariants.map((variant) => ({
           userId,
           postId: id,
-          platform,
+          variantId: variant.id,
+          platform: variant.platform,
           status:
-            (body.status ?? existing.status) === SocialPostStatus.SCHEDULED
+            nextStatus === SocialPostStatus.SCHEDULED
               ? SocialPublishJobStatus.QUEUED
               : SocialPublishJobStatus.PENDING,
-          scheduledFor:
-            body.scheduledFor === undefined
-              ? existing.scheduledFor
-              : body.scheduledFor
-                ? new Date(body.scheduledFor)
-                : null,
+          scheduledFor: nextScheduledFor,
         })),
       });
     });
 
     const post = await getScopedPost(userId, id);
-
     return NextResponse.json({ post });
   } catch {
     return NextResponse.json(
       { error: "Failed to update social post" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const session = await auth();
@@ -213,7 +285,6 @@ export async function DELETE(
     }
 
     const { id } = await params;
-
     const existing = await prisma.socialPost.findFirst({
       where: { id, userId },
     });
@@ -230,7 +301,7 @@ export async function DELETE(
   } catch {
     return NextResponse.json(
       { error: "Failed to delete social post" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

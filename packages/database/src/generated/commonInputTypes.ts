@@ -514,6 +514,23 @@ export type EnumSocialPostStatusWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedEnumSocialPostStatusFilter<$PrismaModel>
 }
 
+export type EnumSocialVariantStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialVariantStatus | Prisma.EnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialVariantStatus[] | Prisma.ListEnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialVariantStatus[] | Prisma.ListEnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialVariantStatusFilter<$PrismaModel> | $Enums.SocialVariantStatus
+}
+
+export type EnumSocialVariantStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialVariantStatus | Prisma.EnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialVariantStatus[] | Prisma.ListEnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialVariantStatus[] | Prisma.ListEnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialVariantStatusWithAggregatesFilter<$PrismaModel> | $Enums.SocialVariantStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSocialVariantStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSocialVariantStatusFilter<$PrismaModel>
+}
+
 export type EnumSocialPublishJobStatusFilter<$PrismaModel = never> = {
   equals?: $Enums.SocialPublishJobStatus | Prisma.EnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
   in?: $Enums.SocialPublishJobStatus[] | Prisma.ListEnumSocialPublishJobStatusFieldRefInput<$PrismaModel>
@@ -1045,6 +1062,23 @@ export type NestedEnumSocialPostStatusWithAggregatesFilter<$PrismaModel = never>
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumSocialPostStatusFilter<$PrismaModel>
   _max?: Prisma.NestedEnumSocialPostStatusFilter<$PrismaModel>
+}
+
+export type NestedEnumSocialVariantStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialVariantStatus | Prisma.EnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialVariantStatus[] | Prisma.ListEnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialVariantStatus[] | Prisma.ListEnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialVariantStatusFilter<$PrismaModel> | $Enums.SocialVariantStatus
+}
+
+export type NestedEnumSocialVariantStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SocialVariantStatus | Prisma.EnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SocialVariantStatus[] | Prisma.ListEnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SocialVariantStatus[] | Prisma.ListEnumSocialVariantStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSocialVariantStatusWithAggregatesFilter<$PrismaModel> | $Enums.SocialVariantStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSocialVariantStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSocialVariantStatusFilter<$PrismaModel>
 }
 
 export type NestedEnumSocialPublishJobStatusFilter<$PrismaModel = never> = {

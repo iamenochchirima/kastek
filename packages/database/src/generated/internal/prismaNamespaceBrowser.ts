@@ -75,6 +75,7 @@ export const ModelName = {
   WhatsappConnection: 'WhatsappConnection',
   SocialChannelConnection: 'SocialChannelConnection',
   SocialPost: 'SocialPost',
+  SocialPostVariant: 'SocialPostVariant',
   SocialPublishJob: 'SocialPublishJob',
   WhatsappContact: 'WhatsappContact',
   WhatsappTemplate: 'WhatsappTemplate',
@@ -546,10 +547,26 @@ export const SocialPostScalarFieldEnum = {
 export type SocialPostScalarFieldEnum = (typeof SocialPostScalarFieldEnum)[keyof typeof SocialPostScalarFieldEnum]
 
 
+export const SocialPostVariantScalarFieldEnum = {
+  id: 'id',
+  postId: 'postId',
+  platform: 'platform',
+  content: 'content',
+  status: 'status',
+  aiGenerated: 'aiGenerated',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SocialPostVariantScalarFieldEnum = (typeof SocialPostVariantScalarFieldEnum)[keyof typeof SocialPostVariantScalarFieldEnum]
+
+
 export const SocialPublishJobScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
   postId: 'postId',
+  variantId: 'variantId',
   channelConnectionId: 'channelConnectionId',
   platform: 'platform',
   status: 'status',

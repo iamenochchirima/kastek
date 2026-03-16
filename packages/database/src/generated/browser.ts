@@ -138,6 +138,11 @@ export type SocialChannelConnection = Prisma.SocialChannelConnectionModel
  */
 export type SocialPost = Prisma.SocialPostModel
 /**
+ * Model SocialPostVariant
+ * 
+ */
+export type SocialPostVariant = Prisma.SocialPostVariantModel
+/**
  * Model SocialPublishJob
  * 
  */

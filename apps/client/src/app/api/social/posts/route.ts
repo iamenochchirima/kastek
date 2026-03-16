@@ -1,20 +1,56 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { socialChannelPublicSelect } from "@/lib/social/db";
 import {
   SocialPlatform,
   SocialPostStatus,
   SocialPublishJobStatus,
+  SocialVariantStatus,
 } from "@kasitek/database";
 
 export const runtime = "nodejs";
 
 const platformValues = Object.values(SocialPlatform);
 const statusValues = Object.values(SocialPostStatus);
+const variantStatusValues = Object.values(SocialVariantStatus);
 
 function isValidDate(value?: string | null) {
   if (!value) return false;
   return !Number.isNaN(new Date(value).valueOf());
+}
+
+function normalizeVariants({
+  variants,
+  channels,
+  fallbackContent,
+}: {
+  variants:
+    | Array<{
+        platform: SocialPlatform;
+        content: string;
+        status?: SocialVariantStatus;
+        aiGenerated?: boolean;
+        metadata?: unknown;
+      }>
+    | undefined;
+  channels: SocialPlatform[];
+  fallbackContent: string;
+}) {
+  return channels.map((platform) => {
+    const existing = variants?.find((variant) => variant.platform === platform);
+
+    return {
+      platform,
+      content: existing?.content?.trim() || fallbackContent,
+      status:
+        existing?.status && variantStatusValues.includes(existing.status)
+          ? existing.status
+          : SocialVariantStatus.DRAFT,
+      aiGenerated: Boolean(existing?.aiGenerated),
+      metadata: (existing?.metadata as object | undefined) || undefined,
+    };
+  });
 }
 
 export async function GET() {
@@ -29,7 +65,12 @@ export async function GET() {
     const posts = await prisma.socialPost.findMany({
       where: { userId },
       include: {
-        primaryChannel: true,
+        primaryChannel: {
+          select: socialChannelPublicSelect,
+        },
+        variants: {
+          orderBy: { createdAt: "asc" },
+        },
         publishJobs: {
           orderBy: { createdAt: "desc" },
         },
@@ -63,6 +104,13 @@ export async function POST(req: Request) {
       status?: SocialPostStatus;
       scheduledFor?: string | null;
       primaryChannelId?: string | null;
+      variants?: Array<{
+        platform: SocialPlatform;
+        content: string;
+        status?: SocialVariantStatus;
+        aiGenerated?: boolean;
+        metadata?: unknown;
+      }>;
       metadata?: unknown;
     };
 
@@ -117,6 +165,12 @@ export async function POST(req: Request) {
       primaryChannelId = channel.id;
     }
 
+    const normalizedVariants = normalizeVariants({
+      variants: body.variants,
+      channels,
+      fallbackContent: body.content.trim(),
+    });
+
     const post = await prisma.socialPost.create({
       data: {
         userId,
@@ -128,10 +182,13 @@ export async function POST(req: Request) {
         scheduledFor: body.scheduledFor ? new Date(body.scheduledFor) : null,
         primaryChannelId,
         metadata: body.metadata as object | undefined,
+        variants: {
+          create: normalizedVariants,
+        },
         publishJobs: {
-          create: channels.map((platform) => ({
+          create: normalizedVariants.map((variant) => ({
             userId,
-            platform,
+            platform: variant.platform,
             status:
               body.status === SocialPostStatus.SCHEDULED
                 ? SocialPublishJobStatus.QUEUED
@@ -140,15 +197,43 @@ export async function POST(req: Request) {
           })),
         },
       },
+    });
+
+    const savedVariants = await prisma.socialPostVariant.findMany({
+      where: { postId: post.id },
+    });
+
+    await prisma.$transaction(
+      savedVariants.map((variant) =>
+        prisma.socialPublishJob.updateMany({
+          where: {
+            postId: post.id,
+            platform: variant.platform,
+            variantId: null,
+          },
+          data: {
+            variantId: variant.id,
+          },
+        }),
+      ),
+    );
+
+    const hydratedPost = await prisma.socialPost.findUnique({
+      where: { id: post.id },
       include: {
-        primaryChannel: true,
+        primaryChannel: {
+          select: socialChannelPublicSelect,
+        },
+        variants: {
+          orderBy: { createdAt: "asc" },
+        },
         publishJobs: {
           orderBy: { createdAt: "desc" },
         },
       },
     });
 
-    return NextResponse.json({ post }, { status: 201 });
+    return NextResponse.json({ post: hydratedPost }, { status: 201 });
   } catch {
     return NextResponse.json(
       { error: "Failed to create social post" },

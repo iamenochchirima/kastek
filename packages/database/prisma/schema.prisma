@@ -556,6 +556,12 @@ enum SocialPublishJobStatus {
   CANCELED
 }
 
+enum SocialVariantStatus {
+  DRAFT
+  APPROVED
+  NEEDS_EDITS
+}
+
 enum WhatsappTemplateCategory {
   MARKETING
   UTILITY
@@ -659,6 +665,7 @@ model SocialPost {
   publishedAt       DateTime?
   metadata          Json?
 
+  variants          SocialPostVariant[]
   publishJobs       SocialPublishJob[]
 
   createdAt         DateTime           @default(now())
@@ -669,6 +676,26 @@ model SocialPost {
   @@index([primaryChannelId])
 }
 
+model SocialPostVariant {
+  id                String              @id @default(cuid())
+  postId            String
+  post              SocialPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  platform          SocialPlatform
+  content           String              @db.Text
+  status            SocialVariantStatus @default(DRAFT)
+  aiGenerated       Boolean             @default(false)
+  metadata          Json?
+
+  publishJobs       SocialPublishJob[]
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([postId, platform])
+  @@index([platform, status])
+}
+
 model SocialPublishJob {
   id                String                 @id @default(cuid())
   userId            String
@@ -676,6 +703,9 @@ model SocialPublishJob {
 
   postId            String
   post              SocialPost             @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  variantId         String?
+  variant           SocialPostVariant?     @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   channelConnectionId String?
   channelConnection SocialChannelConnection? @relation(fields: [channelConnectionId], references: [id], onDelete: SetNull)
@@ -693,6 +723,7 @@ model SocialPublishJob {
 
   @@index([userId, status])
   @@index([postId, platform])
+  @@index([variantId])
   @@index([channelConnectionId])
   @@index([scheduledFor])
 }

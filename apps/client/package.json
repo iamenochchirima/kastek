@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "worker:whatsapp": "node scripts/run-whatsapp-workers.mjs",
+    "worker:social": "tsx src/workers/social-publishing-worker.ts",
     "worker:whatsapp-marketing": "tsx src/workers/whatsapp-marketing-worker.ts",
     "worker:whatsapp-webhook": "tsx src/workers/whatsapp-webhook-worker.ts",
     "worker:whatsapp-inbox": "tsx src/workers/whatsapp-inbox-send-worker.ts",

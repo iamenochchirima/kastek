@@ -1,0 +1,355 @@
+"use client";
+
+import {
+  AlertTriangle,
+  CalendarRange,
+  CheckCircle2,
+  Clock3,
+  Facebook,
+  FileAudio,
+  FileImage,
+  FileText,
+  FileVideo,
+  Instagram,
+  Layers3,
+  Linkedin,
+  MessageCircleMore,
+  Send,
+  Sparkles,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+
+export type SocialPlatform =
+  | "FACEBOOK"
+  | "INSTAGRAM"
+  | "LINKEDIN"
+  | "X"
+  | "WHATSAPP_STATUS";
+
+export type SocialChannelStatus = "CONNECTED" | "DISCONNECTED" | "NEEDS_REAUTH";
+export type SocialPostStatus = "DRAFT" | "SCHEDULED" | "PROCESSING" | "PUBLISHED" | "FAILED";
+export type SocialPublishJobStatus =
+  | "PENDING"
+  | "QUEUED"
+  | "PROCESSING"
+  | "PUBLISHED"
+  | "FAILED"
+  | "CANCELED";
+export type SocialVariantStatus = "DRAFT" | "APPROVED" | "NEEDS_EDITS";
+
+export type SocialChannelConnection = {
+  id: string;
+  userId: string;
+  platform: SocialPlatform;
+  status: SocialChannelStatus;
+  displayName: string;
+  handle: string | null;
+  externalAccountId: string | null;
+  metadata: Record<string, unknown> | null;
+  lastSyncedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SocialPublishJob = {
+  id: string;
+  userId: string;
+  postId: string;
+  variantId: string | null;
+  channelConnectionId: string | null;
+  platform: SocialPlatform;
+  status: SocialPublishJobStatus;
+  scheduledFor: string | null;
+  publishedAt: string | null;
+  externalPostId: string | null;
+  errorMessage: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SocialPostVariant = {
+  id: string;
+  postId: string;
+  platform: SocialPlatform;
+  content: string;
+  status: SocialVariantStatus;
+  aiGenerated: boolean;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SocialPost = {
+  id: string;
+  userId: string;
+  primaryChannelId: string | null;
+  title: string | null;
+  prompt: string | null;
+  content: string;
+  channels: SocialPlatform[];
+  status: SocialPostStatus;
+  scheduledFor: string | null;
+  publishedAt: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  primaryChannel?: SocialChannelConnection | null;
+  variants?: SocialPostVariant[];
+  publishJobs?: SocialPublishJob[];
+};
+
+export const SOCIAL_PLATFORM_ORDER: SocialPlatform[] = [
+  "FACEBOOK",
+  "INSTAGRAM",
+  "LINKEDIN",
+  "X",
+  "WHATSAPP_STATUS",
+];
+
+export const SOCIAL_POST_STATUSES: SocialPostStatus[] = [
+  "DRAFT",
+  "SCHEDULED",
+  "PROCESSING",
+  "PUBLISHED",
+  "FAILED",
+];
+
+export function getPlatformLabel(platform: SocialPlatform) {
+  if (platform === "FACEBOOK") return "Facebook";
+  if (platform === "INSTAGRAM") return "Instagram";
+  if (platform === "LINKEDIN") return "LinkedIn";
+  if (platform === "X") return "X";
+  return "WhatsApp Status";
+}
+
+export function getPlatformDescription(platform: SocialPlatform) {
+  if (platform === "FACEBOOK") return "Community updates, offers, and local reach.";
+  if (platform === "INSTAGRAM") return "Visual storytelling, reels, and product highlights.";
+  if (platform === "LINKEDIN") return "Professional updates and authority content.";
+  if (platform === "X") return "Fast-moving commentary, launches, and live updates.";
+  return "Short-form reminders and high-visibility status content.";
+}
+
+export function getPlatformIcon(platform: SocialPlatform): LucideIcon {
+  if (platform === "FACEBOOK") return Facebook;
+  if (platform === "INSTAGRAM") return Instagram;
+  if (platform === "LINKEDIN") return Linkedin;
+  if (platform === "X") return X;
+  return MessageCircleMore;
+}
+
+export function getPlatformTone(platform: SocialPlatform) {
+  if (platform === "FACEBOOK") return "border-blue-500/30 bg-blue-500/10 text-blue-300";
+  if (platform === "INSTAGRAM") return "border-pink-500/30 bg-pink-500/10 text-pink-300";
+  if (platform === "LINKEDIN") return "border-cyan-500/30 bg-cyan-500/10 text-cyan-300";
+  if (platform === "X") return "border-slate-400/30 bg-slate-400/10 text-slate-200";
+  return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+}
+
+export function getChannelStatusMeta(status: SocialChannelStatus) {
+  if (status === "CONNECTED") {
+    return {
+      label: "Connected",
+      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+      actionLabel: "Reconnect",
+    };
+  }
+
+  if (status === "NEEDS_REAUTH") {
+    return {
+      label: "Needs Reauth",
+      className: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+      actionLabel: "Reconnect",
+    };
+  }
+
+  return {
+    label: "Disconnected",
+    className: "border-border bg-background text-muted-foreground",
+    actionLabel: "Connect",
+  };
+}
+
+export function getPostStatusMeta(status: SocialPostStatus) {
+  if (status === "DRAFT") {
+    return {
+      label: "Draft",
+      className: "border-border bg-background text-muted-foreground",
+      icon: FileText,
+    };
+  }
+
+  if (status === "SCHEDULED") {
+    return {
+      label: "Scheduled",
+      className: "border-primary/30 bg-primary/10 text-primary",
+      icon: CalendarRange,
+    };
+  }
+
+  if (status === "PROCESSING") {
+    return {
+      label: "Processing",
+      className: "border-sky-500/30 bg-sky-500/10 text-sky-300",
+      icon: Sparkles,
+    };
+  }
+
+  if (status === "PUBLISHED") {
+    return {
+      label: "Published",
+      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+      icon: Send,
+    };
+  }
+
+  return {
+    label: "Failed",
+    className: "border-red-500/30 bg-red-500/10 text-red-300",
+    icon: Clock3,
+  };
+}
+
+export function getPublishJobStatusMeta(status: SocialPublishJobStatus) {
+  if (status === "PENDING") {
+    return {
+      label: "Pending",
+      className: "border-border bg-background text-muted-foreground",
+      icon: Clock3,
+    };
+  }
+
+  if (status === "QUEUED") {
+    return {
+      label: "Queued",
+      className: "border-primary/30 bg-primary/10 text-primary",
+      icon: CalendarRange,
+    };
+  }
+
+  if (status === "PROCESSING") {
+    return {
+      label: "Processing",
+      className: "border-sky-500/30 bg-sky-500/10 text-sky-300",
+      icon: Sparkles,
+    };
+  }
+
+  if (status === "PUBLISHED") {
+    return {
+      label: "Published",
+      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+      icon: Send,
+    };
+  }
+
+  if (status === "FAILED") {
+    return {
+      label: "Failed",
+      className: "border-red-500/30 bg-red-500/10 text-red-300",
+      icon: AlertTriangle,
+    };
+  }
+
+  return {
+    label: "Canceled",
+    className: "border-border bg-background text-muted-foreground",
+    icon: X,
+  };
+}
+
+export function formatDateTime(value?: string | null) {
+  if (!value) return "Not scheduled";
+
+  const date = new Date(value);
+  return date.toLocaleString("en-ZA", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function formatDateInputValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const hour = `${date.getHours()}`.padStart(2, "0");
+  const minute = `${date.getMinutes()}`.padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+export function trimTrailingHandle(value: string) {
+  return value.replace(/^@+/, "").trim();
+}
+
+export function groupPostsByStatus(posts: SocialPost[]) {
+  return {
+    ideas: posts.filter((post) => !post.content.trim() && post.prompt?.trim()),
+    drafting: posts.filter((post) => post.status === "DRAFT"),
+    approved: posts.filter((post) => post.status === "SCHEDULED"),
+    published: posts.filter((post) => post.status === "PUBLISHED"),
+  };
+}
+
+export function getScheduledPosts(posts: SocialPost[]) {
+  return posts
+    .filter((post) => post.scheduledFor)
+    .sort((left, right) => {
+      const leftTime = new Date(left.scheduledFor as string).valueOf();
+      const rightTime = new Date(right.scheduledFor as string).valueOf();
+      return leftTime - rightTime;
+    });
+}
+
+export function getAnalyticsSnapshot(posts: SocialPost[], channels: SocialChannelConnection[]) {
+  const published = posts.filter((post) => post.status === "PUBLISHED");
+  const scheduled = posts.filter((post) => post.status === "SCHEDULED");
+  const topPlatform = [...channels]
+    .sort((left, right) => {
+      const leftCount = posts.filter((post) => post.channels.includes(left.platform)).length;
+      const rightCount = posts.filter((post) => post.channels.includes(right.platform)).length;
+      return rightCount - leftCount;
+    })[0];
+
+  return {
+    publishedCount: published.length,
+    scheduledCount: scheduled.length,
+    activeChannels: channels.filter((channel) => channel.status === "CONNECTED").length,
+    topPlatform: topPlatform ? getPlatformLabel(topPlatform.platform) : "None yet",
+  };
+}
+
+export function getReplyPreviewIcon(kind: "image" | "video" | "audio" | "document" | "sticker") {
+  if (kind === "image" || kind === "sticker") return FileImage;
+  if (kind === "video") return FileVideo;
+  if (kind === "audio") return FileAudio;
+  return FileText;
+}
+
+export const postStatusSummaryCards = [
+  {
+    key: "scheduled",
+    label: "Scheduled",
+    icon: CalendarRange,
+  },
+  {
+    key: "published",
+    label: "Published",
+    icon: Send,
+  },
+  {
+    key: "connected",
+    label: "Connected",
+    icon: CheckCircle2,
+  },
+  {
+    key: "coverage",
+    label: "Coverage",
+    icon: Layers3,
+  },
+] as const;

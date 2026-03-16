@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { socialChannelPublicSelect } from "@/lib/social/db";
 import {
   Prisma,
   SocialChannelStatus,
@@ -23,6 +24,7 @@ export async function GET() {
 
     const channels = await prisma.socialChannelConnection.findMany({
       where: { userId },
+      select: socialChannelPublicSelect,
       orderBy: [{ platform: "asc" }, { createdAt: "desc" }],
     });
 
@@ -84,6 +86,7 @@ export async function POST(req: Request) {
         status: body.status ?? SocialChannelStatus.CONNECTED,
         metadata: body.metadata as object | undefined,
       },
+      select: socialChannelPublicSelect,
     });
 
     return NextResponse.json({ channel }, { status: 201 });

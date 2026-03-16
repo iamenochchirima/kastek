@@ -28,6 +28,7 @@ export type SocialPublishJobMinAggregateOutputType = {
   id: string | null
   userId: string | null
   postId: string | null
+  variantId: string | null
   channelConnectionId: string | null
   platform: $Enums.SocialPlatform | null
   status: $Enums.SocialPublishJobStatus | null
@@ -43,6 +44,7 @@ export type SocialPublishJobMaxAggregateOutputType = {
   id: string | null
   userId: string | null
   postId: string | null
+  variantId: string | null
   channelConnectionId: string | null
   platform: $Enums.SocialPlatform | null
   status: $Enums.SocialPublishJobStatus | null
@@ -58,6 +60,7 @@ export type SocialPublishJobCountAggregateOutputType = {
   id: number
   userId: number
   postId: number
+  variantId: number
   channelConnectionId: number
   platform: number
   status: number
@@ -76,6 +79,7 @@ export type SocialPublishJobMinAggregateInputType = {
   id?: true
   userId?: true
   postId?: true
+  variantId?: true
   channelConnectionId?: true
   platform?: true
   status?: true
@@ -91,6 +95,7 @@ export type SocialPublishJobMaxAggregateInputType = {
   id?: true
   userId?: true
   postId?: true
+  variantId?: true
   channelConnectionId?: true
   platform?: true
   status?: true
@@ -106,6 +111,7 @@ export type SocialPublishJobCountAggregateInputType = {
   id?: true
   userId?: true
   postId?: true
+  variantId?: true
   channelConnectionId?: true
   platform?: true
   status?: true
@@ -195,6 +201,7 @@ export type SocialPublishJobGroupByOutputType = {
   id: string
   userId: string
   postId: string
+  variantId: string | null
   channelConnectionId: string | null
   platform: $Enums.SocialPlatform
   status: $Enums.SocialPublishJobStatus
@@ -232,6 +239,7 @@ export type SocialPublishJobWhereInput = {
   id?: Prisma.StringFilter<"SocialPublishJob"> | string
   userId?: Prisma.StringFilter<"SocialPublishJob"> | string
   postId?: Prisma.StringFilter<"SocialPublishJob"> | string
+  variantId?: Prisma.StringNullableFilter<"SocialPublishJob"> | string | null
   channelConnectionId?: Prisma.StringNullableFilter<"SocialPublishJob"> | string | null
   platform?: Prisma.EnumSocialPlatformFilter<"SocialPublishJob"> | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFilter<"SocialPublishJob"> | $Enums.SocialPublishJobStatus
@@ -244,6 +252,7 @@ export type SocialPublishJobWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"SocialPublishJob"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   post?: Prisma.XOR<Prisma.SocialPostScalarRelationFilter, Prisma.SocialPostWhereInput>
+  variant?: Prisma.XOR<Prisma.SocialPostVariantNullableScalarRelationFilter, Prisma.SocialPostVariantWhereInput> | null
   channelConnection?: Prisma.XOR<Prisma.SocialChannelConnectionNullableScalarRelationFilter, Prisma.SocialChannelConnectionWhereInput> | null
 }
 
@@ -251,6 +260,7 @@ export type SocialPublishJobOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   postId?: Prisma.SortOrder
+  variantId?: Prisma.SortOrderInput | Prisma.SortOrder
   channelConnectionId?: Prisma.SortOrderInput | Prisma.SortOrder
   platform?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -263,6 +273,7 @@ export type SocialPublishJobOrderByWithRelationInput = {
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
   post?: Prisma.SocialPostOrderByWithRelationInput
+  variant?: Prisma.SocialPostVariantOrderByWithRelationInput
   channelConnection?: Prisma.SocialChannelConnectionOrderByWithRelationInput
 }
 
@@ -273,6 +284,7 @@ export type SocialPublishJobWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.SocialPublishJobWhereInput | Prisma.SocialPublishJobWhereInput[]
   userId?: Prisma.StringFilter<"SocialPublishJob"> | string
   postId?: Prisma.StringFilter<"SocialPublishJob"> | string
+  variantId?: Prisma.StringNullableFilter<"SocialPublishJob"> | string | null
   channelConnectionId?: Prisma.StringNullableFilter<"SocialPublishJob"> | string | null
   platform?: Prisma.EnumSocialPlatformFilter<"SocialPublishJob"> | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFilter<"SocialPublishJob"> | $Enums.SocialPublishJobStatus
@@ -285,6 +297,7 @@ export type SocialPublishJobWhereUniqueInput = Prisma.AtLeast<{
   updatedAt?: Prisma.DateTimeFilter<"SocialPublishJob"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   post?: Prisma.XOR<Prisma.SocialPostScalarRelationFilter, Prisma.SocialPostWhereInput>
+  variant?: Prisma.XOR<Prisma.SocialPostVariantNullableScalarRelationFilter, Prisma.SocialPostVariantWhereInput> | null
   channelConnection?: Prisma.XOR<Prisma.SocialChannelConnectionNullableScalarRelationFilter, Prisma.SocialChannelConnectionWhereInput> | null
 }, "id">
 
@@ -292,6 +305,7 @@ export type SocialPublishJobOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   postId?: Prisma.SortOrder
+  variantId?: Prisma.SortOrderInput | Prisma.SortOrder
   channelConnectionId?: Prisma.SortOrderInput | Prisma.SortOrder
   platform?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -314,6 +328,7 @@ export type SocialPublishJobScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"SocialPublishJob"> | string
   userId?: Prisma.StringWithAggregatesFilter<"SocialPublishJob"> | string
   postId?: Prisma.StringWithAggregatesFilter<"SocialPublishJob"> | string
+  variantId?: Prisma.StringNullableWithAggregatesFilter<"SocialPublishJob"> | string | null
   channelConnectionId?: Prisma.StringNullableWithAggregatesFilter<"SocialPublishJob"> | string | null
   platform?: Prisma.EnumSocialPlatformWithAggregatesFilter<"SocialPublishJob"> | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusWithAggregatesFilter<"SocialPublishJob"> | $Enums.SocialPublishJobStatus
@@ -339,6 +354,7 @@ export type SocialPublishJobCreateInput = {
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutSocialPublishJobsInput
   post: Prisma.SocialPostCreateNestedOneWithoutPublishJobsInput
+  variant?: Prisma.SocialPostVariantCreateNestedOneWithoutPublishJobsInput
   channelConnection?: Prisma.SocialChannelConnectionCreateNestedOneWithoutPublishJobsInput
 }
 
@@ -346,6 +362,7 @@ export type SocialPublishJobUncheckedCreateInput = {
   id?: string
   userId: string
   postId: string
+  variantId?: string | null
   channelConnectionId?: string | null
   platform: $Enums.SocialPlatform
   status?: $Enums.SocialPublishJobStatus
@@ -371,6 +388,7 @@ export type SocialPublishJobUpdateInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutSocialPublishJobsNestedInput
   post?: Prisma.SocialPostUpdateOneRequiredWithoutPublishJobsNestedInput
+  variant?: Prisma.SocialPostVariantUpdateOneWithoutPublishJobsNestedInput
   channelConnection?: Prisma.SocialChannelConnectionUpdateOneWithoutPublishJobsNestedInput
 }
 
@@ -378,6 +396,7 @@ export type SocialPublishJobUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   postId?: Prisma.StringFieldUpdateOperationsInput | string
+  variantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   channelConnectionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
@@ -394,6 +413,7 @@ export type SocialPublishJobCreateManyInput = {
   id?: string
   userId: string
   postId: string
+  variantId?: string | null
   channelConnectionId?: string | null
   platform: $Enums.SocialPlatform
   status?: $Enums.SocialPublishJobStatus
@@ -423,6 +443,7 @@ export type SocialPublishJobUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   postId?: Prisma.StringFieldUpdateOperationsInput | string
+  variantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   channelConnectionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
@@ -449,6 +470,7 @@ export type SocialPublishJobCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   postId?: Prisma.SortOrder
+  variantId?: Prisma.SortOrder
   channelConnectionId?: Prisma.SortOrder
   platform?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -465,6 +487,7 @@ export type SocialPublishJobMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   postId?: Prisma.SortOrder
+  variantId?: Prisma.SortOrder
   channelConnectionId?: Prisma.SortOrder
   platform?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -480,6 +503,7 @@ export type SocialPublishJobMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   postId?: Prisma.SortOrder
+  variantId?: Prisma.SortOrder
   channelConnectionId?: Prisma.SortOrder
   platform?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -617,6 +641,48 @@ export type SocialPublishJobUncheckedUpdateManyWithoutPostNestedInput = {
   deleteMany?: Prisma.SocialPublishJobScalarWhereInput | Prisma.SocialPublishJobScalarWhereInput[]
 }
 
+export type SocialPublishJobCreateNestedManyWithoutVariantInput = {
+  create?: Prisma.XOR<Prisma.SocialPublishJobCreateWithoutVariantInput, Prisma.SocialPublishJobUncheckedCreateWithoutVariantInput> | Prisma.SocialPublishJobCreateWithoutVariantInput[] | Prisma.SocialPublishJobUncheckedCreateWithoutVariantInput[]
+  connectOrCreate?: Prisma.SocialPublishJobCreateOrConnectWithoutVariantInput | Prisma.SocialPublishJobCreateOrConnectWithoutVariantInput[]
+  createMany?: Prisma.SocialPublishJobCreateManyVariantInputEnvelope
+  connect?: Prisma.SocialPublishJobWhereUniqueInput | Prisma.SocialPublishJobWhereUniqueInput[]
+}
+
+export type SocialPublishJobUncheckedCreateNestedManyWithoutVariantInput = {
+  create?: Prisma.XOR<Prisma.SocialPublishJobCreateWithoutVariantInput, Prisma.SocialPublishJobUncheckedCreateWithoutVariantInput> | Prisma.SocialPublishJobCreateWithoutVariantInput[] | Prisma.SocialPublishJobUncheckedCreateWithoutVariantInput[]
+  connectOrCreate?: Prisma.SocialPublishJobCreateOrConnectWithoutVariantInput | Prisma.SocialPublishJobCreateOrConnectWithoutVariantInput[]
+  createMany?: Prisma.SocialPublishJobCreateManyVariantInputEnvelope
+  connect?: Prisma.SocialPublishJobWhereUniqueInput | Prisma.SocialPublishJobWhereUniqueInput[]
+}
+
+export type SocialPublishJobUpdateManyWithoutVariantNestedInput = {
+  create?: Prisma.XOR<Prisma.SocialPublishJobCreateWithoutVariantInput, Prisma.SocialPublishJobUncheckedCreateWithoutVariantInput> | Prisma.SocialPublishJobCreateWithoutVariantInput[] | Prisma.SocialPublishJobUncheckedCreateWithoutVariantInput[]
+  connectOrCreate?: Prisma.SocialPublishJobCreateOrConnectWithoutVariantInput | Prisma.SocialPublishJobCreateOrConnectWithoutVariantInput[]
+  upsert?: Prisma.SocialPublishJobUpsertWithWhereUniqueWithoutVariantInput | Prisma.SocialPublishJobUpsertWithWhereUniqueWithoutVariantInput[]
+  createMany?: Prisma.SocialPublishJobCreateManyVariantInputEnvelope
+  set?: Prisma.SocialPublishJobWhereUniqueInput | Prisma.SocialPublishJobWhereUniqueInput[]
+  disconnect?: Prisma.SocialPublishJobWhereUniqueInput | Prisma.SocialPublishJobWhereUniqueInput[]
+  delete?: Prisma.SocialPublishJobWhereUniqueInput | Prisma.SocialPublishJobWhereUniqueInput[]
+  connect?: Prisma.SocialPublishJobWhereUniqueInput | Prisma.SocialPublishJobWhereUniqueInput[]
+  update?: Prisma.SocialPublishJobUpdateWithWhereUniqueWithoutVariantInput | Prisma.SocialPublishJobUpdateWithWhereUniqueWithoutVariantInput[]
+  updateMany?: Prisma.SocialPublishJobUpdateManyWithWhereWithoutVariantInput | Prisma.SocialPublishJobUpdateManyWithWhereWithoutVariantInput[]
+  deleteMany?: Prisma.SocialPublishJobScalarWhereInput | Prisma.SocialPublishJobScalarWhereInput[]
+}
+
+export type SocialPublishJobUncheckedUpdateManyWithoutVariantNestedInput = {
+  create?: Prisma.XOR<Prisma.SocialPublishJobCreateWithoutVariantInput, Prisma.SocialPublishJobUncheckedCreateWithoutVariantInput> | Prisma.SocialPublishJobCreateWithoutVariantInput[] | Prisma.SocialPublishJobUncheckedCreateWithoutVariantInput[]
+  connectOrCreate?: Prisma.SocialPublishJobCreateOrConnectWithoutVariantInput | Prisma.SocialPublishJobCreateOrConnectWithoutVariantInput[]
+  upsert?: Prisma.SocialPublishJobUpsertWithWhereUniqueWithoutVariantInput | Prisma.SocialPublishJobUpsertWithWhereUniqueWithoutVariantInput[]
+  createMany?: Prisma.SocialPublishJobCreateManyVariantInputEnvelope
+  set?: Prisma.SocialPublishJobWhereUniqueInput | Prisma.SocialPublishJobWhereUniqueInput[]
+  disconnect?: Prisma.SocialPublishJobWhereUniqueInput | Prisma.SocialPublishJobWhereUniqueInput[]
+  delete?: Prisma.SocialPublishJobWhereUniqueInput | Prisma.SocialPublishJobWhereUniqueInput[]
+  connect?: Prisma.SocialPublishJobWhereUniqueInput | Prisma.SocialPublishJobWhereUniqueInput[]
+  update?: Prisma.SocialPublishJobUpdateWithWhereUniqueWithoutVariantInput | Prisma.SocialPublishJobUpdateWithWhereUniqueWithoutVariantInput[]
+  updateMany?: Prisma.SocialPublishJobUpdateManyWithWhereWithoutVariantInput | Prisma.SocialPublishJobUpdateManyWithWhereWithoutVariantInput[]
+  deleteMany?: Prisma.SocialPublishJobScalarWhereInput | Prisma.SocialPublishJobScalarWhereInput[]
+}
+
 export type EnumSocialPublishJobStatusFieldUpdateOperationsInput = {
   set?: $Enums.SocialPublishJobStatus
 }
@@ -633,12 +699,14 @@ export type SocialPublishJobCreateWithoutUserInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   post: Prisma.SocialPostCreateNestedOneWithoutPublishJobsInput
+  variant?: Prisma.SocialPostVariantCreateNestedOneWithoutPublishJobsInput
   channelConnection?: Prisma.SocialChannelConnectionCreateNestedOneWithoutPublishJobsInput
 }
 
 export type SocialPublishJobUncheckedCreateWithoutUserInput = {
   id?: string
   postId: string
+  variantId?: string | null
   channelConnectionId?: string | null
   platform: $Enums.SocialPlatform
   status?: $Enums.SocialPublishJobStatus
@@ -684,6 +752,7 @@ export type SocialPublishJobScalarWhereInput = {
   id?: Prisma.StringFilter<"SocialPublishJob"> | string
   userId?: Prisma.StringFilter<"SocialPublishJob"> | string
   postId?: Prisma.StringFilter<"SocialPublishJob"> | string
+  variantId?: Prisma.StringNullableFilter<"SocialPublishJob"> | string | null
   channelConnectionId?: Prisma.StringNullableFilter<"SocialPublishJob"> | string | null
   platform?: Prisma.EnumSocialPlatformFilter<"SocialPublishJob"> | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFilter<"SocialPublishJob"> | $Enums.SocialPublishJobStatus
@@ -709,12 +778,14 @@ export type SocialPublishJobCreateWithoutChannelConnectionInput = {
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutSocialPublishJobsInput
   post: Prisma.SocialPostCreateNestedOneWithoutPublishJobsInput
+  variant?: Prisma.SocialPostVariantCreateNestedOneWithoutPublishJobsInput
 }
 
 export type SocialPublishJobUncheckedCreateWithoutChannelConnectionInput = {
   id?: string
   userId: string
   postId: string
+  variantId?: string | null
   platform: $Enums.SocialPlatform
   status?: $Enums.SocialPublishJobStatus
   scheduledFor?: Date | string | null
@@ -764,12 +835,14 @@ export type SocialPublishJobCreateWithoutPostInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutSocialPublishJobsInput
+  variant?: Prisma.SocialPostVariantCreateNestedOneWithoutPublishJobsInput
   channelConnection?: Prisma.SocialChannelConnectionCreateNestedOneWithoutPublishJobsInput
 }
 
 export type SocialPublishJobUncheckedCreateWithoutPostInput = {
   id?: string
   userId: string
+  variantId?: string | null
   channelConnectionId?: string | null
   platform: $Enums.SocialPlatform
   status?: $Enums.SocialPublishJobStatus
@@ -808,9 +881,68 @@ export type SocialPublishJobUpdateManyWithWhereWithoutPostInput = {
   data: Prisma.XOR<Prisma.SocialPublishJobUpdateManyMutationInput, Prisma.SocialPublishJobUncheckedUpdateManyWithoutPostInput>
 }
 
+export type SocialPublishJobCreateWithoutVariantInput = {
+  id?: string
+  platform: $Enums.SocialPlatform
+  status?: $Enums.SocialPublishJobStatus
+  scheduledFor?: Date | string | null
+  publishedAt?: Date | string | null
+  externalPostId?: string | null
+  errorMessage?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutSocialPublishJobsInput
+  post: Prisma.SocialPostCreateNestedOneWithoutPublishJobsInput
+  channelConnection?: Prisma.SocialChannelConnectionCreateNestedOneWithoutPublishJobsInput
+}
+
+export type SocialPublishJobUncheckedCreateWithoutVariantInput = {
+  id?: string
+  userId: string
+  postId: string
+  channelConnectionId?: string | null
+  platform: $Enums.SocialPlatform
+  status?: $Enums.SocialPublishJobStatus
+  scheduledFor?: Date | string | null
+  publishedAt?: Date | string | null
+  externalPostId?: string | null
+  errorMessage?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type SocialPublishJobCreateOrConnectWithoutVariantInput = {
+  where: Prisma.SocialPublishJobWhereUniqueInput
+  create: Prisma.XOR<Prisma.SocialPublishJobCreateWithoutVariantInput, Prisma.SocialPublishJobUncheckedCreateWithoutVariantInput>
+}
+
+export type SocialPublishJobCreateManyVariantInputEnvelope = {
+  data: Prisma.SocialPublishJobCreateManyVariantInput | Prisma.SocialPublishJobCreateManyVariantInput[]
+  skipDuplicates?: boolean
+}
+
+export type SocialPublishJobUpsertWithWhereUniqueWithoutVariantInput = {
+  where: Prisma.SocialPublishJobWhereUniqueInput
+  update: Prisma.XOR<Prisma.SocialPublishJobUpdateWithoutVariantInput, Prisma.SocialPublishJobUncheckedUpdateWithoutVariantInput>
+  create: Prisma.XOR<Prisma.SocialPublishJobCreateWithoutVariantInput, Prisma.SocialPublishJobUncheckedCreateWithoutVariantInput>
+}
+
+export type SocialPublishJobUpdateWithWhereUniqueWithoutVariantInput = {
+  where: Prisma.SocialPublishJobWhereUniqueInput
+  data: Prisma.XOR<Prisma.SocialPublishJobUpdateWithoutVariantInput, Prisma.SocialPublishJobUncheckedUpdateWithoutVariantInput>
+}
+
+export type SocialPublishJobUpdateManyWithWhereWithoutVariantInput = {
+  where: Prisma.SocialPublishJobScalarWhereInput
+  data: Prisma.XOR<Prisma.SocialPublishJobUpdateManyMutationInput, Prisma.SocialPublishJobUncheckedUpdateManyWithoutVariantInput>
+}
+
 export type SocialPublishJobCreateManyUserInput = {
   id?: string
   postId: string
+  variantId?: string | null
   channelConnectionId?: string | null
   platform: $Enums.SocialPlatform
   status?: $Enums.SocialPublishJobStatus
@@ -835,12 +967,14 @@ export type SocialPublishJobUpdateWithoutUserInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   post?: Prisma.SocialPostUpdateOneRequiredWithoutPublishJobsNestedInput
+  variant?: Prisma.SocialPostVariantUpdateOneWithoutPublishJobsNestedInput
   channelConnection?: Prisma.SocialChannelConnectionUpdateOneWithoutPublishJobsNestedInput
 }
 
 export type SocialPublishJobUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   postId?: Prisma.StringFieldUpdateOperationsInput | string
+  variantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   channelConnectionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
@@ -856,6 +990,7 @@ export type SocialPublishJobUncheckedUpdateWithoutUserInput = {
 export type SocialPublishJobUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   postId?: Prisma.StringFieldUpdateOperationsInput | string
+  variantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   channelConnectionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
@@ -872,6 +1007,7 @@ export type SocialPublishJobCreateManyChannelConnectionInput = {
   id?: string
   userId: string
   postId: string
+  variantId?: string | null
   platform: $Enums.SocialPlatform
   status?: $Enums.SocialPublishJobStatus
   scheduledFor?: Date | string | null
@@ -896,12 +1032,14 @@ export type SocialPublishJobUpdateWithoutChannelConnectionInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutSocialPublishJobsNestedInput
   post?: Prisma.SocialPostUpdateOneRequiredWithoutPublishJobsNestedInput
+  variant?: Prisma.SocialPostVariantUpdateOneWithoutPublishJobsNestedInput
 }
 
 export type SocialPublishJobUncheckedUpdateWithoutChannelConnectionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   postId?: Prisma.StringFieldUpdateOperationsInput | string
+  variantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
   scheduledFor?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -917,6 +1055,7 @@ export type SocialPublishJobUncheckedUpdateManyWithoutChannelConnectionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   postId?: Prisma.StringFieldUpdateOperationsInput | string
+  variantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
   scheduledFor?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -931,6 +1070,7 @@ export type SocialPublishJobUncheckedUpdateManyWithoutChannelConnectionInput = {
 export type SocialPublishJobCreateManyPostInput = {
   id?: string
   userId: string
+  variantId?: string | null
   channelConnectionId?: string | null
   platform: $Enums.SocialPlatform
   status?: $Enums.SocialPublishJobStatus
@@ -955,12 +1095,14 @@ export type SocialPublishJobUpdateWithoutPostInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutSocialPublishJobsNestedInput
+  variant?: Prisma.SocialPostVariantUpdateOneWithoutPublishJobsNestedInput
   channelConnection?: Prisma.SocialChannelConnectionUpdateOneWithoutPublishJobsNestedInput
 }
 
 export type SocialPublishJobUncheckedUpdateWithoutPostInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  variantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   channelConnectionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
@@ -976,6 +1118,71 @@ export type SocialPublishJobUncheckedUpdateWithoutPostInput = {
 export type SocialPublishJobUncheckedUpdateManyWithoutPostInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  variantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  channelConnectionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
+  status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
+  scheduledFor?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  externalPostId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type SocialPublishJobCreateManyVariantInput = {
+  id?: string
+  userId: string
+  postId: string
+  channelConnectionId?: string | null
+  platform: $Enums.SocialPlatform
+  status?: $Enums.SocialPublishJobStatus
+  scheduledFor?: Date | string | null
+  publishedAt?: Date | string | null
+  externalPostId?: string | null
+  errorMessage?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type SocialPublishJobUpdateWithoutVariantInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
+  status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
+  scheduledFor?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  externalPostId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutSocialPublishJobsNestedInput
+  post?: Prisma.SocialPostUpdateOneRequiredWithoutPublishJobsNestedInput
+  channelConnection?: Prisma.SocialChannelConnectionUpdateOneWithoutPublishJobsNestedInput
+}
+
+export type SocialPublishJobUncheckedUpdateWithoutVariantInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  postId?: Prisma.StringFieldUpdateOperationsInput | string
+  channelConnectionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
+  status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
+  scheduledFor?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  externalPostId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type SocialPublishJobUncheckedUpdateManyWithoutVariantInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  postId?: Prisma.StringFieldUpdateOperationsInput | string
   channelConnectionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   platform?: Prisma.EnumSocialPlatformFieldUpdateOperationsInput | $Enums.SocialPlatform
   status?: Prisma.EnumSocialPublishJobStatusFieldUpdateOperationsInput | $Enums.SocialPublishJobStatus
@@ -994,6 +1201,7 @@ export type SocialPublishJobSelect<ExtArgs extends runtime.Types.Extensions.Inte
   id?: boolean
   userId?: boolean
   postId?: boolean
+  variantId?: boolean
   channelConnectionId?: boolean
   platform?: boolean
   status?: boolean
@@ -1006,6 +1214,7 @@ export type SocialPublishJobSelect<ExtArgs extends runtime.Types.Extensions.Inte
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   post?: boolean | Prisma.SocialPostDefaultArgs<ExtArgs>
+  variant?: boolean | Prisma.SocialPublishJob$variantArgs<ExtArgs>
   channelConnection?: boolean | Prisma.SocialPublishJob$channelConnectionArgs<ExtArgs>
 }, ExtArgs["result"]["socialPublishJob"]>
 
@@ -1013,6 +1222,7 @@ export type SocialPublishJobSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
   id?: boolean
   userId?: boolean
   postId?: boolean
+  variantId?: boolean
   channelConnectionId?: boolean
   platform?: boolean
   status?: boolean
@@ -1025,6 +1235,7 @@ export type SocialPublishJobSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   post?: boolean | Prisma.SocialPostDefaultArgs<ExtArgs>
+  variant?: boolean | Prisma.SocialPublishJob$variantArgs<ExtArgs>
   channelConnection?: boolean | Prisma.SocialPublishJob$channelConnectionArgs<ExtArgs>
 }, ExtArgs["result"]["socialPublishJob"]>
 
@@ -1032,6 +1243,7 @@ export type SocialPublishJobSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
   id?: boolean
   userId?: boolean
   postId?: boolean
+  variantId?: boolean
   channelConnectionId?: boolean
   platform?: boolean
   status?: boolean
@@ -1044,6 +1256,7 @@ export type SocialPublishJobSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   post?: boolean | Prisma.SocialPostDefaultArgs<ExtArgs>
+  variant?: boolean | Prisma.SocialPublishJob$variantArgs<ExtArgs>
   channelConnection?: boolean | Prisma.SocialPublishJob$channelConnectionArgs<ExtArgs>
 }, ExtArgs["result"]["socialPublishJob"]>
 
@@ -1051,6 +1264,7 @@ export type SocialPublishJobSelectScalar = {
   id?: boolean
   userId?: boolean
   postId?: boolean
+  variantId?: boolean
   channelConnectionId?: boolean
   platform?: boolean
   status?: boolean
@@ -1063,20 +1277,23 @@ export type SocialPublishJobSelectScalar = {
   updatedAt?: boolean
 }
 
-export type SocialPublishJobOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "postId" | "channelConnectionId" | "platform" | "status" | "scheduledFor" | "publishedAt" | "externalPostId" | "errorMessage" | "metadata" | "createdAt" | "updatedAt", ExtArgs["result"]["socialPublishJob"]>
+export type SocialPublishJobOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "postId" | "variantId" | "channelConnectionId" | "platform" | "status" | "scheduledFor" | "publishedAt" | "externalPostId" | "errorMessage" | "metadata" | "createdAt" | "updatedAt", ExtArgs["result"]["socialPublishJob"]>
 export type SocialPublishJobInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   post?: boolean | Prisma.SocialPostDefaultArgs<ExtArgs>
+  variant?: boolean | Prisma.SocialPublishJob$variantArgs<ExtArgs>
   channelConnection?: boolean | Prisma.SocialPublishJob$channelConnectionArgs<ExtArgs>
 }
 export type SocialPublishJobIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   post?: boolean | Prisma.SocialPostDefaultArgs<ExtArgs>
+  variant?: boolean | Prisma.SocialPublishJob$variantArgs<ExtArgs>
   channelConnection?: boolean | Prisma.SocialPublishJob$channelConnectionArgs<ExtArgs>
 }
 export type SocialPublishJobIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   post?: boolean | Prisma.SocialPostDefaultArgs<ExtArgs>
+  variant?: boolean | Prisma.SocialPublishJob$variantArgs<ExtArgs>
   channelConnection?: boolean | Prisma.SocialPublishJob$channelConnectionArgs<ExtArgs>
 }
 
@@ -1085,12 +1302,14 @@ export type $SocialPublishJobPayload<ExtArgs extends runtime.Types.Extensions.In
   objects: {
     user: Prisma.$UserPayload<ExtArgs>
     post: Prisma.$SocialPostPayload<ExtArgs>
+    variant: Prisma.$SocialPostVariantPayload<ExtArgs> | null
     channelConnection: Prisma.$SocialChannelConnectionPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     userId: string
     postId: string
+    variantId: string | null
     channelConnectionId: string | null
     platform: $Enums.SocialPlatform
     status: $Enums.SocialPublishJobStatus
@@ -1497,6 +1716,7 @@ export interface Prisma__SocialPublishJobClient<T, Null = never, ExtArgs extends
   readonly [Symbol.toStringTag]: "PrismaPromise"
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   post<T extends Prisma.SocialPostDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SocialPostDefaultArgs<ExtArgs>>): Prisma.Prisma__SocialPostClient<runtime.Types.Result.GetResult<Prisma.$SocialPostPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  variant<T extends Prisma.SocialPublishJob$variantArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SocialPublishJob$variantArgs<ExtArgs>>): Prisma.Prisma__SocialPostVariantClient<runtime.Types.Result.GetResult<Prisma.$SocialPostVariantPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   channelConnection<T extends Prisma.SocialPublishJob$channelConnectionArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SocialPublishJob$channelConnectionArgs<ExtArgs>>): Prisma.Prisma__SocialChannelConnectionClient<runtime.Types.Result.GetResult<Prisma.$SocialChannelConnectionPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -1530,6 +1750,7 @@ export interface SocialPublishJobFieldRefs {
   readonly id: Prisma.FieldRef<"SocialPublishJob", 'String'>
   readonly userId: Prisma.FieldRef<"SocialPublishJob", 'String'>
   readonly postId: Prisma.FieldRef<"SocialPublishJob", 'String'>
+  readonly variantId: Prisma.FieldRef<"SocialPublishJob", 'String'>
   readonly channelConnectionId: Prisma.FieldRef<"SocialPublishJob", 'String'>
   readonly platform: Prisma.FieldRef<"SocialPublishJob", 'SocialPlatform'>
   readonly status: Prisma.FieldRef<"SocialPublishJob", 'SocialPublishJobStatus'>
@@ -1933,6 +2154,25 @@ export type SocialPublishJobDeleteManyArgs<ExtArgs extends runtime.Types.Extensi
    * Limit how many SocialPublishJobs to delete.
    */
   limit?: number
+}
+
+/**
+ * SocialPublishJob.variant
+ */
+export type SocialPublishJob$variantArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SocialPostVariant
+   */
+  select?: Prisma.SocialPostVariantSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SocialPostVariant
+   */
+  omit?: Prisma.SocialPostVariantOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SocialPostVariantInclude<ExtArgs> | null
+  where?: Prisma.SocialPostVariantWhereInput
 }
 
 /**
