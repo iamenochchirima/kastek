@@ -74,10 +74,12 @@ export default function WhatsappTemplateManager({
   templates,
   connections,
   initialLibraryItemId,
+  forceCreateForm = false,
 }: {
   templates: TemplateView[];
   connections: ConnectionView[];
   initialLibraryItemId?: string;
+  forceCreateForm?: boolean;
 }) {
   const router = useRouter();
   const shouldChooseConnection = connections.length > 2;
@@ -88,7 +90,9 @@ export default function WhatsappTemplateManager({
   const [header, setHeader] = useState("");
   const [body, setBody] = useState("");
   const [footer, setFooter] = useState("");
-  const [showCreateForm, setShowCreateForm] = useState(Boolean(initialLibraryItemId) || templates.length === 0);
+  const [showCreateForm, setShowCreateForm] = useState(
+    forceCreateForm || Boolean(initialLibraryItemId) || templates.length === 0,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -116,6 +120,12 @@ export default function WhatsappTemplateManager({
     );
     setShowCreateForm(true);
   }, [initialLibraryItemId]);
+
+  useEffect(() => {
+    if (forceCreateForm) {
+      setShowCreateForm(true);
+    }
+  }, [forceCreateForm]);
 
   async function handleCreateTemplate() {
     setSubmitting(true);
@@ -219,12 +229,12 @@ export default function WhatsappTemplateManager({
         </div>
       )}
 
-      <section className="rounded-xl border border-border bg-surface p-5">
+      <section className="rounded-xl border border-border bg-card p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setShowCreateForm((current) => !current)}
-            className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-bg"
+            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
           >
             {showCreateForm ? "Close creator" : "Create new template"}
           </button>
@@ -236,7 +246,7 @@ export default function WhatsappTemplateManager({
                 type="button"
                 onClick={() => handleSync(connection.id)}
                 disabled={syncingConnectionId === connection.id}
-                className="rounded-lg border border-border px-3 py-2 text-xs text-text disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {syncingConnectionId === connection.id
                   ? "Syncing..."
@@ -247,16 +257,16 @@ export default function WhatsappTemplateManager({
         </div>
 
         {templates.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-surface-2 px-6 py-14 text-center">
-            <p className="mb-2 text-lg font-semibold text-text">No templates yet</p>
-            <p className="mx-auto mb-6 max-w-xl text-sm text-text-muted">
+          <div className="rounded-xl border border-dashed border-border bg-secondary/50 px-6 py-14 text-center">
+            <p className="mb-2 text-lg font-semibold text-foreground">No templates yet</p>
+            <p className="mx-auto mb-6 max-w-xl text-sm text-muted-foreground">
               Create your first WhatsApp template here, or start from the Template Library and then
               customize it before submitting to Meta.
             </p>
             <button
               type="button"
               onClick={() => setShowCreateForm(true)}
-              className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg"
+              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
             >
               Create new template
             </button>
@@ -264,11 +274,11 @@ export default function WhatsappTemplateManager({
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
             {templates.map((template) => (
-              <div key={template.id} className="rounded-xl border border-border bg-surface-2 p-5">
+              <div key={template.id} className="rounded-xl border border-border bg-secondary/40 p-5">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-semibold text-text">{template.templateName}</h3>
-                    <p className="mt-1 text-xs text-text-dim">
+                    <h3 className="text-base font-semibold text-foreground">{template.templateName}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
                       {categoryLabel(template.category)} · {template.language}
                     </p>
                   </div>
@@ -279,8 +289,8 @@ export default function WhatsappTemplateManager({
                   </span>
                 </div>
 
-                <div className="rounded-lg border border-border bg-surface p-3">
-                  <p className="line-clamp-4 whitespace-pre-wrap text-sm text-text-muted">
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <p className="line-clamp-4 whitespace-pre-wrap text-sm text-muted-foreground">
                     {template.body || "No template body saved."}
                   </p>
                 </div>
@@ -305,25 +315,25 @@ export default function WhatsappTemplateManager({
 
       {showCreateForm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-text">Create template</h2>
-                <p className="text-sm text-text-muted">
+                <h2 className="text-lg font-semibold text-foreground">Create template</h2>
+                <p className="text-sm text-muted-foreground">
                   Build a new WhatsApp template and submit it to Meta for approval.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateForm(false)}
-                className="rounded-lg border border-border px-4 py-2 text-sm text-text"
+                className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
               >
                 Close
               </button>
             </div>
 
             <div className="mb-6">
-              <p className="mb-3 text-sm font-medium text-text">Template type</p>
+              <p className="mb-3 text-sm font-medium text-foreground">Template type</p>
               <div className="grid gap-3 lg:grid-cols-3">
                 {TEMPLATE_CATEGORY_OPTIONS.map((option) => {
                   const selected = option.value === category;
@@ -334,17 +344,17 @@ export default function WhatsappTemplateManager({
                       onClick={() => setCategory(option.value)}
                       className={`rounded-xl border p-4 text-left transition-colors ${
                         selected
-                          ? "border-accent bg-accent/10"
-                          : "border-border bg-surface-2 hover:border-border-light"
+                          ? "border-primary/30 bg-primary/10"
+                          : "border-border bg-secondary/50 hover:border-primary/20"
                       }`}
                     >
                       <div className="mb-3 flex items-center justify-between gap-3">
-                        <span className="text-base font-semibold text-text">{option.label}</span>
-                        <span className="rounded-full border border-border px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-text-dim">
+                        <span className="text-base font-semibold text-foreground">{option.label}</span>
+                        <span className="rounded-full border border-border px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                           {option.badge}
                         </span>
                       </div>
-                      <p className="text-sm text-text-muted">{option.description}</p>
+                      <p className="text-sm text-muted-foreground">{option.description}</p>
                     </button>
                   );
                 })}
@@ -356,11 +366,11 @@ export default function WhatsappTemplateManager({
                 <div className="grid gap-4 md:grid-cols-2">
                   {shouldChooseConnection ? (
                     <label className="space-y-2 text-sm">
-                      <span className="text-text-muted">Connection</span>
+                      <span className="text-muted-foreground">Connection</span>
                       <select
                         value={connectionId}
                         onChange={(event) => setConnectionId(event.target.value)}
-                        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                        className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                       >
                         {connections.map((connection) => (
                           <option key={connection.id} value={connection.id}>
@@ -371,19 +381,19 @@ export default function WhatsappTemplateManager({
                     </label>
                   ) : (
                     <div className="space-y-2 text-sm">
-                      <span className="text-text-muted">Using connection</span>
-                      <div className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-text">
+                      <span className="text-muted-foreground">Using connection</span>
+                      <div className="rounded-lg border border-border bg-secondary px-3 py-2 text-foreground">
                         {activeConnection?.phoneDisplayNumber || activeConnection?.phoneNumberId || "-"}
                       </div>
                     </div>
                   )}
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-text-muted">Language</span>
+                    <span className="text-muted-foreground">Language</span>
                     <select
                       value={language}
                       onChange={(event) => setLanguage(event.target.value)}
-                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                      className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                     >
                       {LANGUAGE_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -395,38 +405,38 @@ export default function WhatsappTemplateManager({
                 </div>
 
                 <label className="space-y-2 text-sm">
-                  <span className="text-text-muted">Template name</span>
+                  <span className="text-muted-foreground">Template name</span>
                   <input
                     value={templateName}
                     onChange={(event) => setTemplateName(event.target.value)}
                     placeholder="promo_launch_april"
-                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                   />
-                  <p className="text-xs text-text-dim">
+                  <p className="text-xs text-muted-foreground">
                     Use lowercase letters, numbers, and underscores only.
                   </p>
                 </label>
 
                 <label className="space-y-2 text-sm">
-                  <span className="text-text-muted">Header (optional)</span>
+                  <span className="text-muted-foreground">Header (optional)</span>
                   <input
                     value={header}
                     onChange={(event) => setHeader(event.target.value)}
                     placeholder="KasiTek Update"
-                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                   />
                 </label>
 
                 <label className="space-y-2 text-sm">
-                  <span className="text-text-muted">Body</span>
+                  <span className="text-muted-foreground">Body</span>
                   <textarea
                     value={body}
                     onChange={(event) => setBody(event.target.value)}
                     rows={6}
                     placeholder="Hi {{1}}, your next offer is ready. Reply STOP to opt out."
-                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                   />
-                  <p className="text-xs text-text-dim">
+                  <p className="text-xs text-muted-foreground">
                     Use placeholders like {"{{1}}"} when the template needs variables.
                   </p>
                   {hasLeadingOrTrailingVariable(body) ? (
@@ -437,24 +447,24 @@ export default function WhatsappTemplateManager({
                 </label>
 
                 <label className="space-y-2 text-sm">
-                  <span className="text-text-muted">Footer (optional)</span>
+                  <span className="text-muted-foreground">Footer (optional)</span>
                   <input
                     value={footer}
                     onChange={(event) => setFooter(event.target.value)}
                     placeholder="Reply STOP to unsubscribe"
-                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                   />
                 </label>
 
                 <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs text-text-dim">
+                  <p className="text-xs text-muted-foreground">
                     Meta reviews every template after submission. Newer accounts may wait longer.
                   </p>
                   <button
                     type="button"
                     onClick={handleCreateTemplate}
                     disabled={submitting || !connectionId || Boolean(variablePlacementError)}
-                    className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {submitting ? "Submitting..." : "Submit template"}
                   </button>
@@ -518,9 +528,9 @@ export default function WhatsappTemplateManager({
 
 function TemplateMeta({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
-      <p className="text-[11px] uppercase tracking-[0.15em] text-text-dim">{label}</p>
-      <p className="mt-1 truncate text-sm font-medium text-text">{value}</p>
+    <div className="rounded-lg border border-border bg-card p-3">
+      <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate text-sm font-medium text-foreground">{value}</p>
     </div>
   );
 }

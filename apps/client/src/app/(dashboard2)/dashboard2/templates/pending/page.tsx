@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function Dashboard2TemplatesPendingPage() {
-  redirect("/dashboard2/templates");
+  redirect("/dashboard2/templates?status=PENDING");
 }

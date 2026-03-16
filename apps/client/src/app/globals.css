@@ -215,6 +215,16 @@
       box-shadow 180ms ease;
   }
 
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
   ::selection {
     background: rgba(196, 240, 77, 0.28);
     color: var(--color-text);

@@ -85,9 +85,9 @@ export default function InboxAlertControls({
   return (
     <div className={compact ? "flex flex-wrap items-center gap-2" : "space-y-3"}>
       {showStatus ? (
-        <p className="text-sm text-text-muted">
+        <p className="text-sm text-muted-foreground">
           Browser permission:{" "}
-          <span className="font-medium text-text">
+          <span className="font-medium text-foreground">
             {supportsDesktopNotifications() ? notificationPermission : "not supported"}
           </span>
         </p>
@@ -101,13 +101,13 @@ export default function InboxAlertControls({
             className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
               preferences.desktopAlertsEnabled
                 ? "border-green-500/30 bg-green-500/10 text-green-300"
-                : "border-border bg-surface text-text-muted hover:border-border-light hover:text-text"
+                : "border-border bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >
             {desktopButtonLabel}
           </button>
         ) : (
-          <span className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-dim">
+          <span className="rounded-full border border-border bg-secondary/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
             Desktop Alerts Unsupported
           </span>
         )}
@@ -119,13 +119,13 @@ export default function InboxAlertControls({
             className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
               preferences.soundAlertsEnabled
                 ? "border-accent/30 bg-accent/10 text-accent"
-                : "border-border bg-surface text-text-muted hover:border-border-light hover:text-text"
+                : "border-border bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >
             {preferences.soundAlertsEnabled ? "Sound On" : "Sound Off"}
           </button>
         ) : (
-          <span className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-dim">
+          <span className="rounded-full border border-border bg-secondary/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
             Sound Unsupported
           </span>
         )}

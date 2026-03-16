@@ -208,10 +208,10 @@ export default function WhatsappManualConnectionCard({
       )}
 
       {showSetupForm ? (
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div className="rounded-xl border border-border bg-card p-5">
           <div className="mb-4">
-            <h2 className="text-lg font-semibold text-text">Connect WhatsApp Cloud API</h2>
-            <p className="text-sm text-text-muted">
+            <h2 className="text-lg font-semibold text-foreground">Connect WhatsApp Cloud API</h2>
+            <p className="text-sm text-muted-foreground">
               Campaigns need a WhatsApp connection first. Add your own Meta Cloud API credentials
               to continue.
             </p>
@@ -219,43 +219,43 @@ export default function WhatsappManualConnectionCard({
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2 text-sm">
-              <span className="text-text-muted">WABA ID</span>
+              <span className="text-muted-foreground">WABA ID</span>
               <input
                 value={wabaId}
                 onChange={(event) => setWabaId(event.target.value)}
                 placeholder="WhatsApp Business Account ID"
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
               />
             </label>
 
             <label className="space-y-2 text-sm">
-              <span className="text-text-muted">Phone Number ID</span>
+              <span className="text-muted-foreground">Phone Number ID</span>
               <input
                 value={phoneNumberId}
                 onChange={(event) => setPhoneNumberId(event.target.value)}
                 placeholder="Phone Number ID from Meta"
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
               />
             </label>
 
             <label className="space-y-2 text-sm">
-              <span className="text-text-muted">Display Number (optional)</span>
+              <span className="text-muted-foreground">Display Number (optional)</span>
               <input
                 value={phoneDisplayNumber}
                 onChange={(event) => setPhoneDisplayNumber(event.target.value)}
                 placeholder="+27 ..."
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
               />
             </label>
 
             <label className="space-y-2 text-sm md:col-span-2">
-              <span className="text-text-muted">Permanent Access Token</span>
+              <span className="text-muted-foreground">Permanent Access Token</span>
               <textarea
                 value={accessToken}
                 onChange={(event) => setAccessToken(event.target.value)}
                 rows={4}
                 placeholder="Paste your Meta system user access token"
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-text"
+                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
               />
             </label>
           </div>
@@ -265,7 +265,7 @@ export default function WhatsappManualConnectionCard({
               type="button"
               onClick={connectManually}
               disabled={loading || !wabaId.trim() || !phoneNumberId.trim() || !accessToken.trim()}
-              className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg disabled:opacity-60"
+              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
               {loading ? "Connecting..." : "Connect WhatsApp"}
             </button>
@@ -273,9 +273,9 @@ export default function WhatsappManualConnectionCard({
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-border bg-surface p-5">
-        <h3 className="mb-3 text-sm font-semibold">Where to get these values</h3>
-        <div className="space-y-2 text-sm text-text-muted">
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Where to get these values</h3>
+        <div className="space-y-2 text-sm text-muted-foreground">
           <p>
             `WABA ID`: Meta App Dashboard or WhatsApp Manager for the business account you want to
             use.
@@ -296,11 +296,11 @@ export default function WhatsappManualConnectionCard({
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-text">Connected numbers</h3>
-            <p className="text-sm text-text-muted">
+            <h3 className="text-sm font-semibold text-foreground">Connected numbers</h3>
+            <p className="text-sm text-muted-foreground">
               {showSetupForm
                 ? "Refresh connection metadata, check webhook health, and sync templates."
                 : "Maintenance tools for existing WhatsApp connections."}
@@ -309,11 +309,11 @@ export default function WhatsappManualConnectionCard({
         </div>
 
         {connections.length === 0 ? (
-          <p className="text-sm text-text-muted">No WhatsApp numbers connected yet.</p>
+          <p className="text-sm text-muted-foreground">No WhatsApp numbers connected yet.</p>
         ) : (
           <div className="overflow-hidden rounded-lg border border-border">
             <table className="w-full text-sm">
-              <thead className="bg-surface-2 text-text-muted">
+              <thead className="bg-secondary/50 text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 text-left">Number</th>
                   <th className="px-3 py-2 text-left">Quality</th>
@@ -337,7 +337,7 @@ export default function WhatsappManualConnectionCard({
                         <button
                           type="button"
                           onClick={() => runHealthCheck(connection.id)}
-                          className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                          className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                           disabled={healthLoadingId === connection.id}
                         >
                           {healthLoadingId === connection.id ? "Checking..." : "Check health"}
@@ -348,7 +348,7 @@ export default function WhatsappManualConnectionCard({
                           <button
                             type="button"
                             onClick={() => runConnectionAction(connection.id, "refresh")}
-                            className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                            className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                             disabled={actionLoadingKey === `${connection.id}:refresh`}
                           >
                             {actionLoadingKey === `${connection.id}:refresh`
@@ -358,7 +358,7 @@ export default function WhatsappManualConnectionCard({
                           <button
                             type="button"
                             onClick={() => runConnectionAction(connection.id, "sync_templates")}
-                            className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                            className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                             disabled={actionLoadingKey === `${connection.id}:sync_templates`}
                           >
                             {actionLoadingKey === `${connection.id}:sync_templates`
@@ -373,7 +373,7 @@ export default function WhatsappManualConnectionCard({
                               );
                               setUpdatedAccessToken("");
                             }}
-                            className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:border-border-light"
+                            className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                           >
                             {editingTokenConnectionId === connection.id ? "Cancel" : "Update token"}
                           </button>
@@ -382,12 +382,12 @@ export default function WhatsappManualConnectionCard({
                     </tr>
 
                     {editingTokenConnectionId === connection.id ? (
-                      <tr className="border-t border-border bg-surface-2/40">
+                      <tr className="border-t border-border bg-secondary/30">
                         <td className="px-3 py-3" colSpan={6}>
                           <div className="space-y-3">
                             <div>
-                              <p className="text-sm font-medium text-text">Rotate access token</p>
-                              <p className="mt-1 text-xs text-text-muted">
+                              <p className="text-sm font-medium text-foreground">Rotate access token</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
                                 Paste the new Meta system-user token for this connected number. The
                                 existing connection record will be updated in place.
                               </p>
@@ -398,7 +398,7 @@ export default function WhatsappManualConnectionCard({
                               onChange={(event) => setUpdatedAccessToken(event.target.value)}
                               rows={4}
                               placeholder="Paste your new Meta access token"
-                              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+                              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
                             />
 
                             <div className="flex justify-end">
@@ -409,7 +409,7 @@ export default function WhatsappManualConnectionCard({
                                   tokenUpdateLoadingId === connection.id ||
                                   !updatedAccessToken.trim()
                                 }
-                                className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-60"
+                                className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {tokenUpdateLoadingId === connection.id
                                   ? "Updating..."
@@ -422,8 +422,8 @@ export default function WhatsappManualConnectionCard({
                     ) : null}
 
                     {healthByConnectionId[connection.id] ? (
-                      <tr className="border-t border-border bg-surface-2/60">
-                        <td className="px-3 py-2 text-xs text-text-muted" colSpan={6}>
+                      <tr className="border-t border-border bg-secondary/40">
+                        <td className="px-3 py-2 text-xs text-muted-foreground" colSpan={6}>
                           <p className="mb-1">
                             Overall:{" "}
                             <span
