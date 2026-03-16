@@ -6,10 +6,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
+import { signOut } from "next-auth/react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Archive, BarChart3, Bell, Bot, ChevronDown, ChevronLeft, ChevronRight, Clock, FileText, LayoutGrid, List, LogOut, Menu, Moon, Plus, Send, Settings, Sun, Users, Zap } from "lucide-react";
+import { Archive, BarChart3, Bell, Bot, ChevronDown, CircleHelp, Clock, FileText, LayoutGrid, List, LogOut, Menu, Moon, PanelLeftOpen, Plus, Send, Settings, Sun, UserRound, Users, Zap } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -172,12 +174,24 @@ function SidebarContent({
   }, []);
 
   return (
-    <div className="flex h-full flex-col bg-card border-r border-border">
-      <div className="flex h-16 items-center justify-between border-b border-border px-4">
-        <Link href="/dashboard2" className="flex items-center gap-2 no-underline">
-          <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-primary">
-            <span className="font-display text-lg text-primary-foreground">K</span>
-          </div>
+    <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-border bg-card">
+      <div
+        className={cn(
+          "flex h-16 items-center border-b border-border",
+          collapsed ? "justify-center px-3" : "justify-between px-4",
+        )}
+      >
+        <Link
+          href="/dashboard2"
+          className={cn("flex min-w-0 items-center gap-2 no-underline", collapsed && "justify-center")}
+        >
+          <Image
+            src="/logo.png"
+            alt="KasiTek"
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-sm"
+          />
           {!collapsed ? (
             <div className="flex flex-col">
               <span className="font-display text-lg tracking-wide text-foreground">KasiTek</span>
@@ -186,13 +200,18 @@ function SidebarContent({
           ) : null}
         </Link>
         {setCollapsed && !collapsed ? (
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setCollapsed(true)}>
-            <ChevronLeft className="h-4 w-4" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            onClick={() => setCollapsed(true)}
+          >
+            <PanelLeftOpen className="h-4 w-4 scale-x-[-1]" />
           </Button>
         ) : null}
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav className={cn("flex-1 space-y-1 overflow-x-hidden overflow-y-auto p-3", collapsed && "px-2")}>
         {navigation.map((item) => {
           const isActive = pathname === item.href && !item.submenu;
           const hasSubmenu = !!item.submenu;
@@ -204,7 +223,11 @@ function SidebarContent({
               <div key={item.name}>
                 <button
                   onClick={() => toggleSubmenu(item.name)}
-                  className={cn("group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200", isParentActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground")}
+                  className={cn(
+                    "group flex w-full items-center rounded-md text-sm font-medium transition-all duration-200",
+                    collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
+                    isParentActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  )}
                 >
                   <item.icon className={cn("h-5 w-5 shrink-0", isParentActive && "text-primary")} />
                   {!collapsed ? (
@@ -239,12 +262,23 @@ function SidebarContent({
             <Link
               key={item.name}
               href={item.href}
-              className={cn("group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200 no-underline", isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground")}
+              className={cn(
+                "group relative flex items-center rounded-md text-sm font-medium transition-all duration-200 no-underline",
+                collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
+                isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+              )}
             >
               <item.icon className={cn("h-5 w-5 shrink-0", isActive && "text-primary")} />
               {!collapsed ? <span className="flex-1">{item.name}</span> : null}
               {item.href === "/dashboard2/inbox" && liveInboxUnreadCount > 0 ? (
-                <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full bg-primary text-[11px] font-semibold text-primary-foreground",
+                    collapsed
+                      ? "absolute right-1 top-1 min-w-[18px] px-1.5 py-0.5 text-center"
+                      : "px-2 py-0.5",
+                  )}
+                >
                   {liveInboxUnreadCount > 99 ? "99+" : liveInboxUnreadCount}
                 </span>
               ) : null}
@@ -253,18 +287,29 @@ function SidebarContent({
         })}
       </nav>
 
-      <div className="space-y-1 border-t border-border p-3">
-        <div className={cn("flex items-center gap-3 rounded-md px-3 py-1", collapsed && "justify-center")}>
+      <div className={cn("space-y-1 border-t border-border p-3", collapsed && "px-2")}>
+        <div className={cn("flex items-center gap-3 rounded-md px-3 py-1", collapsed && "justify-center px-2")}>
           <ThemeToggleSimple />
           {!collapsed ? <span className="text-sm text-muted-foreground">Theme</span> : null}
         </div>
-        <Link href="/dashboard2/notifications" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground no-underline transition-all duration-200 hover:bg-secondary hover:text-foreground">
+        <Link
+          href="/dashboard2/notifications"
+          className={cn(
+            "flex items-center rounded-md text-sm font-medium text-muted-foreground no-underline transition-all duration-200 hover:bg-secondary hover:text-foreground",
+            collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
+          )}
+        >
           <Bell className="h-5 w-5 shrink-0" />
           {!collapsed ? <span>Notifications</span> : null}
         </Link>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground">
+            <button
+              className={cn(
+                "flex w-full items-center rounded-md text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground",
+                collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
+              )}
+            >
               <Avatar className="h-7 w-7 border border-border">
                 {user?.image ? <AvatarImage src={user.image} alt={user?.name ?? "User"} /> : null}
                 <AvatarFallback className="bg-primary/20 text-primary text-xs">{initials}</AvatarFallback>
@@ -275,18 +320,37 @@ function SidebarContent({
                     <p className="text-sm font-medium text-foreground">{accountName}</p>
                     <p className="truncate text-xs text-muted-foreground">{accountEmail}</p>
                   </div>
-                  <ChevronRight className="h-4 w-4 opacity-50" />
                 </>
               ) : null}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              Account Settings
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard2/profile">
+                <UserRound className="mr-2 h-4 w-4" />
+                Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard2/settings">
+                <Settings className="mr-2 h-4 w-4" />
+                Account Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard2">
+                <CircleHelp className="mr-2 h-4 w-4" />
+                Help
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onSelect={(event) => {
+                event.preventDefault();
+                void signOut({ callbackUrl: "/" });
+              }}
+            >
               <LogOut className="mr-2 h-4 w-4" />
               Log out
             </DropdownMenuItem>
@@ -294,8 +358,13 @@ function SidebarContent({
         </DropdownMenu>
         {setCollapsed && collapsed ? (
           <div className="border-t border-border pt-3">
-            <Button variant="ghost" size="icon" className="h-9 w-full text-muted-foreground hover:text-foreground" onClick={() => setCollapsed(false)}>
-              <ChevronRight className="h-4 w-4" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-full rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+              onClick={() => setCollapsed(false)}
+            >
+              <PanelLeftOpen className="h-4 w-4" />
             </Button>
           </div>
         ) : null}

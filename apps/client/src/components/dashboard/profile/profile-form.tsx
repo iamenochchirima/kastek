@@ -26,7 +26,7 @@ function Notice({
       ? "border-red-500/30 bg-red-500/10 text-red-300"
       : tone === "success"
         ? "border-green-500/30 bg-green-500/10 text-green-300"
-        : "border-border bg-surface-2 text-text-muted";
+        : "border-border bg-secondary text-muted-foreground";
 
   return <div className={`rounded-xl border px-4 py-3 text-sm ${classes}`}>{message}</div>;
 }
@@ -172,10 +172,10 @@ export default function ProfileForm({ user }: ProfileFormProps) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-6">
-        <form onSubmit={onProfileSubmit} className="rounded-2xl border border-border bg-surface p-6">
+        <form onSubmit={onProfileSubmit} className="rounded-2xl border border-border bg-card p-6">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold tracking-tight text-text">Personal details</h2>
-            <p className="mt-2 text-sm text-text-muted">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Personal details</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
               Update the identity shown around the workspace.
             </p>
           </div>
@@ -193,32 +193,32 @@ export default function ProfileForm({ user }: ProfileFormProps) {
 
           <div className="grid gap-5 md:grid-cols-2">
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-text">Full name</span>
+              <span className="mb-2 block text-sm font-medium text-foreground">Full name</span>
               <input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Your name"
-                className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-text">Phone</span>
+              <span className="mb-2 block text-sm font-medium text-foreground">Phone</span>
               <input
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="+27 72 123 4567"
-                className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
             </label>
 
             <label className="block md:col-span-2">
-              <span className="mb-2 block text-sm font-medium text-text">Photo URL</span>
+              <span className="mb-2 block text-sm font-medium text-foreground">Photo URL</span>
               <input
                 value={image}
                 onChange={(event) => setImage(event.target.value)}
                 placeholder="https://..."
-                className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
             </label>
           </div>
@@ -227,38 +227,38 @@ export default function ProfileForm({ user }: ProfileFormProps) {
             <button
               type="submit"
               disabled={savingProfile}
-              className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
+              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
             >
               {savingProfile ? "Saving..." : "Save profile"}
             </button>
           </div>
         </form>
 
-        <form onSubmit={onEmailSubmit} className="rounded-2xl border border-border bg-surface p-6">
+        <form onSubmit={onEmailSubmit} className="rounded-2xl border border-border bg-card p-6">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold tracking-tight text-text">Email address</h2>
-            <p className="mt-2 text-sm text-text-muted">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Email address</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
               Change your sign-in email. We will verify the new address before switching it.
             </p>
           </div>
 
           <div className="mb-4 grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-text">Current email</span>
+              <span className="mb-2 block text-sm font-medium text-foreground">Current email</span>
               <input
                 value={user.email || ""}
                 readOnly
-                className="w-full rounded-xl border border-border bg-bg/60 px-4 py-3 text-sm text-text-dim outline-none"
+                className="w-full rounded-xl border border-border bg-secondary/70 px-4 py-3 text-sm text-muted-foreground outline-none"
               />
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-text">New email</span>
+              <span className="mb-2 block text-sm font-medium text-foreground">New email</span>
               <input
                 value={nextEmail}
                 onChange={(event) => setNextEmail(event.target.value)}
                 placeholder="name@example.com"
-                className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
             </label>
           </div>
@@ -288,16 +288,16 @@ export default function ProfileForm({ user }: ProfileFormProps) {
           <button
             type="submit"
             disabled={emailSaving}
-            className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
+            className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
           >
             {emailSaving ? "Sending..." : "Send verification link"}
           </button>
         </form>
 
-        <form onSubmit={onPasswordSubmit} className="rounded-2xl border border-border bg-surface p-6">
+        <form onSubmit={onPasswordSubmit} className="rounded-2xl border border-border bg-card p-6">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold tracking-tight text-text">Password</h2>
-            <p className="mt-2 text-sm text-text-muted">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Password</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
               {user.hasPassword
                 ? "Change your current password."
                 : "You do not have a password yet. Set one now for email sign-in."}
@@ -307,33 +307,33 @@ export default function ProfileForm({ user }: ProfileFormProps) {
           <div className="grid gap-4 md:grid-cols-2">
             {user.hasPassword ? (
               <label className="block md:col-span-2">
-                <span className="mb-2 block text-sm font-medium text-text">Current password</span>
+                <span className="mb-2 block text-sm font-medium text-foreground">Current password</span>
                 <input
                   type="password"
                   value={currentPassword}
                   onChange={(event) => setCurrentPassword(event.target.value)}
-                  className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text focus:border-accent focus:outline-none"
+                  className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
                 />
               </label>
             ) : null}
 
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-text">New password</span>
+              <span className="mb-2 block text-sm font-medium text-foreground">New password</span>
               <input
                 type="password"
                 value={nextPassword}
                 onChange={(event) => setNextPassword(event.target.value)}
-                className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text focus:border-accent focus:outline-none"
+                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
               />
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-text">Confirm new password</span>
+              <span className="mb-2 block text-sm font-medium text-foreground">Confirm new password</span>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
-                className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text focus:border-accent focus:outline-none"
+                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
               />
             </label>
           </div>
@@ -353,7 +353,7 @@ export default function ProfileForm({ user }: ProfileFormProps) {
             <button
               type="submit"
               disabled={passwordSaving}
-              className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
+              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
             >
               {passwordSaving ? "Saving..." : user.hasPassword ? "Change password" : "Set password"}
             </button>
@@ -361,10 +361,10 @@ export default function ProfileForm({ user }: ProfileFormProps) {
         </form>
       </div>
 
-      <aside className="rounded-2xl border border-border bg-surface p-6">
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-text-dim">Preview</div>
+      <aside className="rounded-2xl border border-border bg-card p-6">
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Preview</div>
 
-        <div className="mt-5 rounded-2xl border border-border bg-surface-2 p-5">
+        <div className="mt-5 rounded-2xl border border-border bg-secondary/50 p-5">
           {image ? (
             <div
               aria-hidden="true"
@@ -372,15 +372,15 @@ export default function ProfileForm({ user }: ProfileFormProps) {
               style={{ backgroundImage: `url("${image}")` }}
             />
           ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-accent/20 bg-accent/10 text-2xl font-semibold text-accent">
+            <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-2xl font-semibold text-primary">
               {initials || "K"}
             </div>
           )}
 
           <div className="mt-4">
-            <div className="text-lg font-semibold tracking-tight text-text">{name || "Your name"}</div>
-            <div className="mt-1 text-sm text-text-muted">{user.email || "No email"}</div>
-            <div className="mt-3 text-sm text-text-dim">{phone || "No phone number added yet"}</div>
+            <div className="text-lg font-semibold tracking-tight text-foreground">{name || "Your name"}</div>
+            <div className="mt-1 text-sm text-muted-foreground">{user.email || "No email"}</div>
+            <div className="mt-3 text-sm text-muted-foreground">{phone || "No phone number added yet"}</div>
           </div>
         </div>
       </aside>
