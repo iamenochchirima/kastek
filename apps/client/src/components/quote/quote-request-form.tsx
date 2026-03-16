@@ -16,18 +16,41 @@ const businessTypes = [
   { value: "other", label: "Other" },
 ];
 
-const serviceOptions = [
-  { value: "website_presence", label: "Website Development / Redesign" },
-  { value: "website_chatbot", label: "Website AI Agent" },
-  { value: "whatsapp_chatbot", label: "WhatsApp AI Agent" },
-  { value: "bulk_whatsapp", label: "Bulk WhatsApp Campaign System" },
-  { value: "integrations_systems", label: "Integrations & Payment Systems" },
-  { value: "seo_optimization", label: "SEO Optimization" },
-  { value: "professional_email", label: "Professional Email Setup" },
-  { value: "dashboard_analytics", label: "Custom Dashboards & Analytics" },
-  { value: "voice_agent", label: "AI Voice Agent" },
-  { value: "custom_agent", label: "Custom AI / Automation" },
+const productOptions = [
+  { value: "kasitek_product_basic", label: "KasiTek Basic Plan" },
+  { value: "kasitek_product_growth", label: "KasiTek Growth Plan" },
+  { value: "kasitek_product_scale", label: "KasiTek Scale Plan" },
+  { value: "kasiagents", label: "KasiAgents" },
+  { value: "kasireach", label: "KasiReach" },
+  { value: "kasisocial", label: "KasiSocial" },
 ];
+
+const serviceOptions = [
+  { value: "custom_ai_chatbots", label: "Custom AI Chatbots" },
+  { value: "voice_agents", label: "Voice Agents" },
+  { value: "growth_workflows", label: "Growth Workflows" },
+  { value: "system_integrations", label: "System Integrations" },
+  { value: "digital_infrastructure", label: "Digital Infrastructure" },
+  { value: "managed_retainers", label: "Managed Retainers" },
+];
+
+const serviceAliasMap: Record<string, string> = {
+  "basic product plan": "kasitek_product_basic",
+  "growth product plan": "kasitek_product_growth",
+  "scale product plan": "kasitek_product_scale",
+  basic: "kasitek_product_basic",
+  growth: "kasitek_product_growth",
+  scale: "kasitek_product_scale",
+  kasiagents: "kasiagents",
+  kasireach: "kasireach",
+  kasisocial: "kasisocial",
+  "custom ai chatbots": "custom_ai_chatbots",
+  "voice agents": "voice_agents",
+  "growth workflows": "growth_workflows",
+  "system integrations": "system_integrations",
+  "digital infrastructure": "digital_infrastructure",
+  "managed retainers": "managed_retainers",
+};
 
 export default function QuoteRequestForm() {
   const [businessName, setBusinessName] = useState("");
@@ -35,7 +58,17 @@ export default function QuoteRequestForm() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [businessType, setBusinessType] = useState("");
-  const [services, setServices] = useState<string[]>([]);
+  const [services, setServices] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+
+    const service = new URLSearchParams(window.location.search).get("service");
+    if (!service) return [];
+
+    const normalized = service.trim().toLowerCase();
+    const matched = serviceAliasMap[normalized];
+
+    return matched ? [matched] : [];
+  });
   const [customService, setCustomService] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
@@ -55,10 +88,6 @@ export default function QuoteRequestForm() {
     if (!value) return;
     setServices((prev) => (prev.includes(value) ? prev : [...prev, value]));
     setCustomService("");
-  };
-
-  const removeService = (value: string) => {
-    setServices((prev) => prev.filter((service) => service !== value));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,17 +140,17 @@ export default function QuoteRequestForm() {
   if (success) {
     return (
       <div className="space-y-4 text-center py-8">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/15 bg-accent-glow text-2xl">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-2xl text-primary shadow-[0_0_28px_rgba(232,160,32,0.2)]">
           ✓
         </div>
-        <h2 className="font-serif text-2xl text-text">Thank you!</h2>
-        <p className="text-text-muted max-w-[400px] mx-auto">
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">Thank you!</h2>
+        <p className="mx-auto max-w-[400px] text-muted-foreground">
           We&apos;ve received your quote request and will be in touch within 24 hours
           with a tailored proposal for your business.
         </p>
         <Link
           href="/"
-          className="inline-block text-sm text-accent hover:underline"
+          className="inline-block text-sm font-medium text-primary transition hover:text-primary/85"
         >
           Back to Home
         </Link>
@@ -132,20 +161,20 @@ export default function QuoteRequestForm() {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-center text-sm text-red-400">
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-200">
           {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        <section className="rounded-2xl border border-border bg-bg/40 p-4 space-y-4">
+        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-text">Business Details</h3>
-            <p className="mt-1 text-xs text-text-dim">Tell us who the quote is for.</p>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground">Business Details</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Tell us who the quote is for.</p>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-text">
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
               Business Name <span className="text-red-400">*</span>
             </label>
             <input
@@ -154,19 +183,19 @@ export default function QuoteRequestForm() {
               onChange={(e) => setBusinessName(e.target.value)}
               placeholder="e.g. Mama's Kitchen"
               required
-              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-foreground placeholder:text-white/30 outline-none transition focus:border-primary/45 focus:bg-black/35"
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-text">
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
               Business Type <span className="text-red-400">*</span>
             </label>
             <select
               value={businessType}
               onChange={(e) => setBusinessType(e.target.value)}
               required
-              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text focus:border-accent focus:outline-none appearance-none"
+              className="w-full appearance-none rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text focus:border-accent focus:outline-none"
             >
               <option value="" disabled>
                 Select your business type
@@ -180,14 +209,14 @@ export default function QuoteRequestForm() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-border bg-bg/40 p-4 space-y-4">
+        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-text">Contact Details</h3>
-            <p className="mt-1 text-xs text-text-dim">Who should we contact for this proposal?</p>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground">Contact Details</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Who should we contact for this proposal?</p>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-text">
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
               Contact Person <span className="text-red-400">*</span>
             </label>
             <input
@@ -196,13 +225,13 @@ export default function QuoteRequestForm() {
               onChange={(e) => setContactPerson(e.target.value)}
               placeholder="Your full name"
               required
-              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-foreground placeholder:text-white/30 outline-none transition focus:border-primary/45 focus:bg-black/35"
             />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-text">
+              <label className="mb-1.5 block text-sm font-medium text-foreground">
                 Phone Number <span className="text-red-400">*</span>
               </label>
               <input
@@ -211,11 +240,11 @@ export default function QuoteRequestForm() {
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+27 72 123 4567"
                 required
-                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-foreground placeholder:text-white/30 outline-none transition focus:border-primary/45 focus:bg-black/35"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-text">
+              <label className="mb-1.5 block text-sm font-medium text-foreground">
                 Email <span className="text-red-400">*</span>
               </label>
               <input
@@ -224,37 +253,66 @@ export default function QuoteRequestForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
-                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-foreground placeholder:text-white/30 outline-none transition focus:border-primary/45 focus:bg-black/35"
               />
             </div>
           </div>
         </section>
 
-        <section className="rounded-2xl border border-border bg-bg/40 p-4 space-y-4">
+        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-text">
-              Services Needed <span className="text-red-400">*</span>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground">
+              What are you interested in? <span className="text-red-400">*</span>
             </h3>
-            <p className="mt-1 text-xs text-text-dim">
-              Select one or more services, or add your own custom request.
+            <p className="mt-1 text-xs text-muted-foreground">
+              Select one or more products or services, or add your own custom request.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {serviceOptions.map((service) => (
-              <button
-                key={service.value}
-                type="button"
-                onClick={() => toggleService(service.value)}
-                className={`rounded-xl px-4 py-2.5 text-left text-sm font-medium transition-all ${
-                  services.includes(service.value)
-                    ? "border border-accent bg-accent/15 text-accent"
-                    : "border border-border bg-surface text-text-muted hover:border-text-muted"
-                }`}
-              >
-                {service.label}
-              </button>
-            ))}
+          <div className="space-y-4">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Products
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {productOptions.map((service) => (
+                  <button
+                    key={service.value}
+                    type="button"
+                    onClick={() => toggleService(service.value)}
+                    className={`rounded-xl px-4 py-2.5 text-left text-sm font-medium transition-all ${
+                      services.includes(service.value)
+                        ? "border border-primary/35 bg-primary/12 text-primary shadow-[0_0_22px_rgba(232,160,32,0.08)]"
+                        : "border border-white/10 bg-black/20 text-muted-foreground hover:border-white/20 hover:bg-white/[0.04] hover:text-foreground"
+                    }`}
+                  >
+                    {service.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Custom Services
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {serviceOptions.map((service) => (
+                  <button
+                    key={service.value}
+                    type="button"
+                    onClick={() => toggleService(service.value)}
+                    className={`rounded-xl px-4 py-2.5 text-left text-sm font-medium transition-all ${
+                      services.includes(service.value)
+                        ? "border border-primary/35 bg-primary/12 text-primary shadow-[0_0_22px_rgba(232,160,32,0.08)]"
+                        : "border border-white/10 bg-black/20 text-muted-foreground hover:border-white/20 hover:bg-white/[0.04] hover:text-foreground"
+                    }`}
+                  >
+                    {service.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -268,13 +326,13 @@ export default function QuoteRequestForm() {
                   addCustomService();
                 }
               }}
-              placeholder="Other service (type and add)"
-              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+              placeholder="Other product or service"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-sm text-foreground placeholder:text-white/30 outline-none transition focus:border-primary/45 focus:bg-black/35"
             />
             <button
               type="button"
               onClick={addCustomService}
-              className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-text transition hover:border-accent/50 hover:text-accent"
+              className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/10 hover:text-primary"
             >
               Add
             </button>
@@ -282,23 +340,23 @@ export default function QuoteRequestForm() {
 
         </section>
 
-        <section className="rounded-2xl border border-border bg-bg/40 p-4 space-y-3">
-          <label className="block text-sm font-medium text-text">
-            Project Notes <span className="text-text-dim font-normal">(optional)</span>
+        <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <label className="block text-sm font-medium text-foreground">
+            Project Notes <span className="font-normal text-muted-foreground">(optional)</span>
           </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="What does your business do? What problems should this solution solve?"
+            placeholder="What does your business do? What are you trying to improve, automate, or launch?"
             rows={4}
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none resize-none"
+            className="w-full resize-none rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-foreground placeholder:text-white/30 outline-none transition focus:border-primary/45 focus:bg-black/35"
           />
         </section>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-accent px-6 py-3.5 text-sm font-semibold text-bg transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(196,240,77,0.25)] disabled:opacity-50 disabled:hover:translate-y-0"
+          className="w-full rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-[0_10px_28px_rgba(232,160,32,0.28)] disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {loading ? "Submitting..." : "Get My Free Quote"}
         </button>

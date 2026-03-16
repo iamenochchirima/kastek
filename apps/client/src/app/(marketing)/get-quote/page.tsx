@@ -1,39 +1,73 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import type { Metadata } from "next";
+import { Check, MessageSquareQuote } from "lucide-react";
+import { Footer } from "@/components/landing/Footer";
+import { Navbar } from "@/components/landing/Navbar";
 import QuoteRequestForm from "@/components/quote/quote-request-form";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Get a Quote | KasiTek",
   description:
-    "Request a free quote for AI automation solutions for your South African business.",
+    "Request a tailored quote for KasiTek products, AI agents, automation systems, and custom implementation work.",
 };
+
+const quoteHighlights = [
+  "Tell us what you want to automate or improve",
+  "Choose products, services, or a mix of both",
+  "Get a tailored rollout recommendation and quote",
+];
 
 export default function GetQuotePage() {
   return (
-    <>
+    <main className="relative min-h-screen w-full selection:bg-primary/30 selection:text-primary">
+      <div className="bg-noise" />
       <Navbar />
-      <div className="flex flex-col items-center px-8 pt-12 pb-16 max-w-[640px] mx-auto min-h-screen max-sm:px-6 max-sm:pt-10 max-sm:pb-12">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 bg-surface border border-border px-4 py-1.5 rounded-full text-sm text-text-muted mb-6">
-            <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse-dot" />
-            Free, no-obligation quote
-          </div>
-          <h1 className="text-[clamp(2.1rem,4.2vw,3.2rem)] leading-[1.05] tracking-[-0.02em] mb-4 font-black uppercase">
-            Get a Quote for Your
-            <br />
-            <span className="text-accent">AI Solution</span>
-          </h1>
-          <p className="text-text-muted max-w-[480px] mx-auto leading-relaxed">
-            Tell us about your business and what you need. We&apos;ll get back to you
-            within 24 hours with a tailored proposal.
-          </p>
-        </div>
 
-        <div className="w-full bg-surface border border-border rounded-2xl p-8 max-sm:p-6">
-          <QuoteRequestForm />
+      <section className="relative overflow-hidden px-6 pb-16 pt-32 md:px-12 md:pb-24 md:pt-40">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(232,160,32,0.12),transparent_42%)]" />
+        <div className="relative mx-auto max-w-7xl">
+          <div className="grid gap-10 border-t border-border/50 pt-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/8 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                <MessageSquareQuote className="h-3.5 w-3.5" />
+                Get a Quote
+              </div>
+
+              <h1 className="mt-6 font-display text-5xl leading-[0.9] tracking-tight text-foreground sm:text-6xl md:text-8xl">
+                Tell us what you need. We&apos;ll scope the right solution.
+              </h1>
+
+              <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
+                Use this form if you want pricing for a KasiTek product, custom implementation
+                work, or a full rollout plan tailored to your business.
+              </p>
+
+              <div className="mt-8 rounded-[28px] border border-border bg-card/45 p-6 backdrop-blur-sm">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+                  What happens next
+                </p>
+                <div className="mt-5 space-y-4">
+                  {quoteHighlights.map((item) => (
+                    <div key={item} className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-full border border-primary/20 bg-primary/10 p-1">
+                        <Check className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <p className="text-sm leading-6 text-muted-foreground">{item}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[32px] border border-border bg-card/55 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.32)] backdrop-blur-sm md:p-6">
+              <div className="rounded-[26px] border border-white/8 bg-black/20 p-5 md:p-6">
+                <QuoteRequestForm />
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
+
       <Footer />
-    </>
+    </main>
   );
 }
