@@ -193,7 +193,7 @@ export function PostsWorkspace() {
               {
                 platform,
                 content: current.content,
-                status: platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT",
+                status: (platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT") as SocialVariantStatus,
                 aiGenerated: false,
               },
             ]
@@ -279,7 +279,7 @@ export function PostsWorkspace() {
             postId: current.id || "draft",
             platform: variant.platform,
             content: variant.content,
-            status: variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT",
+            status: (variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT") as SocialVariantStatus,
             aiGenerated: true,
             metadata: null,
             createdAt: new Date().toISOString(),

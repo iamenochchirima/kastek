@@ -14,6 +14,10 @@ type OpenRouterResponse = {
   }>;
 };
 
+function hasChoices(payload: unknown): payload is OpenRouterResponse {
+  return typeof payload === "object" && payload !== null && "choices" in payload;
+}
+
 function getOpenRouterApiKey() {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -75,11 +79,10 @@ export async function generateSocialCaptionWithOpenRouter({
     throw new Error(message);
   }
 
-  const content = payload?.choices?.[0]?.message?.content?.trim();
+  const content = hasChoices(payload) ? payload.choices?.[0]?.message?.content?.trim() : undefined;
   if (!content) {
     throw new Error("OpenRouter returned an empty response");
   }
 
   return content;
 }
-
