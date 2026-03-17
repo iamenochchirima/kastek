@@ -49,8 +49,7 @@ export function Products() {
                   "WhatsApp Business agent — responds to every message instantly",
                   "Website chat agent — captures leads while you sleep",
                   "Facebook & Instagram DM agent — no more missed comments",
-                  "Smart handoff — escalates to you when it matters",
-                  "Works in English, isiZulu, Afrikaans, and more"
+                  "Smart handoff — escalates to you when it matters"
                 ].map((feature, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-foreground/80">
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
@@ -220,7 +219,7 @@ export function Products() {
                   "Post to Facebook, Instagram, LinkedIn, and X simultaneously",
                   "AI caption generator — describe your offer, get post-ready copy instantly",
                   "Visual content calendar — see your whole month at a glance",
-                  "WhatsApp Status scheduling — the gap no other tool fills",
+                  "WhatsApp Status scheduling — keep your updates planned and consistent",
                   "Post performance analytics per channel",
                 ].map((feature, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-foreground/80">

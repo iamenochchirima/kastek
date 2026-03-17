@@ -73,7 +73,7 @@ export function Hero() {
               transition={{ delay: 0.4, duration: 0.6 }}
               className="text-muted-foreground text-sm sm:text-base leading-relaxed"
             >
-              <strong className="text-foreground font-semibold">AI agents, marketing automation, and growth systems</strong> for businesses ready to scale. KasiTek gives you the tools and services to respond to every lead, run marketing campaigns, and grow without adding headcount.
+              <strong className="text-foreground font-semibold">AI agents and growth systems</strong> for businesses. KasiTek provides products and services that help you respond faster, automate key workflows, and grow more efficiently.
             </motion.p>
 
             <motion.p
@@ -82,7 +82,7 @@ export function Hero() {
               transition={{ delay: 0.46, duration: 0.6 }}
               className="inline-flex w-fit rounded-full border border-primary/15 bg-primary/8 px-3 py-2 text-xs font-medium tracking-[0.02em] text-primary/90"
             >
-              Custom services are available now. KasiTek products are rolling out in stages.
+              Custom services available. Products coming soon.
             </motion.p>
           </div>
 

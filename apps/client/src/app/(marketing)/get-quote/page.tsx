@@ -37,8 +37,7 @@ export default function GetQuotePage() {
               </h1>
 
               <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
-                Use this form for custom services like chatbots, voice agents, workflows,
-                integrations, and implementation work tailored to your business.
+                Use this form to request a quote for custom services and implementation work.
               </p>
 
               <div className="mt-8 hidden rounded-[28px] border border-border bg-card/45 p-6 backdrop-blur-sm lg:block">
