@@ -66,14 +66,25 @@ export function Hero() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-24 items-end mt-8 border-t border-border/50 pt-8">
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-            className="text-muted-foreground text-sm sm:text-base leading-relaxed md:max-w-md"
-          >
-            <strong className="text-foreground font-semibold">AI agents, marketing automation, and growth systems</strong> for businesses ready to scale. KasiTek gives you the tools and services to respond to every lead, run marketing campaigns, and grow without adding headcount.
-          </motion.p>
+          <div className="space-y-5 md:max-w-md">
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.6 }}
+              className="text-muted-foreground text-sm sm:text-base leading-relaxed"
+            >
+              <strong className="text-foreground font-semibold">AI agents, marketing automation, and growth systems</strong> for businesses ready to scale. KasiTek gives you the tools and services to respond to every lead, run marketing campaigns, and grow without adding headcount.
+            </motion.p>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.46, duration: 0.6 }}
+              className="inline-flex w-fit rounded-full border border-primary/15 bg-primary/8 px-3 py-2 text-xs font-medium tracking-[0.02em] text-primary/90"
+            >
+              Custom services are available now. KasiTek products are rolling out in stages.
+            </motion.p>
+          </div>
 
           <motion.div 
             initial={{ opacity: 0, y: 20 }}

@@ -106,7 +106,7 @@ export function Services() {
           {[
             { label: "Hours saved weekly", val: "40+" },
             { label: "Faster response time", val: "10x" },
-            { label: "Systems integrated", val: "50+" },
+            { label: "Automations running", val: "24/7" },
             { label: "Uptime guarantee", val: "99%" },
           ].map((stat, i) => (
             <div key={i} className="group flex flex-col items-center justify-center bg-[#0D0D0D] p-6 text-center transition-colors hover:bg-black sm:p-8 md:p-10">
