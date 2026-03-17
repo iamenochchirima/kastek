@@ -41,7 +41,7 @@ export function Products() {
               
               <h3 className="font-display text-4xl mb-4">KasiAgents</h3>
               <p className="text-muted-foreground mb-8 leading-relaxed">
-                AI agents for WhatsApp, your website, Facebook, and Instagram. Your agent responds instantly, qualifies leads, answers questions, and hands off to you — 24/7.
+                AI agents for WhatsApp, your website, Facebook, Instagram, and voice. Your agent responds instantly, qualifies leads, answers questions, and hands off to you when needed — 24/7.
               </p>
 
               <ul className="flex flex-col gap-3 mb-10">
@@ -49,6 +49,7 @@ export function Products() {
                   "WhatsApp Business agent — responds to every message instantly",
                   "Website chat agent — captures leads while you sleep",
                   "Facebook & Instagram DM agent — no more missed comments",
+                  "AI voice agent — answers calls and handles common requests",
                   "Smart handoff — escalates to you when it matters"
                 ].map((feature, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-foreground/80">
@@ -126,7 +127,7 @@ export function Products() {
               
               <h3 className="font-display text-4xl mb-4">KasiReach</h3>
               <p className="text-muted-foreground mb-8 leading-relaxed">
-                Send bulk WhatsApp campaigns to your entire customer list. Templates, scheduling, delivery reports. Think Mailchimp — but for WhatsApp.
+                Send bulk WhatsApp campaigns to your entire customer list. Templates, scheduling, and delivery reports.
               </p>
 
               <ul className="flex flex-col gap-3 mb-10">

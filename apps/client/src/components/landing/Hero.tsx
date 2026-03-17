@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const headlines = [
@@ -27,7 +26,7 @@ export function Hero() {
   };
 
   return (
-    <section className="relative min-h-screen flex flex-col justify-end pb-24 md:pb-32 px-6 md:px-12 pt-32 overflow-hidden" id="home">
+    <section className="relative flex min-h-screen flex-col justify-end overflow-hidden px-6 pb-24 pt-24 md:justify-center md:px-12 md:pb-20 md:pt-28" id="home">
       {/* Background glow that matches the current headline color */}
       <div 
         className="absolute inset-0 transition-colors duration-1000 ease-in-out pointer-events-none"
@@ -37,16 +36,6 @@ export function Hero() {
       />
 
       <div className="max-w-7xl mx-auto w-full relative z-10 flex flex-col gap-8 md:gap-12">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-card/50 backdrop-blur-sm w-fit shadow-sm"
-        >
-          <Zap className="w-3.5 h-3.5 text-primary" fill="currentColor" />
-          <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">Built for Growing SMBs</span>
-        </motion.div>
-
         <div className="h-[120px] sm:h-[160px] md:h-[220px] relative">
           <AnimatePresence mode="wait">
             <motion.h1
