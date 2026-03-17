@@ -19,7 +19,7 @@ const services = [
   {
     num: "03",
     title: "Growth Workflows",
-    desc: "End-to-end automation: lead capture → qualification → follow-up → conversion. Built in n8n, runs without you.",
+    desc: "End-to-end automation: lead capture → qualification → follow-up → conversion. Built to run reliably in the background without you.",
     tags: ["Lead follow-up", "CRM sync", "Multi-channel", "Campaign flows"]
   },
   {
@@ -44,12 +44,12 @@ const services = [
 
 export function Services() {
   return (
-    <section className="bg-card px-6 md:px-12 py-24 md:py-32 border-y border-border" id="services">
+    <section className="border-y border-border bg-card px-6 py-20 md:px-12 md:py-32" id="services">
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-16 md:mb-24 items-end">
+        <div className="mb-14 grid grid-cols-1 gap-8 md:mb-24 md:grid-cols-2 md:gap-12 md:items-end">
           <div>
             <p className="text-sm font-semibold tracking-wider text-primary uppercase mb-4">Services</p>
-            <h2 className="font-display text-5xl md:text-7xl">We build it<br/>for you</h2>
+            <h2 className="font-display text-4xl leading-none sm:text-5xl md:text-7xl">We build it<br/>for you</h2>
           </div>
           <p className="text-muted-foreground md:max-w-md text-base leading-relaxed">
             When your setup is too specific for a self-serve product, we build it custom. Scoped, built, and delivered — with optional ongoing management.
@@ -64,7 +64,7 @@ export function Services() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1, duration: 0.5 }}
-              className="group bg-[#0D0D0D] p-10 relative overflow-hidden flex flex-col hover:bg-black transition-colors duration-300"
+              className="group relative flex flex-col overflow-hidden bg-[#0D0D0D] p-6 transition-colors duration-300 hover:bg-black sm:p-8 md:p-10"
             >
               {/* Hover Top Border */}
               <div className="absolute top-0 left-0 w-full h-[2px] bg-primary origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out z-20" />
@@ -102,15 +102,15 @@ export function Services() {
         </div>
         
         {/* Stats Bar */}
-        <div className="mt-24 grid grid-cols-2 lg:grid-cols-4 gap-[1px] bg-border rounded-xl overflow-hidden">
+        <div className="mt-16 grid grid-cols-2 gap-[1px] overflow-hidden rounded-xl bg-border md:mt-24 lg:grid-cols-4">
           {[
             { label: "Hours saved weekly", val: "40+" },
             { label: "Faster response time", val: "10x" },
             { label: "Systems integrated", val: "50+" },
             { label: "Uptime guarantee", val: "99%" },
           ].map((stat, i) => (
-            <div key={i} className="bg-[#0D0D0D] p-10 text-center flex flex-col justify-center items-center group hover:bg-black transition-colors">
-              <span className="font-display text-5xl md:text-6xl text-primary mb-2 group-hover:scale-110 transition-transform duration-300">{stat.val}</span>
+            <div key={i} className="group flex flex-col items-center justify-center bg-[#0D0D0D] p-6 text-center transition-colors hover:bg-black sm:p-8 md:p-10">
+              <span className="mb-2 font-display text-4xl text-primary transition-transform duration-300 group-hover:scale-110 sm:text-5xl md:text-6xl">{stat.val}</span>
               <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{stat.label}</span>
             </div>
           ))}

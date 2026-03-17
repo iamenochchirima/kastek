@@ -143,13 +143,13 @@ export default function QuoteRequestForm() {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-200">
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-center text-sm text-red-200 sm:px-4">
           {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground">Business Details</h3>
             <p className="mt-1 text-xs text-muted-foreground">Tell us who the quote is for.</p>
@@ -191,7 +191,7 @@ export default function QuoteRequestForm() {
           </div>
         </section>
 
-        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground">Contact Details</h3>
             <p className="mt-1 text-xs text-muted-foreground">Who should we contact for this proposal?</p>
@@ -241,7 +241,7 @@ export default function QuoteRequestForm() {
           </div>
         </section>
 
-        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground">
               Services Needed <span className="text-red-400">*</span>
@@ -293,7 +293,7 @@ export default function QuoteRequestForm() {
 
         </section>
 
-        <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
           <label className="block text-sm font-medium text-foreground">
             Project Notes <span className="font-normal text-muted-foreground">(optional)</span>
           </label>

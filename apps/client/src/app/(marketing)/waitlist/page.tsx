@@ -41,7 +41,7 @@ export default function WaitlistPage() {
                 contact you when early access, launch batches, or onboarding slots open.
               </p>
 
-              <div className="mt-8 rounded-[28px] border border-border bg-card/45 p-6 backdrop-blur-sm">
+              <div className="mt-8 hidden rounded-[28px] border border-border bg-card/45 p-6 backdrop-blur-sm lg:block">
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
                   What this is for
                 </p>
@@ -58,10 +58,8 @@ export default function WaitlistPage() {
               </div>
             </div>
 
-            <div className="rounded-[32px] border border-border bg-card/55 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.32)] backdrop-blur-sm md:p-6">
-              <div className="rounded-[26px] border border-white/8 bg-black/20 p-5 md:p-6">
-                <ProductWaitlistForm />
-              </div>
+            <div className="rounded-[28px] border border-border bg-card/55 p-3 shadow-[0_18px_60px_rgba(0,0,0,0.32)] backdrop-blur-sm sm:p-4 md:rounded-[32px] md:p-6">
+              <ProductWaitlistForm />
             </div>
           </div>
         </div>

@@ -6,12 +6,12 @@ import { Bot, CalendarRange, CheckCircle2, Megaphone, Wand2 } from "lucide-react
 
 export function Products() {
   return (
-    <section className="px-6 md:px-12 py-24 md:py-32" id="products">
+    <section className="px-6 py-20 md:px-12 md:py-32" id="products">
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-16 md:mb-24 items-end">
+        <div className="mb-14 grid grid-cols-1 gap-8 md:mb-24 md:grid-cols-2 md:gap-12 md:items-end">
           <div>
             <p className="text-sm font-semibold tracking-wider text-primary uppercase mb-4">Products</p>
-            <h2 className="font-display text-5xl md:text-7xl">Tools you can<br/>run yourself</h2>
+            <h2 className="font-display text-4xl leading-none sm:text-5xl md:text-7xl">Tools you can<br/>run yourself</h2>
           </div>
           <p className="text-muted-foreground md:max-w-md text-base leading-relaxed">
             Built as subscription products for SMBs. Join the waitlist now and get notified as access opens up.
@@ -25,7 +25,7 @@ export function Products() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="bg-[#0D0D0D] rounded-xl p-8 md:p-12 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 relative overflow-hidden"
+            className="relative grid grid-cols-1 gap-10 overflow-hidden rounded-xl bg-[#0D0D0D] p-6 sm:p-8 md:p-12 lg:grid-cols-2 lg:gap-24"
           >
             {/* Content Side */}
             <div className="flex flex-col z-10">
@@ -67,7 +67,7 @@ export function Products() {
             </div>
 
             {/* Visual Side - Chat Mock */}
-            <div className="bg-card rounded-xl border border-border p-6 flex flex-col gap-4 relative z-10 shadow-2xl shadow-black/50 h-full min-h-[350px]">
+            <div className="relative z-10 flex h-full min-h-[300px] flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-2xl shadow-black/50 sm:min-h-[350px] sm:p-6">
               
               <div className="flex gap-3 items-end">
                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0 shadow-lg shadow-primary/20">T</div>
@@ -112,7 +112,7 @@ export function Products() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="bg-[#0D0D0D] rounded-xl p-8 md:p-12 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 relative overflow-hidden"
+            className="relative grid grid-cols-1 gap-10 overflow-hidden rounded-xl bg-[#0D0D0D] p-6 sm:p-8 md:p-12 lg:grid-cols-2 lg:gap-24"
           >
             {/* Content Side */}
             <div className="flex flex-col z-10">
@@ -153,7 +153,7 @@ export function Products() {
             </div>
 
             {/* Visual Side - Campaign Mock */}
-            <div className="bg-card rounded-xl border border-border p-6 flex flex-col gap-4 relative z-10 shadow-2xl shadow-black/50 h-full min-h-[350px]">
+            <div className="relative z-10 flex h-full min-h-[300px] flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-2xl shadow-black/50 sm:min-h-[350px] sm:p-6">
               
               <div className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-semibold">Campaign Preview</div>
               
@@ -196,7 +196,7 @@ export function Products() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="bg-[#0D0D0D] rounded-xl p-8 md:p-12 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 relative overflow-hidden"
+            className="relative grid grid-cols-1 gap-10 overflow-hidden rounded-xl bg-[#0D0D0D] p-6 sm:p-8 md:p-12 lg:grid-cols-2 lg:gap-24"
           >
             <div className="flex flex-col z-10">
               <div className="flex items-center gap-3 mb-8">
@@ -237,7 +237,7 @@ export function Products() {
               </div>
             </div>
 
-            <div className="bg-card rounded-xl border border-border p-6 flex flex-col gap-4 relative z-10 shadow-2xl shadow-black/50 h-full min-h-[350px]">
+            <div className="relative z-10 flex h-full min-h-[300px] flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-2xl shadow-black/50 sm:min-h-[350px] sm:p-6">
               <div className="flex items-center justify-between">
                 <div className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-semibold">
                   Content Studio

@@ -134,13 +134,13 @@ export default function ProductWaitlistForm() {
   return (
     <div className="space-y-6">
       {error ? (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-200">
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-center text-sm text-red-200 sm:px-4">
           {error}
         </div>
       ) : null}
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground">
               Business Details
@@ -183,7 +183,7 @@ export default function ProductWaitlistForm() {
           </div>
         </section>
 
-        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground">
               Contact Details
@@ -236,7 +236,7 @@ export default function ProductWaitlistForm() {
           </div>
         </section>
 
-        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <section className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground">
               Products
@@ -264,7 +264,7 @@ export default function ProductWaitlistForm() {
           </div>
         </section>
 
-        <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
           <label className="block text-sm font-medium text-foreground">
             Notes <span className="font-normal text-muted-foreground">(optional)</span>
           </label>
