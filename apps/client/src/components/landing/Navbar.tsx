@@ -73,7 +73,7 @@ export function Navbar() {
         <button
           type="button"
           onClick={() => setIsMobileMenuOpen((current) => !current)}
-          className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/12 bg-white/5 text-white/82 transition hover:border-white/20 hover:bg-white/8 hover:text-white md:hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/12 bg-white/5 text-muted-foreground transition hover:border-white/20 hover:bg-white/8 hover:text-white md:hidden"
           aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
         >
           {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -116,7 +116,7 @@ export function Navbar() {
         <li>
           <Link
             href="/get-quote"
-            className="rounded-lg border border-primary/15 bg-white/5 px-5 py-2.5 font-semibold text-white/82 transition-all duration-300 hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+            className="rounded-lg border border-primary/15 bg-white/5 px-5 py-2.5 font-semibold text-muted-foreground transition-all duration-300 hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
           >
             Get Quote
           </Link>
@@ -137,21 +137,21 @@ export function Navbar() {
           <div className="flex flex-col gap-3 text-sm font-medium">
             <Link
               href="/#products"
-              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-white/82 transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
+              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Products
             </Link>
             <Link
               href="/#services"
-              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-white/82 transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
+              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Services
             </Link>
             <Link
               href="/pricing"
-              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-white/82 transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
+              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Pricing
@@ -159,7 +159,7 @@ export function Navbar() {
             {showLocalLogin ? (
               <Link
                 href="/login"
-                className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-white/82 transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
+                className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Login
@@ -168,7 +168,7 @@ export function Navbar() {
             <div className="mt-2 grid grid-cols-1 gap-3">
               <Link
                 href="/get-quote"
-                className="rounded-xl border border-primary/15 bg-white/[0.03] px-4 py-3 text-center font-semibold text-white/82 transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+                className="rounded-xl border border-primary/15 bg-white/[0.03] px-4 py-3 text-center font-semibold text-muted-foreground transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Get Quote

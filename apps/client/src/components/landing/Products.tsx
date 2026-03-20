@@ -52,7 +52,7 @@ export function Products() {
                   "AI voice agent — answers calls and handles common requests",
                   "Smart handoff — escalates to you when it matters"
                 ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-foreground/80">
+                  <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                     <span>{feature}</span>
                   </li>
@@ -138,7 +138,7 @@ export function Products() {
                   "Track delivery and read rates",
                   "Pairs directly with KasiAgents"
                 ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-foreground/80">
+                  <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
                     <CheckCircle2 className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                     <span>{feature}</span>
                   </li>
@@ -223,7 +223,7 @@ export function Products() {
                   "WhatsApp Status scheduling — keep your updates planned and consistent",
                   "Post performance analytics per channel",
                 ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-foreground/80">
+                  <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
                     <CheckCircle2 className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                     <span>{feature}</span>
                   </li>

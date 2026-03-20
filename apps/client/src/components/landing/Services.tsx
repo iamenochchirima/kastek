@@ -83,7 +83,7 @@ export function Services() {
               
               <div className="flex flex-wrap gap-2 relative z-10">
                 {svc.tags.map(tag => (
-                  <span key={tag} className="text-[11px] font-medium text-muted-foreground bg-white/5 border border-white/10 px-2.5 py-1 rounded transition-colors group-hover:border-white/20 group-hover:text-white/80">
+                  <span key={tag} className="text-[11px] font-medium text-muted-foreground bg-white/5 border border-white/10 px-2.5 py-1 rounded transition-colors group-hover:border-white/20 group-hover:text-foreground">
                     {tag}
                   </span>
                 ))}
@@ -92,7 +92,7 @@ export function Services() {
               <div className="relative z-10 mt-8">
                 <Link
                   href={`/get-quote?service=${encodeURIComponent(svc.title)}`}
-                  className="inline-flex items-center rounded-lg border border-primary/15 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-white/58 transition-colors hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+                  className="inline-flex items-center rounded-lg border border-primary/15 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
                 >
                   Get Quote
                 </Link>
