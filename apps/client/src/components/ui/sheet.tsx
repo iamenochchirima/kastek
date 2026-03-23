@@ -5,10 +5,32 @@ import * as React from "react";
 
 const SheetContext = React.createContext<{ open: boolean; setOpen: React.Dispatch<React.SetStateAction<boolean>> } | null>(null);
 
-export function Sheet({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(false);
+export type SheetProps = {
+  children: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: React.Dispatch<React.SetStateAction<boolean>> | ((open: boolean) => void);
+};
+
+export const Sheet = ({ children, open: openProp, onOpenChange }: SheetProps) => {
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
+
+  const setOpen = React.useCallback(
+    (next: React.SetStateAction<boolean>) => {
+      const resolved = typeof next === "function" ? next(open) : next;
+
+      if (!isControlled) {
+        setInternalOpen(resolved);
+      }
+
+      onOpenChange?.(resolved);
+    },
+    [isControlled, onOpenChange, open],
+  );
+
   return <SheetContext.Provider value={{ open, setOpen }}>{children}</SheetContext.Provider>;
-}
+};
 
 export function SheetTrigger({ asChild, children }: { asChild?: boolean; children: React.ReactElement }) {
   const ctx = React.useContext(SheetContext);
