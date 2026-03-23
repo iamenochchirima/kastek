@@ -76,24 +76,26 @@ export function OverviewDashboard() {
   };
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px] space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
             <Badge className="mb-2 border-primary/30 bg-primary/5 text-primary">KasiSocial</Badge>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            <h1 className="max-w-3xl text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               Standalone social publishing for the KasiTek stack.
             </h1>
-            <p className="mt-1 max-w-2xl text-muted-foreground">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
               Plan your month, write with AI, schedule across channels, and monitor publishing momentum from one dedicated workspace.
             </p>
+            </div>
+            <Link href="/social/posts" className="no-underline">
+              <Button className="w-full gap-2 sm:w-auto">
+                <Sparkles className="h-4 w-4" />
+                New AI Draft
+              </Button>
+            </Link>
           </div>
-          <Link href="/social/posts" className="no-underline">
-            <Button className="gap-2">
-              <Sparkles className="h-4 w-4" />
-              New AI Draft
-            </Button>
-          </Link>
         </div>
 
         {error ? (
@@ -109,7 +111,7 @@ export function OverviewDashboard() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">{stat.label}</p>
-                    <p className="text-3xl font-semibold text-foreground">
+                    <p className="text-2xl font-semibold text-foreground sm:text-3xl">
                       {statValues[stat.key]}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">

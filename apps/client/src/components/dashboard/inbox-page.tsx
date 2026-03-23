@@ -5,6 +5,7 @@ import Picker from "@emoji-mart/react";
 import emojiData from "@emoji-mart/data";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowLeft,
   Archive,
   Clock,
   Facebook,
@@ -129,6 +130,7 @@ type ConversationMessage = {
   status?: "pending" | "failed" | "READ" | "DELIVERED" | "SENT" | "BLOCKED";
   canReply?: boolean;
   canReact?: boolean;
+  errorMessage?: string | null;
 };
 
 type ReactionPickerState = {
@@ -187,6 +189,8 @@ export default function InboxPageClient({
   const [reactionPicker, setReactionPicker] = useState<ReactionPickerState | null>(null);
   const [selfReactionOverridesByMessageId, setSelfReactionOverridesByMessageId] = useState<Record<string, string>>({});
   const [showChannelPanel, setShowChannelPanel] = useState(true);
+  const [mobileChannelPanelOpen, setMobileChannelPanelOpen] = useState(false);
+  const [mobileConversationOpen, setMobileConversationOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [lightbox, setLightbox] = useState<MediaLightboxState | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -353,6 +357,163 @@ export default function InboxPageClient({
         return !reaction;
       }),
     [selectedMessages],
+  );
+
+  const openConversation = (conversationId: string) => {
+    setSelectedConversationId(conversationId);
+    setMobileConversationOpen(true);
+  };
+
+  const renderChannelPanelContent = () => (
+    <>
+      <div className="border-b border-border p-4">
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground">Channels</h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground"
+            onClick={() => {
+              setShowChannelPanel(false);
+              setMobileChannelPanelOpen(false);
+            }}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Manage all your conversations</p>
+      </div>
+
+      <ScrollArea className="flex-1 p-2">
+        <div className="space-y-2">
+          {channels.map((channel) => {
+            const Icon = channel.icon;
+            const isActive = selectedChannel === channel.id;
+
+            return (
+              <div
+                key={channel.id}
+                className={cn(
+                  "rounded-lg border p-3 transition-all duration-200",
+                  isActive ? "border-primary/20 bg-primary/10" : "border-transparent",
+                  channel.disabled && "opacity-70",
+                )}
+              >
+                <button
+                  onClick={() => {
+                    if (!channel.disabled) setSelectedChannel(channel.id);
+                    setShowChannelPanel(false);
+                    setMobileChannelPanelOpen(false);
+                    setMobileConversationOpen(false);
+                  }}
+                  disabled={channel.disabled}
+                  className="flex w-full items-center gap-3 text-left"
+                >
+                  <div className={cn("rounded-md p-1.5", channel.bgColor)}>
+                    <Icon className={cn("h-4 w-4", channel.color)} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={cn(
+                        "text-sm",
+                        isActive ? "font-medium text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {channel.name}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {channel.unreadCount > 0 ? (
+                      <Badge className="h-5 min-w-[20px] border-0 bg-primary px-1.5 text-xs text-primary-foreground">
+                        {channel.unreadCount}
+                      </Badge>
+                    ) : null}
+                    <span className="text-xs text-muted-foreground">{channel.count}</span>
+                  </div>
+                </button>
+
+                {channel.id !== "all" ? (
+                  <div className="mt-3">
+                    {channel.id === "whatsapp" ? (
+                      channel.connected ? null : (
+                        <Sheet>
+                          <SheetTrigger asChild>
+                            <Button
+                              variant="secondary"
+                              className="h-8 w-full justify-center text-xs"
+                            >
+                              Connect WhatsApp
+                            </Button>
+                          </SheetTrigger>
+                          <SheetContent side="right" className="w-[min(720px,100vw)] overflow-y-auto p-0">
+                            <div className="border-b border-border px-5 py-4">
+                              <h3 className="text-base font-semibold text-foreground">
+                                WhatsApp Connection
+                              </h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Reuse the current working Cloud API connection flow here.
+                              </p>
+                            </div>
+                            <div className="p-5">
+                              <WhatsappManualConnectionCard
+                                connections={whatsappConnections}
+                                mode="setup"
+                              />
+                            </div>
+                          </SheetContent>
+                        </Sheet>
+                      )
+                    ) : (
+                      <Button
+                        variant="outline"
+                        className="h-8 w-full justify-center text-xs opacity-50"
+                        disabled
+                      >
+                        Connect {channel.name}
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 border-t border-border pt-4">
+          <p className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Quick Filters
+          </p>
+          <div className="space-y-1">
+            {[
+              { id: "all", label: "All Messages", icon: MessageCircle },
+              { id: "unread", label: "Unread", icon: Mail },
+              { id: "starred", label: "Starred", icon: Star },
+            ].map((filterItem) => {
+              const Icon = filterItem.icon;
+              const isActive = filter === filterItem.id;
+              return (
+                <button
+                  key={filterItem.id}
+                  onClick={() => {
+                    setFilter(filterItem.id);
+                    setMobileConversationOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
+                    isActive
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{filterItem.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </ScrollArea>
+    </>
   );
 
   useEffect(() => {
@@ -657,7 +818,11 @@ export default function InboxPageClient({
               ...current,
               [conversationId]: existing.map((message) =>
                 message.id === payload.message.id
-                  ? { ...message, status: normalizeRealtimeStatus(payload.message.whatsappStatus) }
+                  ? {
+                      ...message,
+                      status: normalizeRealtimeStatus(payload.message.whatsappStatus),
+                      errorMessage: null,
+                    }
                   : message,
               ),
             };
@@ -677,7 +842,11 @@ export default function InboxPageClient({
                 message.status === "pending" &&
                 payload.text &&
                 message.text === payload.text
-                  ? { ...message, status: "failed" }
+                  ? {
+                      ...message,
+                      status: "failed",
+                      errorMessage: payload.error || "Failed to send WhatsApp message",
+                    }
                   : message,
               ),
             };
@@ -854,7 +1023,12 @@ export default function InboxPageClient({
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen">
+      <div className="relative flex h-screen overflow-hidden">
+        <Sheet open={mobileChannelPanelOpen} onOpenChange={setMobileChannelPanelOpen}>
+          <SheetContent side="left" className="flex w-[min(320px,100vw)] flex-col p-0 lg:hidden">
+            {renderChannelPanelContent()}
+          </SheetContent>
+        </Sheet>
         <AnimatePresence>
           {showChannelPanel ? (
             <motion.div
@@ -862,169 +1036,48 @@ export default function InboxPageClient({
               animate={{ width: 260, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="flex flex-col overflow-hidden border-r border-border bg-card"
+              className="hidden flex-col overflow-hidden border-r border-border bg-card lg:flex"
             >
-              <div className="border-b border-border p-4">
-                <div className="mb-1 flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-foreground">Channels</h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground"
-                    onClick={() => setShowChannelPanel(false)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">Manage all your conversations</p>
-              </div>
-
-              <ScrollArea className="flex-1 p-2">
-                <div className="space-y-2">
-                  {channels.map((channel) => {
-                    const Icon = channel.icon;
-                    const isActive = selectedChannel === channel.id;
-
-                    return (
-                      <div
-                        key={channel.id}
-                        className={cn(
-                          "rounded-lg border p-3 transition-all duration-200",
-                          isActive ? "border-primary/20 bg-primary/10" : "border-transparent",
-                          channel.disabled && "opacity-70",
-                        )}
-                      >
-                        <button
-                          onClick={() => {
-                            if (!channel.disabled) setSelectedChannel(channel.id);
-                          }}
-                          disabled={channel.disabled}
-                          className="flex w-full items-center gap-3 text-left"
-                        >
-                          <div className={cn("rounded-md p-1.5", channel.bgColor)}>
-                            <Icon className={cn("h-4 w-4", channel.color)} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className={cn(
-                                "text-sm",
-                                isActive ? "font-medium text-foreground" : "text-muted-foreground",
-                              )}
-                            >
-                              {channel.name}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {channel.unreadCount > 0 ? (
-                              <Badge className="h-5 min-w-[20px] border-0 bg-primary px-1.5 text-xs text-primary-foreground">
-                                {channel.unreadCount}
-                              </Badge>
-                            ) : null}
-                            <span className="text-xs text-muted-foreground">{channel.count}</span>
-                          </div>
-                        </button>
-
-                        {channel.id !== "all" ? (
-                          <div className="mt-3">
-                            {channel.id === "whatsapp" ? (
-                              channel.connected ? null : (
-                                <Sheet>
-                                  <SheetTrigger asChild>
-                                    <Button
-                                      variant="secondary"
-                                      className="h-8 w-full justify-center text-xs"
-                                    >
-                                      Connect WhatsApp
-                                    </Button>
-                                  </SheetTrigger>
-                                  <SheetContent side="right" className="w-[min(720px,100vw)] overflow-y-auto p-0">
-                                    <div className="border-b border-border px-5 py-4">
-                                      <h3 className="text-base font-semibold text-foreground">
-                                        WhatsApp Connection
-                                      </h3>
-                                      <p className="mt-1 text-sm text-muted-foreground">
-                                        Reuse the current working Cloud API connection flow here.
-                                      </p>
-                                    </div>
-                                    <div className="p-5">
-                                      <WhatsappManualConnectionCard
-                                        connections={whatsappConnections}
-                                        mode="setup"
-                                      />
-                                    </div>
-                                  </SheetContent>
-                                </Sheet>
-                              )
-                            ) : (
-                              <Button
-                                variant="outline"
-                                className="h-8 w-full justify-center text-xs opacity-50"
-                                disabled
-                              >
-                                Connect {channel.name}
-                              </Button>
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-6 border-t border-border pt-4">
-                  <p className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Quick Filters
-                  </p>
-                  <div className="space-y-1">
-                    {[
-                      { id: "all", label: "All Messages", icon: MessageCircle },
-                      { id: "unread", label: "Unread", icon: Mail },
-                      { id: "starred", label: "Starred", icon: Star },
-                    ].map((filterItem) => {
-                      const Icon = filterItem.icon;
-                      const isActive = filter === filterItem.id;
-                      return (
-                        <button
-                          key={filterItem.id}
-                          onClick={() => setFilter(filterItem.id)}
-                          className={cn(
-                            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
-                            isActive
-                              ? "bg-secondary text-foreground"
-                              : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
-                          )}
-                        >
-                          <Icon className="h-4 w-4" />
-                          <span>{filterItem.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </ScrollArea>
+              {renderChannelPanelContent()}
             </motion.div>
           ) : null}
         </AnimatePresence>
 
-        <div className="flex w-80 flex-col border-r border-border bg-card lg:w-96">
-          <div className="border-b border-border p-4">
+        <div
+          className={cn(
+            "flex flex-col border-r border-border bg-card",
+            mobileConversationOpen ? "hidden lg:flex" : "w-full",
+            "lg:w-96",
+          )}
+        >
+          <div className="border-b border-border p-3 sm:p-4">
             <div className="mb-4 flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-muted-foreground lg:hidden"
+                onClick={() => setMobileChannelPanelOpen(true)}
+              >
+                <Filter className="h-4 w-4" />
+              </Button>
               {!showChannelPanel ? (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0 text-muted-foreground"
+                  className="hidden h-8 w-8 shrink-0 text-muted-foreground lg:inline-flex"
                   onClick={() => setShowChannelPanel(true)}
                 >
                   <Filter className="h-4 w-4" />
                 </Button>
               ) : null}
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-semibold text-foreground">{selectedChannelMeta.name}</h1>
+                  <h1 className="truncate text-lg font-semibold text-foreground sm:text-xl">
+                    {selectedChannelMeta.name}
+                  </h1>
                 </div>
               </div>
-              <Badge className="border-0 bg-primary/10 text-primary">
+              <Badge className="hidden border-0 bg-primary/10 text-primary sm:inline-flex">
                 {filteredConversations.filter((conversation) => conversation.unread).length} new
               </Badge>
             </div>
@@ -1071,7 +1124,7 @@ export default function InboxPageClient({
                     <motion.button
                       key={conversation.id}
                       variants={item}
-                      onClick={() => setSelectedConversationId(conversation.id)}
+                      onClick={() => openConversation(conversation.id)}
                       className={cn(
                         "mb-1 flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-all duration-200",
                         selectedConversation?.id === conversation.id
@@ -1133,12 +1186,20 @@ export default function InboxPageClient({
           </ScrollArea>
         </div>
 
-        <div className="flex flex-1 flex-col bg-background">
-          <div className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
+        <div className={cn("flex flex-1 flex-col bg-background", mobileConversationOpen ? "flex" : "hidden lg:flex")}>
+          <div className="flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-6">
             {selectedConversation ? (
               <>
-                <div className="flex items-center gap-3">
-                  <div className="relative">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground lg:hidden"
+                    onClick={() => setMobileConversationOpen(false)}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="relative shrink-0">
                     <Avatar className="h-10 w-10 bg-secondary">
                       <AvatarFallback className="bg-secondary text-foreground">
                         {selectedConversation.avatar}
@@ -1153,15 +1214,15 @@ export default function InboxPageClient({
                       <ChannelIcon className={cn("h-3 w-3", currentChannel.color)} />
                     </div>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-sm font-semibold text-foreground">
+                      <h2 className="truncate text-sm font-semibold text-foreground">
                         {selectedConversation.name}
                       </h2>
                       <Badge
                         variant="outline"
                         className={cn(
-                          "border-0 px-1.5 py-0 text-[10px]",
+                          "hidden border-0 px-1.5 py-0 text-[10px] sm:inline-flex",
                           currentChannel.bgColor,
                           currentChannel.color,
                         )}
@@ -1169,10 +1230,10 @@ export default function InboxPageClient({
                         {currentChannel.name}
                       </Badge>
                     </div>
-                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                      {selectedConversation.handle}
+                    <p className="truncate text-xs text-muted-foreground">
+                      <span>{selectedConversation.handle}</span>
                       {selectedConversation.status === "online" ? (
-                        <span className="flex items-center gap-1 text-accent">
+                        <span className="ml-1 hidden items-center gap-1 text-accent sm:inline-flex">
                           <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                           Online
                         </span>
@@ -1180,10 +1241,10 @@ export default function InboxPageClient({
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                      <Button variant="ghost" size="icon" className="hidden h-8 w-8 text-muted-foreground sm:inline-flex">
                         <Tag className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
@@ -1204,7 +1265,7 @@ export default function InboxPageClient({
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                      <Button variant="ghost" size="icon" className="hidden h-8 w-8 text-muted-foreground sm:inline-flex">
                         <Archive className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
@@ -1236,7 +1297,7 @@ export default function InboxPageClient({
             ) : null}
           </div>
 
-          <ScrollArea className="flex-1 p-6">
+          <ScrollArea className="flex-1 p-3 sm:p-6">
             <div className="mx-auto max-w-3xl space-y-4">
               <div className="flex items-center gap-4 py-2">
                 <div className="h-px flex-1 bg-border" />
@@ -1261,7 +1322,7 @@ export default function InboxPageClient({
                 >
                   <div
                     className={cn(
-                      "group relative max-w-[70%] rounded-lg p-3",
+                      "group relative max-w-[85%] rounded-lg p-3 sm:max-w-[70%]",
                       message.sender === "customer"
                         ? "bg-secondary text-foreground"
                         : "border border-primary/20 bg-primary/10 text-foreground",
@@ -1328,45 +1389,52 @@ export default function InboxPageClient({
                       contactLabel={selectedConversation?.handle || selectedConversation?.name || "Contact"}
                       onOpenMedia={(url, kind, caption) => setLightbox({ url, kind, caption })}
                     />
-                    <div className="mt-1.5 flex items-center justify-end gap-1.5">
-                      {reactionDisplayByMessageId[message.id] ? (
-                        <button
-                          type="button"
-                          className={cn(
-                            "mr-auto inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/70 px-2 py-0.5 text-xs",
-                            (
-                              selfReactionOverridesByMessageId[message.id] ??
-                              persistedSelfReactionsByMessageId[message.id]
-                            )?.trim() && message.canReact
-                              ? "cursor-pointer hover:bg-card"
-                              : "cursor-default",
-                          )}
-                          onClick={() => {
-                            if (
-                              !(
-                                (
-                                  selfReactionOverridesByMessageId[message.id] ??
-                                  persistedSelfReactionsByMessageId[message.id]
-                                )?.trim() && message.canReact
-                              )
-                            ) {
-                              return;
-                            }
-                            void sendReaction(message.id, "", true);
-                          }}
-                        >
-                          {reactionDisplayByMessageId[message.id].emojis.join(" ")}
-                          {reactionDisplayByMessageId[message.id].total > 1 ? (
-                            <span className="text-[11px] text-muted-foreground">
-                              {reactionDisplayByMessageId[message.id].total}
-                            </span>
-                          ) : null}
-                        </button>
+                    <div className="mt-1.5 space-y-1">
+                      {message.status === "failed" && message.errorMessage ? (
+                        <p className="max-w-[220px] text-right text-[10px] leading-snug text-red-300">
+                          {message.errorMessage}
+                        </p>
                       ) : null}
-                      <span className="text-[10px] text-muted-foreground">
-                        {message.time}
-                      </span>
-                      {message.sender !== "customer" ? renderOutgoingMessageState(message.status) : null}
+                      <div className="flex items-center justify-end gap-1.5">
+                        {reactionDisplayByMessageId[message.id] ? (
+                          <button
+                            type="button"
+                            className={cn(
+                              "mr-auto inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/70 px-2 py-0.5 text-xs",
+                              (
+                                selfReactionOverridesByMessageId[message.id] ??
+                                persistedSelfReactionsByMessageId[message.id]
+                              )?.trim() && message.canReact
+                                ? "cursor-pointer hover:bg-card"
+                                : "cursor-default",
+                            )}
+                            onClick={() => {
+                              if (
+                                !(
+                                  (
+                                    selfReactionOverridesByMessageId[message.id] ??
+                                    persistedSelfReactionsByMessageId[message.id]
+                                  )?.trim() && message.canReact
+                                )
+                              ) {
+                                return;
+                              }
+                              void sendReaction(message.id, "", true);
+                            }}
+                          >
+                            {reactionDisplayByMessageId[message.id].emojis.join(" ")}
+                            {reactionDisplayByMessageId[message.id].total > 1 ? (
+                              <span className="text-[11px] text-muted-foreground">
+                                {reactionDisplayByMessageId[message.id].total}
+                              </span>
+                            ) : null}
+                          </button>
+                        ) : null}
+                        <span className="text-[10px] text-muted-foreground">
+                          {message.time}
+                        </span>
+                        {message.sender !== "customer" ? renderOutgoingMessageState(message.status) : null}
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -1402,7 +1470,7 @@ export default function InboxPageClient({
             />
           ) : null}
 
-          <div className="border-t border-border bg-card p-4">
+          <div className="border-t border-border bg-card p-3 sm:p-4">
             <div className="mx-auto max-w-3xl">
               {composerError ? (
                 <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
@@ -1433,7 +1501,7 @@ export default function InboxPageClient({
                 </div>
               ) : null}
               <div className="mb-3 flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground">
+                <Button variant="ghost" size="sm" className="hidden h-7 gap-1.5 text-xs text-muted-foreground sm:inline-flex">
                   <Clock className="h-3 w-3" />
                   Schedule
                 </Button>

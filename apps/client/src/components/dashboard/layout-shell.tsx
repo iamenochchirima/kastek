@@ -194,66 +194,68 @@ function ProductSwitcher({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/55 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6" onClick={onClose}>
       <div
-        className="w-full max-w-4xl rounded-2xl border border-border bg-card p-6 shadow-[0_24px_90px_rgba(0,0,0,0.45)]"
+        className="flex max-h-[calc(100dvh-24px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_90px_rgba(0,0,0,0.45)] sm:max-h-[min(88vh,920px)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div>
+        <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6 sm:py-6">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Products</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Switch workspace product</h2>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            <h2 className="mt-2 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">Switch workspace product</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               Jump between your overall workspace view and each focused product area without losing context.
             </p>
           </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={onClose}>
             <PanelLeftOpen className="h-4 w-4 rotate-90" />
           </Button>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {products.map((product) => {
-            const active = product.key === currentProduct.key;
-            const Icon = product.icon;
-            const unreadBadge =
-              product.key === "inbox" && inboxUnreadCount > 0 ? (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
-                  {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
-                </span>
-              ) : null;
+        <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {products.map((product) => {
+              const active = product.key === currentProduct.key;
+              const Icon = product.icon;
+              const unreadBadge =
+                product.key === "inbox" && inboxUnreadCount > 0 ? (
+                  <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
+                    {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
+                  </span>
+                ) : null;
 
-            return (
-              <Link
-                key={product.key}
-                href={product.href}
-                onClick={onClose}
-                className={cn(
-                  "rounded-xl border p-5 no-underline transition-all duration-200",
-                  active
-                    ? "border-primary/30 bg-primary/10 shadow-[inset_0_0_0_1px_rgba(232,160,32,0.18)]"
-                    : "border-border bg-secondary/35 hover:border-primary/20 hover:bg-secondary/60",
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card">
-                      <Icon className={cn("h-5 w-5", active ? "text-primary" : "text-foreground")} />
+              return (
+                <Link
+                  key={product.key}
+                  href={product.href}
+                  onClick={onClose}
+                  className={cn(
+                    "rounded-xl border p-4 no-underline transition-all duration-200 sm:p-5",
+                    active
+                      ? "border-primary/30 bg-primary/10 shadow-[inset_0_0_0_1px_rgba(232,160,32,0.18)]"
+                      : "border-border bg-secondary/35 hover:border-primary/20 hover:bg-secondary/60",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-card">
+                        <Icon className={cn("h-5 w-5", active ? "text-primary" : "text-foreground")} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-semibold text-foreground sm:text-lg">{product.name}</p>
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                          {active ? "Current product" : "Open product"}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-lg font-semibold text-foreground">{product.name}</p>
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        {active ? "Current product" : "Open product"}
-                      </p>
-                    </div>
+                    {unreadBadge}
                   </div>
-                  {unreadBadge}
-                </div>
 
-                <p className="mt-4 text-sm leading-6 text-muted-foreground">{product.description}</p>
-              </Link>
-            );
-          })}
+                  <p className="mt-4 text-sm leading-6 text-muted-foreground">{product.description}</p>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -560,11 +562,31 @@ export function LayoutShell({
           />
         </aside>
         <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="fixed left-4 top-4 z-50 lg:hidden">
-              <Menu className="h-5 w-5" />
+          <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
+            <div className="flex min-w-0 items-center gap-2">
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <button
+                type="button"
+                onClick={() => setSwitcherOpen(true)}
+                className="flex min-w-0 items-center gap-2 text-left"
+              >
+                <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">{currentProduct.name}</p>
+                  <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    Workspace
+                  </p>
+                </div>
+              </button>
+            </div>
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setSwitcherOpen(true)}>
+              <Grid2x2 className="h-4 w-4" />
             </Button>
-          </SheetTrigger>
+          </div>
           <SheetContent side="left" className="w-64 p-0">
             <SidebarContent
               collapsed={false}
@@ -574,7 +596,7 @@ export function LayoutShell({
             />
           </SheetContent>
         </Sheet>
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto pt-14 lg:pt-0">{children}</main>
       </div>
     </>
   );
