@@ -21,6 +21,10 @@ pub fn build_whatsapp_user_channel(user_id: &str) -> String {
     format!("whatsapp:user:{user_id}")
 }
 
+fn whatsapp_inbox_queue_key() -> &'static str {
+    "whatsapp:inbox:outbound"
+}
+
 pub async fn publish_whatsapp_event(user_id: &str, event: &Value) -> Result<(), AppError> {
     let Some(client) = redis_client() else {
         return Ok(());
@@ -47,4 +51,45 @@ pub async fn create_pubsub() -> Result<Option<redis::aio::PubSub>, AppError> {
         .await
         .map(Some)
         .map_err(|_| AppError::Internal("Failed to connect to realtime Redis".to_string()))
+}
+
+pub async fn enqueue_whatsapp_inbox_message(message_id: &str) -> Result<(), AppError> {
+    let Some(client) = redis_client() else {
+        return Ok(());
+    };
+    let mut conn = client
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(|_| AppError::Internal("Failed to connect to realtime Redis".to_string()))?;
+    let _: i64 = conn
+        .lpush(whatsapp_inbox_queue_key(), message_id)
+        .await
+        .map_err(|_| AppError::Internal("Failed to enqueue inbox job".to_string()))?;
+    Ok(())
+}
+
+pub async fn drain_whatsapp_inbox_queue(limit: usize) -> Result<Vec<String>, AppError> {
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
+    let Some(client) = redis_client() else {
+        return Ok(Vec::new());
+    };
+    let mut conn = client
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(|_| AppError::Internal("Failed to connect to realtime Redis".to_string()))?;
+    let mut ids = Vec::new();
+    for _ in 0..limit {
+        let next = redis::cmd("RPOP")
+            .arg(whatsapp_inbox_queue_key())
+            .query_async::<Option<String>>(&mut conn)
+            .await
+            .map_err(|_| AppError::Internal("Failed to drain inbox queue".to_string()))?;
+        let Some(message_id) = next else {
+            break;
+        };
+        ids.push(message_id);
+    }
+    Ok(ids)
 }

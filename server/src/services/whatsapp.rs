@@ -3,7 +3,7 @@ use chrono::Utc;
 use futures_util::StreamExt;
 use serde_json::{json, Value};
 use sqlx::PgPool;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::db::models::{
     ConversationRow, MessageRow, WhatsappCampaignCreateRequest, WhatsappCampaignRecipientRow,
@@ -70,6 +70,17 @@ struct GraphSubscribedApps {
 #[derive(serde::Deserialize)]
 struct GraphApp {
     id: Option<String>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct PendingInboxMessageRow {
+    pub id: String,
+    pub conversation_id: String,
+    pub user_id: String,
+    pub customer_identifier: String,
+    pub phone_number_id: String,
+    pub access_token_encrypted: String,
+    pub content: String,
 }
 
 fn map_quality_rating(value: Option<&str>) -> String {
@@ -2516,7 +2527,11 @@ fn unwrap_reply_envelope(content: &str) -> (String, Option<String>, Option<Strin
         if let Ok(value) = serde_json::from_str::<Value>(raw) {
             let inner = value.get("content").and_then(|v| v.as_str()).unwrap_or(content).to_string();
             let preview = value.get("replyPreview").and_then(|v| v.as_str()).map(|v| v.to_string());
-            let reply_to = value.get("replyToMessageId").and_then(|v| v.as_str()).map(|v| v.to_string());
+            let reply_to = value
+                .get("replyToWhatsappMessageId")
+                .and_then(|v| v.as_str())
+                .map(|v| v.to_string())
+                .or_else(|| value.get("replyToMessageId").and_then(|v| v.as_str()).map(|v| v.to_string()));
             return (inner, preview, reply_to);
         }
     }
@@ -2604,6 +2619,211 @@ async fn send_text_message(
     let message_id = raw.get("messages").and_then(|v| v.get(0)).and_then(|v| v.get("id")).and_then(|v| v.as_str())
         .ok_or_else(|| AppError::Internal("WhatsApp Cloud API text send did not return a message id".to_string()))?;
     Ok((message_id.to_string(), raw))
+}
+
+async fn claim_queued_inbox_message(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    message_id: Option<&str>,
+) -> Result<Option<PendingInboxMessageRow>, AppError> {
+    let row = if let Some(message_id) = message_id {
+        sqlx::query_as::<_, PendingInboxMessageRow>(
+            r#"
+            SELECT
+                m.id,
+                m."conversationId" AS conversation_id,
+                wc."userId" AS user_id,
+                c."customerIdentifier" AS customer_identifier,
+                wc."phoneNumberId" AS phone_number_id,
+                wc."accessTokenEncrypted" AS access_token_encrypted,
+                m.content
+            FROM "Message" m
+            INNER JOIN "Conversation" c ON c.id = m."conversationId"
+            INNER JOIN "WhatsappConnection" wc
+                ON c.channel = 'whatsapp'
+               AND c."customerIdentifier" LIKE ('wa:' || wc.id || ':%')
+            WHERE m.id = $1
+              AND m.sender = 'bot'
+              AND m."whatsappMessageId" IS NULL
+              AND COALESCE(m."whatsappStatus", 'QUEUED') = 'QUEUED'
+            FOR UPDATE OF m SKIP LOCKED
+            "#,
+        )
+        .bind(message_id)
+        .fetch_optional(&mut **tx)
+        .await?
+    } else {
+        sqlx::query_as::<_, PendingInboxMessageRow>(
+            r#"
+            SELECT
+                m.id,
+                m."conversationId" AS conversation_id,
+                wc."userId" AS user_id,
+                c."customerIdentifier" AS customer_identifier,
+                wc."phoneNumberId" AS phone_number_id,
+                wc."accessTokenEncrypted" AS access_token_encrypted,
+                m.content
+            FROM "Message" m
+            INNER JOIN "Conversation" c ON c.id = m."conversationId"
+            INNER JOIN "WhatsappConnection" wc
+                ON c.channel = 'whatsapp'
+               AND c."customerIdentifier" LIKE ('wa:' || wc.id || ':%')
+            WHERE m.sender = 'bot'
+              AND m."whatsappMessageId" IS NULL
+              AND COALESCE(m."whatsappStatus", 'QUEUED') = 'QUEUED'
+            ORDER BY m.timestamp ASC
+            FOR UPDATE OF m SKIP LOCKED
+            LIMIT 1
+            "#,
+        )
+        .fetch_optional(&mut **tx)
+        .await?
+    };
+
+    let Some(row) = row else {
+        return Ok(None);
+    };
+
+    sqlx::query(
+        r#"
+        UPDATE "Message"
+        SET "whatsappStatus" = 'PROCESSING', "errorCode" = NULL, "errorMessage" = NULL
+        WHERE id = $1
+        "#,
+    )
+    .bind(&row.id)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(Some(row))
+}
+
+async fn process_claimed_inbox_message(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    job: PendingInboxMessageRow,
+) -> Result<(String, String, String, Option<String>), AppError> {
+    let (_, phone) = parse_conversation_identifier(&job.customer_identifier)
+        .ok_or_else(|| AppError::BadRequest("Invalid conversation identifier".to_string()))?;
+    let access_token = decrypt_social_secret(&job.access_token_encrypted)?;
+    let (text, _, reply_to_whatsapp_message_id) = unwrap_reply_envelope(&job.content);
+    let (whatsapp_message_id, _) = send_text_message(
+        &job.phone_number_id,
+        &access_token,
+        &phone,
+        &text,
+        reply_to_whatsapp_message_id.as_deref(),
+    )
+    .await?;
+
+    sqlx::query(
+        r#"
+        UPDATE "Message"
+        SET
+            "whatsappMessageId" = $2,
+            "whatsappStatus" = 'SENT',
+            "errorCode" = NULL,
+            "errorMessage" = NULL
+        WHERE id = $1
+        "#,
+    )
+    .bind(&job.id)
+    .bind(&whatsapp_message_id)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok((job.user_id, job.conversation_id, job.id, Some(whatsapp_message_id)))
+}
+
+async fn fail_claimed_inbox_message(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    message_id: &str,
+    error: &AppError,
+) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        UPDATE "Message"
+        SET
+            "whatsappStatus" = 'FAILED',
+            "errorCode" = 'SEND_FAILED',
+            "errorMessage" = $2
+        WHERE id = $1
+        "#,
+    )
+    .bind(message_id)
+    .bind(error.to_string())
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+async fn process_single_queued_inbox_message(
+    pool: &PgPool,
+    explicit_message_id: Option<&str>,
+) -> Result<bool, AppError> {
+    let mut tx = pool.begin().await?;
+    let Some(job) = claim_queued_inbox_message(&mut tx, explicit_message_id).await? else {
+        tx.rollback().await?;
+        return Ok(false);
+    };
+
+    let message_id = job.id.clone();
+    let conversation_id = job.conversation_id.clone();
+    let user_id = job.user_id.clone();
+    let text = display_text(&job.content);
+
+    match process_claimed_inbox_message(&mut tx, job).await {
+        Ok((_user_id, _conversation_id, _message_id, _whatsapp_message_id)) => {
+            tx.commit().await?;
+            publish_message_updated(&user_id, &conversation_id, &message_id, "SENT", None, None).await;
+            publish_conversation_updated(pool, &user_id, &conversation_id).await?;
+            Ok(true)
+        }
+        Err(error) => {
+            fail_claimed_inbox_message(&mut tx, &message_id, &error).await?;
+            tx.commit().await?;
+            publish_message_updated(
+                &user_id,
+                &conversation_id,
+                &message_id,
+                "FAILED",
+                Some("SEND_FAILED"),
+                Some(&error.to_string()),
+            )
+            .await;
+            publish_message_send_failed(&user_id, &conversation_id, &error.to_string(), Some(&text)).await;
+            Ok(true)
+        }
+    }
+}
+
+pub async fn process_queued_inbox_messages(pool: &PgPool, limit: i64) -> Result<i64, AppError> {
+    if limit <= 0 {
+        return Ok(0);
+    }
+
+    let max_items = limit as usize;
+    let mut processed = 0_i64;
+    let mut seen = HashSet::new();
+
+    for message_id in realtime::drain_whatsapp_inbox_queue(max_items).await? {
+        if !seen.insert(message_id.clone()) {
+            continue;
+        }
+        if process_single_queued_inbox_message(pool, Some(&message_id)).await? {
+            processed += 1;
+            if processed >= limit {
+                return Ok(processed);
+            }
+        }
+    }
+
+    while processed < limit {
+        if !process_single_queued_inbox_message(pool, None).await? {
+            break;
+        }
+        processed += 1;
+    }
+
+    Ok(processed)
 }
 
 async fn send_reaction_message(
@@ -2913,12 +3133,8 @@ pub async fn send_conversation_message(pool: &PgPool, user_id: &str, conversatio
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
     let text = input.text.as_deref().map(str::trim).filter(|v| !v.is_empty())
         .ok_or_else(|| AppError::BadRequest("Reply text or media file is required".to_string()))?;
-    let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
+    parse_conversation_identifier(&conversation.customer_identifier)
         .ok_or_else(|| AppError::BadRequest("Invalid conversation".to_string()))?;
-    let connection = get_connection_row(pool, user_id, &connection_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
-    let mut reply_to_whatsapp_message_id: Option<String> = None;
     let mut persisted_content = text.to_string();
     if let Some(reply_to_message_id) = input.reply_to_message_id.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
         let reply_target = sqlx::query_as::<_, MessageRow>(
@@ -2937,44 +3153,27 @@ pub async fn send_conversation_message(pool: &PgPool, user_id: &str, conversatio
         .ok_or_else(|| AppError::NotFound("Reply target not found".to_string()))?;
         let target_wa_id = reply_target.whatsapp_message_id.clone()
             .ok_or_else(|| AppError::BadRequest("This message cannot be replied to yet. Try again in a few seconds.".to_string()))?;
-        reply_to_whatsapp_message_id = Some(target_wa_id);
         persisted_content = format!(
             "__kasiai_wa_reply_v1__:{}",
             json!({
                 "version": 1,
                 "replyToMessageId": reply_target.id,
+                "replyToWhatsappMessageId": target_wa_id,
                 "replyPreview": preview_text(&reply_target.content, 180),
                 "content": text
             })
         );
     }
-    let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
-    let send_result = send_text_message(
-        &connection.phone_number_id,
-        &access_token,
-        &phone,
-        text,
-        reply_to_whatsapp_message_id.as_deref(),
-    )
-    .await;
-    let (message_id, _raw) = match send_result {
-        Ok(value) => value,
-        Err(error) => {
-            publish_message_send_failed(user_id, &conversation.id, &error.to_string(), Some(text)).await;
-            return Err(error);
-        }
-    };
     let created_message_id = cuid2::create_id();
     sqlx::query(
         r#"
-        INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappMessageId", "whatsappStatus", timestamp)
-        VALUES ($1, $2, 'bot', $3, $4, 'SENT', NOW())
+        INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappStatus", timestamp)
+        VALUES ($1, $2, 'bot', $3, 'QUEUED', NOW())
         "#
     )
     .bind(&created_message_id)
     .bind(&conversation.id)
     .bind(&persisted_content)
-    .bind(&message_id)
     .execute(pool)
     .await?;
     sqlx::query(r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW() WHERE id = $1"#)
@@ -2983,7 +3182,10 @@ pub async fn send_conversation_message(pool: &PgPool, user_id: &str, conversatio
         .await?;
     publish_message_created(pool, user_id, &created_message_id).await?;
     publish_conversation_updated(pool, user_id, &conversation.id).await?;
-    Ok(json!({ "success": true, "queued": false, "messageId": created_message_id }))
+    if let Err(error) = realtime::enqueue_whatsapp_inbox_message(&created_message_id).await {
+        log::warn!("failed to enqueue whatsapp inbox message {}: {}", created_message_id, error);
+    }
+    Ok(json!({ "success": true, "queued": true, "messageId": created_message_id }))
 }
 
 pub async fn mark_conversation_read(pool: &PgPool, user_id: &str, conversation_id: &str) -> Result<Value, AppError> {

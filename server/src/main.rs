@@ -63,6 +63,30 @@ async fn run_whatsapp_marketing_worker(pool: sqlx::PgPool) {
     }
 }
 
+async fn run_whatsapp_inbox_worker(pool: sqlx::PgPool) {
+    let poll_interval_ms = std::env::var("WHATSAPP_INBOX_POLL_INTERVAL_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(1_000);
+    let batch_size = std::env::var("WHATSAPP_INBOX_BATCH_SIZE")
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(50);
+
+    loop {
+        match services::whatsapp::process_queued_inbox_messages(&pool, batch_size).await {
+            Ok(processed) if processed > 0 => {
+                log::info!("[whatsapp-inbox-worker] processed={}", processed);
+            }
+            Ok(_) => {}
+            Err(error) => {
+                log::error!("[whatsapp-inbox-worker] iteration failed: {}", error);
+            }
+        }
+        sleep(Duration::from_millis(poll_interval_ms)).await;
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
@@ -87,9 +111,15 @@ async fn main() -> std::io::Result<()> {
             run_whatsapp_marketing_worker(db_pool).await;
             return Ok(());
         }
+        Some("whatsapp-inbox-worker") => {
+            log::info!("starting whatsapp inbox worker");
+            run_whatsapp_inbox_worker(db_pool).await;
+            return Ok(());
+        }
         Some("all-workers") => {
             log::info!("starting all workers");
             tokio::join!(
+                run_whatsapp_inbox_worker(db_pool.clone()),
                 run_social_worker(db_pool.clone()),
                 run_whatsapp_marketing_worker(db_pool.clone())
             );
