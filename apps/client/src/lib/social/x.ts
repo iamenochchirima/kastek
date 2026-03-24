@@ -3,6 +3,7 @@ import { SocialChannelStatus, SocialPlatform } from "@kasitek/database";
 import { prisma } from "@/lib/prisma";
 import { socialChannelPublicSelect } from "@/lib/social/db";
 import { encryptSocialSecret, decryptSocialSecret } from "@/lib/social/crypto";
+import { getRequiredSocialEnv, getSocialAppUrl } from "@/lib/social/env";
 
 const X_AUTHORIZE_URL = "https://twitter.com/i/oauth2/authorize";
 const X_TOKEN_URL = "https://api.x.com/2/oauth2/token";
@@ -17,26 +18,8 @@ function base64Url(input: Buffer) {
     .replace(/=+$/g, "");
 }
 
-function getRequiredEnv(name: string) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} is required`);
-  }
-
-  return value;
-}
-
-export function getSocialAppUrl() {
-  const value = process.env.AUTH_URL || process.env.NEXT_PUBLIC_APP_URL;
-  if (!value) {
-    throw new Error("AUTH_URL or NEXT_PUBLIC_APP_URL is required for social OAuth");
-  }
-
-  return value.replace(/\/$/, "");
-}
-
 function getXClientId() {
-  return getRequiredEnv("AUTH_X_CLIENT_ID");
+  return getRequiredSocialEnv("AUTH_X_CLIENT_ID");
 }
 
 function getXClientSecret() {

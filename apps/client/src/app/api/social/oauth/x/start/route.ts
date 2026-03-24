@@ -3,8 +3,8 @@ import { auth } from "@/auth";
 import {
   buildXAuthorizeUrl,
   createXOAuthState,
-  getSocialAppUrl,
 } from "@/lib/social/x";
+import { getSocialAppUrl } from "@/lib/social/env";
 
 export const runtime = "nodejs";
 

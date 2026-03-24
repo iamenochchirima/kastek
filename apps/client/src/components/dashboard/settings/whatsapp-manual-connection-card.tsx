@@ -29,6 +29,7 @@ export default function WhatsappManualConnectionCard({
   mode?: "setup" | "maintenance";
 }) {
   const router = useRouter();
+  const [showSetupForm, setShowSetupForm] = useState(mode === "setup");
   const [wabaId, setWabaId] = useState("");
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [phoneDisplayNumber, setPhoneDisplayNumber] = useState("");
@@ -44,8 +45,6 @@ export default function WhatsappManualConnectionCard({
   const [healthByConnectionId, setHealthByConnectionId] = useState<
     Record<string, ConnectionHealth>
   >({});
-
-  const showSetupForm = mode === "setup";
 
   async function connectManually() {
     setLoading(true);
@@ -85,7 +84,8 @@ export default function WhatsappManualConnectionCard({
         templates: String(body.templateSync?.synced || 0),
       });
 
-      router.push(`/dashboard/settings/whatsapp-onboarding?${params.toString()}`);
+      setShowSetupForm(false);
+      router.push(`/reach/settings/whatsapp-onboarding?${params.toString()}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect WhatsApp");
@@ -268,6 +268,25 @@ export default function WhatsappManualConnectionCard({
               className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
               {loading ? "Connecting..." : "Connect WhatsApp"}
+            </button>
+          </div>
+        </div>
+      ) : mode === "maintenance" ? (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Connect another number</h2>
+              <p className="text-sm text-muted-foreground">
+                Add another WhatsApp Cloud API number to this workspace without affecting the
+                numbers that are already connected.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSetupForm(true)}
+              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+            >
+              Connect another number
             </button>
           </div>
         </div>

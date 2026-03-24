@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,16 +10,18 @@ import { cn } from "@/lib/utils";
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [showLocalLogin] = useState(() => {
-    if (typeof window === "undefined") return false;
-
-    const { hostname } = window.location;
-    return (
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname === "::1"
-    );
-  });
+  const showLocalLogin = useSyncExternalStore(
+    () => () => {},
+    () => {
+      const { hostname } = window.location;
+      return (
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1"
+      );
+    },
+    () => false,
+  );
 
   useEffect(() => {
     const handleScroll = () => {

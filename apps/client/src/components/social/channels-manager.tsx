@@ -160,7 +160,7 @@ export function ChannelsManager() {
       platform,
       displayName: `${getPlatformLabel(platform)} Workspace`,
       handle: "kasitek",
-      status: platform === "LINKEDIN" ? "NEEDS_REAUTH" : "CONNECTED",
+      status: "CONNECTED",
     });
   }
 
@@ -270,12 +270,17 @@ export function ChannelsManager() {
               <CardContent className="space-y-3">
                 {SOCIAL_PLATFORM_ORDER.map((platform) => {
                   const Icon = getPlatformIcon(platform);
-                  const isX = platform === "X";
+                  const oauthHref =
+                    platform === "X"
+                      ? "/api/social/oauth/x/start"
+                      : platform === "LINKEDIN"
+                        ? "/api/social/oauth/linkedin/start"
+                        : null;
                   return (
                     <div key={platform}>
-                      {isX ? (
+                      {oauthHref ? (
                         <Link
-                          href="/api/social/oauth/x/start"
+                          href={oauthHref}
                           className="flex w-full items-center justify-between rounded-xl border border-border/70 bg-secondary/30 p-4 text-left no-underline transition-colors hover:border-primary/30 hover:bg-secondary/50"
                         >
                           <div className="flex items-start gap-3">
@@ -316,7 +321,7 @@ export function ChannelsManager() {
             <Card>
               <CardHeader>
                 <CardTitle>Manual Connection</CardTitle>
-                <CardDescription>Useful while the OAuth flow is still being implemented.</CardDescription>
+                <CardDescription>Useful for placeholder channels that do not have a live OAuth flow yet.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <label className="block space-y-2">

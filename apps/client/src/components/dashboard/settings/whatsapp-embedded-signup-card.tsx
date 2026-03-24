@@ -222,7 +222,7 @@ export default function WhatsappEmbeddedSignupCard({
       templates: String(body.templateSync?.synced || 0),
     });
 
-    router.push(`/dashboard/settings/whatsapp-onboarding?${params.toString()}`);
+    router.push(`/reach/settings/whatsapp-onboarding?${params.toString()}`);
   }
 
   async function runHealthCheck(connectionId: string) {

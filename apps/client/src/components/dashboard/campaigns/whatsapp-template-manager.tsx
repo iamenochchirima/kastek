@@ -16,7 +16,10 @@ type TemplateView = {
   category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
   status: "APPROVED" | "PENDING" | "REJECTED" | "DISABLED";
   variablesCount: number;
+  header: string | null;
   body: string | null;
+  footer: string | null;
+  buttons: unknown;
   lastSynced: string | null;
   connectionLabel: string;
 };
@@ -95,6 +98,7 @@ export default function WhatsappTemplateManager({
   );
   const [submitting, setSubmitting] = useState(false);
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -105,6 +109,8 @@ export default function WhatsappTemplateManager({
   const previewFooter = renderPreviewText(footer);
   const variablePlacementError = getVariablePlacementError({ header, body, footer });
   const displayError = variablePlacementError || error;
+  const selectedTemplate =
+    templates.find((template) => template.id === selectedTemplateId) || null;
 
   useEffect(() => {
     if (!initialLibraryItemId) return;
@@ -272,7 +278,7 @@ export default function WhatsappTemplateManager({
             </button>
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {templates.map((template) => (
               <div key={template.id} className="rounded-xl border border-border bg-secondary/40 p-5">
                 <div className="mb-4 flex items-start justify-between gap-3">
@@ -290,7 +296,7 @@ export default function WhatsappTemplateManager({
                 </div>
 
                 <div className="rounded-lg border border-border bg-card p-3">
-                  <p className="line-clamp-4 whitespace-pre-wrap text-sm text-muted-foreground">
+                  <p className="line-clamp-6 whitespace-pre-wrap text-sm text-muted-foreground">
                     {template.body || "No template body saved."}
                   </p>
                 </div>
@@ -307,11 +313,92 @@ export default function WhatsappTemplateManager({
                     }
                   />
                 </div>
+
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTemplateId(template.id)}
+                    className="rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+                  >
+                    View full details
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {selectedTemplate ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {selectedTemplate.templateName}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {categoryLabel(selectedTemplate.category)} · {selectedTemplate.language}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] ${STATUS_STYLES[selectedTemplate.status]}`}
+                >
+                  {selectedTemplate.status}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTemplateId(null)}
+                  className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_320px]">
+              <div className="space-y-4">
+                <TemplateDetailBlock
+                  label="Header"
+                  value={selectedTemplate.header || "No header"}
+                />
+                <TemplateDetailBlock
+                  label="Body"
+                  value={selectedTemplate.body || "No body saved."}
+                  preserveWhitespace
+                />
+                <TemplateDetailBlock
+                  label="Footer"
+                  value={selectedTemplate.footer || "No footer"}
+                />
+                <TemplateDetailBlock
+                  label="Buttons"
+                  value={
+                    selectedTemplate.buttons
+                      ? JSON.stringify(selectedTemplate.buttons, null, 2)
+                      : "No buttons configured"
+                  }
+                  preserveWhitespace
+                />
+              </div>
+
+              <div className="space-y-3">
+                <TemplateMeta label="Variables" value={String(selectedTemplate.variablesCount)} />
+                <TemplateMeta label="Connection" value={selectedTemplate.connectionLabel} />
+                <TemplateMeta
+                  label="Last synced"
+                  value={
+                    selectedTemplate.lastSynced
+                      ? new Date(selectedTemplate.lastSynced).toLocaleString("en-ZA")
+                      : "Never"
+                  }
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showCreateForm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -531,6 +618,31 @@ function TemplateMeta({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border border-border bg-card p-3">
       <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">{label}</p>
       <p className="mt-1 truncate text-sm font-medium text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function TemplateDetailBlock({
+  label,
+  value,
+  preserveWhitespace = false,
+}: {
+  label: string;
+  value: string;
+  preserveWhitespace?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-secondary/30 p-4">
+      <p className="mb-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={`text-sm leading-7 text-foreground ${
+          preserveWhitespace ? "whitespace-pre-wrap" : ""
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }

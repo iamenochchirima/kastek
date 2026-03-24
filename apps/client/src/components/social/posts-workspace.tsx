@@ -46,7 +46,16 @@ type ComposerState = {
   variants: ComposerVariant[];
 };
 
+type GeneratedIdea = {
+  title: string;
+  angle: string;
+  hook: string;
+  draft: string;
+  suggestedChannels?: SocialPlatform[];
+};
+
 const defaultChannels: SocialPlatform[] = ["FACEBOOK", "INSTAGRAM", "LINKEDIN", "X"];
+const supportedManualPublishPlatforms: SocialPlatform[] = ["LINKEDIN", "X"];
 
 const emptyComposer: ComposerState = {
   id: null,
@@ -87,9 +96,13 @@ export function PostsWorkspace() {
   const [activeFilter, setActiveFilter] = useState<"ALL" | SocialPostStatus>("ALL");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [composer, setComposer] = useState<ComposerState>(emptyComposer);
-  const [publishingPostId, setPublishingPostId] = useState<string | null>(null);
+  const [publishingKey, setPublishingKey] = useState<string | null>(null);
   const [jobActionId, setJobActionId] = useState<string | null>(null);
   const [generatingCaption, setGeneratingCaption] = useState(false);
+  const [generatingIdeas, setGeneratingIdeas] = useState(false);
+  const [ideaTopic, setIdeaTopic] = useState("");
+  const [ideaObjective, setIdeaObjective] = useState("");
+  const [generatedIdeas, setGeneratedIdeas] = useState<GeneratedIdea[]>([]);
   const [activeVariantPlatform, setActiveVariantPlatform] = useState<SocialPlatform>("FACEBOOK");
 
   useEffect(() => {
@@ -146,8 +159,13 @@ export function PostsWorkspace() {
     [posts],
   );
 
-  const connectedXChannel = useMemo(
-    () => channels.find((channel) => channel.platform === "X" && channel.status === "CONNECTED"),
+  const connectedChannelsByPlatform = useMemo(
+    () =>
+      new Map(
+        channels
+          .filter((channel) => channel.status === "CONNECTED")
+          .map((channel) => [channel.platform, channel] as const),
+      ),
     [channels],
   );
 
@@ -159,6 +177,32 @@ export function PostsWorkspace() {
   function openNewComposer() {
     setComposer(emptyComposer);
     setActiveVariantPlatform("FACEBOOK");
+    setIsComposerOpen(true);
+  }
+
+  function openIdeaAsDraft(idea: GeneratedIdea) {
+    const requestedChannels =
+      idea.suggestedChannels?.length
+        ? idea.suggestedChannels.filter((platform) => defaultChannels.includes(platform))
+        : defaultChannels;
+    const nextChannels = requestedChannels.length ? requestedChannels : defaultChannels;
+    const nextVariants = buildComposerVariants(nextChannels, undefined, idea.draft);
+
+    setComposer({
+      id: null,
+      title: idea.title,
+      prompt: [idea.angle, idea.hook].filter(Boolean).join(" | "),
+      content: idea.draft,
+      channels: nextChannels,
+      status: "DRAFT",
+      scheduledFor: "",
+      primaryChannelId: "",
+      variants: nextVariants.map((variant) => ({
+        ...variant,
+        status: variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT",
+      })),
+    });
+    setActiveVariantPlatform(nextChannels[0] || "FACEBOOK");
     setIsComposerOpen(true);
   }
 
@@ -295,6 +339,43 @@ export function PostsWorkspace() {
     }
   }
 
+  async function generateIdeas() {
+    if (!ideaTopic.trim() && !ideaObjective.trim()) {
+      setError("Add a topic or objective before generating ideas.");
+      return;
+    }
+
+    setGeneratingIdeas(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/social/ai/ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: ideaTopic,
+          objective: ideaObjective,
+          channels: composer.channels,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        ideas?: GeneratedIdea[];
+        error?: string;
+      };
+
+      if (!response.ok || !payload.ideas?.length) {
+        throw new Error(payload.error || "Failed to generate ideas");
+      }
+
+      setGeneratedIdeas(payload.ideas);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate ideas");
+    } finally {
+      setGeneratingIdeas(false);
+    }
+  }
+
   async function savePost() {
     if (!composer.content.trim()) {
       setError("Add a master post summary before saving.");
@@ -380,13 +461,16 @@ export function PostsWorkspace() {
     }
   }
 
-  async function publishToX(postId: string) {
-    setPublishingPostId(postId);
+  async function publishPostToPlatform(postId: string, platform: SocialPlatform) {
+    const publishTargetKey = `${postId}:${platform}`;
+    setPublishingKey(publishTargetKey);
     setError("");
 
     try {
       const response = await fetch(`/api/social/posts/${postId}/publish`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform }),
       });
       const payload = (await response.json()) as { post?: SocialPost; error?: string };
 
@@ -400,7 +484,7 @@ export function PostsWorkspace() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to publish post");
     } finally {
-      setPublishingPostId(null);
+      setPublishingKey(null);
     }
   }
 
@@ -480,35 +564,104 @@ export function PostsWorkspace() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Variants</CardTitle>
-              <CardDescription>Generate a master draft plus platform-specific variants in one step.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Input
-                value={composer.prompt}
-                onChange={(event) =>
-                  setComposer((current) => ({ ...current, prompt: event.target.value }))
-                }
-                placeholder="Describe the offer, tone, CTA, and audience..."
-              />
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-foreground">
-                {composer.content.trim()
-                  ? composer.content
-                  : "The AI route will produce a master draft and channel-specific variants once your OpenRouter key is configured."}
-              </div>
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                disabled={generatingCaption}
-                onClick={() => void generateWithAi()}
-              >
-                <Sparkles className="h-4 w-4" />
-                {generatingCaption ? "Generating..." : "Generate Variants"}
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>AI Idea Generator</CardTitle>
+                <CardDescription>Generate post ideas you can turn into editable drafts immediately.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  value={ideaTopic}
+                  onChange={(event) => setIdeaTopic(event.target.value)}
+                  placeholder="Topic, offer, campaign, update, or audience..."
+                />
+                <Input
+                  value={ideaObjective}
+                  onChange={(event) => setIdeaObjective(event.target.value)}
+                  placeholder="Objective: leads, credibility, launch, engagement..."
+                />
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={generatingIdeas}
+                  onClick={() => void generateIdeas()}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {generatingIdeas ? "Generating..." : "Generate Ideas"}
+                </Button>
+
+                <div className="space-y-3">
+                  {generatedIdeas.length === 0 ? (
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-foreground">
+                      Generate a batch of usable post ideas, then open the strongest one as a draft and tailor variants before scheduling.
+                    </div>
+                  ) : (
+                    generatedIdeas.map((idea, index) => (
+                      <div key={`${idea.title}-${index}`} className="rounded-xl border border-border/70 bg-secondary/20 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-foreground">{idea.title}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{idea.angle}</p>
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => openIdeaAsDraft(idea)}>
+                            Use draft
+                          </Button>
+                        </div>
+                        <p className="mt-3 text-sm font-medium text-foreground">{idea.hook}</p>
+                        <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                          {idea.draft}
+                        </p>
+                        {idea.suggestedChannels?.length ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {idea.suggestedChannels.map((platform) => {
+                              const Icon = getPlatformIcon(platform);
+                              return (
+                                <Badge key={`${idea.title}-${platform}`} className={getPlatformTone(platform)}>
+                                  <Icon className="mr-1 h-3.5 w-3.5" />
+                                  {getPlatformLabel(platform)}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>AI Variants</CardTitle>
+                <CardDescription>Generate a master draft plus platform-specific variants in one step.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  value={composer.prompt}
+                  onChange={(event) =>
+                    setComposer((current) => ({ ...current, prompt: event.target.value }))
+                  }
+                  placeholder="Describe the offer, tone, CTA, and audience..."
+                />
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-foreground">
+                  {composer.content.trim()
+                    ? composer.content
+                    : "The AI route will produce a master draft and channel-specific variants once your OpenRouter key is configured."}
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={generatingCaption}
+                  onClick={() => void generateWithAi()}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {generatingCaption ? "Generating..." : "Generate Variants"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         <Card>
@@ -542,9 +695,8 @@ export function PostsWorkspace() {
               filteredPosts.map((post) => {
                 const status = getPostStatusMeta(post.status);
                 const StatusIcon = status.icon;
-                const xJob = post.publishJobs?.find((job) => job.platform === "X") || null;
-                const xJobMeta = xJob ? getPublishJobStatusMeta(xJob.status) : null;
-                const XJobIcon = xJobMeta?.icon;
+                const publishJobs =
+                  post.publishJobs?.filter((job) => supportedManualPublishPlatforms.includes(job.platform)) || [];
 
                 return (
                   <div key={post.id} className="rounded-xl border border-border/70 bg-secondary/30 p-4">
@@ -595,70 +747,94 @@ export function PostsWorkspace() {
                             ? `Scheduled for ${formatDateTime(post.scheduledFor)}`
                             : `Saved ${formatDateTime(post.createdAt)}`}
                         </div>
-                        {xJob && xJobMeta ? (
-                          <div className="rounded-xl border border-border/60 bg-background/30 p-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge className={xJobMeta.className}>
-                                {XJobIcon ? <XJobIcon className="mr-1 h-3.5 w-3.5" /> : null}
-                                X job: {xJobMeta.label}
-                              </Badge>
-                              {xJob.scheduledFor ? (
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDateTime(xJob.scheduledFor)}
-                                </span>
-                              ) : null}
-                            </div>
-                            {xJob.errorMessage ? (
-                              <p className="mt-2 text-xs text-red-200">{xJob.errorMessage}</p>
-                            ) : null}
+                        {publishJobs.length ? (
+                          <div className="grid gap-2 md:grid-cols-2">
+                            {publishJobs.map((job) => {
+                              const jobMeta = getPublishJobStatusMeta(job.status);
+                              const JobIcon = jobMeta.icon;
+                              return (
+                                <div key={job.id} className="rounded-xl border border-border/60 bg-background/30 p-3">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge className={jobMeta.className}>
+                                      {JobIcon ? <JobIcon className="mr-1 h-3.5 w-3.5" /> : null}
+                                      {getPlatformLabel(job.platform)}: {jobMeta.label}
+                                    </Badge>
+                                    {job.scheduledFor ? (
+                                      <span className="text-xs text-muted-foreground">
+                                        {formatDateTime(job.scheduledFor)}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  {job.errorMessage ? (
+                                    <p className="mt-2 text-xs text-red-200">{job.errorMessage}</p>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : null}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {post.channels.includes("X") ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                            disabled={!connectedXChannel || publishingPostId === post.id}
-                            onClick={() => void publishToX(post.id)}
-                          >
-                            <Sparkles className="h-4 w-4" />
-                            {publishingPostId === post.id ? "Publishing..." : "Publish to X"}
-                          </Button>
-                        ) : null}
-                        {xJob?.status === "FAILED" ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                            disabled={jobActionId === xJob.id}
-                            onClick={() => void runPublishJobAction(xJob, "retry")}
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                            {jobActionId === xJob.id ? "Retrying..." : "Retry"}
-                          </Button>
-                        ) : null}
-                        {xJob && (xJob.status === "QUEUED" || xJob.status === "PENDING") ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={jobActionId === xJob.id}
-                            onClick={() => void runPublishJobAction(xJob, "run_now")}
-                          >
-                            {jobActionId === xJob.id ? "Running..." : "Run now"}
-                          </Button>
-                        ) : null}
-                        {xJob && (xJob.status === "QUEUED" || xJob.status === "PENDING" || xJob.status === "FAILED") ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={jobActionId === xJob.id}
-                            onClick={() => void runPublishJobAction(xJob, "cancel")}
-                          >
-                            Cancel
-                          </Button>
-                        ) : null}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {supportedManualPublishPlatforms.map((platform) => {
+                          if (!post.channels.includes(platform)) return null;
+
+                          const platformJob =
+                            post.publishJobs?.find((job) => job.platform === platform) || null;
+                          const platformKey = `${post.id}:${platform}`;
+                          const connectedChannel = connectedChannelsByPlatform.get(platform);
+
+                          return (
+                            <div key={`${post.id}-${platform}`} className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                                disabled={!connectedChannel || publishingKey === platformKey}
+                                onClick={() => void publishPostToPlatform(post.id, platform)}
+                              >
+                                <Sparkles className="h-4 w-4" />
+                                {publishingKey === platformKey
+                                  ? "Publishing..."
+                                  : `Publish to ${getPlatformLabel(platform)}`}
+                              </Button>
+                              {platformJob?.status === "FAILED" ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-2"
+                                  disabled={jobActionId === platformJob.id}
+                                  onClick={() => void runPublishJobAction(platformJob, "retry")}
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                  {jobActionId === platformJob.id ? "Retrying..." : "Retry"}
+                                </Button>
+                              ) : null}
+                              {platformJob && (platformJob.status === "QUEUED" || platformJob.status === "PENDING") ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={jobActionId === platformJob.id}
+                                  onClick={() => void runPublishJobAction(platformJob, "run_now")}
+                                >
+                                  {jobActionId === platformJob.id ? "Running..." : "Run now"}
+                                </Button>
+                              ) : null}
+                              {platformJob &&
+                              (platformJob.status === "QUEUED" ||
+                                platformJob.status === "PENDING" ||
+                                platformJob.status === "FAILED") ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={jobActionId === platformJob.id}
+                                  onClick={() => void runPublishJobAction(platformJob, "cancel")}
+                                >
+                                  Cancel
+                                </Button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
                         <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditComposer(post)}>
                           <Pencil className="h-4 w-4" />
                           Edit

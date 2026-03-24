@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { publishPostToLinkedIn } from "@/lib/social/linkedin";
 import { publishPostToX } from "@/lib/social/x";
 import {
   SocialPlatform,
@@ -58,6 +59,38 @@ async function resolveConnectedXChannel(userId: string, channelConnectionId?: st
   return latest;
 }
 
+async function resolveConnectedLinkedInChannel(userId: string, channelConnectionId?: string | null) {
+  if (channelConnectionId) {
+    const channel = await prisma.socialChannelConnection.findFirst({
+      where: {
+        id: channelConnectionId,
+        userId,
+        platform: SocialPlatform.LINKEDIN,
+        status: "CONNECTED",
+      },
+    });
+
+    if (channel?.accessToken) {
+      return channel;
+    }
+  }
+
+  const latest = await prisma.socialChannelConnection.findFirst({
+    where: {
+      userId,
+      platform: SocialPlatform.LINKEDIN,
+      status: "CONNECTED",
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (!latest?.accessToken) {
+    throw new Error("Connect a LinkedIn account before publishing");
+  }
+
+  return latest;
+}
+
 async function markJobFailed({
   jobId,
   postId,
@@ -111,21 +144,48 @@ export async function executeSocialPublishJob(jobId: string): Promise<PublishExe
   }
 
   try {
-    if (job.platform !== SocialPlatform.X) {
+    const publishText = job.variant?.content?.trim() || job.post.content.trim();
+    let published: { id: string | null; text: string };
+    let connectionId: string | null = null;
+    let provider: "x" | "linkedin";
+
+    if (job.platform === SocialPlatform.X) {
+      if (publishText.length > 280) {
+        throw new Error("X posts are currently limited to 280 characters");
+      }
+
+      const xChannel = await resolveConnectedXChannel(job.userId, job.channelConnectionId);
+      const xPublished = await publishPostToX({
+        accessTokenEncrypted: xChannel.accessToken as string,
+        text: publishText,
+      });
+      published = {
+        id: xPublished.id,
+        text: xPublished.text || publishText,
+      };
+      connectionId = xChannel.id;
+      provider = "x";
+    } else if (job.platform === SocialPlatform.LINKEDIN) {
+      if (publishText.length > 3000) {
+        throw new Error("LinkedIn posts are currently limited to 3000 characters");
+      }
+
+      const linkedInChannel = await resolveConnectedLinkedInChannel(
+        job.userId,
+        job.channelConnectionId,
+      );
+      published = await publishPostToLinkedIn({
+        accessTokenEncrypted: linkedInChannel.accessToken as string,
+        externalAccountId: linkedInChannel.externalAccountId,
+        metadata: linkedInChannel.metadata,
+        text: publishText,
+      });
+      connectionId = linkedInChannel.id;
+      provider = "linkedin";
+    } else {
       throw new Error(`Publishing is not implemented yet for ${job.platform}`);
     }
 
-    const publishText = job.variant?.content?.trim() || job.post.content.trim();
-
-    if (publishText.length > 280) {
-      throw new Error("X posts are currently limited to 280 characters");
-    }
-
-    const xChannel = await resolveConnectedXChannel(job.userId, job.channelConnectionId);
-    const published = await publishPostToX({
-      accessTokenEncrypted: xChannel.accessToken as string,
-      text: publishText,
-    });
     const now = new Date();
 
     await prisma.$transaction(async (tx) => {
@@ -136,9 +196,9 @@ export async function executeSocialPublishJob(jobId: string): Promise<PublishExe
           publishedAt: now,
           externalPostId: published.id,
           errorMessage: null,
-          channelConnectionId: xChannel.id,
+          channelConnectionId: connectionId,
           metadata: {
-            provider: "x",
+            provider,
             publishedText: published.text || publishText,
           },
         },
@@ -149,10 +209,10 @@ export async function executeSocialPublishJob(jobId: string): Promise<PublishExe
         data: {
           status: SocialPostStatus.PUBLISHED,
           publishedAt: now,
-          primaryChannelId: job.post.primaryChannelId || xChannel.id,
+          primaryChannelId: job.post.primaryChannelId || connectionId,
           metadata: {
             latestPublishedPostId: published.id,
-            latestPublishedPlatform: "X",
+            latestPublishedPlatform: job.platform,
           },
         },
       });

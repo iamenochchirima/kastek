@@ -4,9 +4,9 @@ import { auth } from "@/auth";
 import {
   exchangeXCodeForTokens,
   fetchXMe,
-  getSocialAppUrl,
   upsertXConnectionForUser,
 } from "@/lib/social/x";
+import { getSocialAppUrl } from "@/lib/social/env";
 
 export const runtime = "nodejs";
 

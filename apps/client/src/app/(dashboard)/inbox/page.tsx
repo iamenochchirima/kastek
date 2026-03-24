@@ -24,6 +24,15 @@ export default async function InboxPage() {
     orderBy: { createdAt: "desc" },
   });
 
+  console.log(
+    "[inbox connection debug]",
+    JSON.stringify({
+      sessionUserId: session.user.id,
+      connectionCount: connections.length,
+      connectionIds: connections.map((connection) => connection.id),
+    }),
+  );
+
   const conversationWhere = connections.length
     ? {
         channel: "whatsapp" as const,
@@ -57,6 +66,7 @@ export default async function InboxPage() {
   const inboxConversations = conversations.map((conversation) => {
     const parsed = parseWhatsappConversationIdentifier(conversation.customerIdentifier);
     const lastMessage = conversation.messages[0];
+    const connection = connections.find((item) => item.id === parsed?.connectionId);
 
     return {
       id: conversation.id,
@@ -67,6 +77,9 @@ export default async function InboxPage() {
       unread: conversation.unreadCount > 0,
       starred: false,
       channel: "whatsapp" as const,
+      connectionId: parsed?.connectionId || null,
+      connectionLabel:
+        connection?.phoneDisplayNumber || connection?.phoneNumberId || "Unknown number",
       avatar:
         (conversation.customerName || parsed?.phone || "?")
           .split(/\s+/)

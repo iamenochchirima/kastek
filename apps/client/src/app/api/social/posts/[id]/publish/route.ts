@@ -13,7 +13,7 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -25,6 +25,20 @@ export async function POST(
     }
 
     const { id } = await params;
+    const body = (await req.json().catch(() => ({}))) as {
+      platform?: SocialPlatform;
+    };
+    const requestedPlatform = body.platform || SocialPlatform.X;
+    const supportedPlatforms = [SocialPlatform.X, SocialPlatform.LINKEDIN] as const;
+
+    if (!supportedPlatforms.includes(requestedPlatform as (typeof supportedPlatforms)[number])) {
+      return NextResponse.json(
+        { error: `Manual publishing is not available yet for ${requestedPlatform}` },
+        { status: 400 },
+      );
+    }
+    const platform = requestedPlatform as (typeof supportedPlatforms)[number];
+
     const post = await prisma.socialPost.findFirst({
       where: { id, userId },
       include: {
@@ -36,34 +50,34 @@ export async function POST(
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    if (!post.channels.includes(SocialPlatform.X)) {
+    if (!post.channels.includes(platform)) {
       return NextResponse.json(
-        { error: "This post is not configured for X" },
+        { error: `This post is not configured for ${platform}` },
         { status: 400 },
       );
     }
 
     const existingPublishedJob = post.publishJobs.find(
       (job) =>
-        job.platform === SocialPlatform.X &&
+        job.platform === platform &&
         job.status === "PUBLISHED" &&
         job.externalPostId,
     );
 
     if (existingPublishedJob) {
       return NextResponse.json(
-        { error: "This post has already been published to X" },
+        { error: `This post has already been published to ${platform}` },
         { status: 409 },
       );
     }
 
-    let job = post.publishJobs.find((item) => item.platform === SocialPlatform.X);
+    let job = post.publishJobs.find((item) => item.platform === platform);
     if (!job) {
       job = await prisma.socialPublishJob.create({
         data: {
           userId,
           postId: post.id,
-          platform: SocialPlatform.X,
+          platform,
           status: "PENDING",
         },
       });
@@ -86,7 +100,7 @@ export async function POST(
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to publish to X";
+      error instanceof Error ? error.message : "Failed to publish social post";
 
     return NextResponse.json({ error: message }, { status: 500 });
   }

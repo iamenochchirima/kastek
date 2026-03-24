@@ -76,7 +76,10 @@ export default async function ReachTemplatesPage({
               category: template.category,
               status: template.status,
               variablesCount: template.variablesCount,
+              header: template.header,
               body: template.body,
+              footer: template.footer,
+              buttons: template.buttons,
               lastSynced: template.lastSynced ? template.lastSynced.toISOString() : null,
               connectionLabel:
                 template.connection?.phoneDisplayNumber || template.connection?.phoneNumberId || "-",

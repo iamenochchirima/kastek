@@ -69,6 +69,8 @@ type InboxConversation = {
   unread: boolean;
   starred: boolean;
   channel: "whatsapp";
+  connectionId: string | null;
+  connectionLabel: string;
   avatar: string;
   status: "online" | "offline";
   tags: string[];
@@ -172,6 +174,7 @@ export default function InboxPageClient({
   const [liveConversations, setLiveConversations] = useState(conversations);
   const [liveWhatsappUnreadCount, setLiveWhatsappUnreadCount] = useState(channelCounts.whatsapp.unreadCount);
   const [selectedChannel, setSelectedChannel] = useState<"all" | "whatsapp" | "instagram" | "facebook">("all");
+  const [selectedWhatsappConnectionId, setSelectedWhatsappConnectionId] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     conversations[0]?.id ?? null,
   );
@@ -265,19 +268,62 @@ export default function InboxPageClient({
     [channelCounts, liveConversations.length, liveWhatsappUnreadCount],
   );
 
+  const whatsappConnectionFilters = useMemo(
+    () => [
+      {
+        id: null as string | null,
+        label: "All numbers",
+        conversationCount: liveConversations.length,
+        unreadCount: liveConversations.filter((conversation) => conversation.unread).length,
+      },
+      ...whatsappConnections.map((connection) => {
+        const connectionConversations = liveConversations.filter(
+          (conversation) => conversation.connectionId === connection.id,
+        );
+
+        return {
+          id: connection.id,
+          label: connection.phoneDisplayNumber || connection.phoneNumberId,
+          conversationCount: connectionConversations.length,
+          unreadCount: connectionConversations.filter((conversation) => conversation.unread).length,
+        };
+      }),
+    ],
+    [liveConversations, whatsappConnections],
+  );
+
   const filteredConversations = liveConversations.filter((conversation) => {
     const channelMatch = selectedChannel === "all" || conversation.channel === selectedChannel;
+    const connectionMatch =
+      !selectedWhatsappConnectionId || conversation.connectionId === selectedWhatsappConnectionId;
     const filterMatch =
       filter === "all" ||
       (filter === "unread" && conversation.unread) ||
       (filter === "starred" && conversation.starred);
-    return channelMatch && filterMatch;
+    return channelMatch && connectionMatch && filterMatch;
   });
 
   const selectedConversation =
     filteredConversations.find((conversation) => conversation.id === selectedConversationId) ??
     filteredConversations[0] ??
     null;
+
+  useEffect(() => {
+    if (!filteredConversations.length) {
+      if (selectedConversationId !== null) {
+        setSelectedConversationId(null);
+      }
+      return;
+    }
+
+    const stillVisible = filteredConversations.some(
+      (conversation) => conversation.id === selectedConversationId,
+    );
+
+    if (!stillVisible) {
+      setSelectedConversationId(filteredConversations[0].id);
+    }
+  }, [filteredConversations, selectedConversationId]);
 
   const currentChannel =
     channels.find((channel) => channel.id === (selectedConversation?.channel ?? selectedChannel)) ??
@@ -435,7 +481,48 @@ export default function InboxPageClient({
                 {channel.id !== "all" ? (
                   <div className="mt-3">
                     {channel.id === "whatsapp" ? (
-                      channel.connected ? null : (
+                      channel.connected ? (
+                        <div className="space-y-2">
+                          {whatsappConnectionFilters.map((connectionFilter) => {
+                            const isActiveConnection =
+                              selectedWhatsappConnectionId === connectionFilter.id;
+
+                            return (
+                              <button
+                                key={connectionFilter.id || "all"}
+                                onClick={() => {
+                                  setSelectedWhatsappConnectionId(connectionFilter.id);
+                                  setShowChannelPanel(false);
+                                  setMobileChannelPanelOpen(false);
+                                  setMobileConversationOpen(false);
+                                }}
+                                className={cn(
+                                  "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors",
+                                  isActiveConnection
+                                    ? "border-primary/20 bg-primary/10 text-foreground"
+                                    : "border-border bg-secondary/30 text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                                )}
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-medium">
+                                    {connectionFilter.label}
+                                  </p>
+                                </div>
+                                <div className="ml-3 flex items-center gap-2">
+                                  {connectionFilter.unreadCount > 0 ? (
+                                    <Badge className="h-5 min-w-[20px] border-0 bg-primary px-1.5 text-[10px] text-primary-foreground">
+                                      {connectionFilter.unreadCount}
+                                    </Badge>
+                                  ) : null}
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {connectionFilter.conversationCount}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
                         <Sheet>
                           <SheetTrigger asChild>
                             <Button
@@ -1165,6 +1252,7 @@ export default function InboxPageClient({
                         </div>
                         <p className="mb-1 truncate text-xs text-muted-foreground">
                           {conversation.handle}
+                          {whatsappConnections.length > 1 ? ` · ${conversation.connectionLabel}` : ""}
                         </p>
                         <p
                           className={cn(
