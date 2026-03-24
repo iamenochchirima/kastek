@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { auth } from "@/auth";
 import SignOutButton from "@/components/auth/sign-out-button";
+import { getRustSession } from "@/lib/rust-auth";
 
 export default async function Navbar() {
-  const session = await auth();
+  const session = await getRustSession();
   const loginEnabled = process.env.NODE_ENV !== "production";
 
   return (

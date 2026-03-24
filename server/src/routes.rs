@@ -18,6 +18,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/login", web::post().to(auth::login))
                 .route("/logout", web::post().to(auth::logout))
                 .route("/me", web::get().to(auth::me))
+                .route("/google/start", web::get().to(auth::start_google_oauth))
+                .route("/google/callback", web::get().to(auth::google_oauth_callback))
                 .route("/account-check", web::post().to(auth::account_check))
                 .route("/send-otp", web::post().to(auth::send_otp))
                 .route("/verify-otp", web::post().to(auth::verify_otp))

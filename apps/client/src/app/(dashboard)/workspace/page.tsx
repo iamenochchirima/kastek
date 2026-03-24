@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { getRustSession } from "@/lib/rust-auth";
 import { prisma } from "@/lib/prisma";
 import { getWhatsappConnectionStats } from "@/lib/whatsapp/connection-stats";
 import { Bell, Bot, Send, Sparkles } from "lucide-react";
@@ -39,7 +39,7 @@ const products = [
 ];
 
 export default async function WorkspacePage() {
-  const session = await auth();
+  const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
   const [timeRow] = await prisma.$queryRaw<Array<{ now: Date }>>`SELECT NOW() as now`;

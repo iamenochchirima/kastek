@@ -1,6 +1,6 @@
-import { auth } from "@/auth";
 import ProfileForm from "@/components/dashboard/profile/profile-form";
 import { prisma } from "@/lib/prisma";
+import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -8,7 +8,7 @@ export const metadata = {
 };
 
 export default async function WorkspaceProfilePage() {
-  const session = await auth();
+  const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
   const user = await prisma.user.findUnique({

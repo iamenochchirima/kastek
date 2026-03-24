@@ -31,7 +31,7 @@ import {
   Users,
 } from "lucide-react";
 import Image from "next/image";
-import { signOut } from "next-auth/react";
+import { apiUrl } from "@/lib/server-api";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -502,7 +502,13 @@ function SidebarContent({
               className="text-destructive focus:text-destructive"
               onSelect={(event) => {
                 event.preventDefault();
-                void signOut({ callbackUrl: "/" });
+                void (async () => {
+                  await fetch(apiUrl("/api/auth/logout"), {
+                    method: "POST",
+                    credentials: "include",
+                  });
+                  window.location.assign("/");
+                })();
               }}
             >
               <LogOut className="mr-2 h-4 w-4" />

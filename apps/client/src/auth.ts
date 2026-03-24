@@ -70,33 +70,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
 
   session: {
-    strategy: "jwt",
+    strategy: "database",
+  },
+
+  cookies: {
+    sessionToken: {
+      name: "kasitek_session",
+      options: {
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      },
+    },
   },
 
   callbacks: {
-    jwt: async ({ token, user }) => {
-      if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
-    session: async ({ session, token }) => {
-      if (token?.id) {
-        session.user.id = token.id as string;
-        const currentUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: {
-            name: true,
-            email: true,
-            image: true,
-          },
-        });
-
-        if (currentUser) {
-          session.user.name = currentUser.name ?? "";
-          session.user.email = currentUser.email ?? "";
-          session.user.image = currentUser.image ?? "";
-        }
+    session: async ({ session, user }) => {
+      if (user?.id) {
+        session.user.id = user.id;
+        session.user.name = user.name ?? "";
+        session.user.email = user.email ?? "";
+        session.user.image = user.image ?? "";
       }
       return session;
     },

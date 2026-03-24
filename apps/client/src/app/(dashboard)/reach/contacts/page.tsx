@@ -1,6 +1,6 @@
-import { auth } from "@/auth";
 import ContactsManager from "@/components/dashboard/contacts/contacts-manager";
 import { prisma } from "@/lib/prisma";
+import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -12,7 +12,7 @@ export default async function ReachContactsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await auth();
+  const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
   const params = await searchParams;

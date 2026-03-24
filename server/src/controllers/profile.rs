@@ -41,7 +41,16 @@ pub async fn patch(
             image = $3,
             "updatedAt" = NOW()
         WHERE id = $4
-        RETURNING id, name, email, phone, image, password, "emailVerified", "createdAt", "updatedAt"
+        RETURNING
+            id,
+            name,
+            email,
+            phone,
+            image,
+            password,
+            "emailVerified" AT TIME ZONE 'UTC' AS "emailVerified",
+            "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
+            "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
         "#,
     )
     .bind(body.name.as_ref().map(|value| value.trim()).filter(|v| !v.is_empty()))

@@ -38,7 +38,16 @@ pub async fn extract_user(req: &HttpRequest, pool: &PgPool) -> Result<User, AppE
 
     sqlx::query_as::<_, User>(
         r#"
-        SELECT id, name, email, phone, image, password, "emailVerified", "createdAt", "updatedAt"
+        SELECT
+            id,
+            name,
+            email,
+            phone,
+            image,
+            password,
+            "emailVerified" AT TIME ZONE 'UTC' AS "emailVerified",
+            "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
+            "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
         FROM "User"
         WHERE id = $1
         "#,

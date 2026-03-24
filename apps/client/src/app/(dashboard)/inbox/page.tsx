@@ -1,12 +1,12 @@
-import { auth } from "@/auth";
 import InboxPageClient from "@/components/dashboard/inbox-page";
 import { prisma } from "@/lib/prisma";
+import { getRustSession } from "@/lib/rust-auth";
 import { parseWhatsappConversationIdentifier } from "@/lib/whatsapp/inbox";
 import { getWhatsappMessagePreview } from "@/lib/whatsapp/message-content";
 import { redirect } from "next/navigation";
 
 export default async function InboxPage() {
-  const session = await auth();
+  const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
   const connections = await prisma.whatsappConnection.findMany({

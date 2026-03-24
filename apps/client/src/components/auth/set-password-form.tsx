@@ -2,6 +2,7 @@
 
 import { useState, use } from "react";
 import Link from "next/link";
+import { apiUrl } from "@/lib/server-api";
 
 export default function SetPasswordForm({
   searchParams,
@@ -29,9 +30,10 @@ function RequestSetupForm() {
     setError("");
     setLoading(true);
 
-    const res = await fetch("/api/auth/request-password-setup", {
+    const res = await fetch(apiUrl("/api/auth/request-password-setup"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email }),
     });
 
@@ -48,10 +50,10 @@ function RequestSetupForm() {
   if (sent) {
     return (
       <div className="space-y-4 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/15 bg-accent-glow text-2xl">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-2xl text-primary">
           ✉️
         </div>
-        <h2 className="font-serif text-2xl text-foreground">Check your email</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">Check your email</h2>
         <p className="text-muted-foreground">
           If a Google-linked account exists for{" "}
           <strong className="text-foreground">{email}</strong>, we sent a link to set
@@ -59,7 +61,7 @@ function RequestSetupForm() {
         </p>
         <Link
           href="/login"
-          className="inline-block text-sm text-accent hover:underline"
+          className="inline-block text-sm text-primary hover:underline"
         >
           Back to Sign In
         </Link>
@@ -91,7 +93,7 @@ function RequestSetupForm() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
             required
-            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <button
@@ -104,7 +106,7 @@ function RequestSetupForm() {
       </form>
 
       <p className="text-center text-sm text-muted-foreground">
-        <Link href="/login" className="text-accent hover:underline">
+        <Link href="/login" className="text-primary hover:underline">
           Back to Sign In
         </Link>
       </p>
@@ -136,9 +138,10 @@ function PasswordSetupForm({
 
     setLoading(true);
 
-    const res = await fetch("/api/auth/set-password", {
+    const res = await fetch(apiUrl("/api/auth/set-password"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ token, email, password }),
     });
 
@@ -155,10 +158,10 @@ function PasswordSetupForm({
   if (success) {
     return (
       <div className="space-y-4 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/15 bg-accent-glow text-2xl">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-2xl text-primary">
           ✓
         </div>
-        <h2 className="font-serif text-2xl text-foreground">Password Set</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">Password Set</h2>
         <p className="text-muted-foreground">
           You can now sign in with your email and password, or continue using
           Google.
@@ -181,9 +184,9 @@ function PasswordSetupForm({
         </div>
       )}
 
-      <p className="text-center text-sm text-muted-foreground">
-        Setting password for <strong className="text-foreground">{email}</strong>
-      </p>
+        <p className="text-center text-sm text-muted-foreground">
+          Setting password for <strong className="text-foreground">{email}</strong>
+        </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -197,7 +200,7 @@ function PasswordSetupForm({
             placeholder="Enter a password"
             required
             minLength={8}
-            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <div>
@@ -211,7 +214,7 @@ function PasswordSetupForm({
             placeholder="Confirm your password"
             required
             minLength={8}
-            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <button

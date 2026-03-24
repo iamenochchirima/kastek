@@ -1,9 +1,9 @@
 "use client";
 
-import { signIn } from "next-auth/react";
 import { useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { apiUrl } from "@/lib/server-api";
 
 export default function LoginForm({
   searchParams,
@@ -19,7 +19,9 @@ export default function LoginForm({
   const [loading, setLoading] = useState(false);
 
   const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: callbackUrl ?? "/dashboard" });
+    window.location.assign(
+      apiUrl(`/api/auth/google/start?callbackUrl=${encodeURIComponent(callbackUrl ?? "/workspace")}`),
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,19 +29,24 @@ export default function LoginForm({
     setError("");
     setLoading(true);
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
+    const response = await fetch(apiUrl("/api/auth/login"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password }),
     });
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
 
     setLoading(false);
 
-    if (result?.error) {
+    if (!response.ok) {
       // Check what auth method this email uses
-      const check = await fetch("/api/auth/account-check", {
+      const check = await fetch(apiUrl("/api/auth/account-check"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email }),
       });
       const { provider } = await check.json();
@@ -49,10 +56,11 @@ export default function LoginForm({
         setError("This account uses Google sign-in. Use the Google button above, or set up a password.");
       } else {
         setIsGoogleOnly(false);
-        setError("Invalid email or password");
+        setError(payload.error || "Invalid email or password");
       }
     } else {
-      router.push(callbackUrl ?? "/dashboard");
+      router.refresh();
+      router.push(callbackUrl ?? "/workspace");
     }
   };
 
@@ -70,7 +78,7 @@ export default function LoginForm({
           {isGoogleOnly && (
             <p className="mt-2 text-xs text-muted-foreground">
               Want to use email and password instead?{" "}
-              <Link href="/set-password" className="text-accent hover:underline">
+              <Link href="/set-password" className="text-primary hover:underline">
                 Set up a password
               </Link>
             </p>
@@ -80,7 +88,7 @@ export default function LoginForm({
 
       <button
         onClick={handleGoogleSignIn}
-        className="flex w-full items-center justify-center gap-3 rounded-full border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-all hover:border-primary/20 hover:bg-secondary/30"
+        className="flex w-full items-center justify-center gap-3 rounded-full border border-border bg-secondary px-6 py-3 text-sm font-semibold text-foreground transition-all hover:border-primary/20 hover:bg-secondary/80"
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24">
           <path
@@ -120,7 +128,7 @@ export default function LoginForm({
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
             required
-            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <div>
@@ -133,7 +141,7 @@ export default function LoginForm({
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
             required
-            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <button
@@ -147,7 +155,7 @@ export default function LoginForm({
 
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="text-accent hover:underline">
+        <Link href="/signup" className="text-primary hover:underline">
           Sign up
         </Link>
       </p>

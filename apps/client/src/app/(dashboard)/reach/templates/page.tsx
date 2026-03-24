@@ -1,6 +1,6 @@
-import { auth } from "@/auth";
 import WhatsappTemplateManager from "@/components/dashboard/campaigns/whatsapp-template-manager";
 import { prisma } from "@/lib/prisma";
+import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -12,7 +12,7 @@ export default async function ReachTemplatesPage({
 }: {
   searchParams: Promise<{ starter?: string; status?: string; create?: string }>;
 }) {
-  const session = await auth();
+  const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
   const params = await searchParams;

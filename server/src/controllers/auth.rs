@@ -2,6 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use rand::Rng;
 use sqlx::PgPool;
+use std::collections::HashMap;
 
 use crate::config::AppConfig;
 use crate::db::models::{
@@ -13,6 +14,14 @@ use crate::middleware::extract_user;
 use crate::services::auth::{
     create_session, delete_session, issue_verification_token, send_email, send_sms_message,
 };
+
+fn auth_server_base_url(config: &AppConfig) -> String {
+    std::env::var("API_BASE_URL").unwrap_or_else(|_| format!("http://localhost:{}", config.port))
+}
+
+fn google_redirect_uri(config: &AppConfig) -> String {
+    format!("{}/api/auth/google/callback", auth_server_base_url(config))
+}
 
 pub async fn signup(
     pool: web::Data<PgPool>,
@@ -151,7 +160,16 @@ pub async fn login(
 
     let user = sqlx::query_as::<_, User>(
         r#"
-        SELECT id, name, email, phone, image, password, "emailVerified", "createdAt", "updatedAt"
+        SELECT
+            id,
+            name,
+            email,
+            phone,
+            image,
+            password,
+            "emailVerified" AT TIME ZONE 'UTC' AS "emailVerified",
+            "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
+            "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
         FROM "User"
         WHERE lower(email) = lower($1)
         LIMIT 1
@@ -195,6 +213,221 @@ pub async fn me(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRespons
     })))
 }
 
+pub async fn start_google_oauth(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    query: web::Query<HashMap<String, String>>,
+) -> Result<HttpResponse, AppError> {
+    let client_id = std::env::var("GOOGLE_CLIENT_ID")
+        .or_else(|_| std::env::var("AUTH_GOOGLE_ID"))
+        .map_err(|_| AppError::Internal("Missing Google OAuth client id".to_string()))?;
+    let callback_url = query
+        .get("callbackUrl")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("/dashboard");
+    let state = cuid2::create_id();
+    let identifier = format!("google-oauth-state:{state}");
+    sqlx::query(r#"DELETE FROM "VerificationToken" WHERE identifier = $1"#)
+        .bind(&identifier)
+        .execute(pool.get_ref())
+        .await?;
+    sqlx::query(
+        r#"
+        INSERT INTO "VerificationToken" (identifier, token, expires)
+        VALUES ($1, $2, NOW() + INTERVAL '10 minutes')
+        "#,
+    )
+    .bind(&identifier)
+    .bind(callback_url)
+    .execute(pool.get_ref())
+    .await?;
+
+    let authorize_url = format!(
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}&access_type=offline&prompt=consent",
+        urlencoding::encode(&client_id),
+        urlencoding::encode(&google_redirect_uri(config.get_ref())),
+        urlencoding::encode("openid email profile"),
+        urlencoding::encode(&state)
+    );
+    Ok(HttpResponse::Found()
+        .append_header(("Location", authorize_url))
+        .finish())
+}
+
+pub async fn google_oauth_callback(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    query: web::Query<HashMap<String, String>>,
+) -> Result<HttpResponse, AppError> {
+    let state = query
+        .get("state")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Missing OAuth state".to_string()))?;
+    let code = query
+        .get("code")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Missing Google OAuth code".to_string()))?;
+    let state_identifier = format!("google-oauth-state:{state}");
+    let callback_path = sqlx::query_scalar::<_, String>(
+        r#"
+        DELETE FROM "VerificationToken"
+        WHERE identifier = $1 AND expires > NOW()
+        RETURNING token
+        "#,
+    )
+    .bind(&state_identifier)
+    .fetch_optional(pool.get_ref())
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Invalid or expired OAuth state".to_string()))?;
+
+    let client_id = std::env::var("GOOGLE_CLIENT_ID")
+        .or_else(|_| std::env::var("AUTH_GOOGLE_ID"))
+        .map_err(|_| AppError::Internal("Missing Google OAuth client id".to_string()))?;
+    let client_secret = std::env::var("GOOGLE_CLIENT_SECRET")
+        .or_else(|_| std::env::var("AUTH_GOOGLE_SECRET"))
+        .map_err(|_| AppError::Internal("Missing Google OAuth client secret".to_string()))?;
+
+    let token_response = reqwest::Client::new()
+        .post("https://oauth2.googleapis.com/token")
+        .form(&[
+            ("code", code),
+            ("client_id", client_id.as_str()),
+            ("client_secret", client_secret.as_str()),
+            ("redirect_uri", google_redirect_uri(config.get_ref()).as_str()),
+            ("grant_type", "authorization_code"),
+        ])
+        .send()
+        .await?;
+    let token_payload = token_response.json::<serde_json::Value>().await?;
+    let access_token = token_payload
+        .get("access_token")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::BadRequest("Google token exchange failed".to_string()))?;
+
+    let profile_response = reqwest::Client::new()
+        .get("https://www.googleapis.com/oauth2/v2/userinfo")
+        .bearer_auth(access_token)
+        .send()
+        .await?;
+    let profile = profile_response.json::<serde_json::Value>().await?;
+    let provider_user_id = profile
+        .get("id")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::BadRequest("Google profile did not include id".to_string()))?;
+    let email = profile
+        .get("email")
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Google profile did not include email".to_string()))?;
+    let name = profile.get("name").and_then(|value| value.as_str()).map(str::trim).filter(|value| !value.is_empty());
+    let image = profile.get("picture").and_then(|value| value.as_str()).map(str::trim).filter(|value| !value.is_empty());
+
+    let existing_linked_user = sqlx::query_scalar::<_, String>(
+        r#"SELECT "userId" FROM "Account" WHERE provider = 'google' AND "providerAccountId" = $1 LIMIT 1"#,
+    )
+    .bind(provider_user_id)
+    .fetch_optional(pool.get_ref())
+    .await?;
+
+    let user_id = if let Some(user_id) = existing_linked_user {
+        sqlx::query(
+            r#"
+            UPDATE "User"
+            SET name = COALESCE($1, name),
+                email = COALESCE($2, email),
+                image = COALESCE($3, image),
+                "emailVerified" = COALESCE("emailVerified", NOW()),
+                "updatedAt" = NOW()
+            WHERE id = $4
+            "#,
+        )
+        .bind(name)
+        .bind(&email)
+        .bind(image)
+        .bind(&user_id)
+        .execute(pool.get_ref())
+        .await?;
+        user_id
+    } else {
+        let existing_user = sqlx::query_scalar::<_, String>(
+            r#"SELECT id FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
+        )
+        .bind(&email)
+        .fetch_optional(pool.get_ref())
+        .await?;
+        let user_id = if let Some(existing_user_id) = existing_user {
+            sqlx::query(
+                r#"
+                UPDATE "User"
+                SET name = COALESCE($1, name),
+                    image = COALESCE($2, image),
+                    "emailVerified" = COALESCE("emailVerified", NOW()),
+                    "updatedAt" = NOW()
+                WHERE id = $3
+                "#,
+            )
+            .bind(name)
+            .bind(image)
+            .bind(&existing_user_id)
+            .execute(pool.get_ref())
+            .await?;
+            existing_user_id
+        } else {
+            let new_user_id = cuid2::create_id();
+            sqlx::query(
+                r#"
+                INSERT INTO "User" (id, name, email, image, "emailVerified", "createdAt", "updatedAt")
+                VALUES ($1, $2, $3, $4, NOW(), NOW(), NOW())
+                "#,
+            )
+            .bind(&new_user_id)
+            .bind(name)
+            .bind(&email)
+            .bind(image)
+            .execute(pool.get_ref())
+            .await?;
+            new_user_id
+        };
+
+        sqlx::query(
+            r#"
+            INSERT INTO "Account" (
+                id, "userId", type, provider, "providerAccountId", access_token, token_type, scope
+            )
+            VALUES ($1, $2, 'oauth', 'google', $3, $4, 'Bearer', 'openid email profile')
+            ON CONFLICT (provider, "providerAccountId")
+            DO UPDATE SET
+                "userId" = EXCLUDED."userId",
+                access_token = EXCLUDED.access_token,
+                token_type = EXCLUDED.token_type,
+                scope = EXCLUDED.scope
+            "#,
+        )
+        .bind(cuid2::create_id())
+        .bind(&user_id)
+        .bind(provider_user_id)
+        .bind(access_token)
+        .execute(pool.get_ref())
+        .await?;
+        user_id
+    };
+
+    let session_token = create_session(pool.get_ref(), &user_id).await?;
+    let target = if callback_path.starts_with("http://") || callback_path.starts_with("https://") {
+        callback_path
+    } else {
+        format!("{}{}", config.frontend_url.trim_end_matches('/'), callback_path)
+    };
+    Ok(HttpResponse::Found()
+        .cookie(config.build_user_session_cookie(&session_token))
+        .append_header(("Location", target))
+        .finish())
+}
+
 pub async fn account_check(
     pool: web::Data<PgPool>,
     body: web::Json<AccountCheckRequest>,
@@ -209,7 +442,16 @@ pub async fn account_check(
 
     let user = sqlx::query_as::<_, User>(
         r#"
-        SELECT id, name, email, phone, image, password, "emailVerified", "createdAt", "updatedAt"
+        SELECT
+            id,
+            name,
+            email,
+            phone,
+            image,
+            password,
+            "emailVerified" AT TIME ZONE 'UTC' AS "emailVerified",
+            "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
+            "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
         FROM "User"
         WHERE lower(email) = lower($1)
         LIMIT 1
@@ -318,6 +560,7 @@ pub async fn verify_otp(
 
 pub async fn verify_email(
     pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> Result<HttpResponse, AppError> {
     let token = query
@@ -361,9 +604,9 @@ pub async fn verify_email(
     .execute(pool.get_ref())
     .await?;
 
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "message": "Email verified"
-    })))
+    Ok(HttpResponse::Found()
+        .append_header(("Location", format!("{}/login?verified=true", config.frontend_url)))
+        .finish())
 }
 
 pub async fn request_password_setup(

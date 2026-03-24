@@ -1,8 +1,8 @@
 "use client";
 
-import { signIn } from "next-auth/react";
 import { useState } from "react";
 import Link from "next/link";
+import { apiUrl } from "@/lib/server-api";
 
 export default function SignupForm() {
   const [email, setEmail] = useState("");
@@ -20,7 +20,9 @@ export default function SignupForm() {
   const [passwordSetupSent, setPasswordSetupSent] = useState(false);
 
   const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/dashboard" });
+    window.location.assign(
+      apiUrl(`/api/auth/google/start?callbackUrl=${encodeURIComponent("/workspace")}`),
+    );
   };
 
   const handleSendOtp = async () => {
@@ -31,9 +33,10 @@ export default function SignupForm() {
     setError("");
     setOtpLoading(true);
 
-    const res = await fetch("/api/auth/send-otp", {
+    const res = await fetch(apiUrl("/api/auth/send-otp"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ phone }),
     });
 
@@ -55,9 +58,10 @@ export default function SignupForm() {
     setError("");
     setOtpLoading(true);
 
-    const res = await fetch("/api/auth/verify-otp", {
+    const res = await fetch(apiUrl("/api/auth/verify-otp"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ phone, code: otp }),
     });
 
@@ -87,9 +91,10 @@ export default function SignupForm() {
 
     setLoading(true);
 
-    const res = await fetch("/api/auth/signup", {
+    const res = await fetch(apiUrl("/api/auth/signup"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email, password, name, phone, phoneVerified: true }),
     });
 
@@ -110,17 +115,17 @@ export default function SignupForm() {
   if (success) {
     return (
       <div className="space-y-4 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/15 bg-accent-glow text-2xl">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-2xl text-primary">
           ✉️
         </div>
-        <h2 className="font-serif text-2xl text-foreground">Check your email</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">Check your email</h2>
         <p className="text-muted-foreground">
           We sent a verification link to <strong className="text-foreground">{email}</strong>.
           Click the link to activate your account.
         </p>
         <Link
           href="/login"
-          className="inline-block text-sm text-accent hover:underline"
+          className="inline-block text-sm text-primary hover:underline"
         >
           Back to Sign In
         </Link>
@@ -131,10 +136,10 @@ export default function SignupForm() {
   if (passwordSetupSent) {
     return (
       <div className="space-y-4 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/15 bg-accent-glow text-2xl">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-2xl text-primary">
           ✉️
         </div>
-        <h2 className="font-serif text-2xl text-foreground">Google account found</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">Google account found</h2>
         <p className="text-muted-foreground">
           You already have an account linked to Google. We sent a link to{" "}
           <strong className="text-foreground">{email}</strong> to set up a password so
@@ -142,7 +147,7 @@ export default function SignupForm() {
         </p>
         <Link
           href="/login"
-          className="inline-block text-sm text-accent hover:underline"
+          className="inline-block text-sm text-primary hover:underline"
         >
           Back to Sign In
         </Link>
@@ -160,7 +165,7 @@ export default function SignupForm() {
 
       <button
         onClick={handleGoogleSignIn}
-        className="flex w-full items-center justify-center gap-3 rounded-full border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-all hover:border-primary/20 hover:bg-secondary/30"
+        className="flex w-full items-center justify-center gap-3 rounded-full border border-border bg-secondary px-6 py-3 text-sm font-semibold text-foreground transition-all hover:border-primary/20 hover:bg-secondary/80"
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24">
           <path
@@ -199,7 +204,7 @@ export default function SignupForm() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
-            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <div>
@@ -212,7 +217,7 @@ export default function SignupForm() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
             required
-            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
         <div>
@@ -234,20 +239,20 @@ export default function SignupForm() {
               placeholder="e.g. +27 72 123 4567"
               required
               disabled={phoneVerified}
-              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-60"
+              className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-60"
             />
             {!phoneVerified && !otpSent && (
               <button
                 type="button"
                 onClick={handleSendOtp}
                 disabled={otpLoading || !phone}
-                className="shrink-0 rounded-xl border border-accent bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
+                className="shrink-0 rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
               >
                 {otpLoading ? "Sending..." : "Send Code"}
               </button>
             )}
             {phoneVerified && (
-              <div className="flex shrink-0 items-center rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-accent">
+              <div className="flex shrink-0 items-center rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
                 Verified
               </div>
             )}

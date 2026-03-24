@@ -1,6 +1,6 @@
-import { auth } from "@/auth";
 import { LayoutShell } from "@/components/dashboard/layout-shell";
 import { prisma } from "@/lib/prisma";
+import { getRustSession } from "@/lib/rust-auth";
 import ThemeScope from "@/components/theme-scope";
 import { redirect } from "next/navigation";
 
@@ -9,7 +9,7 @@ export default async function AuthenticatedWorkspaceLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
+  const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
   const connections = await prisma.whatsappConnection.findMany({

@@ -1,6 +1,7 @@
 "use client";
 
-import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { apiUrl } from "@/lib/server-api";
 
 function SignOutIcon() {
   return (
@@ -13,9 +14,18 @@ function SignOutIcon() {
 }
 
 export default function SignOutButton() {
+  const router = useRouter();
+
   return (
     <button
-      onClick={() => signOut({ callbackUrl: "/" })}
+      onClick={async () => {
+        await fetch(apiUrl("/api/auth/logout"), {
+          method: "POST",
+          credentials: "include",
+        });
+        router.refresh();
+        router.push("/");
+      }}
       className="inline-flex h-11 items-center gap-2 rounded-full border border-border/80 bg-card px-3.5 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/20 hover:bg-secondary/30 hover:text-foreground"
     >
       <SignOutIcon />

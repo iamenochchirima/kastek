@@ -12,7 +12,10 @@ export default function SetPasswordPage({
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h1 className="font-serif text-3xl text-foreground">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+          Account access
+        </p>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Set up a password
         </h1>
         <p className="mt-2 text-muted-foreground">

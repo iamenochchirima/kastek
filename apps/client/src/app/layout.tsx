@@ -1,6 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { SessionProvider } from "next-auth/react";
-import { auth } from "@/auth";
 import ChatWidget from "@/components/chat-widget";
 import PwaRegister from "@/components/pwa-register";
 import ThemeScript from "@/components/theme-script";
@@ -37,19 +35,15 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
-
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <ThemeScript />
       </head>
       <body className="font-sans antialiased">
-        <SessionProvider session={session}>
-          {children}
-          <PwaRegister />
-          <ChatWidget />
-        </SessionProvider>
+        {children}
+        <PwaRegister />
+        <ChatWidget />
       </body>
     </html>
   );

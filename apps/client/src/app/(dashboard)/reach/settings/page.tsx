@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
 import InboxAlertControls from "@/components/dashboard/inbox/inbox-alert-controls";
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 import { prisma } from "@/lib/prisma";
+import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 export default async function ReachSettingsPage() {
-  const session = await auth();
+  const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
   const connections = await prisma.whatsappConnection.findMany({
