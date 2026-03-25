@@ -258,8 +258,19 @@ pub async fn update_campaign(
         }
         "cancel" => whatsapp::cancel_campaign(pool.get_ref(), &user.id, &path).await?,
         "retry_failed" => whatsapp::retry_failed_campaign(pool.get_ref(), &user.id, &path).await?,
+        "send_more" => whatsapp::send_more_campaign(pool.get_ref(), &user.id, &path).await?,
         _ => return Err(AppError::BadRequest("Unsupported action".to_string())),
     };
+    Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn delete_campaign(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let result = whatsapp::delete_campaign(pool.get_ref(), &user.id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 

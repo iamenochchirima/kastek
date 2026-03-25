@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Pause, Play, Plus, RefreshCw, Search, Square, Zap } from "lucide-react";
+import { Pause, Play, Plus, RefreshCw, Search, Square, Trash2, UserPlus, Zap } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -85,6 +85,7 @@ export default function CampaignsPageClient({
   const [notice, setNotice] = useState(searchParams.get("notice") || "");
   const [isPending, startTransition] = useTransition();
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const filteredCampaigns = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -105,13 +106,29 @@ export default function CampaignsPageClient({
 
   async function runAction(
     campaignId: string,
-    kind: "launch" | "pause" | "resume" | "cancel" | "retry_failed",
+    kind: "launch" | "pause" | "resume" | "cancel" | "retry_failed" | "send_more" | "delete",
   ) {
     setLoadingAction(`${campaignId}:${kind}`);
     setError("");
     setNotice("");
 
     try {
+      if (kind === "delete") {
+        const res = await fetch(apiUrl(`/api/whatsapp/campaigns/${campaignId}`), {
+          method: "DELETE",
+          credentials: "include",
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(body.error || "Failed to delete campaign");
+        }
+        setNotice("Campaign deleted.");
+        setConfirmDelete(null);
+        startTransition(() => {
+          router.refresh();
+        });
+        return;
+      }
       const endpoint =
         kind === "launch"
           ? apiUrl(`/api/whatsapp/campaigns/${campaignId}/launch`)
@@ -199,6 +216,8 @@ export default function CampaignsPageClient({
               const pausable = campaign.status === "SENDING" || campaign.status === "SCHEDULED";
               const resumable = campaign.status === "PAUSED";
               const retryable = campaign.status === "FAILED";
+              const sendMoreable = campaign.status === "COMPLETED" || campaign.status === "FAILED" || campaign.status === "PAUSED";
+              const deletable = campaign.status === "DRAFT" || campaign.status === "COMPLETED" || campaign.status === "FAILED";
               const cancellable =
                 campaign.status === "DRAFT" ||
                 campaign.status === "PAUSED" ||
@@ -333,6 +352,48 @@ export default function CampaignsPageClient({
                           <Square className="h-4 w-4" />
                           Cancel
                         </Button>
+                      ) : null}
+                      {sendMoreable ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={isPending || loadingAction === `${campaign.id}:send_more`}
+                          onClick={() => void runAction(campaign.id, "send_more")}
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          Send More
+                        </Button>
+                      ) : null}
+                      {deletable ? (
+                        confirmDelete === campaign.id ? (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={isPending || loadingAction === `${campaign.id}:delete`}
+                              onClick={() => void runAction(campaign.id, "delete")}
+                            >
+                              Confirm Delete
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setConfirmDelete(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-400 hover:text-red-300"
+                            onClick={() => setConfirmDelete(campaign.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </Button>
+                        )
                       ) : null}
                     </div>
                   </CardContent>

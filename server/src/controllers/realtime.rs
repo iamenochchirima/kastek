@@ -19,16 +19,20 @@ pub async fn whatsapp_stream(
         yield Ok::<Bytes, Error>(Bytes::from_static(b"event: ready\ndata: {}\n\n"));
 
         let Some(mut pubsub) = pubsub else {
+            log::warn!("[realtime] no redis client available, falling back to keepalive-only mode");
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(15)).await;
                 yield Ok(Bytes::from_static(b": keepalive\n\n"));
             }
         };
 
+        log::info!("[realtime] subscribing to channel: {}", channel);
         if let Err(error) = pubsub.subscribe(&channel).await {
+            log::error!("[realtime] failed to subscribe to {}: {}", channel, error);
             yield Err(actix_web::error::ErrorInternalServerError(error));
             return;
         }
+        log::info!("[realtime] subscribed to {} successfully", channel);
 
         let mut messages = pubsub.on_message();
         loop {

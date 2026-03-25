@@ -140,6 +140,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         .route("", web::post().to(whatsapp::create_campaign))
                         .route("/{id}", web::get().to(whatsapp::get_campaign))
                         .route("/{id}", web::patch().to(whatsapp::update_campaign))
+                        .route("/{id}", web::delete().to(whatsapp::delete_campaign))
                         .route("/{id}/launch", web::post().to(whatsapp::launch_campaign)),
                 ),
         )

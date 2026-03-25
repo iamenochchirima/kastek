@@ -999,7 +999,7 @@ pub async fn list_contacts(
             r#"
             SELECT
                 COALESCE("listLabel", 'default') AS list_label,
-                COUNT(*)::bigint AS total_contacts,
+                COUNT(DISTINCT id)::bigint AS total_contacts,
                 MIN(NULLIF(location, '')) AS primary_location,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT metadata_key), NULL) AS metadata_keys
             FROM "WhatsappContact"
@@ -1778,7 +1778,7 @@ pub async fn list_campaigns(pool: &PgPool, user_id: &str) -> Result<Value, AppEr
         FROM "WhatsappCampaign" c
         LEFT JOIN "WhatsappConnection" wc ON wc.id = c."connectionId"
         LEFT JOIN "WhatsappTemplate" wt ON wt.id = c."templateId"
-        WHERE "userId" = $1
+        WHERE c."userId" = $1
         ORDER BY c."createdAt" DESC
         "#,
     )
@@ -2222,6 +2222,111 @@ pub async fn retry_failed_campaign(pool: &PgPool, user_id: &str, campaign_id: &s
         .execute(pool)
         .await?;
     Ok(json!({ "campaignId": campaign_id, "retriedRecipients": recipient_ids.len(), "status": "SENDING" }))
+}
+
+pub async fn delete_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) -> Result<Value, AppError> {
+    let campaign = get_campaign_row(pool, user_id, campaign_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
+    if campaign.status == "SENDING" || campaign.status == "SCHEDULED" {
+        return Err(AppError::BadRequest(
+            "Cannot delete an active campaign. Pause or cancel it first.".to_string(),
+        ));
+    }
+    // WhatsappCampaignRecipient has onDelete: Cascade, WhatsappSendEvent has onDelete: SetNull
+    sqlx::query(r#"DELETE FROM "WhatsappCampaign" WHERE id = $1 AND "userId" = $2"#)
+        .bind(campaign_id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    Ok(json!({ "deleted": true, "campaignId": campaign_id }))
+}
+
+pub async fn send_more_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) -> Result<Value, AppError> {
+    let campaign = get_campaign_row(pool, user_id, campaign_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
+    if campaign.status != "COMPLETED" && campaign.status != "FAILED" && campaign.status != "PAUSED" {
+        return Err(AppError::BadRequest(
+            "Can only add recipients to completed, failed, or paused campaigns".to_string(),
+        ));
+    }
+    let list_label = campaign.list_label.as_deref();
+
+    // Find contacts in the same list that are NOT already recipients of this campaign
+    let new_contacts = sqlx::query_as::<_, WhatsappContactRow>(
+        r#"
+        SELECT c.id, c."userId" AS user_id, c.phone, c."fullName" AS full_name,
+               COALESCE(c.tags, ARRAY[]::text[]) AS tags, c.location,
+               COALESCE(c."listLabel", 'default') AS list_label, c.metadata,
+               c."optIn" AS opt_in, c."optInSource" AS opt_in_source,
+               c."optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+               c."lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent,
+               c.excluded, c.notes,
+               c."createdAt" AT TIME ZONE 'UTC' AS created_at,
+               c."updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "WhatsappContact" c
+        WHERE c."userId" = $1
+          AND ($2::text IS NULL OR COALESCE(c."listLabel", 'default') = $2)
+          AND c.id NOT IN (
+              SELECT r."contactId" FROM "WhatsappCampaignRecipient" r WHERE r."campaignId" = $3
+          )
+        "#,
+    )
+    .bind(user_id)
+    .bind(list_label)
+    .bind(campaign_id)
+    .fetch_all(pool)
+    .await?;
+
+    let mut added = 0i32;
+    for contact in &new_contacts {
+        let (_, eligible) = contact_eligible(contact);
+        if !eligible {
+            continue;
+        }
+        sqlx::query(
+            r#"
+            INSERT INTO "WhatsappCampaignRecipient" (id, "campaignId", "contactId", status, "createdAt", "updatedAt")
+            VALUES ($1, $2, $3, 'PENDING'::"WhatsappRecipientStatus", NOW(), NOW())
+            ON CONFLICT ("campaignId", "contactId") DO NOTHING
+            "#,
+        )
+        .bind(cuid2::create_id())
+        .bind(campaign_id)
+        .bind(&contact.id)
+        .execute(pool)
+        .await?;
+        added += 1;
+    }
+
+    if added == 0 {
+        return Err(AppError::BadRequest(
+            "No new eligible contacts found in this list".to_string(),
+        ));
+    }
+
+    // Update totalRecipients and reset status to DRAFT so it can be relaunched
+    sqlx::query(
+        r#"
+        UPDATE "WhatsappCampaign"
+        SET "totalRecipients" = "totalRecipients" + $1,
+            status = 'DRAFT'::"WhatsappCampaignStatus",
+            "completedAt" = NULL,
+            "updatedAt" = NOW()
+        WHERE id = $2
+        "#,
+    )
+    .bind(added)
+    .bind(campaign_id)
+    .execute(pool)
+    .await?;
+
+    Ok(json!({
+        "campaignId": campaign_id,
+        "addedRecipients": added,
+        "status": "DRAFT"
+    }))
 }
 
 pub async fn recompute_campaign_stats(pool: &PgPool, campaign_id: &str) -> Result<(), AppError> {
@@ -4055,7 +4160,8 @@ pub async fn download_message_media(pool: &PgPool, user_id: &str, message_id: &s
     let message = sqlx::query_as::<_, MessageRow>(
         r#"
         SELECT m.id, m."conversationId" AS conversation_id, m.sender, m.content, m."whatsappMessageId" AS whatsapp_message_id,
-               m."whatsappStatus" AS whatsapp_status, m."errorCode" AS error_code, m."errorMessage" AS error_message, m.timestamp
+               m."whatsappStatus" AS whatsapp_status, m."errorCode" AS error_code, m."errorMessage" AS error_message,
+               m.timestamp AT TIME ZONE 'UTC' AS timestamp
         FROM "Message" m
         JOIN "Conversation" c ON c.id = m."conversationId"
         WHERE m.id = $1
