@@ -2407,6 +2407,18 @@ fn build_body_parameters(contact: &WhatsappContactRow, mappings: Option<&Vec<Val
     }).collect()
 }
 
+fn render_template_preview(body: Option<&str>, body_parameters: &[String], template_name: &str) -> String {
+    let mut rendered = body
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("Template sent: {template_name}"));
+    for (index, value) in body_parameters.iter().enumerate() {
+        let placeholder = index + 1;
+        rendered = rendered.replace(&format!("{{{{{placeholder}}}}}"), value);
+        rendered = rendered.replace(&format!("{{{{ {placeholder} }}}}"), value);
+    }
+    rendered
+}
+
 async fn send_marketing_template(
     phone_number_id: &str,
     access_token: &str,
@@ -2572,6 +2584,58 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
             &body_parameters,
         ).await {
             Ok((message_id, raw)) => {
+                let template_body = if let Some(template_id) = campaign.template_id.as_deref() {
+                    sqlx::query_scalar::<_, Option<String>>(
+                        r#"SELECT body FROM "WhatsappTemplate" WHERE id = $1 LIMIT 1"#,
+                    )
+                    .bind(template_id)
+                    .fetch_optional(pool)
+                    .await?
+                    .flatten()
+                } else {
+                    None
+                };
+                let persisted_content = render_template_preview(
+                    template_body.as_deref(),
+                    &body_parameters,
+                    &campaign.template_name,
+                );
+                let (conversation_id, _, _) = find_or_create_conversation(
+                    pool,
+                    &connection.id,
+                    &contact.phone,
+                    contact.full_name.as_deref(),
+                )
+                .await?;
+                let persisted_message_id = cuid2::create_id();
+                sqlx::query(
+                    r#"
+                    INSERT INTO "Message" (
+                        id, "conversationId", sender, content, "whatsappMessageId", "whatsappStatus", timestamp
+                    )
+                    VALUES ($1, $2, 'bot', $3, $4, 'SENT', NOW())
+                    "#,
+                )
+                .bind(&persisted_message_id)
+                .bind(&conversation_id)
+                .bind(&persisted_content)
+                .bind(&message_id)
+                .execute(pool)
+                .await?;
+                sqlx::query(
+                    r#"
+                    UPDATE "Conversation"
+                    SET "lastMessageAt" = NOW(),
+                        status = 'active',
+                        "customerName" = COALESCE($1, "customerName"),
+                        "updatedAt" = NOW()
+                    WHERE id = $2
+                    "#,
+                )
+                .bind(contact.full_name.as_deref())
+                .bind(&conversation_id)
+                .execute(pool)
+                .await?;
                 sqlx::query(
                     r#"
                     UPDATE "WhatsappCampaignRecipient"
@@ -2615,6 +2679,8 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
                 .bind(raw)
                 .execute(pool)
                 .await?;
+                publish_message_created(pool, &campaign.user_id, &persisted_message_id).await?;
+                publish_conversation_updated(pool, &campaign.user_id, &conversation_id).await?;
             }
             Err(error) => {
                 let (code, message, blocked) = parse_failure_message(&error);
