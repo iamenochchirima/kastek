@@ -1,6 +1,6 @@
 use actix_web::web;
 
-use crate::controllers::{admin, ai, auth, bots, chat, health, notifications, profile, public, realtime, social, whatsapp};
+use crate::controllers::{admin, ai, auth, bots, chat, health, notifications, profile, public, realtime, social, whatsapp, workspace};
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/", web::get().to(health::root))
@@ -12,6 +12,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/{id}", web::patch().to(bots::patch))
             .route("/{id}", web::delete().to(bots::delete)))
         .route("/api/chat", web::post().to(chat::post))
+        .route("/api/workspace/summary", web::get().to(workspace::summary))
         .service(
             web::scope("/api/auth")
                 .route("/signup", web::post().to(auth::signup))
@@ -32,6 +33,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         )
         .service(
             web::scope("/api/profile")
+                .route("", web::get().to(profile::get))
                 .route("", web::patch().to(profile::patch))
                 .route("/email", web::post().to(profile::request_email_change))
                 .route("/email/verify", web::get().to(profile::verify_email_change))
@@ -107,6 +109,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         .route("/import", web::post().to(whatsapp::import_contacts))
                         .route("/{id}", web::patch().to(whatsapp::update_contact)),
                 )
+                .route("/templates", web::get().to(whatsapp::list_templates))
                 .route("/templates", web::post().to(whatsapp::create_template))
                 .service(
                     web::scope("/inbox")

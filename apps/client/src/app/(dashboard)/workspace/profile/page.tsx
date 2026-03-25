@@ -1,6 +1,6 @@
 import ProfileForm from "@/components/dashboard/profile/profile-form";
-import { prisma } from "@/lib/prisma";
 import { getRustSession } from "@/lib/rust-auth";
+import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -11,19 +11,18 @@ export default async function WorkspaceProfilePage() {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      name: true,
-      email: true,
-      emailVerified: true,
-      phone: true,
-      image: true,
-      password: true,
-    },
-  });
+  const profile = await fetchRustJson<{
+    user: {
+      name: string | null;
+      email: string | null;
+      emailVerified: string | null;
+      phone: string | null;
+      image: string | null;
+    };
+    hasPassword: boolean;
+  }>("/api/profile").catch(() => null);
 
-  if (!user) redirect("/login");
+  if (!profile?.user) redirect("/login");
 
   return (
     <div className="min-h-screen p-6 lg:p-8">
@@ -37,12 +36,12 @@ export default async function WorkspaceProfilePage() {
 
         <ProfileForm
           user={{
-            name: user.name,
-            email: user.email,
-            emailVerified: !!user.emailVerified,
-            phone: user.phone,
-            image: user.image,
-            hasPassword: !!user.password,
+            name: profile.user.name,
+            email: profile.user.email,
+            emailVerified: !!profile.user.emailVerified,
+            phone: profile.user.phone,
+            image: profile.user.image,
+            hasPassword: profile.hasPassword,
           }}
         />
       </div>

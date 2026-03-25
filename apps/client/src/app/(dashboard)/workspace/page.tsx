@@ -1,6 +1,5 @@
 import { getRustSession } from "@/lib/rust-auth";
-import { prisma } from "@/lib/prisma";
-import { getWhatsappConnectionStats } from "@/lib/whatsapp/connection-stats";
+import { fetchRustJson } from "@/lib/rust-server-api";
 import { Bell, Bot, Send, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -8,8 +7,6 @@ import { redirect } from "next/navigation";
 export const metadata = {
   title: "Workspace | KasiTek",
 };
-
-const ACTIVE_CAMPAIGN_STATUSES = ["DRAFT", "SCHEDULED", "SENDING", "PAUSED"] as const;
 
 const products = [
   {
@@ -42,139 +39,84 @@ export default async function WorkspacePage() {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
-  const [timeRow] = await prisma.$queryRaw<Array<{ now: Date }>>`SELECT NOW() as now`;
-  const currentDate = timeRow?.now || new Date("2026-03-03T00:00:00.000Z");
-  const since30Days = new Date(currentDate);
-  since30Days.setDate(since30Days.getDate() - 30);
+  const workspaceResponse = await fetchRustJson<{
+    summary: {
+      botCount: number;
+      socialPostCount: number;
+      connections: Array<{
+        id: string;
+        phoneDisplayNumber: string | null;
+        phoneNumberId: string;
+        currentQualityRating: string;
+        dailyLimitEstimate: number | null;
+        verified: boolean;
+        createdAt: string;
+        stats: {
+          sentLast24h: number;
+          estimatedRemainingToday: number | null;
+        };
+      }>;
+      templateStatusMap: Record<string, number>;
+      campaignsAggregate: {
+        totalCampaigns: number;
+        totalRecipients: number;
+        deliveredCount: number;
+        readCount: number;
+        failedCount: number;
+        blockedCount: number;
+      };
+      activeCampaigns: number;
+      recentCampaigns: Array<{
+        id: string;
+        name: string;
+        status: string;
+        totalRecipients: number;
+        deliveredCount: number;
+        readCount: number;
+        templateName: string;
+        connectionLabel: string | null;
+      }>;
+      contactsAggregate: {
+        total: number;
+        optedIn: number;
+        excluded: number;
+      };
+      sendStatusMap: Record<string, number>;
+      reviewQueue: Array<{
+        id: string;
+        templateName: string;
+        status: string;
+        body: string | null;
+        connectionLabel: string | null;
+      }>;
+    };
+  }>("/api/workspace/summary");
 
-  const [
+  const {
     botCount,
     socialPostCount,
     connections,
-    templatesByStatus,
+    templateStatusMap,
     campaignsAggregate,
     activeCampaigns,
     recentCampaigns,
     contactsAggregate,
-    sendBreakdown,
+    sendStatusMap,
     reviewQueue,
-  ] = await Promise.all([
-    prisma.botConfiguration.count({ where: { userId: session.user.id } }),
-    prisma.socialPost.count({ where: { userId: session.user.id } }).catch(() => 0),
-    prisma.whatsappConnection.findMany({
-      where: { userId: session.user.id },
-      select: {
-        id: true,
-        phoneDisplayNumber: true,
-        phoneNumberId: true,
-        currentQualityRating: true,
-        dailyLimitEstimate: true,
-        verified: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.whatsappTemplate.groupBy({
-      by: ["status"],
-      where: { userId: session.user.id },
-      _count: true,
-    }),
-    prisma.whatsappCampaign.aggregate({
-      where: { userId: session.user.id },
-      _count: { _all: true },
-      _sum: {
-        totalRecipients: true,
-        deliveredCount: true,
-        readCount: true,
-        failedCount: true,
-        blockedCount: true,
-      },
-    }),
-    prisma.whatsappCampaign.count({
-      where: {
-        userId: session.user.id,
-        status: { in: [...ACTIVE_CAMPAIGN_STATUSES] },
-      },
-    }),
-    prisma.whatsappCampaign.findMany({
-      where: { userId: session.user.id },
-      include: {
-        connection: {
-          select: {
-            phoneDisplayNumber: true,
-            phoneNumberId: true,
-          },
-        },
-        template: {
-          select: {
-            templateName: true,
-            language: true,
-          },
-        },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 5,
-    }),
-    prisma.whatsappContact.aggregate({
-      where: { userId: session.user.id },
-      _count: { _all: true },
-    }),
-    prisma.whatsappSendEvent.groupBy({
-      by: ["status"],
-      where: {
-        userId: session.user.id,
-        createdAt: { gte: since30Days },
-      },
-      _count: true,
-    }),
-    prisma.whatsappTemplate.findMany({
-      where: {
-        userId: session.user.id,
-        status: { in: ["PENDING", "REJECTED"] },
-      },
-      include: {
-        connection: {
-          select: {
-            phoneDisplayNumber: true,
-            phoneNumberId: true,
-          },
-        },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 4,
-    }),
-  ]);
+  } = workspaceResponse.summary;
 
-  const [optedInContacts, excludedContacts] = await Promise.all([
-    prisma.whatsappContact.count({
-      where: { userId: session.user.id, optIn: true },
-    }),
-    prisma.whatsappContact.count({
-      where: { userId: session.user.id, excluded: true },
-    }),
-  ]);
-
-  const statsByConnection = await getWhatsappConnectionStats(connections.map((connection) => connection.id));
-
-  const templateStatusMap = Object.fromEntries(
-    templatesByStatus.map((entry) => [entry.status, entry._count]),
-  ) as Record<string, number>;
-  const sendStatusMap = Object.fromEntries(
-    sendBreakdown.map((entry) => [entry.status, entry._count]),
-  ) as Record<string, number>;
-
-  const totalDelivered = campaignsAggregate._sum.deliveredCount || 0;
-  const totalRead = campaignsAggregate._sum.readCount || 0;
+  const totalDelivered = campaignsAggregate.deliveredCount || 0;
+  const totalRead = campaignsAggregate.readCount || 0;
   const totalFailures =
-    (campaignsAggregate._sum.failedCount || 0) + (campaignsAggregate._sum.blockedCount || 0);
-  const totalRecipients = campaignsAggregate._sum.totalRecipients || 0;
+    (campaignsAggregate.failedCount || 0) + (campaignsAggregate.blockedCount || 0);
+  const totalRecipients = campaignsAggregate.totalRecipients || 0;
   const deliveryRate = totalRecipients ? Math.round((totalDelivered / totalRecipients) * 100) : 0;
   const readRate = totalDelivered ? Math.round((totalRead / totalDelivered) * 100) : 0;
   const averageRemainingToday =
     connections.length > 0
       ? Math.round(
           connections.reduce((sum, connection) => {
-            const remaining = statsByConnection.get(connection.id)?.estimatedRemainingToday;
+            const remaining = connection.stats.estimatedRemainingToday;
             return sum + (remaining || 0);
           }, 0) / connections.length,
         )
@@ -214,8 +156,8 @@ export default async function WorkspacePage() {
             />
             <HeroMetric
               label="Reach Contacts"
-              value={contactsAggregate._count._all.toLocaleString("en-ZA")}
-              helper={`${optedInContacts.toLocaleString("en-ZA")} opted in`}
+              value={contactsAggregate.total.toLocaleString("en-ZA")}
+              helper={`${contactsAggregate.optedIn.toLocaleString("en-ZA")} opted in`}
             />
             <HeroMetric
               label="Templates Ready"
@@ -225,7 +167,7 @@ export default async function WorkspacePage() {
             <HeroMetric
               label="Active Campaigns"
               value={activeCampaigns.toString()}
-              helper={`${campaignsAggregate._count._all} total campaigns`}
+              helper={`${campaignsAggregate.totalCampaigns} total campaigns`}
             />
             <HeroMetric
               label="Scheduled Social"
@@ -281,9 +223,9 @@ export default async function WorkspacePage() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h3 className="font-medium text-foreground">{campaign.name}</h3>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {campaign.template?.templateName || "No template"} ·{" "}
-                              {campaign.connection?.phoneDisplayNumber || campaign.connection?.phoneNumberId || "No connection"}
+                              <p className="mt-1 text-xs text-muted-foreground">
+                              {campaign.templateName || "No template"} ·{" "}
+                              {campaign.connectionLabel || "No connection"}
                             </p>
                           </div>
                           <span className="rounded-full border border-border px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
@@ -327,9 +269,7 @@ export default async function WorkspacePage() {
                           <div>
                             <h3 className="font-medium text-foreground">{template.templateName}</h3>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {template.connection?.phoneDisplayNumber ||
-                                template.connection?.phoneNumberId ||
-                                "No connection"}
+                              {template.connectionLabel || "No connection"}
                             </p>
                           </div>
                           <span
@@ -388,7 +328,6 @@ export default async function WorkspacePage() {
                   <EmptyState text="No WhatsApp numbers connected yet." compact />
                 ) : (
                   connections.map((connection) => {
-                    const stats = statsByConnection.get(connection.id);
                     return (
                       <div key={connection.id} className="rounded-2xl border border-border bg-secondary/40 p-4">
                         <div className="flex items-start justify-between gap-3">
@@ -403,8 +342,8 @@ export default async function WorkspacePage() {
                           </span>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-3">
-                          <MiniMetric label="Sent 24h" value={stats?.sentLast24h || 0} />
-                          <MiniMetric label="Remaining" value={stats?.estimatedRemainingToday || 0} />
+                          <MiniMetric label="Sent 24h" value={connection.stats.sentLast24h || 0} />
+                          <MiniMetric label="Remaining" value={connection.stats.estimatedRemainingToday || 0} />
                         </div>
                       </div>
                     );
@@ -435,12 +374,12 @@ export default async function WorkspacePage() {
         <section className="grid gap-4 md:grid-cols-3">
           <MetricCard
             label="All Contacts"
-            value={contactsAggregate._count._all.toLocaleString("en-ZA")}
+            value={contactsAggregate.total.toLocaleString("en-ZA")}
             helper="Total contact records available to segment and target"
           />
           <MetricCard
             label="Excluded Contacts"
-            value={excludedContacts.toLocaleString("en-ZA")}
+            value={contactsAggregate.excluded.toLocaleString("en-ZA")}
             helper="Contacts currently excluded from marketing sends"
           />
           <MetricCard

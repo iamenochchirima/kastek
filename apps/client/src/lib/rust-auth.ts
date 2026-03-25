@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { prisma } from "@/lib/prisma";
+import { fetchRustJson } from "@/lib/rust-server-api";
 
 export type RustSessionUser = {
   id: string;
@@ -12,37 +11,22 @@ export type RustSession = {
   user: RustSessionUser;
 };
 
-const SESSION_COOKIE = "kasitek_session";
-
 export async function getRustSession(): Promise<RustSession | null> {
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!sessionToken) return null;
+  try {
+    const payload = await fetchRustJson<{ user?: RustSessionUser }>("/api/auth/me");
+    if (!payload.user) {
+      return null;
+    }
 
-  const session = await prisma.session.findUnique({
-    where: { sessionToken },
-    include: {
+    return {
       user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-        },
+        id: payload.user.id,
+        name: payload.user.name ?? "",
+        email: payload.user.email ?? "",
+        image: payload.user.image ?? "",
       },
-    },
-  });
-
-  if (!session || session.expires <= new Date()) {
+    };
+  } catch {
     return null;
   }
-
-  return {
-    user: {
-      id: session.user.id,
-      name: session.user.name ?? "",
-      email: session.user.email ?? "",
-      image: session.user.image ?? "",
-    },
-  };
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +20,10 @@ export function PlannerBoard() {
     setError("");
 
     try {
-      const response = await fetch("/api/social/posts", { cache: "no-store" });
+      const response = await fetch(apiUrl("/api/social/posts"), {
+        cache: "no-store",
+        credentials: "include",
+      });
       const payload = (await response.json()) as { posts?: SocialPost[]; error?: string };
       if (!response.ok) {
         throw new Error(payload.error || "Failed to load planner");

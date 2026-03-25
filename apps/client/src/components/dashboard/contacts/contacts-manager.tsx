@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
@@ -94,8 +95,9 @@ export default function ContactsManager({
       formData.append("file", csvFile);
       formData.append("defaultOptIn", defaultOptIn ? "true" : "false");
 
-      const res = await fetch("/api/whatsapp/contacts/import", {
+      const res = await fetch(apiUrl("/api/whatsapp/contacts/import"), {
         method: "POST",
+        credentials: "include",
         body: formData,
       });
 
@@ -131,8 +133,9 @@ export default function ContactsManager({
     setNotice("");
 
     try {
-      const res = await fetch(`/api/whatsapp/contacts/${editingId}`, {
+      const res = await fetch(apiUrl(`/api/whatsapp/contacts/${editingId}`), {
         method: "PATCH",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },

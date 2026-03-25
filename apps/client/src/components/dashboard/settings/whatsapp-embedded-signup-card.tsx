@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -190,8 +191,9 @@ export default function WhatsappEmbeddedSignupCard({
   async function finalizeSignup(code: string) {
     const finishData = finishDataRef.current;
 
-    const res = await fetch("/api/whatsapp/onboarding/complete", {
+    const res = await fetch(apiUrl("/api/whatsapp/onboarding/complete"), {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
       },
@@ -231,7 +233,9 @@ export default function WhatsappEmbeddedSignupCard({
     setNotice("");
 
     try {
-      const res = await fetch(`/api/whatsapp/connections/${connectionId}/health`);
+      const res = await fetch(apiUrl(`/api/whatsapp/connections/${connectionId}/health`), {
+        credentials: "include",
+      });
       const body = await res.json();
 
       if (!res.ok) {
@@ -263,8 +267,9 @@ export default function WhatsappEmbeddedSignupCard({
           ? `/api/whatsapp/connections/${connectionId}/refresh`
           : `/api/whatsapp/connections/${connectionId}/templates/sync`;
 
-      const res = await fetch(endpoint, {
+      const res = await fetch(apiUrl(endpoint), {
         method: "POST",
+        credentials: "include",
       });
       const body = await res.json();
 

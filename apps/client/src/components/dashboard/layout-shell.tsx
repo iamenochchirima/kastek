@@ -267,12 +267,14 @@ function SidebarContent({
   setCollapsed,
   user,
   inboxUnreadCount = 0,
+  hasPwaUpdate = false,
   onOpenSwitcher,
 }: {
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
   user?: { name?: string | null; email?: string | null; image?: string | null };
   inboxUnreadCount?: number;
+  hasPwaUpdate?: boolean;
   onOpenSwitcher: () => void;
 }) {
   const pathname = usePathname();
@@ -372,7 +374,12 @@ function SidebarContent({
         {setCollapsed && !collapsed ? (
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={onOpenSwitcher}>
-              <Grid2x2 className="h-4 w-4" />
+              <span className="relative">
+                <Grid2x2 className="h-4 w-4" />
+                {hasPwaUpdate ? (
+                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />
+                ) : null}
+              </span>
             </Button>
             <Button
               variant="ghost"
@@ -550,8 +557,22 @@ export function LayoutShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
   const pathname = usePathname();
   const currentProduct = resolveProduct(pathname);
+
+  useEffect(() => {
+    const onPwaUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ waiting?: boolean }>;
+      setHasPwaUpdate(Boolean(customEvent.detail?.waiting));
+    };
+
+    window.addEventListener("kasitek:pwa-update", onPwaUpdate as EventListener);
+
+    return () => {
+      window.removeEventListener("kasitek:pwa-update", onPwaUpdate as EventListener);
+    };
+  }, []);
 
   return (
     <>
@@ -569,6 +590,7 @@ export function LayoutShell({
             setCollapsed={setCollapsed}
             user={user}
             inboxUnreadCount={inboxUnreadCount}
+            hasPwaUpdate={hasPwaUpdate}
             onOpenSwitcher={() => setSwitcherOpen(true)}
           />
         </aside>
@@ -595,7 +617,12 @@ export function LayoutShell({
               </button>
             </div>
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setSwitcherOpen(true)}>
-              <Grid2x2 className="h-4 w-4" />
+              <span className="relative">
+                <Grid2x2 className="h-4 w-4" />
+                {hasPwaUpdate ? (
+                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />
+                ) : null}
+              </span>
             </Button>
           </div>
           <SheetContent side="left" className="w-64 p-0">
@@ -603,6 +630,7 @@ export function LayoutShell({
               collapsed={false}
               user={user}
               inboxUnreadCount={inboxUnreadCount}
+              hasPwaUpdate={hasPwaUpdate}
               onOpenSwitcher={() => setSwitcherOpen(true)}
             />
           </SheetContent>

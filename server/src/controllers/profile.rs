@@ -4,12 +4,23 @@ use sqlx::PgPool;
 
 use crate::config::AppConfig;
 use crate::db::models::{
-    ChangeEmailRequest, ChangePasswordRequest, OnboardingPhoneRequest, UpdateProfileRequest,
-    UserProfileResponse,
+    ChangeEmailRequest, ChangePasswordRequest, OnboardingPhoneRequest, ProfileBootstrapResponse,
+    UpdateProfileRequest, UserProfileResponse,
 };
 use crate::error::AppError;
 use crate::middleware::extract_user;
 use crate::services::auth::{issue_verification_token, send_email};
+
+pub async fn get(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    Ok(HttpResponse::Ok().json(ProfileBootstrapResponse {
+        has_password: user.password.is_some(),
+        user: UserProfileResponse::from(user),
+    }))
+}
 
 pub async fn patch(
     pool: web::Data<PgPool>,
@@ -203,7 +214,7 @@ pub async fn verify_email_change(
             .execute(pool.get_ref())
             .await?;
         return Ok(HttpResponse::Found()
-            .append_header(("Location", format!("{}/dashboard/profile?emailChange=conflict", config.auth_url)))
+            .append_header(("Location", format!("{}/workspace/profile?emailChange=conflict", config.auth_url)))
             .finish());
     }
 
@@ -219,7 +230,7 @@ pub async fn verify_email_change(
         .await?;
 
     Ok(HttpResponse::Found()
-        .append_header(("Location", format!("{}/dashboard/profile?emailChange=success", config.auth_url)))
+        .append_header(("Location", format!("{}/workspace/profile?emailChange=success", config.auth_url)))
         .finish())
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Pencil, RotateCcw, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -115,8 +116,8 @@ export function PostsWorkspace() {
 
     try {
       const [postsResponse, channelsResponse] = await Promise.all([
-        fetch("/api/social/posts", { cache: "no-store" }),
-        fetch("/api/social/channels", { cache: "no-store" }),
+        fetch(apiUrl("/api/social/posts"), { cache: "no-store", credentials: "include" }),
+        fetch(apiUrl("/api/social/channels"), { cache: "no-store", credentials: "include" }),
       ]);
 
       const postsPayload = (await postsResponse.json()) as {
@@ -278,8 +279,9 @@ export function PostsWorkspace() {
     setError("");
 
     try {
-      const response = await fetch("/api/social/ai/caption", {
+      const response = await fetch(apiUrl("/api/social/ai/caption"), {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: composer.prompt,
@@ -349,8 +351,9 @@ export function PostsWorkspace() {
     setError("");
 
     try {
-      const response = await fetch("/api/social/ai/ideas", {
+      const response = await fetch(apiUrl("/api/social/ai/ideas"), {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic: ideaTopic,
@@ -396,9 +399,10 @@ export function PostsWorkspace() {
 
     try {
       const response = await fetch(
-        composer.id ? `/api/social/posts/${composer.id}` : "/api/social/posts",
+        apiUrl(composer.id ? `/api/social/posts/${composer.id}` : "/api/social/posts"),
         {
           method: composer.id ? "PATCH" : "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: composer.title || null,
@@ -448,7 +452,10 @@ export function PostsWorkspace() {
     setError("");
 
     try {
-      const response = await fetch(`/api/social/posts/${id}`, { method: "DELETE" });
+      const response = await fetch(apiUrl(`/api/social/posts/${id}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
       const payload = (await response.json()) as { error?: string };
 
       if (!response.ok) {
@@ -467,8 +474,9 @@ export function PostsWorkspace() {
     setError("");
 
     try {
-      const response = await fetch(`/api/social/posts/${postId}/publish`, {
+      const response = await fetch(apiUrl(`/api/social/posts/${postId}/publish`), {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platform }),
       });
@@ -493,8 +501,9 @@ export function PostsWorkspace() {
     setError("");
 
     try {
-      const response = await fetch(`/api/social/publish-jobs/${job.id}`, {
+      const response = await fetch(apiUrl(`/api/social/publish-jobs/${job.id}`), {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });

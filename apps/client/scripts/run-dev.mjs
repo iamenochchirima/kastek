@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 
 const processes = [
   { cmd: "pnpm", args: ["exec", "next", "dev"], label: "app" },
-  { cmd: "node", args: ["scripts/run-whatsapp-workers.mjs"], label: "wa" },
 ];
 
 const children = processes.map(({ cmd, args, label }) => {

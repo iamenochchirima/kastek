@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -145,8 +146,9 @@ export default function WhatsappTemplateManager({
     }
 
     try {
-      const res = await fetch("/api/whatsapp/templates", {
+      const res = await fetch(apiUrl("/api/whatsapp/templates"), {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
@@ -204,8 +206,9 @@ export default function WhatsappTemplateManager({
     setNotice("");
 
     try {
-      const res = await fetch(`/api/whatsapp/connections/${connectionIdToSync}/templates/sync`, {
+      const res = await fetch(apiUrl(`/api/whatsapp/connections/${connectionIdToSync}/templates/sync`), {
         method: "POST",
+        credentials: "include",
       });
       const payload = await res.json();
       if (!res.ok) {

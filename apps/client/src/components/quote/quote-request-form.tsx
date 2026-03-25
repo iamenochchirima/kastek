@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { useState } from "react";
 import Link from "next/link";
 
@@ -91,7 +92,7 @@ export default function QuoteRequestForm() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/quote-requests", {
+      const res = await fetch(apiUrl("/api/quote-requests"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

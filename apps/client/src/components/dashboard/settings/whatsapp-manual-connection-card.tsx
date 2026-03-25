@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -52,8 +53,9 @@ export default function WhatsappManualConnectionCard({
     setNotice("");
 
     try {
-      const res = await fetch("/api/whatsapp/connections", {
+      const res = await fetch(apiUrl("/api/whatsapp/connections"), {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
@@ -100,7 +102,9 @@ export default function WhatsappManualConnectionCard({
     setNotice("");
 
     try {
-      const res = await fetch(`/api/whatsapp/connections/${connectionId}/health`);
+      const res = await fetch(apiUrl(`/api/whatsapp/connections/${connectionId}/health`), {
+        credentials: "include",
+      });
       const body = await res.json();
 
       if (!res.ok) {
@@ -132,8 +136,9 @@ export default function WhatsappManualConnectionCard({
           ? `/api/whatsapp/connections/${connectionId}/refresh`
           : `/api/whatsapp/connections/${connectionId}/templates/sync`;
 
-      const res = await fetch(endpoint, {
+      const res = await fetch(apiUrl(endpoint), {
         method: "POST",
+        credentials: "include",
       });
       const body = await res.json();
 
@@ -163,8 +168,9 @@ export default function WhatsappManualConnectionCard({
     setNotice("");
 
     try {
-      const res = await fetch(`/api/whatsapp/connections/${connectionId}/token`, {
+      const res = await fetch(apiUrl(`/api/whatsapp/connections/${connectionId}/token`), {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },

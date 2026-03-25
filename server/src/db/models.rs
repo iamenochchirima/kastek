@@ -143,6 +143,13 @@ pub struct UpdateProfileRequest {
     pub image: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ProfileBootstrapResponse {
+    pub user: UserProfileResponse,
+    #[serde(rename = "hasPassword")]
+    pub has_password: bool,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct OnboardingPhoneRequest {
     pub phone: Option<String>,
@@ -676,6 +683,24 @@ pub struct WhatsappContactListQuery {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct WhatsappTemplateListQuery {
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WhatsappAudienceFilterRequest {
+    pub tags: Option<Vec<String>>,
+    pub location: Option<String>,
+    pub search: Option<String>,
+    #[serde(rename = "optInStatus")]
+    pub opt_in_status: Option<String>,
+    #[serde(rename = "excludedStatus")]
+    pub excluded_status: Option<String>,
+    #[serde(rename = "cooldownStatus")]
+    pub cooldown_status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct WhatsappCampaignCreateRequest {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -689,6 +714,7 @@ pub struct WhatsappCampaignCreateRequest {
     pub scheduled_at: Option<String>,
     #[serde(rename = "variableMappings")]
     pub variable_mappings: Option<Value>,
+    pub audience: Option<WhatsappAudienceFilterRequest>,
 }
 
 #[derive(Debug, Deserialize)]

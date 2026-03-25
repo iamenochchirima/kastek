@@ -1,7 +1,7 @@
 import InboxAlertControls from "@/components/dashboard/inbox/inbox-alert-controls";
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
-import { prisma } from "@/lib/prisma";
 import { getRustSession } from "@/lib/rust-auth";
+import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -12,24 +12,20 @@ export default async function ReachSettingsPage() {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
-  const connections = await prisma.whatsappConnection.findMany({
-    where: {
-      userId: session.user.id,
-    },
-    select: {
-      id: true,
-      phoneNumberId: true,
-      phoneDisplayNumber: true,
-      wabaId: true,
-      currentQualityRating: true,
-      dailyLimitEstimate: true,
-      verified: true,
-      createdAt: true,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  const connectionResponse = await fetchRustJson<{
+    connections: Array<{
+      id: string;
+      phoneNumberId: string;
+      phoneDisplayNumber: string | null;
+      wabaId: string;
+      currentQualityRating: string;
+      dailyLimitEstimate: number | null;
+      verified: boolean;
+      createdAt: string;
+    }>;
+  }>("/api/whatsapp/connections").catch(() => ({ connections: [] }));
+
+  const connections = connectionResponse.connections;
 
   return (
     <div className="min-h-screen p-6 lg:p-8">
@@ -53,10 +49,7 @@ export default async function ReachSettingsPage() {
         </section>
 
         <WhatsappManualConnectionCard
-          connections={connections.map((connection) => ({
-            ...connection,
-            createdAt: connection.createdAt.toISOString(),
-          }))}
+          connections={connections}
           mode="maintenance"
         />
       </div>

@@ -1,6 +1,6 @@
 import ContactsManager from "@/components/dashboard/contacts/contacts-manager";
-import { prisma } from "@/lib/prisma";
 import { getRustSession } from "@/lib/rust-auth";
+import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -22,67 +22,40 @@ export default async function ReachContactsPage({
   const tag = typeof params.tag === "string" ? params.tag.trim() : "";
   const location = typeof params.location === "string" ? params.location.trim() : "";
 
-  const where = {
-    userId: session.user.id,
-    ...(query
-      ? {
-          OR: [
-            { fullName: { contains: query, mode: "insensitive" as const } },
-            { phone: { contains: query, mode: "insensitive" as const } },
-            { location: { contains: query, mode: "insensitive" as const } },
-            { tags: { has: query } },
-          ],
-        }
-      : {}),
-    ...(optIn === "true" ? { optIn: true } : {}),
-    ...(optIn === "false" ? { optIn: false } : {}),
-    ...(excluded === "true" ? { excluded: true } : {}),
-    ...(excluded === "false" ? { excluded: false } : {}),
-    ...(tag ? { tags: { has: tag } } : {}),
-    ...(location
-      ? {
-          location: {
-            contains: location,
-            mode: "insensitive" as const,
-          },
-        }
-      : {}),
-  };
+  const search = new URLSearchParams();
+  if (query) search.set("q", query);
+  if (optIn && optIn !== "all") search.set("optIn", optIn);
+  if (excluded && excluded !== "all") search.set("excluded", excluded);
+  if (tag) search.set("tag", tag);
+  if (location) search.set("location", location);
 
-  const [contacts, allTags, totalContacts, optedInContacts, excludedContacts] = await Promise.all([
-    prisma.whatsappContact.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: 500,
-    }),
-    prisma.whatsappContact.findMany({
-      where: { userId: session.user.id },
-      select: { tags: true },
-    }),
-    prisma.whatsappContact.count({
-      where: { userId: session.user.id },
-    }),
-    prisma.whatsappContact.count({
-      where: { userId: session.user.id, optIn: true },
-    }),
-    prisma.whatsappContact.count({
-      where: { userId: session.user.id, excluded: true },
-    }),
-  ]);
-
-  const tagOptions = Array.from(new Set(allTags.flatMap((item) => item.tags))).sort((a, b) =>
-    a.localeCompare(b),
-  );
+  const contactsResponse = await fetchRustJson<{
+    contacts: Array<{
+      id: string;
+      phone: string;
+      fullName: string | null;
+      tags: string[];
+      location: string | null;
+      optIn: boolean;
+      optInSource: string | null;
+      optInDate: string | null;
+      lastMarketingSent: string | null;
+      excluded: boolean;
+      notes: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    tagOptions: string[];
+    stats: {
+      totalContacts: number;
+      optedInContacts: number;
+      excludedContacts: number;
+    };
+  }>(`/api/whatsapp/contacts${search.toString() ? `?${search.toString()}` : ""}`);
 
   return (
     <ContactsManager
-      contacts={contacts.map((contact) => ({
-        ...contact,
-        optInDate: contact.optInDate?.toISOString() || null,
-        lastMarketingSent: contact.lastMarketingSent?.toISOString() || null,
-        createdAt: contact.createdAt.toISOString(),
-        updatedAt: contact.updatedAt.toISOString(),
-      }))}
+      contacts={contactsResponse.contacts}
       filters={{
         q: query,
         optIn,
@@ -90,12 +63,8 @@ export default async function ReachContactsPage({
         tag,
         location,
       }}
-      stats={{
-        totalContacts,
-        optedInContacts,
-        excludedContacts,
-      }}
-      tagOptions={tagOptions}
+      stats={contactsResponse.stats}
+      tagOptions={contactsResponse.tagOptions}
     />
   );
 }

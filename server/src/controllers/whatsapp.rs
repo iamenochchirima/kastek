@@ -6,7 +6,7 @@ use crate::db::models::{
     WhatsappCampaignActionRequest, WhatsappCampaignCreateRequest, WhatsappConnectionCreateRequest,
     WhatsappConnectionTokenRequest, WhatsappContactListQuery, WhatsappContactUpdateRequest,
     WhatsappEmbeddedSignupRequest, WhatsappReactionRequest, WhatsappSendMessageRequest,
-    WhatsappStartConversationRequest, WhatsappTemplateCreateRequest,
+    WhatsappStartConversationRequest, WhatsappTemplateCreateRequest, WhatsappTemplateListQuery,
 };
 use crate::error::AppError;
 use crate::middleware::extract_user;
@@ -128,6 +128,16 @@ pub async fn create_template(
     )
     .await?;
     Ok(HttpResponse::Created().json(result))
+}
+
+pub async fn list_templates(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<WhatsappTemplateListQuery>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let result = whatsapp::list_templates(pool.get_ref(), &user.id, query.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(result))
 }
 
 pub async fn list_contacts(

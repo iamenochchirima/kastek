@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, RefreshCcw, Trash2 } from "lucide-react";
@@ -50,7 +51,10 @@ export function ChannelsManager() {
     setError("");
 
     try {
-      const response = await fetch("/api/social/channels", { cache: "no-store" });
+      const response = await fetch(apiUrl("/api/social/channels"), {
+        cache: "no-store",
+        credentials: "include",
+      });
       const payload = (await response.json()) as {
         channels?: SocialChannelConnection[];
         error?: string;
@@ -73,8 +77,9 @@ export function ChannelsManager() {
     setError("");
 
     try {
-      const response = await fetch("/api/social/channels", {
+      const response = await fetch(apiUrl("/api/social/channels"), {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           platform: nextForm.platform,
@@ -110,8 +115,9 @@ export function ChannelsManager() {
     setError("");
 
     try {
-      const response = await fetch(`/api/social/channels/${id}`, {
+      const response = await fetch(apiUrl(`/api/social/channels/${id}`), {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
@@ -140,8 +146,9 @@ export function ChannelsManager() {
     setError("");
 
     try {
-      const response = await fetch(`/api/social/channels/${id}`, {
+      const response = await fetch(apiUrl(`/api/social/channels/${id}`), {
         method: "DELETE",
+        credentials: "include",
       });
 
       const payload = (await response.json()) as { error?: string };
@@ -272,9 +279,9 @@ export function ChannelsManager() {
                   const Icon = getPlatformIcon(platform);
                   const oauthHref =
                     platform === "X"
-                      ? "/api/social/oauth/x/start"
+                      ? apiUrl("/api/social/oauth/x/start")
                       : platform === "LINKEDIN"
-                        ? "/api/social/oauth/linkedin/start"
+                        ? apiUrl("/api/social/oauth/linkedin/start")
                         : null;
                   return (
                     <div key={platform}>

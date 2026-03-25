@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,8 +27,8 @@ export function AnalyticsDashboard() {
 
     try {
       const [postsResponse, channelsResponse] = await Promise.all([
-        fetch("/api/social/posts", { cache: "no-store" }),
-        fetch("/api/social/channels", { cache: "no-store" }),
+        fetch(apiUrl("/api/social/posts"), { cache: "no-store", credentials: "include" }),
+        fetch(apiUrl("/api/social/channels"), { cache: "no-store", credentials: "include" }),
       ]);
 
       const postsPayload = (await postsResponse.json()) as { posts?: SocialPost[]; error?: string };

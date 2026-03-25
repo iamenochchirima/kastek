@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { useState } from "react";
 import Link from "next/link";
 
@@ -79,7 +80,7 @@ export default function ProductWaitlistForm() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/waitlist", {
+      const response = await fetch(apiUrl("/api/waitlist"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

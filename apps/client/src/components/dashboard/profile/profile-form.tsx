@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -72,8 +73,9 @@ export default function ProfileForm({ user }: ProfileFormProps) {
     setProfileNotice("");
 
     try {
-      const res = await fetch("/api/profile", {
+      const res = await fetch(apiUrl("/api/profile"), {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
@@ -103,8 +105,9 @@ export default function ProfileForm({ user }: ProfileFormProps) {
     setEmailNotice("");
 
     try {
-      const res = await fetch("/api/profile/email", {
+      const res = await fetch(apiUrl("/api/profile/email"), {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: nextEmail.trim() }),
       });
@@ -137,8 +140,9 @@ export default function ProfileForm({ user }: ProfileFormProps) {
         throw new Error("New password and confirmation do not match");
       }
 
-      const res = await fetch("/api/profile/password", {
+      const res = await fetch(apiUrl("/api/profile/password"), {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           currentPassword,

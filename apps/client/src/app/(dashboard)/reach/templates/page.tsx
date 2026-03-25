@@ -1,6 +1,6 @@
 import WhatsappTemplateManager from "@/components/dashboard/campaigns/whatsapp-template-manager";
-import { prisma } from "@/lib/prisma";
 import { getRustSession } from "@/lib/rust-auth";
+import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -19,36 +19,34 @@ export default async function ReachTemplatesPage({
   const requestedStatus = typeof params.status === "string" ? params.status.toUpperCase() : "";
   const allowedStatuses = new Set(["APPROVED", "PENDING", "REJECTED", "DISABLED"]);
 
-  const [templates, connections] = await Promise.all([
-    prisma.whatsappTemplate.findMany({
-      where: {
-        userId: session.user.id,
-        ...(allowedStatuses.has(requestedStatus)
-          ? { status: requestedStatus as "APPROVED" | "PENDING" | "REJECTED" | "DISABLED" }
-          : {}),
-      },
-      include: {
-        connection: {
-          select: {
-            phoneDisplayNumber: true,
-            phoneNumberId: true,
-          },
-        },
-      },
-      orderBy: { updatedAt: "desc" },
-    }),
-    prisma.whatsappConnection.findMany({
-      where: {
-        userId: session.user.id,
-      },
-      select: {
-        id: true,
-        phoneDisplayNumber: true,
-        phoneNumberId: true,
-      },
-      orderBy: { createdAt: "desc" },
-    }),
+  const [templateResponse, connectionResponse] = await Promise.all([
+    fetchRustJson<{
+      templates: Array<{
+        id: string;
+        templateName: string;
+        language: string;
+        category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
+        status: "APPROVED" | "PENDING" | "REJECTED" | "DISABLED";
+        variablesCount: number;
+        header: string | null;
+        body: string | null;
+        footer: string | null;
+        buttons: unknown;
+        lastSynced: string | null;
+        connectionLabel: string;
+      }>;
+    }>(`/api/whatsapp/templates${allowedStatuses.has(requestedStatus) ? `?status=${requestedStatus}` : ""}`),
+    fetchRustJson<{
+      connections: Array<{
+        id: string;
+        phoneDisplayNumber: string | null;
+        phoneNumberId: string;
+      }>;
+    }>("/api/whatsapp/connections"),
   ]);
+
+  const templates = templateResponse.templates;
+  const connections = connectionResponse.connections;
 
   return (
     <div className="min-h-screen p-6 lg:p-8">
@@ -69,21 +67,7 @@ export default async function ReachTemplatesPage({
             connections={connections}
             forceCreateForm={params.create === "1"}
             initialLibraryItemId={params.starter}
-            templates={templates.map((template) => ({
-              id: template.id,
-              templateName: template.templateName,
-              language: template.language,
-              category: template.category,
-              status: template.status,
-              variablesCount: template.variablesCount,
-              header: template.header,
-              body: template.body,
-              footer: template.footer,
-              buttons: template.buttons,
-              lastSynced: template.lastSynced ? template.lastSynced.toISOString() : null,
-              connectionLabel:
-                template.connection?.phoneDisplayNumber || template.connection?.phoneNumberId || "-",
-            }))}
+            templates={templates}
           />
         )}
       </div>

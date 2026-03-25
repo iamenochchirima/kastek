@@ -1,6 +1,6 @@
 import { LayoutShell } from "@/components/dashboard/layout-shell";
-import { prisma } from "@/lib/prisma";
 import { getRustSession } from "@/lib/rust-auth";
+import { fetchRustJson } from "@/lib/rust-server-api";
 import ThemeScope from "@/components/theme-scope";
 import { redirect } from "next/navigation";
 
@@ -12,34 +12,14 @@ export default async function AuthenticatedWorkspaceLayout({
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
-  const connections = await prisma.whatsappConnection.findMany({
-    where: { userId: session.user.id },
-    select: { id: true },
-  });
-
-  const unreadInboxCount =
-    connections.length === 0
-      ? 0
-      : (
-          await prisma.conversation.aggregate({
-            where: {
-              channel: "whatsapp",
-              OR: connections.map((connection) => ({
-                customerIdentifier: {
-                  startsWith: `wa:${connection.id}:`,
-                },
-              })),
-            },
-            _sum: {
-              unreadCount: true,
-            },
-          })
-        )._sum.unreadCount || 0;
+  const unreadCountResponse = await fetchRustJson<{ unreadCount: number }>(
+    "/api/whatsapp/inbox/unread-count",
+  ).catch(() => ({ unreadCount: 0 }));
 
   return (
     <>
       <ThemeScope mode="stored" />
-      <LayoutShell user={session.user} inboxUnreadCount={unreadInboxCount}>
+      <LayoutShell user={session.user} inboxUnreadCount={unreadCountResponse.unreadCount}>
         {children}
       </LayoutShell>
     </>

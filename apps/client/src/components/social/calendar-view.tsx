@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/server-api";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,10 @@ export function CalendarView() {
     setError("");
 
     try {
-      const response = await fetch("/api/social/posts", { cache: "no-store" });
+      const response = await fetch(apiUrl("/api/social/posts"), {
+        cache: "no-store",
+        credentials: "include",
+      });
       const payload = (await response.json()) as { posts?: SocialPost[]; error?: string };
       if (!response.ok) {
         throw new Error(payload.error || "Failed to load calendar posts");
