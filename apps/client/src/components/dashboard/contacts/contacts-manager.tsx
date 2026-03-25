@@ -2,7 +2,7 @@
 
 import { apiUrl } from "@/lib/server-api";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 type ContactView = {
   id: string;
@@ -10,6 +10,8 @@ type ContactView = {
   fullName: string | null;
   tags: string[];
   location: string | null;
+  listLabel: string;
+  metadata: Record<string, string> | null;
   optIn: boolean;
   optInSource: string | null;
   optInDate: string | null;
@@ -20,14 +22,23 @@ type ContactView = {
   updatedAt: string;
 };
 
+type ContactListSummary = {
+  label: string;
+  totalContacts: number;
+  primaryLocation: string | null;
+  metadataKeys: string[];
+};
+
 type ContactsManagerProps = {
   contacts: ContactView[];
+  lists: ContactListSummary[];
   filters: {
     q: string;
     optIn: string;
     excluded: string;
     tag: string;
     location: string;
+    listLabel: string;
   };
   stats: {
     totalContacts: number;
@@ -43,6 +54,7 @@ type EditFormState = {
   location: string;
   tags: string;
   notes: string;
+  listLabel: string;
   optIn: boolean;
   excluded: boolean;
 };
@@ -54,20 +66,71 @@ function toEditForm(contact: ContactView): EditFormState {
     location: contact.location || "",
     tags: contact.tags.join(", "),
     notes: contact.notes || "",
+    listLabel: contact.listLabel,
     optIn: contact.optIn,
     excluded: contact.excluded,
   };
 }
 
+function buildSearchParams(filters: ContactsManagerProps["filters"]) {
+  const params = new URLSearchParams();
+  if (filters.q) params.set("q", filters.q);
+  if (filters.location) params.set("location", filters.location);
+  if (filters.tag) params.set("tag", filters.tag);
+  if (filters.optIn && filters.optIn !== "all") params.set("optIn", filters.optIn);
+  if (filters.excluded && filters.excluded !== "all") params.set("excluded", filters.excluded);
+  if (filters.listLabel) params.set("listLabel", filters.listLabel);
+  return params;
+}
+
+function formatLabel(label: string) {
+  return label
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function truncateValue(value: string, max = 20) {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1)}…`;
+}
+
+function renderMetadataValue(value: unknown) {
+  if (typeof value !== "string") return "-";
+  if (/^https?:\/\//i.test(value)) {
+    return (
+      <a
+        href={value}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-block max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap text-sky-300 underline-offset-2 hover:underline"
+        title={value}
+      >
+        {truncateValue(value)}
+      </a>
+    );
+  }
+
+  return (
+    <span className="inline-block max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap" title={value}>
+      {truncateValue(value)}
+    </span>
+  );
+}
+
 export default function ContactsManager({
   contacts,
+  lists,
   filters,
   stats,
   tagOptions,
 }: ContactsManagerProps) {
   const router = useRouter();
+  const importSectionRef = useRef<HTMLDivElement | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [defaultOptIn, setDefaultOptIn] = useState(true);
+  const [importListLabel, setImportListLabel] = useState(filters.listLabel || "default");
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -77,8 +140,21 @@ export default function ContactsManager({
 
   const selectedContact = useMemo(
     () => contacts.find((contact) => contact.id === editingId) || null,
-    [contacts, editingId]
+    [contacts, editingId],
   );
+
+  const activeList = useMemo(
+    () => lists.find((list) => list.label === filters.listLabel) || null,
+    [filters.listLabel, lists],
+  );
+
+  const metadataColumns = useMemo(() => activeList?.metadataKeys || [], [activeList]);
+
+  function navigate(next: Partial<ContactsManagerProps["filters"]>) {
+    const params = buildSearchParams({ ...filters, ...next });
+    const query = params.toString();
+    router.push(`/reach/contacts${query ? `?${query}` : ""}`);
+  }
 
   async function onImportCsv() {
     if (!csvFile) {
@@ -94,6 +170,7 @@ export default function ContactsManager({
       const formData = new FormData();
       formData.append("file", csvFile);
       formData.append("defaultOptIn", defaultOptIn ? "true" : "false");
+      formData.append("listLabel", importListLabel.trim() || "default");
 
       const res = await fetch(apiUrl("/api/whatsapp/contacts/import"), {
         method: "POST",
@@ -107,9 +184,10 @@ export default function ContactsManager({
       }
 
       setNotice(
-        `Imported: ${body.summary.created} created, ${body.summary.updated} updated, ${body.summary.invalidRows} invalid rows.`
+        `Imported into ${importListLabel || "default"}: ${body.summary.created} created, ${body.summary.updated} updated, ${body.summary.invalidRows} invalid rows.`,
       );
       setCsvFile(null);
+      navigate({ listLabel: importListLabel.trim() || "default" });
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed");
@@ -148,6 +226,7 @@ export default function ContactsManager({
             .map((tag) => tag.trim())
             .filter(Boolean),
           notes: form.notes,
+          listLabel: form.listLabel,
           optIn: form.optIn,
           excluded: form.excluded,
         }),
@@ -169,13 +248,62 @@ export default function ContactsManager({
     }
   }
 
+  async function renameList(label: string) {
+    const nextLabel = window.prompt("Rename contact list", label);
+    if (!nextLabel || nextLabel.trim() === label) return;
+
+    setError("");
+    setNotice("");
+    const res = await fetch(apiUrl(`/api/whatsapp/contacts/lists/${encodeURIComponent(label)}`), {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nextLabel }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(body.error || "Failed to rename list");
+      return;
+    }
+
+    const normalizedLabel = body.label || nextLabel;
+    setNotice(`Renamed list to ${normalizedLabel}.`);
+    navigate({ listLabel: filters.listLabel === label ? normalizedLabel : filters.listLabel });
+    router.refresh();
+  }
+
+  async function deleteList(label: string) {
+    if (!window.confirm(`Delete the contact list "${label}"?`)) return;
+
+    setError("");
+    setNotice("");
+    const res = await fetch(apiUrl(`/api/whatsapp/contacts/lists/${encodeURIComponent(label)}`), {
+      method: "DELETE",
+      credentials: "include",
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(body.error || "Failed to delete list");
+      return;
+    }
+
+    setNotice(`Deleted list ${label}.`);
+    navigate({ listLabel: filters.listLabel === label ? "" : filters.listLabel });
+    router.refresh();
+  }
+
+  function prepareAddContacts(label: string) {
+    setImportListLabel(label);
+    importSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <div className="min-h-screen p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px] space-y-6">
         <div>
           <h1 className="mb-2 text-3xl font-semibold tracking-tight text-foreground">Contacts</h1>
           <p className="text-muted-foreground">
-            Import WhatsApp recipients, manage opt-in, and keep your marketing list clean.
+            Manage named contact lists, upload CSVs with arbitrary fields, and keep campaign targeting clean.
           </p>
         </div>
 
@@ -197,20 +325,32 @@ export default function ContactsManager({
           <StatCard label="Excluded" value={stats.excludedContacts} />
         </section>
 
-        <section className="rounded-xl border border-border bg-card p-5">
+        <section ref={importSectionRef} className="rounded-xl border border-border bg-card p-5">
           <h2 className="mb-3 text-sm font-semibold text-foreground">Import contacts (CSV)</h2>
           <p className="mb-3 text-xs text-muted-foreground">
-            Import phone, name, tags, location, notes, and opt-in columns. Numbers are normalized to
-            E.164.
+            Only phone is required. Any extra CSV columns are stored as list fields and can be mapped to template variables later.
           </p>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+          <div className="grid gap-3 md:grid-cols-[1fr_220px_auto_auto]">
             <input
               type="file"
               accept=".csv,text/csv"
               onChange={(event) => setCsvFile(event.target.files?.[0] || null)}
               className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
             />
+
+            <input
+              list="contact-list-labels"
+              value={importListLabel}
+              onChange={(event) => setImportListLabel(event.target.value)}
+              placeholder="Contact list label"
+              className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
+            />
+            <datalist id="contact-list-labels">
+              {lists.map((list) => (
+                <option key={list.label} value={list.label} />
+              ))}
+            </datalist>
 
             <label className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-2 text-sm text-muted-foreground">
               <input
@@ -234,11 +374,11 @@ export default function ContactsManager({
 
         <section className="rounded-xl border border-border bg-card p-5">
           <h2 className="mb-4 text-sm font-semibold text-foreground">Search and filter</h2>
-          <form className="grid gap-3 md:grid-cols-5">
+          <form className="grid gap-3 md:grid-cols-6">
             <input
               name="q"
               defaultValue={filters.q}
-              placeholder="Search name, phone, tag"
+              placeholder="Search name, phone, field"
               className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
             />
             <input
@@ -268,80 +408,195 @@ export default function ContactsManager({
               <option value="true">Opted in</option>
               <option value="false">Not opted in</option>
             </select>
-            <div className="flex gap-3">
-              <select
-                name="excluded"
-                defaultValue={filters.excluded}
-                className="min-w-0 flex-1 rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
-              >
-                <option value="all">All exclusion states</option>
-                <option value="false">Active only</option>
-                <option value="true">Excluded only</option>
-              </select>
-              <button
-                type="submit"
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-              >
-                Apply
-              </button>
-            </div>
+            <select
+              name="excluded"
+              defaultValue={filters.excluded}
+              className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
+            >
+              <option value="all">All exclusion states</option>
+              <option value="false">Active only</option>
+              <option value="true">Excluded only</option>
+            </select>
+            <button
+              type="submit"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+            >
+              Apply
+            </button>
           </form>
         </section>
 
-        <section className="overflow-hidden rounded-xl border border-border bg-card">
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="text-sm font-semibold text-foreground">Recipients ({contacts.length})</h2>
-          </div>
-
-          {contacts.length === 0 ? (
-            <div className="px-5 py-10 text-sm text-muted-foreground">No contacts match the current filters.</div>
-          ) : (
-            <div className="overflow-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-secondary/50 text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Name</th>
-                    <th className="px-3 py-2 text-left">Phone</th>
-                    <th className="px-3 py-2 text-left">Location</th>
-                    <th className="px-3 py-2 text-left">Tags</th>
-                    <th className="px-3 py-2 text-left">Opt-in</th>
-                    <th className="px-3 py-2 text-left">Excluded</th>
-                    <th className="px-3 py-2 text-left">Last marketing</th>
-                    <th className="px-3 py-2 text-left">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contacts.map((contact) => (
-                    <tr key={contact.id} className="border-t border-border">
-                      <td className="px-3 py-2 text-foreground">{contact.fullName || "-"}</td>
-                      <td className="px-3 py-2 text-foreground">{contact.phone}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{contact.location || "-"}</td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {contact.tags.length ? contact.tags.join(", ") : "-"}
-                      </td>
-                      <td className="px-3 py-2 text-foreground">{contact.optIn ? "Yes" : "No"}</td>
-                      <td className="px-3 py-2 text-foreground">{contact.excluded ? "Yes" : "No"}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {contact.lastMarketingSent
-                          ? new Date(contact.lastMarketingSent).toLocaleString("en-ZA")
-                          : "Never"}
-                      </td>
-                      <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => startEdit(contact)}
-                          className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
-                        >
-                          Edit
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {filters.listLabel ? (
+          <section className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">
+                  {filters.listLabel} ({contacts.length})
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Viewing one contact list with its own field layout.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => prepareAddContacts(filters.listLabel)}
+                  className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+                >
+                  Add contacts
+                </button>
+                <button
+                  type="button"
+                  onClick={() => renameList(filters.listLabel)}
+                  className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteList(filters.listLabel)}
+                  className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-200"
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate({ listLabel: "" })}
+                  className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+                >
+                  View all
+                </button>
+              </div>
             </div>
-          )}
-        </section>
+
+            {contacts.length === 0 ? (
+              <div className="px-5 py-10 text-sm text-muted-foreground">No contacts match the current filters.</div>
+            ) : (
+              <div className="overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary/50 text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Name</th>
+                      <th className="px-3 py-2 text-left">Phone</th>
+                      <th className="px-3 py-2 text-left">Location</th>
+                      {metadataColumns.map((key) => (
+                        <th key={key} className="px-3 py-2 text-left">
+                          {key}
+                        </th>
+                      ))}
+                      <th className="px-3 py-2 text-left">Tags</th>
+                      <th className="px-3 py-2 text-left">Excluded</th>
+                      <th className="px-3 py-2 text-left">Last marketing</th>
+                      <th className="px-3 py-2 text-left">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contacts.map((contact) => (
+                      <tr key={contact.id} className="border-t border-border">
+                        <td className="px-3 py-2 text-foreground">{contact.fullName || "-"}</td>
+                        <td className="px-3 py-2 text-foreground">{contact.phone}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{contact.location || "-"}</td>
+                        {metadataColumns.map((key) => (
+                          <td key={key} className="px-3 py-2 text-muted-foreground">
+                            {renderMetadataValue(contact.metadata?.[key])}
+                          </td>
+                        ))}
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {contact.tags.length ? contact.tags.join(", ") : "-"}
+                        </td>
+                        <td className="px-3 py-2 text-foreground">{contact.excluded ? "Yes" : "No"}</td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">
+                          {contact.lastMarketingSent
+                            ? new Date(contact.lastMarketingSent).toLocaleString("en-ZA")
+                            : "Never"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(contact)}
+                            className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground"
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="rounded-xl border border-border bg-card p-5">
+            <div className="mb-5">
+              <h2 className="text-lg font-semibold text-foreground">Contact lists</h2>
+              <p className="text-sm text-muted-foreground">
+                Open a list to see its contacts with the fields for that list format.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {lists.map((list) => (
+                <div key={list.label} className="rounded-xl border border-border bg-secondary/20 p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-2xl font-semibold text-foreground">{list.label}</h3>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {list.primaryLocation ? `Main location: ${list.primaryLocation}` : "No shared location"}
+                      </p>
+                    </div>
+                    <div className="rounded-full border border-border px-3 py-1 text-sm text-muted-foreground">
+                      {list.totalContacts}
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {list.metadataKeys.length > 0 ? (
+                      list.metadataKeys.map((key) => (
+                        <span
+                          key={key}
+                          className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground"
+                        >
+                          {key}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm text-muted-foreground">No extra fields</span>
+                    )}
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate({ listLabel: list.label })}
+                      className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+                    >
+                      Open
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => prepareAddContacts(list.label)}
+                      className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+                    >
+                      Add contacts
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => renameList(list.label)}
+                      className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteList(list.label)}
+                      className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-200"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {selectedContact && form ? (
           <section className="rounded-xl border border-border bg-card p-5">
@@ -356,13 +611,13 @@ export default function ContactsManager({
                   setEditingId(null);
                   setForm(null);
                 }}
-                className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-secondary"
+                className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
               >
                 Close
               </button>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <label className="space-y-2 text-sm">
                 <span className="text-muted-foreground">Full name</span>
                 <input
@@ -382,6 +637,16 @@ export default function ContactsManager({
               </label>
 
               <label className="space-y-2 text-sm">
+                <span className="text-muted-foreground">List label</span>
+                <input
+                  list="contact-list-labels"
+                  value={form.listLabel}
+                  onChange={(event) => setForm({ ...form, listLabel: event.target.value })}
+                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+                />
+              </label>
+
+              <label className="space-y-2 text-sm">
                 <span className="text-muted-foreground">Location</span>
                 <input
                   value={form.location}
@@ -390,7 +655,7 @@ export default function ContactsManager({
                 />
               </label>
 
-              <label className="space-y-2 text-sm">
+              <label className="space-y-2 text-sm md:col-span-2">
                 <span className="text-muted-foreground">Tags</span>
                 <input
                   value={form.tags}

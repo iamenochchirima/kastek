@@ -1,7 +1,7 @@
 "use client";
 
-import { apiUrl } from "@/lib/server-api";
 import { Button } from "@/components/ui/button";
+import { apiUrl } from "@/lib/server-api";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -28,6 +28,18 @@ type Contact = {
   fullName?: string | null;
   phone: string;
   tags: string[];
+  location?: string | null;
+  listLabel: string;
+  metadata: Record<string, string> | null;
+  excluded?: boolean;
+  optIn?: boolean;
+};
+
+type ContactListSummary = {
+  label: string;
+  totalContacts: number;
+  primaryLocation: string | null;
+  metadataKeys: string[];
 };
 
 type VariableMapping = {
@@ -35,42 +47,62 @@ type VariableMapping = {
   key: string;
 };
 
-const CONTACT_FIELD_OPTIONS = [
+type Step = "setup" | "confirm";
+
+const BASE_FIELDS = [
   { value: "fullName", label: "Full name" },
   { value: "phone", label: "Phone" },
   { value: "location", label: "Location" },
   { value: "tags", label: "Tags" },
 ];
 
+function formatLabel(value: string) {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function resolvePreviewValue(contact: Contact | null, mapping: VariableMapping) {
+  if (!contact) return "";
+  if (mapping.source === "static") return mapping.key;
+  switch (mapping.key) {
+    case "fullName":
+      return contact.fullName || "";
+    case "phone":
+      return contact.phone;
+    case "location":
+      return contact.location || "";
+    case "tags":
+      return contact.tags.join(", ");
+    default:
+      return contact.metadata?.[mapping.key] || "";
+  }
+}
+
 export default function CampaignCreateForm({
   connections,
   templates,
   contacts,
-  tagOptions,
+  lists,
 }: {
   connections: Connection[];
   templates: Template[];
   contacts: Contact[];
-  tagOptions: string[];
+  lists: ContactListSummary[];
 }) {
   const router = useRouter();
+  const [step, setStep] = useState<Step>("setup");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [connectionId, setConnectionId] = useState(connections[0]?.id || "");
   const [templateId, setTemplateId] = useState("");
-  const [scheduledAt, setScheduledAt] = useState("");
+  const [listLabel, setListLabel] = useState(lists[0]?.label || "default");
+  const [batchSize, setBatchSize] = useState("200");
   const [search, setSearch] = useState("");
-  const [location, setLocation] = useState("");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [optInStatus, setOptInStatus] = useState("all");
-  const [excludedStatus, setExcludedStatus] = useState("active_only");
-  const [cooldownStatus, setCooldownStatus] = useState("passed");
-  const [audienceMode, setAudienceMode] = useState<"all" | "filters" | "manual">("all");
-  const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
+  const [excludedContactIds, setExcludedContactIds] = useState<string[]>([]);
   const [variableMappings, setVariableMappings] = useState<VariableMapping[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const availableTemplates = useMemo(() => {
     return templates.filter(
@@ -86,101 +118,109 @@ export default function CampaignCreateForm({
     [availableTemplates, templateId],
   );
 
-  const visibleContacts = useMemo(() => {
-    const searchNeedle = search.trim().toLowerCase();
-    return contacts.filter((contact) => {
-      if (searchNeedle) {
-        const matchesSearch = [contact.fullName || "", contact.phone, contact.tags.join(" ")]
-          .join(" ")
-          .toLowerCase()
-          .includes(searchNeedle);
-        if (!matchesSearch) return false;
-      }
+  const selectedList = useMemo(
+    () => lists.find((list) => list.label === listLabel) || null,
+    [listLabel, lists],
+  );
 
-      if (selectedTags.length > 0) {
-        const tagMatch = contact.tags.some((tag) =>
-          selectedTags.some((selectedTag) => tag.toLowerCase() === selectedTag.toLowerCase()),
-        );
-        if (!tagMatch) return false;
-      }
+  const listContacts = useMemo(
+    () => contacts.filter((contact) => contact.listLabel === listLabel),
+    [contacts, listLabel],
+  );
 
-      return true;
+  const availableFieldOptions = useMemo(() => {
+    const metadataKeys = selectedList?.metadataKeys || [];
+    return [
+      ...BASE_FIELDS,
+      ...metadataKeys.map((key) => ({ value: key, label: formatLabel(key) })),
+    ];
+  }, [selectedList]);
+
+  const searchableContacts = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return listContacts.filter((contact) => {
+      if (!needle) return true;
+      const metadataText = Object.values(contact.metadata || {}).join(" ");
+      return [contact.fullName || "", contact.phone, contact.location || "", metadataText]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle);
     });
-  }, [contacts, search, selectedTags]);
+  }, [listContacts, search]);
 
-  const selectedRecipientsPreview = useMemo(() => {
-    if (audienceMode !== "manual") return visibleContacts.length;
-    return visibleContacts.filter((contact) => selectedRecipientIds.includes(contact.id)).length;
-  }, [audienceMode, selectedRecipientIds, visibleContacts]);
+  const excludedContacts = useMemo(
+    () => listContacts.filter((contact) => excludedContactIds.includes(contact.id)),
+    [excludedContactIds, listContacts],
+  );
 
-  function syncVariableMappings(nextCount: number) {
+  const sampleContact = listContacts[0] || null;
+  const eligibleCount = Math.max(listContacts.length - excludedContactIds.length, 0);
+  const selectedBatchSize = Math.min(
+    Math.max(Number.parseInt(batchSize || "0", 10) || 0, 0),
+    eligibleCount,
+  );
+
+  const previewBody = useMemo(() => {
+    if (!selectedTemplate?.body) return "Preview unavailable.";
+    let preview = selectedTemplate.body;
+    variableMappings.forEach((mapping, index) => {
+      const value = resolvePreviewValue(sampleContact, mapping) || `{{${index + 1}}}`;
+      const matcher = new RegExp(`\\{\\{\\s*${index + 1}\\s*\\}\\}`, "g");
+      preview = preview.replace(matcher, value);
+    });
+    return preview;
+  }, [sampleContact, selectedTemplate, variableMappings]);
+
+  function syncVariableMappings(nextCount: number, fields = availableFieldOptions) {
     setVariableMappings((current) => {
       const next = [...current];
+      const defaultField = fields[0]?.value || "fullName";
       while (next.length < nextCount) {
-        next.push({ source: "contact", key: "fullName" });
+        next.push({ source: "contact", key: defaultField });
       }
       return next.slice(0, nextCount);
     });
   }
 
-  function toggleTag(tag: string) {
-    setSelectedTags((current) =>
-      current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag],
-    );
-  }
-
-  function toggleRecipient(contactId: string) {
-    setSelectedRecipientIds((current) =>
+  function toggleExcluded(contactId: string) {
+    setExcludedContactIds((current) =>
       current.includes(contactId)
         ? current.filter((value) => value !== contactId)
         : [...current, contactId],
     );
   }
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function validateSetup() {
+    if (!name.trim()) return "Campaign name is required";
+    if (!connectionId) return "Select a WhatsApp connection";
+    if (!templateId) return "Select an approved marketing template";
+    if (!listLabel) return "Select a contact list";
+    if (eligibleCount <= 0) return "This contact list has no eligible contacts left";
+    if (selectedBatchSize <= 0) return "Enter how many contacts to send to";
+    return "";
+  }
+
+  async function createCampaign() {
     setSubmitting(true);
     setError("");
-    setNotice("");
 
     try {
-      if (!name.trim()) {
-        throw new Error("Campaign name is required");
-      }
-      if (!connectionId) {
-        throw new Error("Select a WhatsApp connection");
-      }
-      if (!templateId) {
-        throw new Error("Select an approved marketing template");
-      }
+      const validationError = validateSetup();
+      if (validationError) throw new Error(validationError);
 
-      const payload: Record<string, unknown> = {
+      const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
         connectionId,
         templateId,
-        scheduledAt: scheduledAt || undefined,
-        variableMappings:
-          variableMappings.length > 0
-            ? variableMappings.map((mapping) => ({
-                source: mapping.source,
-                key: mapping.key.trim(),
-              }))
-            : undefined,
+        listLabel,
+        batchSize: selectedBatchSize,
+        excludedContactIds,
+        variableMappings: variableMappings.map((mapping) => ({
+          source: mapping.source,
+          key: mapping.key.trim(),
+        })),
       };
-
-      if (audienceMode === "manual") {
-        payload.recipientIds = selectedRecipientIds;
-      } else if (audienceMode === "filters") {
-        payload.audience = {
-          search: search.trim() || undefined,
-          location: location.trim() || undefined,
-          tags: selectedTags,
-          optInStatus,
-          excludedStatus,
-          cooldownStatus,
-        };
-      }
 
       const res = await fetch(apiUrl("/api/whatsapp/campaigns"), {
         method: "POST",
@@ -196,11 +236,9 @@ export default function CampaignCreateForm({
         throw new Error(body.error || "Failed to create campaign");
       }
 
-      const createdRecipients = Number(body.createdRecipients || 0);
-      setNotice(`Campaign created with ${createdRecipients} eligible recipients.`);
       router.push(
         `/reach/campaigns?notice=${encodeURIComponent(
-          `Campaign created with ${createdRecipients} eligible recipients.`,
+          `Campaign queued for ${body.createdRecipients || selectedBatchSize} contacts from ${listLabel}.`,
         )}`,
       );
       router.refresh();
@@ -212,18 +250,12 @@ export default function CampaignCreateForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      {(error || notice) && (
-        <div
-          className={`rounded-xl border px-4 py-3 text-sm ${
-            error
-              ? "border-red-500/30 bg-red-500/10 text-red-300"
-              : "border-green-500/30 bg-green-500/10 text-green-300"
-          }`}
-        >
-          {error || notice}
+    <div className="space-y-6">
+      {error ? (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {error}
         </div>
-      )}
+      ) : null}
 
       <section className="rounded-2xl border border-border bg-card p-5">
         <h2 className="text-lg font-semibold text-foreground">Campaign setup</h2>
@@ -234,17 +266,7 @@ export default function CampaignCreateForm({
               value={name}
               onChange={(event) => setName(event.target.value)}
               className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-              placeholder="Winter promo follow-up"
-            />
-          </label>
-
-          <label className="space-y-2 text-sm">
-            <span className="text-muted-foreground">Launch time</span>
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(event) => setScheduledAt(event.target.value)}
-              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+              placeholder="Website outreach"
             />
           </label>
 
@@ -271,10 +293,9 @@ export default function CampaignCreateForm({
             <select
               value={templateId}
               onChange={(event) => {
-                setTemplateId(event.target.value);
-                const template = availableTemplates.find(
-                  (candidate) => candidate.id === event.target.value,
-                );
+                const nextTemplateId = event.target.value;
+                setTemplateId(nextTemplateId);
+                const template = availableTemplates.find((candidate) => candidate.id === nextTemplateId);
                 syncVariableMappings(template?.variablesCount || 0);
               }}
               className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
@@ -288,6 +309,36 @@ export default function CampaignCreateForm({
             </select>
           </label>
 
+          <label className="space-y-2 text-sm">
+            <span className="text-muted-foreground">Contact list</span>
+            <select
+              value={listLabel}
+              onChange={(event) => {
+                setListLabel(event.target.value);
+                setExcludedContactIds([]);
+              }}
+              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+            >
+              {lists.map((list) => (
+                <option key={list.label} value={list.label}>
+                  {list.label} ({list.totalContacts})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="space-y-2 text-sm">
+            <span className="text-muted-foreground">How many to send now</span>
+            <input
+              type="number"
+              min={1}
+              max={eligibleCount || 1}
+              value={batchSize}
+              onChange={(event) => setBatchSize(event.target.value)}
+              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+            />
+          </label>
+
           <label className="space-y-2 text-sm md:col-span-2">
             <span className="text-muted-foreground">Description</span>
             <textarea
@@ -295,9 +346,24 @@ export default function CampaignCreateForm({
               onChange={(event) => setDescription(event.target.value)}
               rows={3}
               className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-              placeholder="Internal note about the goal of this campaign."
+              placeholder="Internal note about this campaign."
             />
           </label>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-border bg-secondary/20 p-4">
+            <div className="text-xs text-muted-foreground">Selected list</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">{listLabel}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-secondary/20 p-4">
+            <div className="text-xs text-muted-foreground">Available now</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">{eligibleCount}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-secondary/20 p-4">
+            <div className="text-xs text-muted-foreground">This batch</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">{selectedBatchSize}</div>
+          </div>
         </div>
       </section>
 
@@ -305,226 +371,230 @@ export default function CampaignCreateForm({
         <section className="rounded-2xl border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Template variables</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Map each template variable to a contact field or a static value.
+            Map each template variable to a field from the selected contact list or to static text.
           </p>
-          <div className="mt-4 space-y-3">
-            {Array.from({ length: selectedTemplate.variablesCount }).map((_, index) => {
-              const mapping = variableMappings[index] || { source: "contact", key: "fullName" };
-              return (
-                <div key={index} className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-[160px_minmax(0,1fr)]">
-                  <div className="text-sm font-medium text-foreground">Variable {index + 1}</div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <select
-                      value={mapping.source}
-                      onChange={(event) => {
-                        const nextSource = event.target.value as "static" | "contact";
-                        setVariableMappings((current) => {
-                          const next = [...current];
-                          next[index] = {
-                            source: nextSource,
-                            key: nextSource === "contact" ? "fullName" : "",
-                          };
-                          return next;
-                        });
-                      }}
-                      className="rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+
+          <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+            <div className="rounded-xl border border-border p-4">
+              <p className="mb-4 text-sm text-muted-foreground">
+                Available fields for <span className="font-semibold text-foreground">{listLabel}</span>:{" "}
+                {availableFieldOptions.map((field) => field.label).join(", ")}
+              </p>
+              <div className="space-y-3">
+                {Array.from({ length: selectedTemplate.variablesCount }).map((_, index) => {
+                  const mapping = variableMappings[index] || {
+                    source: "contact",
+                    key: availableFieldOptions[0]?.value || "fullName",
+                  };
+                  return (
+                    <div
+                      key={index}
+                      className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)]"
                     >
-                      <option value="contact">Contact field</option>
-                      <option value="static">Static text</option>
-                    </select>
-                    {mapping.source === "contact" ? (
+                      <div className="text-sm font-medium text-foreground">Variable {index + 1}</div>
                       <select
-                        value={mapping.key}
+                        value={mapping.source}
                         onChange={(event) => {
-                          const key = event.target.value;
+                          const nextSource = event.target.value as "static" | "contact";
                           setVariableMappings((current) => {
                             const next = [...current];
-                            next[index] = { source: "contact", key };
+                            next[index] = {
+                              source: nextSource,
+                              key: nextSource === "contact" ? availableFieldOptions[0]?.value || "fullName" : "",
+                            };
                             return next;
                           });
                         }}
                         className="rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                       >
-                        {CONTACT_FIELD_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
+                        <option value="contact">Contact field</option>
+                        <option value="static">Static text</option>
                       </select>
-                    ) : (
-                      <input
-                        value={mapping.key}
-                        onChange={(event) => {
-                          const key = event.target.value;
-                          setVariableMappings((current) => {
-                            const next = [...current];
-                            next[index] = { source: "static", key };
-                            return next;
-                          });
-                        }}
-                        className="rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-                        placeholder="Static replacement text"
-                      />
-                    )}
+                      {mapping.source === "contact" ? (
+                        <select
+                          value={mapping.key}
+                          onChange={(event) => {
+                            const key = event.target.value;
+                            setVariableMappings((current) => {
+                              const next = [...current];
+                              next[index] = { source: "contact", key };
+                              return next;
+                            });
+                          }}
+                          className="rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+                        >
+                          {availableFieldOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          value={mapping.key}
+                          onChange={(event) => {
+                            const key = event.target.value;
+                            setVariableMappings((current) => {
+                              const next = [...current];
+                              next[index] = { source: "static", key };
+                              return next;
+                            });
+                          }}
+                          className="rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+                          placeholder="Static replacement text"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border p-4">
+              <div className="rounded-[1.25rem] border border-border bg-[#111513] p-4">
+                <div className="rounded-[1.25rem] border border-[#5d7e31] bg-[#22361f] px-5 py-6 text-[1.05rem] leading-9 text-[#f3f1d9] shadow-[inset_0_0_0_1px_rgba(121,159,61,0.18)]">
+                  <div className="whitespace-pre-wrap">{previewBody}</div>
+                  <div className="mt-6 text-right text-xs uppercase tracking-[0.35em] text-[#d7c98f]">
+                    Preview
                   </div>
                 </div>
-              );
-            })}
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Preview contact: {sampleContact?.phone || "No contacts in this list yet"}
+              </p>
+            </div>
           </div>
         </section>
       ) : null}
 
       <section className="rounded-2xl border border-border bg-card p-5">
-        <h2 className="text-lg font-semibold text-foreground">Audience</h2>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {[
-            { value: "all", label: "All contacts" },
-            { value: "filters", label: "Use filters" },
-            { value: "manual", label: "Choose manually" },
-          ].map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setAudienceMode(option.value as "all" | "filters" | "manual")}
-              className={`rounded-full px-4 py-2 text-sm ${
-                audienceMode === option.value
-                  ? "bg-primary text-primary-foreground"
-                  : "border border-border bg-secondary/60 text-foreground"
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Exclude specific numbers</h2>
+            <p className="text-sm text-muted-foreground">
+              Search inside the selected list and remove specific recipients from this campaign.
+            </p>
+          </div>
+          <div className="text-sm text-muted-foreground">Excluded: {excludedContactIds.length}</div>
         </div>
 
-        {audienceMode !== "all" ? (
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <label className="space-y-2 text-sm">
-              <span className="text-muted-foreground">Search</span>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-                placeholder="Name, phone, or tag"
-              />
-            </label>
-
-            <label className="space-y-2 text-sm">
-              <span className="text-muted-foreground">Location</span>
-              <input
-                value={location}
-                onChange={(event) => setLocation(event.target.value)}
-                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-                placeholder="Cape Town"
-              />
-            </label>
-
-            <label className="space-y-2 text-sm">
-              <span className="text-muted-foreground">Opt-in</span>
-              <select
-                value={optInStatus}
-                onChange={(event) => setOptInStatus(event.target.value)}
-                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-              >
-                <option value="all">All</option>
-                <option value="opted_in">Opted in</option>
-                <option value="not_opted_in">Not opted in</option>
-              </select>
-            </label>
-
-            <label className="space-y-2 text-sm">
-              <span className="text-muted-foreground">Excluded</span>
-              <select
-                value={excludedStatus}
-                onChange={(event) => setExcludedStatus(event.target.value)}
-                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-              >
-                <option value="active_only">Active only</option>
-                <option value="all">All</option>
-                <option value="excluded_only">Excluded only</option>
-              </select>
-            </label>
-
-            <label className="space-y-2 text-sm">
-              <span className="text-muted-foreground">Cooldown</span>
-              <select
-                value={cooldownStatus}
-                onChange={(event) => setCooldownStatus(event.target.value)}
-                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-              >
-                <option value="passed">Cooldown passed</option>
-                <option value="all">All</option>
-                <option value="recent">Recently marketed</option>
-              </select>
-            </label>
-          </div>
-        ) : null}
-
-        {tagOptions.length > 0 && audienceMode !== "all" ? (
-          <div className="mt-4">
-            <div className="mb-2 text-sm text-muted-foreground">Tags</div>
-            <div className="flex flex-wrap gap-2">
-              {tagOptions.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => toggleTag(tag)}
-                  className={`rounded-full px-3 py-1.5 text-xs ${
-                    selectedTags.includes(tag)
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border bg-secondary/60 text-foreground"
-                  }`}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {audienceMode === "manual" ? (
-          <div className="mt-5 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Select the exact contacts to receive this campaign.
-            </p>
-            <div className="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-border p-3">
-              {visibleContacts.map((contact) => (
-                <label key={contact.id} className="flex items-center gap-3 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={selectedRecipientIds.includes(contact.id)}
-                    onChange={() => toggleRecipient(contact.id)}
-                  />
-                  <div>
-                    <div className="font-medium text-foreground">
-                      {contact.fullName || contact.phone}
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-3">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by name, phone, or field value"
+              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
+            />
+            <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-xl border border-border p-3">
+              {searchableContacts.map((contact) => {
+                const isExcluded = excludedContactIds.includes(contact.id);
+                return (
+                  <div
+                    key={contact.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 px-3 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium text-foreground">{contact.fullName || contact.phone}</div>
+                      <div className="truncate text-sm text-muted-foreground">
+                        {contact.phone}
+                        {contact.location ? ` · ${contact.location}` : ""}
+                      </div>
                     </div>
-                    <div className="text-muted-foreground">
-                      {contact.phone}
-                      {contact.tags.length ? ` · ${contact.tags.join(", ")}` : ""}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleExcluded(contact.id)}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                        isExcluded
+                          ? "border border-red-500/30 bg-red-500/10 text-red-200"
+                          : "border border-border bg-secondary/60 text-foreground"
+                      }`}
+                    >
+                      {isExcluded ? "Excluded" : "Exclude"}
+                    </button>
                   </div>
-                </label>
-              ))}
+                );
+              })}
             </div>
           </div>
-        ) : null}
 
-        <div className="mt-4 rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-          Audience preview:{" "}
-          <span className="font-medium text-foreground">{selectedRecipientsPreview}</span> visible
-          contact{selectedRecipientsPreview === 1 ? "" : "s"} before final eligibility checks.
+          <div className="rounded-xl border border-border p-4">
+            <h3 className="text-sm font-semibold text-foreground">Excluded numbers</h3>
+            <div className="mt-3 space-y-2">
+              {excludedContacts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No excluded contacts yet.</p>
+              ) : (
+                excludedContacts.map((contact) => (
+                  <div key={contact.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-foreground">
+                        {contact.fullName || contact.phone}
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleExcluded(contact.id)}
+                      className="rounded-md border border-border bg-secondary/60 px-2.5 py-1 text-xs text-foreground"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </section>
 
-      <div className="flex justify-end gap-3">
-        <Button type="button" variant="outline" onClick={() => router.push("/reach/campaigns")}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Creating..." : "Create campaign"}
-        </Button>
-      </div>
-    </form>
+      {step === "setup" ? (
+        <div className="flex justify-end gap-3">
+          <Button type="button" variant="outline" onClick={() => router.push("/reach/campaigns")}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              const validationError = validateSetup();
+              if (validationError) {
+                setError(validationError);
+                return;
+              }
+              setError("");
+              setStep("confirm");
+            }}
+          >
+            Continue
+          </Button>
+        </div>
+      ) : (
+        <section className="rounded-2xl border border-border bg-card p-5">
+          <h2 className="text-lg font-semibold text-foreground">Confirm campaign</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <SummaryItem label="Campaign" value={name} />
+            <SummaryItem label="List" value={listLabel} />
+            <SummaryItem label="Send now" value={String(selectedBatchSize)} />
+            <SummaryItem label="Excluded" value={String(excludedContactIds.length)} />
+          </div>
+          <div className="mt-5 flex justify-end gap-3">
+            <Button type="button" variant="outline" onClick={() => setStep("setup")}>
+              Back
+            </Button>
+            <Button type="button" disabled={submitting} onClick={createCampaign}>
+              {submitting ? "Creating..." : "Create campaign"}
+            </Button>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-secondary/20 p-4">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-base font-semibold text-foreground">{value || "-"}</div>
+    </div>
   );
 }

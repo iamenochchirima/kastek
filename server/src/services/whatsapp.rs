@@ -7,10 +7,11 @@ use std::collections::{HashMap, HashSet};
 
 use crate::db::models::{
     ConversationRow, MessageRow, WhatsappCampaignCreateRequest, WhatsappCampaignRecipientRow,
-    WhatsappCampaignRow, WhatsappConnectionPublic, WhatsappConnectionRow, WhatsappAudienceFilterRequest,
-    WhatsappContactImportInvalidRow, WhatsappContactListQuery, WhatsappContactRow,
-    WhatsappContactUpdateRequest, WhatsappReactionRequest, WhatsappSendMessageRequest,
-    WhatsappStartConversationRequest, WhatsappTemplateListQuery, WhatsappTemplateRow,
+    WhatsappCampaignRow, WhatsappConnectionPublic, WhatsappConnectionRow,
+    WhatsappAudienceFilterRequest, WhatsappContactImportInvalidRow, WhatsappContactListQuery,
+    WhatsappContactListRenameRequest, WhatsappContactRow, WhatsappContactUpdateRequest,
+    WhatsappReactionRequest, WhatsappSendMessageRequest, WhatsappStartConversationRequest,
+    WhatsappTemplateListQuery, WhatsappTemplateRow,
 };
 use crate::error::AppError;
 use crate::services::realtime;
@@ -829,7 +830,7 @@ pub async fn create_template(
         SELECT id, "userId" AS user_id, "connectionId" AS connection_id, "templateName" AS template_name,
                language, category::text AS category, header, body, footer, buttons,
                "variablesCount" AS variables_count, status::text AS status,
-               "lastSynced" AS last_synced, "createdAt" AS created_at, "updatedAt" AS updated_at
+               "lastSynced" AT TIME ZONE 'UTC' AS last_synced, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappTemplate"
         WHERE "userId" = $1 AND "templateName" = $2 AND language = $3
         LIMIT 1
@@ -919,10 +920,11 @@ pub async fn list_contacts(
 ) -> Result<Value, AppError> {
     let contacts = sqlx::query_as::<_, WhatsappContactRow>(
         r#"
-        SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, tags, location,
-               "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AS opt_in_date,
-               "lastMarketingSent" AS last_marketing_sent, excluded, notes,
-               "createdAt" AS created_at, "updatedAt" AS updated_at
+        SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
+               COALESCE("listLabel", 'default') AS list_label, metadata,
+               "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+               "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappContact"
         WHERE "userId" = $1
           AND (
@@ -958,6 +960,10 @@ pub async fn list_contacts(
             COALESCE($6, '') = ''
             OR COALESCE(location, '') ILIKE ('%' || $6 || '%')
           )
+          AND (
+            COALESCE($7, '') = ''
+            OR COALESCE("listLabel", 'default') = $7
+          )
         ORDER BY "createdAt" DESC
         LIMIT 500
         "#,
@@ -968,10 +974,11 @@ pub async fn list_contacts(
     .bind(query.excluded.as_deref())
     .bind(query.tag.as_deref().map(str::trim).filter(|value| !value.is_empty()))
     .bind(query.location.as_deref().map(str::trim).filter(|value| !value.is_empty()))
+    .bind(query.list_label.as_deref().map(str::trim).filter(|value| !value.is_empty()))
     .fetch_all(pool)
     .await?;
 
-    let (total_contacts, opted_in_contacts, excluded_contacts, tag_rows) = tokio::try_join!(
+    let (total_contacts, opted_in_contacts, excluded_contacts, tag_rows, list_rows) = tokio::try_join!(
         sqlx::query_scalar::<_, i64>(r#"SELECT COUNT(*) FROM "WhatsappContact" WHERE "userId" = $1"#)
             .bind(user_id)
             .fetch_one(pool),
@@ -985,9 +992,25 @@ pub async fn list_contacts(
         )
         .bind(user_id)
         .fetch_one(pool),
-        sqlx::query_scalar::<_, Vec<String>>(r#"SELECT tags FROM "WhatsappContact" WHERE "userId" = $1"#)
+        sqlx::query_scalar::<_, Vec<String>>(r#"SELECT COALESCE(tags, ARRAY[]::text[]) FROM "WhatsappContact" WHERE "userId" = $1"#)
             .bind(user_id)
             .fetch_all(pool),
+        sqlx::query(
+            r#"
+            SELECT
+                COALESCE("listLabel", 'default') AS list_label,
+                COUNT(*)::bigint AS total_contacts,
+                MIN(NULLIF(location, '')) AS primary_location,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT metadata_key), NULL) AS metadata_keys
+            FROM "WhatsappContact"
+            LEFT JOIN LATERAL jsonb_object_keys(COALESCE(metadata, '{}'::jsonb)) AS metadata_key ON TRUE
+            WHERE "userId" = $1
+            GROUP BY COALESCE("listLabel", 'default')
+            ORDER BY COALESCE("listLabel", 'default') ASC
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(pool),
     )?;
 
     let mut tag_options = tag_rows
@@ -998,8 +1021,27 @@ pub async fn list_contacts(
         .collect::<Vec<_>>();
     tag_options.sort_by(|left, right| left.to_lowercase().cmp(&right.to_lowercase()));
 
+    let lists = list_rows
+        .into_iter()
+        .map(|row| {
+            let metadata_keys = row
+                .get::<Option<Vec<Option<String>>>, _>("metadata_keys")
+                .unwrap_or_default()
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+            json!({
+                "label": row.get::<String, _>("list_label"),
+                "totalContacts": row.get::<i64, _>("total_contacts"),
+                "primaryLocation": row.get::<Option<String>, _>("primary_location"),
+                "metadataKeys": metadata_keys,
+            })
+        })
+        .collect::<Vec<_>>();
+
     Ok(json!({
         "contacts": contacts,
+        "lists": lists,
         "tagOptions": tag_options,
         "stats": {
             "totalContacts": total_contacts,
@@ -1050,6 +1092,10 @@ pub async fn update_contact(
     }
 
     let tags = input.tags.as_ref().map(|value| sanitize_tags(value));
+    let list_label = input
+        .list_label
+        .as_deref()
+        .map(|value| sanitize_list_label(Some(value)));
     let opt_in = input.opt_in;
     let opt_in_source = if opt_in.is_some() {
         Some("dashboard".to_string())
@@ -1070,12 +1116,14 @@ pub async fn update_contact(
             location = COALESCE($3, location),
             tags = COALESCE($4, tags),
             notes = COALESCE($5, notes),
-            "optIn" = COALESCE($6, "optIn"),
-            "optInSource" = $7,
-            "optInDate" = $8,
-            excluded = COALESCE($9, excluded),
+            "listLabel" = COALESCE($6, "listLabel"),
+            metadata = COALESCE($7, metadata),
+            "optIn" = COALESCE($8, "optIn"),
+            "optInSource" = $9,
+            "optInDate" = $10,
+            excluded = COALESCE($11, excluded),
             "updatedAt" = NOW()
-        WHERE id = $10 AND "userId" = $11
+        WHERE id = $12 AND "userId" = $13
         "#,
     )
     .bind(input.full_name.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()))
@@ -1083,6 +1131,8 @@ pub async fn update_contact(
     .bind(input.location.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()))
     .bind(tags.as_ref())
     .bind(input.notes.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()))
+    .bind(list_label)
+    .bind(input.metadata.as_ref())
     .bind(opt_in)
     .bind(opt_in_source)
     .bind(opt_in_date)
@@ -1102,6 +1152,7 @@ pub async fn update_contact(
 pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipart) -> Result<Value, AppError> {
     let mut csv_bytes = Vec::new();
     let mut default_opt_in = false;
+    let mut requested_list_label: Option<String> = None;
 
     while let Some(field) = payload.next().await {
         let mut field = field.map_err(|_| AppError::BadRequest("Failed to read multipart payload".to_string()))?;
@@ -1116,6 +1167,11 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
             csv_bytes = bytes;
         } else if name == "defaultOptIn" {
             default_opt_in = parse_bool_like(std::str::from_utf8(&bytes).unwrap_or("")).unwrap_or(false);
+        } else if name == "listLabel" {
+            let raw = std::str::from_utf8(&bytes).unwrap_or("").trim().to_string();
+            if !raw.is_empty() {
+                requested_list_label = Some(raw);
+            }
         }
     }
 
@@ -1142,7 +1198,7 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
 
     let mut invalid_rows = Vec::new();
     let mut total_rows = 0usize;
-    let mut deduped: HashMap<String, (Option<String>, Option<String>, Vec<String>, Option<String>, bool, Option<String>, Option<chrono::DateTime<Utc>>)> = HashMap::new();
+    let mut deduped: HashMap<String, (Option<String>, Option<String>, Vec<String>, Option<String>, bool, Option<String>, Option<chrono::DateTime<Utc>>, String, Option<Value>)> = HashMap::new();
     let now = Utc::now();
 
     for (index, record) in reader.records().enumerate() {
@@ -1186,6 +1242,11 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
 
         let explicit_opt_in = pick_first(&row, &["optIn", "opt_in", "optedIn", "subscribed", "consent"])
             .and_then(parse_bool_like);
+        let list_label = sanitize_list_label(
+            pick_first(&row, &["listLabel", "list"])
+                .or(requested_list_label.as_deref()),
+        );
+        let metadata = extract_contact_metadata(&row);
         deduped.insert(
             phone,
             (
@@ -1202,6 +1263,8 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
                 } else {
                     None
                 },
+                list_label,
+                metadata,
             ),
         );
     }
@@ -1216,10 +1279,11 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
     } else {
         sqlx::query_as::<_, WhatsappContactRow>(
             r#"
-            SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, tags, location,
-                   "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AS opt_in_date,
-                   "lastMarketingSent" AS last_marketing_sent, excluded, notes,
-                   "createdAt" AS created_at, "updatedAt" AS updated_at
+            SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
+                   COALESCE("listLabel", 'default') AS list_label, metadata,
+                   "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+                   "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
+                   "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "WhatsappContact"
             WHERE "userId" = $1 AND phone = ANY($2)
             "#,
@@ -1237,7 +1301,7 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
     let mut created = 0usize;
     let mut updated = 0usize;
 
-    for (phone, (full_name, location, tags, notes, opt_in, opt_in_source, opt_in_date)) in deduped {
+    for (phone, (full_name, location, tags, notes, opt_in, opt_in_source, opt_in_date, list_label, metadata)) in deduped {
         if let Some(existing) = existing_by_phone.get(&phone) {
             sqlx::query(
                 r#"
@@ -1249,8 +1313,10 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
                     "optIn" = $5,
                     "optInSource" = $6,
                     "optInDate" = $7,
+                    "listLabel" = $8,
+                    metadata = $9,
                     "updatedAt" = NOW()
-                WHERE id = $8
+                WHERE id = $10
                 "#,
             )
             .bind(full_name.as_deref())
@@ -1264,6 +1330,8 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
             } else {
                 None
             })
+            .bind(&list_label)
+            .bind(metadata.as_ref())
             .bind(&existing.id)
             .execute(pool)
             .await?;
@@ -1272,10 +1340,10 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
             sqlx::query(
                 r#"
                 INSERT INTO "WhatsappContact" (
-                    id, "userId", phone, "fullName", tags, location, notes,
+                    id, "userId", phone, "fullName", tags, location, notes, "listLabel", metadata,
                     "optIn", "optInSource", "optInDate", excluded, "createdAt", "updatedAt"
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, NOW(), NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, false, NOW(), NOW())
                 "#,
             )
             .bind(cuid2::create_id())
@@ -1285,6 +1353,8 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
             .bind(sanitize_tags(&tags))
             .bind(location.as_deref())
             .bind(notes.as_deref())
+            .bind(&list_label)
+            .bind(metadata.as_ref())
             .bind(opt_in)
             .bind(opt_in_source)
             .bind(opt_in_date)
@@ -1306,6 +1376,114 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
     }))
 }
 
+pub async fn rename_contact_list(
+    pool: &PgPool,
+    user_id: &str,
+    label: &str,
+    input: &WhatsappContactListRenameRequest,
+) -> Result<Value, AppError> {
+    let current_label = sanitize_list_label(Some(label));
+    let next_label = sanitize_list_label(input.next_label.as_deref());
+    if current_label == next_label {
+        return Ok(json!({ "label": next_label, "renamedContacts": 0, "updatedCampaigns": 0 }));
+    }
+
+    let updated_contacts = sqlx::query(
+        r#"
+        UPDATE "WhatsappContact"
+        SET "listLabel" = $1, "updatedAt" = NOW()
+        WHERE "userId" = $2 AND COALESCE("listLabel", 'default') = $3
+        "#,
+    )
+    .bind(&next_label)
+    .bind(user_id)
+    .bind(&current_label)
+    .execute(pool)
+    .await?;
+
+    let updated_campaigns = sqlx::query(
+        r#"
+        UPDATE "WhatsappCampaign"
+        SET "listLabel" = $1, "updatedAt" = NOW()
+        WHERE "userId" = $2 AND COALESCE("listLabel", 'default') = $3
+        "#,
+    )
+    .bind(&next_label)
+    .bind(user_id)
+    .bind(&current_label)
+    .execute(pool)
+    .await?;
+
+    Ok(json!({
+        "label": next_label,
+        "renamedContacts": updated_contacts.rows_affected(),
+        "updatedCampaigns": updated_campaigns.rows_affected(),
+    }))
+}
+
+pub async fn delete_contact_list(pool: &PgPool, user_id: &str, label: &str) -> Result<Value, AppError> {
+    let list_label = sanitize_list_label(Some(label));
+    let active_campaign_count = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(*)
+        FROM "WhatsappCampaign"
+        WHERE "userId" = $1
+          AND COALESCE("listLabel", 'default') = $2
+          AND status IN (
+            'DRAFT'::"WhatsappCampaignStatus",
+            'SCHEDULED'::"WhatsappCampaignStatus",
+            'SENDING'::"WhatsappCampaignStatus",
+            'PAUSED'::"WhatsappCampaignStatus"
+          )
+        "#,
+    )
+    .bind(user_id)
+    .bind(&list_label)
+    .fetch_one(pool)
+    .await?;
+
+    if active_campaign_count > 0 {
+        return Err(AppError::Conflict(
+            "This list is still attached to active campaigns".to_string(),
+        ));
+    }
+
+    let contact_ids = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT id
+        FROM "WhatsappContact"
+        WHERE "userId" = $1 AND COALESCE("listLabel", 'default') = $2
+        "#,
+    )
+    .bind(user_id)
+    .bind(&list_label)
+    .fetch_all(pool)
+    .await?;
+
+    if !contact_ids.is_empty() {
+        sqlx::query(r#"DELETE FROM "WhatsappCampaignRecipient" WHERE "contactId" = ANY($1)"#)
+            .bind(&contact_ids)
+            .execute(pool)
+            .await?;
+    }
+
+    let deleted_contacts = sqlx::query(
+        r#"
+        DELETE FROM "WhatsappContact"
+        WHERE "userId" = $1 AND COALESCE("listLabel", 'default') = $2
+        "#,
+    )
+    .bind(user_id)
+    .bind(&list_label)
+    .execute(pool)
+    .await?;
+
+    Ok(json!({
+        "label": list_label,
+        "deletedContacts": deleted_contacts.rows_affected(),
+    }))
+}
+
 fn parse_scheduled_at(value: Option<String>) -> Result<Option<chrono::DateTime<Utc>>, AppError> {
     match value.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
         Some(value) => chrono::DateTime::parse_from_rfc3339(value)
@@ -1320,6 +1498,96 @@ fn marketing_cooldown_days() -> i64 {
         .ok()
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or(10)
+}
+
+fn normalize_list_label(raw: &str) -> String {
+    let trimmed = raw.trim().to_lowercase();
+    let mut normalized = String::with_capacity(trimmed.len());
+    let mut last_dash = false;
+    for ch in trimmed.chars() {
+        if ch.is_ascii_alphanumeric() {
+            normalized.push(ch);
+            last_dash = false;
+        } else if !last_dash {
+            normalized.push('-');
+            last_dash = true;
+        }
+    }
+    normalized.trim_matches('-').to_string()
+}
+
+fn sanitize_list_label(input: Option<&str>) -> String {
+    let normalized = input.map(normalize_list_label).unwrap_or_default();
+    if normalized.is_empty() {
+        "default".to_string()
+    } else {
+        normalized
+    }
+}
+
+fn extract_contact_metadata(row: &HashMap<String, String>) -> Option<Value> {
+    const RESERVED: &[&str] = &[
+        "phone",
+        "Phone",
+        "mobile",
+        "Mobile",
+        "whatsapp",
+        "whatsappNumber",
+        "number",
+        "fullName",
+        "name",
+        "Name",
+        "contactName",
+        "location",
+        "city",
+        "province",
+        "region",
+        "tags",
+        "segment",
+        "groups",
+        "notes",
+        "note",
+        "optIn",
+        "opt_in",
+        "optedIn",
+        "subscribed",
+        "consent",
+        "optInSource",
+        "consentSource",
+        "listLabel",
+        "list",
+    ];
+
+    let mut metadata = serde_json::Map::new();
+    for (key, value) in row {
+        if RESERVED.iter().any(|reserved| reserved.eq_ignore_ascii_case(key)) {
+            continue;
+        }
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        metadata.insert(key.trim().to_string(), Value::String(trimmed.to_string()));
+    }
+
+    if metadata.is_empty() {
+        None
+    } else {
+        Some(Value::Object(metadata))
+    }
+}
+
+fn metadata_string(metadata: &Option<Value>, key: &str) -> String {
+    metadata
+        .as_ref()
+        .and_then(|value| value.get(key))
+        .and_then(|value| match value {
+            Value::String(text) => Some(text.clone()),
+            Value::Number(number) => Some(number.to_string()),
+            Value::Bool(flag) => Some(flag.to_string()),
+            _ => None,
+        })
+        .unwrap_or_default()
 }
 
 fn contact_eligible(contact: &WhatsappContactRow) -> (&'static str, bool) {
@@ -1388,6 +1656,17 @@ fn contact_matches_audience(
         }
     }
 
+    if let Some(list_label) = audience
+        .list_label
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if !contact.list_label.eq_ignore_ascii_case(list_label) {
+            return false;
+        }
+    }
+
     if let Some(tags) = audience.tags.as_ref() {
         let requested = tags
             .iter()
@@ -1446,7 +1725,8 @@ async fn get_campaign_row(pool: &PgPool, user_id: &str, campaign_id: &str) -> Re
         r#"
         SELECT id, "userId" AS user_id, "connectionId" AS connection_id, "templateId" AS template_id,
                name, description, "templateName" AS template_name, "templateLanguage" AS template_language,
-               "variableMappings" AS variable_mappings, status::text AS status,
+               "variableMappings" AS variable_mappings, "listLabel" AS list_label,
+               "defaultBatchSize" AS default_batch_size, status::text AS status,
                "scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
                "launchedAt" AT TIME ZONE 'UTC' AS launched_at,
                "completedAt" AT TIME ZONE 'UTC' AS completed_at, "totalRecipients" AS total_recipients,
@@ -1478,6 +1758,8 @@ pub async fn list_campaigns(pool: &PgPool, user_id: &str) -> Result<Value, AppEr
             c."templateName" AS template_name,
             c."templateLanguage" AS template_language,
             c."variableMappings" AS variable_mappings,
+            c."listLabel" AS list_label,
+            c."defaultBatchSize" AS default_batch_size,
             c.status::text AS status,
             c."scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
             c."launchedAt" AT TIME ZONE 'UTC' AS launched_at,
@@ -1516,6 +1798,8 @@ pub async fn list_campaigns(pool: &PgPool, user_id: &str) -> Result<Value, AppEr
                 "templateName": row.get::<String, _>("template_name"),
                 "templateLanguage": row.get::<String, _>("template_language"),
                 "variableMappings": row.get::<Option<Value>, _>("variable_mappings"),
+                "listLabel": row.get::<Option<String>, _>("list_label"),
+                "defaultBatchSize": row.get::<Option<i32>, _>("default_batch_size"),
                 "status": row.get::<String, _>("status"),
                 "scheduledAt": row.get::<Option<chrono::DateTime<Utc>>, _>("scheduled_at"),
                 "launchedAt": row.get::<Option<chrono::DateTime<Utc>>, _>("launched_at"),
@@ -1546,6 +1830,12 @@ pub async fn create_campaign(
         .ok_or_else(|| AppError::BadRequest("Campaign name is required".to_string()))?;
     let connection_id = input.connection_id.as_deref().unwrap_or("");
     let template_id = input.template_id.as_deref().unwrap_or("");
+    let list_label = input
+        .list_label
+        .as_deref()
+        .map(|value| sanitize_list_label(Some(value)));
+    let excluded_contact_ids = input.excluded_contact_ids.clone().unwrap_or_default();
+    let default_batch_size = input.batch_size.filter(|value| *value > 0);
     let scheduled_at = parse_scheduled_at(input.scheduled_at.clone())?;
 
     let connection = get_connection_row(pool, user_id, connection_id)
@@ -1556,7 +1846,7 @@ pub async fn create_campaign(
         SELECT id, "userId" AS user_id, "connectionId" AS connection_id, "templateName" AS template_name,
                language, category::text AS category, header, body, footer, buttons,
                "variablesCount" AS variables_count, status::text AS status,
-               "lastSynced" AS last_synced, "createdAt" AS created_at, "updatedAt" AS updated_at
+               "lastSynced" AT TIME ZONE 'UTC' AS last_synced, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappTemplate"
         WHERE id = $1 AND "userId" = $2
         LIMIT 1
@@ -1582,30 +1872,36 @@ pub async fn create_campaign(
     let contacts = if let Some(recipient_ids) = input.recipient_ids.as_ref() {
         sqlx::query_as::<_, WhatsappContactRow>(
             r#"
-            SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, tags, location,
-                   "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AS opt_in_date,
+            SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
+                   COALESCE("listLabel", 'default') AS list_label, metadata,
+                   "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
                    "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
                    "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "WhatsappContact"
             WHERE "userId" = $1 AND id = ANY($2)
+              AND ($3::text IS NULL OR COALESCE("listLabel", 'default') = $3)
             "#,
         )
         .bind(user_id)
         .bind(recipient_ids)
+        .bind(list_label.as_deref())
         .fetch_all(pool)
         .await?
     } else {
         sqlx::query_as::<_, WhatsappContactRow>(
             r#"
-            SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, tags, location,
-                   "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AS opt_in_date,
+            SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
+                   COALESCE("listLabel", 'default') AS list_label, metadata,
+                   "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
                    "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
                    "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "WhatsappContact"
             WHERE "userId" = $1
+              AND ($2::text IS NULL OR COALESCE("listLabel", 'default') = $2)
             "#,
         )
         .bind(user_id)
+        .bind(list_label.as_deref())
         .fetch_all(pool)
         .await?
     };
@@ -1622,6 +1918,10 @@ pub async fn create_campaign(
         "cooldown": 0
     });
     for contact in &filtered_contacts {
+        if excluded_contact_ids.iter().any(|value| value == &contact.id) {
+            skipped["excluded"] = json!(skipped["excluded"].as_i64().unwrap_or(0) + 1);
+            continue;
+        }
         let (reason, eligible) = contact_eligible(contact);
         if eligible {
             eligible_ids.push(contact.id.clone());
@@ -1639,11 +1939,11 @@ pub async fn create_campaign(
         r#"
         INSERT INTO "WhatsappCampaign" (
             id, "userId", "connectionId", "templateId", name, description, "templateName", "templateLanguage",
-            "variableMappings", status, "scheduledAt", "totalRecipients", "createdAt", "updatedAt"
+            "variableMappings", "listLabel", "defaultBatchSize", status, "scheduledAt", "totalRecipients", "createdAt", "updatedAt"
         )
         VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9,
-            CAST($10 AS "WhatsappCampaignStatus"), $11, $12, NOW(), NOW()
+            $10, $11, CAST($12 AS "WhatsappCampaignStatus"), $13, $14, NOW(), NOW()
         )
         "#,
     )
@@ -1656,6 +1956,8 @@ pub async fn create_campaign(
     .bind(&template.template_name)
     .bind(&template.language)
     .bind(&input.variable_mappings)
+    .bind(list_label.as_deref())
+    .bind(default_batch_size)
     .bind(if scheduled_at.map(|v| v > Utc::now()).unwrap_or(false) { "SCHEDULED" } else { "DRAFT" })
     .bind(scheduled_at)
     .bind(eligible_ids.len() as i32)
@@ -1667,6 +1969,25 @@ pub async fn create_campaign(
             r#"
             INSERT INTO "WhatsappCampaignRecipient" (id, "campaignId", "contactId", status, "createdAt", "updatedAt")
             VALUES ($1, $2, $3, 'PENDING'::"WhatsappRecipientStatus", NOW(), NOW())
+            "#,
+        )
+        .bind(cuid2::create_id())
+        .bind(&campaign_id)
+        .bind(contact_id)
+        .execute(pool)
+        .await?;
+    }
+
+    for contact_id in &excluded_contact_ids {
+        sqlx::query(
+            r#"
+            INSERT INTO "WhatsappCampaignRecipient" (
+                id, "campaignId", "contactId", status, "errorCode", "errorMessage", "createdAt", "updatedAt"
+            )
+            VALUES (
+                $1, $2, $3, 'SKIPPED'::"WhatsappRecipientStatus", 'manual_exclude', 'Excluded before campaign launch', NOW(), NOW()
+            )
+            ON CONFLICT DO NOTHING
             "#,
         )
         .bind(cuid2::create_id())
@@ -1720,18 +2041,26 @@ pub async fn launch_campaign(
     user_id: &str,
     campaign_id: &str,
     scheduled_at: Option<String>,
+    batch_size: Option<i32>,
 ) -> Result<Value, AppError> {
     let campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
+    let max_batch = batch_size
+        .filter(|value| *value > 0)
+        .or(campaign.default_batch_size)
+        .unwrap_or(i32::MAX);
     let recipient_ids = sqlx::query_scalar::<_, String>(
         r#"
         SELECT id
         FROM "WhatsappCampaignRecipient"
         WHERE "campaignId" = $1 AND status IN ('PENDING'::"WhatsappRecipientStatus", 'FAILED'::"WhatsappRecipientStatus")
+        ORDER BY "createdAt" ASC
+        LIMIT $2
         "#,
     )
     .bind(campaign_id)
+    .bind(max_batch as i64)
     .fetch_all(pool)
     .await?;
     if recipient_ids.is_empty() {
@@ -1783,6 +2112,7 @@ pub async fn launch_campaign(
     Ok(json!({
         "campaignId": campaign_id,
         "queuedRecipients": recipient_ids.len(),
+        "batchSize": if max_batch == i32::MAX { Value::Null } else { json!(max_batch) },
         "scheduledAt": requested_scheduled_at,
         "status": if should_schedule { "SCHEDULED" } else { "SENDING" }
     }))
@@ -1967,7 +2297,7 @@ fn build_body_parameters(contact: &WhatsappContactRow, mappings: Option<&Vec<Val
             "phone" => contact.phone.clone(),
             "location" => contact.location.clone().unwrap_or_default(),
             "tags" => contact.tags.join(", "),
-            _ => String::new(),
+            other => metadata_string(&contact.metadata, other),
         }
     }).collect()
 }
@@ -2061,9 +2391,9 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
         let recipient = sqlx::query_as::<_, WhatsappCampaignRecipientRow>(
             r#"
             SELECT id, "campaignId" AS campaign_id, "contactId" AS contact_id, status::text AS status,
-                   "waMessageId" AS wa_message_id, "sentAt" AS sent_at, "deliveredAt" AS delivered_at,
-                   "readAt" AS read_at, "failedAt" AS failed_at, "errorCode" AS error_code,
-                   "errorMessage" AS error_message, "createdAt" AS created_at, "updatedAt" AS updated_at
+                   "waMessageId" AS wa_message_id, "sentAt" AT TIME ZONE 'UTC' AS sent_at, "deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
+                   "readAt" AT TIME ZONE 'UTC' AS read_at, "failedAt" AT TIME ZONE 'UTC' AS failed_at, "errorCode" AS error_code,
+                   "errorMessage" AS error_message, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "WhatsappCampaignRecipient" WHERE id = $1
             "#,
         )
@@ -2075,10 +2405,11 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
         }
         let contact = sqlx::query_as::<_, WhatsappContactRow>(
             r#"
-            SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, tags, location,
-                   "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AS opt_in_date,
-                   "lastMarketingSent" AS last_marketing_sent, excluded, notes,
-                   "createdAt" AS created_at, "updatedAt" AS updated_at
+            SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
+                   COALESCE("listLabel", 'default') AS list_label, metadata,
+                   "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+                   "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
+                   "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "WhatsappContact" WHERE id = $1
             "#,
         )
@@ -2108,11 +2439,12 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
             r#"
             SELECT id, "userId" AS user_id, "connectionId" AS connection_id, "templateId" AS template_id,
                    name, description, "templateName" AS template_name, "templateLanguage" AS template_language,
-                   "variableMappings" AS variable_mappings, status::text AS status, "scheduledAt" AS scheduled_at,
-                   "launchedAt" AS launched_at, "completedAt" AS completed_at, "totalRecipients" AS total_recipients,
+                   "variableMappings" AS variable_mappings, "listLabel" AS list_label,
+                   "defaultBatchSize" AS default_batch_size, status::text AS status, "scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
+                   "launchedAt" AT TIME ZONE 'UTC' AS launched_at, "completedAt" AT TIME ZONE 'UTC' AS completed_at, "totalRecipients" AS total_recipients,
                    "sentCount" AS sent_count, "deliveredCount" AS delivered_count, "readCount" AS read_count,
                    "failedCount" AS failed_count, "blockedCount" AS blocked_count, "unsubscribedCount" AS unsubscribed_count,
-                   "createdAt" AS created_at, "updatedAt" AS updated_at
+                   "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "WhatsappCampaign" WHERE id = $1
             "#,
         )
@@ -2353,10 +2685,11 @@ fn parse_csv_tags(raw: Option<&str>) -> Vec<String> {
 async fn select_contact_row(pool: &PgPool, user_id: &str, contact_id: &str) -> Result<Option<WhatsappContactRow>, AppError> {
     sqlx::query_as::<_, WhatsappContactRow>(
         r#"
-        SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, tags, location,
-               "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AS opt_in_date,
-               "lastMarketingSent" AS last_marketing_sent, excluded, notes,
-               "createdAt" AS created_at, "updatedAt" AS updated_at
+        SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
+               COALESCE("listLabel", 'default') AS list_label, metadata,
+               "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+               "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappContact"
         WHERE id = $1 AND "userId" = $2
         LIMIT 1
@@ -3384,7 +3717,7 @@ pub async fn start_inbox_conversation(pool: &PgPool, user_id: &str, input: &What
         SELECT id, "userId" AS user_id, "connectionId" AS connection_id, "templateName" AS template_name,
                language, category::text AS category, header, body, footer, buttons,
                "variablesCount" AS variables_count, status::text AS status,
-               "lastSynced" AS last_synced, "createdAt" AS created_at, "updatedAt" AS updated_at
+               "lastSynced" AT TIME ZONE 'UTC' AS last_synced, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappTemplate"
         WHERE id = $1 AND "userId" = $2 AND status = 'APPROVED'::"WhatsappTemplateStatus"
         LIMIT 1

@@ -38,13 +38,20 @@ export default async function ReachCampaignsCreatePage() {
         fullName?: string | null;
         phone: string;
         tags: string[];
+        location?: string | null;
+        listLabel: string;
+        metadata: Record<string, string> | null;
+        excluded?: boolean;
+        optIn?: boolean;
+      }>;
+      lists: Array<{
+        label: string;
+        totalContacts: number;
+        primaryLocation: string | null;
+        metadataKeys: string[];
       }>;
     }>("/api/whatsapp/contacts"),
   ]);
-
-  const tagOptions = Array.from(
-    new Set(contactResponse.contacts.flatMap((contact) => contact.tags)),
-  ).sort((left, right) => left.localeCompare(right));
 
   return (
     <div className="min-h-screen p-6 lg:p-8">
@@ -61,7 +68,7 @@ export default async function ReachCampaignsCreatePage() {
           connections={connectionResponse.connections}
           templates={templateResponse.templates}
           contacts={contactResponse.contacts}
-          tagOptions={tagOptions}
+          lists={contactResponse.lists}
         />
       </div>
     </div>

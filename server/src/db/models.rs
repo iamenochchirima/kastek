@@ -583,6 +583,12 @@ pub struct WhatsappCampaignRow {
     pub template_language: String,
     #[sqlx(rename = "variable_mappings")]
     pub variable_mappings: Option<Value>,
+    #[serde(rename = "listLabel")]
+    #[sqlx(rename = "list_label")]
+    pub list_label: Option<String>,
+    #[serde(rename = "defaultBatchSize")]
+    #[sqlx(rename = "default_batch_size")]
+    pub default_batch_size: Option<i32>,
     pub status: String,
     #[sqlx(rename = "scheduled_at")]
     pub scheduled_at: Option<DateTime<Utc>>,
@@ -650,6 +656,10 @@ pub struct WhatsappContactRow {
     pub full_name: Option<String>,
     pub tags: Vec<String>,
     pub location: Option<String>,
+    #[serde(rename = "listLabel")]
+    #[sqlx(rename = "list_label")]
+    pub list_label: String,
+    pub metadata: Option<Value>,
     #[serde(rename = "optIn")]
     #[sqlx(rename = "opt_in")]
     pub opt_in: bool,
@@ -680,6 +690,8 @@ pub struct WhatsappContactListQuery {
     pub excluded: Option<String>,
     pub tag: Option<String>,
     pub location: Option<String>,
+    #[serde(rename = "listLabel")]
+    pub list_label: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -692,6 +704,8 @@ pub struct WhatsappAudienceFilterRequest {
     pub tags: Option<Vec<String>>,
     pub location: Option<String>,
     pub search: Option<String>,
+    #[serde(rename = "listLabel")]
+    pub list_label: Option<String>,
     #[serde(rename = "optInStatus")]
     pub opt_in_status: Option<String>,
     #[serde(rename = "excludedStatus")]
@@ -710,6 +724,12 @@ pub struct WhatsappCampaignCreateRequest {
     pub template_id: Option<String>,
     #[serde(rename = "recipientIds")]
     pub recipient_ids: Option<Vec<String>>,
+    #[serde(rename = "excludedContactIds")]
+    pub excluded_contact_ids: Option<Vec<String>>,
+    #[serde(rename = "listLabel")]
+    pub list_label: Option<String>,
+    #[serde(rename = "batchSize")]
+    pub batch_size: Option<i32>,
     #[serde(rename = "scheduledAt")]
     pub scheduled_at: Option<String>,
     #[serde(rename = "variableMappings")]
@@ -720,6 +740,8 @@ pub struct WhatsappCampaignCreateRequest {
 #[derive(Debug, Deserialize)]
 pub struct WhatsappCampaignActionRequest {
     pub action: Option<String>,
+    #[serde(rename = "batchSize")]
+    pub batch_size: Option<i32>,
     #[serde(rename = "scheduledAt")]
     pub scheduled_at: Option<String>,
 }
@@ -797,9 +819,18 @@ pub struct WhatsappContactUpdateRequest {
     pub location: Option<String>,
     pub tags: Option<Vec<String>>,
     pub notes: Option<String>,
+    #[serde(rename = "listLabel")]
+    pub list_label: Option<String>,
+    pub metadata: Option<Value>,
     #[serde(rename = "optIn")]
     pub opt_in: Option<bool>,
     pub excluded: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WhatsappContactListRenameRequest {
+    #[serde(rename = "nextLabel")]
+    pub next_label: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

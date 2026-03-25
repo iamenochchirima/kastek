@@ -756,6 +756,8 @@ model WhatsappContact {
   fullName          String?
   tags              String[]
   location          String?
+  listLabel         String   @default("default")
+  metadata          Json?
 
   optIn             Boolean  @default(false)
   optInSource       String?
@@ -773,6 +775,7 @@ model WhatsappContact {
 
   @@unique([userId, phone])
   @@index([userId, optIn, excluded])
+  @@index([userId, listLabel])
   @@index([lastMarketingSent])
 }
 
@@ -820,6 +823,8 @@ model WhatsappCampaign {
   templateName      String
   templateLanguage  String
   variableMappings  Json?
+  listLabel         String?
+  defaultBatchSize  Int?
 
   status            WhatsappCampaignStatus @default(DRAFT)
   scheduledAt       DateTime?
@@ -841,6 +846,7 @@ model WhatsappCampaign {
   updatedAt         DateTime @updatedAt
 
   @@index([userId, status])
+  @@index([userId, listLabel])
   @@index([connectionId])
   @@index([templateId])
   @@index([scheduledAt])

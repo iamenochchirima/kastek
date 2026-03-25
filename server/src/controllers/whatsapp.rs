@@ -4,9 +4,10 @@ use sqlx::PgPool;
 
 use crate::db::models::{
     WhatsappCampaignActionRequest, WhatsappCampaignCreateRequest, WhatsappConnectionCreateRequest,
-    WhatsappConnectionTokenRequest, WhatsappContactListQuery, WhatsappContactUpdateRequest,
-    WhatsappEmbeddedSignupRequest, WhatsappReactionRequest, WhatsappSendMessageRequest,
-    WhatsappStartConversationRequest, WhatsappTemplateCreateRequest, WhatsappTemplateListQuery,
+    WhatsappConnectionTokenRequest, WhatsappContactListQuery, WhatsappContactListRenameRequest,
+    WhatsappContactUpdateRequest, WhatsappEmbeddedSignupRequest, WhatsappReactionRequest,
+    WhatsappSendMessageRequest, WhatsappStartConversationRequest, WhatsappTemplateCreateRequest,
+    WhatsappTemplateListQuery,
 };
 use crate::error::AppError;
 use crate::middleware::extract_user;
@@ -171,6 +172,27 @@ pub async fn import_contacts(
     Ok(HttpResponse::Ok().json(result))
 }
 
+pub async fn rename_contact_list(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<WhatsappContactListRenameRequest>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let result = whatsapp::rename_contact_list(pool.get_ref(), &user.id, &path, &body).await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn delete_contact_list(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let result = whatsapp::delete_contact_list(pool.get_ref(), &user.id, &path).await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
 pub async fn list_campaigns(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -207,8 +229,14 @@ pub async fn launch_campaign(
     body: web::Json<WhatsappCampaignActionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result =
-        whatsapp::launch_campaign(pool.get_ref(), &user.id, &path, body.scheduled_at.clone()).await?;
+    let result = whatsapp::launch_campaign(
+        pool.get_ref(),
+        &user.id,
+        &path,
+        body.scheduled_at.clone(),
+        body.batch_size,
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(result))
 }
 

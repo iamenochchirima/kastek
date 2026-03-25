@@ -107,6 +107,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::scope("/contacts")
                         .route("", web::get().to(whatsapp::list_contacts))
                         .route("/import", web::post().to(whatsapp::import_contacts))
+                        .route("/lists/{label}", web::patch().to(whatsapp::rename_contact_list))
+                        .route("/lists/{label}", web::delete().to(whatsapp::delete_contact_list))
                         .route("/{id}", web::patch().to(whatsapp::update_contact)),
                 )
                 .route("/templates", web::get().to(whatsapp::list_templates))
