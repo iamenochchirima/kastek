@@ -16,14 +16,12 @@ pub async fn list(
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let limit = query.limit.unwrap_or(20);
-    let inbox = list_notification_inbox(pool.get_ref(), &user.id, limit, query.cursor.clone()).await?;
+    let inbox =
+        list_notification_inbox(pool.get_ref(), &user.id, limit, query.cursor.clone()).await?;
     Ok(HttpResponse::Ok().json(inbox))
 }
 
-pub async fn unread(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> Result<HttpResponse, AppError> {
+pub async fn unread(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let unread_count = get_unread_notification_count(pool.get_ref(), &user.id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "unreadCount": unread_count })))

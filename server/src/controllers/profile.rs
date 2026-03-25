@@ -11,10 +11,7 @@ use crate::error::AppError;
 use crate::middleware::extract_user;
 use crate::services::auth::{issue_verification_token, send_email};
 
-pub async fn get(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> Result<HttpResponse, AppError> {
+pub async fn get(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     Ok(HttpResponse::Ok().json(ProfileBootstrapResponse {
         has_password: user.password.is_some(),
@@ -64,8 +61,18 @@ pub async fn patch(
             "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
         "#,
     )
-    .bind(body.name.as_ref().map(|value| value.trim()).filter(|v| !v.is_empty()))
-    .bind(body.phone.as_ref().map(|value| value.trim()).filter(|v| !v.is_empty()))
+    .bind(
+        body.name
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|v| !v.is_empty()),
+    )
+    .bind(
+        body.phone
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|v| !v.is_empty()),
+    )
     .bind(image)
     .bind(user.id)
     .fetch_one(pool.get_ref())
@@ -89,7 +96,9 @@ pub async fn save_onboarding_phone(
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("Phone number is required".to_string()))?;
     if !body.phone_verified.unwrap_or(false) {
-        return Err(AppError::BadRequest("Phone number must be verified".to_string()));
+        return Err(AppError::BadRequest(
+            "Phone number must be verified".to_string(),
+        ));
     }
     sqlx::query(r#"UPDATE "User" SET phone = $1, "updatedAt" = NOW() WHERE id = $2"#)
         .bind(phone)
@@ -113,18 +122,26 @@ pub async fn request_email_change(
         .map(str::to_lowercase)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("Email is required".to_string()))?;
-    if !(next_email.contains('@') && next_email.split('@').count() == 2 && next_email.contains('.')) {
-        return Err(AppError::BadRequest("Enter a valid email address".to_string()));
+    if !(next_email.contains('@') && next_email.split('@').count() == 2 && next_email.contains('.'))
+    {
+        return Err(AppError::BadRequest(
+            "Enter a valid email address".to_string(),
+        ));
     }
-    if user.email.as_deref().is_some_and(|email| email.eq_ignore_ascii_case(&next_email)) {
+    if user
+        .email
+        .as_deref()
+        .is_some_and(|email| email.eq_ignore_ascii_case(&next_email))
+    {
         return Err(AppError::BadRequest(
             "That is already your current email address".to_string(),
         ));
     }
-    let existing = sqlx::query_scalar::<_, String>(r#"SELECT id FROM "User" WHERE email = $1 LIMIT 1"#)
-        .bind(&next_email)
-        .fetch_optional(pool.get_ref())
-        .await?;
+    let existing =
+        sqlx::query_scalar::<_, String>(r#"SELECT id FROM "User" WHERE email = $1 LIMIT 1"#)
+            .bind(&next_email)
+            .fetch_optional(pool.get_ref())
+            .await?;
     if existing.is_some() {
         return Err(AppError::Conflict(
             "An account with that email already exists".to_string(),
@@ -172,7 +189,10 @@ pub async fn verify_email_change(
     let change = query.get("change").cloned().unwrap_or_default();
     if token.is_empty() || change.is_empty() {
         return Ok(HttpResponse::Found()
-            .append_header(("Location", format!("{}/auth-error?error=InvalidToken", config.auth_url)))
+            .append_header((
+                "Location",
+                format!("{}/auth-error?error=InvalidToken", config.auth_url),
+            ))
             .finish());
     }
     let record = sqlx::query_as::<_, (String, chrono::DateTime<chrono::Utc>)>(
@@ -184,18 +204,27 @@ pub async fn verify_email_change(
     .await?;
     let Some((_token, expires)) = record else {
         return Ok(HttpResponse::Found()
-            .append_header(("Location", format!("{}/auth-error?error=InvalidToken", config.auth_url)))
+            .append_header((
+                "Location",
+                format!("{}/auth-error?error=InvalidToken", config.auth_url),
+            ))
             .finish());
     };
     if expires < chrono::Utc::now() {
         return Ok(HttpResponse::Found()
-            .append_header(("Location", format!("{}/auth-error?error=ExpiredToken", config.auth_url)))
+            .append_header((
+                "Location",
+                format!("{}/auth-error?error=ExpiredToken", config.auth_url),
+            ))
             .finish());
     }
     let parts = change.split('|').collect::<Vec<_>>();
     if parts.len() != 3 || parts[0] != "profile-email-change" {
         return Ok(HttpResponse::Found()
-            .append_header(("Location", format!("{}/auth-error?error=InvalidToken", config.auth_url)))
+            .append_header((
+                "Location",
+                format!("{}/auth-error?error=InvalidToken", config.auth_url),
+            ))
             .finish());
     }
     let user_id = parts[1];
@@ -203,10 +232,11 @@ pub async fn verify_email_change(
         .map(|value| value.to_string())
         .unwrap_or_default();
 
-    let existing = sqlx::query_scalar::<_, String>(r#"SELECT id FROM "User" WHERE email = $1 LIMIT 1"#)
-        .bind(&next_email)
-        .fetch_optional(pool.get_ref())
-        .await?;
+    let existing =
+        sqlx::query_scalar::<_, String>(r#"SELECT id FROM "User" WHERE email = $1 LIMIT 1"#)
+            .bind(&next_email)
+            .fetch_optional(pool.get_ref())
+            .await?;
     if existing.is_some() {
         sqlx::query(r#"DELETE FROM "VerificationToken" WHERE identifier = $1 AND token = $2"#)
             .bind(&change)
@@ -214,7 +244,10 @@ pub async fn verify_email_change(
             .execute(pool.get_ref())
             .await?;
         return Ok(HttpResponse::Found()
-            .append_header(("Location", format!("{}/workspace/profile?emailChange=conflict", config.auth_url)))
+            .append_header((
+                "Location",
+                format!("{}/workspace/profile?emailChange=conflict", config.auth_url),
+            ))
             .finish());
     }
 
@@ -230,7 +263,10 @@ pub async fn verify_email_change(
         .await?;
 
     Ok(HttpResponse::Found()
-        .append_header(("Location", format!("{}/workspace/profile?emailChange=success", config.auth_url)))
+        .append_header((
+            "Location",
+            format!("{}/workspace/profile?emailChange=success", config.auth_url),
+        ))
         .finish())
 }
 
@@ -249,10 +285,14 @@ pub async fn change_password(
     if let Some(current_hash) = user.password.as_deref() {
         let current_password = body.current_password.as_deref().unwrap_or("");
         if current_password.is_empty() {
-            return Err(AppError::BadRequest("Current password is required".to_string()));
+            return Err(AppError::BadRequest(
+                "Current password is required".to_string(),
+            ));
         }
         if !verify(current_password, current_hash)? {
-            return Err(AppError::BadRequest("Current password is incorrect".to_string()));
+            return Err(AppError::BadRequest(
+                "Current password is incorrect".to_string(),
+            ));
         }
     }
 

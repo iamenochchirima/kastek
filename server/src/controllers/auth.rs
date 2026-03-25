@@ -122,9 +122,19 @@ pub async fn signup(
     )
     .bind(&user_id)
     .bind(&email)
-    .bind(body.name.as_ref().map(|value| value.trim()).filter(|v| !v.is_empty()))
+    .bind(
+        body.name
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|v| !v.is_empty()),
+    )
     .bind(&password_hash)
-    .bind(body.phone.as_ref().map(|value| value.trim()).filter(|v| !v.is_empty()))
+    .bind(
+        body.phone
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|v| !v.is_empty()),
+    )
     .execute(pool.get_ref())
     .await?;
 
@@ -296,7 +306,10 @@ pub async fn google_oauth_callback(
             ("code", code),
             ("client_id", client_id.as_str()),
             ("client_secret", client_secret.as_str()),
-            ("redirect_uri", google_redirect_uri(config.get_ref()).as_str()),
+            (
+                "redirect_uri",
+                google_redirect_uri(config.get_ref()).as_str(),
+            ),
             ("grant_type", "authorization_code"),
         ])
         .send()
@@ -323,8 +336,16 @@ pub async fn google_oauth_callback(
         .map(|value| value.trim().to_lowercase())
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("Google profile did not include email".to_string()))?;
-    let name = profile.get("name").and_then(|value| value.as_str()).map(str::trim).filter(|value| !value.is_empty());
-    let image = profile.get("picture").and_then(|value| value.as_str()).map(str::trim).filter(|value| !value.is_empty());
+    let name = profile
+        .get("name")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let image = profile
+        .get("picture")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
 
     let existing_linked_user = sqlx::query_scalar::<_, String>(
         r#"SELECT "userId" FROM "Account" WHERE provider = 'google' AND "providerAccountId" = $1 LIMIT 1"#,
@@ -420,7 +441,11 @@ pub async fn google_oauth_callback(
     let target = if callback_path.starts_with("http://") || callback_path.starts_with("https://") {
         callback_path
     } else {
-        format!("{}{}", config.frontend_url.trim_end_matches('/'), callback_path)
+        format!(
+            "{}{}",
+            config.frontend_url.trim_end_matches('/'),
+            callback_path
+        )
     };
     Ok(HttpResponse::Found()
         .cookie(config.build_user_session_cookie(&session_token))
@@ -513,8 +538,12 @@ pub async fn send_otp(
     .execute(pool.get_ref())
     .await?;
 
-    send_sms_message(config.get_ref(), &phone, &format!("Your KasiTek verification code is: {code}"))
-        .await?;
+    send_sms_message(
+        config.get_ref(),
+        &phone,
+        &format!("Your KasiTek verification code is: {code}"),
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({ "message": "OTP sent" })))
 }
@@ -605,7 +634,10 @@ pub async fn verify_email(
     .await?;
 
     Ok(HttpResponse::Found()
-        .append_header(("Location", format!("{}/login?verified=true", config.frontend_url)))
+        .append_header((
+            "Location",
+            format!("{}/login?verified=true", config.frontend_url),
+        ))
         .finish())
 }
 

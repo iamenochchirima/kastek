@@ -1,16 +1,24 @@
 use actix_web::web;
 
-use crate::controllers::{admin, ai, auth, bots, chat, health, notifications, profile, public, realtime, social, whatsapp, workspace};
+use crate::controllers::{
+    admin, ai, auth, bots, chat, health, notifications, profile, public, realtime, social,
+    whatsapp, workspace,
+};
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/", web::get().to(health::root))
         .route("/health", web::get().to(health::health_check))
-        .service(web::scope("/api/realtime").route("/whatsapp", web::get().to(realtime::whatsapp_stream)))
-        .service(web::scope("/api/bots")
-            .route("", web::post().to(bots::create))
-            .route("/{id}", web::get().to(bots::get))
-            .route("/{id}", web::patch().to(bots::patch))
-            .route("/{id}", web::delete().to(bots::delete)))
+        .service(
+            web::scope("/api/realtime")
+                .route("/whatsapp", web::get().to(realtime::whatsapp_stream)),
+        )
+        .service(
+            web::scope("/api/bots")
+                .route("", web::post().to(bots::create))
+                .route("/{id}", web::get().to(bots::get))
+                .route("/{id}", web::patch().to(bots::patch))
+                .route("/{id}", web::delete().to(bots::delete)),
+        )
         .route("/api/chat", web::post().to(chat::post))
         .route("/api/workspace/summary", web::get().to(workspace::summary))
         .service(
@@ -20,7 +28,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/logout", web::post().to(auth::logout))
                 .route("/me", web::get().to(auth::me))
                 .route("/google/start", web::get().to(auth::start_google_oauth))
-                .route("/google/callback", web::get().to(auth::google_oauth_callback))
+                .route(
+                    "/google/callback",
+                    web::get().to(auth::google_oauth_callback),
+                )
                 .route("/account-check", web::post().to(auth::account_check))
                 .route("/send-otp", web::post().to(auth::send_otp))
                 .route("/verify-otp", web::post().to(auth::verify_otp))
@@ -39,7 +50,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/email/verify", web::get().to(profile::verify_email_change))
                 .route("/password", web::patch().to(profile::change_password)),
         )
-        .service(web::scope("/api/onboarding").route("/phone", web::post().to(profile::save_onboarding_phone)))
+        .service(
+            web::scope("/api/onboarding")
+                .route("/phone", web::post().to(profile::save_onboarding_phone)),
+        )
         .service(
             web::scope("/api/notifications")
                 .route("", web::get().to(notifications::list))
@@ -53,7 +67,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::scope("/oauth")
                         .route("/x/start", web::get().to(social::start_x_oauth))
                         .route("/x/callback", web::get().to(social::x_oauth_callback))
-                        .route("/linkedin/start", web::get().to(social::start_linkedin_oauth))
+                        .route(
+                            "/linkedin/start",
+                            web::get().to(social::start_linkedin_oauth),
+                        )
                         .route(
                             "/linkedin/callback",
                             web::get().to(social::linkedin_oauth_callback),
@@ -91,8 +108,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::scope("/connections")
                         .route("", web::get().to(whatsapp::list_connections))
                         .route("", web::post().to(whatsapp::create_connection))
-                        .route("/{id}/token", web::post().to(whatsapp::update_connection_token))
-                        .route("/{id}/refresh", web::post().to(whatsapp::refresh_connection))
+                        .route(
+                            "/{id}/token",
+                            web::post().to(whatsapp::update_connection_token),
+                        )
+                        .route(
+                            "/{id}/refresh",
+                            web::post().to(whatsapp::refresh_connection),
+                        )
                         .route("/{id}/health", web::get().to(whatsapp::connection_health))
                         .route(
                             "/{id}/templates/sync",
@@ -107,20 +130,41 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::scope("/contacts")
                         .route("", web::get().to(whatsapp::list_contacts))
                         .route("/import", web::post().to(whatsapp::import_contacts))
-                        .route("/lists/{label}", web::patch().to(whatsapp::rename_contact_list))
-                        .route("/lists/{label}", web::delete().to(whatsapp::delete_contact_list))
+                        .route(
+                            "/lists/{label}",
+                            web::patch().to(whatsapp::rename_contact_list),
+                        )
+                        .route(
+                            "/lists/{label}",
+                            web::delete().to(whatsapp::delete_contact_list),
+                        )
                         .route("/{id}", web::patch().to(whatsapp::update_contact)),
                 )
                 .route("/templates", web::get().to(whatsapp::list_templates))
                 .route("/templates", web::post().to(whatsapp::create_template))
                 .service(
                     web::scope("/inbox")
-                        .route("/conversations", web::get().to(whatsapp::list_inbox_conversations))
-                        .route("/conversations", web::post().to(whatsapp::start_inbox_conversation))
+                        .route(
+                            "/conversations",
+                            web::get().to(whatsapp::list_inbox_conversations),
+                        )
+                        .route(
+                            "/conversations",
+                            web::post().to(whatsapp::start_inbox_conversation),
+                        )
                         .route("/unread-count", web::get().to(whatsapp::inbox_unread_count))
-                        .route("/{id}/messages", web::get().to(whatsapp::list_conversation_messages))
-                        .route("/{id}/messages", web::post().to(whatsapp::send_conversation_message))
-                        .route("/{id}/read", web::post().to(whatsapp::mark_conversation_read))
+                        .route(
+                            "/{id}/messages",
+                            web::get().to(whatsapp::list_conversation_messages),
+                        )
+                        .route(
+                            "/{id}/messages",
+                            web::post().to(whatsapp::send_conversation_message),
+                        )
+                        .route(
+                            "/{id}/read",
+                            web::post().to(whatsapp::mark_conversation_read),
+                        )
                         .route(
                             "/{id}/messages/{message_id}/reaction",
                             web::post().to(whatsapp::send_message_reaction),
@@ -149,8 +193,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("", web::get().to(whatsapp::verify_webhook))
                 .route("", web::post().to(whatsapp::receive_webhook)),
         )
-        .route("/api/quote-requests", web::post().to(public::create_quote_request))
-        .route("/api/waitlist", web::post().to(public::create_waitlist_entry))
+        .route(
+            "/api/quote-requests",
+            web::post().to(public::create_quote_request),
+        )
+        .route(
+            "/api/waitlist",
+            web::post().to(public::create_waitlist_entry),
+        )
         .service(
             web::scope("/api/admin")
                 .route("/login", web::post().to(admin::login))

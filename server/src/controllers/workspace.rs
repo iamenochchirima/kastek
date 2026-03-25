@@ -8,10 +8,7 @@ use crate::error::AppError;
 use crate::middleware::extract_user;
 use crate::services::whatsapp;
 
-pub async fn summary(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> Result<HttpResponse, AppError> {
+pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let user_id = user.id;
 
@@ -159,22 +156,12 @@ pub async fn summary(
 
     let template_status_map = template_status_rows
         .into_iter()
-        .map(|row| {
-            (
-                row.get::<String, _>("status"),
-                row.get::<i64, _>("count"),
-            )
-        })
+        .map(|row| (row.get::<String, _>("status"), row.get::<i64, _>("count")))
         .collect::<HashMap<_, _>>();
 
     let send_status_map = send_breakdown_rows
         .into_iter()
-        .map(|row| {
-            (
-                row.get::<String, _>("status"),
-                row.get::<i64, _>("count"),
-            )
-        })
+        .map(|row| (row.get::<String, _>("status"), row.get::<i64, _>("count")))
         .collect::<HashMap<_, _>>();
 
     let sent_by_connection = campaign_send_rows

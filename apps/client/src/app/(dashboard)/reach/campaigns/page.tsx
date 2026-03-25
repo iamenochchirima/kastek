@@ -32,6 +32,8 @@ export default async function ReachCampaignsPage() {
       createdAt: string;
       connectionLabel: string | null;
       templateStatus: string | null;
+      listLabel: string | null;
+      defaultBatchSize: number | null;
     }>;
   }>("/api/whatsapp/campaigns").catch(() => ({ campaigns: [] }));
 

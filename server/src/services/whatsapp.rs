@@ -6,12 +6,12 @@ use sqlx::{PgPool, Row};
 use std::collections::{HashMap, HashSet};
 
 use crate::db::models::{
-    ConversationRow, MessageRow, WhatsappCampaignCreateRequest, WhatsappCampaignRecipientRow,
-    WhatsappCampaignRow, WhatsappConnectionPublic, WhatsappConnectionRow,
-    WhatsappAudienceFilterRequest, WhatsappContactImportInvalidRow, WhatsappContactListQuery,
-    WhatsappContactListRenameRequest, WhatsappContactRow, WhatsappContactUpdateRequest,
-    WhatsappReactionRequest, WhatsappSendMessageRequest, WhatsappStartConversationRequest,
-    WhatsappTemplateListQuery, WhatsappTemplateRow,
+    ConversationRow, MessageRow, WhatsappAudienceFilterRequest, WhatsappCampaignCreateRequest,
+    WhatsappCampaignRecipientDetailRow, WhatsappCampaignRecipientRow, WhatsappCampaignRow,
+    WhatsappConnectionPublic, WhatsappConnectionRow, WhatsappContactImportInvalidRow,
+    WhatsappContactListQuery, WhatsappContactListRenameRequest, WhatsappContactRow,
+    WhatsappContactUpdateRequest, WhatsappReactionRequest, WhatsappSendMessageRequest,
+    WhatsappStartConversationRequest, WhatsappTemplateListQuery, WhatsappTemplateRow,
 };
 use crate::error::AppError;
 use crate::services::realtime;
@@ -146,7 +146,10 @@ fn variables_count(body: Option<&str>) -> i32 {
     .unwrap_or(0)
 }
 
-async fn fetch_graph_json<T: serde::de::DeserializeOwned>(_url: &str, init: reqwest::RequestBuilder) -> Result<T, AppError> {
+async fn fetch_graph_json<T: serde::de::DeserializeOwned>(
+    _url: &str,
+    init: reqwest::RequestBuilder,
+) -> Result<T, AppError> {
     let response = init.send().await?;
     let status = response.status();
     let body = response.text().await?;
@@ -161,7 +164,10 @@ async fn fetch_graph_json<T: serde::de::DeserializeOwned>(_url: &str, init: reqw
         .map_err(|_| AppError::Internal("Failed to decode Graph API response".to_string()))
 }
 
-async fn fetch_connection_phone(access_token: &str, phone_number_id: &str) -> Result<GraphPhoneNumber, AppError> {
+async fn fetch_connection_phone(
+    access_token: &str,
+    phone_number_id: &str,
+) -> Result<GraphPhoneNumber, AppError> {
     let url = format!(
         "{GRAPH_BASE}/{phone_number_id}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,name_status,messaging_limit_tier&access_token={}",
         urlencoding::encode(access_token)
@@ -173,17 +179,15 @@ async fn subscribe_waba_webhook(access_token: &str, waba_id: &str) -> Result<(),
     let url = format!("{GRAPH_BASE}/{waba_id}/subscribed_apps");
     let _: Value = fetch_graph_json(
         &url,
-        reqwest::Client::new()
-            .post(&url)
-            .json(&json!({
-                "subscribed_fields": [
-                    "messages",
-                    "message_template_status_update",
-                    "message_template_quality_update",
-                    "message_template_components_update"
-                ],
-                "access_token": access_token
-            })),
+        reqwest::Client::new().post(&url).json(&json!({
+            "subscribed_fields": [
+                "messages",
+                "message_template_status_update",
+                "message_template_quality_update",
+                "message_template_components_update"
+            ],
+            "access_token": access_token
+        })),
     )
     .await?;
     Ok(())
@@ -204,22 +208,36 @@ async fn exchange_code_for_access_token(code: &str) -> Result<String, AppError> 
     let first_token = short
         .get("access_token")
         .and_then(|value| value.as_str())
-        .ok_or_else(|| AppError::Internal("Meta OAuth exchange did not return an access token".to_string()))?;
+        .ok_or_else(|| {
+            AppError::Internal("Meta OAuth exchange did not return an access token".to_string())
+        })?;
     let long_url = format!(
         "{GRAPH_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id={}&client_secret={}&fb_exchange_token={}",
         urlencoding::encode(&client_id),
         urlencoding::encode(&client_secret),
         urlencoding::encode(first_token)
     );
-    let long: Result<Value, AppError> = fetch_graph_json(&long_url, reqwest::Client::new().get(&long_url)).await;
+    let long: Result<Value, AppError> =
+        fetch_graph_json(&long_url, reqwest::Client::new().get(&long_url)).await;
     Ok(long
         .ok()
-        .and_then(|value| value.get("access_token").and_then(|token| token.as_str()).map(ToString::to_string))
+        .and_then(|value| {
+            value
+                .get("access_token")
+                .and_then(|token| token.as_str())
+                .map(ToString::to_string)
+        })
         .unwrap_or_else(|| first_token.to_string()))
 }
 
-async fn resolve_waba_id(access_token: &str, preferred_waba_id: Option<&str>) -> Result<String, AppError> {
-    if let Some(waba_id) = preferred_waba_id.map(str::trim).filter(|value| !value.is_empty()) {
+async fn resolve_waba_id(
+    access_token: &str,
+    preferred_waba_id: Option<&str>,
+) -> Result<String, AppError> {
+    if let Some(waba_id) = preferred_waba_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         return Ok(waba_id.to_string());
     }
     let url = format!(
@@ -227,7 +245,11 @@ async fn resolve_waba_id(access_token: &str, preferred_waba_id: Option<&str>) ->
         urlencoding::encode(access_token)
     );
     let payload: Value = fetch_graph_json(&url, reqwest::Client::new().get(&url)).await?;
-    let businesses = payload.get("data").and_then(|value| value.as_array()).cloned().unwrap_or_default();
+    let businesses = payload
+        .get("data")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
     let resolved = businesses.iter().find_map(|business| {
         business
             .get("owned_whatsapp_business_accounts")
@@ -244,18 +266,26 @@ async fn resolve_waba_id(access_token: &str, preferred_waba_id: Option<&str>) ->
                     .and_then(|value| value.as_str())
             })
     });
-    resolved
-        .map(ToString::to_string)
-        .ok_or_else(|| AppError::BadRequest("No WhatsApp Business Account found for this Meta account".to_string()))
+    resolved.map(ToString::to_string).ok_or_else(|| {
+        AppError::BadRequest("No WhatsApp Business Account found for this Meta account".to_string())
+    })
 }
 
-async fn resolve_phone_number(access_token: &str, waba_id: &str, preferred_phone_number_id: Option<&str>) -> Result<GraphPhoneNumber, AppError> {
+async fn resolve_phone_number(
+    access_token: &str,
+    waba_id: &str,
+    preferred_phone_number_id: Option<&str>,
+) -> Result<GraphPhoneNumber, AppError> {
     let url = format!(
         "{GRAPH_BASE}/{waba_id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,name_status,messaging_limit_tier&access_token={}",
         urlencoding::encode(access_token)
     );
     let payload: Value = fetch_graph_json(&url, reqwest::Client::new().get(&url)).await?;
-    let phones = payload.get("data").and_then(|value| value.as_array()).cloned().unwrap_or_default();
+    let phones = payload
+        .get("data")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
     if phones.is_empty() {
         return Err(AppError::BadRequest(
             "No phone numbers found under the selected WhatsApp Business Account".to_string(),
@@ -286,7 +316,10 @@ fn select_connection_sql() -> &'static str {
     "#
 }
 
-pub async fn list_connections(pool: &PgPool, user_id: &str) -> Result<Vec<WhatsappConnectionPublic>, AppError> {
+pub async fn list_connections(
+    pool: &PgPool,
+    user_id: &str,
+) -> Result<Vec<WhatsappConnectionPublic>, AppError> {
     let sql = format!(
         "{} WHERE \"userId\" = $1 ORDER BY \"createdAt\" DESC",
         select_connection_sql()
@@ -298,7 +331,11 @@ pub async fn list_connections(pool: &PgPool, user_id: &str) -> Result<Vec<Whatsa
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-async fn get_connection_row(pool: &PgPool, user_id: &str, connection_id: &str) -> Result<Option<WhatsappConnectionRow>, AppError> {
+async fn get_connection_row(
+    pool: &PgPool,
+    user_id: &str,
+    connection_id: &str,
+) -> Result<Option<WhatsappConnectionRow>, AppError> {
     let sql = format!(
         "{} WHERE id = $1 AND \"userId\" = $2 LIMIT 1",
         select_connection_sql()
@@ -319,7 +356,10 @@ pub async fn connect_manual_connection(
     access_token: &str,
     phone_display_number: Option<&str>,
 ) -> Result<Value, AppError> {
-    if waba_id.trim().is_empty() || phone_number_id.trim().is_empty() || access_token.trim().is_empty() {
+    if waba_id.trim().is_empty()
+        || phone_number_id.trim().is_empty()
+        || access_token.trim().is_empty()
+    {
         return Err(AppError::BadRequest(
             "WABA ID, phone number ID, and access token are required".to_string(),
         ));
@@ -332,7 +372,10 @@ pub async fn connect_manual_connection(
     .bind(phone_number_id)
     .fetch_optional(pool)
     .await?;
-    if existing_other.as_deref().is_some_and(|owner| owner != user_id) {
+    if existing_other
+        .as_deref()
+        .is_some_and(|owner| owner != user_id)
+    {
         return Err(AppError::Conflict(
             "This WhatsApp number is already connected to another account".to_string(),
         ));
@@ -376,19 +419,19 @@ pub async fn connect_manual_connection(
     .execute(pool)
     .await?;
 
-    let connection = sqlx::query_as::<_, WhatsappConnectionRow>(
-        &format!(
-            "{} WHERE \"userId\" = $1 AND \"phoneNumberId\" = $2 LIMIT 1",
-            select_connection_sql()
-        ),
-    )
+    let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!(
+        "{} WHERE \"userId\" = $1 AND \"phoneNumberId\" = $2 LIMIT 1",
+        select_connection_sql()
+    ))
     .bind(user_id)
     .bind(phone_number_id)
     .fetch_one(pool)
     .await?;
 
     let webhook_result = subscribe_waba_webhook(access_token, waba_id).await.err();
-    let template_sync = sync_connection_templates(pool, user_id, &connection.id).await.ok();
+    let template_sync = sync_connection_templates(pool, user_id, &connection.id)
+        .await
+        .ok();
 
     Ok(json!({
         "connection": WhatsappConnectionPublic::from(connection),
@@ -445,7 +488,11 @@ pub async fn complete_embedded_signup(
     Ok(merged)
 }
 
-pub async fn sync_connection_templates(pool: &PgPool, user_id: &str, connection_id: &str) -> Result<Value, AppError> {
+pub async fn sync_connection_templates(
+    pool: &PgPool,
+    user_id: &str,
+    connection_id: &str,
+) -> Result<Value, AppError> {
     let connection = get_connection_row(pool, user_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
@@ -474,22 +521,38 @@ pub async fn sync_connection_templates(pool: &PgPool, user_id: &str, connection_
         let header = template
             .components
             .as_ref()
-            .and_then(|parts| parts.iter().find(|part| part.component_type.as_deref() == Some("HEADER")))
+            .and_then(|parts| {
+                parts
+                    .iter()
+                    .find(|part| part.component_type.as_deref() == Some("HEADER"))
+            })
             .and_then(|part| part.text.clone());
         let body = template
             .components
             .as_ref()
-            .and_then(|parts| parts.iter().find(|part| part.component_type.as_deref() == Some("BODY")))
+            .and_then(|parts| {
+                parts
+                    .iter()
+                    .find(|part| part.component_type.as_deref() == Some("BODY"))
+            })
             .and_then(|part| part.text.clone());
         let footer = template
             .components
             .as_ref()
-            .and_then(|parts| parts.iter().find(|part| part.component_type.as_deref() == Some("FOOTER")))
+            .and_then(|parts| {
+                parts
+                    .iter()
+                    .find(|part| part.component_type.as_deref() == Some("FOOTER"))
+            })
             .and_then(|part| part.text.clone());
         let buttons = template
             .components
             .as_ref()
-            .and_then(|parts| parts.iter().find(|part| part.component_type.as_deref() == Some("BUTTONS")))
+            .and_then(|parts| {
+                parts
+                    .iter()
+                    .find(|part| part.component_type.as_deref() == Some("BUTTONS"))
+            })
             .and_then(|part| part.buttons.clone());
 
         sqlx::query(
@@ -541,7 +604,11 @@ pub async fn sync_connection_templates(pool: &PgPool, user_id: &str, connection_
     }))
 }
 
-pub async fn refresh_connection(pool: &PgPool, user_id: &str, connection_id: &str) -> Result<Value, AppError> {
+pub async fn refresh_connection(
+    pool: &PgPool,
+    user_id: &str,
+    connection_id: &str,
+) -> Result<Value, AppError> {
     let connection = get_connection_row(pool, user_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
@@ -565,7 +632,10 @@ pub async fn refresh_connection(pool: &PgPool, user_id: &str, connection_id: &st
         phone.code_verification_status.as_deref() == Some("VERIFIED")
             || phone.name_status.as_deref() == Some("APPROVED"),
     )
-    .bind(estimate_daily_limit_from_tier(phone.messaging_limit_tier.as_deref()).unwrap_or(default_daily_limit()))
+    .bind(
+        estimate_daily_limit_from_tier(phone.messaging_limit_tier.as_deref())
+            .unwrap_or(default_daily_limit()),
+    )
     .bind(connection_id)
     .execute(pool)
     .await?;
@@ -607,13 +677,19 @@ pub async fn update_connection_access_token(
         "#,
     )
     .bind(encrypted)
-    .bind(connection_label(&phone, connection.phone_display_number.as_deref()))
+    .bind(connection_label(
+        &phone,
+        connection.phone_display_number.as_deref(),
+    ))
     .bind(map_quality_rating(phone.quality_rating.as_deref()))
     .bind(
         phone.code_verification_status.as_deref() == Some("VERIFIED")
             || phone.name_status.as_deref() == Some("APPROVED"),
     )
-    .bind(estimate_daily_limit_from_tier(phone.messaging_limit_tier.as_deref()).unwrap_or(default_daily_limit()))
+    .bind(
+        estimate_daily_limit_from_tier(phone.messaging_limit_tier.as_deref())
+            .unwrap_or(default_daily_limit()),
+    )
     .bind(connection_id)
     .execute(pool)
     .await?;
@@ -621,7 +697,9 @@ pub async fn update_connection_access_token(
     let updated = get_connection_row(pool, user_id, connection_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload connection".to_string()))?;
-    let webhook_error = subscribe_waba_webhook(access_token, &updated.waba_id).await.err();
+    let webhook_error = subscribe_waba_webhook(access_token, &updated.waba_id)
+        .await
+        .err();
 
     Ok(json!({
         "connection": WhatsappConnectionPublic::from(updated),
@@ -630,7 +708,11 @@ pub async fn update_connection_access_token(
     }))
 }
 
-pub async fn connection_health(pool: &PgPool, user_id: &str, connection_id: &str) -> Result<Value, AppError> {
+pub async fn connection_health(
+    pool: &PgPool,
+    user_id: &str,
+    connection_id: &str,
+) -> Result<Value, AppError> {
     let connection = get_connection_row(pool, user_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
@@ -665,16 +747,18 @@ pub async fn connection_health(pool: &PgPool, user_id: &str, connection_id: &str
             connection.waba_id,
             urlencoding::encode(&token)
         );
-        match fetch_graph_json::<GraphSubscribedApps>(&url, reqwest::Client::new().get(&url)).await {
+        match fetch_graph_json::<GraphSubscribedApps>(&url, reqwest::Client::new().get(&url)).await
+        {
             Ok(apps) => {
                 let app_id = std::env::var("AUTH_META_APP_ID")
                     .ok()
                     .or_else(|| std::env::var("NEXT_PUBLIC_META_APP_ID").ok());
-                webhook_subscribed = apps
-                    .data
-                    .unwrap_or_default()
-                    .iter()
-                    .any(|app| app_id.as_ref().map(|id| app.id.as_deref() == Some(id.as_str())).unwrap_or(true));
+                webhook_subscribed = apps.data.unwrap_or_default().iter().any(|app| {
+                    app_id
+                        .as_ref()
+                        .map(|id| app.id.as_deref() == Some(id.as_str()))
+                        .unwrap_or(true)
+                });
                 steps.push(json!({
                     "step": "webhook_subscription",
                     "ok": webhook_subscribed,
@@ -728,20 +812,31 @@ pub async fn create_template(
         .await?
         .ok_or_else(|| AppError::NotFound("WhatsApp connection not found".to_string()))?;
     if template_name.trim().is_empty() || language.trim().is_empty() || body.trim().is_empty() {
-        return Err(AppError::BadRequest("Template name, language, and body are required".to_string()));
+        return Err(AppError::BadRequest(
+            "Template name, language, and body are required".to_string(),
+        ));
     }
     let normalized_name = template_name
         .trim()
         .to_lowercase()
         .chars()
-        .map(|ch| if ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' { ch } else { '_' })
+        .map(|ch| {
+            if ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' {
+                ch
+            } else {
+                '_'
+            }
+        })
         .collect::<String>();
     let category = map_template_category(Some(category))
         .ok_or_else(|| AppError::BadRequest("Invalid template category".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
 
     let components = json!([
-        if header.map(|value| !value.trim().is_empty()).unwrap_or(false) {
+        if header
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false)
+        {
             json!({
                 "type": "HEADER",
                 "format": "TEXT",
@@ -754,7 +849,10 @@ pub async fn create_template(
             "type": "BODY",
             "text": body.trim()
         }),
-        if footer.map(|value| !value.trim().is_empty()).unwrap_or(false) {
+        if footer
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false)
+        {
             json!({
                 "type": "FOOTER",
                 "text": footer.unwrap().trim()
@@ -817,11 +915,21 @@ pub async fn create_template(
     .bind(&normalized_name)
     .bind(language.trim())
     .bind(&category)
-    .bind(header.map(|value| value.trim()).filter(|value| !value.is_empty()))
+    .bind(
+        header
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty()),
+    )
     .bind(body.trim())
-    .bind(footer.map(|value| value.trim()).filter(|value| !value.is_empty()))
+    .bind(
+        footer
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty()),
+    )
     .bind(variables_count(Some(body.trim())))
-    .bind(map_template_status(response.get("status").and_then(|value| value.as_str())))
+    .bind(map_template_status(
+        response.get("status").and_then(|value| value.as_str()),
+    ))
     .execute(pool)
     .await?;
 
@@ -918,6 +1026,9 @@ pub async fn list_contacts(
     user_id: &str,
     query: WhatsappContactListQuery,
 ) -> Result<Value, AppError> {
+    let requested_limit = query.limit.unwrap_or(500);
+    let normalized_limit = requested_limit.clamp(1, 10_000);
+
     let contacts = sqlx::query_as::<_, WhatsappContactRow>(
         r#"
         SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
@@ -965,7 +1076,7 @@ pub async fn list_contacts(
             OR COALESCE("listLabel", 'default') = $7
           )
         ORDER BY "createdAt" DESC
-        LIMIT 500
+        LIMIT $8
         "#,
     )
     .bind(user_id)
@@ -975,6 +1086,7 @@ pub async fn list_contacts(
     .bind(query.tag.as_deref().map(str::trim).filter(|value| !value.is_empty()))
     .bind(query.location.as_deref().map(str::trim).filter(|value| !value.is_empty()))
     .bind(query.list_label.as_deref().map(str::trim).filter(|value| !value.is_empty()))
+    .bind(normalized_limit)
     .fetch_all(pool)
     .await?;
 
@@ -1065,7 +1177,9 @@ pub async fn update_contact(
         Some(phone) => {
             let normalized = normalize_phone(phone);
             if normalized.is_empty() {
-                return Err(AppError::BadRequest("Invalid phone number format".to_string()));
+                return Err(AppError::BadRequest(
+                    "Invalid phone number format".to_string(),
+                ));
             }
             Some(normalized)
         }
@@ -1087,7 +1201,9 @@ pub async fn update_contact(
         .fetch_optional(pool)
         .await?;
         if duplicate.is_some() {
-            return Err(AppError::Conflict("A contact with this phone already exists".to_string()));
+            return Err(AppError::Conflict(
+                "A contact with this phone already exists".to_string(),
+            ));
         }
     }
 
@@ -1126,11 +1242,29 @@ pub async fn update_contact(
         WHERE id = $12 AND "userId" = $13
         "#,
     )
-    .bind(input.full_name.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()))
+    .bind(
+        input
+            .full_name
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty()),
+    )
     .bind(normalized_phone)
-    .bind(input.location.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()))
+    .bind(
+        input
+            .location
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty()),
+    )
     .bind(tags.as_ref())
-    .bind(input.notes.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()))
+    .bind(
+        input
+            .notes
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty()),
+    )
     .bind(list_label)
     .bind(input.metadata.as_ref())
     .bind(opt_in)
@@ -1149,24 +1283,31 @@ pub async fn update_contact(
     Ok(json!({ "contact": contact }))
 }
 
-pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipart) -> Result<Value, AppError> {
+pub async fn import_contacts(
+    pool: &PgPool,
+    user_id: &str,
+    mut payload: Multipart,
+) -> Result<Value, AppError> {
     let mut csv_bytes = Vec::new();
     let mut default_opt_in = false;
     let mut requested_list_label: Option<String> = None;
 
     while let Some(field) = payload.next().await {
-        let mut field = field.map_err(|_| AppError::BadRequest("Failed to read multipart payload".to_string()))?;
+        let mut field = field
+            .map_err(|_| AppError::BadRequest("Failed to read multipart payload".to_string()))?;
         let Some(name) = field.name() else { continue };
         let name = name.to_string();
         let mut bytes = Vec::new();
         while let Some(chunk) = field.next().await {
-            let chunk = chunk.map_err(|_| AppError::BadRequest("Failed to read multipart field".to_string()))?;
+            let chunk = chunk
+                .map_err(|_| AppError::BadRequest("Failed to read multipart field".to_string()))?;
             bytes.extend_from_slice(&chunk);
         }
         if name == "file" {
             csv_bytes = bytes;
         } else if name == "defaultOptIn" {
-            default_opt_in = parse_bool_like(std::str::from_utf8(&bytes).unwrap_or("")).unwrap_or(false);
+            default_opt_in =
+                parse_bool_like(std::str::from_utf8(&bytes).unwrap_or("")).unwrap_or(false);
         } else if name == "listLabel" {
             let raw = std::str::from_utf8(&bytes).unwrap_or("").trim().to_string();
             if !raw.is_empty() {
@@ -1198,7 +1339,20 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
 
     let mut invalid_rows = Vec::new();
     let mut total_rows = 0usize;
-    let mut deduped: HashMap<String, (Option<String>, Option<String>, Vec<String>, Option<String>, bool, Option<String>, Option<chrono::DateTime<Utc>>, String, Option<Value>)> = HashMap::new();
+    let mut deduped: HashMap<
+        String,
+        (
+            Option<String>,
+            Option<String>,
+            Vec<String>,
+            Option<String>,
+            bool,
+            Option<String>,
+            Option<chrono::DateTime<Utc>>,
+            String,
+            Option<Value>,
+        ),
+    > = HashMap::new();
     let now = Utc::now();
 
     for (index, record) in reader.records().enumerate() {
@@ -1221,7 +1375,15 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
             .collect::<HashMap<_, _>>();
         let Some(phone_raw) = pick_first(
             &row,
-            &["phone", "Phone", "mobile", "Mobile", "whatsapp", "whatsappNumber", "number"],
+            &[
+                "phone",
+                "Phone",
+                "mobile",
+                "Mobile",
+                "whatsapp",
+                "whatsappNumber",
+                "number",
+            ],
         ) else {
             invalid_rows.push(WhatsappContactImportInvalidRow {
                 index,
@@ -1240,18 +1402,22 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
             continue;
         }
 
-        let explicit_opt_in = pick_first(&row, &["optIn", "opt_in", "optedIn", "subscribed", "consent"])
-            .and_then(parse_bool_like);
+        let explicit_opt_in = pick_first(
+            &row,
+            &["optIn", "opt_in", "optedIn", "subscribed", "consent"],
+        )
+        .and_then(parse_bool_like);
         let list_label = sanitize_list_label(
-            pick_first(&row, &["listLabel", "list"])
-                .or(requested_list_label.as_deref()),
+            pick_first(&row, &["listLabel", "list"]).or(requested_list_label.as_deref()),
         );
         let metadata = extract_contact_metadata(&row);
         deduped.insert(
             phone,
             (
-                pick_first(&row, &["fullName", "name", "Name", "contactName"]).map(ToString::to_string),
-                pick_first(&row, &["location", "city", "province", "region"]).map(ToString::to_string),
+                pick_first(&row, &["fullName", "name", "Name", "contactName"])
+                    .map(ToString::to_string),
+                pick_first(&row, &["location", "city", "province", "region"])
+                    .map(ToString::to_string),
                 parse_csv_tags(pick_first(&row, &["tags", "segment", "groups"])),
                 pick_first(&row, &["notes", "note"]).map(ToString::to_string),
                 explicit_opt_in.unwrap_or(default_opt_in),
@@ -1301,7 +1467,21 @@ pub async fn import_contacts(pool: &PgPool, user_id: &str, mut payload: Multipar
     let mut created = 0usize;
     let mut updated = 0usize;
 
-    for (phone, (full_name, location, tags, notes, opt_in, opt_in_source, opt_in_date, list_label, metadata)) in deduped {
+    for (
+        phone,
+        (
+            full_name,
+            location,
+            tags,
+            notes,
+            opt_in,
+            opt_in_source,
+            opt_in_date,
+            list_label,
+            metadata,
+        ),
+    ) in deduped
+    {
         if let Some(existing) = existing_by_phone.get(&phone) {
             sqlx::query(
                 r#"
@@ -1421,7 +1601,11 @@ pub async fn rename_contact_list(
     }))
 }
 
-pub async fn delete_contact_list(pool: &PgPool, user_id: &str, label: &str) -> Result<Value, AppError> {
+pub async fn delete_contact_list(
+    pool: &PgPool,
+    user_id: &str,
+    label: &str,
+) -> Result<Value, AppError> {
     let list_label = sanitize_list_label(Some(label));
     let active_campaign_count = sqlx::query_scalar::<_, i64>(
         r#"
@@ -1560,7 +1744,10 @@ fn extract_contact_metadata(row: &HashMap<String, String>) -> Option<Value> {
 
     let mut metadata = serde_json::Map::new();
     for (key, value) in row {
-        if RESERVED.iter().any(|reserved| reserved.eq_ignore_ascii_case(key)) {
+        if RESERVED
+            .iter()
+            .any(|reserved| reserved.eq_ignore_ascii_case(key))
+        {
             continue;
         }
         let trimmed = value.trim();
@@ -1621,7 +1808,10 @@ fn contact_matches_audience(
         .filter(|value| !value.is_empty())
         .map(str::to_lowercase);
     if let Some(search) = search {
-        let tag_match = contact.tags.iter().any(|tag| tag.to_lowercase().contains(&search));
+        let tag_match = contact
+            .tags
+            .iter()
+            .any(|tag| tag.to_lowercase().contains(&search));
         let name_match = contact
             .full_name
             .as_deref()
@@ -1675,10 +1865,11 @@ fn contact_matches_audience(
             .map(str::to_lowercase)
             .collect::<Vec<_>>();
         if !requested.is_empty()
-            && !contact
-                .tags
-                .iter()
-                .any(|tag| requested.iter().any(|requested_tag| tag.eq_ignore_ascii_case(requested_tag)))
+            && !contact.tags.iter().any(|tag| {
+                requested
+                    .iter()
+                    .any(|requested_tag| tag.eq_ignore_ascii_case(requested_tag))
+            })
         {
             return false;
         }
@@ -1720,21 +1911,29 @@ fn contact_matches_audience(
     true
 }
 
-async fn get_campaign_row(pool: &PgPool, user_id: &str, campaign_id: &str) -> Result<Option<WhatsappCampaignRow>, AppError> {
+async fn get_campaign_row(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+) -> Result<Option<WhatsappCampaignRow>, AppError> {
     sqlx::query_as::<_, WhatsappCampaignRow>(
         r#"
-        SELECT id, "userId" AS user_id, "connectionId" AS connection_id, "templateId" AS template_id,
-               name, description, "templateName" AS template_name, "templateLanguage" AS template_language,
-               "variableMappings" AS variable_mappings, "listLabel" AS list_label,
-               "defaultBatchSize" AS default_batch_size, status::text AS status,
-               "scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
-               "launchedAt" AT TIME ZONE 'UTC' AS launched_at,
-               "completedAt" AT TIME ZONE 'UTC' AS completed_at, "totalRecipients" AS total_recipients,
-               "sentCount" AS sent_count, "deliveredCount" AS delivered_count, "readCount" AS read_count,
-               "failedCount" AS failed_count, "blockedCount" AS blocked_count, "unsubscribedCount" AS unsubscribed_count,
-               "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-        FROM "WhatsappCampaign"
-        WHERE id = $1 AND "userId" = $2
+        SELECT c.id, c."userId" AS user_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
+               c.name, c.description, c."templateName" AS template_name, c."templateLanguage" AS template_language,
+               c."variableMappings" AS variable_mappings, c."listLabel" AS list_label,
+               c."defaultBatchSize" AS default_batch_size, c.status::text AS status,
+               c."scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
+               c."launchedAt" AT TIME ZONE 'UTC' AS launched_at,
+               c."completedAt" AT TIME ZONE 'UTC' AS completed_at, c."totalRecipients" AS total_recipients,
+               c."sentCount" AS sent_count, c."deliveredCount" AS delivered_count, c."readCount" AS read_count,
+               c."failedCount" AS failed_count, c."blockedCount" AS blocked_count, c."unsubscribedCount" AS unsubscribed_count,
+               c."createdAt" AT TIME ZONE 'UTC' AS created_at, c."updatedAt" AT TIME ZONE 'UTC' AS updated_at,
+               COALESCE(wc."phoneDisplayNumber", wc."phoneNumberId") AS connection_label,
+               wt.status::text AS template_status
+        FROM "WhatsappCampaign" c
+        LEFT JOIN "WhatsappConnection" wc ON wc.id = c."connectionId"
+        LEFT JOIN "WhatsappTemplate" wt ON wt.id = c."templateId"
+        WHERE c.id = $1 AND c."userId" = $2
         LIMIT 1
         "#,
     )
@@ -1826,7 +2025,11 @@ pub async fn create_campaign(
     user_id: &str,
     input: &WhatsappCampaignCreateRequest,
 ) -> Result<Value, AppError> {
-    let name = input.name.as_deref().map(str::trim).filter(|v| !v.is_empty())
+    let name = input
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
         .ok_or_else(|| AppError::BadRequest("Campaign name is required".to_string()))?;
     let connection_id = input.connection_id.as_deref().unwrap_or("");
     let template_id = input.template_id.as_deref().unwrap_or("");
@@ -1908,7 +2111,10 @@ pub async fn create_campaign(
 
     let filtered_contacts = contacts
         .into_iter()
-        .filter(|contact| input.recipient_ids.is_some() || contact_matches_audience(contact, input.audience.as_ref()))
+        .filter(|contact| {
+            input.recipient_ids.is_some()
+                || contact_matches_audience(contact, input.audience.as_ref())
+        })
         .collect::<Vec<_>>();
 
     let mut eligible_ids = Vec::new();
@@ -1918,7 +2124,10 @@ pub async fn create_campaign(
         "cooldown": 0
     });
     for contact in &filtered_contacts {
-        if excluded_contact_ids.iter().any(|value| value == &contact.id) {
+        if excluded_contact_ids
+            .iter()
+            .any(|value| value == &contact.id)
+        {
             skipped["excluded"] = json!(skipped["excluded"].as_i64().unwrap_or(0) + 1);
             continue;
         }
@@ -1932,6 +2141,15 @@ pub async fn create_campaign(
         } else if reason == "cooldown" {
             skipped["cooldown"] = json!(skipped["cooldown"].as_i64().unwrap_or(0) + 1);
         }
+    }
+
+    if eligible_ids.is_empty() {
+        let not_opted_in = skipped["notOptedIn"].as_i64().unwrap_or(0);
+        let excluded = skipped["excluded"].as_i64().unwrap_or(0);
+        let cooldown = skipped["cooldown"].as_i64().unwrap_or(0);
+        return Err(AppError::BadRequest(format!(
+            "No eligible recipients found for this campaign. Skipped: {not_opted_in} not opted in, {excluded} excluded/manual, {cooldown} in cooldown."
+        )));
     }
 
     let campaign_id = cuid2::create_id();
@@ -2008,21 +2226,28 @@ pub async fn create_campaign(
     }))
 }
 
-pub async fn get_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) -> Result<Value, AppError> {
+pub async fn get_campaign(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+) -> Result<Value, AppError> {
     let campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
-    let recipients = sqlx::query_as::<_, WhatsappCampaignRecipientRow>(
+    let recipients = sqlx::query_as::<_, WhatsappCampaignRecipientDetailRow>(
         r#"
-        SELECT id, "campaignId" AS campaign_id, "contactId" AS contact_id, status::text AS status,
-               "waMessageId" AS wa_message_id, "sentAt" AT TIME ZONE 'UTC' AS sent_at,
-               "deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
-               "readAt" AT TIME ZONE 'UTC' AS read_at, "failedAt" AT TIME ZONE 'UTC' AS failed_at,
-               "errorCode" AS error_code, "errorMessage" AS error_message,
-               "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-        FROM "WhatsappCampaignRecipient"
-        WHERE "campaignId" = $1
-        ORDER BY "createdAt" ASC
+        SELECT r.id, r."campaignId" AS campaign_id, r."contactId" AS contact_id, r.status::text AS status,
+               r."waMessageId" AS wa_message_id, r."sentAt" AT TIME ZONE 'UTC' AS sent_at,
+               r."deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
+               r."readAt" AT TIME ZONE 'UTC' AS read_at, r."failedAt" AT TIME ZONE 'UTC' AS failed_at,
+               r."errorCode" AS error_code, r."errorMessage" AS error_message,
+               r."createdAt" AT TIME ZONE 'UTC' AS created_at, r."updatedAt" AT TIME ZONE 'UTC' AS updated_at,
+               c.phone AS contact_phone, c."fullName" AS contact_full_name, c.location AS contact_location,
+               COALESCE(c."listLabel", 'default') AS contact_list_label, c.metadata AS contact_metadata
+        FROM "WhatsappCampaignRecipient" r
+        JOIN "WhatsappContact" c ON c.id = r."contactId"
+        WHERE r."campaignId" = $1
+        ORDER BY r."createdAt" ASC
         "#,
     )
     .bind(campaign_id)
@@ -2046,6 +2271,10 @@ pub async fn launch_campaign(
     let campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
+    let connection_limit = get_connection_row(pool, user_id, &campaign.connection_id)
+        .await?
+        .and_then(|c| c.daily_limit_estimate)
+        .unwrap_or(i32::MAX);
     let max_batch = batch_size
         .filter(|value| *value > 0)
         .or(campaign.default_batch_size)
@@ -2064,21 +2293,21 @@ pub async fn launch_campaign(
     .fetch_all(pool)
     .await?;
     if recipient_ids.is_empty() {
-        return Err(AppError::BadRequest("Campaign has no recipients to launch".to_string()));
+        return Err(AppError::BadRequest(
+            "Campaign has no recipients to launch".to_string(),
+        ));
     }
-    if campaign.total_recipients > get_connection_row(pool, user_id, &campaign.connection_id)
-        .await?
-        .and_then(|c| c.daily_limit_estimate)
-        .unwrap_or(i32::MAX)
-    {
+    if (recipient_ids.len() as i32) > connection_limit {
         return Err(AppError::Conflict(format!(
-            "Campaign size ({}) exceeds estimated daily portfolio limit ({})",
-            campaign.total_recipients,
-            get_connection_row(pool, user_id, &campaign.connection_id).await?.and_then(|c| c.daily_limit_estimate).unwrap_or(i32::MAX)
+            "Launch batch size ({}) exceeds estimated daily portfolio limit ({})",
+            recipient_ids.len(),
+            connection_limit
         )));
     }
     let requested_scheduled_at = parse_scheduled_at(scheduled_at)?.or(campaign.scheduled_at);
-    let should_schedule = requested_scheduled_at.map(|dt| dt > Utc::now()).unwrap_or(false);
+    let should_schedule = requested_scheduled_at
+        .map(|dt| dt > Utc::now())
+        .unwrap_or(false);
 
     sqlx::query(
         r#"
@@ -2102,12 +2331,17 @@ pub async fn launch_campaign(
         WHERE id = $4
         "#,
     )
-    .bind(if should_schedule { "SCHEDULED" } else { "SENDING" })
+    .bind(if should_schedule {
+        "SCHEDULED"
+    } else {
+        "SENDING"
+    })
     .bind(requested_scheduled_at)
     .bind(should_schedule)
     .bind(campaign_id)
     .execute(pool)
     .await?;
+    publish_campaign_updated(pool, user_id, campaign_id).await?;
 
     Ok(json!({
         "campaignId": campaign_id,
@@ -2118,12 +2352,18 @@ pub async fn launch_campaign(
     }))
 }
 
-pub async fn pause_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) -> Result<Value, AppError> {
+pub async fn pause_campaign(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+) -> Result<Value, AppError> {
     let campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
     if campaign.status != "SENDING" && campaign.status != "SCHEDULED" {
-        return Err(AppError::BadRequest("Only active or scheduled campaigns can be paused".to_string()));
+        return Err(AppError::BadRequest(
+            "Only active or scheduled campaigns can be paused".to_string(),
+        ));
     }
     let result = sqlx::query(
         r#"
@@ -2140,15 +2380,25 @@ pub async fn pause_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) -> 
         .execute(pool)
         .await?;
     recompute_campaign_stats(pool, campaign_id).await?;
-    Ok(json!({ "campaignId": campaign_id, "pausedRecipients": result.rows_affected(), "status": "PAUSED" }))
+    publish_campaign_updated(pool, user_id, campaign_id).await?;
+    Ok(
+        json!({ "campaignId": campaign_id, "pausedRecipients": result.rows_affected(), "status": "PAUSED" }),
+    )
 }
 
-pub async fn resume_campaign(pool: &PgPool, user_id: &str, campaign_id: &str, scheduled_at: Option<String>) -> Result<Value, AppError> {
+pub async fn resume_campaign(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+    scheduled_at: Option<String>,
+) -> Result<Value, AppError> {
     let campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
     if campaign.status != "PAUSED" {
-        return Err(AppError::BadRequest("Only paused campaigns can be resumed".to_string()));
+        return Err(AppError::BadRequest(
+            "Only paused campaigns can be resumed".to_string(),
+        ));
     }
     let recipient_ids = sqlx::query_scalar::<_, String>(
         r#"SELECT id FROM "WhatsappCampaignRecipient" WHERE "campaignId" = $1 AND status = 'PENDING'::"WhatsappRecipientStatus""#,
@@ -2157,10 +2407,14 @@ pub async fn resume_campaign(pool: &PgPool, user_id: &str, campaign_id: &str, sc
     .fetch_all(pool)
     .await?;
     if recipient_ids.is_empty() {
-        return Err(AppError::BadRequest("Campaign has no paused recipients to resume".to_string()));
+        return Err(AppError::BadRequest(
+            "Campaign has no paused recipients to resume".to_string(),
+        ));
     }
     let requested_scheduled_at = parse_scheduled_at(scheduled_at)?.or(campaign.scheduled_at);
-    let should_schedule = requested_scheduled_at.map(|dt| dt > Utc::now()).unwrap_or(false);
+    let should_schedule = requested_scheduled_at
+        .map(|dt| dt > Utc::now())
+        .unwrap_or(false);
     sqlx::query(r#"UPDATE "WhatsappCampaignRecipient" SET status = 'QUEUED'::"WhatsappRecipientStatus", "errorCode" = NULL, "errorMessage" = NULL, "updatedAt" = NOW() WHERE id = ANY($1)"#)
         .bind(&recipient_ids)
         .execute(pool)
@@ -2171,10 +2425,17 @@ pub async fn resume_campaign(pool: &PgPool, user_id: &str, campaign_id: &str, sc
         .bind(campaign_id)
         .execute(pool)
         .await?;
-    Ok(json!({ "campaignId": campaign_id, "resumedRecipients": recipient_ids.len(), "status": if should_schedule { "SCHEDULED" } else { "SENDING" } }))
+    publish_campaign_updated(pool, user_id, campaign_id).await?;
+    Ok(
+        json!({ "campaignId": campaign_id, "resumedRecipients": recipient_ids.len(), "status": if should_schedule { "SCHEDULED" } else { "SENDING" } }),
+    )
 }
 
-pub async fn cancel_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) -> Result<Value, AppError> {
+pub async fn cancel_campaign(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+) -> Result<Value, AppError> {
     let _campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
@@ -2197,10 +2458,17 @@ pub async fn cancel_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) ->
         .execute(pool)
         .await?;
     recompute_campaign_stats(pool, campaign_id).await?;
-    Ok(json!({ "campaignId": campaign_id, "cancelledRecipients": result.rows_affected(), "status": "FAILED" }))
+    publish_campaign_updated(pool, user_id, campaign_id).await?;
+    Ok(
+        json!({ "campaignId": campaign_id, "cancelledRecipients": result.rows_affected(), "status": "FAILED" }),
+    )
 }
 
-pub async fn retry_failed_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) -> Result<Value, AppError> {
+pub async fn retry_failed_campaign(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+) -> Result<Value, AppError> {
     let _campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
@@ -2211,7 +2479,9 @@ pub async fn retry_failed_campaign(pool: &PgPool, user_id: &str, campaign_id: &s
     .fetch_all(pool)
     .await?;
     if recipient_ids.is_empty() {
-        return Err(AppError::BadRequest("Campaign has no failed recipients to retry".to_string()));
+        return Err(AppError::BadRequest(
+            "Campaign has no failed recipients to retry".to_string(),
+        ));
     }
     sqlx::query(r#"UPDATE "WhatsappCampaignRecipient" SET status = 'QUEUED'::"WhatsappRecipientStatus", "errorCode" = NULL, "errorMessage" = NULL, "failedAt" = NULL, "updatedAt" = NOW() WHERE id = ANY($1)"#)
         .bind(&recipient_ids)
@@ -2221,10 +2491,49 @@ pub async fn retry_failed_campaign(pool: &PgPool, user_id: &str, campaign_id: &s
         .bind(campaign_id)
         .execute(pool)
         .await?;
-    Ok(json!({ "campaignId": campaign_id, "retriedRecipients": recipient_ids.len(), "status": "SENDING" }))
+    publish_campaign_updated(pool, user_id, campaign_id).await?;
+    Ok(
+        json!({ "campaignId": campaign_id, "retriedRecipients": recipient_ids.len(), "status": "SENDING" }),
+    )
 }
 
-pub async fn delete_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) -> Result<Value, AppError> {
+pub async fn repair_campaign_status(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+) -> Result<Value, AppError> {
+    let campaign = get_campaign_row(pool, user_id, campaign_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
+
+    recompute_campaign_stats(pool, campaign_id).await?;
+
+    let refreshed = get_campaign_row(pool, user_id, campaign_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
+    publish_campaign_updated(pool, user_id, campaign_id).await?;
+
+    Ok(json!({
+        "campaignId": campaign_id,
+        "repaired": true,
+        "previousStatus": campaign.status,
+        "status": refreshed.status,
+        "totalRecipients": refreshed.total_recipients,
+        "sentCount": refreshed.sent_count,
+        "deliveredCount": refreshed.delivered_count,
+        "readCount": refreshed.read_count,
+        "failedCount": refreshed.failed_count,
+        "blockedCount": refreshed.blocked_count,
+        "unsubscribedCount": refreshed.unsubscribed_count,
+        "completedAt": refreshed.completed_at,
+    }))
+}
+
+pub async fn delete_campaign(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+) -> Result<Value, AppError> {
     let campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
@@ -2242,90 +2551,129 @@ pub async fn delete_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) ->
     Ok(json!({ "deleted": true, "campaignId": campaign_id }))
 }
 
-pub async fn send_more_campaign(pool: &PgPool, user_id: &str, campaign_id: &str) -> Result<Value, AppError> {
+pub async fn send_more_campaign(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+    batch_size: Option<i32>,
+    excluded_contact_ids: Vec<String>,
+) -> Result<Value, AppError> {
     let campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
-    if campaign.status != "COMPLETED" && campaign.status != "FAILED" && campaign.status != "PAUSED" {
+    if campaign.status != "COMPLETED" && campaign.status != "FAILED" && campaign.status != "PAUSED"
+    {
         return Err(AppError::BadRequest(
             "Can only add recipients to completed, failed, or paused campaigns".to_string(),
         ));
     }
     let list_label = campaign.list_label.as_deref();
+    let batch_size = batch_size
+        .filter(|value| *value > 0)
+        .or(campaign.default_batch_size)
+        .unwrap_or(200) as usize;
 
-    // Find contacts in the same list that are NOT already recipients of this campaign
-    let new_contacts = sqlx::query_as::<_, WhatsappContactRow>(
+    let pending_contact_ids = sqlx::query_scalar::<_, String>(
         r#"
-        SELECT c.id, c."userId" AS user_id, c.phone, c."fullName" AS full_name,
-               COALESCE(c.tags, ARRAY[]::text[]) AS tags, c.location,
-               COALESCE(c."listLabel", 'default') AS list_label, c.metadata,
-               c."optIn" AS opt_in, c."optInSource" AS opt_in_source,
-               c."optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
-               c."lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent,
-               c.excluded, c.notes,
-               c."createdAt" AT TIME ZONE 'UTC' AS created_at,
-               c."updatedAt" AT TIME ZONE 'UTC' AS updated_at
-        FROM "WhatsappContact" c
-        WHERE c."userId" = $1
-          AND ($2::text IS NULL OR COALESCE(c."listLabel", 'default') = $2)
-          AND c.id NOT IN (
-              SELECT r."contactId" FROM "WhatsappCampaignRecipient" r WHERE r."campaignId" = $3
-          )
+        SELECT r."contactId"
+        FROM "WhatsappCampaignRecipient" r
+        INNER JOIN "WhatsappContact" c ON c.id = r."contactId"
+        WHERE r."campaignId" = $1
+          AND c."userId" = $2
+          AND ($3::text IS NULL OR COALESCE(c."listLabel", 'default') = $3)
+          AND r.status = 'PENDING'::"WhatsappRecipientStatus"
+        ORDER BY r."createdAt" ASC
         "#,
     )
+    .bind(campaign_id)
     .bind(user_id)
     .bind(list_label)
-    .bind(campaign_id)
     .fetch_all(pool)
     .await?;
 
-    let mut added = 0i32;
-    for contact in &new_contacts {
-        let (_, eligible) = contact_eligible(contact);
-        if !eligible {
-            continue;
-        }
-        sqlx::query(
-            r#"
-            INSERT INTO "WhatsappCampaignRecipient" (id, "campaignId", "contactId", status, "createdAt", "updatedAt")
-            VALUES ($1, $2, $3, 'PENDING'::"WhatsappRecipientStatus", NOW(), NOW())
-            ON CONFLICT ("campaignId", "contactId") DO NOTHING
-            "#,
-        )
-        .bind(cuid2::create_id())
-        .bind(campaign_id)
-        .bind(&contact.id)
-        .execute(pool)
-        .await?;
-        added += 1;
-    }
-
-    if added == 0 {
+    if pending_contact_ids.is_empty() {
         return Err(AppError::BadRequest(
-            "No new eligible contacts found in this list".to_string(),
+            "This campaign has no pending recipients left for another batch".to_string(),
         ));
     }
 
-    // Update totalRecipients and reset status to DRAFT so it can be relaunched
+    let excluded_set = excluded_contact_ids
+        .into_iter()
+        .collect::<std::collections::HashSet<_>>();
+    let selected_contact_ids = pending_contact_ids
+        .iter()
+        .filter(|contact_id| !excluded_set.contains(contact_id.as_str()))
+        .take(batch_size)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let skipped_manual = pending_contact_ids
+        .iter()
+        .filter(|contact_id| excluded_set.contains(contact_id.as_str()))
+        .count() as i32;
+
+    if excluded_set.len() > 0 {
+        sqlx::query(
+            r#"
+            UPDATE "WhatsappCampaignRecipient"
+            SET status = 'SKIPPED'::"WhatsappRecipientStatus",
+                "errorCode" = 'manual_exclude',
+                "errorMessage" = 'Excluded from send more',
+                "updatedAt" = NOW()
+            WHERE "campaignId" = $1
+              AND "contactId" = ANY($2)
+              AND status = 'PENDING'::"WhatsappRecipientStatus"
+            "#,
+        )
+        .bind(campaign_id)
+        .bind(&excluded_set.into_iter().collect::<Vec<_>>())
+        .execute(pool)
+        .await?;
+    }
+
+    if selected_contact_ids.is_empty() {
+        return Err(AppError::BadRequest(
+            "No pending recipients selected for this batch".to_string(),
+        ));
+    }
+
     sqlx::query(
         r#"
-        UPDATE "WhatsappCampaign"
-        SET "totalRecipients" = "totalRecipients" + $1,
-            status = 'DRAFT'::"WhatsappCampaignStatus",
-            "completedAt" = NULL,
+        UPDATE "WhatsappCampaignRecipient"
+        SET status = 'QUEUED'::"WhatsappRecipientStatus",
+            "errorCode" = NULL,
+            "errorMessage" = NULL,
             "updatedAt" = NOW()
-        WHERE id = $2
+        WHERE "campaignId" = $1
+          AND "contactId" = ANY($2)
+          AND status = 'PENDING'::"WhatsappRecipientStatus"
         "#,
     )
-    .bind(added)
     .bind(campaign_id)
+    .bind(&selected_contact_ids)
     .execute(pool)
     .await?;
 
+    sqlx::query(
+        r#"
+        UPDATE "WhatsappCampaign"
+        SET status = 'SENDING'::"WhatsappCampaignStatus",
+            "launchedAt" = COALESCE("launchedAt", NOW()),
+            "completedAt" = NULL,
+            "updatedAt" = NOW()
+        WHERE id = $1
+        "#,
+    )
+    .bind(campaign_id)
+    .execute(pool)
+    .await?;
+    publish_campaign_updated(pool, user_id, campaign_id).await?;
+
     Ok(json!({
         "campaignId": campaign_id,
-        "addedRecipients": added,
-        "status": "DRAFT"
+        "queuedRecipients": selected_contact_ids.len(),
+        "skippedManual": skipped_manual,
+        "status": "SENDING"
     }))
 }
 
@@ -2345,11 +2693,13 @@ pub async fn recompute_campaign_stats(pool: &PgPool, campaign_id: &str) -> Resul
     for (status, count) in counts {
         map.insert(status, count as i32);
     }
-    let pending = map.get("PENDING").copied().unwrap_or(0) + map.get("QUEUED").copied().unwrap_or(0);
-    let campaign = sqlx::query_scalar::<_, String>(r#"SELECT status::text FROM "WhatsappCampaign" WHERE id = $1"#)
-        .bind(campaign_id)
-        .fetch_optional(pool)
-        .await?;
+    let queued = map.get("QUEUED").copied().unwrap_or(0);
+    let campaign = sqlx::query_scalar::<_, String>(
+        r#"SELECT status::text FROM "WhatsappCampaign" WHERE id = $1"#,
+    )
+    .bind(campaign_id)
+    .fetch_optional(pool)
+    .await?;
     if campaign.is_none() {
         return Ok(());
     }
@@ -2363,12 +2713,12 @@ pub async fn recompute_campaign_stats(pool: &PgPool, campaign_id: &str) -> Resul
             "blockedCount" = $5,
             "unsubscribedCount" = $6,
             status = CASE
-                WHEN $7 = 0 AND status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus", 'PAUSED'::"WhatsappCampaignStatus")
+                WHEN $7 = 0 AND status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus")
                     THEN 'COMPLETED'::"WhatsappCampaignStatus"
                 ELSE status
             END,
             "completedAt" = CASE
-                WHEN $7 = 0 AND status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus", 'PAUSED'::"WhatsappCampaignStatus")
+                WHEN $7 = 0 AND status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus")
                     THEN NOW()
                 ELSE "completedAt"
             END,
@@ -2382,32 +2732,47 @@ pub async fn recompute_campaign_stats(pool: &PgPool, campaign_id: &str) -> Resul
     .bind(map.get("FAILED").copied().unwrap_or(0))
     .bind(map.get("BLOCKED").copied().unwrap_or(0))
     .bind(map.get("UNSUBSCRIBED").copied().unwrap_or(0))
-    .bind(pending)
+    .bind(queued)
     .bind(campaign_id)
     .execute(pool)
     .await?;
     Ok(())
 }
 
-fn build_body_parameters(contact: &WhatsappContactRow, mappings: Option<&Vec<Value>>) -> Vec<String> {
-    let Some(mappings) = mappings else { return Vec::new(); };
-    mappings.iter().map(|mapping| {
-        let source = mapping.get("source").and_then(|v| v.as_str()).unwrap_or("contact");
-        let key = mapping.get("key").and_then(|v| v.as_str()).unwrap_or("");
-        if source == "static" {
-            return key.to_string();
-        }
-        match key {
-            "fullName" | "name" => contact.full_name.clone().unwrap_or_default(),
-            "phone" => contact.phone.clone(),
-            "location" => contact.location.clone().unwrap_or_default(),
-            "tags" => contact.tags.join(", "),
-            other => metadata_string(&contact.metadata, other),
-        }
-    }).collect()
+fn build_body_parameters(
+    contact: &WhatsappContactRow,
+    mappings: Option<&Vec<Value>>,
+) -> Vec<String> {
+    let Some(mappings) = mappings else {
+        return Vec::new();
+    };
+    mappings
+        .iter()
+        .map(|mapping| {
+            let source = mapping
+                .get("source")
+                .and_then(|v| v.as_str())
+                .unwrap_or("contact");
+            let key = mapping.get("key").and_then(|v| v.as_str()).unwrap_or("");
+            if source == "static" {
+                return key.to_string();
+            }
+            match key {
+                "fullName" | "name" => contact.full_name.clone().unwrap_or_default(),
+                "phone" => contact.phone.clone(),
+                "location" => contact.location.clone().unwrap_or_default(),
+                "tags" => contact.tags.join(", "),
+                other => metadata_string(&contact.metadata, other),
+            }
+        })
+        .collect()
 }
 
-fn render_template_preview(body: Option<&str>, body_parameters: &[String], template_name: &str) -> String {
+fn render_template_preview(
+    body: Option<&str>,
+    body_parameters: &[String],
+    template_name: &str,
+) -> String {
     let mut rendered = body
         .map(str::to_string)
         .unwrap_or_else(|| format!("Template sent: {template_name}"));
@@ -2457,11 +2822,20 @@ async fn send_marketing_template(
         return Err(AppError::BadRequest(format!(
             "WhatsApp Cloud API send failed ({}): {}",
             status,
-            raw.get("error").and_then(|v| v.get("message")).and_then(|v| v.as_str()).unwrap_or("Unknown error")
+            raw.get("error")
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown error")
         )));
     }
-    let message_id = raw.get("messages").and_then(|v| v.get(0)).and_then(|v| v.get("id")).and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::Internal("WhatsApp Cloud API did not return a message id".to_string()))?;
+    let message_id = raw
+        .get("messages")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            AppError::Internal("WhatsApp Cloud API did not return a message id".to_string())
+        })?;
     Ok((message_id.to_string(), raw))
 }
 
@@ -2472,7 +2846,10 @@ fn parse_failure_message(error: &AppError) -> (Option<String>, String, bool) {
     (None, message, blocked)
 }
 
-pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Result<i64, AppError> {
+pub async fn process_queued_campaign_recipients(
+    pool: &PgPool,
+    limit: i64,
+) -> Result<i64, AppError> {
     let recipient_ids = sqlx::query_scalar::<_, String>(
         r#"
         SELECT r.id
@@ -2489,6 +2866,7 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
     .fetch_all(pool)
     .await?;
     let mut processed = 0;
+    let mut changed_campaigns = std::collections::HashSet::<(String, String)>::new();
     for recipient_id in recipient_ids {
         let row = sqlx::query_as::<_, (String, String, String, String, String, String, Option<Value>)>(
             r#"
@@ -2549,6 +2927,7 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
             .execute(pool)
             .await?;
             recompute_campaign_stats(pool, &recipient.campaign_id).await?;
+            changed_campaigns.insert((contact.user_id.clone(), recipient.campaign_id.clone()));
             processed += 1;
             continue;
         }
@@ -2568,12 +2947,18 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
         .bind(&recipient.campaign_id)
         .fetch_one(pool)
         .await?;
-        let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!("{} WHERE id = $1", select_connection_sql()))
-            .bind(&campaign.connection_id)
-            .fetch_one(pool)
-            .await?;
+        let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!(
+            "{} WHERE id = $1",
+            select_connection_sql()
+        ))
+        .bind(&campaign.connection_id)
+        .fetch_one(pool)
+        .await?;
         let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
-        let mappings = campaign.variable_mappings.as_ref().and_then(|v| v.as_array());
+        let mappings = campaign
+            .variable_mappings
+            .as_ref()
+            .and_then(|v| v.as_array());
         let body_parameters = build_body_parameters(&contact, mappings);
         match send_marketing_template(
             &connection.phone_number_id,
@@ -2582,60 +2967,10 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
             &campaign.template_name,
             &campaign.template_language,
             &body_parameters,
-        ).await {
+        )
+        .await
+        {
             Ok((message_id, raw)) => {
-                let template_body = if let Some(template_id) = campaign.template_id.as_deref() {
-                    sqlx::query_scalar::<_, Option<String>>(
-                        r#"SELECT body FROM "WhatsappTemplate" WHERE id = $1 LIMIT 1"#,
-                    )
-                    .bind(template_id)
-                    .fetch_optional(pool)
-                    .await?
-                    .flatten()
-                } else {
-                    None
-                };
-                let persisted_content = render_template_preview(
-                    template_body.as_deref(),
-                    &body_parameters,
-                    &campaign.template_name,
-                );
-                let (conversation_id, _, _) = find_or_create_conversation(
-                    pool,
-                    &connection.id,
-                    &contact.phone,
-                    contact.full_name.as_deref(),
-                )
-                .await?;
-                let persisted_message_id = cuid2::create_id();
-                sqlx::query(
-                    r#"
-                    INSERT INTO "Message" (
-                        id, "conversationId", sender, content, "whatsappMessageId", "whatsappStatus", timestamp
-                    )
-                    VALUES ($1, $2, 'bot', $3, $4, 'SENT', NOW())
-                    "#,
-                )
-                .bind(&persisted_message_id)
-                .bind(&conversation_id)
-                .bind(&persisted_content)
-                .bind(&message_id)
-                .execute(pool)
-                .await?;
-                sqlx::query(
-                    r#"
-                    UPDATE "Conversation"
-                    SET "lastMessageAt" = NOW(),
-                        status = 'active',
-                        "customerName" = COALESCE($1, "customerName"),
-                        "updatedAt" = NOW()
-                    WHERE id = $2
-                    "#,
-                )
-                .bind(contact.full_name.as_deref())
-                .bind(&conversation_id)
-                .execute(pool)
-                .await?;
                 sqlx::query(
                     r#"
                     UPDATE "WhatsappCampaignRecipient"
@@ -2679,8 +3014,96 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
                 .bind(raw)
                 .execute(pool)
                 .await?;
-                publish_message_created(pool, &campaign.user_id, &persisted_message_id).await?;
-                publish_conversation_updated(pool, &campaign.user_id, &conversation_id).await?;
+
+                let template_body = if let Some(template_id) = campaign.template_id.as_deref() {
+                    sqlx::query_scalar::<_, Option<String>>(
+                        r#"SELECT body FROM "WhatsappTemplate" WHERE id = $1 LIMIT 1"#,
+                    )
+                    .bind(template_id)
+                    .fetch_optional(pool)
+                    .await?
+                    .flatten()
+                } else {
+                    None
+                };
+                let persisted_content = render_template_preview(
+                    template_body.as_deref(),
+                    &body_parameters,
+                    &campaign.template_name,
+                );
+                match find_or_create_conversation(
+                    pool,
+                    &connection.id,
+                    &contact.phone,
+                    contact.full_name.as_deref(),
+                )
+                .await
+                {
+                    Ok((conversation_id, _, _)) => {
+                        let persisted_message_id = cuid2::create_id();
+                        if let Err(error) = sqlx::query(
+                            r#"
+                            INSERT INTO "Message" (
+                                id, "conversationId", sender, content, "whatsappMessageId", "whatsappStatus", timestamp
+                            )
+                            VALUES ($1, $2, 'bot', $3, $4, 'SENT', NOW())
+                            "#,
+                        )
+                        .bind(&persisted_message_id)
+                        .bind(&conversation_id)
+                        .bind(&persisted_content)
+                        .bind(&message_id)
+                        .execute(pool)
+                        .await {
+                            log::warn!(
+                                "Failed to mirror campaign send {} into inbox message {}: {}",
+                                recipient_id, message_id, error
+                            );
+                        } else {
+                            if let Err(error) = sqlx::query(
+                                r#"
+                                UPDATE "Conversation"
+                                SET "lastMessageAt" = NOW(),
+                                    status = 'active',
+                                    "customerName" = COALESCE($1, "customerName"),
+                                    "updatedAt" = NOW()
+                                WHERE id = $2
+                                "#,
+                            )
+                            .bind(contact.full_name.as_deref())
+                            .bind(&conversation_id)
+                            .execute(pool)
+                            .await {
+                                log::warn!(
+                                    "Failed to update conversation {} after campaign send {}: {}",
+                                    conversation_id, recipient_id, error
+                                );
+                            }
+                            if let Err(error) =
+                                publish_message_created(pool, &campaign.user_id, &persisted_message_id).await
+                            {
+                                log::warn!(
+                                    "Failed to publish campaign message.created for recipient {}: {}",
+                                    recipient_id, error
+                                );
+                            }
+                            if let Err(error) =
+                                publish_conversation_updated(pool, &campaign.user_id, &conversation_id).await
+                            {
+                                log::warn!(
+                                    "Failed to publish campaign conversation.updated for recipient {}: {}",
+                                    recipient_id, error
+                                );
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        log::warn!(
+                            "Failed to mirror campaign send {} into inbox conversation after send accepted: {}",
+                            recipient_id, error
+                        );
+                    }
+                }
             }
             Err(error) => {
                 let (code, message, blocked) = parse_failure_message(&error);
@@ -2702,7 +3125,18 @@ pub async fn process_queued_campaign_recipients(pool: &PgPool, limit: i64) -> Re
             }
         }
         recompute_campaign_stats(pool, &recipient.campaign_id).await?;
+        changed_campaigns.insert((campaign.user_id.clone(), recipient.campaign_id.clone()));
         processed += 1;
+    }
+    for (user_id, campaign_id) in changed_campaigns {
+        if let Err(error) = publish_campaign_updated(pool, &user_id, &campaign_id).await {
+            log::warn!(
+                "failed to publish campaign realtime update campaign_id={} user_id={}: {}",
+                campaign_id,
+                user_id,
+                error
+            );
+        }
     }
     Ok(processed)
 }
@@ -2777,7 +3211,11 @@ fn normalize_phone(raw: &str) -> String {
         return String::new();
     }
     if cleaned.starts_with('+') {
-        return if valid_e164(&cleaned) { cleaned } else { String::new() };
+        return if valid_e164(&cleaned) {
+            cleaned
+        } else {
+            String::new()
+        };
     }
     if let Some(rest) = cleaned.strip_prefix("00") {
         let candidate = format!("+{rest}");
@@ -2787,12 +3225,15 @@ fn normalize_phone(raw: &str) -> String {
             String::new()
         };
     }
-    let digits = cleaned.chars().filter(|ch| ch.is_ascii_digit()).collect::<String>();
+    let digits = cleaned
+        .chars()
+        .filter(|ch| ch.is_ascii_digit())
+        .collect::<String>();
     if digits.is_empty() {
         return String::new();
     }
-    let default_country = std::env::var("WHATSAPP_DEFAULT_COUNTRY_CODE")
-        .unwrap_or_else(|_| "+27".to_string());
+    let default_country =
+        std::env::var("WHATSAPP_DEFAULT_COUNTRY_CODE").unwrap_or_else(|_| "+27".to_string());
     let candidate = if let Some(rest) = digits.strip_prefix('0') {
         format!("{default_country}{rest}")
     } else {
@@ -2853,7 +3294,11 @@ fn parse_csv_tags(raw: Option<&str>) -> Vec<String> {
         .collect()
 }
 
-async fn select_contact_row(pool: &PgPool, user_id: &str, contact_id: &str) -> Result<Option<WhatsappContactRow>, AppError> {
+async fn select_contact_row(
+    pool: &PgPool,
+    user_id: &str,
+    contact_id: &str,
+) -> Result<Option<WhatsappContactRow>, AppError> {
     sqlx::query_as::<_, WhatsappContactRow>(
         r#"
         SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
@@ -2874,23 +3319,36 @@ async fn select_contact_row(pool: &PgPool, user_id: &str, contact_id: &str) -> R
 }
 
 fn get_inbound_text(message: &Value) -> Option<String> {
-    message.get("text").and_then(|v| v.get("body")).and_then(|v| v.as_str()).map(|s| s.to_string())
-        .or_else(|| message.get("button").and_then(|v| v.get("text")).and_then(|v| v.as_str()).map(|s| s.to_string()))
+    message
+        .get("text")
+        .and_then(|v| v.get("body"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .or_else(|| {
+            message
+                .get("button")
+                .and_then(|v| v.get("text"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        })
 }
 
 fn get_media_content(message: &Value) -> Option<String> {
     for kind in ["image", "video", "audio", "document", "sticker"] {
         if let Some(media) = message.get(kind) {
             if let Some(media_id) = media.get("id").and_then(|v| v.as_str()) {
-                return Some(format!("__kasiai_wa_media_v1__:{}", json!({
-                    "version": 1,
-                    "kind": kind,
-                    "mediaId": media_id,
-                    "mimeType": media.get("mime_type").and_then(|v| v.as_str()),
-                    "caption": media.get("caption").and_then(|v| v.as_str()),
-                    "filename": media.get("filename").and_then(|v| v.as_str()),
-                    "sha256": media.get("sha256").and_then(|v| v.as_str())
-                })));
+                return Some(format!(
+                    "__kasiai_wa_media_v1__:{}",
+                    json!({
+                        "version": 1,
+                        "kind": kind,
+                        "mediaId": media_id,
+                        "mimeType": media.get("mime_type").and_then(|v| v.as_str()),
+                        "caption": media.get("caption").and_then(|v| v.as_str()),
+                        "filename": media.get("filename").and_then(|v| v.as_str()),
+                        "sha256": media.get("sha256").and_then(|v| v.as_str())
+                    })
+                ));
             }
         }
     }
@@ -2898,7 +3356,9 @@ fn get_media_content(message: &Value) -> Option<String> {
 }
 
 async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppError> {
-    let Some(message_id) = status_payload.get("id").and_then(|v| v.as_str()) else { return Ok(()); };
+    let Some(message_id) = status_payload.get("id").and_then(|v| v.as_str()) else {
+        return Ok(());
+    };
     let next_status = match status_payload.get("status").and_then(|v| v.as_str()) {
         Some("sent") => "SENT",
         Some("delivered") => "DELIVERED",
@@ -2906,7 +3366,9 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
         Some("failed") => "FAILED",
         _ => return Ok(()),
     };
-    let timestamp = status_payload.get("timestamp").and_then(|v| v.as_str())
+    let timestamp = status_payload
+        .get("timestamp")
+        .and_then(|v| v.as_str())
         .and_then(|v| v.parse::<i64>().ok())
         .and_then(|secs| chrono::DateTime::<Utc>::from_timestamp(secs, 0))
         .unwrap_or_else(Utc::now);
@@ -2928,7 +3390,8 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     )
     .bind(message_id)
     .fetch_optional(pool)
-    .await? {
+    .await?
+    {
         if recipient.status != next_status {
             sqlx::query(
                 r#"
@@ -2947,6 +3410,15 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
             .execute(pool)
             .await?;
             recompute_campaign_stats(pool, &recipient.campaign_id).await?;
+            if let Some(user_id) = sqlx::query_scalar::<_, String>(
+                r#"SELECT "userId" FROM "WhatsappCampaign" WHERE id = $1 LIMIT 1"#,
+            )
+            .bind(&recipient.campaign_id)
+            .fetch_optional(pool)
+            .await?
+            {
+                publish_campaign_updated(pool, &user_id, &recipient.campaign_id).await?;
+            }
         }
         return Ok(());
     }
@@ -2977,7 +3449,9 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     .await?;
     for row in rows {
         if let Some(conversation) = load_conversation_by_id(pool, &row.conversation_id).await? {
-            if let Some((connection_id, _)) = parse_conversation_identifier(&conversation.customer_identifier) {
+            if let Some((connection_id, _)) =
+                parse_conversation_identifier(&conversation.customer_identifier)
+            {
                 let user_id = sqlx::query_scalar::<_, String>(
                     r#"SELECT "userId" FROM "WhatsappConnection" WHERE id = $1 LIMIT 1"#,
                 )
@@ -3002,15 +3476,33 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
 }
 
 async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), AppError> {
-    let phone_number_id = value.get("metadata").and_then(|v| v.get("phone_number_id")).and_then(|v| v.as_str());
-    let Some(phone_number_id) = phone_number_id else { return Ok(()); };
-    let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!("{} WHERE \"phoneNumberId\" = $1 LIMIT 1", select_connection_sql()))
-        .bind(phone_number_id)
-        .fetch_optional(pool)
-        .await?;
-    let Some(connection) = connection else { return Ok(()); };
-    let contacts = value.get("contacts").and_then(|v| v.as_array()).cloned().unwrap_or_default();
-    let messages = value.get("messages").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let phone_number_id = value
+        .get("metadata")
+        .and_then(|v| v.get("phone_number_id"))
+        .and_then(|v| v.as_str());
+    let Some(phone_number_id) = phone_number_id else {
+        return Ok(());
+    };
+    let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!(
+        "{} WHERE \"phoneNumberId\" = $1 LIMIT 1",
+        select_connection_sql()
+    ))
+    .bind(phone_number_id)
+    .fetch_optional(pool)
+    .await?;
+    let Some(connection) = connection else {
+        return Ok(());
+    };
+    let contacts = value
+        .get("contacts")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let messages = value
+        .get("messages")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     for message in messages {
         let from = message.get("from").and_then(|v| v.as_str()).unwrap_or("");
         let normalized_phone = normalize_phone(from);
@@ -3019,12 +3511,15 @@ async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), Ap
         if text.is_none() && media.is_none() {
             continue;
         }
-        let profile_name = contacts.iter().find(|contact| contact.get("wa_id").and_then(|v| v.as_str()) == Some(from))
+        let profile_name = contacts
+            .iter()
+            .find(|contact| contact.get("wa_id").and_then(|v| v.as_str()) == Some(from))
             .and_then(|contact| contact.get("profile"))
             .and_then(|profile| profile.get("name"))
             .and_then(|v| v.as_str());
         let (conversation_id, unread_count, _last) =
-            find_or_create_conversation(pool, &connection.id, &normalized_phone, profile_name).await?;
+            find_or_create_conversation(pool, &connection.id, &normalized_phone, profile_name)
+                .await?;
         let contact_id = {
             let existing = sqlx::query_scalar::<_, String>(
                 r#"SELECT id FROM "WhatsappContact" WHERE "userId" = $1 AND phone = $2 LIMIT 1"#,
@@ -3089,7 +3584,13 @@ async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), Ap
         publish_message_created(pool, &connection.user_id, &message_id).await?;
         publish_conversation_updated(pool, &connection.user_id, &conversation_id).await?;
 
-        let stop = text.as_deref().map(|t| ["stop","unsubscribe","cancel","end","optout","opt-out"].contains(&t.trim().to_lowercase().as_str())).unwrap_or(false);
+        let stop = text
+            .as_deref()
+            .map(|t| {
+                ["stop", "unsubscribe", "cancel", "end", "optout", "opt-out"]
+                    .contains(&t.trim().to_lowercase().as_str())
+            })
+            .unwrap_or(false);
         if stop {
             sqlx::query(r#"UPDATE "WhatsappContact" SET excluded = true, "optIn" = false, notes = $1, "updatedAt" = NOW() WHERE id = $2"#)
                 .bind(format!("Unsubscribed via STOP keyword on {}", Utc::now().to_rfc3339()))
@@ -3117,6 +3618,15 @@ async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), Ap
             .await?;
             for campaign_id in campaign_ids {
                 recompute_campaign_stats(pool, &campaign_id).await?;
+                if let Some(user_id) = sqlx::query_scalar::<_, String>(
+                    r#"SELECT "userId" FROM "WhatsappCampaign" WHERE id = $1 LIMIT 1"#,
+                )
+                .bind(&campaign_id)
+                .fetch_optional(pool)
+                .await?
+                {
+                    publish_campaign_updated(pool, &user_id, &campaign_id).await?;
+                }
             }
         }
     }
@@ -3124,12 +3634,24 @@ async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), Ap
 }
 
 pub async fn process_webhook_payload(pool: &PgPool, payload: Value) -> Result<(), AppError> {
-    let entries = payload.get("entry").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let entries = payload
+        .get("entry")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     for entry in entries {
-        let changes = entry.get("changes").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        let changes = entry
+            .get("changes")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
         for change in changes {
             let value = change.get("value").cloned().unwrap_or(Value::Null);
-            let statuses = value.get("statuses").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+            let statuses = value
+                .get("statuses")
+                .and_then(|v| v.as_array())
+                .cloned()
+                .unwrap_or_default();
             for status in statuses {
                 handle_status(pool, &status).await?;
             }
@@ -3147,7 +3669,11 @@ async fn user_connection_ids(pool: &PgPool, user_id: &str) -> Result<Vec<String>
         .map_err(AppError::from)
 }
 
-async fn scoped_conversation(pool: &PgPool, user_id: &str, conversation_id: &str) -> Result<Option<ConversationRow>, AppError> {
+async fn scoped_conversation(
+    pool: &PgPool,
+    user_id: &str,
+    conversation_id: &str,
+) -> Result<Option<ConversationRow>, AppError> {
     let connection_ids = user_connection_ids(pool, user_id).await?;
     if connection_ids.is_empty() {
         return Ok(None);
@@ -3179,7 +3705,10 @@ async fn scoped_conversation(pool: &PgPool, user_id: &str, conversation_id: &str
     .map_err(AppError::from)
 }
 
-async fn load_conversation_by_id(pool: &PgPool, conversation_id: &str) -> Result<Option<ConversationRow>, AppError> {
+async fn load_conversation_by_id(
+    pool: &PgPool,
+    conversation_id: &str,
+) -> Result<Option<ConversationRow>, AppError> {
     sqlx::query_as::<_, ConversationRow>(
         r#"
         SELECT id, channel, "customerIdentifier" AS customer_identifier, "customerName" AS customer_name,
@@ -3200,7 +3729,10 @@ async fn load_conversation_by_id(pool: &PgPool, conversation_id: &str) -> Result
     .map_err(AppError::from)
 }
 
-async fn load_message_by_id(pool: &PgPool, message_id: &str) -> Result<Option<MessageRow>, AppError> {
+async fn load_message_by_id(
+    pool: &PgPool,
+    message_id: &str,
+) -> Result<Option<MessageRow>, AppError> {
     sqlx::query_as::<_, MessageRow>(
         r#"
         SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
@@ -3223,7 +3755,44 @@ async fn publish_event_best_effort(user_id: &str, event: Value) {
     }
 }
 
-async fn publish_conversation_updated(pool: &PgPool, user_id: &str, conversation_id: &str) -> Result<(), AppError> {
+async fn publish_campaign_updated(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+) -> Result<(), AppError> {
+    let Some(campaign) = get_campaign_row(pool, user_id, campaign_id).await? else {
+        return Ok(());
+    };
+
+    publish_event_best_effort(
+        user_id,
+        json!({
+            "type": "campaign.updated",
+            "campaignId": campaign.id,
+            "campaign": {
+                "id": campaign.id,
+                "status": campaign.status,
+                "totalRecipients": campaign.total_recipients,
+                "sentCount": campaign.sent_count,
+                "deliveredCount": campaign.delivered_count,
+                "readCount": campaign.read_count,
+                "failedCount": campaign.failed_count,
+                "blockedCount": campaign.blocked_count,
+                "unsubscribedCount": campaign.unsubscribed_count,
+                "updatedAt": campaign.updated_at,
+            }
+        }),
+    )
+    .await;
+
+    Ok(())
+}
+
+async fn publish_conversation_updated(
+    pool: &PgPool,
+    user_id: &str,
+    conversation_id: &str,
+) -> Result<(), AppError> {
     let Some(conversation) = load_conversation_by_id(pool, conversation_id).await? else {
         return Ok(());
     };
@@ -3260,7 +3829,11 @@ async fn publish_conversation_updated(pool: &PgPool, user_id: &str, conversation
     Ok(())
 }
 
-async fn publish_message_created(pool: &PgPool, user_id: &str, message_id: &str) -> Result<(), AppError> {
+async fn publish_message_created(
+    pool: &PgPool,
+    user_id: &str,
+    message_id: &str,
+) -> Result<(), AppError> {
     let Some(message) = load_message_by_id(pool, message_id).await? else {
         return Ok(());
     };
@@ -3330,7 +3903,12 @@ async fn publish_message_updated(
     .await;
 }
 
-async fn publish_message_send_failed(user_id: &str, conversation_id: &str, error: &str, text: Option<&str>) {
+async fn publish_message_send_failed(
+    user_id: &str,
+    conversation_id: &str,
+    error: &str,
+    text: Option<&str>,
+) {
     publish_event_best_effort(
         user_id,
         json!({
@@ -3347,13 +3925,25 @@ fn unwrap_reply_envelope(content: &str) -> (String, Option<String>, Option<Strin
     const REPLY_PREFIX: &str = "__kasiai_wa_reply_v1__:";
     if let Some(raw) = content.strip_prefix(REPLY_PREFIX) {
         if let Ok(value) = serde_json::from_str::<Value>(raw) {
-            let inner = value.get("content").and_then(|v| v.as_str()).unwrap_or(content).to_string();
-            let preview = value.get("replyPreview").and_then(|v| v.as_str()).map(|v| v.to_string());
+            let inner = value
+                .get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or(content)
+                .to_string();
+            let preview = value
+                .get("replyPreview")
+                .and_then(|v| v.as_str())
+                .map(|v| v.to_string());
             let reply_to = value
                 .get("replyToWhatsappMessageId")
                 .and_then(|v| v.as_str())
                 .map(|v| v.to_string())
-                .or_else(|| value.get("replyToMessageId").and_then(|v| v.as_str()).map(|v| v.to_string()));
+                .or_else(|| {
+                    value
+                        .get("replyToMessageId")
+                        .and_then(|v| v.as_str())
+                        .map(|v| v.to_string())
+                });
             return (inner, preview, reply_to);
         }
     }
@@ -3363,26 +3953,46 @@ fn unwrap_reply_envelope(content: &str) -> (String, Option<String>, Option<Strin
 fn parse_stored_media(content: &str) -> Option<Value> {
     const MEDIA_PREFIX: &str = "__kasiai_wa_media_v1__:";
     let (inner, _, _) = unwrap_reply_envelope(content);
-    inner.strip_prefix(MEDIA_PREFIX).and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+    inner
+        .strip_prefix(MEDIA_PREFIX)
+        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
 }
 
 fn parse_stored_reaction(content: &str) -> Option<Value> {
     const REACTION_PREFIX: &str = "__kasiai_wa_reaction_v1__:";
     let (inner, _, _) = unwrap_reply_envelope(content);
-    inner.strip_prefix(REACTION_PREFIX).and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+    inner
+        .strip_prefix(REACTION_PREFIX)
+        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
 }
 
 fn display_text(content: &str) -> String {
     let (inner, _, _) = unwrap_reply_envelope(content);
     if let Some(reaction) = parse_stored_reaction(&inner) {
-        let emoji = reaction.get("emoji").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-        return if emoji.is_empty() { "Removed reaction".to_string() } else { format!("Reacted {}", emoji) };
+        let emoji = reaction
+            .get("emoji")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        return if emoji.is_empty() {
+            "Removed reaction".to_string()
+        } else {
+            format!("Reacted {}", emoji)
+        };
     }
     if let Some(media) = parse_stored_media(&inner) {
-        if let Some(caption) = media.get("caption").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()) {
+        if let Some(caption) = media
+            .get("caption")
+            .and_then(|v| v.as_str())
+            .filter(|v| !v.trim().is_empty())
+        {
             return caption.to_string();
         }
-        let kind = media.get("kind").and_then(|v| v.as_str()).unwrap_or("media");
+        let kind = media
+            .get("kind")
+            .and_then(|v| v.as_str())
+            .unwrap_or("media");
         let mut chars = kind.chars();
         return match chars.next() {
             Some(first) => format!("{}{} attachment", first.to_uppercase(), chars.as_str()),
@@ -3404,7 +4014,13 @@ fn preview_text(content: &str, max: usize) -> String {
 fn sanitize_filename(input: &str) -> String {
     input
         .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '.' || ch == '_' || ch == '-' { ch } else { '_' })
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '.' || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -3435,11 +4051,22 @@ async fn send_text_message(
         return Err(AppError::BadRequest(format!(
             "WhatsApp Cloud API text send failed ({}): {}",
             status,
-            raw.get("error").and_then(|v| v.get("message")).and_then(|v| v.as_str()).unwrap_or("Unknown error")
+            raw.get("error")
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown error")
         )));
     }
-    let message_id = raw.get("messages").and_then(|v| v.get(0)).and_then(|v| v.get("id")).and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::Internal("WhatsApp Cloud API text send did not return a message id".to_string()))?;
+    let message_id = raw
+        .get("messages")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            AppError::Internal(
+                "WhatsApp Cloud API text send did not return a message id".to_string(),
+            )
+        })?;
     Ok((message_id.to_string(), raw))
 }
 
@@ -3560,7 +4187,12 @@ async fn process_claimed_inbox_message(
     .execute(&mut **tx)
     .await?;
 
-    Ok((job.user_id, job.conversation_id, job.id, Some(whatsapp_message_id)))
+    Ok((
+        job.user_id,
+        job.conversation_id,
+        job.id,
+        Some(whatsapp_message_id),
+    ))
 }
 
 async fn fail_claimed_inbox_message(
@@ -3614,7 +4246,8 @@ async fn process_single_queued_inbox_message(
                 message_id,
                 conversation_id
             );
-            publish_message_updated(&user_id, &conversation_id, &message_id, "SENT", None, None).await;
+            publish_message_updated(&user_id, &conversation_id, &message_id, "SENT", None, None)
+                .await;
             publish_conversation_updated(pool, &user_id, &conversation_id).await?;
             Ok(true)
         }
@@ -3636,7 +4269,13 @@ async fn process_single_queued_inbox_message(
                 Some(&error.to_string()),
             )
             .await;
-            publish_message_send_failed(&user_id, &conversation_id, &error.to_string(), Some(&text)).await;
+            publish_message_send_failed(
+                &user_id,
+                &conversation_id,
+                &error.to_string(),
+                Some(&text),
+            )
+            .await;
             Ok(true)
         }
     }
@@ -3702,13 +4341,20 @@ async fn send_reaction_message(
         return Err(AppError::BadRequest(format!(
             "WhatsApp reaction send failed ({}): {}",
             status,
-            raw.get("error").and_then(|v| v.get("message")).and_then(|v| v.as_str()).unwrap_or("Unknown error")
+            raw.get("error")
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown error")
         )));
     }
     Ok(raw)
 }
 
-async fn mark_message_read_api(phone_number_id: &str, access_token: &str, message_id: &str) -> Result<(), AppError> {
+async fn mark_message_read_api(
+    phone_number_id: &str,
+    access_token: &str,
+    message_id: &str,
+) -> Result<(), AppError> {
     let url = format!("{GRAPH_BASE}/{phone_number_id}/messages");
     let response = reqwest::Client::new()
         .post(&url)
@@ -3726,13 +4372,19 @@ async fn mark_message_read_api(phone_number_id: &str, access_token: &str, messag
         return Err(AppError::BadRequest(format!(
             "WhatsApp mark-as-read failed ({}): {}",
             status,
-            raw.get("error").and_then(|v| v.get("message")).and_then(|v| v.as_str()).unwrap_or("Unknown error")
+            raw.get("error")
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown error")
         )));
     }
     Ok(())
 }
 
-async fn get_media_metadata(access_token: &str, media_id: &str) -> Result<(String, Option<String>), AppError> {
+async fn get_media_metadata(
+    access_token: &str,
+    media_id: &str,
+) -> Result<(String, Option<String>), AppError> {
     let url = format!("{GRAPH_BASE}/{media_id}");
     let response = reqwest::Client::new()
         .get(&url)
@@ -3745,15 +4397,26 @@ async fn get_media_metadata(access_token: &str, media_id: &str) -> Result<(Strin
         return Err(AppError::BadRequest(format!(
             "WhatsApp media lookup failed ({}): {}",
             status,
-            raw.get("error").and_then(|v| v.get("message")).and_then(|v| v.as_str()).unwrap_or("Unknown error")
+            raw.get("error")
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown error")
         )));
     }
-    let download_url = raw.get("url").and_then(|v| v.as_str()).ok_or_else(|| AppError::Internal("WhatsApp media lookup did not return a download URL".to_string()))?;
-    let mime_type = raw.get("mime_type").and_then(|v| v.as_str()).map(|v| v.to_string());
+    let download_url = raw.get("url").and_then(|v| v.as_str()).ok_or_else(|| {
+        AppError::Internal("WhatsApp media lookup did not return a download URL".to_string())
+    })?;
+    let mime_type = raw
+        .get("mime_type")
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string());
     Ok((download_url.to_string(), mime_type))
 }
 
-async fn download_media_bytes(access_token: &str, media_id: &str) -> Result<(Vec<u8>, String), AppError> {
+async fn download_media_bytes(
+    access_token: &str,
+    media_id: &str,
+) -> Result<(Vec<u8>, String), AppError> {
     let (download_url, mime_type) = get_media_metadata(access_token, media_id).await?;
     let response = reqwest::Client::new()
         .get(download_url)
@@ -3766,7 +4429,11 @@ async fn download_media_bytes(access_token: &str, media_id: &str) -> Result<(Vec
         return Err(AppError::BadRequest(format!(
             "WhatsApp media download failed ({}): {}",
             status,
-            if raw.is_empty() { "Unknown error" } else { &raw }
+            if raw.is_empty() {
+                "Unknown error"
+            } else {
+                &raw
+            }
         )));
     }
     let content_type = response
@@ -3805,15 +4472,16 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
             WHERE "customerIdentifier" LIKE ('wa:' || connection_id || ':%')
           )
         ORDER BY "lastMessageAt" DESC
-        "#
+        "#,
     )
     .bind(&connection_ids)
     .fetch_all(pool)
     .await?;
     let mut result = Vec::with_capacity(conversations.len());
     for conversation in conversations {
-        let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
-            .unwrap_or_else(|| ("".to_string(), conversation.customer_identifier.clone()));
+        let (connection_id, phone) =
+            parse_conversation_identifier(&conversation.customer_identifier)
+                .unwrap_or_else(|| ("".to_string(), conversation.customer_identifier.clone()));
         let connection_label = if connection_id.is_empty() {
             None
         } else {
@@ -3864,7 +4532,7 @@ pub async fn inbox_unread_count(pool: &PgPool, user_id: &str) -> Result<Value, A
             SELECT 1 FROM unnest($1::text[]) AS connection_id
             WHERE "customerIdentifier" LIKE ('wa:' || connection_id || ':%')
           )
-        "#
+        "#,
     )
     .bind(&connection_ids)
     .fetch_one(pool)
@@ -3873,12 +4541,18 @@ pub async fn inbox_unread_count(pool: &PgPool, user_id: &str) -> Result<Value, A
     Ok(json!({ "unreadCount": count }))
 }
 
-pub async fn start_inbox_conversation(pool: &PgPool, user_id: &str, input: &WhatsappStartConversationRequest) -> Result<Value, AppError> {
+pub async fn start_inbox_conversation(
+    pool: &PgPool,
+    user_id: &str,
+    input: &WhatsappStartConversationRequest,
+) -> Result<Value, AppError> {
     let connection_id = input.connection_id.as_deref().unwrap_or("");
     let template_id = input.template_id.as_deref().unwrap_or("");
     let normalized_phone = normalize_phone(input.phone.as_deref().unwrap_or(""));
     if connection_id.is_empty() || template_id.is_empty() || normalized_phone.is_empty() {
-        return Err(AppError::BadRequest("Connection, template, and recipient phone are required".to_string()));
+        return Err(AppError::BadRequest(
+            "Connection, template, and recipient phone are required".to_string(),
+        ));
     }
     let connection = get_connection_row(pool, user_id, connection_id)
         .await?
@@ -3899,15 +4573,25 @@ pub async fn start_inbox_conversation(pool: &PgPool, user_id: &str, input: &What
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Approved template not found".to_string()))?;
-    if template.connection_id.as_deref().is_some_and(|id| id != connection.id) {
-        return Err(AppError::BadRequest("Selected template does not belong to this WhatsApp connection".to_string()));
+    if template
+        .connection_id
+        .as_deref()
+        .is_some_and(|id| id != connection.id)
+    {
+        return Err(AppError::BadRequest(
+            "Selected template does not belong to this WhatsApp connection".to_string(),
+        ));
     }
     let body_parameters = input.body_parameters.clone().unwrap_or_default();
     if body_parameters.len() as i32 != template.variables_count {
         return Err(AppError::BadRequest(format!(
             "This template expects {} variable{}.",
             template.variables_count,
-            if template.variables_count == 1 { "" } else { "s" }
+            if template.variables_count == 1 {
+                ""
+            } else {
+                "s"
+            }
         )));
     }
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
@@ -3920,14 +4604,21 @@ pub async fn start_inbox_conversation(pool: &PgPool, user_id: &str, input: &What
         &body_parameters,
     )
     .await?;
-    let (conversation_id, _, _) = find_or_create_conversation(pool, &connection.id, &normalized_phone, input.customer_name.as_deref()).await?;
+    let (conversation_id, _, _) = find_or_create_conversation(
+        pool,
+        &connection.id,
+        &normalized_phone,
+        input.customer_name.as_deref(),
+    )
+    .await?;
     let contact_id = if let Some(id) = sqlx::query_scalar::<_, String>(
-        r#"SELECT id FROM "WhatsappContact" WHERE "userId" = $1 AND phone = $2 LIMIT 1"#
+        r#"SELECT id FROM "WhatsappContact" WHERE "userId" = $1 AND phone = $2 LIMIT 1"#,
     )
     .bind(user_id)
     .bind(&normalized_phone)
     .fetch_optional(pool)
-    .await? {
+    .await?
+    {
         id
     } else {
         let id = cuid2::create_id();
@@ -3943,7 +4634,10 @@ pub async fn start_inbox_conversation(pool: &PgPool, user_id: &str, input: &What
         .await?;
         id
     };
-    let rendered = template.body.clone().unwrap_or_else(|| "Template message sent.".to_string());
+    let rendered = template
+        .body
+        .clone()
+        .unwrap_or_else(|| "Template message sent.".to_string());
     sqlx::query(
         r#"
         INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappMessageId", timestamp)
@@ -3972,7 +4666,11 @@ pub async fn start_inbox_conversation(pool: &PgPool, user_id: &str, input: &What
     }))
 }
 
-pub async fn list_conversation_messages(pool: &PgPool, user_id: &str, conversation_id: &str) -> Result<Value, AppError> {
+pub async fn list_conversation_messages(
+    pool: &PgPool,
+    user_id: &str,
+    conversation_id: &str,
+) -> Result<Value, AppError> {
     let conversation = scoped_conversation(pool, user_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
@@ -3989,32 +4687,49 @@ pub async fn list_conversation_messages(pool: &PgPool, user_id: &str, conversati
     .bind(&conversation.id)
     .fetch_all(pool)
     .await?;
-    let mapped = messages.into_iter().map(|message| {
-        json!({
-            "id": message.id,
-            "sender": message.sender,
-            "whatsappMessageId": message.whatsapp_message_id,
-            "content": message.content,
-            "text": display_text(&message.content),
-            "time": message.timestamp,
-            "status": message.whatsapp_status,
-            "canReply": message.whatsapp_message_id.is_some(),
-            "canReact": message.whatsapp_message_id.is_some(),
+    let mapped = messages
+        .into_iter()
+        .map(|message| {
+            json!({
+                "id": message.id,
+                "sender": message.sender,
+                "whatsappMessageId": message.whatsapp_message_id,
+                "content": message.content,
+                "text": display_text(&message.content),
+                "time": message.timestamp,
+                "status": message.whatsapp_status,
+                "canReply": message.whatsapp_message_id.is_some(),
+                "canReact": message.whatsapp_message_id.is_some(),
+            })
         })
-    }).collect::<Vec<_>>();
+        .collect::<Vec<_>>();
     Ok(json!({ "messages": mapped }))
 }
 
-pub async fn send_conversation_message(pool: &PgPool, user_id: &str, conversation_id: &str, input: WhatsappSendMessageRequest) -> Result<Value, AppError> {
+pub async fn send_conversation_message(
+    pool: &PgPool,
+    user_id: &str,
+    conversation_id: &str,
+    input: WhatsappSendMessageRequest,
+) -> Result<Value, AppError> {
     let conversation = scoped_conversation(pool, user_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
-    let text = input.text.as_deref().map(str::trim).filter(|v| !v.is_empty())
+    let text = input
+        .text
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
         .ok_or_else(|| AppError::BadRequest("Reply text or media file is required".to_string()))?;
     parse_conversation_identifier(&conversation.customer_identifier)
         .ok_or_else(|| AppError::BadRequest("Invalid conversation".to_string()))?;
     let mut persisted_content = text.to_string();
-    if let Some(reply_to_message_id) = input.reply_to_message_id.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+    if let Some(reply_to_message_id) = input
+        .reply_to_message_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
         let reply_target = sqlx::query_as::<_, MessageRow>(
             r#"
             SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
@@ -4030,8 +4745,11 @@ pub async fn send_conversation_message(pool: &PgPool, user_id: &str, conversatio
         .fetch_optional(pool)
         .await?
         .ok_or_else(|| AppError::NotFound("Reply target not found".to_string()))?;
-        let target_wa_id = reply_target.whatsapp_message_id.clone()
-            .ok_or_else(|| AppError::BadRequest("This message cannot be replied to yet. Try again in a few seconds.".to_string()))?;
+        let target_wa_id = reply_target.whatsapp_message_id.clone().ok_or_else(|| {
+            AppError::BadRequest(
+                "This message cannot be replied to yet. Try again in a few seconds.".to_string(),
+            )
+        })?;
         persisted_content = format!(
             "__kasiai_wa_reply_v1__:{}",
             json!({
@@ -4055,7 +4773,7 @@ pub async fn send_conversation_message(pool: &PgPool, user_id: &str, conversatio
         r#"
         INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappStatus", timestamp)
         VALUES ($1, $2, 'bot', $3, 'QUEUED', NOW())
-        "#
+        "#,
     )
     .bind(&created_message_id)
     .bind(&conversation.id)
@@ -4069,12 +4787,20 @@ pub async fn send_conversation_message(pool: &PgPool, user_id: &str, conversatio
     publish_message_created(pool, user_id, &created_message_id).await?;
     publish_conversation_updated(pool, user_id, &conversation.id).await?;
     if let Err(error) = realtime::enqueue_whatsapp_inbox_message(&created_message_id).await {
-        log::warn!("failed to enqueue whatsapp inbox message {}: {}", created_message_id, error);
+        log::warn!(
+            "failed to enqueue whatsapp inbox message {}: {}",
+            created_message_id,
+            error
+        );
     }
     Ok(json!({ "success": true, "queued": true, "messageId": created_message_id }))
 }
 
-pub async fn mark_conversation_read(pool: &PgPool, user_id: &str, conversation_id: &str) -> Result<Value, AppError> {
+pub async fn mark_conversation_read(
+    pool: &PgPool,
+    user_id: &str,
+    conversation_id: &str,
+) -> Result<Value, AppError> {
     let conversation = scoped_conversation(pool, user_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
@@ -4104,7 +4830,12 @@ pub async fn mark_conversation_read(pool: &PgPool, user_id: &str, conversation_i
             Ok(access_token) => {
                 for message in &unread_messages {
                     if let Some(wa_id) = message.whatsapp_message_id.as_deref() {
-                        let _ = mark_message_read_api(&connection.phone_number_id, &access_token, wa_id).await;
+                        let _ = mark_message_read_api(
+                            &connection.phone_number_id,
+                            &access_token,
+                            wa_id,
+                        )
+                        .await;
                     }
                 }
             }
@@ -4117,7 +4848,10 @@ pub async fn mark_conversation_read(pool: &PgPool, user_id: &str, conversation_i
             }
         }
     }
-    let ids = unread_messages.into_iter().map(|m| m.id).collect::<Vec<_>>();
+    let ids = unread_messages
+        .into_iter()
+        .map(|m| m.id)
+        .collect::<Vec<_>>();
     if !ids.is_empty() {
         sqlx::query(r#"UPDATE "Message" SET "whatsappStatus" = 'READ' WHERE id = ANY($1)"#)
             .bind(&ids)
@@ -4128,7 +4862,13 @@ pub async fn mark_conversation_read(pool: &PgPool, user_id: &str, conversation_i
     Ok(json!({ "success": true }))
 }
 
-pub async fn send_message_reaction(pool: &PgPool, user_id: &str, conversation_id: &str, message_id: &str, input: WhatsappReactionRequest) -> Result<Value, AppError> {
+pub async fn send_message_reaction(
+    pool: &PgPool,
+    user_id: &str,
+    conversation_id: &str,
+    message_id: &str,
+    input: WhatsappReactionRequest,
+) -> Result<Value, AppError> {
     let conversation = scoped_conversation(pool, user_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
@@ -4152,10 +4892,12 @@ pub async fn send_message_reaction(pool: &PgPool, user_id: &str, conversation_id
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Target message not found".to_string()))?;
-    let target_wa_id = target_message.whatsapp_message_id.clone()
-        .ok_or_else(|| AppError::BadRequest("Target message is not available for reactions yet".to_string()))?;
-    let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
-        .ok_or_else(|| AppError::BadRequest("Invalid conversation identifier".to_string()))?;
+    let target_wa_id = target_message.whatsapp_message_id.clone().ok_or_else(|| {
+        AppError::BadRequest("Target message is not available for reactions yet".to_string())
+    })?;
+    let (connection_id, phone) =
+        parse_conversation_identifier(&conversation.customer_identifier)
+            .ok_or_else(|| AppError::BadRequest("Invalid conversation identifier".to_string()))?;
     let connection = get_connection_row(pool, user_id, &connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
@@ -4172,7 +4914,7 @@ pub async fn send_message_reaction(pool: &PgPool, user_id: &str, conversation_id
         r#"
         INSERT INTO "Message" (id, "conversationId", sender, content, timestamp)
         VALUES ($1, $2, 'bot', $3, NOW())
-        "#
+        "#,
     )
     .bind(cuid2::create_id())
     .bind(&conversation.id)
@@ -4191,7 +4933,12 @@ pub async fn send_message_reaction(pool: &PgPool, user_id: &str, conversation_id
     Ok(json!({ "success": true }))
 }
 
-pub async fn delete_conversation_message(pool: &PgPool, user_id: &str, conversation_id: &str, message_id: &str) -> Result<Value, AppError> {
+pub async fn delete_conversation_message(
+    pool: &PgPool,
+    user_id: &str,
+    conversation_id: &str,
+    message_id: &str,
+) -> Result<Value, AppError> {
     let conversation = scoped_conversation(pool, user_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
@@ -4218,7 +4965,11 @@ pub async fn delete_conversation_message(pool: &PgPool, user_id: &str, conversat
     Ok(json!({ "success": true }))
 }
 
-pub async fn download_message_media(pool: &PgPool, user_id: &str, message_id: &str) -> Result<actix_web::HttpResponse, AppError> {
+pub async fn download_message_media(
+    pool: &PgPool,
+    user_id: &str,
+    message_id: &str,
+) -> Result<actix_web::HttpResponse, AppError> {
     let connection_ids = user_connection_ids(pool, user_id).await?;
     if connection_ids.is_empty() {
         return Err(AppError::NotFound("Media message not found".to_string()));
@@ -4246,12 +4997,16 @@ pub async fn download_message_media(pool: &PgPool, user_id: &str, message_id: &s
     .ok_or_else(|| AppError::NotFound("Media message not found".to_string()))?;
     let media = parse_stored_media(&message.content)
         .ok_or_else(|| AppError::BadRequest("Message does not contain media".to_string()))?;
-    let media_id = media.get("mediaId").and_then(|v| v.as_str())
+    let media_id = media
+        .get("mediaId")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("Message does not contain media".to_string()))?;
-    let conversation_identifier = sqlx::query_scalar::<_, String>(r#"SELECT "customerIdentifier" FROM "Conversation" WHERE id = $1"#)
-        .bind(&message.conversation_id)
-        .fetch_one(pool)
-        .await?;
+    let conversation_identifier = sqlx::query_scalar::<_, String>(
+        r#"SELECT "customerIdentifier" FROM "Conversation" WHERE id = $1"#,
+    )
+    .bind(&message.conversation_id)
+    .fetch_one(pool)
+    .await?;
     let (connection_id, _) = parse_conversation_identifier(&conversation_identifier)
         .ok_or_else(|| AppError::BadRequest("Invalid conversation".to_string()))?;
     let connection = get_connection_row(pool, user_id, &connection_id)
@@ -4259,12 +5014,24 @@ pub async fn download_message_media(pool: &PgPool, user_id: &str, message_id: &s
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
     let (bytes, content_type) = download_media_bytes(&access_token, media_id).await?;
-    let extension = media.get("mimeType").and_then(|v| v.as_str()).and_then(|v| v.split('/').nth(1)).unwrap_or("bin");
+    let extension = media
+        .get("mimeType")
+        .and_then(|v| v.as_str())
+        .and_then(|v| v.split('/').nth(1))
+        .unwrap_or("bin");
     let fallback_name = format!("whatsapp-media-{}.{}", message.id, extension);
-    let filename = sanitize_filename(media.get("filename").and_then(|v| v.as_str()).unwrap_or(&fallback_name));
+    let filename = sanitize_filename(
+        media
+            .get("filename")
+            .and_then(|v| v.as_str())
+            .unwrap_or(&fallback_name),
+    );
     Ok(actix_web::HttpResponse::Ok()
         .append_header(("Content-Type", content_type))
-        .append_header(("Content-Disposition", format!("inline; filename=\"{}\"", filename)))
+        .append_header((
+            "Content-Disposition",
+            format!("inline; filename=\"{}\"", filename),
+        ))
         .append_header(("Cache-Control", "private, max-age=60"))
         .body(bytes))
 }

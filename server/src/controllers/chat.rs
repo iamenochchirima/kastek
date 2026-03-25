@@ -15,8 +15,9 @@ fn parse_streamed_response(raw: &str) -> String {
         }
     }
 
-    let regex = regex::Regex::new(r#""type"\s*:\s*"item"\s*,\s*"content"\s*:\s*"((?:[^"\\]|\\.)*)""#)
-        .expect("valid regex");
+    let regex =
+        regex::Regex::new(r#""type"\s*:\s*"item"\s*,\s*"content"\s*:\s*"((?:[^"\\]|\\.)*)""#)
+            .expect("valid regex");
     let contents = regex
         .captures_iter(raw)
         .filter_map(|capture| capture.get(1))
@@ -68,11 +69,14 @@ pub async fn post(body: web::Json<ChatRequest>) -> Result<HttpResponse, AppError
     let reply = parse_streamed_response(&raw).trim().to_string();
 
     if !status.is_success() {
-        return Ok(HttpResponse::build(actix_web::http::StatusCode::from_u16(status.as_u16()).unwrap_or(actix_web::http::StatusCode::BAD_GATEWAY))
-            .json(serde_json::json!({
-                "error": "The assistant is currently unavailable.",
-                "details": if reply.is_empty() { raw } else { reply }
-            })));
+        return Ok(HttpResponse::build(
+            actix_web::http::StatusCode::from_u16(status.as_u16())
+                .unwrap_or(actix_web::http::StatusCode::BAD_GATEWAY),
+        )
+        .json(serde_json::json!({
+            "error": "The assistant is currently unavailable.",
+            "details": if reply.is_empty() { raw } else { reply }
+        })));
     }
 
     Ok(HttpResponse::Ok().json(serde_json::json!({

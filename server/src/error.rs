@@ -33,24 +33,24 @@ impl fmt::Display for AppError {
 impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse {
         match self {
-            Self::BadRequest(message) => {
-                HttpResponse::BadRequest().json(ErrorResponse { error: message.clone() })
-            }
+            Self::BadRequest(message) => HttpResponse::BadRequest().json(ErrorResponse {
+                error: message.clone(),
+            }),
             Self::Unauthorized => HttpResponse::Unauthorized().json(ErrorResponse {
                 error: "Unauthorized".to_string(),
             }),
-            Self::Forbidden(message) => {
-                HttpResponse::Forbidden().json(ErrorResponse { error: message.clone() })
-            }
-            Self::NotFound(message) => {
-                HttpResponse::NotFound().json(ErrorResponse { error: message.clone() })
-            }
-            Self::Conflict(message) => {
-                HttpResponse::Conflict().json(ErrorResponse { error: message.clone() })
-            }
-            Self::Internal(message) => {
-                HttpResponse::InternalServerError().json(ErrorResponse { error: message.clone() })
-            }
+            Self::Forbidden(message) => HttpResponse::Forbidden().json(ErrorResponse {
+                error: message.clone(),
+            }),
+            Self::NotFound(message) => HttpResponse::NotFound().json(ErrorResponse {
+                error: message.clone(),
+            }),
+            Self::Conflict(message) => HttpResponse::Conflict().json(ErrorResponse {
+                error: message.clone(),
+            }),
+            Self::Internal(message) => HttpResponse::InternalServerError().json(ErrorResponse {
+                error: message.clone(),
+            }),
         }
     }
 }

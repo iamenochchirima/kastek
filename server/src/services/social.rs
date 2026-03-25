@@ -18,7 +18,8 @@ use crate::error::AppError;
 
 const X_AUTHORIZE_URL: &str = "https://twitter.com/i/oauth2/authorize";
 const X_TOKEN_URL: &str = "https://api.x.com/2/oauth2/token";
-const X_ME_URL: &str = "https://api.x.com/2/users/me?user.fields=id,name,username,profile_image_url";
+const X_ME_URL: &str =
+    "https://api.x.com/2/users/me?user.fields=id,name,username,profile_image_url";
 const X_POST_TWEET_URL: &str = "https://api.x.com/2/tweets";
 const LINKEDIN_AUTHORIZE_URL: &str = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL: &str = "https://www.linkedin.com/oauth/v2/accessToken";
@@ -184,7 +185,9 @@ pub fn encrypt_social_secret(plain_text: &str) -> Result<String, AppError> {
         .map_err(|_| AppError::Internal("Failed to encrypt token".to_string()))?;
 
     if encrypted.len() < 16 {
-        return Err(AppError::Internal("Encrypted token payload is invalid".to_string()));
+        return Err(AppError::Internal(
+            "Encrypted token payload is invalid".to_string(),
+        ));
     }
     let split = encrypted.len() - 16;
     let (ciphertext, auth_tag) = encrypted.split_at(split);
@@ -224,7 +227,9 @@ pub fn decrypt_social_secret(payload: &str) -> Result<String, AppError> {
             (nonce_bytes, encrypted)
         }
         _ => {
-            return Err(AppError::Internal("Invalid encrypted token payload".to_string()));
+            return Err(AppError::Internal(
+                "Invalid encrypted token payload".to_string(),
+            ));
         }
     };
 
@@ -258,7 +263,11 @@ pub fn create_x_oauth_state() -> XOAuthState {
     }
 }
 
-pub fn build_x_authorize_url(config: &AppConfig, state: &str, challenge: &str) -> Result<String, AppError> {
+pub fn build_x_authorize_url(
+    config: &AppConfig,
+    state: &str,
+    challenge: &str,
+) -> Result<String, AppError> {
     let client_id = required_env("AUTH_X_CLIENT_ID")?;
     let redirect_uri = format!("{}/api/social/oauth/x/callback", social_app_url(config));
     let scope = "tweet.read tweet.write users.read offline.access";
@@ -278,7 +287,10 @@ pub fn create_linkedin_oauth_state() -> String {
 
 pub fn build_linkedin_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
     let client_id = required_env("AUTH_LINKEDIN_CLIENT_ID")?;
-    let redirect_uri = format!("{}/api/social/oauth/linkedin/callback", social_app_url(config));
+    let redirect_uri = format!(
+        "{}/api/social/oauth/linkedin/callback",
+        social_app_url(config)
+    );
     let scope = "openid profile email w_member_social";
     Ok(format!(
         "{LINKEDIN_AUTHORIZE_URL}?response_type=code&client_id={}&redirect_uri={}&state={}&scope={}",
@@ -301,13 +313,22 @@ async fn fetch_json<T: serde::de::DeserializeOwned>(
         let message = parsed
             .as_ref()
             .and_then(|value| value.get("detail").and_then(|v| v.as_str()))
-            .or_else(|| parsed.as_ref().and_then(|value| value.get("message").and_then(|v| v.as_str())))
-            .or_else(|| parsed.as_ref().and_then(|value| value.get("error").and_then(|v| v.as_str())))
+            .or_else(|| {
+                parsed
+                    .as_ref()
+                    .and_then(|value| value.get("message").and_then(|v| v.as_str()))
+            })
+            .or_else(|| {
+                parsed
+                    .as_ref()
+                    .and_then(|value| value.get("error").and_then(|v| v.as_str()))
+            })
             .unwrap_or(fallback);
         return Err(AppError::BadRequest(message.to_string()));
     }
 
-    serde_json::from_str(&body).map_err(|_| AppError::Internal("Failed to decode provider response".to_string()))
+    serde_json::from_str(&body)
+        .map_err(|_| AppError::Internal("Failed to decode provider response".to_string()))
 }
 
 #[derive(serde::Deserialize)]
@@ -332,7 +353,11 @@ pub struct XMeData {
     pub profile_image_url: Option<String>,
 }
 
-pub async fn exchange_x_code_for_tokens(config: &AppConfig, code: &str, code_verifier: &str) -> Result<XTokenResponse, AppError> {
+pub async fn exchange_x_code_for_tokens(
+    config: &AppConfig,
+    code: &str,
+    code_verifier: &str,
+) -> Result<XTokenResponse, AppError> {
     let client_id = required_env("AUTH_X_CLIENT_ID")?;
     let client_secret = std::env::var("AUTH_X_CLIENT_SECRET").unwrap_or_default();
     let redirect_uri = format!("{}/api/social/oauth/x/callback", social_app_url(config));
@@ -392,10 +417,16 @@ pub struct LinkedInProfile {
     pub email: Option<String>,
 }
 
-pub async fn exchange_linkedin_code_for_tokens(config: &AppConfig, code: &str) -> Result<LinkedInTokenResponse, AppError> {
+pub async fn exchange_linkedin_code_for_tokens(
+    config: &AppConfig,
+    code: &str,
+) -> Result<LinkedInTokenResponse, AppError> {
     let client_id = required_env("AUTH_LINKEDIN_CLIENT_ID")?;
     let client_secret = required_env("AUTH_LINKEDIN_CLIENT_SECRET")?;
-    let redirect_uri = format!("{}/api/social/oauth/linkedin/callback", social_app_url(config));
+    let redirect_uri = format!(
+        "{}/api/social/oauth/linkedin/callback",
+        social_app_url(config)
+    );
     let basic = STANDARD.encode(format!("{client_id}:{client_secret}"));
 
     let tokens: LinkedInTokenResponse = fetch_json(
@@ -457,7 +488,9 @@ pub async fn upsert_x_connection_for_user(
         Some(value) => Some(encrypt_social_secret(value)?),
         None => None,
     };
-    let expires_at = tokens.expires_in.map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
+    let expires_at = tokens
+        .expires_in
+        .map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
 
     sqlx::query(
         r#"
@@ -523,7 +556,9 @@ pub async fn upsert_linkedin_connection_for_user(
         Some(value) => Some(encrypt_social_secret(value)?),
         None => None,
     };
-    let expires_at = tokens.expires_in.map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
+    let expires_at = tokens
+        .expires_in
+        .map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
 
     sqlx::query(
         r#"
@@ -592,7 +627,10 @@ async fn get_social_channel_by_external_account(
         .map_err(AppError::from)
 }
 
-pub async fn list_social_channels(pool: &PgPool, user_id: &str) -> Result<Vec<SocialChannel>, AppError> {
+pub async fn list_social_channels(
+    pool: &PgPool,
+    user_id: &str,
+) -> Result<Vec<SocialChannel>, AppError> {
     sqlx::query_as::<_, SocialChannel>(
         r#"
         SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
@@ -609,7 +647,11 @@ pub async fn list_social_channels(pool: &PgPool, user_id: &str) -> Result<Vec<So
     .map_err(AppError::from)
 }
 
-pub async fn get_social_channel(pool: &PgPool, user_id: &str, id: &str) -> Result<Option<SocialChannel>, AppError> {
+pub async fn get_social_channel(
+    pool: &PgPool,
+    user_id: &str,
+    id: &str,
+) -> Result<Option<SocialChannel>, AppError> {
     sqlx::query_as::<_, SocialChannel>(
         r#"
         SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
@@ -713,12 +755,17 @@ pub async fn update_social_channel(
         .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))
 }
 
-pub async fn delete_social_channel(pool: &PgPool, user_id: &str, id: &str) -> Result<bool, AppError> {
-    let result = sqlx::query(r#"DELETE FROM "SocialChannelConnection" WHERE id = $1 AND "userId" = $2"#)
-        .bind(id)
-        .bind(user_id)
-        .execute(pool)
-        .await?;
+pub async fn delete_social_channel(
+    pool: &PgPool,
+    user_id: &str,
+    id: &str,
+) -> Result<bool, AppError> {
+    let result =
+        sqlx::query(r#"DELETE FROM "SocialChannelConnection" WHERE id = $1 AND "userId" = $2"#)
+            .bind(id)
+            .bind(user_id)
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected() == 1)
 }
 
@@ -754,7 +801,11 @@ fn normalize_variants(
         .collect()
 }
 
-async fn load_posts(pool: &PgPool, user_id: &str, post_id: Option<&str>) -> Result<Vec<SocialPost>, AppError> {
+async fn load_posts(
+    pool: &PgPool,
+    user_id: &str,
+    post_id: Option<&str>,
+) -> Result<Vec<SocialPost>, AppError> {
     let rows = if let Some(post_id) = post_id {
         sqlx::query_as::<_, SocialPostRow>(
             r#"
@@ -853,7 +904,10 @@ async fn load_posts(pool: &PgPool, user_id: &str, post_id: Option<&str>) -> Resu
 
     let mut jobs_by_post: HashMap<String, Vec<SocialPublishJobRow>> = HashMap::new();
     for job in jobs {
-        jobs_by_post.entry(job.post_id.clone()).or_default().push(job);
+        jobs_by_post
+            .entry(job.post_id.clone())
+            .or_default()
+            .push(job);
     }
 
     let channels_by_id = channels
@@ -878,17 +932,34 @@ pub async fn list_social_posts(pool: &PgPool, user_id: &str) -> Result<Vec<Socia
     load_posts(pool, user_id, None).await
 }
 
-pub async fn get_social_post(pool: &PgPool, user_id: &str, post_id: &str) -> Result<Option<SocialPost>, AppError> {
-    Ok(load_posts(pool, user_id, Some(post_id)).await?.into_iter().next())
+pub async fn get_social_post(
+    pool: &PgPool,
+    user_id: &str,
+    post_id: &str,
+) -> Result<Option<SocialPost>, AppError> {
+    Ok(load_posts(pool, user_id, Some(post_id))
+        .await?
+        .into_iter()
+        .next())
 }
 
-async fn validate_primary_channel(pool: &PgPool, user_id: &str, primary_channel_id: &Option<String>) -> Result<Option<String>, AppError> {
-    let Some(primary_channel_id) = primary_channel_id.as_ref().map(|v| v.trim()).filter(|v| !v.is_empty()) else {
+async fn validate_primary_channel(
+    pool: &PgPool,
+    user_id: &str,
+    primary_channel_id: &Option<String>,
+) -> Result<Option<String>, AppError> {
+    let Some(primary_channel_id) = primary_channel_id
+        .as_ref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+    else {
         return Ok(None);
     };
     let exists = get_social_channel(pool, user_id, primary_channel_id).await?;
     if exists.is_none() {
-        return Err(AppError::NotFound("Primary channel was not found".to_string()));
+        return Err(AppError::NotFound(
+            "Primary channel was not found".to_string(),
+        ));
     }
     Ok(Some(primary_channel_id.to_string()))
 }
@@ -973,13 +1044,17 @@ pub async fn create_social_post(
         ));
     }
 
-    let status = request.status.clone().unwrap_or_else(|| "DRAFT".to_string());
+    let status = request
+        .status
+        .clone()
+        .unwrap_or_else(|| "DRAFT".to_string());
     if !is_valid_post_status(&status) {
         return Err(AppError::BadRequest("Invalid post status".to_string()));
     }
 
     let scheduled_for = parse_optional_datetime(&request.scheduled_for)?;
-    let primary_channel_id = validate_primary_channel(pool, user_id, &request.primary_channel_id).await?;
+    let primary_channel_id =
+        validate_primary_channel(pool, user_id, &request.primary_channel_id).await?;
     let variants = normalize_variants(&request.variants, &channels, &content);
     let post_id = cuid2::create_id();
 
@@ -1000,8 +1075,20 @@ pub async fn create_social_post(
     .bind(&post_id)
     .bind(user_id)
     .bind(primary_channel_id)
-    .bind(request.title.as_ref().map(|v| v.trim()).filter(|v| !v.is_empty()))
-    .bind(request.prompt.as_ref().map(|v| v.trim()).filter(|v| !v.is_empty()))
+    .bind(
+        request
+            .title
+            .as_ref()
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty()),
+    )
+    .bind(
+        request
+            .prompt
+            .as_ref()
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty()),
+    )
     .bind(&content)
     .bind(&channels)
     .bind(&status)
@@ -1010,7 +1097,15 @@ pub async fn create_social_post(
     .execute(tx.as_mut())
     .await?;
 
-    create_variants_and_jobs(&mut tx, user_id, &post_id, &variants, &status, scheduled_for).await?;
+    create_variants_and_jobs(
+        &mut tx,
+        user_id,
+        &post_id,
+        &variants,
+        &status,
+        scheduled_for,
+    )
+    .await?;
     tx.commit().await?;
 
     get_social_post(pool, user_id, &post_id)
@@ -1033,7 +1128,9 @@ pub async fn update_social_post(
         Some(value) => {
             let trimmed = value.trim();
             if trimmed.is_empty() {
-                return Err(AppError::BadRequest("Post content cannot be empty".to_string()));
+                return Err(AppError::BadRequest(
+                    "Post content cannot be empty".to_string(),
+                ));
             }
             trimmed.to_string()
         }
@@ -1069,7 +1166,8 @@ pub async fn update_social_post(
     } else {
         row.primary_channel_id.clone()
     };
-    let primary_channel_id = validate_primary_channel(pool, user_id, &primary_channel_request).await?;
+    let primary_channel_id =
+        validate_primary_channel(pool, user_id, &primary_channel_request).await?;
     let variants = normalize_variants(&request.variants, &channels, &content);
 
     let mut tx = pool.begin().await?;
@@ -1089,8 +1187,22 @@ pub async fn update_social_post(
         "#,
     )
     .bind(primary_channel_id)
-    .bind(request.title.as_ref().map(|v| v.trim()).filter(|v| !v.is_empty()).or(row.title.as_deref()))
-    .bind(request.prompt.as_ref().map(|v| v.trim()).filter(|v| !v.is_empty()).or(row.prompt.as_deref()))
+    .bind(
+        request
+            .title
+            .as_ref()
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty())
+            .or(row.title.as_deref()),
+    )
+    .bind(
+        request
+            .prompt
+            .as_ref()
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty())
+            .or(row.prompt.as_deref()),
+    )
     .bind(&content)
     .bind(&channels)
     .bind(&status)
@@ -1118,7 +1230,11 @@ pub async fn update_social_post(
         .ok_or_else(|| AppError::Internal("Failed to load updated social post".to_string()))
 }
 
-pub async fn delete_social_post(pool: &PgPool, user_id: &str, post_id: &str) -> Result<bool, AppError> {
+pub async fn delete_social_post(
+    pool: &PgPool,
+    user_id: &str,
+    post_id: &str,
+) -> Result<bool, AppError> {
     let result = sqlx::query(r#"DELETE FROM "SocialPost" WHERE id = $1 AND "userId" = $2"#)
         .bind(post_id)
         .bind(user_id)
@@ -1149,7 +1265,8 @@ async fn resolve_connected_channel_for_platform(
             .bind(channel_id)
             .bind(user_id)
             .fetch_optional(pool)
-            .await? {
+            .await?
+        {
             if channel.access_token.is_some() {
                 return Ok(channel);
             }
@@ -1172,7 +1289,12 @@ async fn resolve_connected_channel_for_platform(
         .bind(user_id)
         .fetch_optional(pool)
         .await?
-        .ok_or_else(|| AppError::BadRequest(format!("Connect a {} account before publishing", platform.to_lowercase())))?;
+        .ok_or_else(|| {
+            AppError::BadRequest(format!(
+                "Connect a {} account before publishing",
+                platform.to_lowercase()
+            ))
+        })?;
 
     if channel.access_token.is_none() {
         return Err(AppError::BadRequest(format!(
@@ -1184,7 +1306,10 @@ async fn resolve_connected_channel_for_platform(
     Ok(channel)
 }
 
-async fn publish_post_to_x(access_token_encrypted: &str, text: &str) -> Result<(String, String), AppError> {
+async fn publish_post_to_x(
+    access_token_encrypted: &str,
+    text: &str,
+) -> Result<(String, String), AppError> {
     let access_token = decrypt_social_secret(access_token_encrypted)?;
     let result: Value = fetch_json(
         reqwest::Client::new()
@@ -1221,8 +1346,14 @@ async fn publish_post_to_linkedin(
         .and_then(|value| value.get("actorUrn"))
         .and_then(|value| value.as_str())
         .map(|value| value.to_string())
-        .or_else(|| external_account_id.as_ref().map(|value| format!("urn:li:person:{value}")))
-        .ok_or_else(|| AppError::BadRequest("LinkedIn connection is missing a member identifier".to_string()))?;
+        .or_else(|| {
+            external_account_id
+                .as_ref()
+                .map(|value| format!("urn:li:person:{value}"))
+        })
+        .ok_or_else(|| {
+            AppError::BadRequest("LinkedIn connection is missing a member identifier".to_string())
+        })?;
 
     let response = reqwest::Client::new()
         .post(LINKEDIN_UGC_POSTS_URL)
@@ -1257,11 +1388,21 @@ async fn publish_post_to_linkedin(
         .get("x-restli-id")
         .and_then(|value| value.to_str().ok())
         .map(|value| value.to_string())
-        .or_else(|| payload.get("id").and_then(|value| value.as_str()).map(|value| value.to_string()));
+        .or_else(|| {
+            payload
+                .get("id")
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string())
+        });
     Ok((external_post_id, text.to_string()))
 }
 
-async fn mark_job_failed(pool: &PgPool, job_id: &str, post_id: &str, message: &str) -> Result<(), AppError> {
+async fn mark_job_failed(
+    pool: &PgPool,
+    job_id: &str,
+    post_id: &str,
+    message: &str,
+) -> Result<(), AppError> {
     let mut tx = pool.begin().await?;
     sqlx::query(
         r#"
@@ -1313,9 +1454,18 @@ async fn load_publish_job(pool: &PgPool, job_id: &str) -> Result<Option<PublishJ
     .map_err(AppError::from)
 }
 
-pub async fn claim_publish_job(pool: &PgPool, job_id: &str, allowed_statuses: &[&str]) -> Result<bool, AppError> {
-    if allowed_statuses.iter().any(|status| !is_valid_job_status(status)) {
-        return Err(AppError::BadRequest("Invalid publish job status".to_string()));
+pub async fn claim_publish_job(
+    pool: &PgPool,
+    job_id: &str,
+    allowed_statuses: &[&str],
+) -> Result<bool, AppError> {
+    if allowed_statuses
+        .iter()
+        .any(|status| !is_valid_job_status(status))
+    {
+        return Err(AppError::BadRequest(
+            "Invalid publish job status".to_string(),
+        ));
     }
     let result = sqlx::query(
         r#"
@@ -1331,7 +1481,10 @@ pub async fn claim_publish_job(pool: &PgPool, job_id: &str, allowed_statuses: &[
     Ok(result.rows_affected() == 1)
 }
 
-pub async fn execute_social_publish_job(pool: &PgPool, job_id: &str) -> Result<PublishExecutionResult, AppError> {
+pub async fn execute_social_publish_job(
+    pool: &PgPool,
+    job_id: &str,
+) -> Result<PublishExecutionResult, AppError> {
     let job = load_publish_job(pool, job_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Publish job not found".to_string()))?;
@@ -1365,28 +1518,53 @@ pub async fn execute_social_publish_job(pool: &PgPool, job_id: &str) -> Result<P
                     "X posts are currently limited to 280 characters".to_string(),
                 ));
             }
-            let channel = resolve_connected_channel_for_platform(pool, &job.user_id, "X", &job.channel_connection_id).await?;
-            let access = channel
-                .access_token
-                .as_deref()
-                .ok_or_else(|| AppError::BadRequest("Connect an X account before publishing".to_string()))?;
-            let (external_post_id, published_text) = publish_post_to_x(access, &publish_text).await?;
-            Ok((channel.id, Some(external_post_id), "x".to_string(), published_text))
+            let channel = resolve_connected_channel_for_platform(
+                pool,
+                &job.user_id,
+                "X",
+                &job.channel_connection_id,
+            )
+            .await?;
+            let access = channel.access_token.as_deref().ok_or_else(|| {
+                AppError::BadRequest("Connect an X account before publishing".to_string())
+            })?;
+            let (external_post_id, published_text) =
+                publish_post_to_x(access, &publish_text).await?;
+            Ok((
+                channel.id,
+                Some(external_post_id),
+                "x".to_string(),
+                published_text,
+            ))
         } else if job.platform == "LINKEDIN" {
             if publish_text.chars().count() > 3000 {
                 return Err(AppError::BadRequest(
                     "LinkedIn posts are currently limited to 3000 characters".to_string(),
                 ));
             }
-            let channel =
-                resolve_connected_channel_for_platform(pool, &job.user_id, "LINKEDIN", &job.channel_connection_id).await?;
-            let access = channel
-                .access_token
-                .as_deref()
-                .ok_or_else(|| AppError::BadRequest("Connect a linkedin account before publishing".to_string()))?;
-            let (external_post_id, published_text) =
-                publish_post_to_linkedin(access, &channel.external_account_id, &channel.metadata, &publish_text).await?;
-            Ok((channel.id, external_post_id, "linkedin".to_string(), published_text))
+            let channel = resolve_connected_channel_for_platform(
+                pool,
+                &job.user_id,
+                "LINKEDIN",
+                &job.channel_connection_id,
+            )
+            .await?;
+            let access = channel.access_token.as_deref().ok_or_else(|| {
+                AppError::BadRequest("Connect a linkedin account before publishing".to_string())
+            })?;
+            let (external_post_id, published_text) = publish_post_to_linkedin(
+                access,
+                &channel.external_account_id,
+                &channel.metadata,
+                &publish_text,
+            )
+            .await?;
+            Ok((
+                channel.id,
+                external_post_id,
+                "linkedin".to_string(),
+                published_text,
+            ))
         } else {
             Err(AppError::BadRequest(format!(
                 "Publishing is not implemented yet for {}",

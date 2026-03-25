@@ -14,7 +14,10 @@ fn decode_cursor(cursor: Option<String>) -> Option<(chrono::DateTime<chrono::Utc
     let raw = String::from_utf8(raw).ok()?;
     let separator = raw.rfind('|')?;
     let timestamp = chrono::DateTime::parse_from_rfc3339(&raw[..separator]).ok()?;
-    Some((timestamp.with_timezone(&chrono::Utc), raw[separator + 1..].to_string()))
+    Some((
+        timestamp.with_timezone(&chrono::Utc),
+        raw[separator + 1..].to_string(),
+    ))
 }
 
 pub async fn list_notification_inbox(

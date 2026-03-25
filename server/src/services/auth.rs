@@ -64,7 +64,11 @@ pub async fn send_email(
     text: &str,
 ) -> Result<(), AppError> {
     let Some(api_key) = config.resend_api_key.as_ref() else {
-        log::warn!("AUTH_RESEND_KEY not configured. email to {} not sent: {}", to, subject);
+        log::warn!(
+            "AUTH_RESEND_KEY not configured. email to {} not sent: {}",
+            to,
+            subject
+        );
         return Ok(());
     };
 
@@ -95,7 +99,10 @@ pub async fn send_sms_message(
     message: &str,
 ) -> Result<(), AppError> {
     let Some(base_url) = config.zoomconnect_send_url.as_ref() else {
-        log::warn!("ZOOMCONNECT_SEND_URL not configured. sms to {} not sent", phone);
+        log::warn!(
+            "ZOOMCONNECT_SEND_URL not configured. sms to {} not sent",
+            phone
+        );
         return Ok(());
     };
 

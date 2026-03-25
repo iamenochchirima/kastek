@@ -38,7 +38,8 @@ const VALID_PRODUCTS: &[&str] = &[
 ];
 
 fn normalize_required(value: Option<&str>, field: &str) -> Result<String, AppError> {
-    value.map(str::trim)
+    value
+        .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
         .ok_or_else(|| AppError::BadRequest(format!("{field} is required")))
@@ -56,7 +57,9 @@ fn validate_email(email: &str) -> Result<(), AppError> {
     if valid {
         Ok(())
     } else {
-        Err(AppError::BadRequest("Please enter a valid email address".to_string()))
+        Err(AppError::BadRequest(
+            "Please enter a valid email address".to_string(),
+        ))
     }
 }
 
@@ -175,7 +178,9 @@ pub async fn create_quote_request(
         .iter()
         .any(|service| !VALID_SERVICES.contains(&service.as_str()) && service.len() > 120);
     if services.is_empty() || invalid_service {
-        return Err(AppError::BadRequest("Invalid service selection".to_string()));
+        return Err(AppError::BadRequest(
+            "Invalid service selection".to_string(),
+        ));
     }
 
     let id = cuid2::create_id();
@@ -223,8 +228,8 @@ pub async fn create_quote_request(
     )
     .await;
 
-    let admin_email = std::env::var("ADMIN_EMAIL")
-        .unwrap_or_else(|_| "iamenochchirima@gmail.com".to_string());
+    let admin_email =
+        std::env::var("ADMIN_EMAIL").unwrap_or_else(|_| "iamenochchirima@gmail.com".to_string());
     let _ = send_email(
         config,
         &admin_email,
@@ -265,7 +270,9 @@ pub async fn create_waitlist_entry(
             .iter()
             .any(|product| !VALID_PRODUCTS.contains(&product.as_str()))
     {
-        return Err(AppError::BadRequest("Invalid product selection".to_string()));
+        return Err(AppError::BadRequest(
+            "Invalid product selection".to_string(),
+        ));
     }
 
     let id = cuid2::create_id();
@@ -293,7 +300,11 @@ pub async fn create_waitlist_entry(
         pool,
         "product_waitlist.created",
         "New product waitlist signup",
-        &format!("{} joined the waitlist for {}.", business_name, products.join(", ")),
+        &format!(
+            "{} joined the waitlist for {}.",
+            business_name,
+            products.join(", ")
+        ),
         "product_waitlist_entry",
         &id,
         json!({
@@ -306,8 +317,8 @@ pub async fn create_waitlist_entry(
     )
     .await;
 
-    let admin_email = std::env::var("ADMIN_EMAIL")
-        .unwrap_or_else(|_| "iamenochchirima@gmail.com".to_string());
+    let admin_email =
+        std::env::var("ADMIN_EMAIL").unwrap_or_else(|_| "iamenochchirima@gmail.com".to_string());
     let _ = send_email(
         config,
         &admin_email,

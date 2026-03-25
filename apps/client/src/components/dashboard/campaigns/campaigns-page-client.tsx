@@ -1,15 +1,13 @@
 "use client";
 
-import { apiUrl } from "@/lib/server-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Pause, Play, Plus, RefreshCw, Search, Square, Trash2, UserPlus, Zap } from "lucide-react";
+import { Pause, Plus, RefreshCw, Search, Square, Zap } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
 
 type Campaign = {
   id: string;
@@ -31,6 +29,8 @@ type Campaign = {
   createdAt: string;
   connectionLabel: string | null;
   templateStatus: string | null;
+  listLabel: string | null;
+  defaultBatchSize: number | null;
 };
 
 function campaignProgress(campaign: Campaign) {
@@ -60,6 +60,15 @@ function statusTone(status: string) {
   }
 }
 
+function remainingRecipients(campaign: Campaign) {
+  const processed =
+    campaign.sentCount +
+    campaign.failedCount +
+    campaign.blockedCount +
+    campaign.unsubscribedCount;
+  return Math.max(campaign.totalRecipients - processed, 0);
+}
+
 function formatDate(value: string | null) {
   if (!value) return "Not scheduled";
   const date = new Date(value);
@@ -78,14 +87,7 @@ export default function CampaignsPageClient({
 }: {
   campaigns: Campaign[];
 }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState(searchParams.get("notice") || "");
-  const [isPending, startTransition] = useTransition();
-  const [loadingAction, setLoadingAction] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const filteredCampaigns = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -104,62 +106,6 @@ export default function CampaignsPageClient({
     );
   }, [campaigns, query]);
 
-  async function runAction(
-    campaignId: string,
-    kind: "launch" | "pause" | "resume" | "cancel" | "retry_failed" | "send_more" | "delete",
-  ) {
-    setLoadingAction(`${campaignId}:${kind}`);
-    setError("");
-    setNotice("");
-
-    try {
-      if (kind === "delete") {
-        const res = await fetch(apiUrl(`/api/whatsapp/campaigns/${campaignId}`), {
-          method: "DELETE",
-          credentials: "include",
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(body.error || "Failed to delete campaign");
-        }
-        setNotice("Campaign deleted.");
-        setConfirmDelete(null);
-        startTransition(() => {
-          router.refresh();
-        });
-        return;
-      }
-      const endpoint =
-        kind === "launch"
-          ? apiUrl(`/api/whatsapp/campaigns/${campaignId}/launch`)
-          : apiUrl(`/api/whatsapp/campaigns/${campaignId}`);
-      const res = await fetch(endpoint, {
-        method: kind === "launch" ? "POST" : "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body:
-          kind === "launch"
-            ? JSON.stringify({})
-            : JSON.stringify({
-                action: kind,
-              }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(body.error || `Failed to ${kind.replace("_", " ")} campaign`);
-      }
-
-      setNotice(`Campaign ${kind.replace("_", " ")} completed.`);
-      startTransition(() => {
-        router.refresh();
-      });
-    } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : "Campaign action failed");
-    } finally {
-      setLoadingAction(null);
-    }
-  }
-
   return (
     <div className="min-h-screen p-6 lg:p-8">
       <div className="mx-auto max-w-[1400px] space-y-6">
@@ -167,7 +113,7 @@ export default function CampaignsPageClient({
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">Campaigns</h1>
             <p className="mt-1 text-muted-foreground">
-              Launch, pause, resume, and monitor your WhatsApp marketing campaigns.
+              Browse your WhatsApp campaigns and open one to control sends, batches, and delivery state.
             </p>
           </div>
           <Link href="/reach/campaigns/create" className="no-underline">
@@ -177,18 +123,6 @@ export default function CampaignsPageClient({
             </Button>
           </Link>
         </div>
-
-        {(error || notice) && (
-          <div
-            className={`rounded-xl border px-4 py-3 text-sm ${
-              error
-                ? "border-red-500/30 bg-red-500/10 text-red-300"
-                : "border-green-500/30 bg-green-500/10 text-green-300"
-            }`}
-          >
-            {error || notice}
-          </div>
-        )}
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -209,200 +143,75 @@ export default function CampaignsPageClient({
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {filteredCampaigns.map((campaign) => {
               const progress = campaignProgress(campaign);
-              const launchable = campaign.status === "DRAFT";
-              const pausable = campaign.status === "SENDING" || campaign.status === "SCHEDULED";
-              const resumable = campaign.status === "PAUSED";
-              const retryable = campaign.status === "FAILED";
-              const sendMoreable = campaign.status === "COMPLETED" || campaign.status === "FAILED" || campaign.status === "PAUSED";
-              const deletable = campaign.status === "DRAFT" || campaign.status === "COMPLETED" || campaign.status === "FAILED";
-              const cancellable =
-                campaign.status === "DRAFT" ||
-                campaign.status === "PAUSED" ||
-                campaign.status === "SENDING" ||
-                campaign.status === "SCHEDULED" ||
-                campaign.status === "FAILED";
+              const remaining = remainingRecipients(campaign);
 
               return (
-                <Card key={campaign.id}>
-                  <CardContent className="space-y-4 p-5">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold">{campaign.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Template: {campaign.templateName} ·{" "}
-                          {campaign.connectionLabel || "No connection"} · {campaign.templateLanguage}
-                        </p>
-                        {campaign.description ? (
-                          <p className="mt-2 text-sm text-muted-foreground">{campaign.description}</p>
-                        ) : null}
+                <Link key={campaign.id} href={`/reach/campaigns/${campaign.id}`} className="no-underline">
+                  <Card className="h-full transition-colors hover:border-primary/40 hover:bg-secondary/20">
+                    <CardContent className="space-y-4 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="truncate text-base font-semibold text-foreground">{campaign.name}</h3>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {campaign.templateName} · {campaign.connectionLabel || "No connection"}
+                          </p>
+                        </div>
+                        <Badge className={statusTone(campaign.status)}>
+                          {campaign.status === "SENDING" ? (
+                            <Zap className="h-3 w-3" />
+                          ) : campaign.status === "PAUSED" ? (
+                            <Pause className="h-3 w-3" />
+                          ) : campaign.status === "COMPLETED" ? (
+                            <RefreshCw className="h-3 w-3" />
+                          ) : (
+                            <Square className="h-3 w-3" />
+                          )}
+                          {campaign.status}
+                        </Badge>
                       </div>
-                      <Badge className={statusTone(campaign.status)}>
-                        {campaign.status === "SENDING" ? (
-                          <Zap className="h-3 w-3" />
-                        ) : campaign.status === "PAUSED" ? (
-                          <Pause className="h-3 w-3" />
-                        ) : campaign.status === "COMPLETED" ? (
-                          <RefreshCw className="h-3 w-3" />
-                        ) : (
-                          <Square className="h-3 w-3" />
-                        )}
-                        {campaign.status}
-                      </Badge>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-6">
-                      <div className="rounded-lg bg-secondary/50 p-3">
-                        <div className="text-muted-foreground">Recipients</div>
-                        <div className="mt-1 font-semibold">
-                          {campaign.totalRecipients.toLocaleString()}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Progress</span>
+                          <span className="font-medium text-foreground">{progress}%</span>
                         </div>
+                        <Progress value={progress} />
                       </div>
-                      <div className="rounded-lg bg-secondary/50 p-3">
-                        <div className="text-muted-foreground">Sent</div>
-                        <div className="mt-1 font-semibold">
-                          {campaign.sentCount.toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-secondary/50 p-3">
-                        <div className="text-muted-foreground">Delivered</div>
-                        <div className="mt-1 font-semibold">
-                          {campaign.deliveredCount.toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-secondary/50 p-3">
-                        <div className="text-muted-foreground">Read</div>
-                        <div className="mt-1 font-semibold">
-                          {campaign.readCount.toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-secondary/50 p-3">
-                        <div className="text-muted-foreground">Failed</div>
-                        <div className="mt-1 font-semibold">
-                          {(campaign.failedCount + campaign.blockedCount).toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-secondary/50 p-3">
-                        <div className="text-muted-foreground">Scheduled</div>
-                        <div className="mt-1 font-semibold">{formatDate(campaign.scheduledAt)}</div>
-                      </div>
-                    </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Progress</span>
-                        <span className="font-medium">{progress}%</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        <CompactStat label="Recipients" value={campaign.totalRecipients} />
+                        <CompactStat label="Sent" value={campaign.sentCount} />
+                        <CompactStat label="Remaining" value={remaining} />
                       </div>
-                      <Progress value={progress} />
-                    </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      {launchable ? (
-                        <Button
-                          size="sm"
-                          disabled={isPending || loadingAction === `${campaign.id}:launch`}
-                          onClick={() => void runAction(campaign.id, "launch")}
-                        >
-                          <Play className="h-4 w-4" />
-                          Launch
-                        </Button>
-                      ) : null}
-                      {pausable ? (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={isPending || loadingAction === `${campaign.id}:pause`}
-                          onClick={() => void runAction(campaign.id, "pause")}
-                        >
-                          <Pause className="h-4 w-4" />
-                          Pause
-                        </Button>
-                      ) : null}
-                      {resumable ? (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={isPending || loadingAction === `${campaign.id}:resume`}
-                          onClick={() => void runAction(campaign.id, "resume")}
-                        >
-                          <Play className="h-4 w-4" />
-                          Resume
-                        </Button>
-                      ) : null}
-                      {retryable ? (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={isPending || loadingAction === `${campaign.id}:retry_failed`}
-                          onClick={() => void runAction(campaign.id, "retry_failed")}
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                          Retry failed
-                        </Button>
-                      ) : null}
-                      {cancellable ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={isPending || loadingAction === `${campaign.id}:cancel`}
-                          onClick={() => void runAction(campaign.id, "cancel")}
-                        >
-                          <Square className="h-4 w-4" />
-                          Cancel
-                        </Button>
-                      ) : null}
-                      {sendMoreable ? (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={isPending || loadingAction === `${campaign.id}:send_more`}
-                          onClick={() => void runAction(campaign.id, "send_more")}
-                        >
-                          <UserPlus className="h-4 w-4" />
-                          Send More
-                        </Button>
-                      ) : null}
-                      {deletable ? (
-                        confirmDelete === campaign.id ? (
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              disabled={isPending || loadingAction === `${campaign.id}:delete`}
-                              onClick={() => void runAction(campaign.id, "delete")}
-                            >
-                              Confirm Delete
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setConfirmDelete(null)}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-red-400 hover:text-red-300"
-                            onClick={() => setConfirmDelete(campaign.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Delete
-                          </Button>
-                        )
-                      ) : null}
-                    </div>
-                  </CardContent>
-                </Card>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{campaign.deliveredCount.toLocaleString()} delivered</span>
+                        <span>{campaign.readCount.toLocaleString()} read</span>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground">
+                        {campaign.scheduledAt ? formatDate(campaign.scheduledAt) : "No schedule"}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
               );
             })}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function CompactStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-secondary/50 px-3 py-2">
+      <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-foreground">{value.toLocaleString("en-ZA")}</div>
     </div>
   );
 }

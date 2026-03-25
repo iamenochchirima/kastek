@@ -614,6 +614,12 @@ pub struct WhatsappCampaignRow {
     pub created_at: DateTime<Utc>,
     #[sqlx(rename = "updated_at")]
     pub updated_at: DateTime<Utc>,
+    #[serde(rename = "connectionLabel")]
+    #[sqlx(rename = "connection_label")]
+    pub connection_label: Option<String>,
+    #[serde(rename = "templateStatus")]
+    #[sqlx(rename = "template_status")]
+    pub template_status: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, FromRow)]
@@ -642,6 +648,57 @@ pub struct WhatsappCampaignRecipientRow {
     pub created_at: DateTime<Utc>,
     #[sqlx(rename = "updated_at")]
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct WhatsappCampaignRecipientDetailRow {
+    pub id: String,
+    #[sqlx(rename = "campaign_id")]
+    pub campaign_id: String,
+    #[sqlx(rename = "contact_id")]
+    pub contact_id: String,
+    pub status: String,
+    #[serde(rename = "waMessageId")]
+    #[sqlx(rename = "wa_message_id")]
+    pub wa_message_id: Option<String>,
+    #[serde(rename = "sentAt")]
+    #[sqlx(rename = "sent_at")]
+    pub sent_at: Option<DateTime<Utc>>,
+    #[serde(rename = "deliveredAt")]
+    #[sqlx(rename = "delivered_at")]
+    pub delivered_at: Option<DateTime<Utc>>,
+    #[serde(rename = "readAt")]
+    #[sqlx(rename = "read_at")]
+    pub read_at: Option<DateTime<Utc>>,
+    #[serde(rename = "failedAt")]
+    #[sqlx(rename = "failed_at")]
+    pub failed_at: Option<DateTime<Utc>>,
+    #[serde(rename = "errorCode")]
+    #[sqlx(rename = "error_code")]
+    pub error_code: Option<String>,
+    #[serde(rename = "errorMessage")]
+    #[sqlx(rename = "error_message")]
+    pub error_message: Option<String>,
+    #[serde(rename = "createdAt")]
+    #[sqlx(rename = "created_at")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    #[sqlx(rename = "updated_at")]
+    pub updated_at: DateTime<Utc>,
+    #[serde(rename = "contactPhone")]
+    #[sqlx(rename = "contact_phone")]
+    pub contact_phone: String,
+    #[serde(rename = "contactFullName")]
+    #[sqlx(rename = "contact_full_name")]
+    pub contact_full_name: Option<String>,
+    #[serde(rename = "contactLocation")]
+    #[sqlx(rename = "contact_location")]
+    pub contact_location: Option<String>,
+    #[serde(rename = "contactListLabel")]
+    #[sqlx(rename = "contact_list_label")]
+    pub contact_list_label: String,
+    #[serde(rename = "contactMetadata")]
+    pub contact_metadata: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, FromRow)]
@@ -692,6 +749,7 @@ pub struct WhatsappContactListQuery {
     pub location: Option<String>,
     #[serde(rename = "listLabel")]
     pub list_label: Option<String>,
+    pub limit: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -742,6 +800,8 @@ pub struct WhatsappCampaignActionRequest {
     pub action: Option<String>,
     #[serde(rename = "batchSize")]
     pub batch_size: Option<i32>,
+    #[serde(rename = "excludedContactIds")]
+    pub excluded_contact_ids: Option<Vec<String>>,
     #[serde(rename = "scheduledAt")]
     pub scheduled_at: Option<String>,
 }

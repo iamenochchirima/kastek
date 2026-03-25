@@ -3,14 +3,17 @@ use sqlx::PgPool;
 
 use crate::config::AppConfig;
 use crate::db::models::{
-    SocialChannelCreateRequest, SocialChannelUpdateRequest, SocialPublishJobActionRequest,
-    SocialPublishRequest, SocialPostUpsertRequest,
+    SocialChannelCreateRequest, SocialChannelUpdateRequest, SocialPostUpsertRequest,
+    SocialPublishJobActionRequest, SocialPublishRequest,
 };
 use crate::error::AppError;
 use crate::middleware::extract_user;
 use crate::services::social;
 
-pub async fn list_channels(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
+pub async fn list_channels(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let channels = social::list_social_channels(pool.get_ref(), &user.id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "channels": channels })))
@@ -27,7 +30,9 @@ pub async fn create_channel(
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("A valid platform is required".to_string()))?;
     if !social::is_valid_platform(platform) {
-        return Err(AppError::BadRequest("A valid platform is required".to_string()));
+        return Err(AppError::BadRequest(
+            "A valid platform is required".to_string(),
+        ));
     }
     let display_name = body
         .display_name
@@ -44,8 +49,14 @@ pub async fn create_channel(
         &user.id,
         platform,
         display_name,
-        body.handle.as_ref().map(|value| value.trim().to_string()).filter(|value| !value.is_empty()),
-        body.external_account_id.as_ref().map(|value| value.trim().to_string()).filter(|value| !value.is_empty()),
+        body.handle
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
+        body.external_account_id
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
         status,
         body.metadata.clone(),
     )
@@ -62,7 +73,10 @@ pub async fn update_channel(
     let user = extract_user(&req, pool.get_ref()).await?;
     let existing = social::get_social_channel(pool.get_ref(), &user.id, &path).await?;
     let existing = existing.ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
-    let platform = body.platform.as_deref().unwrap_or(existing.platform.as_str());
+    let platform = body
+        .platform
+        .as_deref()
+        .unwrap_or(existing.platform.as_str());
     if !social::is_valid_platform(platform) {
         return Err(AppError::BadRequest("Invalid platform".to_string()));
     }
@@ -107,7 +121,10 @@ pub async fn delete_channel(
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
 
-pub async fn list_posts(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
+pub async fn list_posts(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let posts = social::list_social_posts(pool.get_ref(), &user.id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "posts": posts })))
@@ -177,7 +194,12 @@ pub async fn publish_post(
         .await?
         .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
 
-    if !post.row.channels.iter().any(|channel| channel == requested_platform) {
+    if !post
+        .row
+        .channels
+        .iter()
+        .any(|channel| channel == requested_platform)
+    {
         return Err(AppError::BadRequest(format!(
             "This post is not configured for {}",
             requested_platform
@@ -185,7 +207,9 @@ pub async fn publish_post(
     }
 
     if post.publish_jobs.iter().any(|job| {
-        job.platform == requested_platform && job.status == "PUBLISHED" && job.external_post_id.is_some()
+        job.platform == requested_platform
+            && job.status == "PUBLISHED"
+            && job.external_post_id.is_some()
     }) {
         return Err(AppError::Conflict(format!(
             "This post has already been published to {}",
@@ -275,8 +299,12 @@ pub async fn update_publish_job(
             .await?;
         }
         "run_now" => {
-            let claimed =
-                social::claim_publish_job(pool.get_ref(), &job_id, &["PENDING", "FAILED", "QUEUED"]).await?;
+            let claimed = social::claim_publish_job(
+                pool.get_ref(),
+                &job_id,
+                &["PENDING", "FAILED", "QUEUED"],
+            )
+            .await?;
             if !claimed {
                 return Err(AppError::Conflict(
                     "This publish job is already processing".to_string(),
@@ -329,9 +357,18 @@ pub async fn x_oauth_callback(
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     if let Some(error) = query.error.as_ref() {
-        let message = query.error_description.clone().unwrap_or_else(|| error.clone());
-        let redirect = format!("{}/social/channels?error={}", config.auth_url, urlencoding::encode(&message));
-        return Ok(HttpResponse::Found().append_header(("Location", redirect)).finish());
+        let message = query
+            .error_description
+            .clone()
+            .unwrap_or_else(|| error.clone());
+        let redirect = format!(
+            "{}/social/channels?error={}",
+            config.auth_url,
+            urlencoding::encode(&message)
+        );
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", redirect))
+            .finish());
     }
 
     let code = query
@@ -362,7 +399,8 @@ pub async fn x_oauth_callback(
             .ok_or_else(|| AppError::BadRequest("Missing X access token".to_string()))?,
     )
     .await?;
-    let _channel = social::upsert_x_connection_for_user(pool.get_ref(), &user.id, &tokens, &profile).await?;
+    let _channel =
+        social::upsert_x_connection_for_user(pool.get_ref(), &user.id, &tokens, &profile).await?;
 
     let redirect = format!("{}/social/channels?connected=x", config.auth_url);
     Ok(HttpResponse::Found()
@@ -411,9 +449,18 @@ pub async fn linkedin_oauth_callback(
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     if let Some(error) = query.error.as_ref() {
-        let message = query.error_description.clone().unwrap_or_else(|| error.clone());
-        let redirect = format!("{}/social/channels?error={}", config.auth_url, urlencoding::encode(&message));
-        return Ok(HttpResponse::Found().append_header(("Location", redirect)).finish());
+        let message = query
+            .error_description
+            .clone()
+            .unwrap_or_else(|| error.clone());
+        let redirect = format!(
+            "{}/social/channels?error={}",
+            config.auth_url,
+            urlencoding::encode(&message)
+        );
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", redirect))
+            .finish());
     }
 
     let code = query
@@ -441,7 +488,8 @@ pub async fn linkedin_oauth_callback(
     )
     .await?;
     let _channel =
-        social::upsert_linkedin_connection_for_user(pool.get_ref(), &user.id, &tokens, &profile).await?;
+        social::upsert_linkedin_connection_for_user(pool.get_ref(), &user.id, &tokens, &profile)
+            .await?;
 
     let redirect = format!("{}/social/channels?connected=linkedin", config.auth_url);
     Ok(HttpResponse::Found()

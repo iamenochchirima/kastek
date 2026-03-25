@@ -184,6 +184,22 @@ export type WhatsappRealtimeEvent =
       };
     }
   | {
+      type: "campaign.updated";
+      campaignId: string;
+      campaign: {
+        id: string;
+        status: string;
+        totalRecipients: number;
+        sentCount: number;
+        deliveredCount: number;
+        readCount: number;
+        failedCount: number;
+        blockedCount: number;
+        unsubscribedCount: number;
+        updatedAt?: string;
+      };
+    }
+  | {
       type: "message.send_failed";
       conversationId: string;
       error: string;

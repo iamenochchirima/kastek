@@ -23,15 +23,7 @@ export default async function ReachContactsPage({
   const location = typeof params.location === "string" ? params.location.trim() : "";
   const listLabel = typeof params.listLabel === "string" ? params.listLabel.trim() : "";
 
-  const search = new URLSearchParams();
-  if (query) search.set("q", query);
-  if (optIn && optIn !== "all") search.set("optIn", optIn);
-  if (excluded && excluded !== "all") search.set("excluded", excluded);
-  if (tag) search.set("tag", tag);
-  if (location) search.set("location", location);
-  if (listLabel) search.set("listLabel", listLabel);
-
-  const contactsResponse = await fetchRustJson<{
+  type ContactsResponse = {
     contacts: Array<{
       id: string;
       phone: string;
@@ -61,7 +53,24 @@ export default async function ReachContactsPage({
       optedInContacts: number;
       excludedContacts: number;
     };
-  }>(`/api/whatsapp/contacts${search.toString() ? `?${search.toString()}` : ""}`);
+  };
+
+  const baseSearch = new URLSearchParams();
+  if (listLabel) baseSearch.set("listLabel", listLabel);
+
+  const searchSearch = new URLSearchParams();
+  if (query) searchSearch.set("q", query);
+  if (optIn && optIn !== "all") searchSearch.set("optIn", optIn);
+  if (excluded && excluded !== "all") searchSearch.set("excluded", excluded);
+  if (tag) searchSearch.set("tag", tag);
+  if (location) searchSearch.set("location", location);
+
+  const [contactsResponse, searchResponse] = await Promise.all([
+    fetchRustJson<ContactsResponse>(`/api/whatsapp/contacts${baseSearch.toString() ? `?${baseSearch.toString()}` : ""}`),
+    query
+      ? fetchRustJson<ContactsResponse>(`/api/whatsapp/contacts?${searchSearch.toString()}`)
+      : Promise.resolve(null),
+  ]);
 
   return (
     <ContactsManager
@@ -75,8 +84,8 @@ export default async function ReachContactsPage({
         listLabel,
       }}
       lists={contactsResponse.lists ?? []}
+      searchResults={searchResponse?.contacts ?? []}
       stats={contactsResponse.stats ?? { totalContacts: 0, optedInContacts: 0, excludedContacts: 0 }}
-      tagOptions={contactsResponse.tagOptions ?? []}
     />
   );
 }

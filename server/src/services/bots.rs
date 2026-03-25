@@ -15,7 +15,11 @@ fn select_bot_sql() -> &'static str {
     "#
 }
 
-pub async fn create_bot(pool: &PgPool, user_id: &str, input: BotCreateRequest) -> Result<BotConfigurationRow, AppError> {
+pub async fn create_bot(
+    pool: &PgPool,
+    user_id: &str,
+    input: BotCreateRequest,
+) -> Result<BotConfigurationRow, AppError> {
     let name = input
         .name
         .as_deref()
@@ -56,8 +60,15 @@ pub async fn create_bot(pool: &PgPool, user_id: &str, input: BotCreateRequest) -
         .ok_or_else(|| AppError::Internal("Failed to reload bot".to_string()))
 }
 
-pub async fn get_bot(pool: &PgPool, user_id: &str, bot_id: &str) -> Result<Option<BotConfigurationRow>, AppError> {
-    let sql = format!("{} WHERE id = $1 AND \"userId\" = $2 LIMIT 1", select_bot_sql());
+pub async fn get_bot(
+    pool: &PgPool,
+    user_id: &str,
+    bot_id: &str,
+) -> Result<Option<BotConfigurationRow>, AppError> {
+    let sql = format!(
+        "{} WHERE id = $1 AND \"userId\" = $2 LIMIT 1",
+        select_bot_sql()
+    );
     sqlx::query_as::<_, BotConfigurationRow>(&sql)
         .bind(bot_id)
         .bind(user_id)
@@ -66,7 +77,12 @@ pub async fn get_bot(pool: &PgPool, user_id: &str, bot_id: &str) -> Result<Optio
         .map_err(AppError::from)
 }
 
-pub async fn update_bot(pool: &PgPool, user_id: &str, bot_id: &str, body: Value) -> Result<BotConfigurationRow, AppError> {
+pub async fn update_bot(
+    pool: &PgPool,
+    user_id: &str,
+    bot_id: &str,
+    body: Value,
+) -> Result<BotConfigurationRow, AppError> {
     if get_bot(pool, user_id, bot_id).await?.is_none() {
         return Err(AppError::NotFound("Bot not found".to_string()));
     }
@@ -86,12 +102,42 @@ pub async fn update_bot(pool: &PgPool, user_id: &str, bot_id: &str, body: Value)
         WHERE id = $10 AND "userId" = $11
         "#,
     )
-    .bind(body.get("name").and_then(|v| v.as_str()).map(str::trim).filter(|v| !v.is_empty()))
-    .bind(body.get("type").and_then(|v| v.as_str()).map(str::trim).filter(|v| !v.is_empty()))
-    .bind(body.get("status").and_then(|v| v.as_str()).map(str::trim).filter(|v| !v.is_empty()))
-    .bind(body.get("greetingMessage").and_then(|v| v.as_str()).map(str::trim).filter(|v| !v.is_empty()))
-    .bind(body.get("personality").and_then(|v| v.as_str()).map(str::trim).filter(|v| !v.is_empty()))
-    .bind(body.get("language").and_then(|v| v.as_str()).map(str::trim).filter(|v| !v.is_empty()))
+    .bind(
+        body.get("name")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|v| !v.is_empty()),
+    )
+    .bind(
+        body.get("type")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|v| !v.is_empty()),
+    )
+    .bind(
+        body.get("status")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|v| !v.is_empty()),
+    )
+    .bind(
+        body.get("greetingMessage")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|v| !v.is_empty()),
+    )
+    .bind(
+        body.get("personality")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|v| !v.is_empty()),
+    )
+    .bind(
+        body.get("language")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|v| !v.is_empty()),
+    )
     .bind(body.get("capabilities").cloned())
     .bind(body.get("knowledgeBase").cloned())
     .bind(body.get("integrationConfig").cloned())

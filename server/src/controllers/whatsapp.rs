@@ -158,7 +158,8 @@ pub async fn update_contact(
     body: web::Json<WhatsappContactUpdateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::update_contact(pool.get_ref(), &user.id, &path, body.into_inner()).await?;
+    let result =
+        whatsapp::update_contact(pool.get_ref(), &user.id, &path, body.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -254,11 +255,24 @@ pub async fn update_campaign(
     let result = match action {
         "pause" => whatsapp::pause_campaign(pool.get_ref(), &user.id, &path).await?,
         "resume" => {
-            whatsapp::resume_campaign(pool.get_ref(), &user.id, &path, body.scheduled_at.clone()).await?
+            whatsapp::resume_campaign(pool.get_ref(), &user.id, &path, body.scheduled_at.clone())
+                .await?
         }
         "cancel" => whatsapp::cancel_campaign(pool.get_ref(), &user.id, &path).await?,
         "retry_failed" => whatsapp::retry_failed_campaign(pool.get_ref(), &user.id, &path).await?,
-        "send_more" => whatsapp::send_more_campaign(pool.get_ref(), &user.id, &path).await?,
+        "repair_status" => {
+            whatsapp::repair_campaign_status(pool.get_ref(), &user.id, &path).await?
+        }
+        "send_more" => {
+            whatsapp::send_more_campaign(
+                pool.get_ref(),
+                &user.id,
+                &path,
+                body.batch_size,
+                body.excluded_contact_ids.clone().unwrap_or_default(),
+            )
+            .await?
+        }
         _ => return Err(AppError::BadRequest("Unsupported action".to_string())),
     };
     Ok(HttpResponse::Ok().json(result))
@@ -282,7 +296,9 @@ pub async fn verify_webhook(
     let challenge = query.get("hub.challenge").cloned().unwrap_or_default();
 
     if mode != "subscribe" || challenge.is_empty() {
-        return Err(AppError::BadRequest("Invalid verification request".to_string()));
+        return Err(AppError::BadRequest(
+            "Invalid verification request".to_string(),
+        ));
     }
     let expected = std::env::var("WHATSAPP_WEBHOOK_VERIFY_TOKEN").unwrap_or_default();
     if token != expected {
@@ -349,7 +365,8 @@ pub async fn send_conversation_message(
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let result =
-        whatsapp::send_conversation_message(pool.get_ref(), &user.id, &path, body.into_inner()).await?;
+        whatsapp::send_conversation_message(pool.get_ref(), &user.id, &path, body.into_inner())
+            .await?;
     Ok(HttpResponse::Accepted().json(result))
 }
 
@@ -389,9 +406,13 @@ pub async fn delete_conversation_message(
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let (conversation_id, message_id) = path.into_inner();
-    let result =
-        whatsapp::delete_conversation_message(pool.get_ref(), &user.id, &conversation_id, &message_id)
-            .await?;
+    let result = whatsapp::delete_conversation_message(
+        pool.get_ref(),
+        &user.id,
+        &conversation_id,
+        &message_id,
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(result))
 }
 

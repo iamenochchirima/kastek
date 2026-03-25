@@ -40,7 +40,10 @@ fn sanitize_channels(channels: Option<Vec<String>>) -> Vec<String> {
         .collect()
 }
 
-async fn load_business_profile(pool: &PgPool, user_id: &str) -> Result<Option<BusinessProfileRow>, AppError> {
+async fn load_business_profile(
+    pool: &PgPool,
+    user_id: &str,
+) -> Result<Option<BusinessProfileRow>, AppError> {
     sqlx::query_as::<_, BusinessProfileRow>(
         r#"
         SELECT "businessName", "businessType", industry, description, city, province, country, website
@@ -58,7 +61,10 @@ async fn load_business_profile(pool: &PgPool, user_id: &str) -> Result<Option<Bu
 async fn generate_with_openrouter(messages: Vec<Value>) -> Result<String, AppError> {
     let response = reqwest::Client::new()
         .post("https://openrouter.ai/api/v1/chat/completions")
-        .header("Authorization", format!("Bearer {}", get_openrouter_api_key()?))
+        .header(
+            "Authorization",
+            format!("Bearer {}", get_openrouter_api_key()?),
+        )
         .header("Content-Type", "application/json")
         .header("HTTP-Referer", get_app_url())
         .header("X-OpenRouter-Title", "KasiTek KasiSocial")
@@ -93,7 +99,11 @@ async fn generate_with_openrouter(messages: Vec<Value>) -> Result<String, AppErr
         .ok_or_else(|| AppError::Internal("OpenRouter returned an empty response".to_string()))
 }
 
-pub async fn generate_social_ideas(pool: &PgPool, user_id: &str, input: SocialIdeasRequest) -> Result<Value, AppError> {
+pub async fn generate_social_ideas(
+    pool: &PgPool,
+    user_id: &str,
+    input: SocialIdeasRequest,
+) -> Result<Value, AppError> {
     let topic = input.topic.as_deref().map(str::trim).unwrap_or("");
     let objective = input.objective.as_deref().map(str::trim).unwrap_or("");
     let channels = sanitize_channels(input.channels);
@@ -178,10 +188,18 @@ pub async fn generate_social_ideas(pool: &PgPool, user_id: &str, input: SocialId
     Ok(json!({ "ideas": ideas }))
 }
 
-pub async fn generate_social_caption(pool: &PgPool, user_id: &str, input: SocialCaptionRequest) -> Result<Value, AppError> {
+pub async fn generate_social_caption(
+    pool: &PgPool,
+    user_id: &str,
+    input: SocialCaptionRequest,
+) -> Result<Value, AppError> {
     let prompt = input.prompt.as_deref().map(str::trim).unwrap_or("");
     let title = input.title.as_deref().map(str::trim).unwrap_or("");
-    let current_content = input.current_content.as_deref().map(str::trim).unwrap_or("");
+    let current_content = input
+        .current_content
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("");
     let channels = sanitize_channels(input.channels);
     if prompt.is_empty() && title.is_empty() && current_content.is_empty() {
         return Err(AppError::BadRequest(
@@ -237,12 +255,15 @@ pub async fn generate_social_caption(pool: &PgPool, user_id: &str, input: Social
         .and_then(|value| value.as_str())
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::Internal("AI response did not include caption content".to_string()))?;
+        .ok_or_else(|| {
+            AppError::Internal("AI response did not include caption content".to_string())
+        })?;
     let suggested_channels = parsed
         .get("suggestedChannels")
         .and_then(|value| value.as_array())
         .map(|items| {
-            items.iter()
+            items
+                .iter()
                 .filter_map(|item| item.as_str())
                 .filter(|channel| PLATFORM_VALUES.contains(channel))
                 .collect::<Vec<_>>()
@@ -256,7 +277,10 @@ pub async fn generate_social_caption(pool: &PgPool, user_id: &str, input: Social
         .into_iter()
         .filter_map(|variant| {
             let platform = variant.get("platform").and_then(|value| value.as_str())?;
-            let content = variant.get("content").and_then(|value| value.as_str())?.trim();
+            let content = variant
+                .get("content")
+                .and_then(|value| value.as_str())?
+                .trim();
             if !PLATFORM_VALUES.contains(&platform) || content.is_empty() {
                 return None;
             }
