@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
+import { apiUrl } from "@/lib/server-api";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -615,8 +616,9 @@ export default function InboxPageClient({
       setMessagesLoading(true);
 
       try {
-        const response = await fetch(`/api/whatsapp/inbox/${conversationId}/messages`, {
+        const response = await fetch(apiUrl(`/api/whatsapp/inbox/${conversationId}/messages`), {
           cache: "no-store",
+          credentials: "include",
         });
         const payload = (await response.json()) as {
           messages?: ConversationMessage[];
@@ -711,8 +713,9 @@ export default function InboxPageClient({
       ),
     );
 
-    void fetch(`/api/whatsapp/inbox/${selectedConversationId}/read`, {
+    void fetch(apiUrl(`/api/whatsapp/inbox/${selectedConversationId}/read`), {
       method: "POST",
+      credentials: "include",
     });
   }, [selectedConversationId]);
 
@@ -742,12 +745,15 @@ export default function InboxPageClient({
   }, [showEmojiPicker]);
 
   useEffect(() => {
-    const source = new EventSource("/api/realtime/whatsapp");
+    const source = new EventSource(apiUrl("/api/realtime/whatsapp"), {
+      withCredentials: true,
+    });
 
     const syncUnreadCount = async () => {
       try {
-        const response = await fetch("/api/whatsapp/inbox/unread-count", {
+        const response = await fetch(apiUrl("/api/whatsapp/inbox/unread-count"), {
           cache: "no-store",
+          credentials: "include",
         });
 
         if (!response.ok) return;
@@ -779,7 +785,37 @@ export default function InboxPageClient({
         if (payload.type === "message.created") {
           setLiveConversations((current) => {
             const existing = current.find((conversation) => conversation.id === conversationId);
-            if (!existing) return current;
+            if (!existing) {
+              const fallbackName =
+                payload.conversation?.customerName || payload.conversation?.phone || "Unknown contact";
+              const nextConversation: InboxConversation = {
+                id: conversationId,
+                name: fallbackName,
+                handle: payload.conversation?.phone || "Unknown contact",
+                lastMessage: getWhatsappMessagePreview(payload.message.content),
+                time: payload.message.timestamp,
+                unread: payload.message.sender === "customer" && conversationId !== selectedConversationId,
+                starred: false,
+                channel: "whatsapp" as const,
+                connectionId: payload.conversation?.connectionId || null,
+                connectionLabel:
+                  payload.conversation?.connectionLabel || payload.conversation?.phone || "Unknown number",
+                avatar:
+                  fallbackName
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part) => part[0]?.toUpperCase() || "")
+                    .join("")
+                    .slice(0, 2) || "?",
+                status: "offline" as const,
+                tags: [],
+              };
+
+              return [nextConversation, ...current].sort(
+                (left, right) => new Date(right.time).getTime() - new Date(left.time).getTime(),
+              );
+            }
 
             const next = current.map((conversation) =>
               conversation.id === conversationId
@@ -886,7 +922,32 @@ export default function InboxPageClient({
                       }
                     : conversation,
                 )
-              : current;
+              : [
+                  {
+                    id: payload.conversationId,
+                    name: payload.conversation.customerName || payload.conversation.phone || "Unknown contact",
+                    handle: payload.conversation.phone,
+                    lastMessage: "New conversation",
+                    time: payload.conversation.lastMessageAt,
+                    unread: payload.conversation.unreadCount > 0,
+                    starred: false,
+                    channel: "whatsapp" as const,
+                    connectionId: payload.conversation.connectionId || null,
+                    connectionLabel:
+                      payload.conversation.connectionLabel || payload.conversation.phone || "Unknown number",
+                    avatar:
+                      (payload.conversation.customerName || payload.conversation.phone || "?")
+                        .split(/\s+/)
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((part) => part[0]?.toUpperCase() || "")
+                        .join("")
+                        .slice(0, 2) || "?",
+                    status: "offline" as const,
+                    tags: [],
+                  },
+                  ...current,
+                ];
 
             return next.sort(
               (left, right) => new Date(right.time).getTime() - new Date(left.time).getTime(),
@@ -967,10 +1028,11 @@ export default function InboxPageClient({
     setReactionPicker(null);
 
     const response = await fetch(
-      `/api/whatsapp/inbox/${selectedConversationId}/messages/${messageId}/reaction`,
+      apiUrl(`/api/whatsapp/inbox/${selectedConversationId}/messages/${messageId}/reaction`),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(remove ? { remove: true } : { emoji: nextEmoji }),
       },
     );
@@ -993,8 +1055,8 @@ export default function InboxPageClient({
     const conversationId = selectedConversationId;
 
     const response = await fetch(
-      `/api/whatsapp/inbox/${conversationId}/messages/${messageId}`,
-      { method: "DELETE" },
+      apiUrl(`/api/whatsapp/inbox/${conversationId}/messages/${messageId}`),
+      { method: "DELETE", credentials: "include" },
     );
 
     if (!response.ok) return;
@@ -1049,14 +1111,20 @@ export default function InboxPageClient({
       }));
     }
 
-    const formData = new FormData();
-    if (trimmed) formData.append("text", trimmed);
-    if (selectedFile) formData.append("file", selectedFile);
-    if (replyDraft?.messageId) formData.append("replyToMessageId", replyDraft.messageId);
+    if (selectedFile) {
+      setComposerError("Media sending is not wired to the Rust inbox endpoint yet.");
+      setComposerLoading(false);
+      return;
+    }
 
-    const response = await fetch(`/api/whatsapp/inbox/${conversationId}/messages`, {
+    const response = await fetch(apiUrl(`/api/whatsapp/inbox/${conversationId}/messages`), {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        text: trimmed || undefined,
+        replyToMessageId: replyDraft?.messageId,
+      }),
     });
 
     if (!response.ok) {
@@ -1069,6 +1137,29 @@ export default function InboxPageClient({
         ),
       }));
     } else {
+      const payload = (await response.json().catch(() => ({}))) as {
+        messageId?: string;
+        queued?: boolean;
+      };
+      console.log("[inbox send debug]", {
+        conversationId,
+        optimisticId,
+        payload,
+      });
+      if (payload.messageId) {
+        setMessagesByConversationId((current) => ({
+          ...current,
+          [conversationId]: (current[conversationId] || []).map((message) =>
+            message.id === optimisticId
+              ? {
+                  ...message,
+                  id: payload.messageId!,
+                  status: payload.queued ? "pending" : message.status,
+                }
+              : message,
+          ),
+        }));
+      }
       setMessageInput("");
       setSelectedFile(null);
       setReplyDraft(null);
@@ -1706,7 +1797,7 @@ function DashboardMessageContent({
     );
   }
 
-  const mediaUrl = `/api/whatsapp/inbox/media/${message.id}`;
+  const mediaUrl = apiUrl(`/api/whatsapp/inbox/media/${message.id}`);
   const caption = media.caption?.trim();
 
   if (mediaFailed) {
@@ -1853,7 +1944,7 @@ function ReplyPreviewCard({
   const label = message?.sender === "bot" ? "You" : contactLabel;
   const displayText = getWhatsappMessageDisplayText(previewSource);
   const replyPreviewText = media ? getReplyPreviewText(media, displayText) : displayText;
-  const mediaUrl = message && media ? `/api/whatsapp/inbox/media/${message.id}` : null;
+  const mediaUrl = message && media ? apiUrl(`/api/whatsapp/inbox/media/${message.id}`) : null;
 
   return (
     <div className="flex overflow-hidden rounded-md bg-black/20">

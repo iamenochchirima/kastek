@@ -1,110 +1,97 @@
 import InboxPageClient from "@/components/dashboard/inbox-page";
-import { prisma } from "@/lib/prisma";
+import { apiUrl } from "@/lib/server-api";
 import { getRustSession } from "@/lib/rust-auth";
-import { parseWhatsappConversationIdentifier } from "@/lib/whatsapp/inbox";
-import { getWhatsappMessagePreview } from "@/lib/whatsapp/message-content";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+
+type RustInboxConversation = {
+  id: string;
+  customerName: string | null;
+  phone: string;
+  status: string;
+  lastMessageAt: string;
+  unreadCount: number;
+  connectionId: string | null;
+  connectionLabel: string | null;
+  lastMessage: string;
+};
+
+type RustConnection = {
+  id: string;
+  phoneNumberId: string;
+  phoneDisplayNumber: string | null;
+  wabaId: string;
+  currentQualityRating: string;
+  dailyLimitEstimate: number | null;
+  verified: boolean;
+  createdAt: string;
+};
+
+async function fetchRustJson<T>(path: string): Promise<T> {
+  const cookieStore = await cookies();
+  const cookieHeader = cookieStore
+    .getAll()
+    .map((cookie) => `${cookie.name}=${cookie.value}`)
+    .join("; ");
+
+  const response = await fetch(apiUrl(path), {
+    cache: "no-store",
+    headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `Rust API request failed for ${path} (${response.status})${detail ? `: ${detail}` : ""}`,
+    );
+  }
+
+  return response.json() as Promise<T>;
+}
 
 export default async function InboxPage() {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
-  const connections = await prisma.whatsappConnection.findMany({
-    where: { userId: session.user.id },
-    select: {
-      id: true,
-      phoneNumberId: true,
-      phoneDisplayNumber: true,
-      wabaId: true,
-      currentQualityRating: true,
-      dailyLimitEstimate: true,
-      verified: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const [connectionsPayload, conversationsPayload, unreadPayload] = await Promise.all([
+    fetchRustJson<{ connections: RustConnection[] }>("/api/whatsapp/connections"),
+    fetchRustJson<{ conversations: RustInboxConversation[] }>("/api/whatsapp/inbox/conversations"),
+    fetchRustJson<{ unreadCount: number }>("/api/whatsapp/inbox/unread-count"),
+  ]);
 
-  console.log(
-    "[inbox connection debug]",
-    JSON.stringify({
-      sessionUserId: session.user.id,
-      connectionCount: connections.length,
-      connectionIds: connections.map((connection) => connection.id),
-    }),
-  );
-
-  const conversationWhere = connections.length
-    ? {
-        channel: "whatsapp" as const,
-        OR: connections.map((connection) => ({
-          customerIdentifier: {
-            startsWith: `wa:${connection.id}:`,
-          },
-        })),
-      }
-    : null;
-
-  const conversations = conversationWhere
-    ? await prisma.conversation.findMany({
-        where: conversationWhere,
-        orderBy: { lastMessageAt: "desc" },
-        take: 50,
-        include: {
-          messages: {
-            orderBy: { timestamp: "desc" },
-            take: 1,
-          },
-        },
-      })
-    : [];
-
-  const whatsappUnreadCount = conversations.reduce(
-    (total, conversation) => total + conversation.unreadCount,
-    0,
-  );
-
-  const inboxConversations = conversations.map((conversation) => {
-    const parsed = parseWhatsappConversationIdentifier(conversation.customerIdentifier);
-    const lastMessage = conversation.messages[0];
-    const connection = connections.find((item) => item.id === parsed?.connectionId);
-
-    return {
-      id: conversation.id,
-      name: conversation.customerName || parsed?.phone || "Unknown contact",
-      handle: parsed?.phone || conversation.customerIdentifier,
-      lastMessage: lastMessage ? getWhatsappMessagePreview(lastMessage.content) : "No messages yet",
-      time: conversation.lastMessageAt.toISOString(),
-      unread: conversation.unreadCount > 0,
-      starred: false,
-      channel: "whatsapp" as const,
-      connectionId: parsed?.connectionId || null,
-      connectionLabel:
-        connection?.phoneDisplayNumber || connection?.phoneNumberId || "Unknown number",
-      avatar:
-        (conversation.customerName || parsed?.phone || "?")
-          .split(/\s+/)
-          .filter(Boolean)
-          .slice(0, 2)
-          .map((part) => part[0]?.toUpperCase() || "")
-          .join("")
-          .slice(0, 2) || "?",
-      status: "offline" as const,
-      tags: [],
-    };
-  });
+  const connections = connectionsPayload.connections || [];
+  const conversations = conversationsPayload.conversations || [];
 
   return (
     <InboxPageClient
-      whatsappConnections={connections.map((connection) => ({
-        ...connection,
-        createdAt: connection.createdAt.toISOString(),
+      whatsappConnections={connections}
+      conversations={conversations.map((conversation) => ({
+        id: conversation.id,
+        name: conversation.customerName || conversation.phone || "Unknown contact",
+        handle: conversation.phone,
+        lastMessage: conversation.lastMessage || "No messages yet",
+        time: conversation.lastMessageAt,
+        unread: conversation.unreadCount > 0,
+        starred: false,
+        channel: "whatsapp" as const,
+        connectionId: conversation.connectionId,
+        connectionLabel: conversation.connectionLabel || conversation.phone || "Unknown number",
+        avatar:
+          (conversation.customerName || conversation.phone || "?")
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase() || "")
+            .join("")
+            .slice(0, 2) || "?",
+        status: "offline" as const,
+        tags: [],
       }))}
-      conversations={inboxConversations}
       channelCounts={{
         whatsapp: {
           connected: connections.length > 0,
           connectionCount: connections.length,
-          unreadCount: whatsappUnreadCount,
+          unreadCount: unreadPayload.unreadCount || 0,
           conversationCount: conversations.length,
         },
         instagram: {

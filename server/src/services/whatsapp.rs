@@ -279,7 +279,8 @@ fn select_connection_sql() -> &'static str {
            "phoneDisplayNumber" AS phone_display_number, "accessTokenEncrypted" AS access_token_encrypted,
            "wabaId" AS waba_id, "currentQualityRating"::text AS current_quality_rating,
            "dailyLimitEstimate" AS daily_limit_estimate, verified,
-           "createdAt" AS created_at, "updatedAt" AS updated_at
+           "createdAt" AT TIME ZONE 'UTC' AS created_at,
+           "updatedAt" AT TIME ZONE 'UTC' AS updated_at
     FROM "WhatsappConnection"
     "#
 }
@@ -1961,7 +1962,15 @@ async fn find_or_create_conversation(
 ) -> Result<(String, i32, chrono::DateTime<Utc>), AppError> {
     let identifier = build_conversation_identifier(connection_id, phone);
     let existing = sqlx::query_as::<_, (String, i32, chrono::DateTime<Utc>)>(
-        r#"SELECT id, "unreadCount", "lastMessageAt" FROM "Conversation" WHERE channel = 'whatsapp' AND "customerIdentifier" = $1 LIMIT 1"#,
+        r#"
+        SELECT
+            id,
+            "unreadCount",
+            "lastMessageAt" AT TIME ZONE 'UTC'
+        FROM "Conversation"
+        WHERE channel = 'whatsapp' AND "customerIdentifier" = $1
+        LIMIT 1
+        "#,
     )
     .bind(&identifier)
     .fetch_optional(pool)
@@ -2139,9 +2148,15 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     if let Some(recipient) = sqlx::query_as::<_, WhatsappCampaignRecipientRow>(
         r#"
         SELECT id, "campaignId" AS campaign_id, "contactId" AS contact_id, status::text AS status,
-               "waMessageId" AS wa_message_id, "sentAt" AS sent_at, "deliveredAt" AS delivered_at,
-               "readAt" AS read_at, "failedAt" AS failed_at, "errorCode" AS error_code,
-               "errorMessage" AS error_message, "createdAt" AS created_at, "updatedAt" AS updated_at
+               "waMessageId" AS wa_message_id,
+               "sentAt" AT TIME ZONE 'UTC' AS sent_at,
+               "deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
+               "readAt" AT TIME ZONE 'UTC' AS read_at,
+               "failedAt" AT TIME ZONE 'UTC' AS failed_at,
+               "errorCode" AS error_code,
+               "errorMessage" AS error_message,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at,
+               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappCampaignRecipient" WHERE "waMessageId" = $1 LIMIT 1
         "#,
     )
@@ -2173,7 +2188,7 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     sqlx::query(
         r#"
         UPDATE "Message"
-        SET "whatsappStatus" = $1, "updatedAt" = NOW()
+        SET "whatsappStatus" = $1
         WHERE "whatsappMessageId" = $2 AND sender = 'bot'
         "#,
     )
@@ -2185,7 +2200,8 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     let rows = sqlx::query_as::<_, MessageRow>(
         r#"
         SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
-               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message, timestamp
+               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message,
+               timestamp AT TIME ZONE 'UTC' AS timestamp
         FROM "Message"
         WHERE "whatsappMessageId" = $1 AND sender = 'bot'
         "#,
@@ -2373,8 +2389,12 @@ async fn scoped_conversation(pool: &PgPool, user_id: &str, conversation_id: &str
     sqlx::query_as::<_, ConversationRow>(
         r#"
         SELECT id, channel, "customerIdentifier" AS customer_identifier, "customerName" AS customer_name,
-               status, "lastMessageAt" AS last_message_at, "lastReadAt" AS last_read_at,
-               "unreadCount" AS unread_count, "createdAt" AS created_at, "updatedAt" AS updated_at
+               status,
+               "lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
+               "lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
+               "unreadCount" AS unread_count,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at,
+               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "Conversation"
         WHERE id = $1
           AND channel = 'whatsapp'
@@ -2397,8 +2417,12 @@ async fn load_conversation_by_id(pool: &PgPool, conversation_id: &str) -> Result
     sqlx::query_as::<_, ConversationRow>(
         r#"
         SELECT id, channel, "customerIdentifier" AS customer_identifier, "customerName" AS customer_name,
-               status, "lastMessageAt" AS last_message_at, "lastReadAt" AS last_read_at,
-               "unreadCount" AS unread_count, "createdAt" AS created_at, "updatedAt" AS updated_at
+               status,
+               "lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
+               "lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
+               "unreadCount" AS unread_count,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at,
+               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "Conversation"
         WHERE id = $1
         LIMIT 1
@@ -2414,7 +2438,8 @@ async fn load_message_by_id(pool: &PgPool, message_id: &str) -> Result<Option<Me
     sqlx::query_as::<_, MessageRow>(
         r#"
         SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
-               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message, timestamp
+               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message,
+               timestamp AT TIME ZONE 'UTC' AS timestamp
         FROM "Message"
         WHERE id = $1
         LIMIT 1
@@ -2436,8 +2461,19 @@ async fn publish_conversation_updated(pool: &PgPool, user_id: &str, conversation
     let Some(conversation) = load_conversation_by_id(pool, conversation_id).await? else {
         return Ok(());
     };
-    let (_, phone) = parse_conversation_identifier(&conversation.customer_identifier)
+    let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
         .unwrap_or_else(|| ("".to_string(), conversation.customer_identifier.clone()));
+    let connection_label = if connection_id.is_empty() {
+        None
+    } else {
+        sqlx::query_scalar::<_, Option<String>>(
+            r#"SELECT COALESCE("phoneDisplayNumber", "phoneNumberId") FROM "WhatsappConnection" WHERE id = $1 LIMIT 1"#,
+        )
+        .bind(&connection_id)
+        .fetch_optional(pool)
+        .await?
+        .flatten()
+    };
     publish_event_best_effort(
         user_id,
         json!({
@@ -2447,6 +2483,8 @@ async fn publish_conversation_updated(pool: &PgPool, user_id: &str, conversation
                 "id": conversation.id,
                 "customerName": conversation.customer_name,
                 "phone": phone,
+                "connectionId": if connection_id.is_empty() { None::<String> } else { Some(connection_id) },
+                "connectionLabel": connection_label,
                 "lastMessageAt": conversation.last_message_at,
                 "unreadCount": conversation.unread_count
             }
@@ -2463,6 +2501,19 @@ async fn publish_message_created(pool: &PgPool, user_id: &str, message_id: &str)
     let conversation = load_conversation_by_id(pool, &message.conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
+    let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
+        .unwrap_or_else(|| ("".to_string(), conversation.customer_identifier.clone()));
+    let connection_label = if connection_id.is_empty() {
+        None
+    } else {
+        sqlx::query_scalar::<_, Option<String>>(
+            r#"SELECT COALESCE("phoneDisplayNumber", "phoneNumberId") FROM "WhatsappConnection" WHERE id = $1 LIMIT 1"#,
+        )
+        .bind(&connection_id)
+        .fetch_optional(pool)
+        .await?
+        .flatten()
+    };
     publish_event_best_effort(
         user_id,
         json!({
@@ -2470,6 +2521,11 @@ async fn publish_message_created(pool: &PgPool, user_id: &str, message_id: &str)
             "conversationId": conversation.id,
             "conversation": {
                 "customerName": conversation.customer_name,
+                "phone": phone,
+                "connectionId": if connection_id.is_empty() { None::<String> } else { Some(connection_id) },
+                "connectionLabel": connection_label,
+                "unreadCount": conversation.unread_count,
+                "lastMessageAt": conversation.last_message_at,
             },
             "message": {
                 "id": message.id,
@@ -2705,6 +2761,14 @@ async fn process_claimed_inbox_message(
         .ok_or_else(|| AppError::BadRequest("Invalid conversation identifier".to_string()))?;
     let access_token = decrypt_social_secret(&job.access_token_encrypted)?;
     let (text, _, reply_to_whatsapp_message_id) = unwrap_reply_envelope(&job.content);
+    log::info!(
+        "[whatsapp-inbox-worker] sending queued message message_id={} conversation_id={} phone_number_id={} recipient_phone={} reply_to={:?}",
+        job.id,
+        job.conversation_id,
+        job.phone_number_id,
+        phone,
+        reply_to_whatsapp_message_id
+    );
     let (whatsapp_message_id, _) = send_text_message(
         &job.phone_number_id,
         &access_token,
@@ -2769,10 +2833,21 @@ async fn process_single_queued_inbox_message(
     let conversation_id = job.conversation_id.clone();
     let user_id = job.user_id.clone();
     let text = display_text(&job.content);
+    log::info!(
+        "[whatsapp-inbox-worker] claimed queued message message_id={} conversation_id={} explicit={:?}",
+        message_id,
+        conversation_id,
+        explicit_message_id
+    );
 
     match process_claimed_inbox_message(&mut tx, job).await {
         Ok((_user_id, _conversation_id, _message_id, _whatsapp_message_id)) => {
             tx.commit().await?;
+            log::info!(
+                "[whatsapp-inbox-worker] completed queued message message_id={} conversation_id={}",
+                message_id,
+                conversation_id
+            );
             publish_message_updated(&user_id, &conversation_id, &message_id, "SENT", None, None).await;
             publish_conversation_updated(pool, &user_id, &conversation_id).await?;
             Ok(true)
@@ -2780,6 +2855,12 @@ async fn process_single_queued_inbox_message(
         Err(error) => {
             fail_claimed_inbox_message(&mut tx, &message_id, &error).await?;
             tx.commit().await?;
+            log::error!(
+                "[whatsapp-inbox-worker] failed queued message message_id={} conversation_id={} error={}",
+                message_id,
+                conversation_id,
+                error
+            );
             publish_message_updated(
                 &user_id,
                 &conversation_id,
@@ -2940,9 +3021,17 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
     }
     let conversations = sqlx::query_as::<_, ConversationRow>(
         r#"
-        SELECT id, channel, "customerIdentifier" AS customer_identifier, "customerName" AS customer_name,
-               status, "lastMessageAt" AS last_message_at, "lastReadAt" AS last_read_at,
-               "unreadCount" AS unread_count, "createdAt" AS created_at, "updatedAt" AS updated_at
+        SELECT
+            id,
+            channel,
+            "customerIdentifier" AS customer_identifier,
+            "customerName" AS customer_name,
+            status,
+            "lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
+            "lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
+            "unreadCount" AS unread_count,
+            "createdAt" AT TIME ZONE 'UTC' AS created_at,
+            "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "Conversation"
         WHERE channel = 'whatsapp'
           AND EXISTS (
@@ -2955,21 +3044,43 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
     .bind(&connection_ids)
     .fetch_all(pool)
     .await?;
-    let result = conversations
-        .into_iter()
-        .map(|conversation| {
-            let (_, phone) = parse_conversation_identifier(&conversation.customer_identifier)
-                .unwrap_or_else(|| ("".to_string(), conversation.customer_identifier.clone()));
-            json!({
-                "id": conversation.id,
-                "customerName": conversation.customer_name,
-                "phone": phone,
-                "status": conversation.status,
-                "lastMessageAt": conversation.last_message_at,
-                "unreadCount": conversation.unread_count,
-            })
-        })
-        .collect::<Vec<_>>();
+    let mut result = Vec::with_capacity(conversations.len());
+    for conversation in conversations {
+        let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
+            .unwrap_or_else(|| ("".to_string(), conversation.customer_identifier.clone()));
+        let connection_label = if connection_id.is_empty() {
+            None
+        } else {
+            sqlx::query_scalar::<_, Option<String>>(
+                r#"SELECT COALESCE("phoneDisplayNumber", "phoneNumberId") FROM "WhatsappConnection" WHERE id = $1 LIMIT 1"#,
+            )
+            .bind(&connection_id)
+            .fetch_optional(pool)
+            .await?
+            .flatten()
+        };
+        let last_message_content = sqlx::query_scalar::<_, Option<String>>(
+            r#"SELECT content FROM "Message" WHERE "conversationId" = $1 ORDER BY timestamp DESC LIMIT 1"#,
+        )
+        .bind(&conversation.id)
+        .fetch_optional(pool)
+        .await?
+        .flatten();
+        result.push(json!({
+            "id": conversation.id,
+            "customerName": conversation.customer_name,
+            "phone": phone,
+            "status": conversation.status,
+            "lastMessageAt": conversation.last_message_at,
+            "unreadCount": conversation.unread_count,
+            "connectionId": if connection_id.is_empty() { None::<String> } else { Some(connection_id) },
+            "connectionLabel": connection_label,
+            "lastMessage": last_message_content
+                .as_deref()
+                .map(|content| preview_text(content, 180))
+                .unwrap_or_else(|| "No messages yet".to_string()),
+        }));
+    }
     Ok(json!({ "conversations": result }))
 }
 
@@ -3102,7 +3213,8 @@ pub async fn list_conversation_messages(pool: &PgPool, user_id: &str, conversati
     let messages = sqlx::query_as::<_, MessageRow>(
         r#"
         SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
-               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message, timestamp
+               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message,
+               timestamp AT TIME ZONE 'UTC' AS timestamp
         FROM "Message"
         WHERE "conversationId" = $1
         ORDER BY timestamp ASC
@@ -3140,7 +3252,8 @@ pub async fn send_conversation_message(pool: &PgPool, user_id: &str, conversatio
         let reply_target = sqlx::query_as::<_, MessageRow>(
             r#"
             SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
-                   "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message, timestamp
+                   "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message,
+                   timestamp AT TIME ZONE 'UTC' AS timestamp
             FROM "Message"
             WHERE id = $1 AND "conversationId" = $2
             LIMIT 1
@@ -3165,6 +3278,13 @@ pub async fn send_conversation_message(pool: &PgPool, user_id: &str, conversatio
         );
     }
     let created_message_id = cuid2::create_id();
+    log::info!(
+        "[whatsapp-inbox-api] queueing message message_id={} conversation_id={} user_id={} has_reply={}",
+        created_message_id,
+        conversation.id,
+        user_id,
+        input.reply_to_message_id.as_deref().is_some_and(|value| !value.trim().is_empty())
+    );
     sqlx::query(
         r#"
         INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappStatus", timestamp)
@@ -3202,7 +3322,8 @@ pub async fn mark_conversation_read(pool: &PgPool, user_id: &str, conversation_i
     let unread_messages = sqlx::query_as::<_, MessageRow>(
         r#"
         SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
-               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message, timestamp
+               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message,
+               timestamp AT TIME ZONE 'UTC' AS timestamp
         FROM "Message"
         WHERE "conversationId" = $1 AND sender = 'customer' AND "whatsappMessageId" IS NOT NULL
           AND ("whatsappStatus" IS NULL OR "whatsappStatus" <> 'READ')
@@ -3213,16 +3334,26 @@ pub async fn mark_conversation_read(pool: &PgPool, user_id: &str, conversation_i
     .fetch_all(pool)
     .await?;
     if let Some(connection) = connection {
-        let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
-        for message in &unread_messages {
-            if let Some(wa_id) = message.whatsapp_message_id.as_deref() {
-                let _ = mark_message_read_api(&connection.phone_number_id, &access_token, wa_id).await;
+        match decrypt_social_secret(&connection.access_token_encrypted) {
+            Ok(access_token) => {
+                for message in &unread_messages {
+                    if let Some(wa_id) = message.whatsapp_message_id.as_deref() {
+                        let _ = mark_message_read_api(&connection.phone_number_id, &access_token, wa_id).await;
+                    }
+                }
+            }
+            Err(error) => {
+                log::warn!(
+                    "[whatsapp-inbox-api] failed to decrypt token while marking conversation {} read: {}",
+                    conversation.id,
+                    error
+                );
             }
         }
     }
     let ids = unread_messages.into_iter().map(|m| m.id).collect::<Vec<_>>();
     if !ids.is_empty() {
-        sqlx::query(r#"UPDATE "Message" SET "whatsappStatus" = 'READ', "updatedAt" = NOW() WHERE id = ANY($1)"#)
+        sqlx::query(r#"UPDATE "Message" SET "whatsappStatus" = 'READ' WHERE id = ANY($1)"#)
             .bind(&ids)
             .execute(pool)
             .await?;
@@ -3243,7 +3374,8 @@ pub async fn send_message_reaction(pool: &PgPool, user_id: &str, conversation_id
     let target_message = sqlx::query_as::<_, MessageRow>(
         r#"
         SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
-               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message, timestamp
+               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message,
+               timestamp AT TIME ZONE 'UTC' AS timestamp
         FROM "Message"
         WHERE id = $1 AND "conversationId" = $2
         LIMIT 1
@@ -3306,7 +3438,7 @@ pub async fn delete_conversation_message(pool: &PgPool, user_id: &str, conversat
         return Err(AppError::NotFound("Message not found".to_string()));
     }
     if let Some(last_timestamp) = sqlx::query_scalar::<_, chrono::DateTime<Utc>>(
-        r#"SELECT timestamp FROM "Message" WHERE "conversationId" = $1 ORDER BY timestamp DESC LIMIT 1"#
+        r#"SELECT timestamp AT TIME ZONE 'UTC' FROM "Message" WHERE "conversationId" = $1 ORDER BY timestamp DESC LIMIT 1"#
     )
     .bind(&conversation.id)
     .fetch_optional(pool)

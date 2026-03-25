@@ -24,7 +24,7 @@ pub async fn extract_user(req: &HttpRequest, pool: &PgPool) -> Result<User, AppE
 
     let session = sqlx::query_as::<_, SessionRecord>(
         r#"
-        SELECT id, "sessionToken", "userId", expires
+        SELECT id, "sessionToken", "userId", expires AT TIME ZONE 'UTC' AS expires
         FROM "Session"
         WHERE "sessionToken" = $1 AND expires > NOW()
         "#,

@@ -146,6 +146,11 @@ export type WhatsappRealtimeEvent =
       conversationId: string;
       conversation?: {
         customerName: string | null;
+        phone?: string;
+        connectionId?: string | null;
+        connectionLabel?: string | null;
+        unreadCount?: number;
+        lastMessageAt?: string;
       };
       message: {
         id: string;
@@ -172,6 +177,8 @@ export type WhatsappRealtimeEvent =
         id: string;
         customerName: string | null;
         phone: string;
+        connectionId?: string | null;
+        connectionLabel?: string | null;
         lastMessageAt: string;
         unreadCount: number;
       };

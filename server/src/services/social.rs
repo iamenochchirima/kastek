@@ -183,23 +183,50 @@ pub fn encrypt_social_secret(plain_text: &str) -> Result<String, AppError> {
         .encrypt(nonce, plain_text.as_bytes())
         .map_err(|_| AppError::Internal("Failed to encrypt token".to_string()))?;
 
+    if encrypted.len() < 16 {
+        return Err(AppError::Internal("Encrypted token payload is invalid".to_string()));
+    }
+    let split = encrypted.len() - 16;
+    let (ciphertext, auth_tag) = encrypted.split_at(split);
+
     Ok(format!(
-        "{}:{}",
+        "{}:{}:{}",
         STANDARD.encode(nonce_bytes),
-        STANDARD.encode(encrypted)
+        STANDARD.encode(auth_tag),
+        STANDARD.encode(ciphertext)
     ))
 }
 
 pub fn decrypt_social_secret(payload: &str) -> Result<String, AppError> {
-    let (nonce_b64, encrypted_b64) = payload
-        .split_once(':')
-        .ok_or_else(|| AppError::Internal("Invalid encrypted token payload".to_string()))?;
-    let nonce_bytes = STANDARD
-        .decode(nonce_b64)
-        .map_err(|_| AppError::Internal("Invalid encrypted token nonce".to_string()))?;
-    let encrypted = STANDARD
-        .decode(encrypted_b64)
-        .map_err(|_| AppError::Internal("Invalid encrypted token data".to_string()))?;
+    let parts = payload.split(':').collect::<Vec<_>>();
+    let (nonce_bytes, encrypted) = match parts.as_slice() {
+        [nonce_b64, encrypted_b64] => {
+            let nonce_bytes = STANDARD
+                .decode(nonce_b64)
+                .map_err(|_| AppError::Internal("Invalid encrypted token nonce".to_string()))?;
+            let encrypted = STANDARD
+                .decode(encrypted_b64)
+                .map_err(|_| AppError::Internal("Invalid encrypted token data".to_string()))?;
+            (nonce_bytes, encrypted)
+        }
+        [nonce_b64, auth_tag_b64, ciphertext_b64] => {
+            let nonce_bytes = STANDARD
+                .decode(nonce_b64)
+                .map_err(|_| AppError::Internal("Invalid encrypted token nonce".to_string()))?;
+            let auth_tag = STANDARD
+                .decode(auth_tag_b64)
+                .map_err(|_| AppError::Internal("Invalid encrypted token auth tag".to_string()))?;
+            let ciphertext = STANDARD
+                .decode(ciphertext_b64)
+                .map_err(|_| AppError::Internal("Invalid encrypted token data".to_string()))?;
+            let mut encrypted = ciphertext;
+            encrypted.extend_from_slice(&auth_tag);
+            (nonce_bytes, encrypted)
+        }
+        _ => {
+            return Err(AppError::Internal("Invalid encrypted token payload".to_string()));
+        }
+    };
 
     let key = encryption_key()?;
     let cipher = Aes256Gcm::new_from_slice(&key)

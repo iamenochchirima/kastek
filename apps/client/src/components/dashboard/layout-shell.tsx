@@ -295,7 +295,10 @@ function SidebarContent({
 
     const syncUnreadCount = async () => {
       try {
-        const response = await fetch("/api/whatsapp/inbox/unread-count", { cache: "no-store" });
+        const response = await fetch(apiUrl("/api/whatsapp/inbox/unread-count"), {
+          cache: "no-store",
+          credentials: "include",
+        });
         if (!response.ok) return;
         const payload = (await response.json()) as { unreadCount?: number };
         if (cancelled || typeof payload.unreadCount !== "number") return;
@@ -310,7 +313,9 @@ function SidebarContent({
       reconcileTimerRef.current = window.setTimeout(() => void syncUnreadCount(), 250);
     };
 
-    const source = new EventSource("/api/realtime/whatsapp");
+    const source = new EventSource(apiUrl("/api/realtime/whatsapp"), {
+      withCredentials: true,
+    });
     source.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data) as WhatsappRealtimeEvent;
