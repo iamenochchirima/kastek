@@ -780,9 +780,9 @@ export default function InboxPageClient({
     source.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data) as WhatsappRealtimeEvent;
-        const conversationId = payload.conversationId;
 
         if (payload.type === "message.created") {
+          const conversationId = payload.conversationId;
           setLiveConversations((current) => {
             const existing = current.find((conversation) => conversation.id === conversationId);
             if (!existing) {
@@ -958,6 +958,7 @@ export default function InboxPageClient({
         }
 
         if (payload.type === "message.updated") {
+          const conversationId = payload.conversationId;
           setMessagesByConversationId((current) => {
             const existing = current[conversationId];
             if (!existing) return current;
@@ -978,6 +979,7 @@ export default function InboxPageClient({
         }
 
         if (payload.type === "message.send_failed") {
+          const conversationId = payload.conversationId;
           setComposerError(payload.error);
           setMessagesByConversationId((current) => {
             const existing = current[conversationId];

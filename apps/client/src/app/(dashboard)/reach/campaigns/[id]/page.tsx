@@ -7,6 +7,87 @@ export const metadata = {
   title: "Campaign Details | KasiTek",
 };
 
+type CampaignDetailResponse = {
+  campaign?: {
+    campaign: {
+      id: string;
+      name: string;
+      description: string | null;
+      templateName: string;
+      template_name?: string;
+      templateLanguage: string;
+      template_language?: string;
+      status: string;
+      scheduledAt: string | null;
+      scheduled_at?: string | null;
+      launchedAt: string | null;
+      launched_at?: string | null;
+      completedAt: string | null;
+      completed_at?: string | null;
+      totalRecipients: number;
+      total_recipients?: number;
+      sentCount: number;
+      sent_count?: number;
+      deliveredCount: number;
+      delivered_count?: number;
+      readCount: number;
+      read_count?: number;
+      failedCount: number;
+      failed_count?: number;
+      blockedCount: number;
+      blocked_count?: number;
+      unsubscribedCount: number;
+      unsubscribed_count?: number;
+      createdAt: string;
+      created_at?: string;
+      updatedAt: string;
+      updated_at?: string;
+      connectionLabel: string | null;
+      connection_label?: string | null;
+      templateStatus: string | null;
+      template_status?: string | null;
+      listLabel: string | null;
+      list_label?: string | null;
+      defaultBatchSize: number | null;
+      default_batch_size?: number | null;
+    };
+    recipients: Array<{
+      id: string;
+      contactId: string;
+      contact_id?: string;
+      status: string;
+      waMessageId: string | null;
+      wa_message_id?: string | null;
+      sentAt: string | null;
+      sent_at?: string | null;
+      deliveredAt: string | null;
+      delivered_at?: string | null;
+      readAt: string | null;
+      read_at?: string | null;
+      failedAt: string | null;
+      failed_at?: string | null;
+      errorCode: string | null;
+      error_code?: string | null;
+      errorMessage: string | null;
+      error_message?: string | null;
+      createdAt: string;
+      created_at?: string;
+      updatedAt: string;
+      updated_at?: string;
+      contactPhone: string;
+      contact_phone?: string;
+      contactFullName: string | null;
+      contact_full_name?: string | null;
+      contactLocation: string | null;
+      contact_location?: string | null;
+      contactListLabel: string;
+      contact_list_label?: string;
+      contactMetadata?: Record<string, string> | null;
+      contact_metadata?: Record<string, string> | null;
+    }>;
+  };
+};
+
 export default async function ReachCampaignDetailPage({
   params,
 }: {
@@ -17,88 +98,11 @@ export default async function ReachCampaignDetailPage({
 
   const { id } = await params;
 
-  const response = await fetchRustJson<{
-    campaign?: {
-      campaign: {
-        id: string;
-        name: string;
-        description: string | null;
-        templateName: string;
-        template_name?: string;
-        templateLanguage: string;
-        template_language?: string;
-        status: string;
-        scheduledAt: string | null;
-        scheduled_at?: string | null;
-        launchedAt: string | null;
-        launched_at?: string | null;
-        completedAt: string | null;
-        completed_at?: string | null;
-        totalRecipients: number;
-        total_recipients?: number;
-        sentCount: number;
-        sent_count?: number;
-        deliveredCount: number;
-        delivered_count?: number;
-        readCount: number;
-        read_count?: number;
-        failedCount: number;
-        failed_count?: number;
-        blockedCount: number;
-        blocked_count?: number;
-        unsubscribedCount: number;
-        unsubscribed_count?: number;
-        createdAt: string;
-        created_at?: string;
-        updatedAt: string;
-        updated_at?: string;
-        connectionLabel: string | null;
-        connection_label?: string | null;
-        templateStatus: string | null;
-        template_status?: string | null;
-        listLabel: string | null;
-        list_label?: string | null;
-        defaultBatchSize: number | null;
-        default_batch_size?: number | null;
-      };
-      recipients: Array<{
-        id: string;
-        contactId: string;
-        contact_id?: string;
-        status: string;
-        waMessageId: string | null;
-        wa_message_id?: string | null;
-        sentAt: string | null;
-        sent_at?: string | null;
-        deliveredAt: string | null;
-        delivered_at?: string | null;
-        readAt: string | null;
-        read_at?: string | null;
-        failedAt: string | null;
-        failed_at?: string | null;
-        errorCode: string | null;
-        error_code?: string | null;
-        errorMessage: string | null;
-        error_message?: string | null;
-        createdAt: string;
-        created_at?: string;
-        updatedAt: string;
-        updated_at?: string;
-        contactPhone: string;
-        contact_phone?: string;
-        contactFullName: string | null;
-        contact_full_name?: string | null;
-        contactLocation: string | null;
-        contact_location?: string | null;
-        contactListLabel: string;
-        contact_list_label?: string;
-        contactMetadata?: Record<string, string> | null;
-        contact_metadata?: Record<string, string> | null;
-      }>;
-    };
-  }>(`/api/whatsapp/campaigns/${id}`).catch(() => ({}));
+  const response: CampaignDetailResponse | null = await fetchRustJson<CampaignDetailResponse>(
+    `/api/whatsapp/campaigns/${id}`,
+  ).catch(() => null);
 
-  if (!response.campaign) {
+  if (!response?.campaign) {
     notFound();
   }
 

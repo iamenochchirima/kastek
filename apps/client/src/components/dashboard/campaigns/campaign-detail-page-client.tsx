@@ -211,7 +211,7 @@ function campaignProgress(campaign: Campaign) {
   return Math.max(0, Math.min(100, Math.round((processed / campaign.totalRecipients) * 100)));
 }
 
-function normalizeCampaign(raw: CampaignDetailPayload["campaign"]["campaign"]): Campaign {
+function normalizeCampaign(raw: NonNullable<CampaignDetailPayload["campaign"]>["campaign"]): Campaign {
   return {
     id: raw.id,
     name: raw.name,
