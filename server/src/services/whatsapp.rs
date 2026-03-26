@@ -2283,7 +2283,10 @@ pub async fn launch_campaign(
         r#"
         SELECT id
         FROM "WhatsappCampaignRecipient"
-        WHERE "campaignId" = $1 AND status IN ('PENDING'::"WhatsappRecipientStatus", 'FAILED'::"WhatsappRecipientStatus")
+        WHERE "campaignId" = $1
+          AND status = 'PENDING'::"WhatsappRecipientStatus"
+          AND "sentAt" IS NULL
+          AND "waMessageId" IS NULL
         ORDER BY "createdAt" ASC
         LIMIT $2
         "#,
@@ -2309,7 +2312,7 @@ pub async fn launch_campaign(
         .map(|dt| dt > Utc::now())
         .unwrap_or(false);
 
-    sqlx::query(
+    let queued_result = sqlx::query(
         r#"
         UPDATE "WhatsappCampaignRecipient"
         SET status = 'QUEUED'::"WhatsappRecipientStatus", "errorCode" = NULL, "errorMessage" = NULL, "updatedAt" = NOW()
@@ -2319,6 +2322,12 @@ pub async fn launch_campaign(
     .bind(&recipient_ids)
     .execute(pool)
     .await?;
+
+    if queued_result.rows_affected() == 0 {
+        return Err(AppError::BadRequest(
+            "No recipients were queued for launch".to_string(),
+        ));
+    }
 
     sqlx::query(
         r#"
@@ -2415,10 +2424,15 @@ pub async fn resume_campaign(
     let should_schedule = requested_scheduled_at
         .map(|dt| dt > Utc::now())
         .unwrap_or(false);
-    sqlx::query(r#"UPDATE "WhatsappCampaignRecipient" SET status = 'QUEUED'::"WhatsappRecipientStatus", "errorCode" = NULL, "errorMessage" = NULL, "updatedAt" = NOW() WHERE id = ANY($1)"#)
+    let queued_result = sqlx::query(r#"UPDATE "WhatsappCampaignRecipient" SET status = 'QUEUED'::"WhatsappRecipientStatus", "errorCode" = NULL, "errorMessage" = NULL, "updatedAt" = NOW() WHERE id = ANY($1)"#)
         .bind(&recipient_ids)
         .execute(pool)
         .await?;
+    if queued_result.rows_affected() == 0 {
+        return Err(AppError::BadRequest(
+            "No paused recipients were queued for resume".to_string(),
+        ));
+    }
     sqlx::query(r#"UPDATE "WhatsappCampaign" SET status = CAST($1 AS "WhatsappCampaignStatus"), "scheduledAt" = $2, "completedAt" = NULL, "updatedAt" = NOW() WHERE id = $3"#)
         .bind(if should_schedule { "SCHEDULED" } else { "SENDING" })
         .bind(requested_scheduled_at)
@@ -2472,29 +2486,10 @@ pub async fn retry_failed_campaign(
     let _campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
-    let recipient_ids = sqlx::query_scalar::<_, String>(
-        r#"SELECT id FROM "WhatsappCampaignRecipient" WHERE "campaignId" = $1 AND status = 'FAILED'::"WhatsappRecipientStatus""#,
-    )
-    .bind(campaign_id)
-    .fetch_all(pool)
-    .await?;
-    if recipient_ids.is_empty() {
-        return Err(AppError::BadRequest(
-            "Campaign has no failed recipients to retry".to_string(),
-        ));
-    }
-    sqlx::query(r#"UPDATE "WhatsappCampaignRecipient" SET status = 'QUEUED'::"WhatsappRecipientStatus", "errorCode" = NULL, "errorMessage" = NULL, "failedAt" = NULL, "updatedAt" = NOW() WHERE id = ANY($1)"#)
-        .bind(&recipient_ids)
-        .execute(pool)
-        .await?;
-    sqlx::query(r#"UPDATE "WhatsappCampaign" SET status = 'SENDING'::"WhatsappCampaignStatus", "launchedAt" = NOW(), "completedAt" = NULL, "updatedAt" = NOW() WHERE id = $1"#)
-        .bind(campaign_id)
-        .execute(pool)
-        .await?;
-    publish_campaign_updated(pool, user_id, campaign_id).await?;
-    Ok(
-        json!({ "campaignId": campaign_id, "retriedRecipients": recipient_ids.len(), "status": "SENDING" }),
-    )
+    Err(AppError::BadRequest(
+        "Retrying FAILED recipients is disabled to prevent duplicate sends in the same campaign"
+            .to_string(),
+    ))
 }
 
 pub async fn repair_campaign_status(
@@ -2561,10 +2556,26 @@ pub async fn send_more_campaign(
     let campaign = get_campaign_row(pool, user_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
-    if campaign.status != "COMPLETED" && campaign.status != "FAILED" && campaign.status != "PAUSED"
+    let queued_count = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(*)::bigint
+        FROM "WhatsappCampaignRecipient"
+        WHERE "campaignId" = $1
+          AND status = 'QUEUED'::"WhatsappRecipientStatus"
+        "#,
+    )
+    .bind(campaign_id)
+    .fetch_one(pool)
+    .await?;
+    let allow_stale_sending = campaign.status == "SENDING" && queued_count == 0;
+    if campaign.status != "COMPLETED"
+        && campaign.status != "FAILED"
+        && campaign.status != "PAUSED"
+        && !allow_stale_sending
     {
         return Err(AppError::BadRequest(
-            "Can only add recipients to completed, failed, or paused campaigns".to_string(),
+            "Can only add recipients to completed, failed, paused, or idle sending campaigns"
+                .to_string(),
         ));
     }
     let list_label = campaign.list_label.as_deref();
@@ -2637,7 +2648,7 @@ pub async fn send_more_campaign(
         ));
     }
 
-    sqlx::query(
+    let queued_result = sqlx::query(
         r#"
         UPDATE "WhatsappCampaignRecipient"
         SET status = 'QUEUED'::"WhatsappRecipientStatus",
@@ -2647,12 +2658,22 @@ pub async fn send_more_campaign(
         WHERE "campaignId" = $1
           AND "contactId" = ANY($2)
           AND status = 'PENDING'::"WhatsappRecipientStatus"
+          AND "sentAt" IS NULL
+          AND "waMessageId" IS NULL
         "#,
     )
     .bind(campaign_id)
     .bind(&selected_contact_ids)
     .execute(pool)
     .await?;
+
+    if queued_result.rows_affected() == 0 {
+        recompute_campaign_stats(pool, campaign_id).await?;
+        publish_campaign_updated(pool, user_id, campaign_id).await?;
+        return Err(AppError::BadRequest(
+            "No pending recipients were queued for this batch".to_string(),
+        ));
+    }
 
     sqlx::query(
         r#"
@@ -2671,10 +2692,35 @@ pub async fn send_more_campaign(
 
     Ok(json!({
         "campaignId": campaign_id,
-        "queuedRecipients": selected_contact_ids.len(),
+        "queuedRecipients": queued_result.rows_affected(),
         "skippedManual": skipped_manual,
         "status": "SENDING"
     }))
+}
+
+async fn reconcile_active_campaigns_without_queue(
+    pool: &PgPool,
+) -> Result<Vec<(String, String)>, AppError> {
+    let reconciled = sqlx::query_as::<_, (String, String)>(
+        r#"
+        UPDATE "WhatsappCampaign" c
+        SET status = 'COMPLETED'::"WhatsappCampaignStatus",
+            "completedAt" = COALESCE(c."completedAt", NOW()),
+            "updatedAt" = NOW()
+        WHERE c.status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus")
+          AND (c."scheduledAt" IS NULL OR c."scheduledAt" <= NOW())
+          AND NOT EXISTS (
+            SELECT 1
+            FROM "WhatsappCampaignRecipient" r
+            WHERE r."campaignId" = c.id
+              AND r.status = 'QUEUED'::"WhatsappRecipientStatus"
+          )
+        RETURNING c."userId", c.id
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(reconciled)
 }
 
 pub async fn recompute_campaign_stats(pool: &PgPool, campaign_id: &str) -> Result<(), AppError> {
@@ -2768,22 +2814,6 @@ fn build_body_parameters(
         .collect()
 }
 
-fn render_template_preview(
-    body: Option<&str>,
-    body_parameters: &[String],
-    template_name: &str,
-) -> String {
-    let mut rendered = body
-        .map(str::to_string)
-        .unwrap_or_else(|| format!("Template sent: {template_name}"));
-    for (index, value) in body_parameters.iter().enumerate() {
-        let placeholder = index + 1;
-        rendered = rendered.replace(&format!("{{{{{placeholder}}}}}"), value);
-        rendered = rendered.replace(&format!("{{{{ {placeholder} }}}}"), value);
-    }
-    rendered
-}
-
 async fn send_marketing_template(
     phone_number_id: &str,
     access_token: &str,
@@ -2865,6 +2895,20 @@ pub async fn process_queued_campaign_recipients(
     .bind(limit.max(1))
     .fetch_all(pool)
     .await?;
+    if recipient_ids.is_empty() {
+        let reconciled = reconcile_active_campaigns_without_queue(pool).await?;
+        for (user_id, campaign_id) in reconciled {
+            if let Err(error) = publish_campaign_updated(pool, &user_id, &campaign_id).await {
+                log::warn!(
+                    "failed to publish campaign realtime update campaign_id={} user_id={}: {}",
+                    campaign_id,
+                    user_id,
+                    error
+                );
+            }
+        }
+        return Ok(0);
+    }
     let mut processed = 0;
     let mut changed_campaigns = std::collections::HashSet::<(String, String)>::new();
     for recipient_id in recipient_ids {
@@ -2911,6 +2955,44 @@ pub async fn process_queued_campaign_recipients(
         .bind(&recipient.contact_id)
         .fetch_one(pool)
         .await?;
+        let existing_send_message_id = sqlx::query_scalar::<_, Option<String>>(
+            r#"
+            SELECT "whatsappMessageId"
+            FROM "WhatsappSendEvent"
+            WHERE "campaignId" = $1
+              AND "contactId" = $2
+              AND status IN ('SENT'::"WhatsappRecipientStatus", 'DELIVERED'::"WhatsappRecipientStatus", 'READ'::"WhatsappRecipientStatus")
+            ORDER BY "createdAt" DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(&recipient.campaign_id)
+        .bind(&contact.id)
+        .fetch_optional(pool)
+        .await?
+        .flatten();
+        if let Some(existing_message_id) = existing_send_message_id {
+            sqlx::query(
+                r#"
+                UPDATE "WhatsappCampaignRecipient"
+                SET status = 'SENT'::"WhatsappRecipientStatus",
+                    "waMessageId" = COALESCE("waMessageId", $1),
+                    "sentAt" = COALESCE("sentAt", NOW()),
+                    "errorCode" = NULL,
+                    "errorMessage" = NULL,
+                    "updatedAt" = NOW()
+                WHERE id = $2
+                "#,
+            )
+            .bind(existing_message_id)
+            .bind(&recipient_id)
+            .execute(pool)
+            .await?;
+            recompute_campaign_stats(pool, &recipient.campaign_id).await?;
+            changed_campaigns.insert((contact.user_id.clone(), recipient.campaign_id.clone()));
+            processed += 1;
+            continue;
+        }
         let (reason, eligible) = contact_eligible(&contact);
         if !eligible {
             sqlx::query(
@@ -3015,95 +3097,9 @@ pub async fn process_queued_campaign_recipients(
                 .execute(pool)
                 .await?;
 
-                let template_body = if let Some(template_id) = campaign.template_id.as_deref() {
-                    sqlx::query_scalar::<_, Option<String>>(
-                        r#"SELECT body FROM "WhatsappTemplate" WHERE id = $1 LIMIT 1"#,
-                    )
-                    .bind(template_id)
-                    .fetch_optional(pool)
-                    .await?
-                    .flatten()
-                } else {
-                    None
-                };
-                let persisted_content = render_template_preview(
-                    template_body.as_deref(),
-                    &body_parameters,
-                    &campaign.template_name,
-                );
-                match find_or_create_conversation(
-                    pool,
-                    &connection.id,
-                    &contact.phone,
-                    contact.full_name.as_deref(),
-                )
-                .await
-                {
-                    Ok((conversation_id, _, _)) => {
-                        let persisted_message_id = cuid2::create_id();
-                        if let Err(error) = sqlx::query(
-                            r#"
-                            INSERT INTO "Message" (
-                                id, "conversationId", sender, content, "whatsappMessageId", "whatsappStatus", timestamp
-                            )
-                            VALUES ($1, $2, 'bot', $3, $4, 'SENT', NOW())
-                            "#,
-                        )
-                        .bind(&persisted_message_id)
-                        .bind(&conversation_id)
-                        .bind(&persisted_content)
-                        .bind(&message_id)
-                        .execute(pool)
-                        .await {
-                            log::warn!(
-                                "Failed to mirror campaign send {} into inbox message {}: {}",
-                                recipient_id, message_id, error
-                            );
-                        } else {
-                            if let Err(error) = sqlx::query(
-                                r#"
-                                UPDATE "Conversation"
-                                SET "lastMessageAt" = NOW(),
-                                    status = 'active',
-                                    "customerName" = COALESCE($1, "customerName"),
-                                    "updatedAt" = NOW()
-                                WHERE id = $2
-                                "#,
-                            )
-                            .bind(contact.full_name.as_deref())
-                            .bind(&conversation_id)
-                            .execute(pool)
-                            .await {
-                                log::warn!(
-                                    "Failed to update conversation {} after campaign send {}: {}",
-                                    conversation_id, recipient_id, error
-                                );
-                            }
-                            if let Err(error) =
-                                publish_message_created(pool, &campaign.user_id, &persisted_message_id).await
-                            {
-                                log::warn!(
-                                    "Failed to publish campaign message.created for recipient {}: {}",
-                                    recipient_id, error
-                                );
-                            }
-                            if let Err(error) =
-                                publish_conversation_updated(pool, &campaign.user_id, &conversation_id).await
-                            {
-                                log::warn!(
-                                    "Failed to publish campaign conversation.updated for recipient {}: {}",
-                                    recipient_id, error
-                                );
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        log::warn!(
-                            "Failed to mirror campaign send {} into inbox conversation after send accepted: {}",
-                            recipient_id, error
-                        );
-                    }
-                }
+                // Campaign sends are tracked in campaign recipients + send events.
+                // Inbox conversation/message creation is intentionally handled only by real customer
+                // inbound traffic or manual inbox send flows.
             }
             Err(error) => {
                 let (code, message, blocked) = parse_failure_message(&error);
@@ -4024,6 +4020,53 @@ fn sanitize_filename(input: &str) -> String {
         .collect()
 }
 
+fn media_kind_from_upload(filename: Option<&str>, mime_type: Option<&str>) -> &'static str {
+    let mime = mime_type.unwrap_or("").to_ascii_lowercase();
+    if mime.starts_with("image/") {
+        return "image";
+    }
+    if mime.starts_with("video/") {
+        return "video";
+    }
+    if mime.starts_with("audio/") {
+        return "audio";
+    }
+
+    let extension = filename
+        .and_then(|name| name.rsplit('.').next())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    match extension.as_str() {
+        "jpg" | "jpeg" | "png" | "gif" | "webp" => "image",
+        "mp4" | "mov" | "webm" | "mkv" => "video",
+        "mp3" | "wav" | "ogg" | "m4a" | "aac" => "audio",
+        _ => "document",
+    }
+}
+
+fn build_stored_media_content(
+    kind: &str,
+    media_id: &str,
+    mime_type: Option<&str>,
+    caption: Option<&str>,
+    filename: Option<&str>,
+    sha256: Option<&str>,
+) -> String {
+    format!(
+        "__kasiai_wa_media_v1__:{}",
+        json!({
+            "version": 1,
+            "kind": kind,
+            "mediaId": media_id,
+            "mimeType": mime_type,
+            "caption": caption,
+            "filename": filename,
+            "sha256": sha256,
+        })
+    )
+}
+
 async fn send_text_message(
     phone_number_id: &str,
     access_token: &str,
@@ -4065,6 +4108,111 @@ async fn send_text_message(
         .ok_or_else(|| {
             AppError::Internal(
                 "WhatsApp Cloud API text send did not return a message id".to_string(),
+            )
+        })?;
+    Ok((message_id.to_string(), raw))
+}
+
+async fn upload_whatsapp_media(
+    phone_number_id: &str,
+    access_token: &str,
+    bytes: Vec<u8>,
+    filename: &str,
+    mime_type: Option<&str>,
+) -> Result<(String, Value), AppError> {
+    let url = format!("{GRAPH_BASE}/{phone_number_id}/media");
+    let part = {
+        let base = reqwest::multipart::Part::bytes(bytes).file_name(filename.to_string());
+        match mime_type.filter(|value| !value.trim().is_empty()) {
+            Some(value) => base
+                .mime_str(value)
+                .map_err(|_| AppError::BadRequest("Attachment mime type is invalid".to_string()))?,
+            None => base,
+        }
+    };
+    let form = reqwest::multipart::Form::new()
+        .text("messaging_product", "whatsapp")
+        .part("file", part);
+
+    let response = reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(access_token)
+        .multipart(form)
+        .send()
+        .await?;
+    let status = response.status();
+    let raw: Value = response.json().await.unwrap_or(Value::Null);
+    if !status.is_success() {
+        return Err(AppError::BadRequest(format!(
+            "WhatsApp Cloud API media upload failed ({}): {}",
+            status,
+            raw.get("error")
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown error")
+        )));
+    }
+
+    let media_id = raw
+        .get("id")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::Internal("WhatsApp media upload did not return a media id".to_string()))?;
+
+    Ok((media_id.to_string(), raw))
+}
+
+async fn send_media_message(
+    phone_number_id: &str,
+    access_token: &str,
+    recipient_phone: &str,
+    kind: &str,
+    media_id: &str,
+    caption: Option<&str>,
+    filename: Option<&str>,
+    context_message_id: Option<&str>,
+) -> Result<(String, Value), AppError> {
+    let url = format!("{GRAPH_BASE}/{phone_number_id}/messages");
+    let media_payload = match kind {
+        "image" => json!({ "id": media_id, "caption": caption }),
+        "video" => json!({ "id": media_id, "caption": caption }),
+        "audio" => json!({ "id": media_id }),
+        _ => json!({ "id": media_id, "caption": caption, "filename": filename }),
+    };
+    let payload = json!({
+        "messaging_product": "whatsapp",
+        "to": recipient_phone,
+        "type": kind,
+        kind: media_payload,
+        "context": context_message_id.map(|id| json!({"message_id": id}))
+    });
+
+    let response = reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(access_token)
+        .json(&payload)
+        .send()
+        .await?;
+    let status = response.status();
+    let raw: Value = response.json().await.unwrap_or(Value::Null);
+    if !status.is_success() {
+        return Err(AppError::BadRequest(format!(
+            "WhatsApp Cloud API media send failed ({}): {}",
+            status,
+            raw.get("error")
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown error")
+        )));
+    }
+
+    let message_id = raw
+        .get("messages")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            AppError::Internal(
+                "WhatsApp Cloud API media send did not return a message id".to_string(),
             )
         })?;
     Ok((message_id.to_string(), raw))
@@ -4794,6 +4942,205 @@ pub async fn send_conversation_message(
         );
     }
     Ok(json!({ "success": true, "queued": true, "messageId": created_message_id }))
+}
+
+pub async fn send_conversation_media(
+    pool: &PgPool,
+    user_id: &str,
+    conversation_id: &str,
+    mut payload: Multipart,
+) -> Result<Value, AppError> {
+    let conversation = scoped_conversation(pool, user_id, conversation_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
+    let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
+        .ok_or_else(|| AppError::BadRequest("Invalid conversation".to_string()))?;
+    let connection = get_connection_row(pool, user_id, &connection_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
+    let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
+
+    let mut file_bytes = Vec::new();
+    let mut filename: Option<String> = None;
+    let mut mime_type: Option<String> = None;
+    let mut caption: Option<String> = None;
+    let mut reply_to_message_id: Option<String> = None;
+
+    while let Some(field) = payload.next().await {
+        let mut field = field
+            .map_err(|_| AppError::BadRequest("Failed to read multipart payload".to_string()))?;
+        let Some(name) = field.name() else { continue };
+        let name = name.to_string();
+        if name == "file" {
+            if let Some(disposition) = field.content_disposition() {
+                filename = disposition.get_filename().map(sanitize_filename);
+            }
+            mime_type = field.content_type().map(|value| value.essence_str().to_string());
+        }
+
+        let mut bytes = Vec::new();
+        while let Some(chunk) = field.next().await {
+            let chunk = chunk
+                .map_err(|_| AppError::BadRequest("Failed to read multipart field".to_string()))?;
+            bytes.extend_from_slice(&chunk);
+        }
+
+        match name.as_str() {
+            "file" => file_bytes = bytes,
+            "caption" => {
+                let value = String::from_utf8(bytes).unwrap_or_default();
+                let trimmed = value.trim().to_string();
+                if !trimmed.is_empty() {
+                    caption = Some(trimmed);
+                }
+            }
+            "replyToMessageId" => {
+                let value = String::from_utf8(bytes).unwrap_or_default();
+                let trimmed = value.trim().to_string();
+                if !trimmed.is_empty() {
+                    reply_to_message_id = Some(trimmed);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if file_bytes.is_empty() {
+        return Err(AppError::BadRequest(
+            "Attachment file is required in form-data field: file".to_string(),
+        ));
+    }
+
+    let final_filename = filename
+        .clone()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| format!("attachment-{}.bin", Utc::now().timestamp()));
+    let media_kind = media_kind_from_upload(Some(&final_filename), mime_type.as_deref());
+
+    let reply_target_wa_id = if let Some(reply_target_message_id) = reply_to_message_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let reply_target = sqlx::query_as::<_, MessageRow>(
+            r#"
+            SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
+                   "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message,
+                   timestamp AT TIME ZONE 'UTC' AS timestamp
+            FROM "Message"
+            WHERE id = $1 AND "conversationId" = $2
+            LIMIT 1
+            "#,
+        )
+        .bind(reply_target_message_id)
+        .bind(&conversation.id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Reply target not found".to_string()))?;
+        Some(reply_target.whatsapp_message_id.clone().ok_or_else(|| {
+            AppError::BadRequest(
+                "This message cannot be replied to yet. Try again in a few seconds.".to_string(),
+            )
+        })?)
+    } else {
+        None
+    };
+
+    let (uploaded_media_id, upload_raw) = upload_whatsapp_media(
+        &connection.phone_number_id,
+        &access_token,
+        file_bytes,
+        &final_filename,
+        mime_type.as_deref(),
+    )
+    .await?;
+    let sha256 = upload_raw
+        .get("sha256")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+
+    let (whatsapp_message_id, _) = send_media_message(
+        &connection.phone_number_id,
+        &access_token,
+        &phone,
+        media_kind,
+        &uploaded_media_id,
+        caption.as_deref(),
+        Some(&final_filename),
+        reply_target_wa_id.as_deref(),
+    )
+    .await?;
+
+    let mut persisted_content = build_stored_media_content(
+        media_kind,
+        &uploaded_media_id,
+        mime_type.as_deref(),
+        caption.as_deref(),
+        Some(&final_filename),
+        sha256.as_deref(),
+    );
+
+    if let Some(reply_target_message_id) = reply_to_message_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if let Some(reply_target) = sqlx::query_as::<_, MessageRow>(
+            r#"
+            SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
+                   "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message,
+                   timestamp AT TIME ZONE 'UTC' AS timestamp
+            FROM "Message"
+            WHERE id = $1 AND "conversationId" = $2
+            LIMIT 1
+            "#
+        )
+        .bind(reply_target_message_id)
+        .bind(&conversation.id)
+        .fetch_optional(pool)
+        .await?
+        {
+            persisted_content = format!(
+                "__kasiai_wa_reply_v1__:{}",
+                json!({
+                    "version": 1,
+                    "replyToMessageId": reply_target.id,
+                    "replyToWhatsappMessageId": reply_target.whatsapp_message_id,
+                    "replyPreview": preview_text(&reply_target.content, 180),
+                    "content": persisted_content
+                })
+            );
+        }
+    }
+
+    let message_id = cuid2::create_id();
+    sqlx::query(
+        r#"
+        INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappMessageId", "whatsappStatus", timestamp)
+        VALUES ($1, $2, 'bot', $3, $4, 'SENT', NOW())
+        "#,
+    )
+    .bind(&message_id)
+    .bind(&conversation.id)
+    .bind(&persisted_content)
+    .bind(&whatsapp_message_id)
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW() WHERE id = $1"#,
+    )
+    .bind(&conversation.id)
+    .execute(pool)
+    .await?;
+    publish_message_created(pool, user_id, &message_id).await?;
+    publish_conversation_updated(pool, user_id, &conversation.id).await?;
+
+    Ok(json!({
+        "success": true,
+        "messageId": message_id,
+        "mediaId": uploaded_media_id,
+        "status": "SENT"
+    }))
 }
 
 pub async fn mark_conversation_read(

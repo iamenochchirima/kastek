@@ -370,6 +370,18 @@ pub async fn send_conversation_message(
     Ok(HttpResponse::Accepted().json(result))
 }
 
+pub async fn send_conversation_media(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    payload: Multipart,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let result =
+        whatsapp::send_conversation_media(pool.get_ref(), &user.id, &path, payload).await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
 pub async fn mark_conversation_read(
     pool: web::Data<PgPool>,
     req: HttpRequest,

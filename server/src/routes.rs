@@ -162,6 +162,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                             web::post().to(whatsapp::send_conversation_message),
                         )
                         .route(
+                            "/{id}/messages/media",
+                            web::post().to(whatsapp::send_conversation_media),
+                        )
+                        .route(
                             "/{id}/read",
                             web::post().to(whatsapp::mark_conversation_read),
                         )

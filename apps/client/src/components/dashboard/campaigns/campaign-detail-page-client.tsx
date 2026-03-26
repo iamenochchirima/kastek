@@ -538,9 +538,10 @@ export default function CampaignDetailPageClient({
   const launchable = liveCampaign.status === "DRAFT";
   const pausable = liveCampaign.status === "SENDING" || liveCampaign.status === "SCHEDULED";
   const resumable = liveCampaign.status === "PAUSED";
-  const retryable = liveCampaign.status === "FAILED";
+  const idleSendingWithPending = liveCampaign.status === "SENDING" && queuedCount === 0 && pendingCount > 0;
   const sendMoreable =
     (liveCampaign.status === "COMPLETED" && remaining > 0) ||
+    idleSendingWithPending ||
     liveCampaign.status === "FAILED" ||
     liveCampaign.status === "PAUSED";
   const deletable =
@@ -717,15 +718,6 @@ export default function CampaignDetailPageClient({
                       Resume
                     </Button>
                   ) : null}
-                  {retryable ? (
-                    <Button
-                      variant="secondary"
-                      disabled={isPending || loadingAction === "retry_failed"}
-                      onClick={() => void runAction("retry_failed")}
-                    >
-                      Retry failed
-                    </Button>
-                  ) : null}
                   {sendMoreable ? (
                     <Button
                       variant="secondary"
@@ -792,6 +784,7 @@ export default function CampaignDetailPageClient({
               <table className="w-full text-sm">
                 <thead className="bg-secondary/40 text-left text-muted-foreground">
                   <tr>
+                    <th className="px-4 py-3">#</th>
                     <th className="px-4 py-3">Contact</th>
                     <th className="px-4 py-3">Phone</th>
                     <th className="px-4 py-3">Location</th>
@@ -804,8 +797,9 @@ export default function CampaignDetailPageClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {liveRecipients.map((recipient) => (
+                  {liveRecipients.map((recipient, index) => (
                     <tr key={recipient.id} className="border-t border-border align-top">
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{index + 1}</td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-foreground">
                           {recipient.contactFullName || recipient.contactPhone}

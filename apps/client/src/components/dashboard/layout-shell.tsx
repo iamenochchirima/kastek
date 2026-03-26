@@ -10,6 +10,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  ensureInboxAlertAudioUnlocked,
+  playInboxAlertSoundSafely,
+  readInboxAlertPreferences,
+  supportsDesktopNotifications,
+} from "@/components/dashboard/inbox/inbox-alert-preferences";
 import { cn } from "@/lib/utils";
 import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
 import {
@@ -281,6 +287,8 @@ function SidebarContent({
   const currentProduct = resolveProduct(pathname);
   const [liveInboxUnreadCount, setLiveInboxUnreadCount] = useState(inboxUnreadCount);
   const reconcileTimerRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const notifiedMessageIdsRef = useRef<Set<string>>(new Set());
   const accountName = user?.name ?? "Admin";
   const accountEmail = user?.email ?? "admin@kasitek.com";
   const initialsSource = accountName.includes(" ")
@@ -318,10 +326,40 @@ function SidebarContent({
     const source = new EventSource(apiUrl("/api/realtime/whatsapp"), {
       withCredentials: true,
     });
+
+    const unlockAudioOnInteraction = () => {
+      void ensureInboxAlertAudioUnlocked(audioContextRef);
+    };
+    window.addEventListener("pointerdown", unlockAudioOnInteraction, { once: true });
+    window.addEventListener("keydown", unlockAudioOnInteraction, { once: true });
+
     source.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data) as WhatsappRealtimeEvent;
         if (payload.type === "message.created" && payload.message.sender === "customer") {
+          const messageId = payload.message.id;
+          if (!notifiedMessageIdsRef.current.has(messageId)) {
+            notifiedMessageIdsRef.current.add(messageId);
+            if (notifiedMessageIdsRef.current.size > 200) {
+              const oldest = notifiedMessageIdsRef.current.values().next().value;
+              if (oldest) notifiedMessageIdsRef.current.delete(oldest);
+            }
+
+            const preferences = readInboxAlertPreferences();
+            if (preferences.soundAlertsEnabled) {
+              void playInboxAlertSoundSafely(audioContextRef);
+            }
+
+            if (preferences.desktopAlertsEnabled && supportsDesktopNotifications() && window.Notification.permission === "granted") {
+              const customerName = payload.conversation?.customerName?.trim() || payload.conversation?.phone || "New WhatsApp message";
+              const body = payload.message.content.trim() || "You have a new inbound WhatsApp message.";
+              new window.Notification(customerName, {
+                body,
+                tag: `kasitek-whatsapp-${payload.conversationId}`,
+              });
+            }
+          }
+
           setLiveInboxUnreadCount((current) => current + 1);
           scheduleSync();
           return;
@@ -337,6 +375,8 @@ function SidebarContent({
     return () => {
       cancelled = true;
       source.close();
+      window.removeEventListener("pointerdown", unlockAudioOnInteraction);
+      window.removeEventListener("keydown", unlockAudioOnInteraction);
       if (reconcileTimerRef.current !== null) {
         window.clearTimeout(reconcileTimerRef.current);
         reconcileTimerRef.current = null;

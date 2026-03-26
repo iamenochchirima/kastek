@@ -1,9 +1,9 @@
 "use client";
 
-import type { MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import {
   ALERT_SETTINGS_EVENT,
+  playInboxAlertSoundSafely,
   readInboxAlertPreferences,
   supportsAudioContext,
   supportsDesktopNotifications,
@@ -60,7 +60,7 @@ export default function InboxAlertControls({
     writeInboxAlertPreferences({ desktopAlertsEnabled: permission === "granted" });
 
     if (permission === "granted" && preferences.soundAlertsEnabled) {
-      playAlertSound(audioContextRef);
+      void playInboxAlertSoundSafely(audioContextRef);
       new window.Notification(title, {
         body: "Desktop alerts are now enabled for new inbox messages.",
         tag: "desktop-alerts-enabled",
@@ -72,7 +72,7 @@ export default function InboxAlertControls({
     const next = !preferences.soundAlertsEnabled;
     writeInboxAlertPreferences({ soundAlertsEnabled: next });
     if (next) {
-      playAlertSound(audioContextRef);
+      void playInboxAlertSoundSafely(audioContextRef);
     }
   }
 
@@ -132,35 +132,4 @@ export default function InboxAlertControls({
       </div>
     </div>
   );
-}
-
-function playAlertSound(audioContextRef: MutableRefObject<AudioContext | null>) {
-  if (!supportsAudioContext()) return;
-
-  const AudioCtor =
-    window.AudioContext ||
-    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-
-  if (!AudioCtor) return;
-
-  const audioContext = audioContextRef.current || new AudioCtor();
-  audioContextRef.current = audioContext;
-
-  if (audioContext.state === "suspended") {
-    void audioContext.resume();
-  }
-
-  const oscillator = audioContext.createOscillator();
-  const gainNode = audioContext.createGain();
-
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
-  gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
-  gainNode.gain.exponentialRampToValueAtTime(0.12, audioContext.currentTime + 0.02);
-  gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.35);
-
-  oscillator.connect(gainNode);
-  gainNode.connect(audioContext.destination);
-  oscillator.start(audioContext.currentTime);
-  oscillator.stop(audioContext.currentTime + 0.35);
 }

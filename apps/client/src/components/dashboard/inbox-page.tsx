@@ -199,7 +199,7 @@ export default function InboxPageClient({
   const [lightbox, setLightbox] = useState<MediaLightboxState | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const composerInputRef = useRef<HTMLInputElement | null>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const reactionPickerRef = useRef<HTMLDivElement | null>(null);
   const reactionTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -720,6 +720,16 @@ export default function InboxPageClient({
   }, [selectedConversationId]);
 
   useEffect(() => {
+    const input = composerInputRef.current;
+    if (!input) return;
+
+    input.style.height = "0px";
+    const nextHeight = Math.min(input.scrollHeight, 160);
+    input.style.height = `${Math.max(nextHeight, 40)}px`;
+    input.style.overflowY = input.scrollHeight > 160 ? "auto" : "hidden";
+  }, [messageInput, selectedConversationId]);
+
+  useEffect(() => {
     if (!showEmojiPicker) return;
 
     const onPointerDown = (event: PointerEvent) => {
@@ -1113,21 +1123,31 @@ export default function InboxPageClient({
       }));
     }
 
-    if (selectedFile) {
-      setComposerError("Media sending is not wired to the Rust inbox endpoint yet.");
-      setComposerLoading(false);
-      return;
-    }
-
-    const response = await fetch(apiUrl(`/api/whatsapp/inbox/${conversationId}/messages`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        text: trimmed || undefined,
-        replyToMessageId: replyDraft?.messageId,
-      }),
-    });
+    const response = selectedFile
+      ? await (async () => {
+          const formData = new FormData();
+          formData.append("file", selectedFile);
+          if (trimmed) {
+            formData.append("caption", trimmed);
+          }
+          if (replyDraft?.messageId) {
+            formData.append("replyToMessageId", replyDraft.messageId);
+          }
+          return fetch(apiUrl(`/api/whatsapp/inbox/${conversationId}/messages/media`), {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          });
+        })()
+      : await fetch(apiUrl(`/api/whatsapp/inbox/${conversationId}/messages`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            text: trimmed || undefined,
+            replyToMessageId: replyDraft?.messageId,
+          }),
+        });
 
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
@@ -1148,7 +1168,7 @@ export default function InboxPageClient({
         optimisticId,
         payload,
       });
-      if (payload.messageId) {
+      if (payload.messageId && optimisticId.startsWith("optimistic:")) {
         setMessagesByConversationId((current) => ({
           ...current,
           [conversationId]: (current[conversationId] || []).map((message) =>
@@ -1698,7 +1718,7 @@ export default function InboxPageClient({
                   Replying via {currentChannel.name}
                 </Badge>
               </div>
-              <div className="flex items-center gap-2 rounded-lg bg-secondary p-1">
+              <div className="flex items-end gap-2 rounded-lg bg-secondary p-1">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -1713,18 +1733,13 @@ export default function InboxPageClient({
                 >
                   <Paperclip className="h-4 w-4" />
                 </Button>
-                <Input
+                <textarea
                   ref={composerInputRef}
                   placeholder={selectedConversation ? `Message ${selectedConversation.name}...` : "Type a message"}
                   value={messageInput}
                   onChange={(event) => setMessageInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void sendMessage();
-                    }
-                  }}
-                  className="flex-1 border-0 bg-transparent focus:ring-0"
+                  rows={1}
+                  className="min-h-10 max-h-40 flex-1 resize-none border-0 bg-transparent px-3 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground"
                 />
                 <Button
                   variant="ghost"
