@@ -3499,9 +3499,23 @@ async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), Ap
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default();
+    let contact_wa_ids = contacts
+        .iter()
+        .filter_map(|contact| contact.get("wa_id").and_then(|v| v.as_str()))
+        .collect::<std::collections::HashSet<_>>();
     for message in messages {
         let from = message.get("from").and_then(|v| v.as_str()).unwrap_or("");
+        if from.trim().is_empty() {
+            continue;
+        }
+        if !contact_wa_ids.contains(from) {
+            // Ignore message payloads that are not mapped to an inbound customer contact.
+            continue;
+        }
         let normalized_phone = normalize_phone(from);
+        if normalized_phone.is_empty() {
+            continue;
+        }
         let text = get_inbound_text(&message);
         let media = get_media_content(&message);
         if text.is_none() && media.is_none() {
