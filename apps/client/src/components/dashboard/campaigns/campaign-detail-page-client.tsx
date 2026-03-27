@@ -544,12 +544,25 @@ export default function CampaignDetailPageClient({
     }
   }
 
-  const launchable = liveCampaign.status === "DRAFT";
+  const launchable =
+    (liveCampaign.status === "DRAFT" && pendingCount > 0) ||
+    ((liveCampaign.status === "COMPLETED" || liveCampaign.status === "FAILED") &&
+      pendingCount > 0 &&
+      queuedCount === 0 &&
+      effectiveCampaign.sentCount === 0 &&
+      effectiveCampaign.deliveredCount === 0 &&
+      effectiveCampaign.readCount === 0);
   const pausable = liveCampaign.status === "SENDING" || liveCampaign.status === "SCHEDULED";
   const resumable = liveCampaign.status === "PAUSED";
   const idleSendingWithPending = liveCampaign.status === "SENDING" && queuedCount === 0 && pendingCount > 0;
   const sendMoreable =
-    (liveCampaign.status === "COMPLETED" && remaining > 0) ||
+    (liveCampaign.status === "COMPLETED" &&
+      remaining > 0 &&
+      !(pendingCount > 0 &&
+        queuedCount === 0 &&
+        effectiveCampaign.sentCount === 0 &&
+        effectiveCampaign.deliveredCount === 0 &&
+        effectiveCampaign.readCount === 0)) ||
     idleSendingWithPending ||
     liveCampaign.status === "FAILED" ||
     liveCampaign.status === "PAUSED";

@@ -3344,14 +3344,14 @@ pub async fn process_queued_campaign_recipients(
         }
         let campaign = sqlx::query_as::<_, WhatsappCampaignRow>(
             r#"
-            SELECT id, "userId" AS user_id, "connectionId" AS connection_id, "templateId" AS template_id,
-                   name, description, "templateName" AS template_name, "templateLanguage" AS template_language,
-                   "variableMappings" AS variable_mappings, "listLabel" AS list_label,
-                   "defaultBatchSize" AS default_batch_size, status::text AS status, "scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
-                   "launchedAt" AT TIME ZONE 'UTC' AS launched_at, "completedAt" AT TIME ZONE 'UTC' AS completed_at, "totalRecipients" AS total_recipients,
-                   "sentCount" AS sent_count, "deliveredCount" AS delivered_count, "readCount" AS read_count,
-                   "failedCount" AS failed_count, "blockedCount" AS blocked_count, "unsubscribedCount" AS unsubscribed_count,
-                   "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at,
+            SELECT c.id, c."userId" AS user_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
+                   c.name, c.description, c."templateName" AS template_name, c."templateLanguage" AS template_language,
+                   c."variableMappings" AS variable_mappings, c."listLabel" AS list_label,
+                   c."defaultBatchSize" AS default_batch_size, c.status::text AS status, c."scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
+                   c."launchedAt" AT TIME ZONE 'UTC' AS launched_at, c."completedAt" AT TIME ZONE 'UTC' AS completed_at, c."totalRecipients" AS total_recipients,
+                   c."sentCount" AS sent_count, c."deliveredCount" AS delivered_count, c."readCount" AS read_count,
+                   c."failedCount" AS failed_count, c."blockedCount" AS blocked_count, c."unsubscribedCount" AS unsubscribed_count,
+                   c."createdAt" AT TIME ZONE 'UTC' AS created_at, c."updatedAt" AT TIME ZONE 'UTC' AS updated_at,
                    COALESCE(wc."phoneDisplayNumber", wc."phoneNumberId") AS connection_label,
                    wt.status::text AS template_status
             FROM "WhatsappCampaign" c
