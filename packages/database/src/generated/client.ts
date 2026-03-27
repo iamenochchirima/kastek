@@ -180,6 +180,11 @@ export type SocialPublishJob = Prisma.SocialPublishJobModel
  */
 export type WhatsappContact = Prisma.WhatsappContactModel
 /**
+ * Model WhatsappContactListMembership
+ * 
+ */
+export type WhatsappContactListMembership = Prisma.WhatsappContactListMembershipModel
+/**
  * Model WhatsappTemplate
  * 
  */

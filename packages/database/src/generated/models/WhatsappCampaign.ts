@@ -27,6 +27,7 @@ export type AggregateWhatsappCampaign = {
 }
 
 export type WhatsappCampaignAvgAggregateOutputType = {
+  defaultBatchSize: number | null
   totalRecipients: number | null
   sentCount: number | null
   deliveredCount: number | null
@@ -37,6 +38,7 @@ export type WhatsappCampaignAvgAggregateOutputType = {
 }
 
 export type WhatsappCampaignSumAggregateOutputType = {
+  defaultBatchSize: number | null
   totalRecipients: number | null
   sentCount: number | null
   deliveredCount: number | null
@@ -55,6 +57,8 @@ export type WhatsappCampaignMinAggregateOutputType = {
   description: string | null
   templateName: string | null
   templateLanguage: string | null
+  listLabel: string | null
+  defaultBatchSize: number | null
   status: $Enums.WhatsappCampaignStatus | null
   scheduledAt: Date | null
   launchedAt: Date | null
@@ -79,6 +83,8 @@ export type WhatsappCampaignMaxAggregateOutputType = {
   description: string | null
   templateName: string | null
   templateLanguage: string | null
+  listLabel: string | null
+  defaultBatchSize: number | null
   status: $Enums.WhatsappCampaignStatus | null
   scheduledAt: Date | null
   launchedAt: Date | null
@@ -104,6 +110,8 @@ export type WhatsappCampaignCountAggregateOutputType = {
   templateName: number
   templateLanguage: number
   variableMappings: number
+  listLabel: number
+  defaultBatchSize: number
   status: number
   scheduledAt: number
   launchedAt: number
@@ -122,6 +130,7 @@ export type WhatsappCampaignCountAggregateOutputType = {
 
 
 export type WhatsappCampaignAvgAggregateInputType = {
+  defaultBatchSize?: true
   totalRecipients?: true
   sentCount?: true
   deliveredCount?: true
@@ -132,6 +141,7 @@ export type WhatsappCampaignAvgAggregateInputType = {
 }
 
 export type WhatsappCampaignSumAggregateInputType = {
+  defaultBatchSize?: true
   totalRecipients?: true
   sentCount?: true
   deliveredCount?: true
@@ -150,6 +160,8 @@ export type WhatsappCampaignMinAggregateInputType = {
   description?: true
   templateName?: true
   templateLanguage?: true
+  listLabel?: true
+  defaultBatchSize?: true
   status?: true
   scheduledAt?: true
   launchedAt?: true
@@ -174,6 +186,8 @@ export type WhatsappCampaignMaxAggregateInputType = {
   description?: true
   templateName?: true
   templateLanguage?: true
+  listLabel?: true
+  defaultBatchSize?: true
   status?: true
   scheduledAt?: true
   launchedAt?: true
@@ -199,6 +213,8 @@ export type WhatsappCampaignCountAggregateInputType = {
   templateName?: true
   templateLanguage?: true
   variableMappings?: true
+  listLabel?: true
+  defaultBatchSize?: true
   status?: true
   scheduledAt?: true
   launchedAt?: true
@@ -311,6 +327,8 @@ export type WhatsappCampaignGroupByOutputType = {
   templateName: string
   templateLanguage: string
   variableMappings: runtime.JsonValue | null
+  listLabel: string | null
+  defaultBatchSize: number | null
   status: $Enums.WhatsappCampaignStatus
   scheduledAt: Date | null
   launchedAt: Date | null
@@ -359,6 +377,8 @@ export type WhatsappCampaignWhereInput = {
   templateName?: Prisma.StringFilter<"WhatsappCampaign"> | string
   templateLanguage?: Prisma.StringFilter<"WhatsappCampaign"> | string
   variableMappings?: Prisma.JsonNullableFilter<"WhatsappCampaign">
+  listLabel?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
+  defaultBatchSize?: Prisma.IntNullableFilter<"WhatsappCampaign"> | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFilter<"WhatsappCampaign"> | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
   launchedAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
@@ -389,6 +409,8 @@ export type WhatsappCampaignOrderByWithRelationInput = {
   templateName?: Prisma.SortOrder
   templateLanguage?: Prisma.SortOrder
   variableMappings?: Prisma.SortOrderInput | Prisma.SortOrder
+  listLabel?: Prisma.SortOrderInput | Prisma.SortOrder
+  defaultBatchSize?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
   scheduledAt?: Prisma.SortOrderInput | Prisma.SortOrder
   launchedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -422,6 +444,8 @@ export type WhatsappCampaignWhereUniqueInput = Prisma.AtLeast<{
   templateName?: Prisma.StringFilter<"WhatsappCampaign"> | string
   templateLanguage?: Prisma.StringFilter<"WhatsappCampaign"> | string
   variableMappings?: Prisma.JsonNullableFilter<"WhatsappCampaign">
+  listLabel?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
+  defaultBatchSize?: Prisma.IntNullableFilter<"WhatsappCampaign"> | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFilter<"WhatsappCampaign"> | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
   launchedAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
@@ -452,6 +476,8 @@ export type WhatsappCampaignOrderByWithAggregationInput = {
   templateName?: Prisma.SortOrder
   templateLanguage?: Prisma.SortOrder
   variableMappings?: Prisma.SortOrderInput | Prisma.SortOrder
+  listLabel?: Prisma.SortOrderInput | Prisma.SortOrder
+  defaultBatchSize?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
   scheduledAt?: Prisma.SortOrderInput | Prisma.SortOrder
   launchedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -485,6 +511,8 @@ export type WhatsappCampaignScalarWhereWithAggregatesInput = {
   templateName?: Prisma.StringWithAggregatesFilter<"WhatsappCampaign"> | string
   templateLanguage?: Prisma.StringWithAggregatesFilter<"WhatsappCampaign"> | string
   variableMappings?: Prisma.JsonNullableWithAggregatesFilter<"WhatsappCampaign">
+  listLabel?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCampaign"> | string | null
+  defaultBatchSize?: Prisma.IntNullableWithAggregatesFilter<"WhatsappCampaign"> | number | null
   status?: Prisma.EnumWhatsappCampaignStatusWithAggregatesFilter<"WhatsappCampaign"> | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.DateTimeNullableWithAggregatesFilter<"WhatsappCampaign"> | Date | string | null
   launchedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"WhatsappCampaign"> | Date | string | null
@@ -507,6 +535,8 @@ export type WhatsappCampaignCreateInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -537,6 +567,8 @@ export type WhatsappCampaignUncheckedCreateInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -561,6 +593,8 @@ export type WhatsappCampaignUpdateInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -591,6 +625,8 @@ export type WhatsappCampaignUncheckedUpdateInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -618,6 +654,8 @@ export type WhatsappCampaignCreateManyInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -640,6 +678,8 @@ export type WhatsappCampaignUpdateManyMutationInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -665,6 +705,8 @@ export type WhatsappCampaignUncheckedUpdateManyInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -700,6 +742,8 @@ export type WhatsappCampaignCountOrderByAggregateInput = {
   templateName?: Prisma.SortOrder
   templateLanguage?: Prisma.SortOrder
   variableMappings?: Prisma.SortOrder
+  listLabel?: Prisma.SortOrder
+  defaultBatchSize?: Prisma.SortOrder
   status?: Prisma.SortOrder
   scheduledAt?: Prisma.SortOrder
   launchedAt?: Prisma.SortOrder
@@ -716,6 +760,7 @@ export type WhatsappCampaignCountOrderByAggregateInput = {
 }
 
 export type WhatsappCampaignAvgOrderByAggregateInput = {
+  defaultBatchSize?: Prisma.SortOrder
   totalRecipients?: Prisma.SortOrder
   sentCount?: Prisma.SortOrder
   deliveredCount?: Prisma.SortOrder
@@ -734,6 +779,8 @@ export type WhatsappCampaignMaxOrderByAggregateInput = {
   description?: Prisma.SortOrder
   templateName?: Prisma.SortOrder
   templateLanguage?: Prisma.SortOrder
+  listLabel?: Prisma.SortOrder
+  defaultBatchSize?: Prisma.SortOrder
   status?: Prisma.SortOrder
   scheduledAt?: Prisma.SortOrder
   launchedAt?: Prisma.SortOrder
@@ -758,6 +805,8 @@ export type WhatsappCampaignMinOrderByAggregateInput = {
   description?: Prisma.SortOrder
   templateName?: Prisma.SortOrder
   templateLanguage?: Prisma.SortOrder
+  listLabel?: Prisma.SortOrder
+  defaultBatchSize?: Prisma.SortOrder
   status?: Prisma.SortOrder
   scheduledAt?: Prisma.SortOrder
   launchedAt?: Prisma.SortOrder
@@ -774,6 +823,7 @@ export type WhatsappCampaignMinOrderByAggregateInput = {
 }
 
 export type WhatsappCampaignSumOrderByAggregateInput = {
+  defaultBatchSize?: Prisma.SortOrder
   totalRecipients?: Prisma.SortOrder
   sentCount?: Prisma.SortOrder
   deliveredCount?: Prisma.SortOrder
@@ -960,6 +1010,8 @@ export type WhatsappCampaignCreateWithoutUserInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -988,6 +1040,8 @@ export type WhatsappCampaignUncheckedCreateWithoutUserInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1044,6 +1098,8 @@ export type WhatsappCampaignScalarWhereInput = {
   templateName?: Prisma.StringFilter<"WhatsappCampaign"> | string
   templateLanguage?: Prisma.StringFilter<"WhatsappCampaign"> | string
   variableMappings?: Prisma.JsonNullableFilter<"WhatsappCampaign">
+  listLabel?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
+  defaultBatchSize?: Prisma.IntNullableFilter<"WhatsappCampaign"> | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFilter<"WhatsappCampaign"> | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
   launchedAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
@@ -1066,6 +1122,8 @@ export type WhatsappCampaignCreateWithoutConnectionInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1094,6 +1152,8 @@ export type WhatsappCampaignUncheckedCreateWithoutConnectionInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1144,6 +1204,8 @@ export type WhatsappCampaignCreateWithoutTemplateInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1172,6 +1234,8 @@ export type WhatsappCampaignUncheckedCreateWithoutTemplateInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1222,6 +1286,8 @@ export type WhatsappCampaignCreateWithoutRecipientsInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1251,6 +1317,8 @@ export type WhatsappCampaignUncheckedCreateWithoutRecipientsInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1290,6 +1358,8 @@ export type WhatsappCampaignUpdateWithoutRecipientsInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1319,6 +1389,8 @@ export type WhatsappCampaignUncheckedUpdateWithoutRecipientsInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1342,6 +1414,8 @@ export type WhatsappCampaignCreateWithoutSendEventsInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1371,6 +1445,8 @@ export type WhatsappCampaignUncheckedCreateWithoutSendEventsInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1410,6 +1486,8 @@ export type WhatsappCampaignUpdateWithoutSendEventsInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1439,6 +1517,8 @@ export type WhatsappCampaignUncheckedUpdateWithoutSendEventsInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1464,6 +1544,8 @@ export type WhatsappCampaignCreateManyUserInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1486,6 +1568,8 @@ export type WhatsappCampaignUpdateWithoutUserInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1514,6 +1598,8 @@ export type WhatsappCampaignUncheckedUpdateWithoutUserInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1540,6 +1626,8 @@ export type WhatsappCampaignUncheckedUpdateManyWithoutUserInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1564,6 +1652,8 @@ export type WhatsappCampaignCreateManyConnectionInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1586,6 +1676,8 @@ export type WhatsappCampaignUpdateWithoutConnectionInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1614,6 +1706,8 @@ export type WhatsappCampaignUncheckedUpdateWithoutConnectionInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1640,6 +1734,8 @@ export type WhatsappCampaignUncheckedUpdateManyWithoutConnectionInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1664,6 +1760,8 @@ export type WhatsappCampaignCreateManyTemplateInput = {
   templateName: string
   templateLanguage: string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
   status?: $Enums.WhatsappCampaignStatus
   scheduledAt?: Date | string | null
   launchedAt?: Date | string | null
@@ -1686,6 +1784,8 @@ export type WhatsappCampaignUpdateWithoutTemplateInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1714,6 +1814,8 @@ export type WhatsappCampaignUncheckedUpdateWithoutTemplateInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1740,6 +1842,8 @@ export type WhatsappCampaignUncheckedUpdateManyWithoutTemplateInput = {
   templateName?: Prisma.StringFieldUpdateOperationsInput | string
   templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1805,6 +1909,8 @@ export type WhatsappCampaignSelect<ExtArgs extends runtime.Types.Extensions.Inte
   templateName?: boolean
   templateLanguage?: boolean
   variableMappings?: boolean
+  listLabel?: boolean
+  defaultBatchSize?: boolean
   status?: boolean
   scheduledAt?: boolean
   launchedAt?: boolean
@@ -1836,6 +1942,8 @@ export type WhatsappCampaignSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
   templateName?: boolean
   templateLanguage?: boolean
   variableMappings?: boolean
+  listLabel?: boolean
+  defaultBatchSize?: boolean
   status?: boolean
   scheduledAt?: boolean
   launchedAt?: boolean
@@ -1864,6 +1972,8 @@ export type WhatsappCampaignSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
   templateName?: boolean
   templateLanguage?: boolean
   variableMappings?: boolean
+  listLabel?: boolean
+  defaultBatchSize?: boolean
   status?: boolean
   scheduledAt?: boolean
   launchedAt?: boolean
@@ -1892,6 +2002,8 @@ export type WhatsappCampaignSelectScalar = {
   templateName?: boolean
   templateLanguage?: boolean
   variableMappings?: boolean
+  listLabel?: boolean
+  defaultBatchSize?: boolean
   status?: boolean
   scheduledAt?: boolean
   launchedAt?: boolean
@@ -1907,7 +2019,7 @@ export type WhatsappCampaignSelectScalar = {
   updatedAt?: boolean
 }
 
-export type WhatsappCampaignOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "connectionId" | "templateId" | "name" | "description" | "templateName" | "templateLanguage" | "variableMappings" | "status" | "scheduledAt" | "launchedAt" | "completedAt" | "totalRecipients" | "sentCount" | "deliveredCount" | "readCount" | "failedCount" | "blockedCount" | "unsubscribedCount" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappCampaign"]>
+export type WhatsappCampaignOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "connectionId" | "templateId" | "name" | "description" | "templateName" | "templateLanguage" | "variableMappings" | "listLabel" | "defaultBatchSize" | "status" | "scheduledAt" | "launchedAt" | "completedAt" | "totalRecipients" | "sentCount" | "deliveredCount" | "readCount" | "failedCount" | "blockedCount" | "unsubscribedCount" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappCampaign"]>
 export type WhatsappCampaignInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
@@ -1946,6 +2058,8 @@ export type $WhatsappCampaignPayload<ExtArgs extends runtime.Types.Extensions.In
     templateName: string
     templateLanguage: string
     variableMappings: runtime.JsonValue | null
+    listLabel: string | null
+    defaultBatchSize: number | null
     status: $Enums.WhatsappCampaignStatus
     scheduledAt: Date | null
     launchedAt: Date | null
@@ -2396,6 +2510,8 @@ export interface WhatsappCampaignFieldRefs {
   readonly templateName: Prisma.FieldRef<"WhatsappCampaign", 'String'>
   readonly templateLanguage: Prisma.FieldRef<"WhatsappCampaign", 'String'>
   readonly variableMappings: Prisma.FieldRef<"WhatsappCampaign", 'Json'>
+  readonly listLabel: Prisma.FieldRef<"WhatsappCampaign", 'String'>
+  readonly defaultBatchSize: Prisma.FieldRef<"WhatsappCampaign", 'Int'>
   readonly status: Prisma.FieldRef<"WhatsappCampaign", 'WhatsappCampaignStatus'>
   readonly scheduledAt: Prisma.FieldRef<"WhatsappCampaign", 'DateTime'>
   readonly launchedAt: Prisma.FieldRef<"WhatsappCampaign", 'DateTime'>

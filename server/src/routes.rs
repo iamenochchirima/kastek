@@ -131,6 +131,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         .route("", web::get().to(whatsapp::list_contacts))
                         .route("/import", web::post().to(whatsapp::import_contacts))
                         .route(
+                            "/lists/{label}/export",
+                            web::get().to(whatsapp::export_contact_list),
+                        )
+                        .route(
                             "/lists/{label}",
                             web::patch().to(whatsapp::rename_contact_list),
                         )
@@ -157,6 +161,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                             "/{id}/messages",
                             web::get().to(whatsapp::list_conversation_messages),
                         )
+                        .route("/{id}", web::patch().to(whatsapp::update_conversation))
+                        .route("/{id}", web::delete().to(whatsapp::delete_conversation))
                         .route(
                             "/{id}/messages",
                             web::post().to(whatsapp::send_conversation_message),

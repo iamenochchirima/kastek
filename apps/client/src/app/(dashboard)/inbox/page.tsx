@@ -11,6 +11,7 @@ type RustInboxConversation = {
   status: string;
   lastMessageAt: string;
   unreadCount: number;
+  starred: boolean;
   connectionId: string | null;
   connectionLabel: string | null;
   lastMessage: string;
@@ -72,7 +73,7 @@ export default async function InboxPage() {
         lastMessage: conversation.lastMessage || "No messages yet",
         time: conversation.lastMessageAt,
         unread: conversation.unreadCount > 0,
-        starred: false,
+        starred: conversation.starred,
         channel: "whatsapp" as const,
         connectionId: conversation.connectionId,
         connectionLabel: conversation.connectionLabel || conversation.phone || "Unknown number",

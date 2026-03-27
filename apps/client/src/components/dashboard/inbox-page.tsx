@@ -25,6 +25,7 @@ import {
   Smile,
   Star,
   Tag,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -921,6 +922,7 @@ export default function InboxPageClient({
                         handle: payload.conversation.phone,
                         time: payload.conversation.lastMessageAt,
                         unread: payload.conversation.unreadCount > 0,
+                        starred: payload.conversation.starred ?? conversation.starred,
                         avatar:
                           (payload.conversation.customerName || payload.conversation.phone || "?")
                             .split(/\s+/)
@@ -940,7 +942,7 @@ export default function InboxPageClient({
                     lastMessage: "New conversation",
                     time: payload.conversation.lastMessageAt,
                     unread: payload.conversation.unreadCount > 0,
-                    starred: false,
+                    starred: payload.conversation.starred ?? false,
                     channel: "whatsapp" as const,
                     connectionId: payload.conversation.connectionId || null,
                     connectionLabel:
@@ -1079,6 +1081,62 @@ export default function InboxPageClient({
         (message) => message.id !== messageId,
       ),
     }));
+  }
+
+  async function toggleConversationStar() {
+    if (!selectedConversationId || !selectedConversation) return;
+
+    const nextStarred = !selectedConversation.starred;
+    const response = await fetch(apiUrl(`/api/whatsapp/inbox/${selectedConversationId}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ starred: nextStarred }),
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      setComposerError(payload.error || "Failed to update conversation");
+      return;
+    }
+
+    setLiveConversations((current) =>
+      current.map((conversation) =>
+        conversation.id === selectedConversationId
+          ? { ...conversation, starred: nextStarred }
+          : conversation,
+      ),
+    );
+  }
+
+  async function deleteSelectedConversation() {
+    if (!selectedConversationId || !selectedConversation) return;
+    if (!window.confirm(`Delete the conversation with ${selectedConversation.name}?`)) return;
+
+    const deletedConversationId = selectedConversationId;
+    const nextSelectedId =
+      liveConversations.find((conversation) => conversation.id !== deletedConversationId)?.id ?? null;
+
+    const response = await fetch(apiUrl(`/api/whatsapp/inbox/${deletedConversationId}`), {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      setComposerError(payload.error || "Failed to delete conversation");
+      return;
+    }
+
+    setLiveConversations((current) =>
+      current.filter((conversation) => conversation.id !== deletedConversationId),
+    );
+    setMessagesByConversationId((current) => {
+      const next = { ...current };
+      delete next[deletedConversationId];
+      return next;
+    });
+    setSelectedConversationId(nextSelectedId);
   }
 
   async function sendMessage() {
@@ -1453,7 +1511,12 @@ export default function InboxPageClient({
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground"
+                        onClick={() => void toggleConversationStar()}
+                      >
                         <Star
                           className={cn(
                             "h-4 w-4",
@@ -1488,6 +1551,13 @@ export default function InboxPageClient({
                         Manage Tags
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => void deleteSelectedConversation()}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Conversation
+                      </DropdownMenuItem>
                       <DropdownMenuItem className="text-destructive">
                         Block Contact
                       </DropdownMenuItem>

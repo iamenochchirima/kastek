@@ -412,6 +412,7 @@ export const ModelName = {
   SocialPostVariant: 'SocialPostVariant',
   SocialPublishJob: 'SocialPublishJob',
   WhatsappContact: 'WhatsappContact',
+  WhatsappContactListMembership: 'WhatsappContactListMembership',
   WhatsappTemplate: 'WhatsappTemplate',
   WhatsappCampaign: 'WhatsappCampaign',
   WhatsappCampaignRecipient: 'WhatsappCampaignRecipient',
@@ -431,7 +432,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "quotation" | "invoice" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "conversation" | "message" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "socialChannelConnection" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "whatsappContact" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
+    modelProps: "user" | "account" | "session" | "verificationToken" | "adminUser" | "businessProfile" | "botConfiguration" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "quotation" | "invoice" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "conversation" | "message" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "socialChannelConnection" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2507,6 +2508,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    WhatsappContactListMembership: {
+      payload: Prisma.$WhatsappContactListMembershipPayload<ExtArgs>
+      fields: Prisma.WhatsappContactListMembershipFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.WhatsappContactListMembershipFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.WhatsappContactListMembershipFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload>
+        }
+        findFirst: {
+          args: Prisma.WhatsappContactListMembershipFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.WhatsappContactListMembershipFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload>
+        }
+        findMany: {
+          args: Prisma.WhatsappContactListMembershipFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload>[]
+        }
+        create: {
+          args: Prisma.WhatsappContactListMembershipCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload>
+        }
+        createMany: {
+          args: Prisma.WhatsappContactListMembershipCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.WhatsappContactListMembershipCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload>[]
+        }
+        delete: {
+          args: Prisma.WhatsappContactListMembershipDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload>
+        }
+        update: {
+          args: Prisma.WhatsappContactListMembershipUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload>
+        }
+        deleteMany: {
+          args: Prisma.WhatsappContactListMembershipDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.WhatsappContactListMembershipUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.WhatsappContactListMembershipUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload>[]
+        }
+        upsert: {
+          args: Prisma.WhatsappContactListMembershipUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsappContactListMembershipPayload>
+        }
+        aggregate: {
+          args: Prisma.WhatsappContactListMembershipAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateWhatsappContactListMembership>
+        }
+        groupBy: {
+          args: Prisma.WhatsappContactListMembershipGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.WhatsappContactListMembershipGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.WhatsappContactListMembershipCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.WhatsappContactListMembershipCountAggregateOutputType> | number
+        }
+      }
+    }
     WhatsappTemplate: {
       payload: Prisma.$WhatsappTemplatePayload<ExtArgs>
       fields: Prisma.WhatsappTemplateFieldRefs
@@ -3349,6 +3424,8 @@ export const WhatsappContactScalarFieldEnum = {
   fullName: 'fullName',
   tags: 'tags',
   location: 'location',
+  listLabel: 'listLabel',
+  metadata: 'metadata',
   optIn: 'optIn',
   optInSource: 'optInSource',
   optInDate: 'optInDate',
@@ -3360,6 +3437,27 @@ export const WhatsappContactScalarFieldEnum = {
 } as const
 
 export type WhatsappContactScalarFieldEnum = (typeof WhatsappContactScalarFieldEnum)[keyof typeof WhatsappContactScalarFieldEnum]
+
+
+export const WhatsappContactListMembershipScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  contactId: 'contactId',
+  listLabel: 'listLabel',
+  fullName: 'fullName',
+  tags: 'tags',
+  location: 'location',
+  metadata: 'metadata',
+  optIn: 'optIn',
+  optInSource: 'optInSource',
+  optInDate: 'optInDate',
+  excluded: 'excluded',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WhatsappContactListMembershipScalarFieldEnum = (typeof WhatsappContactListMembershipScalarFieldEnum)[keyof typeof WhatsappContactListMembershipScalarFieldEnum]
 
 
 export const WhatsappTemplateScalarFieldEnum = {
@@ -3393,6 +3491,8 @@ export const WhatsappCampaignScalarFieldEnum = {
   templateName: 'templateName',
   templateLanguage: 'templateLanguage',
   variableMappings: 'variableMappings',
+  listLabel: 'listLabel',
+  defaultBatchSize: 'defaultBatchSize',
   status: 'status',
   scheduledAt: 'scheduledAt',
   launchedAt: 'launchedAt',
@@ -3935,6 +4035,7 @@ export type GlobalOmitConfig = {
   socialPostVariant?: Prisma.SocialPostVariantOmit
   socialPublishJob?: Prisma.SocialPublishJobOmit
   whatsappContact?: Prisma.WhatsappContactOmit
+  whatsappContactListMembership?: Prisma.WhatsappContactListMembershipOmit
   whatsappTemplate?: Prisma.WhatsappTemplateOmit
   whatsappCampaign?: Prisma.WhatsappCampaignOmit
   whatsappCampaignRecipient?: Prisma.WhatsappCampaignRecipientOmit

@@ -143,75 +143,93 @@ export default function CampaignsPageClient({
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {filteredCampaigns.map((campaign) => {
-              const progress = campaignProgress(campaign);
-              const remaining = remainingRecipients(campaign);
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-hidden rounded-xl">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary/40 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Campaign</th>
+                      <th className="px-4 py-3 text-left">Status</th>
+                      <th className="px-4 py-3 text-left">Recipients</th>
+                      <th className="px-4 py-3 text-left">Sent</th>
+                      <th className="px-4 py-3 text-left">Delivered</th>
+                      <th className="px-4 py-3 text-left">Read</th>
+                      <th className="px-4 py-3 text-left">Failed</th>
+                      <th className="px-4 py-3 text-left">Remaining</th>
+                      <th className="px-4 py-3 text-left">Progress</th>
+                      <th className="px-4 py-3 text-left">Schedule</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCampaigns.map((campaign) => {
+                      const progress = campaignProgress(campaign);
+                      const remaining = remainingRecipients(campaign);
 
-              return (
-                <Link key={campaign.id} href={`/reach/campaigns/${campaign.id}`} className="no-underline">
-                  <Card className="h-full transition-colors hover:border-primary/40 hover:bg-secondary/20">
-                    <CardContent className="space-y-4 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 className="truncate text-base font-semibold text-foreground">{campaign.name}</h3>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">
-                            {campaign.templateName} · {campaign.connectionLabel || "No connection"}
-                          </p>
-                        </div>
-                        <Badge className={statusTone(campaign.status)}>
-                          {campaign.status === "SENDING" ? (
-                            <Zap className="h-3 w-3" />
-                          ) : campaign.status === "PAUSED" ? (
-                            <Pause className="h-3 w-3" />
-                          ) : campaign.status === "COMPLETED" ? (
-                            <RefreshCw className="h-3 w-3" />
-                          ) : (
-                            <Square className="h-3 w-3" />
-                          )}
-                          {campaign.status}
-                        </Badge>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">Progress</span>
-                          <span className="font-medium text-foreground">{progress}%</span>
-                        </div>
-                        <Progress value={progress} />
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2">
-                        <CompactStat label="Recipients" value={campaign.totalRecipients} />
-                        <CompactStat label="Sent" value={campaign.sentCount} />
-                        <CompactStat label="Remaining" value={remaining} />
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{campaign.deliveredCount.toLocaleString()} delivered</span>
-                        <span>{campaign.readCount.toLocaleString()} read</span>
-                      </div>
-
-                      <div className="text-xs text-muted-foreground">
-                        {campaign.scheduledAt ? formatDate(campaign.scheduledAt) : "No schedule"}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
+                      return (
+                        <tr
+                          key={campaign.id}
+                          onClick={() => {
+                            window.location.href = `/reach/campaigns/${campaign.id}`;
+                          }}
+                          className="cursor-pointer border-t border-border transition-colors hover:bg-secondary/40"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-foreground">{campaign.name}</div>
+                              <div className="mt-1 truncate text-xs text-muted-foreground">
+                                {campaign.templateName} · {campaign.connectionLabel || "No connection"}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge className={statusTone(campaign.status)}>
+                              {campaign.status === "SENDING" ? (
+                                <Zap className="h-3 w-3" />
+                              ) : campaign.status === "PAUSED" ? (
+                                <Pause className="h-3 w-3" />
+                              ) : campaign.status === "COMPLETED" ? (
+                                <RefreshCw className="h-3 w-3" />
+                              ) : (
+                                <Square className="h-3 w-3" />
+                              )}
+                              {campaign.status}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 font-medium text-foreground">
+                            {campaign.totalRecipients.toLocaleString("en-ZA")}
+                          </td>
+                          <td className="px-4 py-3 text-foreground">{campaign.sentCount.toLocaleString("en-ZA")}</td>
+                          <td className="px-4 py-3 text-foreground">
+                            {campaign.deliveredCount.toLocaleString("en-ZA")}
+                          </td>
+                          <td className="px-4 py-3 text-foreground">{campaign.readCount.toLocaleString("en-ZA")}</td>
+                          <td className="px-4 py-3 text-foreground">
+                            {(campaign.failedCount + campaign.blockedCount).toLocaleString("en-ZA")}
+                          </td>
+                          <td className="px-4 py-3 text-foreground">{remaining.toLocaleString("en-ZA")}</td>
+                          <td className="px-4 py-3">
+                            <div className="min-w-[140px] space-y-2">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">Progress</span>
+                                <span className="font-medium text-foreground">{progress}%</span>
+                              </div>
+                              <Progress value={progress} />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">
+                            {campaign.scheduledAt ? formatDate(campaign.scheduledAt) : "No schedule"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
-    </div>
-  );
-}
-
-function CompactStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg bg-secondary/50 px-3 py-2">
-      <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-foreground">{value.toLocaleString("en-ZA")}</div>
     </div>
   );
 }

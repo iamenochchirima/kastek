@@ -629,6 +629,21 @@ pub struct WhatsappCampaignRecipientRow {
     pub campaign_id: String,
     #[sqlx(rename = "contact_id")]
     pub contact_id: String,
+    #[serde(rename = "snapshotPhone")]
+    #[sqlx(rename = "snapshot_phone")]
+    pub snapshot_phone: Option<String>,
+    #[serde(rename = "snapshotFullName")]
+    #[sqlx(rename = "snapshot_full_name")]
+    pub snapshot_full_name: Option<String>,
+    #[serde(rename = "snapshotLocation")]
+    #[sqlx(rename = "snapshot_location")]
+    pub snapshot_location: Option<String>,
+    #[serde(rename = "snapshotListLabel")]
+    #[sqlx(rename = "snapshot_list_label")]
+    pub snapshot_list_label: Option<String>,
+    #[serde(rename = "snapshotMetadata")]
+    #[sqlx(rename = "snapshot_metadata")]
+    pub snapshot_metadata: Option<Value>,
     pub status: String,
     #[sqlx(rename = "wa_message_id")]
     pub wa_message_id: Option<String>,
@@ -657,6 +672,21 @@ pub struct WhatsappCampaignRecipientDetailRow {
     pub campaign_id: String,
     #[sqlx(rename = "contact_id")]
     pub contact_id: String,
+    #[serde(rename = "snapshotPhone")]
+    #[sqlx(rename = "snapshot_phone")]
+    pub snapshot_phone: Option<String>,
+    #[serde(rename = "snapshotFullName")]
+    #[sqlx(rename = "snapshot_full_name")]
+    pub snapshot_full_name: Option<String>,
+    #[serde(rename = "snapshotLocation")]
+    #[sqlx(rename = "snapshot_location")]
+    pub snapshot_location: Option<String>,
+    #[serde(rename = "snapshotListLabel")]
+    #[sqlx(rename = "snapshot_list_label")]
+    pub snapshot_list_label: Option<String>,
+    #[serde(rename = "snapshotMetadata")]
+    #[sqlx(rename = "snapshot_metadata")]
+    pub snapshot_metadata: Option<Value>,
     pub status: String,
     #[serde(rename = "waMessageId")]
     #[sqlx(rename = "wa_message_id")]
@@ -699,6 +729,47 @@ pub struct WhatsappCampaignRecipientDetailRow {
     pub contact_list_label: String,
     #[serde(rename = "contactMetadata")]
     pub contact_metadata: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct WhatsappListContactRow {
+    pub id: String,
+    #[serde(rename = "contactId")]
+    #[sqlx(rename = "contact_id")]
+    pub contact_id: String,
+    #[serde(rename = "userId")]
+    #[sqlx(rename = "user_id")]
+    pub user_id: String,
+    pub phone: String,
+    #[serde(rename = "fullName")]
+    #[sqlx(rename = "full_name")]
+    pub full_name: Option<String>,
+    pub tags: Vec<String>,
+    pub location: Option<String>,
+    #[serde(rename = "listLabel")]
+    #[sqlx(rename = "list_label")]
+    pub list_label: String,
+    pub metadata: Option<Value>,
+    #[serde(rename = "optIn")]
+    #[sqlx(rename = "opt_in")]
+    pub opt_in: bool,
+    #[serde(rename = "optInSource")]
+    #[sqlx(rename = "opt_in_source")]
+    pub opt_in_source: Option<String>,
+    #[serde(rename = "optInDate")]
+    #[sqlx(rename = "opt_in_date")]
+    pub opt_in_date: Option<DateTime<Utc>>,
+    #[serde(rename = "lastMarketingSent")]
+    #[sqlx(rename = "last_marketing_sent")]
+    pub last_marketing_sent: Option<DateTime<Utc>>,
+    pub excluded: bool,
+    pub notes: Option<String>,
+    #[serde(rename = "createdAt")]
+    #[sqlx(rename = "created_at")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    #[sqlx(rename = "updated_at")]
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, FromRow)]
@@ -819,12 +890,18 @@ pub struct ConversationRow {
     pub last_message_at: DateTime<Utc>,
     #[sqlx(rename = "last_read_at")]
     pub last_read_at: Option<DateTime<Utc>>,
+    pub starred: bool,
     #[sqlx(rename = "unread_count")]
     pub unread_count: i32,
     #[sqlx(rename = "created_at")]
     pub created_at: DateTime<Utc>,
     #[sqlx(rename = "updated_at")]
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConversationUpdateRequest {
+    pub starred: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, FromRow)]

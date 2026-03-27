@@ -26,6 +26,7 @@ export default async function ReachContactsPage({
   type ContactsResponse = {
     contacts: Array<{
       id: string;
+      contactId: string;
       phone: string;
       fullName: string | null;
       tags: string[];

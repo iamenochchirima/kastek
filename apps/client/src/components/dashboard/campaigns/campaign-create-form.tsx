@@ -62,6 +62,23 @@ function formatLabel(value: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function extractListRunSuffix(listLabel: string) {
+  const match = listLabel.match(/(\d{4}-\d{2}-\d{2}-run-\d+)$/i);
+  return match?.[1] || "";
+}
+
+function stripListRunSuffix(value: string) {
+  return value.replace(/-\d{4}-\d{2}-\d{2}-run-\d+$/i, "").trim();
+}
+
+function buildCampaignName(baseName: string, listLabel: string) {
+  const normalizedBase = stripListRunSuffix(baseName.trim());
+  const suffix = extractListRunSuffix(listLabel);
+  if (!normalizedBase) return "";
+  if (!suffix) return normalizedBase;
+  return `${normalizedBase}-${suffix}`;
+}
+
 function resolvePreviewValue(contact: Contact | null, mapping: VariableMapping) {
   if (!contact) return "";
   if (mapping.source === "static") return mapping.key;
@@ -92,7 +109,7 @@ export default function CampaignCreateForm({
 }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("setup");
-  const [name, setName] = useState("");
+  const [baseName, setBaseName] = useState("");
   const [description, setDescription] = useState("");
   const [connectionId, setConnectionId] = useState(connections[0]?.id || "");
   const [templateId, setTemplateId] = useState("");
@@ -159,6 +176,10 @@ export default function CampaignCreateForm({
     Math.max(Number.parseInt(batchSize || "0", 10) || 0, 0),
     eligibleCount,
   );
+  const generatedCampaignName = useMemo(
+    () => buildCampaignName(baseName, listLabel),
+    [baseName, listLabel],
+  );
 
   const previewBody = useMemo(() => {
     if (!selectedTemplate?.body) return "Preview unavailable.";
@@ -191,7 +212,7 @@ export default function CampaignCreateForm({
   }
 
   function validateSetup() {
-    if (!name.trim()) return "Campaign name is required";
+    if (!baseName.trim()) return "Campaign name is required";
     if (!connectionId) return "Select a WhatsApp connection";
     if (!templateId) return "Select an approved marketing template";
     if (!listLabel) return "Select a contact list";
@@ -209,7 +230,7 @@ export default function CampaignCreateForm({
       if (validationError) throw new Error(validationError);
 
       const payload = {
-        name: name.trim(),
+        name: generatedCampaignName,
         description: description.trim() || undefined,
         connectionId,
         templateId,
@@ -261,13 +282,16 @@ export default function CampaignCreateForm({
         <h2 className="text-lg font-semibold text-foreground">Campaign setup</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="space-y-2 text-sm">
-            <span className="text-muted-foreground">Campaign name</span>
+            <span className="text-muted-foreground">Campaign base name</span>
             <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
+              value={baseName}
+              onChange={(event) => setBaseName(event.target.value)}
               className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-              placeholder="Website outreach"
+              placeholder="website-outreach-kasitek"
             />
+            <p className="text-xs text-muted-foreground">
+              The selected list&apos;s date/run suffix is appended automatically.
+            </p>
           </label>
 
           <label className="space-y-2 text-sm">
@@ -352,6 +376,10 @@ export default function CampaignCreateForm({
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-border bg-secondary/20 p-4">
+            <div className="text-xs text-muted-foreground">Generated campaign name</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">{generatedCampaignName || "-"}</div>
+          </div>
           <div className="rounded-xl border border-border bg-secondary/20 p-4">
             <div className="text-xs text-muted-foreground">Selected list</div>
             <div className="mt-1 text-lg font-semibold text-foreground">{listLabel}</div>
@@ -571,7 +599,7 @@ export default function CampaignCreateForm({
         <section className="rounded-2xl border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Confirm campaign</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <SummaryItem label="Campaign" value={name} />
+            <SummaryItem label="Campaign" value={generatedCampaignName} />
             <SummaryItem label="List" value={listLabel} />
             <SummaryItem label="Send now" value={String(selectedBatchSize)} />
             <SummaryItem label="Excluded" value={String(excludedContactIds.length)} />

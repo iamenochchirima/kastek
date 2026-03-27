@@ -256,7 +256,7 @@ export default function CampaignDetailPageClient({
   const [lastSyncedAt, setLastSyncedAt] = useState(() => new Date().toISOString());
   const [isPending, startTransition] = useTransition();
   const [launchBatchSize, setLaunchBatchSize] = useState(
-    String(campaign.defaultBatchSize || Math.max(campaign.totalRecipients - campaign.sentCount, 1)),
+    String(campaign.defaultBatchSize || Math.max((recipients.length || campaign.totalRecipients) - campaign.sentCount, 1)),
   );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [sendMoreContacts, setSendMoreContacts] = useState<SendMoreContact[]>([]);
@@ -272,6 +272,15 @@ export default function CampaignDetailPageClient({
     setLiveRecipients(recipients.map((recipient) => normalizeRecipient(recipient)));
     setLastSyncedAt(new Date().toISOString());
   }, [campaign, recipients]);
+
+  const effectiveTotalRecipients = useMemo(() => {
+    return liveRecipients.length > 0 ? liveRecipients.length : liveCampaign.totalRecipients;
+  }, [liveCampaign.totalRecipients, liveRecipients.length]);
+
+  const effectiveCampaign = useMemo(
+    () => ({ ...liveCampaign, totalRecipients: effectiveTotalRecipients }),
+    [effectiveTotalRecipients, liveCampaign],
+  );
 
   const refreshCampaign = useEffectEvent(async () => {
     try {
@@ -331,16 +340,16 @@ export default function CampaignDetailPageClient({
 
   const remaining = useMemo(() => {
     const processed =
-      liveCampaign.sentCount +
-      liveCampaign.failedCount +
-      liveCampaign.blockedCount +
-      liveCampaign.unsubscribedCount;
-    return Math.max(liveCampaign.totalRecipients - processed, 0);
-  }, [liveCampaign]);
+      effectiveCampaign.sentCount +
+      effectiveCampaign.failedCount +
+      effectiveCampaign.blockedCount +
+      effectiveCampaign.unsubscribedCount;
+    return Math.max(effectiveCampaign.totalRecipients - processed, 0);
+  }, [effectiveCampaign]);
 
   const currentLaunchBatchSize = Math.min(
     Math.max(Number.parseInt(launchBatchSize || "0", 10) || 0, 0),
-    remaining || liveCampaign.totalRecipients,
+    remaining || effectiveCampaign.totalRecipients,
   );
 
   const recipientCounts = useMemo(() => {
@@ -352,9 +361,9 @@ export default function CampaignDetailPageClient({
 
   const queuedCount = recipientCounts.QUEUED || 0;
   const pendingCount = recipientCounts.PENDING || 0;
-  const processedCount = Math.max(liveCampaign.totalRecipients - queuedCount - pendingCount, 0);
-  const activeSendPosition = Math.min(processedCount + queuedCount, liveCampaign.totalRecipients);
-  const isLiveSending = liveCampaign.status === "SENDING";
+  const processedCount = Math.max(effectiveCampaign.totalRecipients - queuedCount - pendingCount, 0);
+  const activeSendPosition = Math.min(processedCount + queuedCount, effectiveCampaign.totalRecipients);
+  const isLiveSending = effectiveCampaign.status === "SENDING";
   const sendMoreAvailableContacts = useMemo(() => {
     const base = sendMoreContacts.filter((contact) => pendingRecipientContactIds.includes(contact.id));
     const needle = sendMoreSearch.trim().toLowerCase();
@@ -588,11 +597,11 @@ export default function CampaignDetailPageClient({
         )}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <MetricCard label="Recipients" value={liveCampaign.totalRecipients} />
-          <MetricCard label="Sent" value={liveCampaign.sentCount} />
-          <MetricCard label="Delivered" value={liveCampaign.deliveredCount} />
-          <MetricCard label="Read" value={liveCampaign.readCount} />
-          <MetricCard label="Failed" value={liveCampaign.failedCount + liveCampaign.blockedCount} />
+          <MetricCard label="Recipients" value={effectiveCampaign.totalRecipients} />
+          <MetricCard label="Sent" value={effectiveCampaign.sentCount} />
+          <MetricCard label="Delivered" value={effectiveCampaign.deliveredCount} />
+          <MetricCard label="Read" value={effectiveCampaign.readCount} />
+          <MetricCard label="Failed" value={effectiveCampaign.failedCount + effectiveCampaign.blockedCount} />
           <MetricCard label="Remaining" value={remaining} />
         </section>
 
@@ -615,7 +624,7 @@ export default function CampaignDetailPageClient({
               <MetricCard label="Queued now" value={queuedCount} />
               <MetricCard label="Still pending" value={pendingCount} />
               <MetricCard label="Current position" value={activeSendPosition} />
-              <MetricCard label="Batch accepted" value={liveCampaign.sentCount} />
+              <MetricCard label="Batch accepted" value={effectiveCampaign.sentCount} />
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -623,14 +632,14 @@ export default function CampaignDetailPageClient({
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Campaign completion</span>
                   <span className="font-medium text-foreground">
-                    {processedCount.toLocaleString("en-ZA")} / {liveCampaign.totalRecipients.toLocaleString("en-ZA")}
+                    {processedCount.toLocaleString("en-ZA")} / {effectiveCampaign.totalRecipients.toLocaleString("en-ZA")}
                   </span>
                 </div>
                 <div className="mt-3">
                   <Progress
                     value={
-                      liveCampaign.totalRecipients > 0
-                        ? (processedCount / liveCampaign.totalRecipients) * 100
+                      effectiveCampaign.totalRecipients > 0
+                        ? (processedCount / effectiveCampaign.totalRecipients) * 100
                         : 0
                     }
                   />
@@ -651,10 +660,10 @@ export default function CampaignDetailPageClient({
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                   <MiniStat label="Pending" value={pendingCount} />
                   <MiniStat label="Queued" value={queuedCount} />
-                  <MiniStat label="Sent" value={liveCampaign.sentCount} />
-                  <MiniStat label="Delivered" value={liveCampaign.deliveredCount} />
-                  <MiniStat label="Read" value={liveCampaign.readCount} />
-                  <MiniStat label="Failed" value={liveCampaign.failedCount + liveCampaign.blockedCount} />
+                  <MiniStat label="Sent" value={effectiveCampaign.sentCount} />
+                  <MiniStat label="Delivered" value={effectiveCampaign.deliveredCount} />
+                  <MiniStat label="Read" value={effectiveCampaign.readCount} />
+                  <MiniStat label="Failed" value={effectiveCampaign.failedCount + effectiveCampaign.blockedCount} />
                 </div>
               </div>
             </div>
@@ -666,9 +675,9 @@ export default function CampaignDetailPageClient({
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Progress</span>
-                <span className="font-medium text-foreground">{campaignProgress(liveCampaign)}%</span>
+                <span className="font-medium text-foreground">{campaignProgress(effectiveCampaign)}%</span>
               </div>
-              <Progress value={campaignProgress(liveCampaign)} />
+              <Progress value={campaignProgress(effectiveCampaign)} />
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
@@ -845,8 +854,8 @@ export default function CampaignDetailPageClient({
                 <div>
                   <h2 className="text-2xl font-semibold text-foreground">Send more: {liveCampaign.name}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Locked list: {liveCampaign.listLabel || "default"} · Already sent: {liveCampaign.sentCount} · Delivered:{" "}
-                    {liveCampaign.deliveredCount} · Read: {liveCampaign.readCount}
+                    Locked list: {liveCampaign.listLabel || "default"} · Already sent: {effectiveCampaign.sentCount} · Delivered:{" "}
+                    {effectiveCampaign.deliveredCount} · Read: {effectiveCampaign.readCount}
                   </p>
                 </div>
                 <Button variant="outline" onClick={() => setSendMoreOpen(false)}>
@@ -857,7 +866,7 @@ export default function CampaignDetailPageClient({
               <div className="mt-5 grid gap-4 md:grid-cols-4">
                 <div className="rounded-lg bg-secondary/40 p-4">
                   <div className="text-xs text-muted-foreground">Original recipients</div>
-                  <div className="mt-1 text-xl font-semibold">{liveCampaign.totalRecipients}</div>
+                  <div className="mt-1 text-xl font-semibold">{effectiveCampaign.totalRecipients}</div>
                 </div>
                 <div className="rounded-lg bg-secondary/40 p-4">
                   <div className="text-xs text-muted-foreground">Pending in campaign</div>

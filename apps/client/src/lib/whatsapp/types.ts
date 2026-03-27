@@ -181,6 +181,7 @@ export type WhatsappRealtimeEvent =
         connectionLabel?: string | null;
         lastMessageAt: string;
         unreadCount: number;
+        starred?: boolean;
       };
     }
   | {

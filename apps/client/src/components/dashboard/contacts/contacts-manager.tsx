@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type ContactView = {
   id: string;
+  contactId: string;
   phone: string;
   fullName: string | null;
   tags: string[];
@@ -123,6 +124,18 @@ function renderMetadataValue(value: unknown) {
       {truncateValue(value)}
     </span>
   );
+}
+
+function parseDownloadFilename(contentDisposition: string | null, fallbackLabel: string) {
+  const match =
+    contentDisposition?.match(/filename\\*=UTF-8''([^;]+)/i) ||
+    contentDisposition?.match(/filename=\"?([^\";]+)\"?/i);
+  if (!match?.[1]) return `${fallbackLabel}.csv`;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
 }
 
 export default function ContactsManager({
@@ -436,6 +449,42 @@ export default function ContactsManager({
     setShowImportModal(true);
   }
 
+  async function downloadListCsv(label: string) {
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await fetch(apiUrl(`/api/whatsapp/contacts/lists/${encodeURIComponent(label)}/export`), {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        let message = "Failed to download contacts CSV";
+        try {
+          const body = (await response.json()) as { error?: string };
+          if (body.error) message = body.error;
+        } catch {
+          // Ignore malformed error bodies and use the fallback message.
+        }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const filename = parseDownloadFilename(response.headers.get("content-disposition"), label);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      setNotice(`Downloaded ${filename}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download contacts CSV");
+    }
+  }
+
   function openRenameModal(label: string) {
     setRenamingListLabel(label);
     setRenameValue(label);
@@ -587,6 +636,7 @@ export default function ContactsManager({
                           <ListActionsMenu
                             label={list.label}
                             onAddContacts={prepareAddContacts}
+                            onDownload={downloadListCsv}
                             onRename={openRenameModal}
                             onDelete={openDeleteModal}
                           />
@@ -924,6 +974,7 @@ export default function ContactsManager({
                   <ListActionsMenu
                     label={filters.listLabel}
                     onAddContacts={prepareAddContacts}
+                    onDownload={downloadListCsv}
                     onRename={openRenameModal}
                     onDelete={openDeleteModal}
                   />
@@ -1127,11 +1178,13 @@ function ImportProgressPanel({ progress }: { progress: ImportProgressState }) {
 function ListActionsMenu({
   label,
   onAddContacts,
+  onDownload,
   onRename,
   onDelete,
 }: {
   label: string;
   onAddContacts: (label: string) => void;
+  onDownload: (label: string) => void;
   onRename: (label: string) => void;
   onDelete: (label: string) => void;
 }) {
@@ -1149,6 +1202,7 @@ function ListActionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuItem onClick={() => onAddContacts(label)}>Add contacts</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onDownload(label)}>Download CSV</DropdownMenuItem>
         <DropdownMenuItem onClick={() => onRename(label)}>Rename</DropdownMenuItem>
         <DropdownMenuItem onClick={() => onDelete(label)} className="text-red-300 focus:text-red-200">
           Delete

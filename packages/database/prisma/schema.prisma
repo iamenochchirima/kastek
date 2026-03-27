@@ -29,6 +29,7 @@ model User {
   socialPublishJobs        SocialPublishJob[]
   whatsappConnections WhatsappConnection[]
   whatsappContacts    WhatsappContact[]
+  whatsappContactListMemberships WhatsappContactListMembership[]
   whatsappTemplates   WhatsappTemplate[]
   whatsappCampaigns   WhatsappCampaign[]
   whatsappSendEvents  WhatsappSendEvent[]
@@ -767,6 +768,7 @@ model WhatsappContact {
   excluded          Boolean  @default(false)
   notes             String?  @db.Text
 
+  listMemberships   WhatsappContactListMembership[]
   recipients        WhatsappCampaignRecipient[]
   sendEvents        WhatsappSendEvent[]
 
@@ -777,6 +779,34 @@ model WhatsappContact {
   @@index([userId, optIn, excluded])
   @@index([userId, listLabel])
   @@index([lastMarketingSent])
+}
+
+model WhatsappContactListMembership {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  contactId         String
+  contact           WhatsappContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  listLabel         String   @default("default")
+  fullName          String?
+  tags              String[]
+  location          String?
+  metadata          Json?
+
+  optIn             Boolean  @default(false)
+  optInSource       String?
+  optInDate         DateTime?
+  excluded          Boolean  @default(false)
+  notes             String?  @db.Text
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, contactId, listLabel])
+  @@index([userId, listLabel])
+  @@index([contactId])
 }
 
 model WhatsappTemplate {
@@ -859,6 +889,11 @@ model WhatsappCampaignRecipient {
 
   contactId      String
   contact        WhatsappContact        @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  snapshotPhone      String?
+  snapshotFullName   String?
+  snapshotLocation   String?
+  snapshotListLabel  String?
+  snapshotMetadata   Json?
 
   status         WhatsappRecipientStatus @default(PENDING)
   waMessageId    String?

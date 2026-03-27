@@ -6,11 +6,12 @@ use sqlx::{PgPool, Row};
 use std::collections::{HashMap, HashSet};
 
 use crate::db::models::{
-    ConversationRow, MessageRow, WhatsappAudienceFilterRequest, WhatsappCampaignCreateRequest,
-    WhatsappCampaignRecipientDetailRow, WhatsappCampaignRecipientRow, WhatsappCampaignRow,
-    WhatsappConnectionPublic, WhatsappConnectionRow, WhatsappContactImportInvalidRow,
-    WhatsappContactListQuery, WhatsappContactListRenameRequest, WhatsappContactRow,
-    WhatsappContactUpdateRequest, WhatsappReactionRequest, WhatsappSendMessageRequest,
+    ConversationRow, ConversationUpdateRequest, MessageRow, WhatsappAudienceFilterRequest,
+    WhatsappCampaignCreateRequest, WhatsappCampaignRecipientDetailRow,
+    WhatsappCampaignRecipientRow, WhatsappCampaignRow, WhatsappConnectionPublic,
+    WhatsappConnectionRow, WhatsappContactImportInvalidRow, WhatsappContactListQuery,
+    WhatsappContactListRenameRequest, WhatsappContactRow, WhatsappContactUpdateRequest,
+    WhatsappListContactRow, WhatsappReactionRequest, WhatsappSendMessageRequest,
     WhatsappStartConversationRequest, WhatsappTemplateListQuery, WhatsappTemplateRow,
 };
 use crate::error::AppError;
@@ -1029,53 +1030,72 @@ pub async fn list_contacts(
     let requested_limit = query.limit.unwrap_or(500);
     let normalized_limit = requested_limit.clamp(1, 10_000);
 
-    let contacts = sqlx::query_as::<_, WhatsappContactRow>(
+    let contacts = sqlx::query_as::<_, WhatsappListContactRow>(
         r#"
-        SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
-               COALESCE("listLabel", 'default') AS list_label, metadata,
-               "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
-               "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
-               "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-        FROM "WhatsappContact"
-        WHERE "userId" = $1
+        SELECT
+            m.id,
+            m."contactId" AS contact_id,
+            m."userId" AS user_id,
+            c.phone,
+            COALESCE(m."fullName", c."fullName") AS full_name,
+            COALESCE(m.tags, ARRAY[]::text[]) AS tags,
+            COALESCE(m.location, c.location) AS location,
+            m."listLabel" AS list_label,
+            m.metadata,
+            m."optIn" AS opt_in,
+            m."optInSource" AS opt_in_source,
+            m."optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+            c."lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent,
+            m.excluded,
+            m.notes,
+            m."createdAt" AT TIME ZONE 'UTC' AS created_at,
+            m."updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "WhatsappContactListMembership" m
+        JOIN "WhatsappContact" c ON c.id = m."contactId"
+        WHERE m."userId" = $1
           AND (
             COALESCE($2, '') = ''
-            OR COALESCE("fullName", '') ILIKE ('%' || $2 || '%')
-            OR phone ILIKE ('%' || $2 || '%')
-            OR COALESCE(location, '') ILIKE ('%' || $2 || '%')
+            OR COALESCE(m."fullName", c."fullName", '') ILIKE ('%' || $2 || '%')
+            OR c.phone ILIKE ('%' || $2 || '%')
+            OR COALESCE(m.location, c.location, '') ILIKE ('%' || $2 || '%')
             OR EXISTS (
               SELECT 1
-              FROM unnest(tags) AS tag_value
+              FROM unnest(COALESCE(m.tags, ARRAY[]::text[])) AS tag_value
               WHERE tag_value ILIKE $2
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_each_text(COALESCE(m.metadata, '{}'::jsonb)) AS metadata_entry
+              WHERE metadata_entry.value ILIKE ('%' || $2 || '%')
             )
           )
           AND (
             COALESCE($3, 'all') = 'all'
-            OR ("optIn" = true AND $3 = 'true')
-            OR ("optIn" = false AND $3 = 'false')
+            OR (m."optIn" = true AND $3 = 'true')
+            OR (m."optIn" = false AND $3 = 'false')
           )
           AND (
             COALESCE($4, 'all') = 'all'
-            OR (excluded = true AND $4 = 'true')
-            OR (excluded = false AND $4 = 'false')
+            OR (m.excluded = true AND $4 = 'true')
+            OR (m.excluded = false AND $4 = 'false')
           )
           AND (
             COALESCE($5, '') = ''
             OR EXISTS (
               SELECT 1
-              FROM unnest(tags) AS tag_filter
+              FROM unnest(COALESCE(m.tags, ARRAY[]::text[])) AS tag_filter
               WHERE tag_filter = $5
             )
           )
           AND (
             COALESCE($6, '') = ''
-            OR COALESCE(location, '') ILIKE ('%' || $6 || '%')
+            OR COALESCE(m.location, c.location, '') ILIKE ('%' || $6 || '%')
           )
           AND (
             COALESCE($7, '') = ''
-            OR COALESCE("listLabel", 'default') = $7
+            OR m."listLabel" = $7
           )
-        ORDER BY "createdAt" DESC
+        ORDER BY m."createdAt" DESC
         LIMIT $8
         "#,
     )
@@ -1095,30 +1115,30 @@ pub async fn list_contacts(
             .bind(user_id)
             .fetch_one(pool),
         sqlx::query_scalar::<_, i64>(
-            r#"SELECT COUNT(*) FROM "WhatsappContact" WHERE "userId" = $1 AND "optIn" = true"#,
+            r#"SELECT COUNT(DISTINCT "contactId") FROM "WhatsappContactListMembership" WHERE "userId" = $1 AND "optIn" = true"#,
         )
         .bind(user_id)
         .fetch_one(pool),
         sqlx::query_scalar::<_, i64>(
-            r#"SELECT COUNT(*) FROM "WhatsappContact" WHERE "userId" = $1 AND excluded = true"#,
+            r#"SELECT COUNT(DISTINCT "contactId") FROM "WhatsappContactListMembership" WHERE "userId" = $1 AND excluded = true"#,
         )
         .bind(user_id)
         .fetch_one(pool),
-        sqlx::query_scalar::<_, Vec<String>>(r#"SELECT COALESCE(tags, ARRAY[]::text[]) FROM "WhatsappContact" WHERE "userId" = $1"#)
+        sqlx::query_scalar::<_, Vec<String>>(r#"SELECT COALESCE(tags, ARRAY[]::text[]) FROM "WhatsappContactListMembership" WHERE "userId" = $1"#)
             .bind(user_id)
             .fetch_all(pool),
         sqlx::query(
             r#"
             SELECT
-                COALESCE("listLabel", 'default') AS list_label,
-                COUNT(DISTINCT id)::bigint AS total_contacts,
+                "listLabel" AS list_label,
+                COUNT(DISTINCT "contactId")::bigint AS total_contacts,
                 MIN(NULLIF(location, '')) AS primary_location,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT metadata_key), NULL) AS metadata_keys
-            FROM "WhatsappContact"
+            FROM "WhatsappContactListMembership"
             LEFT JOIN LATERAL jsonb_object_keys(COALESCE(metadata, '{}'::jsonb)) AS metadata_key ON TRUE
             WHERE "userId" = $1
-            GROUP BY COALESCE("listLabel", 'default')
-            ORDER BY COALESCE("listLabel", 'default') ASC
+            GROUP BY "listLabel"
+            ORDER BY "listLabel" ASC
             "#,
         )
         .bind(user_id)
@@ -1163,13 +1183,124 @@ pub async fn list_contacts(
     }))
 }
 
+pub async fn export_contact_list(
+    pool: &PgPool,
+    user_id: &str,
+    label: &str,
+) -> Result<actix_web::HttpResponse, AppError> {
+    let list_label = sanitize_list_label(Some(label));
+    let contacts = sqlx::query_as::<_, WhatsappListContactRow>(
+        r#"
+        SELECT
+            m.id,
+            m."contactId" AS contact_id,
+            m."userId" AS user_id,
+            c.phone,
+            COALESCE(m."fullName", c."fullName") AS full_name,
+            COALESCE(m.tags, ARRAY[]::text[]) AS tags,
+            COALESCE(m.location, c.location) AS location,
+            m."listLabel" AS list_label,
+            m.metadata,
+            m."optIn" AS opt_in,
+            m."optInSource" AS opt_in_source,
+            m."optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+            c."lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent,
+            m.excluded,
+            m.notes,
+            m."createdAt" AT TIME ZONE 'UTC' AS created_at,
+            m."updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "WhatsappContactListMembership" m
+        JOIN "WhatsappContact" c ON c.id = m."contactId"
+        WHERE m."userId" = $1
+          AND m."listLabel" = $2
+        ORDER BY m."createdAt" ASC
+        "#,
+    )
+    .bind(user_id)
+    .bind(&list_label)
+    .fetch_all(pool)
+    .await?;
+
+    if contacts.is_empty() {
+        return Err(AppError::NotFound("Contact list not found".to_string()));
+    }
+
+    let mut metadata_keys = contacts
+        .iter()
+        .flat_map(|contact| {
+            contact
+                .metadata
+                .as_ref()
+                .and_then(Value::as_object)
+                .into_iter()
+                .flat_map(|metadata| metadata.keys().cloned())
+        })
+        .collect::<Vec<_>>();
+    metadata_keys.sort_by(|left, right| left.to_lowercase().cmp(&right.to_lowercase()));
+    metadata_keys.dedup();
+
+    let mut writer = csv::Writer::from_writer(Vec::new());
+    let mut headers = vec![
+        "phone".to_string(),
+        "fullName".to_string(),
+        "location".to_string(),
+        "tags".to_string(),
+        "notes".to_string(),
+        "optIn".to_string(),
+        "excluded".to_string(),
+        "listLabel".to_string(),
+    ];
+    headers.extend(metadata_keys.iter().cloned());
+    writer
+        .write_record(&headers)
+        .map_err(|_| AppError::Internal("Failed to build CSV export".to_string()))?;
+
+    for contact in contacts {
+        let metadata = contact.metadata.as_ref().and_then(Value::as_object);
+        let mut row = vec![
+            contact.phone,
+            contact.full_name.unwrap_or_default(),
+            contact.location.unwrap_or_default(),
+            contact.tags.join(", "),
+            contact.notes.unwrap_or_default(),
+            contact.opt_in.to_string(),
+            contact.excluded.to_string(),
+            contact.list_label,
+        ];
+        row.extend(metadata_keys.iter().map(|key| {
+            metadata
+                .and_then(|values| values.get(key))
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string()
+        }));
+        writer
+            .write_record(&row)
+            .map_err(|_| AppError::Internal("Failed to build CSV export".to_string()))?;
+    }
+
+    let bytes = writer
+        .into_inner()
+        .map_err(|_| AppError::Internal("Failed to finalize CSV export".to_string()))?;
+    let filename = sanitize_filename(&format!("{list_label}.csv"));
+
+    Ok(actix_web::HttpResponse::Ok()
+        .append_header(("Content-Type", "text/csv; charset=utf-8"))
+        .append_header((
+            "Content-Disposition",
+            format!("attachment; filename=\"{}\"", filename),
+        ))
+        .append_header(("Cache-Control", "private, max-age=60"))
+        .body(bytes))
+}
+
 pub async fn update_contact(
     pool: &PgPool,
     user_id: &str,
     contact_id: &str,
     input: WhatsappContactUpdateRequest,
 ) -> Result<Value, AppError> {
-    let existing = select_contact_row(pool, user_id, contact_id)
+    let existing = select_list_contact_row(pool, user_id, contact_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Contact not found".to_string()))?;
 
@@ -1197,7 +1328,7 @@ pub async fn update_contact(
         )
         .bind(user_id)
         .bind(phone)
-        .bind(contact_id)
+        .bind(&existing.contact_id)
         .fetch_optional(pool)
         .await?;
         if duplicate.is_some() {
@@ -1224,22 +1355,61 @@ pub async fn update_contact(
         None => existing.opt_in_date,
     };
 
+    if let Some(phone) = normalized_phone {
+        sqlx::query(
+            r#"
+            UPDATE "WhatsappContact"
+            SET phone = $1, "updatedAt" = NOW()
+            WHERE id = $2 AND "userId" = $3
+            "#,
+        )
+        .bind(phone)
+        .bind(&existing.contact_id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    }
+
+    if let Some(next_label) = list_label.as_deref() {
+        let duplicate_membership = sqlx::query_scalar::<_, String>(
+            r#"
+            SELECT id
+            FROM "WhatsappContactListMembership"
+            WHERE "userId" = $1
+              AND "contactId" = $2
+              AND "listLabel" = $3
+              AND id <> $4
+            LIMIT 1
+            "#,
+        )
+        .bind(user_id)
+        .bind(&existing.contact_id)
+        .bind(next_label)
+        .bind(contact_id)
+        .fetch_optional(pool)
+        .await?;
+        if duplicate_membership.is_some() {
+            return Err(AppError::Conflict(
+                "This contact is already in that list".to_string(),
+            ));
+        }
+    }
+
     sqlx::query(
         r#"
-        UPDATE "WhatsappContact"
+        UPDATE "WhatsappContactListMembership"
         SET "fullName" = COALESCE($1, "fullName"),
-            phone = COALESCE($2, phone),
-            location = COALESCE($3, location),
-            tags = COALESCE($4, tags),
-            notes = COALESCE($5, notes),
-            "listLabel" = COALESCE($6, "listLabel"),
-            metadata = COALESCE($7, metadata),
-            "optIn" = COALESCE($8, "optIn"),
-            "optInSource" = $9,
-            "optInDate" = $10,
-            excluded = COALESCE($11, excluded),
+            location = COALESCE($2, location),
+            tags = COALESCE($3, tags),
+            notes = COALESCE($4, notes),
+            "listLabel" = COALESCE($5, "listLabel"),
+            metadata = COALESCE($6, metadata),
+            "optIn" = COALESCE($7, "optIn"),
+            "optInSource" = $8,
+            "optInDate" = $9,
+            excluded = COALESCE($10, excluded),
             "updatedAt" = NOW()
-        WHERE id = $12 AND "userId" = $13
+        WHERE id = $11 AND "userId" = $12
         "#,
     )
     .bind(
@@ -1249,7 +1419,6 @@ pub async fn update_contact(
             .map(|value| value.trim())
             .filter(|value| !value.is_empty()),
     )
-    .bind(normalized_phone)
     .bind(
         input
             .location
@@ -1276,7 +1445,7 @@ pub async fn update_contact(
     .execute(pool)
     .await?;
 
-    let contact = select_contact_row(pool, user_id, contact_id)
+    let contact = select_list_contact_row(pool, user_id, contact_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload contact".to_string()))?;
 
@@ -1464,6 +1633,38 @@ pub async fn import_contacts(
         .map(|contact| (contact.phone.clone(), contact))
         .collect::<HashMap<_, _>>();
 
+    let existing_contact_ids = existing_by_phone
+        .values()
+        .map(|contact| contact.id.clone())
+        .collect::<Vec<_>>();
+    let existing_memberships = if existing_contact_ids.is_empty() {
+        Vec::new()
+    } else {
+        sqlx::query(
+            r#"
+            SELECT id, "contactId" AS contact_id, "listLabel" AS list_label
+            FROM "WhatsappContactListMembership"
+            WHERE "userId" = $1 AND "contactId" = ANY($2)
+            "#,
+        )
+        .bind(user_id)
+        .bind(&existing_contact_ids)
+        .fetch_all(pool)
+        .await?
+    };
+    let existing_membership_by_contact_and_label = existing_memberships
+        .into_iter()
+        .map(|row| {
+            (
+                (
+                    row.get::<String, _>("contact_id"),
+                    row.get::<String, _>("list_label"),
+                ),
+                row.get::<String, _>("id"),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+
     let mut created = 0usize;
     let mut updated = 0usize;
 
@@ -1482,41 +1683,36 @@ pub async fn import_contacts(
         ),
     ) in deduped
     {
-        if let Some(existing) = existing_by_phone.get(&phone) {
+        let (contact_id, existing_opt_in_date) = if let Some(existing) = existing_by_phone.get(&phone) {
             sqlx::query(
                 r#"
                 UPDATE "WhatsappContact"
-                SET "fullName" = $1,
-                    location = $2,
-                    tags = $3,
-                    notes = $4,
-                    "optIn" = $5,
-                    "optInSource" = $6,
-                    "optInDate" = $7,
-                    "listLabel" = $8,
-                    metadata = $9,
+                SET "fullName" = COALESCE("fullName", $1),
+                    location = COALESCE(location, $2),
+                    "optIn" = CASE WHEN $3 THEN true ELSE "optIn" END,
+                    "optInSource" = CASE
+                        WHEN $3 AND "optInSource" IS NULL THEN $4
+                        ELSE "optInSource"
+                    END,
+                    "optInDate" = CASE
+                        WHEN $3 THEN COALESCE("optInDate", $5)
+                        ELSE "optInDate"
+                    END,
                     "updatedAt" = NOW()
-                WHERE id = $10
+                WHERE id = $6
                 "#,
             )
             .bind(full_name.as_deref())
             .bind(location.as_deref())
-            .bind(sanitize_tags(&tags))
-            .bind(notes.as_deref())
             .bind(opt_in)
-            .bind(opt_in_source)
-            .bind(if opt_in {
-                existing.opt_in_date.or(opt_in_date)
-            } else {
-                None
-            })
-            .bind(&list_label)
-            .bind(metadata.as_ref())
+            .bind(opt_in_source.as_deref())
+            .bind(opt_in_date)
             .bind(&existing.id)
             .execute(pool)
             .await?;
-            updated += 1;
+            (existing.id.clone(), existing.opt_in_date)
         } else {
+            let contact_id = cuid2::create_id();
             sqlx::query(
                 r#"
                 INSERT INTO "WhatsappContact" (
@@ -1526,18 +1722,80 @@ pub async fn import_contacts(
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, false, NOW(), NOW())
                 "#,
             )
-            .bind(cuid2::create_id())
+            .bind(&contact_id)
             .bind(user_id)
             .bind(&phone)
             .bind(full_name.as_deref())
-            .bind(sanitize_tags(&tags))
+            .bind(Vec::<String>::new())
             .bind(location.as_deref())
-            .bind(notes.as_deref())
+            .bind(None::<&str>)
             .bind(&list_label)
+            .bind(None::<&Value>)
+            .bind(opt_in)
+            .bind(opt_in_source.as_deref())
+            .bind(opt_in_date)
+            .execute(pool)
+            .await?;
+            (contact_id, None)
+        };
+
+        if let Some(existing_membership_id) =
+            existing_membership_by_contact_and_label.get(&(contact_id.clone(), list_label.clone()))
+        {
+            sqlx::query(
+                r#"
+                UPDATE "WhatsappContactListMembership"
+                SET "fullName" = $1,
+                    location = $2,
+                    tags = $3,
+                    notes = $4,
+                    metadata = $5,
+                    "optIn" = $6,
+                    "optInSource" = $7,
+                    "optInDate" = $8,
+                    excluded = false,
+                    "updatedAt" = NOW()
+                WHERE id = $9
+                "#,
+            )
+            .bind(full_name.as_deref())
+            .bind(location.as_deref())
+            .bind(sanitize_tags(&tags))
+            .bind(notes.as_deref())
             .bind(metadata.as_ref())
             .bind(opt_in)
-            .bind(opt_in_source)
+            .bind(opt_in_source.as_deref())
+            .bind(if opt_in {
+                existing_opt_in_date.or(opt_in_date)
+            } else {
+                None
+            })
+            .bind(existing_membership_id)
+            .execute(pool)
+            .await?;
+            updated += 1;
+        } else {
+            sqlx::query(
+                r#"
+                INSERT INTO "WhatsappContactListMembership" (
+                    id, "userId", "contactId", "listLabel", "fullName", tags, location, metadata,
+                    "optIn", "optInSource", "optInDate", excluded, notes, "createdAt", "updatedAt"
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, $12, NOW(), NOW())
+                "#,
+            )
+            .bind(cuid2::create_id())
+            .bind(user_id)
+            .bind(&contact_id)
+            .bind(&list_label)
+            .bind(full_name.as_deref())
+            .bind(sanitize_tags(&tags))
+            .bind(location.as_deref())
+            .bind(metadata.as_ref())
+            .bind(opt_in)
+            .bind(opt_in_source.as_deref())
             .bind(opt_in_date)
+            .bind(notes.as_deref())
             .execute(pool)
             .await?;
             created += 1;
@@ -1568,7 +1826,20 @@ pub async fn rename_contact_list(
         return Ok(json!({ "label": next_label, "renamedContacts": 0, "updatedCampaigns": 0 }));
     }
 
-    let updated_contacts = sqlx::query(
+    let updated_memberships = sqlx::query(
+        r#"
+        UPDATE "WhatsappContactListMembership"
+        SET "listLabel" = $1, "updatedAt" = NOW()
+        WHERE "userId" = $2 AND "listLabel" = $3
+        "#,
+    )
+    .bind(&next_label)
+    .bind(user_id)
+    .bind(&current_label)
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
         r#"
         UPDATE "WhatsappContact"
         SET "listLabel" = $1, "updatedAt" = NOW()
@@ -1596,7 +1867,7 @@ pub async fn rename_contact_list(
 
     Ok(json!({
         "label": next_label,
-        "renamedContacts": updated_contacts.rows_affected(),
+        "renamedContacts": updated_memberships.rows_affected(),
         "updatedCampaigns": updated_campaigns.rows_affected(),
     }))
 }
@@ -1634,9 +1905,9 @@ pub async fn delete_contact_list(
 
     let contact_ids = sqlx::query_scalar::<_, String>(
         r#"
-        SELECT id
-        FROM "WhatsappContact"
-        WHERE "userId" = $1 AND COALESCE("listLabel", 'default') = $2
+        SELECT "contactId"
+        FROM "WhatsappContactListMembership"
+        WHERE "userId" = $1 AND "listLabel" = $2
         "#,
     )
     .bind(user_id)
@@ -1644,23 +1915,44 @@ pub async fn delete_contact_list(
     .fetch_all(pool)
     .await?;
 
-    if !contact_ids.is_empty() {
-        sqlx::query(r#"DELETE FROM "WhatsappCampaignRecipient" WHERE "contactId" = ANY($1)"#)
-            .bind(&contact_ids)
-            .execute(pool)
-            .await?;
-    }
-
     let deleted_contacts = sqlx::query(
         r#"
-        DELETE FROM "WhatsappContact"
-        WHERE "userId" = $1 AND COALESCE("listLabel", 'default') = $2
+        DELETE FROM "WhatsappContactListMembership"
+        WHERE "userId" = $1 AND "listLabel" = $2
         "#,
     )
     .bind(user_id)
     .bind(&list_label)
     .execute(pool)
     .await?;
+
+    if !contact_ids.is_empty() {
+        sqlx::query(
+            r#"
+            UPDATE "WhatsappContact" c
+            SET "listLabel" = COALESCE(
+                    (
+                        SELECT m."listLabel"
+                        FROM "WhatsappContactListMembership" m
+                        WHERE m."contactId" = c.id
+                          AND m."userId" = $1
+                        ORDER BY m."createdAt" ASC
+                        LIMIT 1
+                    ),
+                    'default'
+                ),
+                "updatedAt" = NOW()
+            WHERE c."userId" = $1
+              AND c.id = ANY($2)
+              AND COALESCE(c."listLabel", 'default') = $3
+            "#,
+        )
+        .bind(user_id)
+        .bind(&contact_ids)
+        .bind(&list_label)
+        .execute(pool)
+        .await?;
+    }
 
     Ok(json!({
         "label": list_label,
@@ -2073,21 +2365,81 @@ pub async fn create_campaign(
     }
 
     let contacts = if let Some(recipient_ids) = input.recipient_ids.as_ref() {
+        if let Some(list_label) = list_label.as_deref() {
+            sqlx::query_as::<_, WhatsappContactRow>(
+                r#"
+                SELECT c.id, c."userId" AS user_id, c.phone,
+                       COALESCE(m."fullName", c."fullName") AS full_name,
+                       COALESCE(m.tags, ARRAY[]::text[]) AS tags,
+                       COALESCE(m.location, c.location) AS location,
+                       m."listLabel" AS list_label,
+                       COALESCE(m.metadata, c.metadata) AS metadata,
+                       m."optIn" AS opt_in,
+                       m."optInSource" AS opt_in_source,
+                       m."optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+                       c."lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent,
+                       m.excluded,
+                       m.notes,
+                       c."createdAt" AT TIME ZONE 'UTC' AS created_at,
+                       GREATEST(c."updatedAt", m."updatedAt") AT TIME ZONE 'UTC' AS updated_at
+                FROM "WhatsappContact" c
+                JOIN "WhatsappContactListMembership" m
+                  ON m."contactId" = c.id
+                 AND m."userId" = c."userId"
+                WHERE c."userId" = $1
+                  AND c.id = ANY($2)
+                  AND m."listLabel" = $3
+                "#,
+            )
+            .bind(user_id)
+            .bind(recipient_ids)
+            .bind(list_label)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, WhatsappContactRow>(
+                r#"
+                SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
+                       COALESCE("listLabel", 'default') AS list_label, metadata,
+                       "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+                       "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
+                       "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
+                FROM "WhatsappContact"
+                WHERE "userId" = $1 AND id = ANY($2)
+                "#,
+            )
+            .bind(user_id)
+            .bind(recipient_ids)
+            .fetch_all(pool)
+            .await?
+        }
+    } else if let Some(list_label) = list_label.as_deref() {
         sqlx::query_as::<_, WhatsappContactRow>(
             r#"
-            SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
-                   COALESCE("listLabel", 'default') AS list_label, metadata,
-                   "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
-                   "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
-                   "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-            FROM "WhatsappContact"
-            WHERE "userId" = $1 AND id = ANY($2)
-              AND ($3::text IS NULL OR COALESCE("listLabel", 'default') = $3)
+            SELECT c.id, c."userId" AS user_id, c.phone,
+                   COALESCE(m."fullName", c."fullName") AS full_name,
+                   COALESCE(m.tags, ARRAY[]::text[]) AS tags,
+                   COALESCE(m.location, c.location) AS location,
+                   m."listLabel" AS list_label,
+                   COALESCE(m.metadata, c.metadata) AS metadata,
+                   m."optIn" AS opt_in,
+                   m."optInSource" AS opt_in_source,
+                   m."optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+                   c."lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent,
+                   m.excluded,
+                   m.notes,
+                   c."createdAt" AT TIME ZONE 'UTC' AS created_at,
+                   GREATEST(c."updatedAt", m."updatedAt") AT TIME ZONE 'UTC' AS updated_at
+            FROM "WhatsappContact" c
+            JOIN "WhatsappContactListMembership" m
+              ON m."contactId" = c.id
+             AND m."userId" = c."userId"
+            WHERE c."userId" = $1
+              AND m."listLabel" = $2
             "#,
         )
         .bind(user_id)
-        .bind(recipient_ids)
-        .bind(list_label.as_deref())
+        .bind(list_label)
         .fetch_all(pool)
         .await?
     } else {
@@ -2100,11 +2452,9 @@ pub async fn create_campaign(
                    "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "WhatsappContact"
             WHERE "userId" = $1
-              AND ($2::text IS NULL OR COALESCE("listLabel", 'default') = $2)
             "#,
         )
         .bind(user_id)
-        .bind(list_label.as_deref())
         .fetch_all(pool)
         .await?
     };
@@ -2116,6 +2466,10 @@ pub async fn create_campaign(
                 || contact_matches_audience(contact, input.audience.as_ref())
         })
         .collect::<Vec<_>>();
+    let filtered_contacts_by_id = filtered_contacts
+        .iter()
+        .map(|contact| (contact.id.clone(), contact.clone()))
+        .collect::<HashMap<_, _>>();
 
     let mut eligible_ids = Vec::new();
     let mut skipped = json!({
@@ -2183,27 +2537,41 @@ pub async fn create_campaign(
     .await?;
 
     for contact_id in &eligible_ids {
+        let contact = filtered_contacts_by_id
+            .get(contact_id)
+            .ok_or_else(|| AppError::Internal("Failed to snapshot campaign recipient".to_string()))?;
         sqlx::query(
             r#"
-            INSERT INTO "WhatsappCampaignRecipient" (id, "campaignId", "contactId", status, "createdAt", "updatedAt")
-            VALUES ($1, $2, $3, 'PENDING'::"WhatsappRecipientStatus", NOW(), NOW())
+            INSERT INTO "WhatsappCampaignRecipient" (
+                id, "campaignId", "contactId", "snapshotPhone", "snapshotFullName", "snapshotLocation",
+                "snapshotListLabel", "snapshotMetadata", status, "createdAt", "updatedAt"
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING'::"WhatsappRecipientStatus", NOW(), NOW())
             "#,
         )
         .bind(cuid2::create_id())
         .bind(&campaign_id)
         .bind(contact_id)
+        .bind(&contact.phone)
+        .bind(contact.full_name.as_deref())
+        .bind(contact.location.as_deref())
+        .bind(&contact.list_label)
+        .bind(contact.metadata.as_ref())
         .execute(pool)
         .await?;
     }
 
     for contact_id in &excluded_contact_ids {
+        let contact = filtered_contacts_by_id.get(contact_id);
         sqlx::query(
             r#"
             INSERT INTO "WhatsappCampaignRecipient" (
-                id, "campaignId", "contactId", status, "errorCode", "errorMessage", "createdAt", "updatedAt"
+                id, "campaignId", "contactId", "snapshotPhone", "snapshotFullName", "snapshotLocation",
+                "snapshotListLabel", "snapshotMetadata", status, "errorCode", "errorMessage", "createdAt", "updatedAt"
             )
             VALUES (
-                $1, $2, $3, 'SKIPPED'::"WhatsappRecipientStatus", 'manual_exclude', 'Excluded before campaign launch', NOW(), NOW()
+                $1, $2, $3, $4, $5, $6, $7, $8,
+                'SKIPPED'::"WhatsappRecipientStatus", 'manual_exclude', 'Excluded before campaign launch', NOW(), NOW()
             )
             ON CONFLICT DO NOTHING
             "#,
@@ -2211,6 +2579,11 @@ pub async fn create_campaign(
         .bind(cuid2::create_id())
         .bind(&campaign_id)
         .bind(contact_id)
+        .bind(contact.map(|value| value.phone.as_str()))
+        .bind(contact.and_then(|value| value.full_name.as_deref()))
+        .bind(contact.and_then(|value| value.location.as_deref()))
+        .bind(contact.map(|value| value.list_label.as_str()))
+        .bind(contact.and_then(|value| value.metadata.as_ref()))
         .execute(pool)
         .await?;
     }
@@ -2237,13 +2610,19 @@ pub async fn get_campaign(
     let recipients = sqlx::query_as::<_, WhatsappCampaignRecipientDetailRow>(
         r#"
         SELECT r.id, r."campaignId" AS campaign_id, r."contactId" AS contact_id, r.status::text AS status,
+               r."snapshotPhone" AS snapshot_phone, r."snapshotFullName" AS snapshot_full_name,
+               r."snapshotLocation" AS snapshot_location, r."snapshotListLabel" AS snapshot_list_label,
+               r."snapshotMetadata" AS snapshot_metadata,
                r."waMessageId" AS wa_message_id, r."sentAt" AT TIME ZONE 'UTC' AS sent_at,
                r."deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
                r."readAt" AT TIME ZONE 'UTC' AS read_at, r."failedAt" AT TIME ZONE 'UTC' AS failed_at,
                r."errorCode" AS error_code, r."errorMessage" AS error_message,
                r."createdAt" AT TIME ZONE 'UTC' AS created_at, r."updatedAt" AT TIME ZONE 'UTC' AS updated_at,
-               c.phone AS contact_phone, c."fullName" AS contact_full_name, c.location AS contact_location,
-               COALESCE(c."listLabel", 'default') AS contact_list_label, c.metadata AS contact_metadata
+               COALESCE(r."snapshotPhone", c.phone) AS contact_phone,
+               COALESCE(r."snapshotFullName", c."fullName") AS contact_full_name,
+               COALESCE(r."snapshotLocation", c.location) AS contact_location,
+               COALESCE(r."snapshotListLabel", c."listLabel", 'default') AS contact_list_label,
+               COALESCE(r."snapshotMetadata", c.metadata) AS contact_metadata
         FROM "WhatsappCampaignRecipient" r
         JOIN "WhatsappContact" c ON c.id = r."contactId"
         WHERE r."campaignId" = $1
@@ -2578,7 +2957,6 @@ pub async fn send_more_campaign(
                 .to_string(),
         ));
     }
-    let list_label = campaign.list_label.as_deref();
     let batch_size = batch_size
         .filter(|value| *value > 0)
         .or(campaign.default_batch_size)
@@ -2588,17 +2966,12 @@ pub async fn send_more_campaign(
         r#"
         SELECT r."contactId"
         FROM "WhatsappCampaignRecipient" r
-        INNER JOIN "WhatsappContact" c ON c.id = r."contactId"
         WHERE r."campaignId" = $1
-          AND c."userId" = $2
-          AND ($3::text IS NULL OR COALESCE(c."listLabel", 'default') = $3)
           AND r.status = 'PENDING'::"WhatsappRecipientStatus"
         ORDER BY r."createdAt" ASC
         "#,
     )
     .bind(campaign_id)
-    .bind(user_id)
-    .bind(list_label)
     .fetch_all(pool)
     .await?;
 
@@ -2724,17 +3097,27 @@ async fn reconcile_active_campaigns_without_queue(
 }
 
 pub async fn recompute_campaign_stats(pool: &PgPool, campaign_id: &str) -> Result<(), AppError> {
-    let counts = sqlx::query_as::<_, (String, i64)>(
-        r#"
-        SELECT status::text, COUNT(*)::bigint
-        FROM "WhatsappCampaignRecipient"
-        WHERE "campaignId" = $1
-        GROUP BY status
-        "#,
-    )
-    .bind(campaign_id)
-    .fetch_all(pool)
-    .await?;
+    let (counts, total_recipients) = tokio::try_join!(
+        sqlx::query_as::<_, (String, i64)>(
+            r#"
+            SELECT status::text, COUNT(*)::bigint
+            FROM "WhatsappCampaignRecipient"
+            WHERE "campaignId" = $1
+            GROUP BY status
+            "#,
+        )
+        .bind(campaign_id)
+        .fetch_all(pool),
+        sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*)::bigint
+            FROM "WhatsappCampaignRecipient"
+            WHERE "campaignId" = $1
+            "#,
+        )
+        .bind(campaign_id)
+        .fetch_one(pool),
+    )?;
     let mut map = std::collections::HashMap::new();
     for (status, count) in counts {
         map.insert(status, count as i32);
@@ -2752,26 +3135,28 @@ pub async fn recompute_campaign_stats(pool: &PgPool, campaign_id: &str) -> Resul
     sqlx::query(
         r#"
         UPDATE "WhatsappCampaign"
-        SET "sentCount" = $1,
-            "deliveredCount" = $2,
-            "readCount" = $3,
-            "failedCount" = $4,
-            "blockedCount" = $5,
-            "unsubscribedCount" = $6,
+        SET "totalRecipients" = $1,
+            "sentCount" = $2,
+            "deliveredCount" = $3,
+            "readCount" = $4,
+            "failedCount" = $5,
+            "blockedCount" = $6,
+            "unsubscribedCount" = $7,
             status = CASE
-                WHEN $7 = 0 AND status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus")
+                WHEN $8 = 0 AND status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus")
                     THEN 'COMPLETED'::"WhatsappCampaignStatus"
                 ELSE status
             END,
             "completedAt" = CASE
-                WHEN $7 = 0 AND status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus")
+                WHEN $8 = 0 AND status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus")
                     THEN NOW()
                 ELSE "completedAt"
             END,
             "updatedAt" = NOW()
-        WHERE id = $8
+        WHERE id = $9
         "#,
     )
+    .bind(total_recipients as i32)
     .bind(map.get("SENT").copied().unwrap_or(0) + map.get("DELIVERED").copied().unwrap_or(0) + map.get("READ").copied().unwrap_or(0))
     .bind(map.get("DELIVERED").copied().unwrap_or(0) + map.get("READ").copied().unwrap_or(0))
     .bind(map.get("READ").copied().unwrap_or(0))
@@ -2930,6 +3315,9 @@ pub async fn process_queued_campaign_recipients(
         let recipient = sqlx::query_as::<_, WhatsappCampaignRecipientRow>(
             r#"
             SELECT id, "campaignId" AS campaign_id, "contactId" AS contact_id, status::text AS status,
+                   "snapshotPhone" AS snapshot_phone, "snapshotFullName" AS snapshot_full_name,
+                   "snapshotLocation" AS snapshot_location, "snapshotListLabel" AS snapshot_list_label,
+                   "snapshotMetadata" AS snapshot_metadata,
                    "waMessageId" AS wa_message_id, "sentAt" AT TIME ZONE 'UTC' AS sent_at, "deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
                    "readAt" AT TIME ZONE 'UTC' AS read_at, "failedAt" AT TIME ZONE 'UTC' AS failed_at, "errorCode" AS error_code,
                    "errorMessage" AS error_message, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
@@ -2942,19 +3330,29 @@ pub async fn process_queued_campaign_recipients(
         if recipient.status != "QUEUED" {
             continue;
         }
-        let contact = sqlx::query_as::<_, WhatsappContactRow>(
+        let campaign = sqlx::query_as::<_, WhatsappCampaignRow>(
             r#"
-            SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
-                   COALESCE("listLabel", 'default') AS list_label, metadata,
-                   "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
-                   "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
+            SELECT id, "userId" AS user_id, "connectionId" AS connection_id, "templateId" AS template_id,
+                   name, description, "templateName" AS template_name, "templateLanguage" AS template_language,
+                   "variableMappings" AS variable_mappings, "listLabel" AS list_label,
+                   "defaultBatchSize" AS default_batch_size, status::text AS status, "scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
+                   "launchedAt" AT TIME ZONE 'UTC' AS launched_at, "completedAt" AT TIME ZONE 'UTC' AS completed_at, "totalRecipients" AS total_recipients,
+                   "sentCount" AS sent_count, "deliveredCount" AS delivered_count, "readCount" AS read_count,
+                   "failedCount" AS failed_count, "blockedCount" AS blocked_count, "unsubscribedCount" AS unsubscribed_count,
                    "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-            FROM "WhatsappContact" WHERE id = $1
+            FROM "WhatsappCampaign" WHERE id = $1
             "#,
         )
-        .bind(&recipient.contact_id)
+        .bind(&recipient.campaign_id)
         .fetch_one(pool)
         .await?;
+        let contact = select_campaign_contact_row(
+            pool,
+            &campaign.user_id,
+            &recipient.id,
+        )
+        .await?
+        .ok_or_else(|| AppError::NotFound("Campaign contact not found".to_string()))?;
         let existing_send_message_id = sqlx::query_scalar::<_, Option<String>>(
             r#"
             SELECT "whatsappMessageId"
@@ -3013,22 +3411,6 @@ pub async fn process_queued_campaign_recipients(
             processed += 1;
             continue;
         }
-        let campaign = sqlx::query_as::<_, WhatsappCampaignRow>(
-            r#"
-            SELECT id, "userId" AS user_id, "connectionId" AS connection_id, "templateId" AS template_id,
-                   name, description, "templateName" AS template_name, "templateLanguage" AS template_language,
-                   "variableMappings" AS variable_mappings, "listLabel" AS list_label,
-                   "defaultBatchSize" AS default_batch_size, status::text AS status, "scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
-                   "launchedAt" AT TIME ZONE 'UTC' AS launched_at, "completedAt" AT TIME ZONE 'UTC' AS completed_at, "totalRecipients" AS total_recipients,
-                   "sentCount" AS sent_count, "deliveredCount" AS delivered_count, "readCount" AS read_count,
-                   "failedCount" AS failed_count, "blockedCount" AS blocked_count, "unsubscribedCount" AS unsubscribed_count,
-                   "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-            FROM "WhatsappCampaign" WHERE id = $1
-            "#,
-        )
-        .bind(&recipient.campaign_id)
-        .fetch_one(pool)
-        .await?;
         let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!(
             "{} WHERE id = $1",
             select_connection_sql()
@@ -3290,24 +3672,77 @@ fn parse_csv_tags(raw: Option<&str>) -> Vec<String> {
         .collect()
 }
 
-async fn select_contact_row(
+async fn select_list_contact_row(
     pool: &PgPool,
     user_id: &str,
-    contact_id: &str,
-) -> Result<Option<WhatsappContactRow>, AppError> {
-    sqlx::query_as::<_, WhatsappContactRow>(
+    membership_id: &str,
+) -> Result<Option<WhatsappListContactRow>, AppError> {
+    sqlx::query_as::<_, WhatsappListContactRow>(
         r#"
-        SELECT id, "userId" AS user_id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags, location,
-               COALESCE("listLabel", 'default') AS list_label, metadata,
-               "optIn" AS opt_in, "optInSource" AS opt_in_source, "optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
-               "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
-               "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-        FROM "WhatsappContact"
-        WHERE id = $1 AND "userId" = $2
+        SELECT
+            m.id,
+            m."contactId" AS contact_id,
+            m."userId" AS user_id,
+            c.phone,
+            COALESCE(m."fullName", c."fullName") AS full_name,
+            COALESCE(m.tags, ARRAY[]::text[]) AS tags,
+            COALESCE(m.location, c.location) AS location,
+            m."listLabel" AS list_label,
+            m.metadata,
+            m."optIn" AS opt_in,
+            m."optInSource" AS opt_in_source,
+            m."optInDate" AT TIME ZONE 'UTC' AS opt_in_date,
+            c."lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent,
+            m.excluded,
+            m.notes,
+            m."createdAt" AT TIME ZONE 'UTC' AS created_at,
+            m."updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "WhatsappContactListMembership" m
+        JOIN "WhatsappContact" c ON c.id = m."contactId"
+        WHERE m.id = $1 AND m."userId" = $2
         LIMIT 1
         "#,
     )
-    .bind(contact_id)
+    .bind(membership_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn select_campaign_contact_row(
+    pool: &PgPool,
+    user_id: &str,
+    recipient_id: &str,
+) -> Result<Option<WhatsappContactRow>, AppError> {
+    sqlx::query_as::<_, WhatsappContactRow>(
+        r#"
+        SELECT c.id, c."userId" AS user_id,
+               COALESCE(r."snapshotPhone", c.phone) AS phone,
+               COALESCE(r."snapshotFullName", c."fullName") AS full_name,
+               COALESCE(m.tags, ARRAY[]::text[]) AS tags,
+               COALESCE(r."snapshotLocation", m.location, c.location) AS location,
+               COALESCE(r."snapshotListLabel", m."listLabel", c."listLabel", 'default') AS list_label,
+               COALESCE(r."snapshotMetadata", m.metadata, c.metadata) AS metadata,
+               COALESCE(m."optIn", c."optIn") AS opt_in,
+               COALESCE(m."optInSource", c."optInSource") AS opt_in_source,
+               COALESCE(m."optInDate", c."optInDate") AT TIME ZONE 'UTC' AS opt_in_date,
+               c."lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent,
+               COALESCE(m.excluded, c.excluded) AS excluded,
+               COALESCE(m.notes, c.notes) AS notes,
+               c."createdAt" AT TIME ZONE 'UTC' AS created_at,
+               GREATEST(c."updatedAt", COALESCE(m."updatedAt", c."updatedAt"), r."updatedAt") AT TIME ZONE 'UTC' AS updated_at
+        FROM "WhatsappCampaignRecipient" r
+        JOIN "WhatsappContact" c ON c.id = r."contactId"
+        LEFT JOIN "WhatsappContactListMembership" m
+          ON m."contactId" = c.id
+         AND m."userId" = c."userId"
+         AND m."listLabel" = COALESCE(r."snapshotListLabel", c."listLabel", 'default')
+        WHERE r.id = $1 AND c."userId" = $2
+        LIMIT 1
+        "#,
+    )
+    .bind(recipient_id)
     .bind(user_id)
     .fetch_optional(pool)
     .await
@@ -3372,6 +3807,9 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     if let Some(recipient) = sqlx::query_as::<_, WhatsappCampaignRecipientRow>(
         r#"
         SELECT id, "campaignId" AS campaign_id, "contactId" AS contact_id, status::text AS status,
+               "snapshotPhone" AS snapshot_phone, "snapshotFullName" AS snapshot_full_name,
+               "snapshotLocation" AS snapshot_location, "snapshotListLabel" AS snapshot_list_label,
+               "snapshotMetadata" AS snapshot_metadata,
                "waMessageId" AS wa_message_id,
                "sentAt" AT TIME ZONE 'UTC' AS sent_at,
                "deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
@@ -3694,6 +4132,7 @@ async fn scoped_conversation(
                status,
                "lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
                "lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
+               starred,
                "unreadCount" AS unread_count,
                "createdAt" AT TIME ZONE 'UTC' AS created_at,
                "updatedAt" AT TIME ZONE 'UTC' AS updated_at
@@ -3725,6 +4164,7 @@ async fn load_conversation_by_id(
                status,
                "lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
                "lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
+               starred,
                "unreadCount" AS unread_count,
                "createdAt" AT TIME ZONE 'UTC' AS created_at,
                "updatedAt" AT TIME ZONE 'UTC' AS updated_at
@@ -3831,7 +4271,8 @@ async fn publish_conversation_updated(
                 "connectionId": if connection_id.is_empty() { None::<String> } else { Some(connection_id) },
                 "connectionLabel": connection_label,
                 "lastMessageAt": conversation.last_message_at,
-                "unreadCount": conversation.unread_count
+                "unreadCount": conversation.unread_count,
+                "starred": conversation.starred
             }
         }),
     )
@@ -4624,6 +5065,7 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
             status,
             "lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
             "lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
+            starred,
             "unreadCount" AS unread_count,
             "createdAt" AT TIME ZONE 'UTC' AS created_at,
             "updatedAt" AT TIME ZONE 'UTC' AS updated_at
@@ -4669,6 +5111,7 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
             "status": conversation.status,
             "lastMessageAt": conversation.last_message_at,
             "unreadCount": conversation.unread_count,
+            "starred": conversation.starred,
             "connectionId": if connection_id.is_empty() { None::<String> } else { Some(connection_id) },
             "connectionLabel": connection_label,
             "lastMessage": last_message_content
@@ -5154,6 +5597,62 @@ pub async fn send_conversation_media(
         "messageId": message_id,
         "mediaId": uploaded_media_id,
         "status": "SENT"
+    }))
+}
+
+pub async fn update_conversation(
+    pool: &PgPool,
+    user_id: &str,
+    conversation_id: &str,
+    input: ConversationUpdateRequest,
+) -> Result<Value, AppError> {
+    let conversation = scoped_conversation(pool, user_id, conversation_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
+
+    if let Some(starred) = input.starred {
+        sqlx::query(r#"UPDATE "Conversation" SET starred = $1, "updatedAt" = NOW() WHERE id = $2"#)
+            .bind(starred)
+            .bind(&conversation.id)
+            .execute(pool)
+            .await?;
+    }
+
+    publish_conversation_updated(pool, user_id, &conversation.id).await?;
+
+    let refreshed = load_conversation_by_id(pool, &conversation.id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
+
+    Ok(json!({
+        "success": true,
+        "conversationId": refreshed.id,
+        "starred": refreshed.starred,
+    }))
+}
+
+pub async fn delete_conversation(
+    pool: &PgPool,
+    user_id: &str,
+    conversation_id: &str,
+) -> Result<Value, AppError> {
+    let conversation = scoped_conversation(pool, user_id, conversation_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
+
+    sqlx::query(r#"DELETE FROM "Message" WHERE "conversationId" = $1"#)
+        .bind(&conversation.id)
+        .execute(pool)
+        .await?;
+    sqlx::query(r#"DELETE FROM "Conversation" WHERE id = $1"#)
+        .bind(&conversation.id)
+        .execute(pool)
+        .await?;
+
+    Ok(json!({
+        "success": true,
+        "conversationId": conversation.id,
+        "deleted": true
     }))
 }
 

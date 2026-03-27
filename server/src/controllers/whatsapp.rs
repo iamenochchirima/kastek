@@ -3,11 +3,11 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use sqlx::PgPool;
 
 use crate::db::models::{
-    WhatsappCampaignActionRequest, WhatsappCampaignCreateRequest, WhatsappConnectionCreateRequest,
-    WhatsappConnectionTokenRequest, WhatsappContactListQuery, WhatsappContactListRenameRequest,
-    WhatsappContactUpdateRequest, WhatsappEmbeddedSignupRequest, WhatsappReactionRequest,
-    WhatsappSendMessageRequest, WhatsappStartConversationRequest, WhatsappTemplateCreateRequest,
-    WhatsappTemplateListQuery,
+    ConversationUpdateRequest, WhatsappCampaignActionRequest, WhatsappCampaignCreateRequest,
+    WhatsappConnectionCreateRequest, WhatsappConnectionTokenRequest, WhatsappContactListQuery,
+    WhatsappContactListRenameRequest, WhatsappContactUpdateRequest,
+    WhatsappEmbeddedSignupRequest, WhatsappReactionRequest, WhatsappSendMessageRequest,
+    WhatsappStartConversationRequest, WhatsappTemplateCreateRequest, WhatsappTemplateListQuery,
 };
 use crate::error::AppError;
 use crate::middleware::extract_user;
@@ -171,6 +171,15 @@ pub async fn import_contacts(
     let user = extract_user(&req, pool.get_ref()).await?;
     let result = whatsapp::import_contacts(pool.get_ref(), &user.id, payload).await?;
     Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn export_contact_list(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    whatsapp::export_contact_list(pool.get_ref(), &user.id, &path).await
 }
 
 pub async fn rename_contact_list(
@@ -379,6 +388,28 @@ pub async fn send_conversation_media(
     let user = extract_user(&req, pool.get_ref()).await?;
     let result =
         whatsapp::send_conversation_media(pool.get_ref(), &user.id, &path, payload).await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn update_conversation(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<ConversationUpdateRequest>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let result =
+        whatsapp::update_conversation(pool.get_ref(), &user.id, &path, body.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn delete_conversation(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let result = whatsapp::delete_conversation(pool.get_ref(), &user.id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 

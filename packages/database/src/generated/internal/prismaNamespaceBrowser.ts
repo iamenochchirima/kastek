@@ -79,6 +79,7 @@ export const ModelName = {
   SocialPostVariant: 'SocialPostVariant',
   SocialPublishJob: 'SocialPublishJob',
   WhatsappContact: 'WhatsappContact',
+  WhatsappContactListMembership: 'WhatsappContactListMembership',
   WhatsappTemplate: 'WhatsappTemplate',
   WhatsappCampaign: 'WhatsappCampaign',
   WhatsappCampaignRecipient: 'WhatsappCampaignRecipient',
@@ -608,6 +609,8 @@ export const WhatsappContactScalarFieldEnum = {
   fullName: 'fullName',
   tags: 'tags',
   location: 'location',
+  listLabel: 'listLabel',
+  metadata: 'metadata',
   optIn: 'optIn',
   optInSource: 'optInSource',
   optInDate: 'optInDate',
@@ -619,6 +622,27 @@ export const WhatsappContactScalarFieldEnum = {
 } as const
 
 export type WhatsappContactScalarFieldEnum = (typeof WhatsappContactScalarFieldEnum)[keyof typeof WhatsappContactScalarFieldEnum]
+
+
+export const WhatsappContactListMembershipScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  contactId: 'contactId',
+  listLabel: 'listLabel',
+  fullName: 'fullName',
+  tags: 'tags',
+  location: 'location',
+  metadata: 'metadata',
+  optIn: 'optIn',
+  optInSource: 'optInSource',
+  optInDate: 'optInDate',
+  excluded: 'excluded',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WhatsappContactListMembershipScalarFieldEnum = (typeof WhatsappContactListMembershipScalarFieldEnum)[keyof typeof WhatsappContactListMembershipScalarFieldEnum]
 
 
 export const WhatsappTemplateScalarFieldEnum = {
@@ -652,6 +676,8 @@ export const WhatsappCampaignScalarFieldEnum = {
   templateName: 'templateName',
   templateLanguage: 'templateLanguage',
   variableMappings: 'variableMappings',
+  listLabel: 'listLabel',
+  defaultBatchSize: 'defaultBatchSize',
   status: 'status',
   scheduledAt: 'scheduledAt',
   launchedAt: 'launchedAt',
