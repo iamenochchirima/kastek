@@ -3234,6 +3234,12 @@ async fn send_marketing_template(
     let status = response.status();
     let raw: Value = response.json().await.unwrap_or(Value::Null);
     if !status.is_success() {
+        log::error!(
+            "whatsapp campaign send rejected status={} payload={} response={}",
+            status,
+            payload,
+            raw
+        );
         return Err(AppError::BadRequest(format!(
             "WhatsApp Cloud API send failed ({}): {}",
             status,
@@ -3254,11 +3260,17 @@ async fn send_marketing_template(
     Ok((message_id.to_string(), raw))
 }
 
-fn parse_failure_message(error: &AppError) -> (Option<String>, String, bool) {
+fn parse_failure_details(error: &AppError) -> (Option<String>, String, bool) {
     let message = error.to_string();
+    let code = message
+        .split("(#")
+        .nth(1)
+        .and_then(|rest| rest.split(')').next())
+        .map(|value| value.trim().to_string());
     let lower = message.to_lowercase();
-    let blocked = lower.contains("blocked") || lower.contains("131026") || lower.contains("131048");
-    (None, message, blocked)
+    let blocked = matches!(code.as_deref(), Some("131026") | Some("131048"))
+        || lower.contains("blocked");
+    (code, message, blocked)
 }
 
 pub async fn process_queued_campaign_recipients(
@@ -3339,8 +3351,13 @@ pub async fn process_queued_campaign_recipients(
                    "launchedAt" AT TIME ZONE 'UTC' AS launched_at, "completedAt" AT TIME ZONE 'UTC' AS completed_at, "totalRecipients" AS total_recipients,
                    "sentCount" AS sent_count, "deliveredCount" AS delivered_count, "readCount" AS read_count,
                    "failedCount" AS failed_count, "blockedCount" AS blocked_count, "unsubscribedCount" AS unsubscribed_count,
-                   "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-            FROM "WhatsappCampaign" WHERE id = $1
+                   "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at,
+                   COALESCE(wc."phoneDisplayNumber", wc."phoneNumberId") AS connection_label,
+                   wt.status::text AS template_status
+            FROM "WhatsappCampaign" c
+            LEFT JOIN "WhatsappConnection" wc ON wc.id = c."connectionId"
+            LEFT JOIN "WhatsappTemplate" wt ON wt.id = c."templateId"
+            WHERE c.id = $1
             "#,
         )
         .bind(&recipient.campaign_id)
@@ -3484,7 +3501,15 @@ pub async fn process_queued_campaign_recipients(
                 // inbound traffic or manual inbox send flows.
             }
             Err(error) => {
-                let (code, message, blocked) = parse_failure_message(&error);
+                let request_payload = json!({
+                    "templateName": campaign.template_name,
+                    "language": campaign.template_language,
+                    "bodyParameters": body_parameters
+                });
+                let response_payload = json!({
+                    "error": error.to_string()
+                });
+                let (code, message, blocked) = parse_failure_details(&error);
                 let status = if blocked { "BLOCKED" } else { "FAILED" };
                 sqlx::query(
                     r#"
@@ -3495,9 +3520,34 @@ pub async fn process_queued_campaign_recipients(
                     "#,
                 )
                 .bind(status)
-                .bind(code)
+                .bind(code.as_deref())
                 .bind(&message)
                 .bind(&recipient_id)
+                .execute(pool)
+                .await?;
+                sqlx::query(
+                    r#"
+                    INSERT INTO "WhatsappSendEvent" (
+                        id, "userId", "connectionId", "campaignId", "recipientId", "contactId", phone, "templateName",
+                        status, "requestPayload", "responsePayload", "errorCode", "errorMessage", "createdAt"
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+                            CAST($9 AS "WhatsappRecipientStatus"), $10, $11, $12, $13, NOW())
+                    "#,
+                )
+                .bind(cuid2::create_id())
+                .bind(&campaign.user_id)
+                .bind(&campaign.connection_id)
+                .bind(&campaign.id)
+                .bind(&recipient_id)
+                .bind(&contact.id)
+                .bind(&contact.phone)
+                .bind(&campaign.template_name)
+                .bind(status)
+                .bind(request_payload)
+                .bind(response_payload)
+                .bind(code.as_deref())
+                .bind(&message)
                 .execute(pool)
                 .await?;
             }
