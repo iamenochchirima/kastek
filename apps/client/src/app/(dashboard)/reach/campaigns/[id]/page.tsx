@@ -17,6 +17,16 @@ type CampaignDetailResponse = {
       template_name?: string;
       templateLanguage: string;
       template_language?: string;
+      variableMappings?: Array<{ source?: string; key?: string }> | null;
+      variable_mappings?: Array<{ source?: string; key?: string }> | null;
+      templateHeader?: string | null;
+      template_header?: string | null;
+      templateBody?: string | null;
+      template_body?: string | null;
+      templateFooter?: string | null;
+      template_footer?: string | null;
+      templateButtons?: unknown[] | null;
+      template_buttons?: unknown[] | null;
       status: string;
       scheduledAt: string | null;
       scheduled_at?: string | null;
@@ -116,6 +126,11 @@ export default async function ReachCampaignDetailPage({
         description: campaign.description,
         templateName: campaign.templateName ?? campaign.template_name ?? "",
         templateLanguage: campaign.templateLanguage ?? campaign.template_language ?? "",
+        variableMappings: campaign.variableMappings ?? campaign.variable_mappings ?? null,
+        templateHeader: campaign.templateHeader ?? campaign.template_header ?? null,
+        templateBody: campaign.templateBody ?? campaign.template_body ?? null,
+        templateFooter: campaign.templateFooter ?? campaign.template_footer ?? null,
+        templateButtons: campaign.templateButtons ?? campaign.template_buttons ?? null,
         status: campaign.status,
         scheduledAt: campaign.scheduledAt ?? campaign.scheduled_at ?? null,
         launchedAt: campaign.launchedAt ?? campaign.launched_at ?? null,

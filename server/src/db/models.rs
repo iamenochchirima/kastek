@@ -581,8 +581,21 @@ pub struct WhatsappCampaignRow {
     pub template_name: String,
     #[sqlx(rename = "template_language")]
     pub template_language: String,
+    #[serde(rename = "variableMappings")]
     #[sqlx(rename = "variable_mappings")]
     pub variable_mappings: Option<Value>,
+    #[serde(rename = "templateHeader")]
+    #[sqlx(rename = "template_header")]
+    pub template_header: Option<String>,
+    #[serde(rename = "templateBody")]
+    #[sqlx(rename = "template_body")]
+    pub template_body: Option<String>,
+    #[serde(rename = "templateFooter")]
+    #[sqlx(rename = "template_footer")]
+    pub template_footer: Option<String>,
+    #[serde(rename = "templateButtons")]
+    #[sqlx(rename = "template_buttons")]
+    pub template_buttons: Option<Value>,
     #[serde(rename = "listLabel")]
     #[sqlx(rename = "list_label")]
     pub list_label: Option<String>,

@@ -17,6 +17,11 @@ type Campaign = {
   description: string | null;
   templateName: string;
   templateLanguage: string;
+  variableMappings: TemplateVariableMapping[] | null;
+  templateHeader: string | null;
+  templateBody: string | null;
+  templateFooter: string | null;
+  templateButtons: unknown[] | null;
   status: string;
   scheduledAt: string | null;
   launchedAt: string | null;
@@ -34,6 +39,11 @@ type Campaign = {
   templateStatus: string | null;
   listLabel: string | null;
   defaultBatchSize: number | null;
+};
+
+type TemplateVariableMapping = {
+  source?: string;
+  key?: string;
 };
 
 type CampaignRecipient = {
@@ -65,6 +75,7 @@ type CampaignRecipientSummary = {
 
 type SendMoreContact = {
   id: string;
+  contactId: string;
   phone: string;
   fullName: string | null;
   location: string | null;
@@ -82,6 +93,16 @@ type CampaignDetailPayload = {
       template_name?: string;
       templateLanguage?: string;
       template_language?: string;
+      variableMappings?: TemplateVariableMapping[] | null;
+      variable_mappings?: TemplateVariableMapping[] | null;
+      templateHeader?: string | null;
+      template_header?: string | null;
+      templateBody?: string | null;
+      template_body?: string | null;
+      templateFooter?: string | null;
+      template_footer?: string | null;
+      templateButtons?: unknown[] | null;
+      template_buttons?: unknown[] | null;
       status: string;
       scheduledAt?: string | null;
       scheduled_at?: string | null;
@@ -218,6 +239,11 @@ function normalizeCampaign(raw: NonNullable<CampaignDetailPayload["campaign"]>["
     description: raw.description,
     templateName: raw.templateName ?? raw.template_name ?? "",
     templateLanguage: raw.templateLanguage ?? raw.template_language ?? "",
+    variableMappings: raw.variableMappings ?? raw.variable_mappings ?? null,
+    templateHeader: raw.templateHeader ?? raw.template_header ?? null,
+    templateBody: raw.templateBody ?? raw.template_body ?? null,
+    templateFooter: raw.templateFooter ?? raw.template_footer ?? null,
+    templateButtons: raw.templateButtons ?? raw.template_buttons ?? null,
     status: raw.status,
     scheduledAt: raw.scheduledAt ?? raw.scheduled_at ?? null,
     launchedAt: raw.launchedAt ?? raw.launched_at ?? null,
@@ -236,6 +262,49 @@ function normalizeCampaign(raw: NonNullable<CampaignDetailPayload["campaign"]>["
     listLabel: raw.listLabel ?? raw.list_label ?? null,
     defaultBatchSize: raw.defaultBatchSize ?? raw.default_batch_size ?? null,
   };
+}
+
+function metadataValue(metadata: Record<string, string> | null | undefined, key: string) {
+  if (!metadata || !key) return "";
+  return metadata[key] ?? "";
+}
+
+function resolveBodyParameters(recipient: CampaignRecipient, mappings: TemplateVariableMapping[] | null) {
+  const values = mappings ?? [];
+  return values.map((mapping) => {
+    const source = mapping.source ?? "contact";
+    const key = mapping.key ?? "";
+
+    if (source === "static") {
+      return key;
+    }
+
+    switch (key) {
+      case "fullName":
+      case "name":
+        return recipient.contactFullName ?? "";
+      case "phone":
+        return recipient.contactPhone;
+      case "location":
+        return recipient.contactLocation ?? "";
+      case "tags":
+        return metadataValue(recipient.contactMetadata, "tags");
+      default:
+        return metadataValue(recipient.contactMetadata, key);
+    }
+  });
+}
+
+function renderTemplateBody(templateBody: string | null, bodyParameters: string[]) {
+  if (!templateBody) return "";
+  return templateBody.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, rawIndex: string) => {
+    const index = Number.parseInt(rawIndex, 10) - 1;
+    return bodyParameters[index] ?? "";
+  });
+}
+
+function whatsappLink(phone: string) {
+  return `https://wa.me/${phone.replace(/\D/g, "")}`;
 }
 
 export default function CampaignDetailPageClient({
@@ -266,6 +335,7 @@ export default function CampaignDetailPageClient({
   const [excludedContactIds, setExcludedContactIds] = useState<string[]>([]);
   const [loadingSendMore, setLoadingSendMore] = useState(false);
   const [sendMoreOpen, setSendMoreOpen] = useState(false);
+  const [previewRecipient, setPreviewRecipient] = useState<CampaignRecipient | null>(null);
 
   useEffect(() => {
     setLiveCampaign(campaign);
@@ -364,8 +434,9 @@ export default function CampaignDetailPageClient({
   const processedCount = Math.max(effectiveCampaign.totalRecipients - queuedCount - pendingCount, 0);
   const activeSendPosition = Math.min(processedCount + queuedCount, effectiveCampaign.totalRecipients);
   const isLiveSending = effectiveCampaign.status === "SENDING";
+  const hasProcessedRecipients = processedCount > 0;
   const sendMoreAvailableContacts = useMemo(() => {
-    const base = sendMoreContacts.filter((contact) => pendingRecipientContactIds.includes(contact.id));
+    const base = sendMoreContacts.filter((contact) => pendingRecipientContactIds.includes(contact.contactId));
     const needle = sendMoreSearch.trim().toLowerCase();
     if (!needle) return base;
     return base.filter((contact) =>
@@ -377,13 +448,21 @@ export default function CampaignDetailPageClient({
   }, [pendingRecipientContactIds, sendMoreContacts, sendMoreSearch]);
   const excludedSendMoreContacts = useMemo(() => {
     return sendMoreContacts.filter(
-      (contact) => pendingRecipientContactIds.includes(contact.id) && excludedContactIds.includes(contact.id),
+      (contact) => pendingRecipientContactIds.includes(contact.contactId) && excludedContactIds.includes(contact.contactId),
     );
   }, [excludedContactIds, pendingRecipientContactIds, sendMoreContacts]);
   const selectableSendMoreCount = Math.max(sendMoreAvailableContacts.length - excludedContactIds.length, 0);
   const currentSendMoreBatchSize = Math.min(
     Math.max(Number.parseInt(sendMoreBatchSize || "0", 10) || 0, 0),
     selectableSendMoreCount,
+  );
+  const previewBodyParameters = useMemo(
+    () => (previewRecipient ? resolveBodyParameters(previewRecipient, liveCampaign.variableMappings) : []),
+    [liveCampaign.variableMappings, previewRecipient],
+  );
+  const previewBodyText = useMemo(
+    () => renderTemplateBody(liveCampaign.templateBody, previewBodyParameters),
+    [liveCampaign.templateBody, previewBodyParameters],
   );
 
   async function runAction(kind: "launch" | "pause" | "resume" | "cancel" | "retry_failed" | "repair_status") {
@@ -469,7 +548,7 @@ export default function CampaignDetailPageClient({
         .filter((recipient) => recipient.status === "PENDING")
         .map((recipient) => recipient.contactId)
         .filter(Boolean);
-      const availableCount = contactsPayload.contacts.filter((contact) => recipientIds.includes(contact.id)).length;
+      const availableCount = contactsPayload.contacts.filter((contact) => recipientIds.includes(contact.contactId)).length;
 
       setSendMoreContacts(contactsPayload.contacts);
       setPendingRecipientContactIds(recipientIds);
@@ -549,20 +628,14 @@ export default function CampaignDetailPageClient({
     ((liveCampaign.status === "COMPLETED" || liveCampaign.status === "FAILED") &&
       pendingCount > 0 &&
       queuedCount === 0 &&
-      effectiveCampaign.sentCount === 0 &&
-      effectiveCampaign.deliveredCount === 0 &&
-      effectiveCampaign.readCount === 0);
+      !hasProcessedRecipients);
   const pausable = liveCampaign.status === "SENDING" || liveCampaign.status === "SCHEDULED";
   const resumable = liveCampaign.status === "PAUSED";
   const idleSendingWithPending = liveCampaign.status === "SENDING" && queuedCount === 0 && pendingCount > 0;
   const sendMoreable =
     (liveCampaign.status === "COMPLETED" &&
       remaining > 0 &&
-      !(pendingCount > 0 &&
-        queuedCount === 0 &&
-        effectiveCampaign.sentCount === 0 &&
-        effectiveCampaign.deliveredCount === 0 &&
-        effectiveCampaign.readCount === 0)) ||
+      hasProcessedRecipients) ||
     idleSendingWithPending ||
     liveCampaign.status === "FAILED" ||
     liveCampaign.status === "PAUSED";
@@ -815,6 +888,7 @@ export default function CampaignDetailPageClient({
                     <th className="px-4 py-3">Delivered</th>
                     <th className="px-4 py-3">Read</th>
                     <th className="px-4 py-3">Error</th>
+                    <th className="px-4 py-3">Message</th>
                     <th className="px-4 py-3">Metadata</th>
                   </tr>
                 </thead>
@@ -828,7 +902,16 @@ export default function CampaignDetailPageClient({
                         </div>
                         <div className="text-xs text-muted-foreground">{recipient.contactListLabel}</div>
                       </td>
-                      <td className="px-4 py-3 text-foreground">{recipient.contactPhone}</td>
+                      <td className="px-4 py-3">
+                        <a
+                          href={whatsappLink(recipient.contactPhone)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-foreground underline-offset-4 hover:text-primary hover:underline"
+                        >
+                          {recipient.contactPhone}
+                        </a>
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{recipient.contactLocation || "-"}</td>
                       <td className="px-4 py-3">
                         <Badge className={recipientTone(recipient.status)}>{recipient.status}</Badge>
@@ -845,6 +928,11 @@ export default function CampaignDetailPageClient({
                       <td className="px-4 py-3 text-xs text-muted-foreground">
                         {recipient.errorMessage || recipient.errorCode || "-"}
                       </td>
+                      <td className="px-4 py-3">
+                        <Button variant="outline" size="sm" onClick={() => setPreviewRecipient(recipient)}>
+                          View message
+                        </Button>
+                      </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
                         {recipient.contactMetadata && Object.keys(recipient.contactMetadata).length > 0
                           ? Object.entries(recipient.contactMetadata)
@@ -860,6 +948,91 @@ export default function CampaignDetailPageClient({
             </div>
           </CardContent>
         </Card>
+        {previewRecipient ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
+            <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-border bg-background shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
+                <div>
+                  <h2 className="text-2xl font-semibold text-foreground">Template preview</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {previewRecipient.contactFullName || previewRecipient.contactPhone} · {liveCampaign.templateName} ·{" "}
+                    {liveCampaign.templateLanguage}
+                  </p>
+                </div>
+                <Button variant="outline" onClick={() => setPreviewRecipient(null)}>
+                  Close
+                </Button>
+              </div>
+
+              <div className="space-y-6 px-6 py-5">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className="rounded-xl border border-border bg-secondary/20 p-5">
+                    <div className="text-sm font-semibold text-foreground">Rendered message</div>
+                    {liveCampaign.templateHeader ? (
+                      <div className="mt-4 rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
+                        <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Header</div>
+                        <div className="whitespace-pre-wrap text-foreground">{liveCampaign.templateHeader}</div>
+                      </div>
+                    ) : null}
+                    <div className="mt-4 rounded-lg border border-border bg-background px-4 py-4">
+                      <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Body</div>
+                      <div className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+                        {previewBodyText || liveCampaign.templateBody || "No template body available."}
+                      </div>
+                    </div>
+                    {liveCampaign.templateFooter ? (
+                      <div className="mt-4 rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
+                        <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Footer</div>
+                        <div className="whitespace-pre-wrap text-foreground">{liveCampaign.templateFooter}</div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                      <div className="text-sm font-semibold text-foreground">Resolved parameters</div>
+                      <div className="mt-4 space-y-3">
+                        {previewBodyParameters.length > 0 ? (
+                          previewBodyParameters.map((value, index) => {
+                            const mapping = liveCampaign.variableMappings?.[index];
+                            const mappingLabel =
+                              mapping?.source === "static"
+                                ? `Static text`
+                                : mapping?.key || `Variable ${index + 1}`;
+                            return (
+                              <div key={`${mappingLabel}-${index}`} className="rounded-lg border border-border bg-background px-3 py-3">
+                                <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                                  {`{{${index + 1}}}`} · {mappingLabel}
+                                </div>
+                                <div className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+                                  {value || <span className="text-red-300">Empty value</span>}
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-muted-foreground">
+                            This template does not use mapped body variables.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                      <div className="text-sm font-semibold text-foreground">Recipient context</div>
+                      <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                        <div>Phone: <span className="text-foreground">{previewRecipient.contactPhone}</span></div>
+                        <div>Name: <span className="text-foreground">{previewRecipient.contactFullName || "-"}</span></div>
+                        <div>Location: <span className="text-foreground">{previewRecipient.contactLocation || "-"}</span></div>
+                        <div>Status: <span className="text-foreground">{previewRecipient.status}</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
         {sendMoreOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
             <div className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-border bg-background p-6">
@@ -933,9 +1106,9 @@ export default function CampaignDetailPageClient({
                             size="sm"
                             onClick={() =>
                               setExcludedContactIds((current) =>
-                                current.includes(contact.id)
-                                  ? current.filter((value) => value !== contact.id)
-                                  : [...current, contact.id],
+                                current.includes(contact.contactId)
+                                  ? current.filter((value) => value !== contact.contactId)
+                                  : [...current, contact.contactId],
                               )
                             }
                           >
