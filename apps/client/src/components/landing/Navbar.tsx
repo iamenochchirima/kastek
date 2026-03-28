@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,18 +10,6 @@ import { cn } from "@/lib/utils";
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const showLocalLogin = useSyncExternalStore(
-    () => () => {},
-    () => {
-      const { hostname } = window.location;
-      return (
-        hostname === "localhost" ||
-        hostname === "127.0.0.1" ||
-        hostname === "::1"
-      );
-    },
-    () => false,
-  );
 
   useEffect(() => {
     const handleScroll = () => {
@@ -105,16 +93,14 @@ export function Navbar() {
             Pricing
           </Link>
         </li>
-        {showLocalLogin ? (
-          <li>
-            <Link
-              href="/login"
-              className="text-muted-foreground transition-colors hover:text-white"
-            >
-              Login
-            </Link>
-          </li>
-        ) : null}
+        <li>
+          <Link
+            href="/login"
+            className="text-muted-foreground transition-colors hover:text-white"
+          >
+            Login
+          </Link>
+        </li>
         <li>
           <Link
             href="/get-quote"
@@ -158,15 +144,13 @@ export function Navbar() {
             >
               Pricing
             </Link>
-            {showLocalLogin ? (
-              <Link
-                href="/login"
-                className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Login
-              </Link>
-            ) : null}
+            <Link
+              href="/login"
+              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Login
+            </Link>
             <div className="mt-2 grid grid-cols-1 gap-3">
               <Link
                 href="/get-quote"
