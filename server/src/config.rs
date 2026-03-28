@@ -68,7 +68,7 @@ impl AppConfig {
     }
 
     fn build_cookie(&self, name: &str, value: &str) -> Cookie<'static> {
-        Cookie::build(name.to_string(), value.to_string())
+        let mut cookie = Cookie::build(name.to_string(), value.to_string())
             .path("/")
             .http_only(true)
             .same_site(if self.is_production() {
@@ -77,11 +77,17 @@ impl AppConfig {
                 SameSite::Lax
             })
             .secure(self.is_production())
-            .finish()
+            .finish();
+
+        if let Ok(domain) = env::var("COOKIE_DOMAIN") {
+            cookie.set_domain(domain);
+        }
+
+        cookie
     }
 
     fn clear_cookie(&self, name: &str) -> Cookie<'static> {
-        Cookie::build(name.to_string(), "")
+        let mut cookie = Cookie::build(name.to_string(), "")
             .path("/")
             .http_only(true)
             .same_site(if self.is_production() {
@@ -91,6 +97,12 @@ impl AppConfig {
             })
             .secure(self.is_production())
             .max_age(actix_web::cookie::time::Duration::seconds(0))
-            .finish()
+            .finish();
+
+        if let Ok(domain) = env::var("COOKIE_DOMAIN") {
+            cookie.set_domain(domain);
+        }
+
+        cookie
     }
 }
