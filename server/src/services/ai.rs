@@ -16,8 +16,7 @@ fn get_openrouter_model() -> String {
 }
 
 fn get_app_url() -> String {
-    std::env::var("AUTH_URL")
-        .or_else(|_| std::env::var("NEXT_PUBLIC_APP_URL"))
+    std::env::var("FRONTEND_URL")
         .unwrap_or_else(|_| "http://localhost:3000".to_string())
 }
 

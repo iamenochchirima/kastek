@@ -7,7 +7,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   Archive,
+  Check,
   Clock,
+  Copy,
   Facebook,
   FileAudio,
   FileImage,
@@ -20,6 +22,7 @@ import {
   MoreHorizontal,
   MoreVertical,
   Paperclip,
+  Phone,
   Search,
   Send,
   Smile,
@@ -198,6 +201,7 @@ export default function InboxPageClient({
   const [mobileConversationOpen, setMobileConversationOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [lightbox, setLightbox] = useState<MediaLightboxState | null>(null);
+  const [copiedConversationId, setCopiedConversationId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -205,6 +209,7 @@ export default function InboxPageClient({
   const reactionPickerRef = useRef<HTMLDivElement | null>(null);
   const reactionTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const unreadReconcileTimerRef = useRef<number | null>(null);
+  const copyFeedbackTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setLiveConversations(conversations);
@@ -411,6 +416,43 @@ export default function InboxPageClient({
     setSelectedConversationId(conversationId);
     setMobileConversationOpen(true);
   };
+
+  const copyConversationPhone = async (conversationId: string, phone: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(phone);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = phone;
+        input.setAttribute("readonly", "");
+        input.style.position = "absolute";
+        input.style.left = "-9999px";
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        document.body.removeChild(input);
+      }
+
+      setCopiedConversationId(conversationId);
+      if (copyFeedbackTimerRef.current) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+      }
+      copyFeedbackTimerRef.current = window.setTimeout(() => {
+        setCopiedConversationId((current) => (current === conversationId ? null : current));
+      }, 1600);
+    } catch (error) {
+      console.error("Failed to copy conversation phone", error);
+    }
+  };
+
+  useEffect(
+    () => () => {
+      if (copyFeedbackTimerRef.current) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const renderChannelPanelContent = () => (
     <>
@@ -1303,20 +1345,20 @@ export default function InboxPageClient({
 
         <div
           className={cn(
-            "flex flex-col border-r border-border bg-card",
-            mobileConversationOpen ? "hidden lg:flex" : "w-full",
-            "lg:w-96",
+            "shrink-0 flex-col border-r border-border bg-card",
+            mobileConversationOpen ? "hidden md:flex" : "flex w-full",
+            "md:w-[360px] lg:w-96",
           )}
         >
           <div className="border-b border-border p-3 sm:p-4">
             <div className="mb-4 flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0 text-muted-foreground lg:hidden"
-                onClick={() => setMobileChannelPanelOpen(true)}
-              >
-                <Filter className="h-4 w-4" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-muted-foreground md:hidden"
+                  onClick={() => setMobileChannelPanelOpen(true)}
+                >
+                  <Filter className="h-4 w-4" />
               </Button>
               {!showChannelPanel ? (
                 <Button
@@ -1379,10 +1421,9 @@ export default function InboxPageClient({
                   const ConversationChannelIcon = channelInfo.icon;
 
                   return (
-                    <motion.button
+                    <motion.div
                       key={conversation.id}
                       variants={item}
-                      onClick={() => openConversation(conversation.id)}
                       className={cn(
                         "mb-1 flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-all duration-200",
                         selectedConversation?.id === conversation.id
@@ -1390,54 +1431,151 @@ export default function InboxPageClient({
                           : "border-transparent hover:bg-secondary",
                       )}
                     >
-                      <div className="relative">
-                        <Avatar className="h-10 w-10 bg-secondary">
-                          <AvatarFallback className="bg-secondary text-sm text-foreground">
-                            {conversation.avatar}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div
-                          className={cn(
-                            "absolute -bottom-0.5 -right-0.5 rounded-full p-0.5",
-                            channelInfo.bgColor,
-                          )}
-                        >
-                          <ConversationChannelIcon className={cn("h-3 w-3", channelInfo.color)} />
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-0.5 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="relative shrink-0 rounded-full outline-none ring-offset-background transition-transform hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                            aria-label={`View quick contact info for ${conversation.name}`}
+                          >
+                            <Avatar className="h-10 w-10 bg-secondary">
+                              <AvatarFallback className="bg-secondary text-sm text-foreground">
+                                {conversation.avatar}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div
                               className={cn(
-                                "truncate text-sm",
+                                "absolute -bottom-0.5 -right-0.5 rounded-full p-0.5",
+                                channelInfo.bgColor,
+                              )}
+                            >
+                              <ConversationChannelIcon className={cn("h-3 w-3", channelInfo.color)} />
+                            </div>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="start"
+                          side="right"
+                          className="w-72 rounded-xl border border-border bg-card p-0"
+                        >
+                          <div className="border-b border-border px-4 py-3">
+                            <div className="flex items-start gap-3">
+                              <Avatar className="h-11 w-11 bg-secondary">
+                                <AvatarFallback className="bg-secondary text-sm text-foreground">
+                                  {conversation.avatar}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold text-foreground">
+                                  {conversation.name}
+                                </p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {conversation.handle}
+                                </p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {conversation.unread ? (
+                                    <Badge className="border-0 bg-primary/10 text-[10px] text-primary">
+                                      Unread
+                                    </Badge>
+                                  ) : null}
+                                  {conversation.starred ? (
+                                    <Badge className="border-0 bg-amber-500/10 text-[10px] text-amber-500">
+                                      Starred
+                                    </Badge>
+                                  ) : null}
+                                  <Badge className="border-0 bg-secondary text-[10px] text-muted-foreground">
+                                    WhatsApp
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3 px-4 py-3">
+                            <div>
+                              <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                                Phone
+                              </p>
+                              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
+                                <Phone className="h-4 w-4 text-muted-foreground" />
+                                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                                  {conversation.handle}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => void copyConversationPhone(conversation.id, conversation.handle)}
+                                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                                >
+                                  {copiedConversationId === conversation.id ? (
+                                    <>
+                                      <Check className="h-3.5 w-3.5 text-primary" />
+                                      Copied
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="h-3.5 w-3.5" />
+                                      Copy
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                                Inbox number
+                              </p>
+                              <p className="truncate text-sm text-foreground">
+                                {conversation.connectionLabel}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                              <span>Last activity</span>
+                              <span className="shrink-0">{formatConversationTime(conversation.time)}</span>
+                            </div>
+                          </div>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <button
+                        type="button"
+                        onClick={() => openConversation(conversation.id)}
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-0.5 flex min-w-0 items-start gap-2">
+                            <span
+                              title={conversation.name}
+                              className={cn(
+                                "min-w-0 flex-1 truncate text-sm",
                                 conversation.unread ? "font-semibold text-foreground" : "text-foreground",
                               )}
                             >
                               {conversation.name}
                             </span>
+                            <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">
+                              {formatConversationTime(conversation.time)}
+                            </span>
                           </div>
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {formatConversationTime(conversation.time)}
-                          </span>
+                          <p className="mb-1 truncate text-xs text-muted-foreground">
+                            {conversation.handle}
+                            {whatsappConnections.length > 1 ? ` · ${conversation.connectionLabel}` : ""}
+                          </p>
+                          <p
+                            className={cn(
+                              "truncate text-sm",
+                              conversation.unread ? "text-foreground" : "text-muted-foreground",
+                            )}
+                          >
+                            {conversation.lastMessage}
+                          </p>
                         </div>
-                        <p className="mb-1 truncate text-xs text-muted-foreground">
-                          {conversation.handle}
-                          {whatsappConnections.length > 1 ? ` · ${conversation.connectionLabel}` : ""}
-                        </p>
-                        <p
-                          className={cn(
-                            "truncate text-sm",
-                            conversation.unread ? "text-foreground" : "text-muted-foreground",
-                          )}
-                        >
-                          {conversation.lastMessage}
-                        </p>
-                      </div>
-                      {conversation.unread ? (
-                        <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                      ) : null}
-                    </motion.button>
+                        {conversation.unread ? (
+                          <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                        ) : null}
+                      </button>
+                    </motion.div>
                   );
                 })
               )}
@@ -1445,7 +1583,7 @@ export default function InboxPageClient({
           </ScrollArea>
         </div>
 
-        <div className={cn("flex flex-1 flex-col bg-background", mobileConversationOpen ? "flex" : "hidden lg:flex")}>
+        <div className={cn("flex flex-1 flex-col bg-background", mobileConversationOpen ? "flex" : "hidden md:flex")}>
           <div className="flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-6">
             {selectedConversation ? (
               <>
@@ -1453,7 +1591,7 @@ export default function InboxPageClient({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground lg:hidden"
+                    className="h-8 w-8 shrink-0 text-muted-foreground md:hidden"
                     onClick={() => setMobileConversationOpen(false)}
                   >
                     <ArrowLeft className="h-4 w-4" />

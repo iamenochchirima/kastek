@@ -21,6 +21,9 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn from_env() -> Result<Self, env::VarError> {
+        let frontend_url =
+            env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
+
         Ok(Self {
             port: env::var("PORT")
                 .unwrap_or_else(|_| "8080".to_string())
@@ -32,11 +35,8 @@ impl AppConfig {
                 .unwrap_or_else(|_| "10".to_string())
                 .parse()
                 .unwrap_or(10),
-            frontend_url: env::var("FRONTEND_URL")
-                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
-            auth_url: env::var("AUTH_URL")
-                .or_else(|_| env::var("NEXTAUTH_URL"))
-                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            frontend_url: frontend_url.clone(),
+            auth_url: frontend_url,
             session_secret: env::var("SESSION_SECRET")
                 .or_else(|_| env::var("AUTH_SECRET"))
                 .unwrap_or_else(|_| "kasitek-dev-session-secret".to_string()),
