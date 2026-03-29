@@ -96,3 +96,71 @@ self.addEventListener("fetch", (event) => {
     }),
   );
 });
+
+self.addEventListener("push", (event) => {
+  const fallback = {
+    title: "KasiTek",
+    body: "You have a new notification.",
+    url: "/workspace/notifications",
+    tag: "kasitek-notification",
+  };
+
+  let payload = fallback;
+  try {
+    const data = event.data ? event.data.json() : null;
+    if (data && typeof data === "object") {
+      payload = {
+        title: typeof data.title === "string" && data.title ? data.title : fallback.title,
+        body: typeof data.body === "string" && data.body ? data.body : fallback.body,
+        url: typeof data.url === "string" && data.url ? data.url : fallback.url,
+        tag: typeof data.tag === "string" && data.tag ? data.tag : fallback.tag,
+      };
+    }
+  } catch {
+    payload = fallback;
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      tag: payload.tag,
+      data: {
+        url: payload.url,
+      },
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const targetUrl =
+    event.notification?.data?.url && typeof event.notification.data.url === "string"
+      ? event.notification.data.url
+      : "/workspace/notifications";
+  const absoluteUrl = new URL(targetUrl, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client && client.url === absoluteUrl) {
+          return client.focus();
+        }
+      }
+
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(absoluteUrl);
+      }
+
+      return undefined;
+    }),
+  );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});

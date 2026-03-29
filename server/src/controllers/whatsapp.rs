@@ -2,12 +2,13 @@ use actix_multipart::Multipart;
 use actix_web::{web, HttpRequest, HttpResponse};
 use sqlx::PgPool;
 
+use crate::config::AppConfig;
 use crate::db::models::{
     ConversationUpdateRequest, WhatsappCampaignActionRequest, WhatsappCampaignCreateRequest,
     WhatsappConnectionCreateRequest, WhatsappConnectionTokenRequest, WhatsappContactListQuery,
-    WhatsappContactListRenameRequest, WhatsappContactUpdateRequest,
-    WhatsappEmbeddedSignupRequest, WhatsappReactionRequest, WhatsappSendMessageRequest,
-    WhatsappStartConversationRequest, WhatsappTemplateCreateRequest, WhatsappTemplateListQuery,
+    WhatsappContactListRenameRequest, WhatsappContactUpdateRequest, WhatsappEmbeddedSignupRequest,
+    WhatsappReactionRequest, WhatsappSendMessageRequest, WhatsappStartConversationRequest,
+    WhatsappTemplateCreateRequest, WhatsappTemplateListQuery,
 };
 use crate::error::AppError;
 use crate::middleware::extract_user;
@@ -329,9 +330,10 @@ pub async fn verify_webhook(
 
 pub async fn receive_webhook(
     pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
     body: web::Json<serde_json::Value>,
 ) -> Result<HttpResponse, AppError> {
-    whatsapp::process_webhook_payload(pool.get_ref(), body.into_inner()).await?;
+    whatsapp::process_webhook_payload(pool.get_ref(), config.get_ref(), body.into_inner()).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "success": true,
         "queued": false

@@ -17,6 +17,9 @@ pub struct AppConfig {
     pub resend_api_key: Option<String>,
     pub resend_from_email: String,
     pub zoomconnect_send_url: Option<String>,
+    pub web_push_vapid_public_key: Option<String>,
+    pub web_push_vapid_private_key: Option<String>,
+    pub web_push_subject: String,
 }
 
 impl AppConfig {
@@ -44,11 +47,19 @@ impl AppConfig {
             resend_from_email: env::var("RESEND_FROM_EMAIL")
                 .unwrap_or_else(|_| "KasiTek <onboarding@resend.dev>".to_string()),
             zoomconnect_send_url: env::var("ZOOMCONNECT_SEND_URL").ok(),
+            web_push_vapid_public_key: env::var("WEB_PUSH_VAPID_PUBLIC_KEY").ok(),
+            web_push_vapid_private_key: env::var("WEB_PUSH_VAPID_PRIVATE_KEY").ok(),
+            web_push_subject: env::var("WEB_PUSH_SUBJECT")
+                .unwrap_or_else(|_| "mailto:hello@kasitek.com".to_string()),
         })
     }
 
     pub fn is_production(&self) -> bool {
         self.environment.eq_ignore_ascii_case("production")
+    }
+
+    pub fn web_push_configured(&self) -> bool {
+        self.web_push_vapid_public_key.is_some() && self.web_push_vapid_private_key.is_some()
     }
 
     pub fn build_user_session_cookie(&self, value: &str) -> Cookie<'static> {

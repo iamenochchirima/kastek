@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
   Bell,
+  Download,
   Bot,
   CircleHelp,
   FileText,
@@ -38,6 +39,7 @@ import {
   useWhatsappInboxUnreadCount,
   WhatsappRealtimeProvider,
 } from "@/components/dashboard/whatsapp-realtime-provider";
+import PushNotificationReminder from "@/components/dashboard/notifications/push-notification-reminder";
 
 type NavItem = {
   name: string;
@@ -500,6 +502,37 @@ function SidebarContent({
   );
 }
 
+function PwaUpdateBanner({
+  visible,
+}: {
+  visible: boolean;
+}) {
+  if (!visible) return null;
+
+  return (
+    <div className="mx-auto max-w-[1600px] px-6 pt-6 lg:px-8 lg:pt-8">
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,rgba(8,8,8,0.96),rgba(24,24,24,0.94))] p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Update available</p>
+          <p className="mt-1 text-sm text-white/70">
+            A newer version of the app is ready. Refresh now to load the latest changes.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent("kasitek:apply-pwa-update"));
+          }}
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+        >
+          <Download className="h-4 w-4" />
+          Update now
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function LayoutShell({
   children,
   user,
@@ -587,7 +620,11 @@ export function LayoutShell({
               />
             </SheetContent>
           </Sheet>
-          <main className="flex-1 overflow-auto pt-14 lg:pt-0">{children}</main>
+          <main className="flex-1 overflow-auto pt-14 lg:pt-0">
+            <PwaUpdateBanner visible={hasPwaUpdate} />
+            <PushNotificationReminder />
+            {children}
+          </main>
         </div>
       </>
     </WhatsappRealtimeProvider>

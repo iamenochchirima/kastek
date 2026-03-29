@@ -181,6 +181,47 @@ pub struct NotificationActionRequest {
     pub action: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct WebPushSubscriptionKeysRequest {
+    pub p256dh: Option<String>,
+    pub auth: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WebPushSubscriptionRequest {
+    pub endpoint: Option<String>,
+    #[serde(rename = "expirationTime")]
+    pub expiration_time: Option<i64>,
+    pub keys: Option<WebPushSubscriptionKeysRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SavePushSubscriptionRequest {
+    pub subscription: Option<WebPushSubscriptionRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeletePushSubscriptionRequest {
+    pub endpoint: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SendPushTestRequest {
+    pub title: Option<String>,
+    pub body: Option<String>,
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PushSubscriptionStatusResponse {
+    pub configured: bool,
+    #[serde(rename = "publicKey")]
+    pub public_key: Option<String>,
+    pub subscribed: bool,
+    #[serde(rename = "subscriptionCount")]
+    pub subscription_count: i64,
+}
+
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct NotificationInboxRow {
     #[sqlx(rename = "notification_id")]

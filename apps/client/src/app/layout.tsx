@@ -11,12 +11,12 @@ export const metadata: Metadata = {
     "We build WhatsApp chatbots, AI voice agents, and smart automations that handle your customer inquiries, bookings, and admin.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/logo.png",
+    icon: "/facebook-app-icon-dark-1024.png",
     apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/facebook-app-icon-dark-1024.png", sizes: "1024x1024", type: "image/png" },
     ],
     other: [
-      { rel: "mask-icon", url: "/maskable-icon-512.png" },
+      { rel: "mask-icon", url: "/facebook-app-icon-dark-1024.png" },
     ],
   },
   appleWebApp: {

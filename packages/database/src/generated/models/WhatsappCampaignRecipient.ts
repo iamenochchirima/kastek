@@ -28,6 +28,10 @@ export type WhatsappCampaignRecipientMinAggregateOutputType = {
   id: string | null
   campaignId: string | null
   contactId: string | null
+  snapshotPhone: string | null
+  snapshotFullName: string | null
+  snapshotLocation: string | null
+  snapshotListLabel: string | null
   status: $Enums.WhatsappRecipientStatus | null
   waMessageId: string | null
   sentAt: Date | null
@@ -44,6 +48,10 @@ export type WhatsappCampaignRecipientMaxAggregateOutputType = {
   id: string | null
   campaignId: string | null
   contactId: string | null
+  snapshotPhone: string | null
+  snapshotFullName: string | null
+  snapshotLocation: string | null
+  snapshotListLabel: string | null
   status: $Enums.WhatsappRecipientStatus | null
   waMessageId: string | null
   sentAt: Date | null
@@ -60,6 +68,11 @@ export type WhatsappCampaignRecipientCountAggregateOutputType = {
   id: number
   campaignId: number
   contactId: number
+  snapshotPhone: number
+  snapshotFullName: number
+  snapshotLocation: number
+  snapshotListLabel: number
+  snapshotMetadata: number
   status: number
   waMessageId: number
   sentAt: number
@@ -78,6 +91,10 @@ export type WhatsappCampaignRecipientMinAggregateInputType = {
   id?: true
   campaignId?: true
   contactId?: true
+  snapshotPhone?: true
+  snapshotFullName?: true
+  snapshotLocation?: true
+  snapshotListLabel?: true
   status?: true
   waMessageId?: true
   sentAt?: true
@@ -94,6 +111,10 @@ export type WhatsappCampaignRecipientMaxAggregateInputType = {
   id?: true
   campaignId?: true
   contactId?: true
+  snapshotPhone?: true
+  snapshotFullName?: true
+  snapshotLocation?: true
+  snapshotListLabel?: true
   status?: true
   waMessageId?: true
   sentAt?: true
@@ -110,6 +131,11 @@ export type WhatsappCampaignRecipientCountAggregateInputType = {
   id?: true
   campaignId?: true
   contactId?: true
+  snapshotPhone?: true
+  snapshotFullName?: true
+  snapshotLocation?: true
+  snapshotListLabel?: true
+  snapshotMetadata?: true
   status?: true
   waMessageId?: true
   sentAt?: true
@@ -199,6 +225,11 @@ export type WhatsappCampaignRecipientGroupByOutputType = {
   id: string
   campaignId: string
   contactId: string
+  snapshotPhone: string | null
+  snapshotFullName: string | null
+  snapshotLocation: string | null
+  snapshotListLabel: string | null
+  snapshotMetadata: runtime.JsonValue | null
   status: $Enums.WhatsappRecipientStatus
   waMessageId: string | null
   sentAt: Date | null
@@ -236,6 +267,11 @@ export type WhatsappCampaignRecipientWhereInput = {
   id?: Prisma.StringFilter<"WhatsappCampaignRecipient"> | string
   campaignId?: Prisma.StringFilter<"WhatsappCampaignRecipient"> | string
   contactId?: Prisma.StringFilter<"WhatsappCampaignRecipient"> | string
+  snapshotPhone?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotFullName?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotLocation?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotListLabel?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotMetadata?: Prisma.JsonNullableFilter<"WhatsappCampaignRecipient">
   status?: Prisma.EnumWhatsappRecipientStatusFilter<"WhatsappCampaignRecipient"> | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
   sentAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
@@ -255,6 +291,11 @@ export type WhatsappCampaignRecipientOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   campaignId?: Prisma.SortOrder
   contactId?: Prisma.SortOrder
+  snapshotPhone?: Prisma.SortOrderInput | Prisma.SortOrder
+  snapshotFullName?: Prisma.SortOrderInput | Prisma.SortOrder
+  snapshotLocation?: Prisma.SortOrderInput | Prisma.SortOrder
+  snapshotListLabel?: Prisma.SortOrderInput | Prisma.SortOrder
+  snapshotMetadata?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
   waMessageId?: Prisma.SortOrderInput | Prisma.SortOrder
   sentAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -278,6 +319,11 @@ export type WhatsappCampaignRecipientWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.WhatsappCampaignRecipientWhereInput | Prisma.WhatsappCampaignRecipientWhereInput[]
   campaignId?: Prisma.StringFilter<"WhatsappCampaignRecipient"> | string
   contactId?: Prisma.StringFilter<"WhatsappCampaignRecipient"> | string
+  snapshotPhone?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotFullName?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotLocation?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotListLabel?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotMetadata?: Prisma.JsonNullableFilter<"WhatsappCampaignRecipient">
   status?: Prisma.EnumWhatsappRecipientStatusFilter<"WhatsappCampaignRecipient"> | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
   sentAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
@@ -297,6 +343,11 @@ export type WhatsappCampaignRecipientOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   campaignId?: Prisma.SortOrder
   contactId?: Prisma.SortOrder
+  snapshotPhone?: Prisma.SortOrderInput | Prisma.SortOrder
+  snapshotFullName?: Prisma.SortOrderInput | Prisma.SortOrder
+  snapshotLocation?: Prisma.SortOrderInput | Prisma.SortOrder
+  snapshotListLabel?: Prisma.SortOrderInput | Prisma.SortOrder
+  snapshotMetadata?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
   waMessageId?: Prisma.SortOrderInput | Prisma.SortOrder
   sentAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -319,6 +370,11 @@ export type WhatsappCampaignRecipientScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"WhatsappCampaignRecipient"> | string
   campaignId?: Prisma.StringWithAggregatesFilter<"WhatsappCampaignRecipient"> | string
   contactId?: Prisma.StringWithAggregatesFilter<"WhatsappCampaignRecipient"> | string
+  snapshotPhone?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotFullName?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotLocation?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotListLabel?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotMetadata?: Prisma.JsonNullableWithAggregatesFilter<"WhatsappCampaignRecipient">
   status?: Prisma.EnumWhatsappRecipientStatusWithAggregatesFilter<"WhatsappCampaignRecipient"> | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | string | null
   sentAt?: Prisma.DateTimeNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | Date | string | null
@@ -333,6 +389,11 @@ export type WhatsappCampaignRecipientScalarWhereWithAggregatesInput = {
 
 export type WhatsappCampaignRecipientCreateInput = {
   id?: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -352,6 +413,11 @@ export type WhatsappCampaignRecipientUncheckedCreateInput = {
   id?: string
   campaignId: string
   contactId: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -367,6 +433,11 @@ export type WhatsappCampaignRecipientUncheckedCreateInput = {
 
 export type WhatsappCampaignRecipientUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -386,6 +457,11 @@ export type WhatsappCampaignRecipientUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   campaignId?: Prisma.StringFieldUpdateOperationsInput | string
   contactId?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -403,6 +479,11 @@ export type WhatsappCampaignRecipientCreateManyInput = {
   id?: string
   campaignId: string
   contactId: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -417,6 +498,11 @@ export type WhatsappCampaignRecipientCreateManyInput = {
 
 export type WhatsappCampaignRecipientUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -433,6 +519,11 @@ export type WhatsappCampaignRecipientUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   campaignId?: Prisma.StringFieldUpdateOperationsInput | string
   contactId?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -464,6 +555,11 @@ export type WhatsappCampaignRecipientCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   campaignId?: Prisma.SortOrder
   contactId?: Prisma.SortOrder
+  snapshotPhone?: Prisma.SortOrder
+  snapshotFullName?: Prisma.SortOrder
+  snapshotLocation?: Prisma.SortOrder
+  snapshotListLabel?: Prisma.SortOrder
+  snapshotMetadata?: Prisma.SortOrder
   status?: Prisma.SortOrder
   waMessageId?: Prisma.SortOrder
   sentAt?: Prisma.SortOrder
@@ -480,6 +576,10 @@ export type WhatsappCampaignRecipientMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   campaignId?: Prisma.SortOrder
   contactId?: Prisma.SortOrder
+  snapshotPhone?: Prisma.SortOrder
+  snapshotFullName?: Prisma.SortOrder
+  snapshotLocation?: Prisma.SortOrder
+  snapshotListLabel?: Prisma.SortOrder
   status?: Prisma.SortOrder
   waMessageId?: Prisma.SortOrder
   sentAt?: Prisma.SortOrder
@@ -496,6 +596,10 @@ export type WhatsappCampaignRecipientMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   campaignId?: Prisma.SortOrder
   contactId?: Prisma.SortOrder
+  snapshotPhone?: Prisma.SortOrder
+  snapshotFullName?: Prisma.SortOrder
+  snapshotLocation?: Prisma.SortOrder
+  snapshotListLabel?: Prisma.SortOrder
   status?: Prisma.SortOrder
   waMessageId?: Prisma.SortOrder
   sentAt?: Prisma.SortOrder
@@ -619,6 +723,11 @@ export type WhatsappCampaignRecipientUpdateOneWithoutSendEventsNestedInput = {
 
 export type WhatsappCampaignRecipientCreateWithoutContactInput = {
   id?: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -636,6 +745,11 @@ export type WhatsappCampaignRecipientCreateWithoutContactInput = {
 export type WhatsappCampaignRecipientUncheckedCreateWithoutContactInput = {
   id?: string
   campaignId: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -682,6 +796,11 @@ export type WhatsappCampaignRecipientScalarWhereInput = {
   id?: Prisma.StringFilter<"WhatsappCampaignRecipient"> | string
   campaignId?: Prisma.StringFilter<"WhatsappCampaignRecipient"> | string
   contactId?: Prisma.StringFilter<"WhatsappCampaignRecipient"> | string
+  snapshotPhone?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotFullName?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotLocation?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotListLabel?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
+  snapshotMetadata?: Prisma.JsonNullableFilter<"WhatsappCampaignRecipient">
   status?: Prisma.EnumWhatsappRecipientStatusFilter<"WhatsappCampaignRecipient"> | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
   sentAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
@@ -696,6 +815,11 @@ export type WhatsappCampaignRecipientScalarWhereInput = {
 
 export type WhatsappCampaignRecipientCreateWithoutCampaignInput = {
   id?: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -713,6 +837,11 @@ export type WhatsappCampaignRecipientCreateWithoutCampaignInput = {
 export type WhatsappCampaignRecipientUncheckedCreateWithoutCampaignInput = {
   id?: string
   contactId: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -754,6 +883,11 @@ export type WhatsappCampaignRecipientUpdateManyWithWhereWithoutCampaignInput = {
 
 export type WhatsappCampaignRecipientCreateWithoutSendEventsInput = {
   id?: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -772,6 +906,11 @@ export type WhatsappCampaignRecipientUncheckedCreateWithoutSendEventsInput = {
   id?: string
   campaignId: string
   contactId: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -802,6 +941,11 @@ export type WhatsappCampaignRecipientUpdateToOneWithWhereWithoutSendEventsInput 
 
 export type WhatsappCampaignRecipientUpdateWithoutSendEventsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -820,6 +964,11 @@ export type WhatsappCampaignRecipientUncheckedUpdateWithoutSendEventsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   campaignId?: Prisma.StringFieldUpdateOperationsInput | string
   contactId?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -835,6 +984,11 @@ export type WhatsappCampaignRecipientUncheckedUpdateWithoutSendEventsInput = {
 export type WhatsappCampaignRecipientCreateManyContactInput = {
   id?: string
   campaignId: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -849,6 +1003,11 @@ export type WhatsappCampaignRecipientCreateManyContactInput = {
 
 export type WhatsappCampaignRecipientUpdateWithoutContactInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -866,6 +1025,11 @@ export type WhatsappCampaignRecipientUpdateWithoutContactInput = {
 export type WhatsappCampaignRecipientUncheckedUpdateWithoutContactInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   campaignId?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -882,6 +1046,11 @@ export type WhatsappCampaignRecipientUncheckedUpdateWithoutContactInput = {
 export type WhatsappCampaignRecipientUncheckedUpdateManyWithoutContactInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   campaignId?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -897,6 +1066,11 @@ export type WhatsappCampaignRecipientUncheckedUpdateManyWithoutContactInput = {
 export type WhatsappCampaignRecipientCreateManyCampaignInput = {
   id?: string
   contactId: string
+  snapshotPhone?: string | null
+  snapshotFullName?: string | null
+  snapshotLocation?: string | null
+  snapshotListLabel?: string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: $Enums.WhatsappRecipientStatus
   waMessageId?: string | null
   sentAt?: Date | string | null
@@ -911,6 +1085,11 @@ export type WhatsappCampaignRecipientCreateManyCampaignInput = {
 
 export type WhatsappCampaignRecipientUpdateWithoutCampaignInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -928,6 +1107,11 @@ export type WhatsappCampaignRecipientUpdateWithoutCampaignInput = {
 export type WhatsappCampaignRecipientUncheckedUpdateWithoutCampaignInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   contactId?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -944,6 +1128,11 @@ export type WhatsappCampaignRecipientUncheckedUpdateWithoutCampaignInput = {
 export type WhatsappCampaignRecipientUncheckedUpdateManyWithoutCampaignInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   contactId?: Prisma.StringFieldUpdateOperationsInput | string
+  snapshotPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotFullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotLocation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotListLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotMetadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.EnumWhatsappRecipientStatusFieldUpdateOperationsInput | $Enums.WhatsappRecipientStatus
   waMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -991,6 +1180,11 @@ export type WhatsappCampaignRecipientSelect<ExtArgs extends runtime.Types.Extens
   id?: boolean
   campaignId?: boolean
   contactId?: boolean
+  snapshotPhone?: boolean
+  snapshotFullName?: boolean
+  snapshotLocation?: boolean
+  snapshotListLabel?: boolean
+  snapshotMetadata?: boolean
   status?: boolean
   waMessageId?: boolean
   sentAt?: boolean
@@ -1011,6 +1205,11 @@ export type WhatsappCampaignRecipientSelectCreateManyAndReturn<ExtArgs extends r
   id?: boolean
   campaignId?: boolean
   contactId?: boolean
+  snapshotPhone?: boolean
+  snapshotFullName?: boolean
+  snapshotLocation?: boolean
+  snapshotListLabel?: boolean
+  snapshotMetadata?: boolean
   status?: boolean
   waMessageId?: boolean
   sentAt?: boolean
@@ -1029,6 +1228,11 @@ export type WhatsappCampaignRecipientSelectUpdateManyAndReturn<ExtArgs extends r
   id?: boolean
   campaignId?: boolean
   contactId?: boolean
+  snapshotPhone?: boolean
+  snapshotFullName?: boolean
+  snapshotLocation?: boolean
+  snapshotListLabel?: boolean
+  snapshotMetadata?: boolean
   status?: boolean
   waMessageId?: boolean
   sentAt?: boolean
@@ -1047,6 +1251,11 @@ export type WhatsappCampaignRecipientSelectScalar = {
   id?: boolean
   campaignId?: boolean
   contactId?: boolean
+  snapshotPhone?: boolean
+  snapshotFullName?: boolean
+  snapshotLocation?: boolean
+  snapshotListLabel?: boolean
+  snapshotMetadata?: boolean
   status?: boolean
   waMessageId?: boolean
   sentAt?: boolean
@@ -1059,7 +1268,7 @@ export type WhatsappCampaignRecipientSelectScalar = {
   updatedAt?: boolean
 }
 
-export type WhatsappCampaignRecipientOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "campaignId" | "contactId" | "status" | "waMessageId" | "sentAt" | "deliveredAt" | "readAt" | "failedAt" | "errorCode" | "errorMessage" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappCampaignRecipient"]>
+export type WhatsappCampaignRecipientOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "campaignId" | "contactId" | "snapshotPhone" | "snapshotFullName" | "snapshotLocation" | "snapshotListLabel" | "snapshotMetadata" | "status" | "waMessageId" | "sentAt" | "deliveredAt" | "readAt" | "failedAt" | "errorCode" | "errorMessage" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappCampaignRecipient"]>
 export type WhatsappCampaignRecipientInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   campaign?: boolean | Prisma.WhatsappCampaignDefaultArgs<ExtArgs>
   contact?: boolean | Prisma.WhatsappContactDefaultArgs<ExtArgs>
@@ -1086,6 +1295,11 @@ export type $WhatsappCampaignRecipientPayload<ExtArgs extends runtime.Types.Exte
     id: string
     campaignId: string
     contactId: string
+    snapshotPhone: string | null
+    snapshotFullName: string | null
+    snapshotLocation: string | null
+    snapshotListLabel: string | null
+    snapshotMetadata: runtime.JsonValue | null
     status: $Enums.WhatsappRecipientStatus
     waMessageId: string | null
     sentAt: Date | null
@@ -1525,6 +1739,11 @@ export interface WhatsappCampaignRecipientFieldRefs {
   readonly id: Prisma.FieldRef<"WhatsappCampaignRecipient", 'String'>
   readonly campaignId: Prisma.FieldRef<"WhatsappCampaignRecipient", 'String'>
   readonly contactId: Prisma.FieldRef<"WhatsappCampaignRecipient", 'String'>
+  readonly snapshotPhone: Prisma.FieldRef<"WhatsappCampaignRecipient", 'String'>
+  readonly snapshotFullName: Prisma.FieldRef<"WhatsappCampaignRecipient", 'String'>
+  readonly snapshotLocation: Prisma.FieldRef<"WhatsappCampaignRecipient", 'String'>
+  readonly snapshotListLabel: Prisma.FieldRef<"WhatsappCampaignRecipient", 'String'>
+  readonly snapshotMetadata: Prisma.FieldRef<"WhatsappCampaignRecipient", 'Json'>
   readonly status: Prisma.FieldRef<"WhatsappCampaignRecipient", 'WhatsappRecipientStatus'>
   readonly waMessageId: Prisma.FieldRef<"WhatsappCampaignRecipient", 'String'>
   readonly sentAt: Prisma.FieldRef<"WhatsappCampaignRecipient", 'DateTime'>

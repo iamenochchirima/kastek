@@ -52,6 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
+  PushSubscription: 'PushSubscription',
   Account: 'Account',
   Session: 'Session',
   VerificationToken: 'VerificationToken',
@@ -115,6 +116,22 @@ export const UserScalarFieldEnum = {
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const PushSubscriptionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  endpoint: 'endpoint',
+  p256dh: 'p256dh',
+  auth: 'auth',
+  expirationTime: 'expirationTime',
+  userAgent: 'userAgent',
+  lastUsedAt: 'lastUsedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PushSubscriptionScalarFieldEnum = (typeof PushSubscriptionScalarFieldEnum)[keyof typeof PushSubscriptionScalarFieldEnum]
 
 
 export const AccountScalarFieldEnum = {
@@ -700,6 +717,11 @@ export const WhatsappCampaignRecipientScalarFieldEnum = {
   id: 'id',
   campaignId: 'campaignId',
   contactId: 'contactId',
+  snapshotPhone: 'snapshotPhone',
+  snapshotFullName: 'snapshotFullName',
+  snapshotLocation: 'snapshotLocation',
+  snapshotListLabel: 'snapshotListLabel',
+  snapshotMetadata: 'snapshotMetadata',
   status: 'status',
   waMessageId: 'waMessageId',
   sentAt: 'sentAt',

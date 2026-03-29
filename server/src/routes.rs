@@ -59,6 +59,16 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("", web::get().to(notifications::list))
                 .route("", web::post().to(notifications::action))
                 .route("/unread", web::get().to(notifications::unread))
+                .route("/push", web::get().to(notifications::push_status))
+                .route(
+                    "/push/subscribe",
+                    web::post().to(notifications::push_subscribe),
+                )
+                .route(
+                    "/push/unsubscribe",
+                    web::post().to(notifications::push_unsubscribe),
+                )
+                .route("/push/test", web::post().to(notifications::push_test))
                 .route("/{id}", web::patch().to(notifications::mark_read)),
         )
         .service(
@@ -192,7 +202,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::scope("/campaigns")
                         .route("", web::get().to(whatsapp::list_campaigns))
                         .route("", web::post().to(whatsapp::create_campaign))
-                        .route("/{id}/summary", web::get().to(whatsapp::get_campaign_summary))
+                        .route(
+                            "/{id}/summary",
+                            web::get().to(whatsapp::get_campaign_summary),
+                        )
                         .route("/{id}", web::get().to(whatsapp::get_campaign))
                         .route("/{id}", web::patch().to(whatsapp::update_campaign))
                         .route("/{id}", web::delete().to(whatsapp::delete_campaign))

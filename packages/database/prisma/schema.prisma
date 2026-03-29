@@ -33,9 +33,26 @@ model User {
   whatsappTemplates   WhatsappTemplate[]
   whatsappCampaigns   WhatsappCampaign[]
   whatsappSendEvents  WhatsappSendEvent[]
+  pushSubscriptions   PushSubscription[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model PushSubscription {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint       String   @unique @db.Text
+  p256dh         String   @db.Text
+  auth           String   @db.Text
+  expirationTime BigInt?
+  userAgent      String?  @db.Text
+  lastUsedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, updatedAt])
 }
 
 model Account {

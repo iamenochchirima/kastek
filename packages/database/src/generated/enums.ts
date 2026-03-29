@@ -160,6 +160,7 @@ export type WhatsappCampaignStatus = (typeof WhatsappCampaignStatus)[keyof typeo
 export const WhatsappRecipientStatus = {
   PENDING: 'PENDING',
   QUEUED: 'QUEUED',
+  PROCESSING: 'PROCESSING',
   SENT: 'SENT',
   DELIVERED: 'DELIVERED',
   READ: 'READ',

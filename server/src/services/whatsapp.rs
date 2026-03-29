@@ -6,6 +6,7 @@ use sqlx::{PgPool, Row};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration as StdDuration;
 
+use crate::config::AppConfig;
 use crate::db::models::{
     ConversationRow, ConversationUpdateRequest, InboxConversationListRow, MessageRow,
     WhatsappAudienceFilterRequest, WhatsappCampaignCreateRequest,
@@ -17,6 +18,7 @@ use crate::db::models::{
     WhatsappTemplateRow,
 };
 use crate::error::AppError;
+use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
 use crate::services::realtime;
 use crate::services::social::{decrypt_social_secret, encrypt_social_secret};
 
@@ -1127,12 +1129,36 @@ pub async fn list_contacts(
         "#,
     )
     .bind(user_id)
-    .bind(query.q.as_deref().map(str::trim).filter(|value| !value.is_empty()))
+    .bind(
+        query
+            .q
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty()),
+    )
     .bind(query.opt_in.as_deref())
     .bind(query.excluded.as_deref())
-    .bind(query.tag.as_deref().map(str::trim).filter(|value| !value.is_empty()))
-    .bind(query.location.as_deref().map(str::trim).filter(|value| !value.is_empty()))
-    .bind(query.list_label.as_deref().map(str::trim).filter(|value| !value.is_empty()))
+    .bind(
+        query
+            .tag
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty()),
+    )
+    .bind(
+        query
+            .location
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty()),
+    )
+    .bind(
+        query
+            .list_label
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty()),
+    )
     .bind(normalized_limit)
     .fetch_all(pool)
     .await?;
@@ -1710,9 +1736,10 @@ pub async fn import_contacts(
         ),
     ) in deduped
     {
-        let (contact_id, existing_opt_in_date) = if let Some(existing) = existing_by_phone.get(&phone) {
-            sqlx::query(
-                r#"
+        let (contact_id, existing_opt_in_date) =
+            if let Some(existing) = existing_by_phone.get(&phone) {
+                sqlx::query(
+                    r#"
                 UPDATE "WhatsappContact"
                 SET "fullName" = COALESCE("fullName", $1),
                     location = COALESCE(location, $2),
@@ -1728,43 +1755,43 @@ pub async fn import_contacts(
                     "updatedAt" = NOW()
                 WHERE id = $6
                 "#,
-            )
-            .bind(full_name.as_deref())
-            .bind(location.as_deref())
-            .bind(opt_in)
-            .bind(opt_in_source.as_deref())
-            .bind(opt_in_date)
-            .bind(&existing.id)
-            .execute(pool)
-            .await?;
-            (existing.id.clone(), existing.opt_in_date)
-        } else {
-            let contact_id = cuid2::create_id();
-            sqlx::query(
-                r#"
+                )
+                .bind(full_name.as_deref())
+                .bind(location.as_deref())
+                .bind(opt_in)
+                .bind(opt_in_source.as_deref())
+                .bind(opt_in_date)
+                .bind(&existing.id)
+                .execute(pool)
+                .await?;
+                (existing.id.clone(), existing.opt_in_date)
+            } else {
+                let contact_id = cuid2::create_id();
+                sqlx::query(
+                    r#"
                 INSERT INTO "WhatsappContact" (
                     id, "userId", phone, "fullName", tags, location, notes, "listLabel", metadata,
                     "optIn", "optInSource", "optInDate", excluded, "createdAt", "updatedAt"
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, false, NOW(), NOW())
                 "#,
-            )
-            .bind(&contact_id)
-            .bind(user_id)
-            .bind(&phone)
-            .bind(full_name.as_deref())
-            .bind(Vec::<String>::new())
-            .bind(location.as_deref())
-            .bind(None::<&str>)
-            .bind(&list_label)
-            .bind(None::<&Value>)
-            .bind(opt_in)
-            .bind(opt_in_source.as_deref())
-            .bind(opt_in_date)
-            .execute(pool)
-            .await?;
-            (contact_id, None)
-        };
+                )
+                .bind(&contact_id)
+                .bind(user_id)
+                .bind(&phone)
+                .bind(full_name.as_deref())
+                .bind(Vec::<String>::new())
+                .bind(location.as_deref())
+                .bind(None::<&str>)
+                .bind(&list_label)
+                .bind(None::<&Value>)
+                .bind(opt_in)
+                .bind(opt_in_source.as_deref())
+                .bind(opt_in_date)
+                .execute(pool)
+                .await?;
+                (contact_id, None)
+            };
 
         if let Some(existing_membership_id) =
             existing_membership_by_contact_and_label.get(&(contact_id.clone(), list_label.clone()))
@@ -2566,9 +2593,9 @@ pub async fn create_campaign(
     .await?;
 
     for contact_id in &eligible_ids {
-        let contact = filtered_contacts_by_id
-            .get(contact_id)
-            .ok_or_else(|| AppError::Internal("Failed to snapshot campaign recipient".to_string()))?;
+        let contact = filtered_contacts_by_id.get(contact_id).ok_or_else(|| {
+            AppError::Internal("Failed to snapshot campaign recipient".to_string())
+        })?;
         sqlx::query(
             r#"
             INSERT INTO "WhatsappCampaignRecipient" (
@@ -3168,7 +3195,8 @@ pub async fn recompute_campaign_stats(pool: &PgPool, campaign_id: &str) -> Resul
     for (status, count) in counts {
         map.insert(status, count as i32);
     }
-    let active_queue = map.get("QUEUED").copied().unwrap_or(0) + map.get("PROCESSING").copied().unwrap_or(0);
+    let active_queue =
+        map.get("QUEUED").copied().unwrap_or(0) + map.get("PROCESSING").copied().unwrap_or(0);
     let campaign = sqlx::query_scalar::<_, String>(
         r#"SELECT status::text FROM "WhatsappCampaign" WHERE id = $1"#,
     )
@@ -3314,8 +3342,8 @@ fn parse_failure_details(error: &AppError) -> (Option<String>, String, bool) {
         .and_then(|rest| rest.split(')').next())
         .map(|value| value.trim().to_string());
     let lower = message.to_lowercase();
-    let blocked = matches!(code.as_deref(), Some("131026") | Some("131048"))
-        || lower.contains("blocked");
+    let blocked =
+        matches!(code.as_deref(), Some("131026") | Some("131048")) || lower.contains("blocked");
     (code, message, blocked)
 }
 
@@ -3510,7 +3538,10 @@ async fn process_claimed_campaign_recipient(
         .await?;
 
         recompute_campaign_stats(pool, &recipient.campaign_id).await?;
-        return Ok(Some((campaign.user_id.clone(), recipient.campaign_id.clone())));
+        return Ok(Some((
+            campaign.user_id.clone(),
+            recipient.campaign_id.clone(),
+        )));
     }
 
     let (reason, eligible) = contact_eligible(&contact);
@@ -3537,7 +3568,10 @@ async fn process_claimed_campaign_recipient(
         .await?;
 
         recompute_campaign_stats(pool, &recipient.campaign_id).await?;
-        return Ok(Some((campaign.user_id.clone(), recipient.campaign_id.clone())));
+        return Ok(Some((
+            campaign.user_id.clone(),
+            recipient.campaign_id.clone(),
+        )));
     }
 
     let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!(
@@ -3548,7 +3582,10 @@ async fn process_claimed_campaign_recipient(
     .fetch_one(pool)
     .await?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
-    let mappings = campaign.variable_mappings.as_ref().and_then(|v| v.as_array());
+    let mappings = campaign
+        .variable_mappings
+        .as_ref()
+        .and_then(|v| v.as_array());
     let body_parameters = build_body_parameters(&contact, mappings);
 
     log::info!(
@@ -3702,7 +3739,10 @@ async fn process_claimed_campaign_recipient(
     }
 
     recompute_campaign_stats(pool, &recipient.campaign_id).await?;
-    Ok(Some((campaign.user_id.clone(), recipient.campaign_id.clone())))
+    Ok(Some((
+        campaign.user_id.clone(),
+        recipient.campaign_id.clone(),
+    )))
 }
 
 pub async fn process_queued_campaign_recipients(
@@ -4092,7 +4132,11 @@ fn parse_status_failure_details(status_payload: &Value) -> (Option<String>, Opti
     .collect::<Vec<_>>()
     .join(" | ");
 
-    let message = if message.is_empty() { None } else { Some(message) };
+    let message = if message.is_empty() {
+        None
+    } else {
+        Some(message)
+    };
 
     (code, message)
 }
@@ -4198,10 +4242,7 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
                 .await?;
 
                 if let Some(campaign) = campaign {
-                    let phone = recipient
-                        .snapshot_phone
-                        .clone()
-                        .unwrap_or_default();
+                    let phone = recipient.snapshot_phone.clone().unwrap_or_default();
                     sqlx::query(
                         r#"
                         INSERT INTO "WhatsappSendEvent" (
@@ -4321,7 +4362,11 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     Ok(())
 }
 
-async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), AppError> {
+async fn handle_incoming_messages(
+    pool: &PgPool,
+    config: &AppConfig,
+    value: &Value,
+) -> Result<(), AppError> {
     let phone_number_id = value
         .get("metadata")
         .and_then(|v| v.get("phone_number_id"))
@@ -4443,6 +4488,33 @@ async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), Ap
         .await?;
         publish_message_created(pool, &connection.user_id, &message_id).await?;
         publish_conversation_updated(pool, &connection.user_id, &conversation_id).await?;
+        if let Err(error) = send_push_notification_to_user(
+            pool,
+            config,
+            &connection.user_id,
+            PushNotificationPayload {
+                title: "New WhatsApp message".to_string(),
+                body: format!(
+                    "{}: {}",
+                    profile_name
+                        .as_deref()
+                        .filter(|value| !value.trim().is_empty())
+                        .unwrap_or(normalized_phone.as_str()),
+                    preview_text(&content, 120)
+                ),
+                url: "/inbox".to_string(),
+                tag: Some(format!("conversation:{conversation_id}")),
+            },
+        )
+        .await
+        {
+            log::warn!(
+                "failed to send push notification for incoming whatsapp message conversation_id={} user_id={}: {}",
+                conversation_id,
+                connection.user_id,
+                error
+            );
+        }
 
         let stop = text
             .as_deref()
@@ -4493,7 +4565,11 @@ async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), Ap
     Ok(())
 }
 
-pub async fn process_webhook_payload(pool: &PgPool, payload: Value) -> Result<(), AppError> {
+pub async fn process_webhook_payload(
+    pool: &PgPool,
+    config: &AppConfig,
+    payload: Value,
+) -> Result<(), AppError> {
     let entries = payload
         .get("entry")
         .and_then(|v| v.as_array())
@@ -4515,7 +4591,7 @@ pub async fn process_webhook_payload(pool: &PgPool, payload: Value) -> Result<()
             for status in statuses {
                 handle_status(pool, &status).await?;
             }
-            handle_incoming_messages(pool, &value).await?;
+            handle_incoming_messages(pool, config, &value).await?;
         }
     }
     Ok(())
@@ -5018,7 +5094,9 @@ async fn upload_whatsapp_media(
     let media_id = raw
         .get("id")
         .and_then(|value| value.as_str())
-        .ok_or_else(|| AppError::Internal("WhatsApp media upload did not return a media id".to_string()))?;
+        .ok_or_else(|| {
+            AppError::Internal("WhatsApp media upload did not return a media id".to_string())
+        })?;
 
     Ok((media_id.to_string(), raw))
 }
@@ -5799,8 +5877,9 @@ pub async fn send_conversation_media(
     let conversation = scoped_conversation(pool, user_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
-    let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
-        .ok_or_else(|| AppError::BadRequest("Invalid conversation".to_string()))?;
+    let (connection_id, phone) =
+        parse_conversation_identifier(&conversation.customer_identifier)
+            .ok_or_else(|| AppError::BadRequest("Invalid conversation".to_string()))?;
     let connection = get_connection_row(pool, user_id, &connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
@@ -5821,7 +5900,9 @@ pub async fn send_conversation_media(
             if let Some(disposition) = field.content_disposition() {
                 filename = disposition.get_filename().map(sanitize_filename);
             }
-            mime_type = field.content_type().map(|value| value.essence_str().to_string());
+            mime_type = field
+                .content_type()
+                .map(|value| value.essence_str().to_string());
         }
 
         let mut bytes = Vec::new();
