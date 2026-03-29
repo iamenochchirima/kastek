@@ -5,6 +5,7 @@ import { apiUrl } from "@/lib/server-api";
 import {
   fetchPushStatus,
   getLocalPushSupport,
+  type PushStatusResponse,
   urlBase64ToUint8Array,
 } from "@/components/dashboard/notifications/push-notification-client";
 
