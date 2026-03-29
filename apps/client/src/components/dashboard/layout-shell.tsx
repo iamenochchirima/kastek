@@ -45,7 +45,7 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
 };
 
-type ProductKey = "workspace" | "agents" | "reach" | "inbox";
+type ProductKey = "workspace" | "agents" | "reach" | "inbox" | "social";
 
 type ProductDefinition = {
   key: ProductKey | "social";
@@ -119,7 +119,14 @@ const products: ProductDefinition[] = [
     href: "/social",
     icon: Sparkles,
     accent: "text-primary",
-    nav: [],
+    nav: [
+      { name: "Overview", href: "/social", icon: LayoutGrid },
+      { name: "Planner", href: "/social/planner", icon: Sparkles },
+      { name: "Calendar", href: "/social/calendar", icon: Bell },
+      { name: "Posts", href: "/social/posts", icon: FileText },
+      { name: "Channels", href: "/social/channels", icon: Users },
+      { name: "Analytics", href: "/social/analytics", icon: Grid2x2 },
+    ],
   },
 ];
 
@@ -174,6 +181,10 @@ function resolveProduct(pathname: string): ProductDefinition {
 
   if (pathname.startsWith("/inbox") || pathname.startsWith("/dashboard/inbox")) {
     return products.find((product) => product.key === "inbox")!;
+  }
+
+  if (pathname.startsWith("/social")) {
+    return products.find((product) => product.key === "social")!;
   }
 
   return products.find((product) => product.key === "workspace")!;

@@ -1,4 +1,4 @@
-import { SocialLayoutShell } from "@/components/social/layout-shell";
+import { LayoutShell } from "@/components/dashboard/layout-shell";
 import ThemeScope from "@/components/theme-scope";
 import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
@@ -10,7 +10,7 @@ export default async function SocialLayout({ children }: { children: React.React
   return (
     <>
       <ThemeScope mode="stored" />
-      <SocialLayoutShell user={session.user}>{children}</SocialLayoutShell>
+      <LayoutShell user={session.user}>{children}</LayoutShell>
     </>
   );
 }
