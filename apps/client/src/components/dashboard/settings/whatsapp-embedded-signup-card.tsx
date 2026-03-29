@@ -392,7 +392,77 @@ export default function WhatsappEmbeddedSignupCard({
       {connections.length === 0 ? (
         <p className="text-sm text-muted-foreground">No WhatsApp numbers connected yet.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border">
+        <>
+        <div className="space-y-3 md:hidden">
+          {connections.map((connection) => (
+            <Fragment key={connection.id}>
+              <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                <div>
+                  <p className="font-medium text-foreground">
+                    {connection.phoneDisplayNumber || connection.phoneNumberId}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Quality: {connection.currentQualityRating} · Verified: {connection.verified ? "Yes" : "No"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Daily limit: {connection.dailyLimitEstimate || "-"}
+                  </p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => runHealthCheck(connection.id)}
+                    className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
+                    disabled={healthLoadingId === connection.id}
+                  >
+                    {healthLoadingId === connection.id ? "Checking..." : "Check health"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runConnectionAction(connection.id, "refresh")}
+                    className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
+                    disabled={actionLoadingKey === `${connection.id}:refresh`}
+                  >
+                    {actionLoadingKey === `${connection.id}:refresh` ? "Refreshing..." : "Refresh"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runConnectionAction(connection.id, "sync_templates")}
+                    className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
+                    disabled={actionLoadingKey === `${connection.id}:sync_templates`}
+                  >
+                    {actionLoadingKey === `${connection.id}:sync_templates` ? "Syncing..." : "Sync templates"}
+                  </button>
+                </div>
+                {healthByConnectionId[connection.id] ? (
+                  <div className="mt-3 space-y-1 rounded-lg border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+                    <p>
+                      Overall:{" "}
+                      <span
+                        className={
+                          healthByConnectionId[connection.id].healthy ? "text-green-300" : "text-red-300"
+                        }
+                      >
+                        {healthByConnectionId[connection.id].healthy ? "Healthy" : "Needs attention"}
+                      </span>
+                    </p>
+                    {healthByConnectionId[connection.id].steps.map((step) => (
+                      <p key={step.step}>
+                        {step.step}:{" "}
+                        <span className={step.ok ? "text-green-300" : "text-red-300"}>
+                          {step.ok ? "ok" : "failed"}
+                        </span>{" "}
+                        · {step.detail}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </Fragment>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
           <table className="w-full text-sm">
             <thead className="bg-secondary/40 text-muted-foreground">
               <tr>
@@ -484,6 +554,7 @@ export default function WhatsappEmbeddedSignupCard({
             </tbody>
           </table>
         </div>
+        </>
       )}
     </section>
   );

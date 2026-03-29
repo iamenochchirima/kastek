@@ -172,17 +172,23 @@ export function ChannelsManager() {
   }
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1400px] space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <Badge className="mb-2 border-primary/30 bg-primary/5 text-primary">Channels</Badge>
-            <h1 className="text-3xl font-semibold tracking-tight">Connect and manage publishing destinations.</h1>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Connect and manage publishing destinations.
+            </h1>
             <p className="mt-1 max-w-2xl text-muted-foreground">
               This is the control center for destination setup, OAuth placeholders, and channel-level publishing readiness.
             </p>
           </div>
-          <Button variant="outline" className="gap-2" onClick={() => void loadChannels()}>
+          <Button
+            variant="outline"
+            className="w-full gap-2 sm:w-auto"
+            onClick={() => void loadChannels()}
+          >
             <RefreshCcw className="h-4 w-4" />
             Refresh
           </Button>
@@ -239,10 +245,11 @@ export function ChannelsManager() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="grid gap-2 sm:flex sm:flex-wrap sm:justify-end">
                         <Button
                           variant="outline"
                           size="sm"
+                          className="w-full sm:w-auto"
                           onClick={() =>
                             void updateChannel(
                               channel.id,
@@ -255,7 +262,7 @@ export function ChannelsManager() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-muted-foreground hover:text-foreground"
+                          className="h-9 w-full text-muted-foreground hover:text-foreground sm:h-10 sm:w-10"
                           onClick={() => void deleteChannel(channel.id)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -288,7 +295,7 @@ export function ChannelsManager() {
                       {oauthHref ? (
                         <Link
                           href={oauthHref}
-                          className="flex w-full items-center justify-between rounded-xl border border-border/70 bg-secondary/30 p-4 text-left no-underline transition-colors hover:border-primary/30 hover:bg-secondary/50"
+                          className="flex w-full flex-col gap-3 rounded-xl border border-border/70 bg-secondary/30 p-4 text-left no-underline transition-colors hover:border-primary/30 hover:bg-secondary/50 sm:flex-row sm:items-center sm:justify-between"
                         >
                           <div className="flex items-start gap-3">
                             <div className={`rounded-md border p-2 ${getPlatformTone(platform)}`}>
@@ -305,7 +312,7 @@ export function ChannelsManager() {
                         <button
                           type="button"
                           onClick={() => handleQuickConnect(platform)}
-                          className="flex w-full items-center justify-between rounded-xl border border-border/70 bg-secondary/30 p-4 text-left transition-colors hover:border-primary/30 hover:bg-secondary/50"
+                          className="flex w-full flex-col gap-3 rounded-xl border border-border/70 bg-secondary/30 p-4 text-left transition-colors hover:border-primary/30 hover:bg-secondary/50 sm:flex-row sm:items-center sm:justify-between"
                         >
                           <div className="flex items-start gap-3">
                             <div className={`rounded-md border p-2 ${getPlatformTone(platform)}`}>

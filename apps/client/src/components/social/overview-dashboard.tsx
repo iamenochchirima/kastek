@@ -156,14 +156,14 @@ export function OverviewDashboard() {
                 </div>
               ) : (
                 upcoming.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between rounded-md bg-secondary/50 p-4">
+                  <div key={item.id} className="flex flex-col gap-3 rounded-md bg-secondary/50 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm font-medium text-foreground">{item.title || "Untitled post"}</p>
                       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
                         {item.channels.map(getPlatformLabel).join(", ")}
                       </p>
                     </div>
-                    <Badge className="border-accent/30 bg-accent/10 text-accent">
+                    <Badge className="w-fit border-accent/30 bg-accent/10 text-accent">
                       {formatDateTime(item.scheduledFor)}
                     </Badge>
                   </div>

@@ -36,12 +36,12 @@ const sections = [
 
 export default function ReachPage() {
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px] space-y-8">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">KasiReach</p>
-          <h1 className="mt-2 text-4xl font-semibold tracking-tight text-foreground">Outbound growth workspace</h1>
-          <p className="mt-3 max-w-3xl text-base leading-7 text-muted-foreground">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Outbound growth workspace</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
             Use Reach to manage audiences, message templates, and campaigns across outbound channels. When replies come in, hand off naturally into KasiInbox.
           </p>
         </div>
@@ -51,7 +51,7 @@ export default function ReachPage() {
             <Link
               key={section.title}
               href={section.href}
-              className="rounded-[28px] border border-border bg-card p-7 no-underline transition-all duration-200 hover:-translate-y-1 hover:border-primary/20 hover:bg-secondary/20"
+              className="rounded-[24px] border border-border bg-card p-5 no-underline transition-all duration-200 hover:-translate-y-1 hover:border-primary/20 hover:bg-secondary/20 sm:rounded-[28px] sm:p-7"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-secondary/50">
                 <section.icon className="h-5 w-5 text-primary" />

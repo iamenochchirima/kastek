@@ -12,9 +12,6 @@ import {
 export default function PushNotificationSettings() {
   const support = useMemo(() => getLocalPushSupport(), []);
   const [status, setStatus] = useState<PushStatusResponse | null>(null);
-  const [permission, setPermission] = useState<NotificationPermission>(() =>
-    typeof window !== "undefined" && "Notification" in window ? window.Notification.permission : "default",
-  );
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +61,6 @@ export default function PushNotificationSettings() {
 
     try {
       const nextPermission = await window.Notification.requestPermission();
-      setPermission(nextPermission);
       if (nextPermission !== "granted") {
         throw new Error("Notification permission was not granted.");
       }

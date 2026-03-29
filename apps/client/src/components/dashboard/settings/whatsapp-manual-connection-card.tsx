@@ -336,7 +336,118 @@ export default function WhatsappManualConnectionCard({
         {connections.length === 0 ? (
           <p className="text-sm text-muted-foreground">No WhatsApp numbers connected yet.</p>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border">
+          <>
+          <div className="space-y-3 md:hidden">
+            {connections.map((connection) => (
+              <Fragment key={connection.id}>
+                <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">
+                        {connection.phoneDisplayNumber || connection.phoneNumberId}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Quality: {connection.currentQualityRating} · Verified: {connection.verified ? "Yes" : "No"}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Daily limit: {connection.dailyLimitEstimate || "-"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => runHealthCheck(connection.id)}
+                      className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
+                      disabled={healthLoadingId === connection.id}
+                    >
+                      {healthLoadingId === connection.id ? "Checking..." : "Check health"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => runConnectionAction(connection.id, "refresh")}
+                      className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
+                      disabled={actionLoadingKey === `${connection.id}:refresh`}
+                    >
+                      {actionLoadingKey === `${connection.id}:refresh` ? "Refreshing..." : "Refresh"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => runConnectionAction(connection.id, "sync_templates")}
+                      className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
+                      disabled={actionLoadingKey === `${connection.id}:sync_templates`}
+                    >
+                      {actionLoadingKey === `${connection.id}:sync_templates` ? "Syncing..." : "Sync templates"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingTokenConnectionId((current) =>
+                          current === connection.id ? null : connection.id
+                        );
+                        setUpdatedAccessToken("");
+                      }}
+                      className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
+                    >
+                      {editingTokenConnectionId === connection.id ? "Cancel" : "Update token"}
+                    </button>
+                  </div>
+                  {editingTokenConnectionId === connection.id ? (
+                    <div className="mt-3 space-y-3 rounded-lg border border-border bg-background/40 p-3">
+                      <p className="text-sm font-medium text-foreground">Rotate access token</p>
+                      <textarea
+                        value={updatedAccessToken}
+                        onChange={(event) => setUpdatedAccessToken(event.target.value)}
+                        rows={4}
+                        placeholder="Paste your new Meta access token"
+                        className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => updateAccessToken(connection.id)}
+                          disabled={
+                            tokenUpdateLoadingId === connection.id ||
+                            !updatedAccessToken.trim()
+                          }
+                          className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {tokenUpdateLoadingId === connection.id ? "Updating..." : "Save new token"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {healthByConnectionId[connection.id] ? (
+                    <div className="mt-3 space-y-1 rounded-lg border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+                      <p>
+                        Overall:{" "}
+                        <span
+                          className={
+                            healthByConnectionId[connection.id].healthy
+                              ? "text-green-300"
+                              : "text-red-300"
+                          }
+                        >
+                          {healthByConnectionId[connection.id].healthy ? "Healthy" : "Needs attention"}
+                        </span>
+                      </p>
+                      {healthByConnectionId[connection.id].steps.map((step) => (
+                        <p key={step.step}>
+                          {step.step}:{" "}
+                          <span className={step.ok ? "text-green-300" : "text-red-300"}>
+                            {step.ok ? "ok" : "failed"}
+                          </span>{" "}
+                          · {step.detail}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </Fragment>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
             <table className="w-full text-sm">
               <thead className="bg-secondary/50 text-muted-foreground">
                 <tr>
@@ -482,6 +593,7 @@ export default function WhatsappManualConnectionCard({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </section>

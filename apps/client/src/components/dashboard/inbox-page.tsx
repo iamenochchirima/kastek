@@ -1240,7 +1240,7 @@ export default function InboxPageClient({
 
   return (
     <TooltipProvider>
-      <div className="relative flex h-screen overflow-hidden">
+      <div className="relative flex h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden lg:h-[100dvh]">
         <Sheet open={mobileChannelPanelOpen} onOpenChange={setMobileChannelPanelOpen}>
           <SheetContent side="left" className="flex w-[min(320px,100vw)] flex-col p-0 lg:hidden">
             {renderChannelPanelContent()}
@@ -1262,7 +1262,7 @@ export default function InboxPageClient({
 
         <div
           className={cn(
-            "shrink-0 flex-col border-r border-border bg-card",
+            "min-h-0 shrink-0 flex-col border-r border-border bg-card",
             mobileConversationOpen ? "hidden md:flex" : "flex w-full",
             "md:w-[360px] lg:w-96",
           )}
@@ -1308,7 +1308,7 @@ export default function InboxPageClient({
             </div>
           </div>
 
-          <ScrollArea className="flex-1">
+          <ScrollArea className="min-h-0 flex-1">
             <div className="p-2">
               {selectedChannel !== "all" && selectedChannelMeta.disabled ? (
                 <div className="flex flex-col items-center justify-center py-14 text-center">
@@ -1499,7 +1499,12 @@ export default function InboxPageClient({
           </ScrollArea>
         </div>
 
-        <div className={cn("flex flex-1 flex-col bg-background", mobileConversationOpen ? "flex" : "hidden md:flex")}>
+        <div
+          className={cn(
+            "min-h-0 flex flex-1 flex-col bg-background",
+            mobileConversationOpen ? "flex" : "hidden md:flex",
+          )}
+        >
           <div className="flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-6">
             {selectedConversation ? (
               <>
@@ -1622,7 +1627,7 @@ export default function InboxPageClient({
             ) : null}
           </div>
 
-          <ScrollArea className="flex-1 p-3 sm:p-6">
+          <ScrollArea className="min-h-0 flex-1 p-3 sm:p-6">
             <div className="mx-auto max-w-3xl space-y-4">
               <div className="flex items-center gap-4 py-2">
                 <div className="h-px flex-1 bg-border" />
@@ -1795,7 +1800,7 @@ export default function InboxPageClient({
             />
           ) : null}
 
-          <div className="border-t border-border bg-card p-3 sm:p-4">
+          <div className="border-t border-border bg-card p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
             <div className="mx-auto max-w-3xl">
               {composerError ? (
                 <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">

@@ -375,7 +375,7 @@ export default function CampaignCreateForm({
           </label>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-border bg-secondary/20 p-4">
             <div className="text-xs text-muted-foreground">Generated campaign name</div>
             <div className="mt-1 text-lg font-semibold text-foreground">{generatedCampaignName || "-"}</div>
@@ -496,7 +496,7 @@ export default function CampaignCreateForm({
       ) : null}
 
       <section className="rounded-2xl border border-border bg-card p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Exclude specific numbers</h2>
             <p className="text-sm text-muted-foreground">
@@ -520,7 +520,7 @@ export default function CampaignCreateForm({
                 return (
                   <div
                     key={contact.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 px-3 py-3"
+                    className="flex flex-col gap-3 rounded-lg border border-border bg-secondary/30 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
                       <div className="font-medium text-foreground">{contact.fullName || contact.phone}</div>
@@ -532,7 +532,7 @@ export default function CampaignCreateForm({
                     <button
                       type="button"
                       onClick={() => toggleExcluded(contact.id)}
-                      className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                      className={`w-full rounded-md px-3 py-1.5 text-xs font-medium sm:w-auto ${
                         isExcluded
                           ? "border border-red-500/30 bg-red-500/10 text-red-200"
                           : "border border-border bg-secondary/60 text-foreground"
@@ -553,7 +553,10 @@ export default function CampaignCreateForm({
                 <p className="text-sm text-muted-foreground">No excluded contacts yet.</p>
               ) : (
                 excludedContacts.map((contact) => (
-                  <div key={contact.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
+                  <div
+                    key={contact.id}
+                    className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                  >
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-foreground">
                         {contact.fullName || contact.phone}
@@ -563,7 +566,7 @@ export default function CampaignCreateForm({
                     <button
                       type="button"
                       onClick={() => toggleExcluded(contact.id)}
-                      className="rounded-md border border-border bg-secondary/60 px-2.5 py-1 text-xs text-foreground"
+                      className="w-full rounded-md border border-border bg-secondary/60 px-2.5 py-1 text-xs text-foreground sm:w-auto"
                     >
                       Remove
                     </button>
@@ -576,7 +579,7 @@ export default function CampaignCreateForm({
       </section>
 
       {step === "setup" ? (
-        <div className="flex justify-end gap-3">
+        <div className="grid gap-3 sm:flex sm:justify-end">
           <Button type="button" variant="outline" onClick={() => router.push("/reach/campaigns")}>
             Cancel
           </Button>
@@ -604,7 +607,7 @@ export default function CampaignCreateForm({
             <SummaryItem label="Send now" value={String(selectedBatchSize)} />
             <SummaryItem label="Excluded" value={String(excludedContactIds.length)} />
           </div>
-          <div className="mt-5 flex justify-end gap-3">
+          <div className="mt-5 grid gap-3 sm:flex sm:justify-end">
             <Button type="button" variant="outline" onClick={() => setStep("setup")}>
               Back
             </Button>

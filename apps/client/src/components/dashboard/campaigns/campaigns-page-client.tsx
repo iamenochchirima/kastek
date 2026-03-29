@@ -107,7 +107,7 @@ export default function CampaignsPageClient({
   }, [campaigns, query]);
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1400px] space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -117,7 +117,7 @@ export default function CampaignsPageClient({
             </p>
           </div>
           <Link href="/reach/campaigns/create" className="no-underline">
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4" />
               Create Campaign
             </Button>
@@ -145,7 +145,66 @@ export default function CampaignsPageClient({
         ) : (
           <Card>
             <CardContent className="p-0">
-              <div className="overflow-hidden rounded-xl">
+              <div className="space-y-3 p-4 md:hidden">
+                {filteredCampaigns.map((campaign) => {
+                  const progress = campaignProgress(campaign);
+                  const remaining = remainingRecipients(campaign);
+
+                  return (
+                    <button
+                      key={campaign.id}
+                      type="button"
+                      onClick={() => {
+                        window.location.href = `/reach/campaigns/${campaign.id}`;
+                      }}
+                      className="w-full rounded-xl border border-border bg-secondary/30 p-4 text-left transition-colors hover:bg-secondary/45"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-foreground">{campaign.name}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {campaign.templateName} · {campaign.connectionLabel || "No connection"}
+                          </div>
+                        </div>
+                        <Badge className={statusTone(campaign.status)}>
+                          {campaign.status === "SENDING" ? (
+                            <Zap className="h-3 w-3" />
+                          ) : campaign.status === "PAUSED" ? (
+                            <Pause className="h-3 w-3" />
+                          ) : campaign.status === "COMPLETED" ? (
+                            <RefreshCw className="h-3 w-3" />
+                          ) : (
+                            <Square className="h-3 w-3" />
+                          )}
+                          {campaign.status}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <MiniMetric label="Recipients" value={campaign.totalRecipients.toLocaleString("en-ZA")} />
+                        <MiniMetric label="Sent" value={campaign.sentCount.toLocaleString("en-ZA")} />
+                        <MiniMetric label="Delivered" value={campaign.deliveredCount.toLocaleString("en-ZA")} />
+                        <MiniMetric label="Read" value={campaign.readCount.toLocaleString("en-ZA")} />
+                        <MiniMetric label="Failed" value={(campaign.failedCount + campaign.blockedCount).toLocaleString("en-ZA")} />
+                        <MiniMetric label="Remaining" value={remaining.toLocaleString("en-ZA")} />
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Progress</span>
+                          <span className="font-medium text-foreground">{progress}%</span>
+                        </div>
+                        <Progress value={progress} />
+                        <p className="text-xs text-muted-foreground">
+                          {campaign.scheduledAt ? formatDate(campaign.scheduledAt) : "No schedule"}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="hidden overflow-x-auto rounded-xl md:block">
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/40 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
@@ -230,6 +289,15 @@ export default function CampaignsPageClient({
           </Card>
         )}
       </div>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-background/30 px-3 py-2">
+      <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
+      <div className="mt-1 font-medium text-foreground">{value}</div>
     </div>
   );
 }

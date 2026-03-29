@@ -524,7 +524,7 @@ export function PostsWorkspace() {
   }
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1520px] space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -534,12 +534,12 @@ export function PostsWorkspace() {
               Each post now has a master draft plus editable platform variants, so LinkedIn can be more developed while X stays compact.
             </p>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" className="gap-2" onClick={() => void loadData()}>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button variant="outline" className="w-full gap-2 sm:w-auto" onClick={() => void loadData()}>
               <CalendarClock className="h-4 w-4" />
               Refresh
             </Button>
-            <Button className="gap-2" onClick={openNewComposer}>
+            <Button className="w-full gap-2 sm:w-auto" onClick={openNewComposer}>
               <Wand2 className="h-4 w-4" />
               New AI Draft
             </Button>
@@ -783,7 +783,7 @@ export function PostsWorkspace() {
                           </div>
                         ) : null}
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="grid w-full gap-2 sm:flex sm:flex-wrap sm:items-center lg:w-auto">
                         {supportedManualPublishPlatforms.map((platform) => {
                           if (!post.channels.includes(platform)) return null;
 
@@ -865,7 +865,7 @@ export function PostsWorkspace() {
         <div className="fixed inset-0 z-50">
           <button type="button" className="absolute inset-0 bg-black/55" onClick={() => setIsComposerOpen(false)} aria-label="Close composer" />
           <div className="absolute inset-y-0 right-0 w-full max-w-[760px] overflow-y-auto border-l border-border bg-card shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
               <div>
                 <p className="text-lg font-semibold text-foreground">{composer.id ? "Edit Post" : "New Post"}</p>
                 <p className="text-sm text-muted-foreground">Build the master post, then refine each platform variant before one-click publishing.</p>
@@ -875,7 +875,7 @@ export function PostsWorkspace() {
               </Button>
             </div>
 
-            <div className="space-y-5 px-6 py-6">
+            <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6">
               <label className="block space-y-2">
                 <span className="text-sm text-muted-foreground">Title</span>
                 <Input value={composer.title} onChange={(event) => setComposer((current) => ({ ...current, title: event.target.value }))} placeholder="Sunday special launch" />

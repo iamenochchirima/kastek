@@ -200,10 +200,12 @@ function ProductSwitcher({
   currentProduct,
   open,
   onClose,
+  onNavigate,
 }: {
   currentProduct: ProductDefinition;
   open: boolean;
   onClose: () => void;
+  onNavigate?: () => void;
 }) {
   const inboxUnreadCount = useWhatsappInboxUnreadCount();
   if (!open) return null;
@@ -243,7 +245,10 @@ function ProductSwitcher({
                 <Link
                   key={product.key}
                   href={product.href}
-                  onClick={onClose}
+                  onClick={() => {
+                    onNavigate?.();
+                    onClose();
+                  }}
                   className={cn(
                     "rounded-xl border p-4 no-underline transition-all duration-200 sm:p-5",
                     active
@@ -572,19 +577,29 @@ export function LayoutShell({
         <ProductSwitcher
           currentProduct={currentProduct}
           open={switcherOpen}
-          onClose={() => setSwitcherOpen(false)}
+          onNavigate={() => {
+            setMobileSheetOpen(false);
+            setSwitcherOpen(false);
+          }}
+          onClose={() => {
+            setSwitcherOpen(false);
+            setMobileSheetOpen(false);
+          }}
         />
 
         <div className="dashboard-theme flex h-screen bg-background">
           <aside className={cn("hidden lg:flex lg:flex-col", collapsed ? "w-[72px]" : "w-64")}>
-            <SidebarContent
-              collapsed={collapsed}
-              setCollapsed={setCollapsed}
-              user={user}
-              hasPwaUpdate={hasPwaUpdate}
-              onOpenSwitcher={() => setSwitcherOpen(true)}
-            />
-          </aside>
+              <SidebarContent
+                collapsed={collapsed}
+                setCollapsed={setCollapsed}
+                user={user}
+                hasPwaUpdate={hasPwaUpdate}
+                onOpenSwitcher={() => {
+                  setMobileSheetOpen(false);
+                  setSwitcherOpen(true);
+                }}
+              />
+            </aside>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
             <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
               <div className="flex min-w-0 items-center gap-2">
@@ -595,7 +610,10 @@ export function LayoutShell({
                 </SheetTrigger>
                 <button
                   type="button"
-                  onClick={() => setSwitcherOpen(true)}
+                  onClick={() => {
+                    setMobileSheetOpen(false);
+                    setSwitcherOpen(true);
+                  }}
                   className="flex min-w-0 items-center gap-2 text-left"
                 >
                   <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
@@ -607,7 +625,15 @@ export function LayoutShell({
                   </div>
                 </button>
               </div>
-              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setSwitcherOpen(true)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => {
+                  setMobileSheetOpen(false);
+                  setSwitcherOpen(true);
+                }}
+              >
                 <span className="relative">
                   <Grid2x2 className="h-4 w-4" />
                   {hasPwaUpdate ? (
@@ -621,7 +647,10 @@ export function LayoutShell({
                 collapsed={false}
                 user={user}
                 hasPwaUpdate={hasPwaUpdate}
-                onOpenSwitcher={() => setSwitcherOpen(true)}
+                onOpenSwitcher={() => {
+                  setMobileSheetOpen(false);
+                  setSwitcherOpen(true);
+                }}
                 onNavigate={() => setMobileSheetOpen(false)}
               />
             </SheetContent>

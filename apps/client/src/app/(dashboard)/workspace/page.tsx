@@ -123,15 +123,15 @@ export default async function WorkspacePage() {
       : 0;
 
   return (
-    <div className="space-y-8 p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:space-y-8 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px] space-y-8">
-        <section className="rounded-2xl border border-border bg-card p-7">
+        <section className="rounded-2xl border border-border bg-card p-5 sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="max-w-3xl">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
                 Workspace Pulse
               </div>
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 Welcome back, {session.user.name ?? "there"}
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
@@ -142,7 +142,7 @@ export default async function WorkspacePage() {
 
             <Link
               href="/reach/campaigns/create"
-              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground no-underline transition-all hover:-translate-y-0.5 hover:bg-primary/90"
+              className="w-full rounded-full bg-primary px-5 py-2.5 text-center text-sm font-semibold text-primary-foreground no-underline transition-all hover:-translate-y-0.5 hover:bg-primary/90 sm:w-auto"
             >
               Launch Campaign
             </Link>

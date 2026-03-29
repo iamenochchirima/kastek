@@ -495,10 +495,10 @@ export default function ContactsManager({
   }
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px] space-y-6">
         <div>
-          <h1 className="mb-2 text-3xl font-semibold tracking-tight text-foreground">Contacts</h1>
+          <h1 className="mb-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Contacts</h1>
           <p className="text-muted-foreground">
             Manage named contact lists, upload CSVs with arbitrary fields, and keep campaign targeting clean.
           </p>
@@ -544,13 +544,13 @@ export default function ContactsManager({
                     excluded: "all",
                   });
                 }}
-                className="flex w-full gap-3 sm:w-auto"
+                className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row"
               >
                 <input
                   name="q"
                   defaultValue={filters.q}
                   placeholder="Search list, phone, name, field"
-                  className="w-full min-w-[280px] rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground sm:w-[360px]"
+                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground sm:w-[360px]"
                 />
                 <button
                   type="submit"
@@ -589,7 +589,54 @@ export default function ContactsManager({
               No contact lists yet. Use <span className="font-medium text-foreground">Create</span> to import your first one.
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border">
+            <>
+            <div className="space-y-3 md:hidden">
+              {sortedLists.map((list) => (
+                <button
+                  key={list.label}
+                  type="button"
+                  onClick={() => navigate({ listLabel: list.label })}
+                  className="w-full rounded-xl border border-border bg-secondary/30 p-4 text-left transition-colors hover:bg-secondary/45"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-foreground">{list.label}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {list.primaryLocation || "No shared location"}
+                      </div>
+                    </div>
+                    <div className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground">
+                      {list.totalContacts}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {list.metadataKeys.length > 0 ? (
+                      list.metadataKeys.map((key) => (
+                        <span
+                          key={key}
+                          className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-xs text-muted-foreground"
+                        >
+                          {key}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No extra fields</span>
+                    )}
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <ListActionsMenu
+                      label={list.label}
+                      onAddContacts={prepareAddContacts}
+                      onDownload={downloadListCsv}
+                      onRename={openRenameModal}
+                      onDelete={openDeleteModal}
+                    />
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
               <table className="w-full text-sm">
                 <thead className="bg-secondary/40 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
@@ -647,6 +694,7 @@ export default function ContactsManager({
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </section>
 
@@ -763,7 +811,7 @@ export default function ContactsManager({
 
         {showImportModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
-            <div className="w-full max-w-2xl rounded-2xl border border-border bg-background p-6">
+            <div className="w-full max-w-2xl rounded-2xl border border-border bg-background p-4 sm:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-semibold text-foreground">Create or import contacts</h2>
@@ -868,6 +916,43 @@ export default function ContactsManager({
                 <div className="px-6 py-10 text-sm text-muted-foreground">No contacts matched that search.</div>
               ) : (
                 <div className="flex-1 overflow-auto">
+                  <div className="space-y-3 p-4 md:hidden">
+                    {searchResults.map((contact) => (
+                      <div key={contact.id} className="rounded-xl border border-border bg-secondary/20 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-medium text-foreground">{contact.fullName || "-"}</div>
+                            <div className="mt-1 text-sm text-foreground">{contact.phone}</div>
+                          </div>
+                          <div className="text-right text-xs text-muted-foreground">
+                            <div>{contact.listLabel}</div>
+                            <div className="mt-1">{contact.location || "-"}</div>
+                          </div>
+                        </div>
+                        <div className="mt-3 text-xs text-muted-foreground">
+                          {contact.tags.length ? contact.tags.join(", ") : "No tags"}
+                        </div>
+                        <div className="mt-4 flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => navigate({ q: "", listLabel: contact.listLabel })}
+                            className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+                          >
+                            Open list
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(contact)}
+                            className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden overflow-x-auto md:block">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-secondary/80 text-muted-foreground backdrop-blur">
                       <tr>
@@ -917,6 +1002,7 @@ export default function ContactsManager({
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -935,7 +1021,7 @@ export default function ContactsManager({
                     Viewing one contact list with its own field layout.
                   </p>
                   <div className="mt-4 flex flex-wrap items-end gap-3">
-                    <label className="min-w-[280px] space-y-2 text-sm">
+                    <label className="w-full space-y-2 text-sm sm:max-w-[280px]">
                       <span className="block text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                         Switch list
                       </span>
@@ -957,7 +1043,7 @@ export default function ContactsManager({
                         {activeList.totalContacts} contacts in this list
                       </p>
                     ) : null}
-                    <label className="min-w-[320px] space-y-2 text-sm">
+                    <label className="w-full space-y-2 text-sm sm:max-w-[320px]">
                       <span className="block text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                         Search this list
                       </span>
@@ -994,6 +1080,44 @@ export default function ContactsManager({
                 </div>
               ) : (
                 <div className="flex-1 overflow-auto">
+                  <div className="space-y-3 p-4 md:hidden">
+                    {filteredListContacts.map((contact) => (
+                      <div key={contact.id} className="rounded-xl border border-border bg-secondary/20 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-medium text-foreground">{contact.fullName || "-"}</div>
+                            <div className="mt-1 text-sm text-foreground">{contact.phone}</div>
+                            <div className="mt-1 text-xs text-muted-foreground">{contact.location || "-"}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(contact)}
+                            className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                        {metadataColumns.length > 0 ? (
+                          <div className="mt-3 grid gap-2">
+                            {metadataColumns.map((key) => (
+                              <div key={key} className="text-xs text-muted-foreground">
+                                <span className="font-medium text-foreground">{key}: </span>
+                                {typeof contact.metadata?.[key] === "string" ? contact.metadata[key] : "-"}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="mt-3 text-xs text-muted-foreground">
+                          Tags: {contact.tags.length ? contact.tags.join(", ") : "-"}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Excluded: {contact.excluded ? "Yes" : "No"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden overflow-x-auto md:block">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-secondary/80 text-muted-foreground backdrop-blur">
                       <tr>
@@ -1044,6 +1168,7 @@ export default function ContactsManager({
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               )}
             </div>

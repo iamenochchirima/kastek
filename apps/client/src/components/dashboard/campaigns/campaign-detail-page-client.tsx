@@ -696,14 +696,14 @@ export default function CampaignDetailPageClient({
     liveCampaign.status === "FAILED";
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px] space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <Link href="/reach/campaigns" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
               Back to campaigns
             </Link>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{liveCampaign.name}</h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{liveCampaign.name}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Template: {liveCampaign.templateName} · {liveCampaign.templateLanguage} · {liveCampaign.connectionLabel || "No connection"}
             </p>
@@ -726,7 +726,7 @@ export default function CampaignDetailPageClient({
           </div>
         )}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <section className="grid gap-4 grid-cols-2 xl:grid-cols-6">
           <MetricCard label="Recipients" value={effectiveCampaign.totalRecipients} />
           <MetricCard label="Sent" value={effectiveCampaign.sentCount} />
           <MetricCard label="Delivered" value={effectiveCampaign.deliveredCount} />
@@ -749,7 +749,7 @@ export default function CampaignDetailPageClient({
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-4 grid-cols-2 xl:grid-cols-5">
               <MetricCard label="Processed" value={processedCount} />
               <MetricCard label="Active queue" value={activeQueueCount} />
               <MetricCard label="Still pending" value={pendingCount} />
@@ -787,7 +787,7 @@ export default function CampaignDetailPageClient({
 
               <div className="rounded-xl border border-border bg-secondary/20 p-4">
                 <div className="text-sm font-semibold text-foreground">Recipient state breakdown</div>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-2">
                   <MiniStat label="Pending" value={pendingCount} />
                   <MiniStat label="Queued" value={queuedCount} />
                   <MiniStat label="Processing" value={processingCount} />
@@ -821,7 +821,7 @@ export default function CampaignDetailPageClient({
 
               <div className="rounded-xl border border-border bg-secondary/20 p-4">
                 <div className="text-sm font-semibold text-foreground">Actions</div>
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap">
                   {launchable ? (
                     <>
                       <Input
@@ -920,7 +920,52 @@ export default function CampaignDetailPageClient({
                 Per-recipient delivery state for this campaign.
               </p>
             </div>
-            <div className="overflow-auto">
+            <div className="space-y-3 p-4 md:hidden">
+              {liveRecipients.map((recipient, index) => (
+                <div key={recipient.id} className="rounded-xl border border-border bg-secondary/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-foreground">
+                        {index + 1}. {recipient.contactFullName || recipient.contactPhone}
+                      </div>
+                      <div className="mt-1 text-sm text-foreground">{recipient.contactPhone}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {recipient.contactListLabel} · {recipient.contactLocation || "-"}
+                      </div>
+                    </div>
+                    <Badge className={recipientTone(recipient.status)}>{recipient.status}</Badge>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <div>Sent: {formatDate(recipient.sentAt)}</div>
+                    <div>Delivered: {formatDate(recipient.deliveredAt)}</div>
+                    <div>Read: {formatDate(recipient.readAt)}</div>
+                    <div>Error: {recipientErrorText(recipient) || "-"}</div>
+                  </div>
+
+                  {recipient.contactMetadata && Object.keys(recipient.contactMetadata).length > 0 ? (
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      {Object.entries(recipient.contactMetadata)
+                        .slice(0, 4)
+                        .map(([key, value]) => `${key}: ${value}`)
+                        .join(" · ")}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setPreviewRecipient(recipient)}>
+                      View message
+                    </Button>
+                    {recipientErrorText(recipient) ? (
+                      <Button variant="outline" size="sm" onClick={() => setErrorPreviewRecipient(recipient)}>
+                        View error
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-auto md:block">
               <table className="w-full text-sm">
                 <thead className="bg-secondary/40 text-left text-muted-foreground">
                   <tr>
