@@ -195,13 +195,6 @@ export default function PushNotificationSettings() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatusTile label="Server" value={status?.configured ? "Configured" : "Missing keys"} />
-          <StatusTile label="Permission" value={permission} />
-          <StatusTile label="Secure context" value={support.secureContext ? "Yes" : "No"} />
-          <StatusTile label="Installed app" value={support.standalone ? "Yes" : "Browser tab"} />
-        </div>
-
         <div className="mt-5 flex flex-wrap gap-3">
           <button
             type="button"
@@ -236,20 +229,10 @@ export default function PushNotificationSettings() {
       <section className="rounded-2xl border border-border bg-card p-5">
         <h2 className="text-lg font-semibold text-foreground">What to expect</h2>
         <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-          <p>Android browsers support web push directly once permission is granted.</p>
-          <p>On iPhone and iPad, install the PWA to the Home Screen first, then enable notifications from inside the installed app.</p>
-          <p>Right now this is wired to incoming WhatsApp inbox messages and also includes a manual test send.</p>
+          <p>Android: enable notifications and you are done.</p>
+          <p>iPhone/iPad: install the app first, then enable notifications.</p>
         </div>
       </section>
-    </div>
-  );
-}
-
-function StatusTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-secondary/30 p-4">
-      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }
