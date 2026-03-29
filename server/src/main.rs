@@ -87,6 +87,29 @@ async fn run_whatsapp_inbox_worker(pool: sqlx::PgPool) {
     }
 }
 
+fn env_flag(name: &str) -> bool {
+    matches!(
+        std::env::var(name),
+        Ok(value)
+            if matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+    )
+}
+
+fn background_workers_enabled_for_api() -> bool {
+    !env_flag("KASITEK_DISABLE_BACKGROUND_WORKERS")
+}
+
+fn spawn_background_workers(pool: sqlx::PgPool) {
+    log::info!("starting background workers in api server process");
+
+    tokio::spawn(run_whatsapp_inbox_worker(pool.clone()));
+    tokio::spawn(run_social_worker(pool.clone()));
+    tokio::spawn(run_whatsapp_marketing_worker(pool));
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
@@ -130,6 +153,14 @@ async fn main() -> std::io::Result<()> {
 
     let port = config.port;
     let frontend_origin = config.frontend_url.clone();
+
+    if background_workers_enabled_for_api() {
+        spawn_background_workers(db_pool.clone());
+    } else {
+        log::info!(
+            "background workers disabled for api server process; queued jobs require a separate worker deployment"
+        );
+    }
 
     log::info!("starting kasitek server on port {}", port);
 

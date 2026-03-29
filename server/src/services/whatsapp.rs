@@ -1,18 +1,20 @@
 use actix_multipart::Multipart;
-use chrono::Utc;
+use chrono::{Duration as ChronoDuration, Utc};
 use futures_util::StreamExt;
 use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 use std::collections::{HashMap, HashSet};
+use std::time::Duration as StdDuration;
 
 use crate::db::models::{
-    ConversationRow, ConversationUpdateRequest, MessageRow, WhatsappAudienceFilterRequest,
-    WhatsappCampaignCreateRequest, WhatsappCampaignRecipientDetailRow,
-    WhatsappCampaignRecipientRow, WhatsappCampaignRow, WhatsappConnectionPublic,
-    WhatsappConnectionRow, WhatsappContactImportInvalidRow, WhatsappContactListQuery,
-    WhatsappContactListRenameRequest, WhatsappContactRow, WhatsappContactUpdateRequest,
-    WhatsappListContactRow, WhatsappReactionRequest, WhatsappSendMessageRequest,
-    WhatsappStartConversationRequest, WhatsappTemplateListQuery, WhatsappTemplateRow,
+    ConversationRow, ConversationUpdateRequest, InboxConversationListRow, MessageRow,
+    WhatsappAudienceFilterRequest, WhatsappCampaignCreateRequest,
+    WhatsappCampaignRecipientDetailRow, WhatsappCampaignRecipientRow, WhatsappCampaignRow,
+    WhatsappConnectionPublic, WhatsappConnectionRow, WhatsappContactImportInvalidRow,
+    WhatsappContactListQuery, WhatsappContactListRenameRequest, WhatsappContactRow,
+    WhatsappContactUpdateRequest, WhatsappListContactRow, WhatsappReactionRequest,
+    WhatsappSendMessageRequest, WhatsappStartConversationRequest, WhatsappTemplateListQuery,
+    WhatsappTemplateRow,
 };
 use crate::error::AppError;
 use crate::services::realtime;
@@ -109,6 +111,31 @@ fn default_daily_limit() -> i32 {
         .ok()
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(250)
+}
+
+fn whatsapp_http_timeout() -> StdDuration {
+    StdDuration::from_millis(
+        std::env::var("WHATSAPP_HTTP_TIMEOUT_MS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(30_000),
+    )
+}
+
+fn campaign_processing_timeout() -> ChronoDuration {
+    ChronoDuration::seconds(
+        std::env::var("WHATSAPP_CAMPAIGN_PROCESSING_TIMEOUT_SECONDS")
+            .ok()
+            .and_then(|value| value.parse::<i64>().ok())
+            .unwrap_or(120),
+    )
+}
+
+fn whatsapp_http_client() -> Result<reqwest::Client, AppError> {
+    reqwest::Client::builder()
+        .timeout(whatsapp_http_timeout())
+        .build()
+        .map_err(AppError::from)
 }
 
 fn map_template_status(value: Option<&str>) -> String {
@@ -2642,6 +2669,18 @@ pub async fn get_campaign(
     }))
 }
 
+pub async fn get_campaign_summary(
+    pool: &PgPool,
+    user_id: &str,
+    campaign_id: &str,
+) -> Result<Value, AppError> {
+    let campaign = get_campaign_row(pool, user_id, campaign_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
+
+    Ok(json!({ "campaign": campaign }))
+}
+
 pub async fn launch_campaign(
     pool: &PgPool,
     user_id: &str,
@@ -2842,7 +2881,12 @@ pub async fn cancel_campaign(
             "errorMessage" = 'Campaign cancelled before send completed',
             "updatedAt" = NOW()
         WHERE "campaignId" = $1
-          AND status IN ('PENDING'::"WhatsappRecipientStatus", 'QUEUED'::"WhatsappRecipientStatus", 'FAILED'::"WhatsappRecipientStatus")
+          AND status IN (
+            'PENDING'::"WhatsappRecipientStatus",
+            'QUEUED'::"WhatsappRecipientStatus",
+            'PROCESSING'::"WhatsappRecipientStatus",
+            'FAILED'::"WhatsappRecipientStatus"
+          )
         "#,
     )
     .bind(campaign_id)
@@ -2942,7 +2986,7 @@ pub async fn send_more_campaign(
         SELECT COUNT(*)::bigint
         FROM "WhatsappCampaignRecipient"
         WHERE "campaignId" = $1
-          AND status = 'QUEUED'::"WhatsappRecipientStatus"
+          AND status IN ('QUEUED'::"WhatsappRecipientStatus", 'PROCESSING'::"WhatsappRecipientStatus")
         "#,
     )
     .bind(campaign_id)
@@ -3088,7 +3132,7 @@ async fn reconcile_active_campaigns_without_queue(
             SELECT 1
             FROM "WhatsappCampaignRecipient" r
             WHERE r."campaignId" = c.id
-              AND r.status = 'QUEUED'::"WhatsappRecipientStatus"
+              AND r.status IN ('QUEUED'::"WhatsappRecipientStatus", 'PROCESSING'::"WhatsappRecipientStatus")
           )
         RETURNING c."userId", c.id
         "#,
@@ -3124,7 +3168,7 @@ pub async fn recompute_campaign_stats(pool: &PgPool, campaign_id: &str) -> Resul
     for (status, count) in counts {
         map.insert(status, count as i32);
     }
-    let queued = map.get("QUEUED").copied().unwrap_or(0);
+    let active_queue = map.get("QUEUED").copied().unwrap_or(0) + map.get("PROCESSING").copied().unwrap_or(0);
     let campaign = sqlx::query_scalar::<_, String>(
         r#"SELECT status::text FROM "WhatsappCampaign" WHERE id = $1"#,
     )
@@ -3165,7 +3209,7 @@ pub async fn recompute_campaign_stats(pool: &PgPool, campaign_id: &str) -> Resul
     .bind(map.get("FAILED").copied().unwrap_or(0))
     .bind(map.get("BLOCKED").copied().unwrap_or(0))
     .bind(map.get("UNSUBSCRIBED").copied().unwrap_or(0))
-    .bind(queued)
+    .bind(active_queue)
     .bind(campaign_id)
     .execute(pool)
     .await?;
@@ -3227,7 +3271,7 @@ async fn send_marketing_template(
             }
         }
     });
-    let response = reqwest::Client::new()
+    let response = whatsapp_http_client()?
         .post(&url)
         .bearer_auth(access_token)
         .json(&payload)
@@ -3275,10 +3319,401 @@ fn parse_failure_details(error: &AppError) -> (Option<String>, String, bool) {
     (code, message, blocked)
 }
 
+async fn claim_queued_campaign_recipient(
+    pool: &PgPool,
+    recipient_id: &str,
+) -> Result<bool, AppError> {
+    let result = sqlx::query(
+        r#"
+        UPDATE "WhatsappCampaignRecipient" r
+        SET status = 'PROCESSING'::"WhatsappRecipientStatus",
+            "errorCode" = NULL,
+            "errorMessage" = NULL,
+            "updatedAt" = NOW()
+        FROM "WhatsappCampaign" c
+        WHERE r.id = $1
+          AND r."campaignId" = c.id
+          AND r.status = 'QUEUED'::"WhatsappRecipientStatus"
+          AND c.status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus")
+          AND (c."scheduledAt" IS NULL OR c."scheduledAt" <= NOW())
+        "#,
+    )
+    .bind(recipient_id)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() == 1)
+}
+
+async fn release_processing_campaign_recipient(
+    pool: &PgPool,
+    recipient_id: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        UPDATE "WhatsappCampaignRecipient" r
+        SET status = CASE
+                WHEN c.status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus")
+                    THEN 'QUEUED'::"WhatsappRecipientStatus"
+                ELSE 'PENDING'::"WhatsappRecipientStatus"
+            END,
+            "updatedAt" = NOW()
+        FROM "WhatsappCampaign" c
+        WHERE r.id = $1
+          AND r."campaignId" = c.id
+          AND r.status = 'PROCESSING'::"WhatsappRecipientStatus"
+        "#,
+    )
+    .bind(recipient_id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+async fn recover_stuck_processing_campaign_recipients(
+    pool: &PgPool,
+) -> Result<Vec<(String, String)>, AppError> {
+    let stale_before = Utc::now() - campaign_processing_timeout();
+    let recovered = sqlx::query_as::<_, (String, String, String)>(
+        r#"
+        UPDATE "WhatsappCampaignRecipient" r
+        SET status = CASE
+                WHEN c.status IN ('SENDING'::"WhatsappCampaignStatus", 'SCHEDULED'::"WhatsappCampaignStatus")
+                    THEN 'QUEUED'::"WhatsappRecipientStatus"
+                ELSE 'PENDING'::"WhatsappRecipientStatus"
+            END,
+            "updatedAt" = NOW()
+        FROM "WhatsappCampaign" c
+        WHERE r."campaignId" = c.id
+          AND r.status = 'PROCESSING'::"WhatsappRecipientStatus"
+          AND r."updatedAt" < $1
+        RETURNING c."userId", c.id, r.id
+        "#,
+    )
+    .bind(stale_before)
+    .fetch_all(pool)
+    .await?;
+
+    if !recovered.is_empty() {
+        log::warn!(
+            "[whatsapp-marketing-worker] recovered {} stale processing recipient(s) older than {} seconds",
+            recovered.len(),
+            campaign_processing_timeout().num_seconds()
+        );
+    }
+
+    Ok(recovered
+        .into_iter()
+        .map(|(user_id, campaign_id, recipient_id)| {
+            log::warn!(
+                "[whatsapp-marketing-worker] recovered stale processing recipient recipient_id={} campaign_id={} user_id={}",
+                recipient_id,
+                campaign_id,
+                user_id
+            );
+            (user_id, campaign_id)
+        })
+        .collect())
+}
+
+async fn process_claimed_campaign_recipient(
+    pool: &PgPool,
+    recipient_id: &str,
+) -> Result<Option<(String, String)>, AppError> {
+    let recipient = match sqlx::query_as::<_, WhatsappCampaignRecipientRow>(
+        r#"
+        SELECT id, "campaignId" AS campaign_id, "contactId" AS contact_id, status::text AS status,
+               "snapshotPhone" AS snapshot_phone, "snapshotFullName" AS snapshot_full_name,
+               "snapshotLocation" AS snapshot_location, "snapshotListLabel" AS snapshot_list_label,
+               "snapshotMetadata" AS snapshot_metadata,
+               "waMessageId" AS wa_message_id, "sentAt" AT TIME ZONE 'UTC' AS sent_at, "deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
+               "readAt" AT TIME ZONE 'UTC' AS read_at, "failedAt" AT TIME ZONE 'UTC' AS failed_at, "errorCode" AS error_code,
+               "errorMessage" AS error_message, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "WhatsappCampaignRecipient"
+        WHERE id = $1
+        "#,
+    )
+    .bind(recipient_id)
+    .fetch_optional(pool)
+    .await?
+    {
+        Some(recipient) => recipient,
+        None => return Ok(None),
+    };
+
+    if recipient.status != "PROCESSING" {
+        return Ok(None);
+    }
+
+    let campaign = sqlx::query_as::<_, WhatsappCampaignRow>(
+        r#"
+        SELECT c.id, c."userId" AS user_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
+               c.name, c.description, c."templateName" AS template_name, c."templateLanguage" AS template_language,
+               c."variableMappings" AS variable_mappings,
+               wt.header AS template_header, wt.body AS template_body, wt.footer AS template_footer, wt.buttons AS template_buttons,
+               c."listLabel" AS list_label,
+               c."defaultBatchSize" AS default_batch_size, c.status::text AS status, c."scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
+               c."launchedAt" AT TIME ZONE 'UTC' AS launched_at, c."completedAt" AT TIME ZONE 'UTC' AS completed_at, c."totalRecipients" AS total_recipients,
+               c."sentCount" AS sent_count, c."deliveredCount" AS delivered_count, c."readCount" AS read_count,
+               c."failedCount" AS failed_count, c."blockedCount" AS blocked_count, c."unsubscribedCount" AS unsubscribed_count,
+               c."createdAt" AT TIME ZONE 'UTC' AS created_at, c."updatedAt" AT TIME ZONE 'UTC' AS updated_at,
+               COALESCE(wc."phoneDisplayNumber", wc."phoneNumberId") AS connection_label,
+               wt.status::text AS template_status
+        FROM "WhatsappCampaign" c
+        LEFT JOIN "WhatsappConnection" wc ON wc.id = c."connectionId"
+        LEFT JOIN "WhatsappTemplate" wt ON wt.id = c."templateId"
+        WHERE c.id = $1
+        "#,
+    )
+    .bind(&recipient.campaign_id)
+    .fetch_one(pool)
+    .await?;
+
+    let contact = select_campaign_contact_row(pool, &campaign.user_id, &recipient.id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Campaign contact not found".to_string()))?;
+
+    let existing_send_message_id = sqlx::query_scalar::<_, Option<String>>(
+        r#"
+        SELECT "whatsappMessageId"
+        FROM "WhatsappSendEvent"
+        WHERE "campaignId" = $1
+          AND "contactId" = $2
+          AND status IN ('SENT'::"WhatsappRecipientStatus", 'DELIVERED'::"WhatsappRecipientStatus", 'READ'::"WhatsappRecipientStatus")
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(&recipient.campaign_id)
+    .bind(&contact.id)
+    .fetch_optional(pool)
+    .await?
+    .flatten();
+
+    if let Some(existing_message_id) = existing_send_message_id {
+        sqlx::query(
+            r#"
+            UPDATE "WhatsappCampaignRecipient"
+            SET status = 'SENT'::"WhatsappRecipientStatus",
+                "waMessageId" = COALESCE("waMessageId", $1),
+                "sentAt" = COALESCE("sentAt", NOW()),
+                "errorCode" = NULL,
+                "errorMessage" = NULL,
+                "updatedAt" = NOW()
+            WHERE id = $2
+            "#,
+        )
+        .bind(existing_message_id)
+        .bind(recipient_id)
+        .execute(pool)
+        .await?;
+
+        recompute_campaign_stats(pool, &recipient.campaign_id).await?;
+        return Ok(Some((campaign.user_id.clone(), recipient.campaign_id.clone())));
+    }
+
+    let (reason, eligible) = contact_eligible(&contact);
+    if !eligible {
+        sqlx::query(
+            r#"
+            UPDATE "WhatsappCampaignRecipient"
+            SET status = CAST($1 AS "WhatsappRecipientStatus"),
+                "errorCode" = $2,
+                "errorMessage" = $3,
+                "updatedAt" = NOW()
+            WHERE id = $4
+            "#,
+        )
+        .bind(if reason == "excluded" {
+            "UNSUBSCRIBED"
+        } else {
+            "SKIPPED"
+        })
+        .bind(reason)
+        .bind("Recipient no longer matches marketing safety requirements")
+        .bind(recipient_id)
+        .execute(pool)
+        .await?;
+
+        recompute_campaign_stats(pool, &recipient.campaign_id).await?;
+        return Ok(Some((campaign.user_id.clone(), recipient.campaign_id.clone())));
+    }
+
+    let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!(
+        "{} WHERE id = $1",
+        select_connection_sql()
+    ))
+    .bind(&campaign.connection_id)
+    .fetch_one(pool)
+    .await?;
+    let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
+    let mappings = campaign.variable_mappings.as_ref().and_then(|v| v.as_array());
+    let body_parameters = build_body_parameters(&contact, mappings);
+
+    log::info!(
+        "[campaign-send] attempting campaign_id={} recipient_id={} contact_id={} phone={} template={} language={} body_parameters={}",
+        campaign.id,
+        recipient_id,
+        contact.id,
+        contact.phone,
+        campaign.template_name,
+        campaign.template_language,
+        serde_json::to_string(&body_parameters).unwrap_or_else(|_| "[]".to_string())
+    );
+
+    match send_marketing_template(
+        &connection.phone_number_id,
+        &access_token,
+        &contact.phone,
+        &campaign.template_name,
+        &campaign.template_language,
+        &body_parameters,
+    )
+    .await
+    {
+        Ok((message_id, raw)) => {
+            sqlx::query(
+                r#"
+                UPDATE "WhatsappCampaignRecipient"
+                SET status = 'SENT'::"WhatsappRecipientStatus",
+                    "waMessageId" = $1,
+                    "sentAt" = NOW(),
+                    "errorCode" = NULL,
+                    "errorMessage" = NULL,
+                    "updatedAt" = NOW()
+                WHERE id = $2
+                "#,
+            )
+            .bind(&message_id)
+            .bind(recipient_id)
+            .execute(pool)
+            .await?;
+            sqlx::query(
+                r#"UPDATE "WhatsappContact" SET "lastMarketingSent" = NOW(), "updatedAt" = NOW() WHERE id = $1"#,
+            )
+            .bind(&contact.id)
+            .execute(pool)
+            .await?;
+            sqlx::query(
+                r#"
+                INSERT INTO "WhatsappSendEvent" (
+                    id, "userId", "connectionId", "campaignId", "recipientId", "contactId", phone, "templateName",
+                    status, "whatsappMessageId", "requestPayload", "responsePayload", "createdAt"
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+                        'SENT'::"WhatsappRecipientStatus", $9, $10, $11, NOW())
+                "#,
+            )
+            .bind(cuid2::create_id())
+            .bind(&campaign.user_id)
+            .bind(&campaign.connection_id)
+            .bind(&campaign.id)
+            .bind(recipient_id)
+            .bind(&contact.id)
+            .bind(&contact.phone)
+            .bind(&campaign.template_name)
+            .bind(&message_id)
+            .bind(json!({
+                "templateName": campaign.template_name,
+                "language": campaign.template_language,
+                "bodyParameters": body_parameters
+            }))
+            .bind(raw)
+            .execute(pool)
+            .await?;
+
+            log::info!(
+                "[campaign-send] accepted campaign_id={} recipient_id={} contact_id={} phone={} wa_message_id={}",
+                campaign.id,
+                recipient_id,
+                contact.id,
+                contact.phone,
+                message_id
+            );
+        }
+        Err(error) => {
+            let request_payload = json!({
+                "templateName": campaign.template_name,
+                "language": campaign.template_language,
+                "bodyParameters": body_parameters
+            });
+            let response_payload = json!({
+                "error": error.to_string()
+            });
+            let (code, message, blocked) = parse_failure_details(&error);
+            let status = if blocked { "BLOCKED" } else { "FAILED" };
+
+            sqlx::query(
+                r#"
+                UPDATE "WhatsappCampaignRecipient"
+                SET status = CAST($1 AS "WhatsappRecipientStatus"),
+                    "failedAt" = NOW(),
+                    "errorCode" = $2,
+                    "errorMessage" = $3,
+                    "updatedAt" = NOW()
+                WHERE id = $4
+                "#,
+            )
+            .bind(status)
+            .bind(code.as_deref())
+            .bind(&message)
+            .bind(recipient_id)
+            .execute(pool)
+            .await?;
+            sqlx::query(
+                r#"
+                INSERT INTO "WhatsappSendEvent" (
+                    id, "userId", "connectionId", "campaignId", "recipientId", "contactId", phone, "templateName",
+                    status, "requestPayload", "responsePayload", "errorCode", "errorMessage", "createdAt"
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+                        CAST($9 AS "WhatsappRecipientStatus"), $10, $11, $12, $13, NOW())
+                "#,
+            )
+            .bind(cuid2::create_id())
+            .bind(&campaign.user_id)
+            .bind(&campaign.connection_id)
+            .bind(&campaign.id)
+            .bind(recipient_id)
+            .bind(&contact.id)
+            .bind(&contact.phone)
+            .bind(&campaign.template_name)
+            .bind(status)
+            .bind(&request_payload)
+            .bind(&response_payload)
+            .bind(code.as_deref())
+            .bind(&message)
+            .execute(pool)
+            .await?;
+
+            log::error!(
+                "[campaign-send] request failed campaign_id={} recipient_id={} contact_id={} phone={} code={:?} message={} request_payload={} response_payload={}",
+                campaign.id,
+                recipient_id,
+                contact.id,
+                contact.phone,
+                code,
+                message,
+                request_payload,
+                response_payload
+            );
+        }
+    }
+
+    recompute_campaign_stats(pool, &recipient.campaign_id).await?;
+    Ok(Some((campaign.user_id.clone(), recipient.campaign_id.clone())))
+}
+
 pub async fn process_queued_campaign_recipients(
     pool: &PgPool,
     limit: i64,
 ) -> Result<i64, AppError> {
+    let recovered_campaigns = recover_stuck_processing_campaign_recipients(pool).await?;
+    let mut changed_campaigns = recovered_campaigns
+        .into_iter()
+        .collect::<std::collections::HashSet<(String, String)>>();
+
     let recipient_ids = sqlx::query_scalar::<_, String>(
         r#"
         SELECT r.id
@@ -3294,9 +3729,13 @@ pub async fn process_queued_campaign_recipients(
     .bind(limit.max(1))
     .fetch_all(pool)
     .await?;
+
     if recipient_ids.is_empty() {
         let reconciled = reconcile_active_campaigns_without_queue(pool).await?;
         for (user_id, campaign_id) in reconciled {
+            changed_campaigns.insert((user_id, campaign_id));
+        }
+        for (user_id, campaign_id) in changed_campaigns {
             if let Err(error) = publish_campaign_updated(pool, &user_id, &campaign_id).await {
                 log::warn!(
                     "failed to publish campaign realtime update campaign_id={} user_id={}: {}",
@@ -3308,289 +3747,35 @@ pub async fn process_queued_campaign_recipients(
         }
         return Ok(0);
     }
+
     let mut processed = 0;
-    let mut changed_campaigns = std::collections::HashSet::<(String, String)>::new();
+
     for recipient_id in recipient_ids {
-        let row = sqlx::query_as::<_, (String, String, String, String, String, String, Option<Value>)>(
-            r#"
-            SELECT r.id, c.id, c."connectionId", c."templateName", c."templateLanguage", ct.id, c."variableMappings"
-            FROM "WhatsappCampaignRecipient" r
-            JOIN "WhatsappCampaign" c ON c.id = r."campaignId"
-            JOIN "WhatsappContact" ct ON ct.id = r."contactId"
-            WHERE r.id = $1
-            "#,
-        )
-        .bind(&recipient_id)
-        .fetch_optional(pool)
-        .await?;
-        if row.is_none() {
+        if !claim_queued_campaign_recipient(pool, &recipient_id).await? {
             continue;
         }
-        let recipient = sqlx::query_as::<_, WhatsappCampaignRecipientRow>(
-            r#"
-            SELECT id, "campaignId" AS campaign_id, "contactId" AS contact_id, status::text AS status,
-                   "snapshotPhone" AS snapshot_phone, "snapshotFullName" AS snapshot_full_name,
-                   "snapshotLocation" AS snapshot_location, "snapshotListLabel" AS snapshot_list_label,
-                   "snapshotMetadata" AS snapshot_metadata,
-                   "waMessageId" AS wa_message_id, "sentAt" AT TIME ZONE 'UTC' AS sent_at, "deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
-                   "readAt" AT TIME ZONE 'UTC' AS read_at, "failedAt" AT TIME ZONE 'UTC' AS failed_at, "errorCode" AS error_code,
-                   "errorMessage" AS error_message, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-            FROM "WhatsappCampaignRecipient" WHERE id = $1
-            "#,
-        )
-        .bind(&recipient_id)
-        .fetch_one(pool)
-        .await?;
-        if recipient.status != "QUEUED" {
-            continue;
-        }
-        let campaign = sqlx::query_as::<_, WhatsappCampaignRow>(
-            r#"
-            SELECT c.id, c."userId" AS user_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
-                   c.name, c.description, c."templateName" AS template_name, c."templateLanguage" AS template_language,
-                   c."variableMappings" AS variable_mappings,
-                   wt.header AS template_header, wt.body AS template_body, wt.footer AS template_footer, wt.buttons AS template_buttons,
-                   c."listLabel" AS list_label,
-                   c."defaultBatchSize" AS default_batch_size, c.status::text AS status, c."scheduledAt" AT TIME ZONE 'UTC' AS scheduled_at,
-                   c."launchedAt" AT TIME ZONE 'UTC' AS launched_at, c."completedAt" AT TIME ZONE 'UTC' AS completed_at, c."totalRecipients" AS total_recipients,
-                   c."sentCount" AS sent_count, c."deliveredCount" AS delivered_count, c."readCount" AS read_count,
-                   c."failedCount" AS failed_count, c."blockedCount" AS blocked_count, c."unsubscribedCount" AS unsubscribed_count,
-                   c."createdAt" AT TIME ZONE 'UTC' AS created_at, c."updatedAt" AT TIME ZONE 'UTC' AS updated_at,
-                   COALESCE(wc."phoneDisplayNumber", wc."phoneNumberId") AS connection_label,
-                   wt.status::text AS template_status
-            FROM "WhatsappCampaign" c
-            LEFT JOIN "WhatsappConnection" wc ON wc.id = c."connectionId"
-            LEFT JOIN "WhatsappTemplate" wt ON wt.id = c."templateId"
-            WHERE c.id = $1
-            "#,
-        )
-        .bind(&recipient.campaign_id)
-        .fetch_one(pool)
-        .await?;
-        let contact = select_campaign_contact_row(
-            pool,
-            &campaign.user_id,
-            &recipient.id,
-        )
-        .await?
-        .ok_or_else(|| AppError::NotFound("Campaign contact not found".to_string()))?;
-        let existing_send_message_id = sqlx::query_scalar::<_, Option<String>>(
-            r#"
-            SELECT "whatsappMessageId"
-            FROM "WhatsappSendEvent"
-            WHERE "campaignId" = $1
-              AND "contactId" = $2
-              AND status IN ('SENT'::"WhatsappRecipientStatus", 'DELIVERED'::"WhatsappRecipientStatus", 'READ'::"WhatsappRecipientStatus")
-            ORDER BY "createdAt" DESC
-            LIMIT 1
-            "#,
-        )
-        .bind(&recipient.campaign_id)
-        .bind(&contact.id)
-        .fetch_optional(pool)
-        .await?
-        .flatten();
-        if let Some(existing_message_id) = existing_send_message_id {
-            sqlx::query(
-                r#"
-                UPDATE "WhatsappCampaignRecipient"
-                SET status = 'SENT'::"WhatsappRecipientStatus",
-                    "waMessageId" = COALESCE("waMessageId", $1),
-                    "sentAt" = COALESCE("sentAt", NOW()),
-                    "errorCode" = NULL,
-                    "errorMessage" = NULL,
-                    "updatedAt" = NOW()
-                WHERE id = $2
-                "#,
-            )
-            .bind(existing_message_id)
-            .bind(&recipient_id)
-            .execute(pool)
-            .await?;
-            recompute_campaign_stats(pool, &recipient.campaign_id).await?;
-            changed_campaigns.insert((contact.user_id.clone(), recipient.campaign_id.clone()));
-            processed += 1;
-            continue;
-        }
-        let (reason, eligible) = contact_eligible(&contact);
-        if !eligible {
-            sqlx::query(
-                r#"
-                UPDATE "WhatsappCampaignRecipient"
-                SET status = CAST($1 AS "WhatsappRecipientStatus"), "errorCode" = $2, "errorMessage" = $3, "updatedAt" = NOW()
-                WHERE id = $4
-                "#,
-            )
-            .bind(if reason == "excluded" { "UNSUBSCRIBED" } else { "SKIPPED" })
-            .bind(reason)
-            .bind("Recipient no longer matches marketing safety requirements")
-            .bind(&recipient_id)
-            .execute(pool)
-            .await?;
-            recompute_campaign_stats(pool, &recipient.campaign_id).await?;
-            changed_campaigns.insert((contact.user_id.clone(), recipient.campaign_id.clone()));
-            processed += 1;
-            continue;
-        }
-        let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!(
-            "{} WHERE id = $1",
-            select_connection_sql()
-        ))
-        .bind(&campaign.connection_id)
-        .fetch_one(pool)
-        .await?;
-        let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
-        let mappings = campaign
-            .variable_mappings
-            .as_ref()
-            .and_then(|v| v.as_array());
-        let body_parameters = build_body_parameters(&contact, mappings);
-        log::info!(
-            "[campaign-send] attempting campaign_id={} recipient_id={} contact_id={} phone={} template={} language={} body_parameters={}",
-            campaign.id,
-            recipient_id,
-            contact.id,
-            contact.phone,
-            campaign.template_name,
-            campaign.template_language,
-            serde_json::to_string(&body_parameters).unwrap_or_else(|_| "[]".to_string())
-        );
-        match send_marketing_template(
-            &connection.phone_number_id,
-            &access_token,
-            &contact.phone,
-            &campaign.template_name,
-            &campaign.template_language,
-            &body_parameters,
-        )
-        .await
-        {
-            Ok((message_id, raw)) => {
-                sqlx::query(
-                    r#"
-                    UPDATE "WhatsappCampaignRecipient"
-                    SET status = 'SENT'::"WhatsappRecipientStatus", "waMessageId" = $1, "sentAt" = NOW(),
-                        "errorCode" = NULL, "errorMessage" = NULL, "updatedAt" = NOW()
-                    WHERE id = $2
-                    "#,
-                )
-                .bind(&message_id)
-                .bind(&recipient_id)
-                .execute(pool)
-                .await?;
-                sqlx::query(r#"UPDATE "WhatsappContact" SET "lastMarketingSent" = NOW(), "updatedAt" = NOW() WHERE id = $1"#)
-                    .bind(&contact.id)
-                    .execute(pool)
-                    .await?;
-                sqlx::query(
-                    r#"
-                    INSERT INTO "WhatsappSendEvent" (
-                        id, "userId", "connectionId", "campaignId", "recipientId", "contactId", phone, "templateName",
-                        status, "whatsappMessageId", "requestPayload", "responsePayload", "createdAt"
-                    )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-                            'SENT'::"WhatsappRecipientStatus", $9, $10, $11, NOW())
-                    "#,
-                )
-                .bind(cuid2::create_id())
-                .bind(&campaign.user_id)
-                .bind(&campaign.connection_id)
-                .bind(&campaign.id)
-                .bind(&recipient_id)
-                .bind(&contact.id)
-                .bind(&contact.phone)
-                .bind(&campaign.template_name)
-                .bind(&message_id)
-                .bind(json!({
-                    "templateName": campaign.template_name,
-                    "language": campaign.template_language,
-                    "bodyParameters": body_parameters
-                }))
-                .bind(raw)
-                .execute(pool)
-                .await?;
 
-                log::info!(
-                    "[campaign-send] accepted campaign_id={} recipient_id={} contact_id={} phone={} wa_message_id={}",
-                    campaign.id,
-                    recipient_id,
-                    contact.id,
-                    contact.phone,
-                    message_id
-                );
-
-                // Campaign sends are tracked in campaign recipients + send events.
-                // Inbox conversation/message creation is intentionally handled only by real customer
-                // inbound traffic or manual inbox send flows.
+        match process_claimed_campaign_recipient(pool, &recipient_id).await {
+            Ok(Some(changed_campaign)) => {
+                changed_campaigns.insert(changed_campaign);
+                processed += 1;
             }
+            Ok(None) => {}
             Err(error) => {
-                let request_payload = json!({
-                    "templateName": campaign.template_name,
-                    "language": campaign.template_language,
-                    "bodyParameters": body_parameters
-                });
-                let response_payload = json!({
-                    "error": error.to_string()
-                });
-                let (code, message, blocked) = parse_failure_details(&error);
-                let status = if blocked { "BLOCKED" } else { "FAILED" };
-                sqlx::query(
-                    r#"
-                    UPDATE "WhatsappCampaignRecipient"
-                    SET status = CAST($1 AS "WhatsappRecipientStatus"), "failedAt" = NOW(),
-                        "errorCode" = $2, "errorMessage" = $3, "updatedAt" = NOW()
-                    WHERE id = $4
-                    "#,
-                )
-                .bind(status)
-                .bind(code.as_deref())
-                .bind(&message)
-                .bind(&recipient_id)
-                .execute(pool)
-                .await?;
-                sqlx::query(
-                    r#"
-                    INSERT INTO "WhatsappSendEvent" (
-                        id, "userId", "connectionId", "campaignId", "recipientId", "contactId", phone, "templateName",
-                        status, "requestPayload", "responsePayload", "errorCode", "errorMessage", "createdAt"
-                    )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-                            CAST($9 AS "WhatsappRecipientStatus"), $10, $11, $12, $13, NOW())
-                    "#,
-                )
-                .bind(cuid2::create_id())
-                .bind(&campaign.user_id)
-                .bind(&campaign.connection_id)
-                .bind(&campaign.id)
-                .bind(&recipient_id)
-                .bind(&contact.id)
-                .bind(&contact.phone)
-                .bind(&campaign.template_name)
-                .bind(status)
-                .bind(&request_payload)
-                .bind(&response_payload)
-                .bind(code.as_deref())
-                .bind(&message)
-                .execute(pool)
-                .await?;
-
-                log::error!(
-                    "[campaign-send] request failed campaign_id={} recipient_id={} contact_id={} phone={} code={:?} message={} request_payload={} response_payload={}",
-                    campaign.id,
-                    recipient_id,
-                    contact.id,
-                    contact.phone,
-                    code,
-                    message,
-                    request_payload,
-                    response_payload
-                );
+                if let Err(release_error) =
+                    release_processing_campaign_recipient(pool, &recipient_id).await
+                {
+                    log::error!(
+                        "failed to release claimed campaign recipient recipient_id={} after error: {}",
+                        recipient_id,
+                        release_error
+                    );
+                }
+                return Err(error);
             }
         }
-        recompute_campaign_stats(pool, &recipient.campaign_id).await?;
-        changed_campaigns.insert((campaign.user_id.clone(), recipient.campaign_id.clone()));
-        processed += 1;
     }
+
     for (user_id, campaign_id) in changed_campaigns {
         if let Err(error) = publish_campaign_updated(pool, &user_id, &campaign_id).await {
             log::warn!(
@@ -3601,6 +3786,7 @@ pub async fn process_queued_campaign_recipients(
             );
         }
     }
+
     Ok(processed)
 }
 
@@ -4272,7 +4458,7 @@ async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), Ap
                 .execute(pool)
                 .await?;
             let campaign_ids = sqlx::query_scalar::<_, String>(
-                r#"SELECT "campaignId" FROM "WhatsappCampaignRecipient" WHERE "contactId" = $1 AND status IN ('PENDING'::"WhatsappRecipientStatus", 'QUEUED'::"WhatsappRecipientStatus")"#,
+                r#"SELECT "campaignId" FROM "WhatsappCampaignRecipient" WHERE "contactId" = $1 AND status IN ('PENDING'::"WhatsappRecipientStatus", 'QUEUED'::"WhatsappRecipientStatus", 'PROCESSING'::"WhatsappRecipientStatus")"#,
             )
             .bind(&contact_id)
             .fetch_all(pool)
@@ -4284,7 +4470,7 @@ async fn handle_incoming_messages(pool: &PgPool, value: &Value) -> Result<(), Ap
                     "errorCode" = 'unsubscribed',
                     "errorMessage" = 'Contact unsubscribed via inbound keyword',
                     "updatedAt" = NOW()
-                WHERE "contactId" = $1 AND status IN ('PENDING'::"WhatsappRecipientStatus", 'QUEUED'::"WhatsappRecipientStatus")
+                WHERE "contactId" = $1 AND status IN ('PENDING'::"WhatsappRecipientStatus", 'QUEUED'::"WhatsappRecipientStatus", 'PROCESSING'::"WhatsappRecipientStatus")
                 "#,
             )
             .bind(&contact_id)
@@ -4348,33 +4534,28 @@ async fn scoped_conversation(
     user_id: &str,
     conversation_id: &str,
 ) -> Result<Option<ConversationRow>, AppError> {
-    let connection_ids = user_connection_ids(pool, user_id).await?;
-    if connection_ids.is_empty() {
-        return Ok(None);
-    }
     sqlx::query_as::<_, ConversationRow>(
         r#"
-        SELECT id, channel, "customerIdentifier" AS customer_identifier, "customerName" AS customer_name,
-               status,
-               "lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
-               "lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
-               starred,
-               "unreadCount" AS unread_count,
-               "createdAt" AT TIME ZONE 'UTC' AS created_at,
-               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-        FROM "Conversation"
-        WHERE id = $1
-          AND channel = 'whatsapp'
-          AND EXISTS (
-            SELECT 1
-            FROM unnest($2::text[]) AS connection_id
-            WHERE "customerIdentifier" LIKE ('wa:' || connection_id || ':%')
-          )
+        SELECT c.id, c.channel, c."customerIdentifier" AS customer_identifier, c."customerName" AS customer_name,
+               c.status,
+               c."lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
+               c."lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
+               c.starred,
+               c."unreadCount" AS unread_count,
+               c."createdAt" AT TIME ZONE 'UTC' AS created_at,
+               c."updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "Conversation" c
+        JOIN "WhatsappConnection" wc
+          ON wc.id = split_part(c."customerIdentifier", ':', 2)
+         AND wc."userId" = $2
+        WHERE c.id = $1
+          AND c.channel = 'whatsapp'
+          AND c."customerIdentifier" LIKE 'wa:%'
         LIMIT 1
         "#,
     )
     .bind(conversation_id)
-    .bind(&connection_ids)
+    .bind(user_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::from)
@@ -4763,7 +4944,7 @@ async fn send_text_message(
         "text": { "body": text },
         "context": context_message_id.map(|id| json!({"message_id": id}))
     });
-    let response = reqwest::Client::new()
+    let response = whatsapp_http_client()?
         .post(&url)
         .bearer_auth(access_token)
         .json(&payload)
@@ -4815,7 +4996,7 @@ async fn upload_whatsapp_media(
         .text("messaging_product", "whatsapp")
         .part("file", part);
 
-    let response = reqwest::Client::new()
+    let response = whatsapp_http_client()?
         .post(&url)
         .bearer_auth(access_token)
         .multipart(form)
@@ -4867,7 +5048,7 @@ async fn send_media_message(
         "context": context_message_id.map(|id| json!({"message_id": id}))
     });
 
-    let response = reqwest::Client::new()
+    let response = whatsapp_http_client()?
         .post(&url)
         .bearer_auth(access_token)
         .json(&payload)
@@ -5277,70 +5458,56 @@ async fn download_media_bytes(
 }
 
 pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Value, AppError> {
-    let connection_ids = user_connection_ids(pool, user_id).await?;
-    if connection_ids.is_empty() {
-        return Ok(json!({ "conversations": [] }));
-    }
-    let conversations = sqlx::query_as::<_, ConversationRow>(
+    let conversations = sqlx::query_as::<_, InboxConversationListRow>(
         r#"
         SELECT
-            id,
-            channel,
-            "customerIdentifier" AS customer_identifier,
-            "customerName" AS customer_name,
-            status,
-            "lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
-            "lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
-            starred,
-            "unreadCount" AS unread_count,
-            "createdAt" AT TIME ZONE 'UTC' AS created_at,
-            "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-        FROM "Conversation"
-        WHERE channel = 'whatsapp'
-          AND EXISTS (
-            SELECT 1 FROM unnest($1::text[]) AS connection_id
-            WHERE "customerIdentifier" LIKE ('wa:' || connection_id || ':%')
-          )
-        ORDER BY "lastMessageAt" DESC
+            c.id,
+            c.channel,
+            c."customerIdentifier" AS customer_identifier,
+            c."customerName" AS customer_name,
+            c.status,
+            c."lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
+            c."lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
+            c.starred,
+            c."unreadCount" AS unread_count,
+            c."createdAt" AT TIME ZONE 'UTC' AS created_at,
+            c."updatedAt" AT TIME ZONE 'UTC' AS updated_at,
+            NULLIF(split_part(c."customerIdentifier", ':', 2), '') AS connection_id,
+            NULLIF(substring(c."customerIdentifier" from '^[^:]+:[^:]+:(.*)$'), '') AS phone,
+            COALESCE(wc."phoneDisplayNumber", wc."phoneNumberId") AS connection_label,
+            last_message.content AS last_message_content
+        FROM "Conversation" c
+        JOIN "WhatsappConnection" wc
+          ON wc.id = split_part(c."customerIdentifier", ':', 2)
+         AND wc."userId" = $1
+        LEFT JOIN LATERAL (
+            SELECT m.content
+            FROM "Message" m
+            WHERE m."conversationId" = c.id
+            ORDER BY m.timestamp DESC
+            LIMIT 1
+        ) last_message ON true
+        WHERE c.channel = 'whatsapp'
+          AND c."customerIdentifier" LIKE 'wa:%'
+        ORDER BY c."lastMessageAt" DESC
         "#,
     )
-    .bind(&connection_ids)
+    .bind(user_id)
     .fetch_all(pool)
     .await?;
     let mut result = Vec::with_capacity(conversations.len());
     for conversation in conversations {
-        let (connection_id, phone) =
-            parse_conversation_identifier(&conversation.customer_identifier)
-                .unwrap_or_else(|| ("".to_string(), conversation.customer_identifier.clone()));
-        let connection_label = if connection_id.is_empty() {
-            None
-        } else {
-            sqlx::query_scalar::<_, Option<String>>(
-                r#"SELECT COALESCE("phoneDisplayNumber", "phoneNumberId") FROM "WhatsappConnection" WHERE id = $1 LIMIT 1"#,
-            )
-            .bind(&connection_id)
-            .fetch_optional(pool)
-            .await?
-            .flatten()
-        };
-        let last_message_content = sqlx::query_scalar::<_, Option<String>>(
-            r#"SELECT content FROM "Message" WHERE "conversationId" = $1 ORDER BY timestamp DESC LIMIT 1"#,
-        )
-        .bind(&conversation.id)
-        .fetch_optional(pool)
-        .await?
-        .flatten();
         result.push(json!({
             "id": conversation.id,
             "customerName": conversation.customer_name,
-            "phone": phone,
+            "phone": conversation.phone.unwrap_or_else(|| conversation.customer_identifier.clone()),
             "status": conversation.status,
             "lastMessageAt": conversation.last_message_at,
             "unreadCount": conversation.unread_count,
             "starred": conversation.starred,
-            "connectionId": if connection_id.is_empty() { None::<String> } else { Some(connection_id) },
-            "connectionLabel": connection_label,
-            "lastMessage": last_message_content
+            "connectionId": conversation.connection_id,
+            "connectionLabel": conversation.connection_label,
+            "lastMessage": conversation.last_message_content
                 .as_deref()
                 .map(|content| preview_text(content, 180))
                 .unwrap_or_else(|| "No messages yet".to_string()),
@@ -5350,22 +5517,18 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
 }
 
 pub async fn inbox_unread_count(pool: &PgPool, user_id: &str) -> Result<Value, AppError> {
-    let connection_ids = user_connection_ids(pool, user_id).await?;
-    if connection_ids.is_empty() {
-        return Ok(json!({ "unreadCount": 0 }));
-    }
     let count = sqlx::query_scalar::<_, Option<i64>>(
         r#"
-        SELECT SUM("unreadCount")::bigint
-        FROM "Conversation"
-        WHERE channel = 'whatsapp'
-          AND EXISTS (
-            SELECT 1 FROM unnest($1::text[]) AS connection_id
-            WHERE "customerIdentifier" LIKE ('wa:' || connection_id || ':%')
-          )
+        SELECT COALESCE(SUM(c."unreadCount")::bigint, 0)
+        FROM "Conversation" c
+        JOIN "WhatsappConnection" wc
+          ON wc.id = split_part(c."customerIdentifier", ':', 2)
+         AND wc."userId" = $1
+        WHERE c.channel = 'whatsapp'
+          AND c."customerIdentifier" LIKE 'wa:%'
         "#,
     )
-    .bind(&connection_ids)
+    .bind(user_id)
     .fetch_one(pool)
     .await?
     .unwrap_or(0);

@@ -10,14 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import {
-  ensureInboxAlertAudioUnlocked,
-  playInboxAlertSoundSafely,
-  readInboxAlertPreferences,
-  supportsDesktopNotifications,
-} from "@/components/dashboard/inbox/inbox-alert-preferences";
 import { cn } from "@/lib/utils";
-import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
 import {
   Bell,
   Bot,
@@ -40,7 +33,11 @@ import Image from "next/image";
 import { apiUrl } from "@/lib/server-api";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  useWhatsappInboxUnreadCount,
+  WhatsappRealtimeProvider,
+} from "@/components/dashboard/whatsapp-realtime-provider";
 
 type NavItem = {
   name: string;
@@ -190,13 +187,12 @@ function ProductSwitcher({
   currentProduct,
   open,
   onClose,
-  inboxUnreadCount,
 }: {
   currentProduct: ProductDefinition;
   open: boolean;
   onClose: () => void;
-  inboxUnreadCount: number;
 }) {
+  const inboxUnreadCount = useWhatsappInboxUnreadCount();
   if (!open) return null;
 
   return (
@@ -272,117 +268,24 @@ function SidebarContent({
   collapsed,
   setCollapsed,
   user,
-  inboxUnreadCount = 0,
   hasPwaUpdate = false,
   onOpenSwitcher,
 }: {
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
   user?: { name?: string | null; email?: string | null; image?: string | null };
-  inboxUnreadCount?: number;
   hasPwaUpdate?: boolean;
   onOpenSwitcher: () => void;
 }) {
   const pathname = usePathname();
   const currentProduct = resolveProduct(pathname);
-  const [liveInboxUnreadCount, setLiveInboxUnreadCount] = useState(inboxUnreadCount);
-  const reconcileTimerRef = useRef<number | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const notifiedMessageIdsRef = useRef<Set<string>>(new Set());
+  const liveInboxUnreadCount = useWhatsappInboxUnreadCount();
   const accountName = user?.name ?? "Admin";
   const accountEmail = user?.email ?? "admin@kasitek.com";
   const initialsSource = accountName.includes(" ")
     ? accountName.split(" ").filter(Boolean).slice(0, 2)
     : (accountEmail.split("@")[0] || accountName).split(/[\s._-]+/).filter(Boolean).slice(0, 2);
   const initials = initialsSource.map((part) => part.slice(0, 1).toUpperCase()).join("") || "AD";
-
-  useEffect(() => {
-    setLiveInboxUnreadCount(inboxUnreadCount);
-  }, [inboxUnreadCount]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const syncUnreadCount = async () => {
-      try {
-        const response = await fetch(apiUrl("/api/whatsapp/inbox/unread-count"), {
-          cache: "no-store",
-          credentials: "include",
-        });
-        if (!response.ok) return;
-        const payload = (await response.json()) as { unreadCount?: number };
-        if (cancelled || typeof payload.unreadCount !== "number") return;
-        setLiveInboxUnreadCount(Math.max(0, payload.unreadCount));
-      } catch {
-        // Ignore transient reconcile issues.
-      }
-    };
-
-    const scheduleSync = () => {
-      if (reconcileTimerRef.current !== null) window.clearTimeout(reconcileTimerRef.current);
-      reconcileTimerRef.current = window.setTimeout(() => void syncUnreadCount(), 250);
-    };
-
-    const source = new EventSource(apiUrl("/api/realtime/whatsapp"), {
-      withCredentials: true,
-    });
-
-    const unlockAudioOnInteraction = () => {
-      void ensureInboxAlertAudioUnlocked(audioContextRef);
-    };
-    window.addEventListener("pointerdown", unlockAudioOnInteraction, { once: true });
-    window.addEventListener("keydown", unlockAudioOnInteraction, { once: true });
-
-    source.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as WhatsappRealtimeEvent;
-        if (payload.type === "message.created" && payload.message.sender === "customer") {
-          const messageId = payload.message.id;
-          if (!notifiedMessageIdsRef.current.has(messageId)) {
-            notifiedMessageIdsRef.current.add(messageId);
-            if (notifiedMessageIdsRef.current.size > 200) {
-              const oldest = notifiedMessageIdsRef.current.values().next().value;
-              if (oldest) notifiedMessageIdsRef.current.delete(oldest);
-            }
-
-            const preferences = readInboxAlertPreferences();
-            if (preferences.soundAlertsEnabled) {
-              void playInboxAlertSoundSafely(audioContextRef);
-            }
-
-            if (preferences.desktopAlertsEnabled && supportsDesktopNotifications() && window.Notification.permission === "granted") {
-              const customerName = payload.conversation?.customerName?.trim() || payload.conversation?.phone || "New WhatsApp message";
-              const body = payload.message.content.trim() || "You have a new inbound WhatsApp message.";
-              new window.Notification(customerName, {
-                body,
-                tag: `kasitek-whatsapp-${payload.conversationId}`,
-              });
-            }
-          }
-
-          setLiveInboxUnreadCount((current) => current + 1);
-          scheduleSync();
-          return;
-        }
-        if (payload.type === "conversation.updated") {
-          scheduleSync();
-        }
-      } catch {
-        // Ignore malformed realtime payloads.
-      }
-    };
-
-    return () => {
-      cancelled = true;
-      source.close();
-      window.removeEventListener("pointerdown", unlockAudioOnInteraction);
-      window.removeEventListener("keydown", unlockAudioOnInteraction);
-      if (reconcileTimerRef.current !== null) {
-        window.clearTimeout(reconcileTimerRef.current);
-        reconcileTimerRef.current = null;
-      }
-    };
-  }, []);
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-border bg-card">
@@ -615,68 +518,67 @@ export function LayoutShell({
   }, []);
 
   return (
-    <>
-      <ProductSwitcher
-        currentProduct={currentProduct}
-        open={switcherOpen}
-        onClose={() => setSwitcherOpen(false)}
-        inboxUnreadCount={inboxUnreadCount}
-      />
+    <WhatsappRealtimeProvider initialInboxUnreadCount={inboxUnreadCount}>
+      <>
+        <ProductSwitcher
+          currentProduct={currentProduct}
+          open={switcherOpen}
+          onClose={() => setSwitcherOpen(false)}
+        />
 
-      <div className="dashboard-theme flex h-screen bg-background">
-        <aside className={cn("hidden lg:flex lg:flex-col", collapsed ? "w-[72px]" : "w-64")}>
-          <SidebarContent
-            collapsed={collapsed}
-            setCollapsed={setCollapsed}
-            user={user}
-            inboxUnreadCount={inboxUnreadCount}
-            hasPwaUpdate={hasPwaUpdate}
-            onOpenSwitcher={() => setSwitcherOpen(true)}
-          />
-        </aside>
-        <Sheet>
-          <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
-            <div className="flex min-w-0 items-center gap-2">
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SheetTrigger>
-              <button
-                type="button"
-                onClick={() => setSwitcherOpen(true)}
-                className="flex min-w-0 items-center gap-2 text-left"
-              >
-                <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">{currentProduct.name}</p>
-                  <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                    Workspace
-                  </p>
-                </div>
-              </button>
-            </div>
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setSwitcherOpen(true)}>
-              <span className="relative">
-                <Grid2x2 className="h-4 w-4" />
-                {hasPwaUpdate ? (
-                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />
-                ) : null}
-              </span>
-            </Button>
-          </div>
-          <SheetContent side="left" className="w-64 p-0">
+        <div className="dashboard-theme flex h-screen bg-background">
+          <aside className={cn("hidden lg:flex lg:flex-col", collapsed ? "w-[72px]" : "w-64")}>
             <SidebarContent
-              collapsed={false}
+              collapsed={collapsed}
+              setCollapsed={setCollapsed}
               user={user}
-              inboxUnreadCount={inboxUnreadCount}
               hasPwaUpdate={hasPwaUpdate}
               onOpenSwitcher={() => setSwitcherOpen(true)}
             />
-          </SheetContent>
-        </Sheet>
-        <main className="flex-1 overflow-auto pt-14 lg:pt-0">{children}</main>
-      </div>
-    </>
+          </aside>
+          <Sheet>
+            <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
+              <div className="flex min-w-0 items-center gap-2">
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </SheetTrigger>
+                <button
+                  type="button"
+                  onClick={() => setSwitcherOpen(true)}
+                  className="flex min-w-0 items-center gap-2 text-left"
+                >
+                  <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{currentProduct.name}</p>
+                    <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Workspace
+                    </p>
+                  </div>
+                </button>
+              </div>
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setSwitcherOpen(true)}>
+                <span className="relative">
+                  <Grid2x2 className="h-4 w-4" />
+                  {hasPwaUpdate ? (
+                    <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />
+                  ) : null}
+                </span>
+              </Button>
+            </div>
+            <SheetContent side="left" className="w-64 p-0">
+              <SidebarContent
+                collapsed={false}
+                user={user}
+                hasPwaUpdate={hasPwaUpdate}
+                onOpenSwitcher={() => setSwitcherOpen(true)}
+              />
+            </SheetContent>
+          </Sheet>
+          <main className="flex-1 overflow-auto pt-14 lg:pt-0">{children}</main>
+        </div>
+      </>
+    </WhatsappRealtimeProvider>
   );
 }

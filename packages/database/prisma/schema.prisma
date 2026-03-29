@@ -607,6 +607,7 @@ enum WhatsappCampaignStatus {
 enum WhatsappRecipientStatus {
   PENDING
   QUEUED
+  PROCESSING
   SENT
   DELIVERED
   READ

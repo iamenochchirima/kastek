@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { fetchRustJson } from "@/lib/rust-server-api";
 
 export type RustSessionUser = {
@@ -11,7 +12,7 @@ export type RustSession = {
   user: RustSessionUser;
 };
 
-export async function getRustSession(): Promise<RustSession | null> {
+export const getRustSession = cache(async (): Promise<RustSession | null> => {
   try {
     const payload = await fetchRustJson<{ user?: RustSessionUser }>("/api/auth/me");
     if (!payload.user) {
@@ -29,4 +30,4 @@ export async function getRustSession(): Promise<RustSession | null> {
   } catch {
     return null;
   }
-}
+});

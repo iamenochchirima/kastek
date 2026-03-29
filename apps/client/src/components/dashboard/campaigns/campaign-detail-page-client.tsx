@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { apiUrl } from "@/lib/server-api";
 import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
+import { useWhatsappRealtimeSubscription } from "@/components/dashboard/whatsapp-realtime-provider";
 import Link from "next/link";
-import { useEffect, useEffectEvent, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type Campaign = {
@@ -64,13 +65,6 @@ type CampaignRecipient = {
   contactLocation: string | null;
   contactListLabel: string;
   contactMetadata?: Record<string, string> | null;
-};
-
-type CampaignRecipientSummary = {
-  id: string;
-  contactId: string;
-  contact_id?: string;
-  status: string;
 };
 
 type SendMoreContact = {
@@ -141,6 +135,10 @@ type CampaignDetailPayload = {
   };
 };
 
+type CampaignSummaryPayload = {
+  campaign?: NonNullable<CampaignDetailPayload["campaign"]>["campaign"];
+};
+
 function normalizeRecipient(recipient: Partial<CampaignRecipient> & Record<string, unknown>): CampaignRecipient {
   return {
     id: String(recipient.id ?? ""),
@@ -163,16 +161,6 @@ function normalizeRecipient(recipient: Partial<CampaignRecipient> & Record<strin
   };
 }
 
-function normalizeRecipientSummary(
-  recipient: Partial<CampaignRecipientSummary> & Record<string, unknown>,
-): CampaignRecipientSummary {
-  return {
-    id: String(recipient.id ?? ""),
-    contactId: String(recipient.contactId ?? recipient.contact_id ?? ""),
-    status: String(recipient.status ?? ""),
-  };
-}
-
 function statusTone(status: string) {
   switch (status) {
     case "SENDING":
@@ -192,6 +180,8 @@ function statusTone(status: string) {
 
 function recipientTone(status: string) {
   switch (status) {
+    case "PROCESSING":
+      return "border-primary/30 bg-primary/10 text-primary";
     case "SENT":
       return "border-blue-500/30 bg-blue-500/10 text-blue-300";
     case "DELIVERED":
@@ -264,6 +254,24 @@ function normalizeCampaign(raw: NonNullable<CampaignDetailPayload["campaign"]>["
   };
 }
 
+function mergeCampaignRealtimeSummary(
+  current: Campaign,
+  realtime: Extract<WhatsappRealtimeEvent, { type: "campaign.updated" }>["campaign"],
+): Campaign {
+  return {
+    ...current,
+    status: realtime.status,
+    totalRecipients: Number(realtime.totalRecipients ?? current.totalRecipients),
+    sentCount: Number(realtime.sentCount ?? current.sentCount),
+    deliveredCount: Number(realtime.deliveredCount ?? current.deliveredCount),
+    readCount: Number(realtime.readCount ?? current.readCount),
+    failedCount: Number(realtime.failedCount ?? current.failedCount),
+    blockedCount: Number(realtime.blockedCount ?? current.blockedCount),
+    unsubscribedCount: Number(realtime.unsubscribedCount ?? current.unsubscribedCount),
+    updatedAt: realtime.updatedAt ?? current.updatedAt,
+  };
+}
+
 function metadataValue(metadata: Record<string, string> | null | undefined, key: string) {
   if (!metadata || !key) return "";
   return metadata[key] ?? "";
@@ -307,6 +315,10 @@ function whatsappLink(phone: string) {
   return `https://wa.me/${phone.replace(/\D/g, "")}`;
 }
 
+function recipientErrorText(recipient: CampaignRecipient) {
+  return recipient.errorMessage || recipient.errorCode || "";
+}
+
 export default function CampaignDetailPageClient({
   campaign,
   recipients,
@@ -323,7 +335,6 @@ export default function CampaignDetailPageClient({
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [isRefreshingLive, setIsRefreshingLive] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState(() => new Date().toISOString());
-  const [isPending, startTransition] = useTransition();
   const [launchBatchSize, setLaunchBatchSize] = useState(
     String(campaign.defaultBatchSize || Math.max((recipients.length || campaign.totalRecipients) - campaign.sentCount, 1)),
   );
@@ -336,6 +347,8 @@ export default function CampaignDetailPageClient({
   const [loadingSendMore, setLoadingSendMore] = useState(false);
   const [sendMoreOpen, setSendMoreOpen] = useState(false);
   const [previewRecipient, setPreviewRecipient] = useState<CampaignRecipient | null>(null);
+  const [errorPreviewRecipient, setErrorPreviewRecipient] = useState<CampaignRecipient | null>(null);
+  const detailRefreshTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     setLiveCampaign(campaign);
@@ -352,10 +365,10 @@ export default function CampaignDetailPageClient({
     [effectiveTotalRecipients, liveCampaign],
   );
 
-  const refreshCampaign = useEffectEvent(async () => {
+  async function refreshCampaignDetails(campaignId: string) {
     try {
       setIsRefreshingLive(true);
-      const response = await fetch(apiUrl(`/api/whatsapp/campaigns/${liveCampaign.id}`), {
+      const response = await fetch(apiUrl(`/api/whatsapp/campaigns/${campaignId}`), {
         credentials: "include",
         cache: "no-store",
       });
@@ -369,7 +382,36 @@ export default function CampaignDetailPageClient({
     } finally {
       setIsRefreshingLive(false);
     }
-  });
+  }
+
+  function scheduleRecipientRefresh(campaignId: string, delayMs = 1200) {
+    if (detailRefreshTimeoutRef.current !== null) {
+      window.clearTimeout(detailRefreshTimeoutRef.current);
+    }
+
+    detailRefreshTimeoutRef.current = window.setTimeout(() => {
+      detailRefreshTimeoutRef.current = null;
+      void refreshCampaignDetails(campaignId);
+    }, delayMs);
+  }
+
+  async function refreshCampaignSummary(campaignId: string) {
+    try {
+      setIsRefreshingLive(true);
+      const response = await fetch(apiUrl(`/api/whatsapp/campaigns/${campaignId}/summary`), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => ({}))) as CampaignSummaryPayload;
+      if (!response.ok || !payload.campaign) return;
+      setLiveCampaign((current) => ({ ...current, ...normalizeCampaign(payload.campaign!) }));
+      setLastSyncedAt(new Date().toISOString());
+    } catch {
+      // Ignore transient summary refresh failures.
+    } finally {
+      setIsRefreshingLive(false);
+    }
+  }
 
   useEffect(() => {
     const shouldPoll =
@@ -379,8 +421,8 @@ export default function CampaignDetailPageClient({
     if (!shouldPoll) return;
 
     const intervalId = window.setInterval(() => {
-      void refreshCampaign();
-    }, 4000);
+      void refreshCampaignSummary(liveCampaign.id);
+    }, 8000);
 
     return () => {
       window.clearInterval(intervalId);
@@ -388,25 +430,38 @@ export default function CampaignDetailPageClient({
   }, [liveCampaign.id, liveCampaign.status]);
 
   useEffect(() => {
-    const source = new EventSource(apiUrl("/api/realtime/whatsapp"), {
-      withCredentials: true,
-    });
+    const shouldReconcileRecipients =
+      liveCampaign.status === "SENDING" ||
+      liveCampaign.status === "SCHEDULED" ||
+      liveCampaign.status === "PAUSED";
+    if (!shouldReconcileRecipients) return;
 
-    source.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as WhatsappRealtimeEvent;
-        if (payload.type === "campaign.updated" && payload.campaignId === liveCampaign.id) {
-          void refreshCampaign();
-        }
-      } catch {
-        // Ignore malformed realtime payloads.
-      }
-    };
+    const intervalId = window.setInterval(() => {
+      void refreshCampaignDetails(liveCampaign.id);
+    }, 10000);
 
     return () => {
-      source.close();
+      window.clearInterval(intervalId);
     };
-  }, [liveCampaign.id]);
+  }, [liveCampaign.id, liveCampaign.status]);
+
+  useWhatsappRealtimeSubscription((payload) => {
+    if (payload.type !== "campaign.updated" || payload.campaignId !== liveCampaign.id) {
+      return;
+    }
+
+    setLiveCampaign((current) => mergeCampaignRealtimeSummary(current, payload.campaign));
+    setLastSyncedAt(new Date().toISOString());
+    scheduleRecipientRefresh(payload.campaignId);
+  });
+
+  useEffect(() => {
+    return () => {
+      if (detailRefreshTimeoutRef.current !== null) {
+        window.clearTimeout(detailRefreshTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const remaining = useMemo(() => {
     const processed =
@@ -430,9 +485,11 @@ export default function CampaignDetailPageClient({
   }, [liveRecipients]);
 
   const queuedCount = recipientCounts.QUEUED || 0;
+  const processingCount = recipientCounts.PROCESSING || 0;
+  const activeQueueCount = queuedCount + processingCount;
   const pendingCount = recipientCounts.PENDING || 0;
-  const processedCount = Math.max(effectiveCampaign.totalRecipients - queuedCount - pendingCount, 0);
-  const activeSendPosition = Math.min(processedCount + queuedCount, effectiveCampaign.totalRecipients);
+  const processedCount = Math.max(effectiveCampaign.totalRecipients - activeQueueCount - pendingCount, 0);
+  const activeSendPosition = Math.min(processedCount + activeQueueCount, effectiveCampaign.totalRecipients);
   const isLiveSending = effectiveCampaign.status === "SENDING";
   const hasProcessedRecipients = processedCount > 0;
   const sendMoreAvailableContacts = useMemo(() => {
@@ -503,9 +560,7 @@ export default function CampaignDetailPageClient({
                   : "Campaign status repaired.";
 
       setNotice(nextNotice);
-      startTransition(() => {
-        router.refresh();
-      });
+      await refreshCampaignDetails(liveCampaign.id);
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Campaign action failed");
     } finally {
@@ -524,27 +579,19 @@ export default function CampaignDetailPageClient({
     setNotice("");
 
     try {
-      const [campaignDetail, contactsPayload] = await Promise.all([
-        fetch(apiUrl(`/api/whatsapp/campaigns/${liveCampaign.id}`), {
+      const contactsPayload = await fetch(
+        apiUrl(`/api/whatsapp/contacts?listLabel=${encodeURIComponent(liveCampaign.listLabel)}&limit=10000`),
+        {
           credentials: "include",
           cache: "no-store",
-        }).then(async (response) => {
-          const body = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(body.error || "Failed to load campaign details");
-          return body as { campaign: { recipients: Array<CampaignRecipientSummary & Record<string, unknown>> } };
-        }),
-        fetch(apiUrl(`/api/whatsapp/contacts?listLabel=${encodeURIComponent(liveCampaign.listLabel)}&limit=10000`), {
-          credentials: "include",
-          cache: "no-store",
-        }).then(async (response) => {
-          const body = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(body.error || "Failed to load contacts");
-          return body as { contacts: SendMoreContact[] };
-        }),
-      ]);
+        },
+      ).then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || "Failed to load contacts");
+        return body as { contacts: SendMoreContact[] };
+      });
 
-      const recipientIds = campaignDetail.campaign.recipients
-        .map((recipient) => normalizeRecipientSummary(recipient))
+      const recipientIds = liveRecipients
         .filter((recipient) => recipient.status === "PENDING")
         .map((recipient) => recipient.contactId)
         .filter(Boolean);
@@ -590,9 +637,7 @@ export default function CampaignDetailPageClient({
       }
       setNotice(`Queued ${body.queuedRecipients || currentSendMoreBatchSize} more recipients.`);
       setSendMoreOpen(false);
-      startTransition(() => {
-        router.refresh();
-      });
+      await refreshCampaignDetails(liveCampaign.id);
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Send more failed");
     } finally {
@@ -614,7 +659,6 @@ export default function CampaignDetailPageClient({
         throw new Error(body.error || "Failed to delete campaign");
       }
       router.push("/reach/campaigns");
-      router.refresh();
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Failed to delete campaign");
     } finally {
@@ -627,11 +671,11 @@ export default function CampaignDetailPageClient({
     (liveCampaign.status === "DRAFT" && pendingCount > 0) ||
     ((liveCampaign.status === "COMPLETED" || liveCampaign.status === "FAILED") &&
       pendingCount > 0 &&
-      queuedCount === 0 &&
+      activeQueueCount === 0 &&
       !hasProcessedRecipients);
   const pausable = liveCampaign.status === "SENDING" || liveCampaign.status === "SCHEDULED";
   const resumable = liveCampaign.status === "PAUSED";
-  const idleSendingWithPending = liveCampaign.status === "SENDING" && queuedCount === 0 && pendingCount > 0;
+  const idleSendingWithPending = liveCampaign.status === "SENDING" && activeQueueCount === 0 && pendingCount > 0;
   const sendMoreable =
     (liveCampaign.status === "COMPLETED" &&
       remaining > 0 &&
@@ -697,7 +741,7 @@ export default function CampaignDetailPageClient({
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Live sending status</h2>
                 <p className="text-sm text-muted-foreground">
-                  Refreshes every 4 seconds while the campaign is active.
+                  Uses realtime summaries and only re-syncs the full recipient table periodically while active.
                 </p>
               </div>
               <div className="text-sm text-muted-foreground">
@@ -707,7 +751,7 @@ export default function CampaignDetailPageClient({
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
               <MetricCard label="Processed" value={processedCount} />
-              <MetricCard label="Queued now" value={queuedCount} />
+              <MetricCard label="Active queue" value={activeQueueCount} />
               <MetricCard label="Still pending" value={pendingCount} />
               <MetricCard label="Current position" value={activeSendPosition} />
               <MetricCard label="Batch accepted" value={effectiveCampaign.sentCount} />
@@ -732,7 +776,7 @@ export default function CampaignDetailPageClient({
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground">
                   {isLiveSending
-                    ? `The backend worker is actively sending. ${queuedCount.toLocaleString("en-ZA")} recipients are queued in the current run.`
+                    ? `The backend worker is actively sending. ${activeQueueCount.toLocaleString("en-ZA")} recipients are currently queued or in-flight.`
                     : liveCampaign.status === "SCHEDULED"
                       ? "The campaign is queued to start later."
                       : liveCampaign.status === "PAUSED"
@@ -746,6 +790,7 @@ export default function CampaignDetailPageClient({
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                   <MiniStat label="Pending" value={pendingCount} />
                   <MiniStat label="Queued" value={queuedCount} />
+                  <MiniStat label="Processing" value={processingCount} />
                   <MiniStat label="Sent" value={effectiveCampaign.sentCount} />
                   <MiniStat label="Delivered" value={effectiveCampaign.deliveredCount} />
                   <MiniStat label="Read" value={effectiveCampaign.readCount} />
@@ -788,7 +833,7 @@ export default function CampaignDetailPageClient({
                         className="w-32"
                       />
                       <Button
-                        disabled={isPending || loadingAction === "launch" || currentLaunchBatchSize <= 0}
+                        disabled={loadingAction === "launch" || currentLaunchBatchSize <= 0}
                         onClick={() => void runAction("launch")}
                       >
                         {loadingAction === "launch" ? "Queueing..." : "Launch batch"}
@@ -798,7 +843,7 @@ export default function CampaignDetailPageClient({
                   {pausable ? (
                     <Button
                       variant="secondary"
-                      disabled={isPending || loadingAction === "pause"}
+                      disabled={loadingAction === "pause"}
                       onClick={() => void runAction("pause")}
                     >
                       Pause
@@ -807,7 +852,7 @@ export default function CampaignDetailPageClient({
                   {resumable ? (
                     <Button
                       variant="secondary"
-                      disabled={isPending || loadingAction === "resume"}
+                      disabled={loadingAction === "resume"}
                       onClick={() => void runAction("resume")}
                     >
                       Resume
@@ -816,7 +861,7 @@ export default function CampaignDetailPageClient({
                   {sendMoreable ? (
                     <Button
                       variant="secondary"
-                      disabled={isPending || loadingAction === "send_more" || loadingSendMore}
+                      disabled={loadingAction === "send_more" || loadingSendMore}
                       onClick={() => void openSendMoreModal()}
                     >
                       Send More
@@ -825,7 +870,7 @@ export default function CampaignDetailPageClient({
                   {cancellable ? (
                     <Button
                       variant="outline"
-                      disabled={isPending || loadingAction === "cancel"}
+                      disabled={loadingAction === "cancel"}
                       onClick={() => void runAction("cancel")}
                     >
                       Cancel
@@ -833,7 +878,7 @@ export default function CampaignDetailPageClient({
                   ) : null}
                   <Button
                     variant="outline"
-                    disabled={isPending || loadingAction === "repair_status"}
+                    disabled={loadingAction === "repair_status"}
                     onClick={() => void runAction("repair_status")}
                   >
                     Repair status
@@ -926,7 +971,22 @@ export default function CampaignDetailPageClient({
                         {formatDate(recipient.readAt)}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {recipient.errorMessage || recipient.errorCode || "-"}
+                        {recipientErrorText(recipient) ? (
+                          <div className="flex max-w-[260px] items-center gap-2">
+                            <span className="min-w-0 flex-1 truncate whitespace-nowrap">
+                              {recipientErrorText(recipient)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setErrorPreviewRecipient(recipient)}
+                              className="shrink-0 text-[11px] font-medium text-primary underline-offset-4 hover:underline"
+                            >
+                              View more
+                            </button>
+                          </div>
+                        ) : (
+                          "-"
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <Button variant="outline" size="sm" onClick={() => setPreviewRecipient(recipient)}>
@@ -1027,6 +1087,51 @@ export default function CampaignDetailPageClient({
                         <div>Status: <span className="text-foreground">{previewRecipient.status}</span></div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {errorPreviewRecipient ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
+            <div className="w-full max-w-2xl rounded-2xl border border-border bg-background shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
+                <div>
+                  <h2 className="text-2xl font-semibold text-foreground">Delivery failure</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {errorPreviewRecipient.contactFullName || errorPreviewRecipient.contactPhone} ·{" "}
+                    {errorPreviewRecipient.contactPhone}
+                  </p>
+                </div>
+                <Button variant="outline" onClick={() => setErrorPreviewRecipient(null)}>
+                  Close
+                </Button>
+              </div>
+
+              <div className="space-y-4 px-6 py-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Status</div>
+                    <div className="mt-2">
+                      <Badge className={recipientTone(errorPreviewRecipient.status)}>{errorPreviewRecipient.status}</Badge>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Failed at</div>
+                    <div className="mt-2 text-sm text-foreground">{formatDate(errorPreviewRecipient.failedAt)}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Error code</div>
+                  <div className="mt-2 text-sm text-foreground">{errorPreviewRecipient.errorCode || "-"}</div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Full error</div>
+                  <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
+                    {recipientErrorText(errorPreviewRecipient) || "-"}
                   </div>
                 </div>
               </div>

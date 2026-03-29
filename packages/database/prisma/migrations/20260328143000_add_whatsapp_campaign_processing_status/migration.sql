@@ -1,0 +1,1 @@
+ALTER TYPE "WhatsappRecipientStatus" ADD VALUE IF NOT EXISTS 'PROCESSING';

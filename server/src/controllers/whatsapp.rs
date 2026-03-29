@@ -232,6 +232,16 @@ pub async fn get_campaign(
     Ok(HttpResponse::Ok().json(result))
 }
 
+pub async fn get_campaign_summary(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let result = whatsapp::get_campaign_summary(pool.get_ref(), &user.id, &path).await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
 pub async fn launch_campaign(
     pool: web::Data<PgPool>,
     req: HttpRequest,

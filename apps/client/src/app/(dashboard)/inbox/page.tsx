@@ -1,8 +1,5 @@
 import InboxPageClient from "@/components/dashboard/inbox-page";
-import { apiUrl } from "@/lib/server-api";
-import { getRustSession } from "@/lib/rust-auth";
-import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { fetchRustJson } from "@/lib/rust-server-api";
 
 type RustInboxConversation = {
   id: string;
@@ -28,40 +25,15 @@ type RustConnection = {
   createdAt: string;
 };
 
-async function fetchRustJson<T>(path: string): Promise<T> {
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore
-    .getAll()
-    .map((cookie) => `${cookie.name}=${cookie.value}`)
-    .join("; ");
-
-  const response = await fetch(apiUrl(path), {
-    cache: "no-store",
-    headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
-  });
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(
-      `Rust API request failed for ${path} (${response.status})${detail ? `: ${detail}` : ""}`,
-    );
-  }
-
-  return response.json() as Promise<T>;
-}
-
 export default async function InboxPage() {
-  const session = await getRustSession();
-  if (!session?.user?.id) redirect("/login");
-
-  const [connectionsPayload, conversationsPayload, unreadPayload] = await Promise.all([
+  const [connectionsPayload, conversationsPayload] = await Promise.all([
     fetchRustJson<{ connections: RustConnection[] }>("/api/whatsapp/connections"),
     fetchRustJson<{ conversations: RustInboxConversation[] }>("/api/whatsapp/inbox/conversations"),
-    fetchRustJson<{ unreadCount: number }>("/api/whatsapp/inbox/unread-count"),
   ]);
 
   const connections = connectionsPayload.connections || [];
   const conversations = conversationsPayload.conversations || [];
+  const unreadCount = conversations.reduce((sum, conversation) => sum + Math.max(conversation.unreadCount, 0), 0);
 
   return (
     <InboxPageClient
@@ -92,7 +64,7 @@ export default async function InboxPage() {
         whatsapp: {
           connected: connections.length > 0,
           connectionCount: connections.length,
-          unreadCount: unreadPayload.unreadCount || 0,
+          unreadCount,
           conversationCount: conversations.length,
         },
         instagram: {

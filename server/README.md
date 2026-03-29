@@ -14,4 +14,21 @@ Actix-web backend for thearchitect.fun.
 cargo run
 ```
 
-Server runs on `http://localhost:8080` by default.
+By default, the API server also starts the WhatsApp inbox, WhatsApp marketing, and social publishing workers in the same process.
+
+If you need to disable embedded workers for a pure API process, set:
+
+```bash
+KASITEK_DISABLE_BACKGROUND_WORKERS=true cargo run
+```
+
+If you want a dedicated worker-only process, use:
+
+```bash
+KASITEK_PROCESS=whatsapp-marketing-worker cargo run
+KASITEK_PROCESS=whatsapp-inbox-worker cargo run
+KASITEK_PROCESS=social-publishing-worker cargo run
+KASITEK_PROCESS=all-workers cargo run
+```
+
+Server runs on `http://localhost:8080` by default unless `PORT` is set.

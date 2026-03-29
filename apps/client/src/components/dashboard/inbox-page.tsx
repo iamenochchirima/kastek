@@ -32,7 +32,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 import { apiUrl } from "@/lib/server-api";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -64,6 +63,7 @@ import {
   type WhatsappMediaKind,
   unwrapWhatsappStoredMessage,
 } from "@/lib/whatsapp/message-content";
+import { useWhatsappRealtimeSubscription } from "@/components/dashboard/whatsapp-realtime-provider";
 
 type InboxConversation = {
   id: string;
@@ -113,19 +113,6 @@ type ChannelCounts = {
   };
 };
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.03 },
-  },
-};
-
-const item = {
-  hidden: { opacity: 0, x: -10 },
-  show: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" as const } },
-};
-
 type ConversationMessage = {
   id: string;
   sender: "customer" | "bot";
@@ -167,6 +154,25 @@ function formatConversationTime(value: string) {
   return date.toLocaleDateString("en-ZA", { day: "2-digit", month: "2-digit" });
 }
 
+function buildConversationAvatar(label: string) {
+  return (
+    label
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("")
+      .slice(0, 2) || "?"
+  );
+}
+
+function upsertConversationByRecentActivity(
+  current: InboxConversation[],
+  nextConversation: InboxConversation,
+) {
+  return [nextConversation, ...current.filter((conversation) => conversation.id !== nextConversation.id)];
+}
+
 export default function InboxPageClient({
   whatsappConnections,
   conversations,
@@ -177,7 +183,6 @@ export default function InboxPageClient({
   channelCounts: ChannelCounts;
 }) {
   const [liveConversations, setLiveConversations] = useState(conversations);
-  const [liveWhatsappUnreadCount, setLiveWhatsappUnreadCount] = useState(channelCounts.whatsapp.unreadCount);
   const [selectedChannel, setSelectedChannel] = useState<"all" | "whatsapp" | "instagram" | "facebook">("all");
   const [selectedWhatsappConnectionId, setSelectedWhatsappConnectionId] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
@@ -208,16 +213,16 @@ export default function InboxPageClient({
   const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const reactionPickerRef = useRef<HTMLDivElement | null>(null);
   const reactionTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const unreadReconcileTimerRef = useRef<number | null>(null);
   const copyFeedbackTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setLiveConversations(conversations);
   }, [conversations]);
 
-  useEffect(() => {
-    setLiveWhatsappUnreadCount(channelCounts.whatsapp.unreadCount);
-  }, [channelCounts.whatsapp.unreadCount]);
+  const whatsappUnreadCount = useMemo(
+    () => liveConversations.filter((conversation) => conversation.unread).length,
+    [liveConversations],
+  );
 
   const channels = useMemo(
     () => [
@@ -232,7 +237,7 @@ export default function InboxPageClient({
           channelCounts.instagram.conversationCount +
           channelCounts.facebook.conversationCount,
         unreadCount:
-          liveWhatsappUnreadCount +
+          whatsappUnreadCount +
           channelCounts.instagram.unreadCount +
           channelCounts.facebook.unreadCount,
         disabled: false,
@@ -245,7 +250,7 @@ export default function InboxPageClient({
         color: "text-green-500",
         bgColor: "bg-green-500/10",
         count: liveConversations.length,
-        unreadCount: liveWhatsappUnreadCount,
+        unreadCount: whatsappUnreadCount,
         disabled: false,
         connected: channelCounts.whatsapp.connected,
       },
@@ -272,7 +277,7 @@ export default function InboxPageClient({
         connected: false,
       },
     ],
-    [channelCounts, liveConversations.length, liveWhatsappUnreadCount],
+    [channelCounts, liveConversations.length, whatsappUnreadCount],
   );
 
   const whatsappConnectionFilters = useMemo(
@@ -797,278 +802,190 @@ export default function InboxPageClient({
     };
   }, [showEmojiPicker]);
 
-  useEffect(() => {
-    const source = new EventSource(apiUrl("/api/realtime/whatsapp"), {
-      withCredentials: true,
-    });
+  useWhatsappRealtimeSubscription((payload) => {
+    if (payload.type === "message.created") {
+      const conversationId = payload.conversationId;
+      setLiveConversations((current) => {
+        const existing = current.find((conversation) => conversation.id === conversationId);
+        const fallbackName =
+          payload.conversation?.customerName || payload.conversation?.phone || "Unknown contact";
 
-    const syncUnreadCount = async () => {
-      try {
-        const response = await fetch(apiUrl("/api/whatsapp/inbox/unread-count"), {
-          cache: "no-store",
-          credentials: "include",
+        if (!existing) {
+          return upsertConversationByRecentActivity(current, {
+            id: conversationId,
+            name: fallbackName,
+            handle: payload.conversation?.phone || "Unknown contact",
+            lastMessage: getWhatsappMessagePreview(payload.message.content),
+            time: payload.message.timestamp,
+            unread: payload.message.sender === "customer" && conversationId !== selectedConversationId,
+            starred: false,
+            channel: "whatsapp" as const,
+            connectionId: payload.conversation?.connectionId || null,
+            connectionLabel:
+              payload.conversation?.connectionLabel || payload.conversation?.phone || "Unknown number",
+            avatar: buildConversationAvatar(fallbackName),
+            status: "offline" as const,
+            tags: [],
+          });
+        }
+
+        return upsertConversationByRecentActivity(current, {
+          ...existing,
+          time: payload.message.timestamp,
+          lastMessage: getWhatsappMessagePreview(payload.message.content),
+          unread:
+            payload.message.sender === "customer"
+              ? existing.id !== selectedConversationId
+              : existing.unread,
         });
+      });
 
-        if (!response.ok) return;
+      setMessagesByConversationId((current) => {
+        const existing = current[conversationId];
+        if (!existing) return current;
+        if (existing.some((message) => message.id === payload.message.id)) return current;
 
-        const payload = (await response.json()) as { unreadCount?: number };
-        if (typeof payload.unreadCount !== "number") return;
+        const next = [...existing];
+        const optimisticIndex =
+          payload.message.sender === "bot"
+            ? next.findIndex(
+                (message) =>
+                  message.sender === "bot" &&
+                  message.status === "pending" &&
+                  message.content === payload.message.content,
+              )
+            : -1;
 
-        setLiveWhatsappUnreadCount(Math.max(0, payload.unreadCount));
-      } catch {
-        // Ignore transient failures; reconcile again on the next event.
-      }
-    };
+        const confirmedMessage: ConversationMessage = {
+          id: payload.message.id,
+          sender: payload.message.sender,
+          content: payload.message.content,
+          text: getWhatsappMessageDisplayText(payload.message.content),
+          time: new Date(payload.message.timestamp).toLocaleTimeString("en-ZA", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          timestamp: payload.message.timestamp,
+          status: normalizeRealtimeStatus(payload.message.whatsappStatus),
+        };
 
-    const scheduleUnreadSync = () => {
-      if (unreadReconcileTimerRef.current !== null) {
-        window.clearTimeout(unreadReconcileTimerRef.current);
-      }
+        if (optimisticIndex !== -1) {
+          next[optimisticIndex] = confirmedMessage;
 
-      unreadReconcileTimerRef.current = window.setTimeout(() => {
-        void syncUnreadCount();
-      }, 250);
-    };
+          return {
+            ...current,
+            [conversationId]: next.sort(
+              (left, right) =>
+                new Date(left.timestamp || 0).getTime() -
+                new Date(right.timestamp || 0).getTime(),
+            ),
+          };
+        }
 
-    source.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as WhatsappRealtimeEvent;
+        return {
+          ...current,
+          [conversationId]: [...next, confirmedMessage].sort(
+            (left, right) =>
+              new Date(left.timestamp || 0).getTime() -
+              new Date(right.timestamp || 0).getTime(),
+          ),
+        };
+      });
+      return;
+    }
 
-        if (payload.type === "message.created") {
-          const conversationId = payload.conversationId;
-          setLiveConversations((current) => {
-            const existing = current.find((conversation) => conversation.id === conversationId);
-            if (!existing) {
-              const fallbackName =
-                payload.conversation?.customerName || payload.conversation?.phone || "Unknown contact";
-              const nextConversation: InboxConversation = {
-                id: conversationId,
-                name: fallbackName,
-                handle: payload.conversation?.phone || "Unknown contact",
-                lastMessage: getWhatsappMessagePreview(payload.message.content),
-                time: payload.message.timestamp,
-                unread: payload.message.sender === "customer" && conversationId !== selectedConversationId,
-                starred: false,
-                channel: "whatsapp" as const,
-                connectionId: payload.conversation?.connectionId || null,
-                connectionLabel:
-                  payload.conversation?.connectionLabel || payload.conversation?.phone || "Unknown number",
-                avatar:
-                  fallbackName
-                    .split(/\s+/)
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .map((part) => part[0]?.toUpperCase() || "")
-                    .join("")
-                    .slice(0, 2) || "?",
-                status: "offline" as const,
-                tags: [],
-              };
-
-              return [nextConversation, ...current].sort(
-                (left, right) => new Date(right.time).getTime() - new Date(left.time).getTime(),
-              );
+    if (payload.type === "conversation.updated") {
+      setLiveConversations((current) => {
+        const existing = current.find((conversation) => conversation.id === payload.conversationId);
+        const nextConversation: InboxConversation = existing
+          ? {
+              ...existing,
+              name: payload.conversation.customerName || existing.name,
+              handle: payload.conversation.phone,
+              time: payload.conversation.lastMessageAt,
+              unread: payload.conversation.unreadCount > 0,
+              starred: payload.conversation.starred ?? existing.starred,
+              connectionId: payload.conversation.connectionId || existing.connectionId,
+              connectionLabel:
+                payload.conversation.connectionLabel ||
+                existing.connectionLabel ||
+                payload.conversation.phone ||
+                "Unknown number",
+              avatar: buildConversationAvatar(
+                payload.conversation.customerName || payload.conversation.phone || existing.name,
+              ),
             }
-
-            const next = current.map((conversation) =>
-              conversation.id === conversationId
-                ? {
-                    ...conversation,
-                    time: payload.message.timestamp,
-                    lastMessage: getWhatsappMessagePreview(payload.message.content),
-                    unread:
-                      payload.message.sender === "customer"
-                        ? conversation.id === selectedConversationId
-                          ? false
-                          : true
-                        : conversation.unread,
-                  }
-                : conversation,
-            );
-
-            return next.sort(
-              (left, right) => new Date(right.time).getTime() - new Date(left.time).getTime(),
-            );
-          });
-
-          if (payload.message.sender === "customer") {
-            setLiveWhatsappUnreadCount((current) =>
-              conversationId === selectedConversationId ? current : current + 1,
-            );
-            scheduleUnreadSync();
-          }
-
-          setMessagesByConversationId((current) => {
-            const existing = current[conversationId];
-            if (!existing) return current;
-            if (existing.some((message) => message.id === payload.message.id)) return current;
-
-            const next = [...existing];
-            const optimisticIndex =
-              payload.message.sender === "bot"
-                ? next.findIndex(
-                    (message) =>
-                      message.sender === "bot" &&
-                      message.status === "pending" &&
-                      message.content === payload.message.content,
-                  )
-                : -1;
-
-            const confirmedMessage: ConversationMessage = {
-              id: payload.message.id,
-              sender: payload.message.sender,
-              content: payload.message.content,
-              text: getWhatsappMessageDisplayText(payload.message.content),
-              time: new Date(payload.message.timestamp).toLocaleTimeString("en-ZA", {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              timestamp: payload.message.timestamp,
-              status: normalizeRealtimeStatus(payload.message.whatsappStatus),
-            };
-
-            if (optimisticIndex !== -1) {
-              next[optimisticIndex] = confirmedMessage;
-
-              return {
-                ...current,
-                [conversationId]: next.sort(
-                  (left, right) =>
-                    new Date(left.timestamp || 0).getTime() -
-                    new Date(right.timestamp || 0).getTime(),
-                ),
-              };
-            }
-
-            return {
-              ...current,
-              [conversationId]: [...next, confirmedMessage].sort(
-                (left, right) =>
-                  new Date(left.timestamp || 0).getTime() -
-                  new Date(right.timestamp || 0).getTime(),
+          : {
+              id: payload.conversationId,
+              name: payload.conversation.customerName || payload.conversation.phone || "Unknown contact",
+              handle: payload.conversation.phone,
+              lastMessage: "New conversation",
+              time: payload.conversation.lastMessageAt,
+              unread: payload.conversation.unreadCount > 0,
+              starred: payload.conversation.starred ?? false,
+              channel: "whatsapp" as const,
+              connectionId: payload.conversation.connectionId || null,
+              connectionLabel:
+                payload.conversation.connectionLabel || payload.conversation.phone || "Unknown number",
+              avatar: buildConversationAvatar(
+                payload.conversation.customerName || payload.conversation.phone || "?",
               ),
+              status: "offline" as const,
+              tags: [],
             };
-          });
-        }
 
-        if (payload.type === "conversation.updated") {
-          setLiveConversations((current) => {
-            const existing = current.find((conversation) => conversation.id === payload.conversationId);
+        return upsertConversationByRecentActivity(current, nextConversation);
+      });
+      return;
+    }
 
-            const next = existing
-              ? current.map((conversation) =>
-                  conversation.id === payload.conversationId
-                    ? {
-                        ...conversation,
-                        name: payload.conversation.customerName || conversation.name,
-                        handle: payload.conversation.phone,
-                        time: payload.conversation.lastMessageAt,
-                        unread: payload.conversation.unreadCount > 0,
-                        starred: payload.conversation.starred ?? conversation.starred,
-                        avatar:
-                          (payload.conversation.customerName || payload.conversation.phone || "?")
-                            .split(/\s+/)
-                            .filter(Boolean)
-                            .slice(0, 2)
-                            .map((part) => part[0]?.toUpperCase() || "")
-                            .join("")
-                            .slice(0, 2) || "?",
-                      }
-                    : conversation,
-                )
-              : [
-                  {
-                    id: payload.conversationId,
-                    name: payload.conversation.customerName || payload.conversation.phone || "Unknown contact",
-                    handle: payload.conversation.phone,
-                    lastMessage: "New conversation",
-                    time: payload.conversation.lastMessageAt,
-                    unread: payload.conversation.unreadCount > 0,
-                    starred: payload.conversation.starred ?? false,
-                    channel: "whatsapp" as const,
-                    connectionId: payload.conversation.connectionId || null,
-                    connectionLabel:
-                      payload.conversation.connectionLabel || payload.conversation.phone || "Unknown number",
-                    avatar:
-                      (payload.conversation.customerName || payload.conversation.phone || "?")
-                        .split(/\s+/)
-                        .filter(Boolean)
-                        .slice(0, 2)
-                        .map((part) => part[0]?.toUpperCase() || "")
-                        .join("")
-                        .slice(0, 2) || "?",
-                    status: "offline" as const,
-                    tags: [],
-                  },
-                  ...current,
-                ];
+    if (payload.type === "message.updated") {
+      const conversationId = payload.conversationId;
+      setMessagesByConversationId((current) => {
+        const existing = current[conversationId];
+        if (!existing) return current;
 
-            return next.sort(
-              (left, right) => new Date(right.time).getTime() - new Date(left.time).getTime(),
-            );
-          });
+        return {
+          ...current,
+          [conversationId]: existing.map((message) =>
+            message.id === payload.message.id
+              ? {
+                  ...message,
+                  status: normalizeRealtimeStatus(payload.message.whatsappStatus),
+                  errorMessage: null,
+                }
+              : message,
+          ),
+        };
+      });
+      return;
+    }
 
-          scheduleUnreadSync();
-        }
+    if (payload.type === "message.send_failed") {
+      const conversationId = payload.conversationId;
+      setComposerError(payload.error);
+      setMessagesByConversationId((current) => {
+        const existing = current[conversationId];
+        if (!existing) return current;
 
-        if (payload.type === "message.updated") {
-          const conversationId = payload.conversationId;
-          setMessagesByConversationId((current) => {
-            const existing = current[conversationId];
-            if (!existing) return current;
-
-            return {
-              ...current,
-              [conversationId]: existing.map((message) =>
-                message.id === payload.message.id
-                  ? {
-                      ...message,
-                      status: normalizeRealtimeStatus(payload.message.whatsappStatus),
-                      errorMessage: null,
-                    }
-                  : message,
-              ),
-            };
-          });
-        }
-
-        if (payload.type === "message.send_failed") {
-          const conversationId = payload.conversationId;
-          setComposerError(payload.error);
-          setMessagesByConversationId((current) => {
-            const existing = current[conversationId];
-            if (!existing) return current;
-
-            return {
-              ...current,
-              [conversationId]: existing.map((message) =>
-                message.sender === "bot" &&
-                message.status === "pending" &&
-                payload.text &&
-                message.text === payload.text
-                  ? {
-                      ...message,
-                      status: "failed",
-                      errorMessage: payload.error || "Failed to send WhatsApp message",
-                    }
-                  : message,
-              ),
-            };
-          });
-        }
-      } catch {
-        // Ignore malformed payloads.
-      }
-    };
-
-    return () => {
-      source.close();
-      if (unreadReconcileTimerRef.current !== null) {
-        window.clearTimeout(unreadReconcileTimerRef.current);
-        unreadReconcileTimerRef.current = null;
-      }
-    };
-  }, [selectedConversationId]);
+        return {
+          ...current,
+          [conversationId]: existing.map((message) =>
+            message.sender === "bot" &&
+            message.status === "pending" &&
+            payload.text &&
+            message.text === payload.text
+              ? {
+                  ...message,
+                  status: "failed",
+                  errorMessage: payload.error || "Failed to send WhatsApp message",
+                }
+              : message,
+          ),
+        };
+      });
+    }
+  });
 
   async function sendReaction(messageId: string, emoji: string, remove = false) {
     if (!selectedConversationId) return;
@@ -1392,7 +1309,7 @@ export default function InboxPageClient({
           </div>
 
           <ScrollArea className="flex-1">
-            <motion.div variants={container} initial="hidden" animate="show" className="p-2">
+            <div className="p-2">
               {selectedChannel !== "all" && selectedChannelMeta.disabled ? (
                 <div className="flex flex-col items-center justify-center py-14 text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
@@ -1421,9 +1338,8 @@ export default function InboxPageClient({
                   const ConversationChannelIcon = channelInfo.icon;
 
                   return (
-                    <motion.div
+                    <div
                       key={conversation.id}
-                      variants={item}
                       className={cn(
                         "mb-1 flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-all duration-200",
                         selectedConversation?.id === conversation.id
@@ -1575,11 +1491,11 @@ export default function InboxPageClient({
                           <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
                         ) : null}
                       </button>
-                    </motion.div>
+                    </div>
                   );
                 })
               )}
-            </motion.div>
+            </div>
           </ScrollArea>
         </div>
 

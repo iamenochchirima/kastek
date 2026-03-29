@@ -912,6 +912,35 @@ pub struct ConversationRow {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct InboxConversationListRow {
+    pub id: String,
+    pub channel: String,
+    #[sqlx(rename = "customer_identifier")]
+    pub customer_identifier: String,
+    #[sqlx(rename = "customer_name")]
+    pub customer_name: Option<String>,
+    pub status: String,
+    #[sqlx(rename = "last_message_at")]
+    pub last_message_at: DateTime<Utc>,
+    #[sqlx(rename = "last_read_at")]
+    pub last_read_at: Option<DateTime<Utc>>,
+    pub starred: bool,
+    #[sqlx(rename = "unread_count")]
+    pub unread_count: i32,
+    #[sqlx(rename = "created_at")]
+    pub created_at: DateTime<Utc>,
+    #[sqlx(rename = "updated_at")]
+    pub updated_at: DateTime<Utc>,
+    #[sqlx(rename = "connection_id")]
+    pub connection_id: Option<String>,
+    pub phone: Option<String>,
+    #[sqlx(rename = "connection_label")]
+    pub connection_label: Option<String>,
+    #[sqlx(rename = "last_message_content")]
+    pub last_message_content: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ConversationUpdateRequest {
     pub starred: Option<bool>,

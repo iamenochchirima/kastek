@@ -192,6 +192,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::scope("/campaigns")
                         .route("", web::get().to(whatsapp::list_campaigns))
                         .route("", web::post().to(whatsapp::create_campaign))
+                        .route("/{id}/summary", web::get().to(whatsapp::get_campaign_summary))
                         .route("/{id}", web::get().to(whatsapp::get_campaign))
                         .route("/{id}", web::patch().to(whatsapp::update_campaign))
                         .route("/{id}", web::delete().to(whatsapp::delete_campaign))
