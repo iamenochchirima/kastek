@@ -283,12 +283,14 @@ function SidebarContent({
   user,
   hasPwaUpdate = false,
   onOpenSwitcher,
+  onNavigate,
 }: {
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
   user?: { name?: string | null; email?: string | null; image?: string | null };
   hasPwaUpdate?: boolean;
   onOpenSwitcher: () => void;
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const currentProduct = resolveProduct(pathname);
@@ -376,14 +378,15 @@ function SidebarContent({
             <Link
               key={item.href}
               href={item.href}
-            className={cn(
-              "group relative flex items-center rounded-xl text-sm font-medium transition-all duration-200 no-underline",
-              collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-3",
-              active
-                ? "bg-[linear-gradient(135deg,rgba(232,160,32,0.18),rgba(232,160,32,0.04))] text-primary shadow-[inset_0_0_0_1px_rgba(232,160,32,0.16)]"
-                : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
-            )}
-          >
+              onClick={onNavigate}
+              className={cn(
+                "group relative flex items-center rounded-xl text-sm font-medium transition-all duration-200 no-underline",
+                collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-3",
+                active
+                  ? "bg-[linear-gradient(135deg,rgba(232,160,32,0.18),rgba(232,160,32,0.04))] text-primary shadow-[inset_0_0_0_1px_rgba(232,160,32,0.16)]"
+                  : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
+              )}
+            >
               <item.icon className={cn("h-5 w-5 shrink-0", active && "text-primary")} />
               {!collapsed ? <span className="flex-1">{item.name}</span> : null}
               {showInboxBadge ? (
@@ -409,6 +412,7 @@ function SidebarContent({
 
         <Link
           href="/workspace/notifications"
+          onClick={onNavigate}
           className={cn(
             "flex items-center rounded-xl text-sm font-medium text-muted-foreground no-underline transition-all duration-200 hover:bg-secondary/80 hover:text-foreground",
             collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-3",
@@ -440,27 +444,27 @@ function SidebarContent({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem asChild>
-              <Link href="/workspace/profile">
+              <Link href="/workspace/profile" onClick={onNavigate}>
                 <UserRound className="mr-2 h-4 w-4" />
                 Profile
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/workspace">
+              <Link href="/workspace" onClick={onNavigate}>
                 <LayoutGrid className="mr-2 h-4 w-4" />
                 Workspace
               </Link>
             </DropdownMenuItem>
             {currentProduct.settingsHref ? (
               <DropdownMenuItem asChild>
-                <Link href={currentProduct.settingsHref}>
+                <Link href={currentProduct.settingsHref} onClick={onNavigate}>
                   <Settings className="mr-2 h-4 w-4" />
                   Product Settings
                 </Link>
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem asChild>
-              <Link href="/workspace">
+              <Link href="/workspace" onClick={onNavigate}>
                 <CircleHelp className="mr-2 h-4 w-4" />
                 Help
               </Link>
@@ -545,6 +549,7 @@ export function LayoutShell({
   const [collapsed, setCollapsed] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const pathname = usePathname();
   const currentProduct = resolveProduct(pathname);
 
@@ -580,7 +585,7 @@ export function LayoutShell({
               onOpenSwitcher={() => setSwitcherOpen(true)}
             />
           </aside>
-          <Sheet>
+          <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
             <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
               <div className="flex min-w-0 items-center gap-2">
                 <SheetTrigger asChild>
@@ -617,6 +622,7 @@ export function LayoutShell({
                 user={user}
                 hasPwaUpdate={hasPwaUpdate}
                 onOpenSwitcher={() => setSwitcherOpen(true)}
+                onNavigate={() => setMobileSheetOpen(false)}
               />
             </SheetContent>
           </Sheet>
