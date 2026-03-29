@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   SOCIAL_PLATFORM_ORDER,
@@ -695,7 +696,29 @@ export function PostsWorkspace() {
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
-              <div className="rounded-md bg-secondary/35 p-4 text-sm text-muted-foreground">Loading posts...</div>
+              Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="rounded-xl border border-border/70 bg-secondary/30 p-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Skeleton className="h-6 w-48" />
+                        <Skeleton className="h-6 w-24 rounded-full" />
+                      </div>
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-5/6" />
+                      <div className="flex flex-wrap gap-2">
+                        {Array.from({ length: 3 }).map((__, badgeIndex) => (
+                          <Skeleton key={badgeIndex} className="h-6 w-20 rounded-full" />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="grid w-full gap-2 sm:flex sm:flex-wrap lg:w-auto">
+                      <Skeleton className="h-9 w-full rounded-md sm:w-24" />
+                      <Skeleton className="h-9 w-full rounded-md sm:w-24" />
+                    </div>
+                  </div>
+                </div>
+              ))
             ) : filteredPosts.length === 0 ? (
               <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
                 No posts match the current filter yet.

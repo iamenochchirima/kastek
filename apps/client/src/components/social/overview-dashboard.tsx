@@ -7,6 +7,7 @@ import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   type SocialChannelConnection,
   type SocialPost,
@@ -147,9 +148,12 @@ export function OverviewDashboard() {
             </CardHeader>
             <CardContent className="space-y-3">
               {loading ? (
-                <div className="rounded-md bg-secondary/35 p-4 text-sm text-muted-foreground">
-                  Loading queue...
-                </div>
+                Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="rounded-md bg-secondary/40 p-4">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="mt-2 h-3 w-24" />
+                  </div>
+                ))
               ) : upcoming.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
                   No scheduled posts yet. Create a draft and give it a schedule to populate this queue.

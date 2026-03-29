@@ -4,6 +4,7 @@ import { apiUrl } from "@/lib/server-api";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { type SocialPost, groupPostsByStatus } from "@/components/social/social-shared";
 
 export function PlannerBoard() {
@@ -82,8 +83,10 @@ export function PlannerBoard() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {loading ? (
-                  <div className="rounded-md bg-secondary/35 p-4 text-sm text-muted-foreground">
-                    Loading lane...
+                  <div className="space-y-3">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                      <Skeleton key={index} className="h-14 w-full rounded-md" />
+                    ))}
                   </div>
                 ) : lane.items.length === 0 ? (
                   <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">

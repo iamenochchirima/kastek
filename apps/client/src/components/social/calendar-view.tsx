@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { type SocialPost, formatDateTime, getPlatformLabel, getPostStatusMeta } from "@/components/social/social-shared";
 
 const week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -136,9 +137,39 @@ export function CalendarView() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="rounded-md bg-secondary/35 p-4 text-sm text-muted-foreground">
-                  Loading calendar...
-                </div>
+                <>
+                  <div className="space-y-3 md:hidden">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div key={index} className="rounded-xl border border-border/70 bg-secondary/20 p-4">
+                        <div className="flex items-center justify-between">
+                          <Skeleton className="h-4 w-28" />
+                          <Skeleton className="h-5 w-8 rounded-full" />
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          <Skeleton className="h-12 w-full rounded-lg" />
+                          <Skeleton className="h-10 w-full rounded-lg" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden gap-3 md:grid md:grid-cols-7">
+                    {week.map((day) => (
+                      <div key={day} className="hidden text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground md:block">
+                        {day}
+                      </div>
+                    ))}
+                    {Array.from({ length: 35 }).map((_, index) => (
+                      <div key={index} className="min-h-[170px] rounded-xl border border-border/60 p-3">
+                        <Skeleton className="h-4 w-8" />
+                        <div className="mt-3 space-y-2">
+                          <Skeleton className="h-12 w-full rounded-md" />
+                          <Skeleton className="h-10 w-full rounded-md" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : (
                 <>
                 <div className="space-y-3 md:hidden">

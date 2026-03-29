@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   SOCIAL_PLATFORM_ORDER,
   type SocialChannelConnection,
@@ -210,9 +211,25 @@ export function ChannelsManager() {
             </CardHeader>
             <CardContent className="space-y-3">
               {loading ? (
-                <div className="rounded-md bg-secondary/40 p-4 text-sm text-muted-foreground">
-                  Loading channel connections...
-                </div>
+                Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="flex flex-col gap-4 rounded-xl border border-border/70 bg-secondary/30 p-4 lg:flex-row lg:items-center lg:justify-between"
+                  >
+                    <div className="flex items-start gap-3">
+                      <Skeleton className="h-10 w-10 rounded-md" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-36" />
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="h-3 w-40" />
+                      </div>
+                    </div>
+                    <div className="grid gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                      <Skeleton className="h-9 w-full rounded-md sm:w-24" />
+                      <Skeleton className="h-9 w-full rounded-md sm:w-9" />
+                    </div>
+                  </div>
+                ))
               ) : channels.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
                   No channels connected yet. Use the quick-connect cards or the manual connection form.

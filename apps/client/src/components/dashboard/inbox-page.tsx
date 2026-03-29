@@ -47,6 +47,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -171,6 +172,40 @@ function upsertConversationByRecentActivity(
   nextConversation: InboxConversation,
 ) {
   return [nextConversation, ...current.filter((conversation) => conversation.id !== nextConversation.id)];
+}
+
+function InboxMessagesSkeleton() {
+  return (
+    <div className="space-y-4 py-2">
+      {[
+        { align: "start", width: "w-52" },
+        { align: "end", width: "w-40" },
+        { align: "start", width: "w-64" },
+        { align: "end", width: "w-56" },
+      ].map((item, index) => (
+        <div
+          key={index}
+          className={cn("flex", item.align === "end" ? "justify-end" : "justify-start")}
+        >
+          <div
+            className={cn(
+              "max-w-[85%] space-y-2 rounded-2xl p-3 sm:max-w-[70%]",
+              item.align === "end"
+                ? "border border-primary/15 bg-primary/5"
+                : "border border-border/60 bg-secondary/40",
+              item.width,
+            )}
+          >
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-5/6" />
+            <div className="flex justify-end">
+              <Skeleton className="h-3 w-12" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function InboxPageClient({
@@ -1636,7 +1671,7 @@ export default function InboxPageClient({
               </div>
 
               {messagesLoading && renderedMessages.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">Loading messages...</div>
+                <InboxMessagesSkeleton />
               ) : renderedMessages.length === 0 ? (
                 <div className="py-8 text-center text-sm text-muted-foreground">No messages yet.</div>
               ) : (
