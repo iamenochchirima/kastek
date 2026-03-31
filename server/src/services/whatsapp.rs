@@ -21,6 +21,7 @@ use crate::error::AppError;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
 use crate::services::realtime;
 use crate::services::social::{decrypt_social_secret, encrypt_social_secret};
+use crate::services::whatsapp_calls;
 
 const GRAPH_BASE: &str = "https://graph.facebook.com/v19.0";
 
@@ -4591,6 +4592,7 @@ pub async fn process_webhook_payload(
             for status in statuses {
                 handle_status(pool, &status).await?;
             }
+            whatsapp_calls::ingest_webhook_calls(pool, config, &value).await?;
             handle_incoming_messages(pool, config, &value).await?;
         }
     }

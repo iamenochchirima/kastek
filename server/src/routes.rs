@@ -2,7 +2,7 @@ use actix_web::web;
 
 use crate::controllers::{
     admin, ai, auth, bots, chat, health, notifications, profile, public, realtime, social,
-    whatsapp, workspace,
+    whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -199,6 +199,33 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         ),
                 )
                 .service(
+                    web::scope("/calls")
+                        .route("", web::get().to(whatsapp_calls::list_calls))
+                        .route(
+                            "/bridge/contract",
+                            web::get().to(whatsapp_calls::get_bridge_contract),
+                        )
+                        .route("/summary", web::get().to(whatsapp_calls::call_summary))
+                        .route("/test", web::post().to(whatsapp_calls::create_test_call))
+                        .route("/{id}", web::get().to(whatsapp_calls::get_call))
+                        .route(
+                            "/{id}/signals",
+                            web::get().to(whatsapp_calls::list_call_signals),
+                        )
+                        .route(
+                            "/{id}/signals",
+                            web::post().to(whatsapp_calls::post_call_signal),
+                        )
+                        .route(
+                            "/{id}/media-session",
+                            web::get().to(whatsapp_calls::get_call_media_session),
+                        )
+                        .route(
+                            "/{id}/action",
+                            web::post().to(whatsapp_calls::apply_call_action),
+                        ),
+                )
+                .service(
                     web::scope("/campaigns")
                         .route("", web::get().to(whatsapp::list_campaigns))
                         .route("", web::post().to(whatsapp::create_campaign))
@@ -215,7 +242,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/webhooks/whatsapp")
                 .route("", web::get().to(whatsapp::verify_webhook))
-                .route("", web::post().to(whatsapp::receive_webhook)),
+                .route("", web::post().to(whatsapp::receive_webhook))
+                .route(
+                    "/calls/bridge",
+                    web::post().to(whatsapp_calls::receive_bridge_event),
+                ),
         )
         .route(
             "/api/quote-requests",

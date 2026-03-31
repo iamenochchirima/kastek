@@ -10,4 +10,5 @@ pub mod public;
 pub mod realtime;
 pub mod social;
 pub mod whatsapp;
+pub mod whatsapp_calls;
 pub mod workspace;

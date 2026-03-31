@@ -7,3 +7,5 @@ pub mod push;
 pub mod realtime;
 pub mod social;
 pub mod whatsapp;
+pub mod whatsapp_call_bridge;
+pub mod whatsapp_calls;

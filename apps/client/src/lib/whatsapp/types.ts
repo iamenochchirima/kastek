@@ -205,4 +205,65 @@ export type WhatsappRealtimeEvent =
       conversationId: string;
       error: string;
       text?: string;
+    }
+  | {
+      type: "call.created";
+      callId: string;
+      call: {
+        id: string;
+        connectionId: string;
+        conversationId?: string | null;
+        direction: string;
+        status: string;
+        fromPhone: string;
+        toPhone: string;
+        agentLabel?: string | null;
+        connectionLabel?: string | null;
+        conversationCustomerName?: string | null;
+        startedAt?: string | null;
+        answeredAt?: string | null;
+        endedAt?: string | null;
+      };
+    }
+  | {
+      type: "call.updated";
+      callId: string;
+      action?: string;
+      call: {
+        id: string;
+        connectionId: string;
+        conversationId?: string | null;
+        direction: string;
+        status: string;
+        fromPhone: string;
+        toPhone: string;
+        agentLabel?: string | null;
+        connectionLabel?: string | null;
+        conversationCustomerName?: string | null;
+        startedAt?: string | null;
+        answeredAt?: string | null;
+        endedAt?: string | null;
+      };
+    }
+  | {
+      type: "call.signal";
+      callId: string;
+      kind: string;
+      source?: string;
+      signal: unknown;
+      call: {
+        id: string;
+        connectionId: string;
+        conversationId?: string | null;
+        direction: string;
+        status: string;
+        fromPhone: string;
+        toPhone: string;
+        agentLabel?: string | null;
+        connectionLabel?: string | null;
+        conversationCustomerName?: string | null;
+        startedAt?: string | null;
+        answeredAt?: string | null;
+        endedAt?: string | null;
+      };
     };

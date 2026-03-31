@@ -75,6 +75,8 @@ export const ModelName = {
   NotificationPreference: 'NotificationPreference',
   NotificationDeliveryLog: 'NotificationDeliveryLog',
   WhatsappConnection: 'WhatsappConnection',
+  WhatsappCallSession: 'WhatsappCallSession',
+  WhatsappCallEvent: 'WhatsappCallEvent',
   SocialChannelConnection: 'SocialChannelConnection',
   SocialPost: 'SocialPost',
   SocialPostVariant: 'SocialPostVariant',
@@ -544,6 +546,43 @@ export const WhatsappConnectionScalarFieldEnum = {
 } as const
 
 export type WhatsappConnectionScalarFieldEnum = (typeof WhatsappConnectionScalarFieldEnum)[keyof typeof WhatsappConnectionScalarFieldEnum]
+
+
+export const WhatsappCallSessionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  connectionId: 'connectionId',
+  conversationId: 'conversationId',
+  direction: 'direction',
+  status: 'status',
+  waCallId: 'waCallId',
+  fromPhone: 'fromPhone',
+  toPhone: 'toPhone',
+  agentLabel: 'agentLabel',
+  startedAt: 'startedAt',
+  answeredAt: 'answeredAt',
+  endedAt: 'endedAt',
+  durationSeconds: 'durationSeconds',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
+  rawPayload: 'rawPayload',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WhatsappCallSessionScalarFieldEnum = (typeof WhatsappCallSessionScalarFieldEnum)[keyof typeof WhatsappCallSessionScalarFieldEnum]
+
+
+export const WhatsappCallEventScalarFieldEnum = {
+  id: 'id',
+  sessionId: 'sessionId',
+  eventType: 'eventType',
+  status: 'status',
+  payload: 'payload',
+  createdAt: 'createdAt'
+} as const
+
+export type WhatsappCallEventScalarFieldEnum = (typeof WhatsappCallEventScalarFieldEnum)[keyof typeof WhatsappCallEventScalarFieldEnum]
 
 
 export const SocialChannelConnectionScalarFieldEnum = {

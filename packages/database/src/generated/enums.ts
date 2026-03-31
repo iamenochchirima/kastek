@@ -74,6 +74,28 @@ export const WhatsappConnectionQualityRating = {
 export type WhatsappConnectionQualityRating = (typeof WhatsappConnectionQualityRating)[keyof typeof WhatsappConnectionQualityRating]
 
 
+export const WhatsappCallDirection = {
+  INBOUND: 'INBOUND',
+  OUTBOUND: 'OUTBOUND'
+} as const
+
+export type WhatsappCallDirection = (typeof WhatsappCallDirection)[keyof typeof WhatsappCallDirection]
+
+
+export const WhatsappCallStatus = {
+  RINGING: 'RINGING',
+  CONNECTING: 'CONNECTING',
+  ACTIVE: 'ACTIVE',
+  COMPLETED: 'COMPLETED',
+  REJECTED: 'REJECTED',
+  MISSED: 'MISSED',
+  FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED'
+} as const
+
+export type WhatsappCallStatus = (typeof WhatsappCallStatus)[keyof typeof WhatsappCallStatus]
+
+
 export const SocialPlatform = {
   FACEBOOK: 'FACEBOOK',
   INSTAGRAM: 'INSTAGRAM',

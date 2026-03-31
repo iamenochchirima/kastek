@@ -160,6 +160,16 @@ export type NotificationDeliveryLog = Prisma.NotificationDeliveryLogModel
  */
 export type WhatsappConnection = Prisma.WhatsappConnectionModel
 /**
+ * Model WhatsappCallSession
+ * 
+ */
+export type WhatsappCallSession = Prisma.WhatsappCallSessionModel
+/**
+ * Model WhatsappCallEvent
+ * 
+ */
+export type WhatsappCallEvent = Prisma.WhatsappCallEventModel
+/**
  * Model SocialChannelConnection
  * 
  */

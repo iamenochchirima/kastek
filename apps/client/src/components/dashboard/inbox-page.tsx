@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Picker from "@emoji-mart/react";
 import emojiData from "@emoji-mart/data";
 import { AnimatePresence, motion } from "framer-motion";
@@ -128,6 +129,46 @@ type ConversationMessage = {
   errorMessage?: string | null;
 };
 
+type WhatsappCallSession = {
+  id: string;
+  connectionId: string;
+  conversationId?: string | null;
+  direction: string;
+  status: string;
+  fromPhone: string;
+  toPhone: string;
+  agentLabel?: string | null;
+  connectionLabel?: string | null;
+  conversationCustomerName?: string | null;
+  startedAt?: string | null;
+  answeredAt?: string | null;
+  endedAt?: string | null;
+};
+
+type WhatsappCallSignalEvent = {
+  id: string;
+  eventType: string;
+  createdAt: string;
+  payload?: {
+    kind?: string;
+    source?: string;
+    payload?: unknown;
+  } | null;
+};
+
+type CallMediaSession = {
+  provider?: string;
+  callId: string;
+  waCallId?: string | null;
+  conversationId?: string | null;
+  roomName?: string;
+  signalingUrl?: string | null;
+  iceServers?: RTCIceServer[];
+  agentRole?: string;
+  canAccept?: boolean;
+  canEnd?: boolean;
+};
+
 type ReactionPickerState = {
   messageId: string;
   top: number;
@@ -174,6 +215,45 @@ function upsertConversationByRecentActivity(
   return [nextConversation, ...current.filter((conversation) => conversation.id !== nextConversation.id)];
 }
 
+function upsertCallSession(
+  current: WhatsappCallSession[],
+  nextCall: WhatsappCallSession,
+) {
+  return [nextCall, ...current.filter((call) => call.id !== nextCall.id)];
+}
+
+function isLiveCallStatus(status: string) {
+  return status === "RINGING" || status === "CONNECTING" || status === "ACTIVE";
+}
+
+function formatCallStatus(status: string) {
+  return status.toLowerCase().replace(/_/g, " ");
+}
+
+function formatCallTimestamp(value?: string | null) {
+  if (!value) return "Just now";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Just now";
+  return date.toLocaleString("en-ZA", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatCallDuration(startedAt?: string | null, endedAt?: string | null) {
+  if (!startedAt || !endedAt) return null;
+  const started = new Date(startedAt).getTime();
+  const ended = new Date(endedAt).getTime();
+  if (!Number.isFinite(started) || !Number.isFinite(ended) || ended <= started) return null;
+  const seconds = Math.round((ended - started) / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  if (minutes <= 0) return `${remainder}s`;
+  return `${minutes}m ${remainder}s`;
+}
+
 function InboxMessagesSkeleton() {
   return (
     <div className="space-y-4 py-2">
@@ -217,6 +297,7 @@ export default function InboxPageClient({
   conversations: InboxConversation[];
   channelCounts: ChannelCounts;
 }) {
+  const searchParams = useSearchParams();
   const [liveConversations, setLiveConversations] = useState(conversations);
   const [selectedChannel, setSelectedChannel] = useState<"all" | "whatsapp" | "instagram" | "facebook">("all");
   const [selectedWhatsappConnectionId, setSelectedWhatsappConnectionId] = useState<string | null>(null);
@@ -242,6 +323,15 @@ export default function InboxPageClient({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [lightbox, setLightbox] = useState<MediaLightboxState | null>(null);
   const [copiedConversationId, setCopiedConversationId] = useState<string | null>(null);
+  const [callSessions, setCallSessions] = useState<WhatsappCallSession[]>([]);
+  const [callSignalsByCallId, setCallSignalsByCallId] = useState<Record<string, WhatsappCallSignalEvent[]>>({});
+  const [callMediaSessionsByCallId, setCallMediaSessionsByCallId] = useState<Record<string, CallMediaSession>>({});
+  const [callsLoading, setCallsLoading] = useState(false);
+  const [callActionLoading, setCallActionLoading] = useState<string | null>(null);
+  const [callError, setCallError] = useState<string>("");
+  const [callMediaLoading, setCallMediaLoading] = useState<string | null>(null);
+  const [callMediaState, setCallMediaState] = useState<"idle" | "requesting" | "connecting" | "connected" | "failed">("idle");
+  const [callMediaError, setCallMediaError] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -249,6 +339,10 @@ export default function InboxPageClient({
   const reactionPickerRef = useRef<HTMLDivElement | null>(null);
   const reactionTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const copyFeedbackTimerRef = useRef<number | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const activeWebRtcCallIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setLiveConversations(conversations);
@@ -354,6 +448,15 @@ export default function InboxPageClient({
     filteredConversations.find((conversation) => conversation.id === selectedConversationId) ??
     filteredConversations[0] ??
     null;
+  const preferredConversationId = searchParams.get("conversation")?.trim() || null;
+
+  useEffect(() => {
+    if (!preferredConversationId) return;
+    const exists = liveConversations.some((conversation) => conversation.id === preferredConversationId);
+    if (!exists || selectedConversationId === preferredConversationId) return;
+    setSelectedConversationId(preferredConversationId);
+    setMobileConversationOpen(true);
+  }, [liveConversations, preferredConversationId, selectedConversationId]);
 
   useEffect(() => {
     if (!filteredConversations.length) {
@@ -380,6 +483,39 @@ export default function InboxPageClient({
   const selectedMessages = useMemo(
     () => (selectedConversationId ? messagesByConversationId[selectedConversationId] || [] : []),
     [messagesByConversationId, selectedConversationId],
+  );
+  const activeCallsByConversationId = useMemo(() => {
+    const next: Record<string, WhatsappCallSession> = {};
+    for (const call of callSessions) {
+      if (!call.conversationId || !isLiveCallStatus(call.status)) continue;
+      next[call.conversationId] ||= call;
+    }
+    return next;
+  }, [callSessions]);
+  const selectedConversationCall =
+    selectedConversationId ? activeCallsByConversationId[selectedConversationId] || null : null;
+  const selectedCallSignals = selectedConversationCall
+    ? callSignalsByCallId[selectedConversationCall.id] || []
+    : [];
+  const latestSelectedCallSignal = selectedCallSignals[selectedCallSignals.length - 1] || null;
+  const selectedCallMediaSession = selectedConversationCall
+    ? callMediaSessionsByCallId[selectedConversationCall.id] || null
+    : null;
+  const conversationCallHistory = useMemo(
+    () =>
+      selectedConversationId
+        ? callSessions
+            .filter((call) => call.conversationId === selectedConversationId)
+            .slice(0, 5)
+        : [],
+    [callSessions, selectedConversationId],
+  );
+  const latestIncomingCall = useMemo(
+    () =>
+      callSessions.find(
+        (call) => call.direction === "INBOUND" && isLiveCallStatus(call.status),
+      ) || null,
+    [callSessions],
   );
   const persistedSelfReactionsByMessageId = useMemo(() => {
     const next: Record<string, string> = {};
@@ -493,6 +629,157 @@ export default function InboxPageClient({
     },
     [],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCalls() {
+      setCallsLoading(true);
+      try {
+        const response = await fetch(apiUrl("/api/whatsapp/calls"), {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const payload = (await response.json()) as { calls?: WhatsappCallSession[] };
+        if (!response.ok) {
+          throw new Error("Failed to load call sessions");
+        }
+        if (!cancelled) {
+          setCallSessions(payload.calls || []);
+          setCallError("");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setCallError(error instanceof Error ? error.message : "Failed to load call sessions");
+        }
+      } finally {
+        if (!cancelled) {
+          setCallsLoading(false);
+        }
+      }
+    }
+
+    void loadCalls();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedConversationCall) return;
+    let cancelled = false;
+
+    const loadSignals = async () => {
+      try {
+        const response = await fetch(apiUrl(`/api/whatsapp/calls/${selectedConversationCall.id}/signals`), {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const payload = (await response.json()) as { signals?: WhatsappCallSignalEvent[] };
+        if (!response.ok) {
+          throw new Error("Failed to load call signals");
+        }
+        if (!cancelled) {
+          setCallSignalsByCallId((current) => ({
+            ...current,
+            [selectedConversationCall.id]: payload.signals || [],
+          }));
+        }
+      } catch {
+        // Ignore missing signals while the transport is still being wired.
+      }
+    };
+
+    void loadSignals();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedConversationCall]);
+
+  useEffect(() => {
+    if (!selectedConversationCall) return;
+    let cancelled = false;
+
+    const loadMediaSession = async () => {
+      try {
+        const response = await fetch(
+          apiUrl(`/api/whatsapp/calls/${selectedConversationCall.id}/media-session`),
+          {
+            cache: "no-store",
+            credentials: "include",
+          },
+        );
+        const payload = (await response.json()) as { mediaSession?: CallMediaSession };
+        if (!response.ok || !payload.mediaSession) {
+          throw new Error("Failed to load call media session");
+        }
+        if (!cancelled) {
+          setCallMediaSessionsByCallId((current) => ({
+            ...current,
+            [selectedConversationCall.id]: payload.mediaSession!,
+          }));
+        }
+      } catch {
+        // Ignore until the signaling backend is fully configured.
+      }
+    };
+
+    void loadMediaSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedConversationCall]);
+
+  useEffect(() => {
+    return () => {
+      peerConnectionRef.current?.close();
+      peerConnectionRef.current = null;
+      if (localStreamRef.current) {
+        for (const track of localStreamRef.current.getTracks()) {
+          track.stop();
+        }
+      }
+      localStreamRef.current = null;
+      activeWebRtcCallIdRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedConversationCall && activeWebRtcCallIdRef.current) {
+      peerConnectionRef.current?.close();
+      peerConnectionRef.current = null;
+      if (localStreamRef.current) {
+        for (const track of localStreamRef.current.getTracks()) {
+          track.stop();
+        }
+      }
+      localStreamRef.current = null;
+      activeWebRtcCallIdRef.current = null;
+      setCallMediaState("idle");
+      setCallMediaError("");
+      return;
+    }
+
+    if (
+      selectedConversationCall &&
+      !isLiveCallStatus(selectedConversationCall.status) &&
+      activeWebRtcCallIdRef.current === selectedConversationCall.id
+    ) {
+      peerConnectionRef.current?.close();
+      peerConnectionRef.current = null;
+      if (localStreamRef.current) {
+        for (const track of localStreamRef.current.getTracks()) {
+          track.stop();
+        }
+      }
+      localStreamRef.current = null;
+      activeWebRtcCallIdRef.current = null;
+      setCallMediaState("idle");
+    }
+  }, [selectedConversationCall]);
 
   const renderChannelPanelContent = () => (
     <>
@@ -838,6 +1125,45 @@ export default function InboxPageClient({
   }, [showEmojiPicker]);
 
   useWhatsappRealtimeSubscription((payload) => {
+    if (payload.type === "call.created") {
+      setCallSessions((current) => upsertCallSession(current, payload.call));
+      setCallError("");
+
+      if (payload.call.conversationId) {
+        setSelectedConversationId(payload.call.conversationId);
+        setMobileConversationOpen(true);
+      }
+      return;
+    }
+
+    if (payload.type === "call.updated") {
+      setCallSessions((current) => upsertCallSession(current, payload.call));
+      setCallError("");
+      return;
+    }
+
+    if (payload.type === "call.signal") {
+      setCallSignalsByCallId((current) => {
+        const currentSignals = current[payload.callId] || [];
+        const nextSignal: WhatsappCallSignalEvent = {
+          id: `${payload.callId}:${payload.kind}:${currentSignals.length + 1}`,
+          eventType: `call.signal.${payload.kind}`,
+          createdAt: new Date().toISOString(),
+          payload: {
+            kind: payload.kind,
+            source: payload.source,
+            payload: payload.signal,
+          },
+        };
+        return {
+          ...current,
+          [payload.callId]: [...currentSignals, nextSignal],
+        };
+      });
+      void handleRealtimeCallSignal(payload.callId, payload.kind, payload.signal);
+      return;
+    }
+
     if (payload.type === "message.created") {
       const conversationId = payload.conversationId;
       setLiveConversations((current) => {
@@ -1021,6 +1347,223 @@ export default function InboxPageClient({
       });
     }
   });
+
+  async function postCallSignal(callId: string, kind: string, payload: unknown) {
+    const response = await fetch(apiUrl(`/api/whatsapp/calls/${callId}/signals`), {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        kind,
+        source: "agent-ui",
+        payload,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error || `Failed to send ${kind} signal`);
+    }
+  }
+
+  async function ensureCallMediaSession(callId: string) {
+    const existing = callMediaSessionsByCallId[callId];
+    if (existing) return existing;
+
+    const response = await fetch(apiUrl(`/api/whatsapp/calls/${callId}/media-session`), {
+      cache: "no-store",
+      credentials: "include",
+    });
+    const payload = (await response.json()) as { mediaSession?: CallMediaSession; error?: string };
+    if (!response.ok || !payload.mediaSession) {
+      throw new Error(payload.error || "Failed to load media session");
+    }
+    setCallMediaSessionsByCallId((current) => ({
+      ...current,
+      [callId]: payload.mediaSession!,
+    }));
+    return payload.mediaSession!;
+  }
+
+  async function createPeerConnection(callId: string, mediaSession: CallMediaSession) {
+    if (peerConnectionRef.current && activeWebRtcCallIdRef.current === callId) {
+      return peerConnectionRef.current;
+    }
+
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+    if (localStreamRef.current) {
+      for (const track of localStreamRef.current.getTracks()) {
+        track.stop();
+      }
+      localStreamRef.current = null;
+    }
+
+    setCallMediaState("requesting");
+    const localStream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false,
+    });
+    localStreamRef.current = localStream;
+
+    const peerConnection = new RTCPeerConnection({
+      iceServers: mediaSession.iceServers?.length
+        ? mediaSession.iceServers
+        : [{ urls: ["stun:stun.l.google.com:19302"] }],
+    });
+
+    for (const track of localStream.getTracks()) {
+      peerConnection.addTrack(track, localStream);
+    }
+
+    peerConnection.onicecandidate = (event) => {
+      if (!event.candidate) return;
+      void postCallSignal(callId, "candidate", event.candidate.toJSON()).catch((error) => {
+        setCallMediaError(error instanceof Error ? error.message : "Failed to send ICE candidate");
+      });
+    };
+
+    peerConnection.ontrack = (event) => {
+      const [remoteStream] = event.streams;
+      if (remoteAudioRef.current && remoteStream) {
+        remoteAudioRef.current.srcObject = remoteStream;
+        void remoteAudioRef.current.play().catch(() => {
+          // Playback can still require interaction on some mobile browsers.
+        });
+      }
+    };
+
+    peerConnection.onconnectionstatechange = () => {
+      const state = peerConnection.connectionState;
+      if (state === "connected") {
+        setCallMediaState("connected");
+      } else if (state === "connecting") {
+        setCallMediaState("connecting");
+      } else if (state === "failed" || state === "disconnected" || state === "closed") {
+        setCallMediaState("failed");
+      }
+    };
+
+    peerConnectionRef.current = peerConnection;
+    activeWebRtcCallIdRef.current = callId;
+    return peerConnection;
+  }
+
+  async function startWebRtcForCall(callId: string, mode: "offer" | "await-offer") {
+    if (typeof window === "undefined" || !("RTCPeerConnection" in window) || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error("This browser does not support WebRTC audio calling");
+    }
+
+    setCallMediaLoading(callId);
+    setCallMediaError("");
+
+    try {
+      const mediaSession = await ensureCallMediaSession(callId);
+      const peerConnection = await createPeerConnection(callId, mediaSession);
+
+      if (mode === "offer") {
+        setCallMediaState("connecting");
+        const offer = await peerConnection.createOffer({
+          offerToReceiveAudio: true,
+        });
+        await peerConnection.setLocalDescription(offer);
+        await postCallSignal(callId, "offer", offer);
+      }
+    } catch (error) {
+      setCallMediaState("failed");
+      setCallMediaError(error instanceof Error ? error.message : "Failed to start call media");
+      throw error;
+    } finally {
+      setCallMediaLoading(null);
+    }
+  }
+
+  async function handleRealtimeCallSignal(callId: string, kind: string, signal: unknown) {
+    if (activeWebRtcCallIdRef.current !== callId && kind !== "offer") {
+      return;
+    }
+
+    try {
+      if (kind === "offer") {
+        const mediaSession = await ensureCallMediaSession(callId);
+        const peerConnection = await createPeerConnection(callId, mediaSession);
+        const offer = signal as RTCSessionDescriptionInit;
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        await postCallSignal(callId, "answer", answer);
+        setCallMediaState("connecting");
+        return;
+      }
+
+      if (!peerConnectionRef.current || activeWebRtcCallIdRef.current !== callId) {
+        return;
+      }
+
+      if (kind === "answer") {
+        const answer = signal as RTCSessionDescriptionInit;
+        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+        setCallMediaState("connecting");
+        return;
+      }
+
+      if (kind === "candidate") {
+        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(signal as RTCIceCandidateInit));
+        return;
+      }
+
+      if (kind === "bye") {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+        activeWebRtcCallIdRef.current = null;
+        if (localStreamRef.current) {
+          for (const track of localStreamRef.current.getTracks()) {
+            track.stop();
+          }
+        }
+        localStreamRef.current = null;
+        setCallMediaState("idle");
+      }
+    } catch (error) {
+      setCallMediaState("failed");
+      setCallMediaError(error instanceof Error ? error.message : "Failed to process call signal");
+    }
+  }
+
+  async function applyCallAction(callId: string, action: "accept" | "reject" | "end") {
+    setCallActionLoading(action);
+    setCallError("");
+
+    try {
+      const response = await fetch(apiUrl(`/api/whatsapp/calls/${callId}/action`), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action }),
+      });
+      const payload = (await response.json()) as { call?: WhatsappCallSession; error?: string };
+      if (!response.ok || !payload.call) {
+        throw new Error(payload.error || "Failed to update call state");
+      }
+      setCallSessions((current) => upsertCallSession(current, payload.call as WhatsappCallSession));
+      if (action === "accept") {
+        await startWebRtcForCall(callId, "offer");
+      }
+      if (action === "end" || action === "reject") {
+        await postCallSignal(callId, "bye", { reason: action });
+      }
+    } catch (error) {
+      setCallError(error instanceof Error ? error.message : "Failed to update call state");
+    } finally {
+      setCallActionLoading(null);
+    }
+  }
 
   async function sendReaction(messageId: string, emoji: string, remove = false) {
     if (!selectedConversationId) return;
@@ -1513,6 +2056,17 @@ export default function InboxPageClient({
                             {conversation.handle}
                             {whatsappConnections.length > 1 ? ` · ${conversation.connectionLabel}` : ""}
                           </p>
+                          {activeCallsByConversationId[conversation.id] ? (
+                            <div className="mb-1">
+                              <Badge className="border-0 bg-accent/15 text-[10px] text-accent">
+                                {activeCallsByConversationId[conversation.id].status === "RINGING"
+                                  ? "Incoming call"
+                                  : activeCallsByConversationId[conversation.id].status === "ACTIVE"
+                                    ? "On call"
+                                    : formatCallStatus(activeCallsByConversationId[conversation.id].status)}
+                              </Badge>
+                            </div>
+                          ) : null}
                           <p
                             className={cn(
                               "truncate text-sm",
@@ -1662,8 +2216,177 @@ export default function InboxPageClient({
             ) : null}
           </div>
 
+          {latestIncomingCall && !selectedConversationCall ? (
+            <div className="border-b border-border bg-card/90 px-3 py-3 sm:px-6">
+              <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-2xl border border-accent/20 bg-accent/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Incoming WhatsApp call</p>
+                  <p className="mt-1 truncate text-sm text-muted-foreground">
+                    {latestIncomingCall.conversationCustomerName || latestIncomingCall.fromPhone}
+                    {latestIncomingCall.connectionLabel ? ` via ${latestIncomingCall.connectionLabel}` : ""}
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:flex sm:flex-wrap">
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    disabled={callActionLoading !== null}
+                    onClick={() => void applyCallAction(latestIncomingCall.id, "reject")}
+                  >
+                    Decline
+                  </Button>
+                  <Button
+                    className="w-full sm:w-auto"
+                    disabled={callActionLoading !== null}
+                    onClick={() => {
+                      if (latestIncomingCall.conversationId) {
+                        setSelectedConversationId(latestIncomingCall.conversationId);
+                        setMobileConversationOpen(true);
+                      }
+                      void applyCallAction(latestIncomingCall.id, "accept");
+                    }}
+                  >
+                    Answer
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <ScrollArea className="min-h-0 flex-1 p-3 sm:p-6">
             <div className="mx-auto max-w-3xl space-y-4">
+              {selectedConversationCall ? (
+                <div className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/15 text-accent">
+                          <Phone className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {selectedConversationCall.status === "RINGING"
+                              ? "Incoming WhatsApp call"
+                              : selectedConversationCall.status === "ACTIVE"
+                                ? "WhatsApp call in progress"
+                                : `Call ${formatCallStatus(selectedConversationCall.status)}`}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {selectedConversationCall.connectionLabel || selectedConversationCall.toPhone}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid gap-2 sm:flex sm:flex-wrap">
+                      {selectedConversationCall.status === "RINGING" ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            className="w-full sm:w-auto"
+                            disabled={callActionLoading !== null}
+                            onClick={() => void applyCallAction(selectedConversationCall.id, "reject")}
+                          >
+                            Decline
+                          </Button>
+                          <Button
+                            className="w-full sm:w-auto"
+                            disabled={callActionLoading !== null}
+                            onClick={() => void applyCallAction(selectedConversationCall.id, "accept")}
+                          >
+                            Answer
+                          </Button>
+                        </>
+                      ) : null}
+                      {selectedConversationCall.status === "ACTIVE" ? (
+                        <Button
+                          variant="destructive"
+                          className="w-full sm:w-auto"
+                          disabled={callActionLoading !== null}
+                          onClick={() => void applyCallAction(selectedConversationCall.id, "end")}
+                        >
+                          End call
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                  {latestSelectedCallSignal ? (
+                    <div className="mt-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
+                      Latest signal:{" "}
+                      <span className="font-medium text-foreground">
+                        {latestSelectedCallSignal.payload?.kind || latestSelectedCallSignal.eventType}
+                      </span>
+                      {latestSelectedCallSignal.payload?.source
+                        ? ` from ${latestSelectedCallSignal.payload.source}`
+                        : ""}
+                    </div>
+                  ) : null}
+                  {selectedCallMediaSession?.provider ? (
+                    <div className="mt-2 rounded-xl border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
+                      Media provider:{" "}
+                      <span className="font-medium text-foreground">{selectedCallMediaSession.provider}</span>
+                      {selectedCallMediaStateLabel(callMediaState, callMediaLoading === selectedConversationCall.id)
+                        ? ` • ${selectedCallMediaStateLabel(callMediaState, callMediaLoading === selectedConversationCall.id)}`
+                        : ""}
+                    </div>
+                  ) : null}
+                  {callMediaError ? (
+                    <div className="mt-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                      {callMediaError}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {callError ? (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                  {callError}
+                </div>
+              ) : null}
+
+              {conversationCallHistory.length > 0 ? (
+                <div className="rounded-2xl border border-border/70 bg-card/80 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Recent calls</p>
+                      <p className="text-xs text-muted-foreground">
+                        Latest WhatsApp call activity for this conversation
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px]">
+                      {conversationCallHistory.length} recent
+                    </Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {conversationCallHistory.map((call) => {
+                      const duration = formatCallDuration(call.answeredAt, call.endedAt);
+                      return (
+                        <div
+                          key={call.id}
+                          className="flex flex-col gap-1 rounded-xl border border-border/60 bg-secondary/20 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                                {call.direction}
+                              </Badge>
+                              <span className="text-sm font-medium capitalize text-foreground">
+                                {formatCallStatus(call.status)}
+                              </span>
+                            </div>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                              {formatCallTimestamp(call.endedAt || call.answeredAt || call.startedAt)}
+                            </p>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {duration ? `Duration ${duration}` : call.fromPhone || call.toPhone}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="flex items-center gap-4 py-2">
                 <div className="h-px flex-1 bg-border" />
                 <span className="text-xs text-muted-foreground">Today</span>
@@ -1842,6 +2565,11 @@ export default function InboxPageClient({
                   {composerError}
                 </div>
               ) : null}
+              {callsLoading ? (
+                <div className="mb-3 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+                  Loading call sessions...
+                </div>
+              ) : null}
               {replyDraft ? (
                 <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
                   <span className="truncate">Replying to: {replyDraft.text}</span>
@@ -1942,9 +2670,22 @@ export default function InboxPageClient({
             </div>
           </div>
         </div>
+        <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       </div>
     </TooltipProvider>
   );
+}
+
+function selectedCallMediaStateLabel(
+  state: "idle" | "requesting" | "connecting" | "connected" | "failed",
+  loading: boolean,
+) {
+  if (loading) return "setting up media";
+  if (state === "requesting") return "requesting microphone";
+  if (state === "connecting") return "connecting audio";
+  if (state === "connected") return "audio connected";
+  if (state === "failed") return "media failed";
+  return "";
 }
 
 function DashboardMessageContent({

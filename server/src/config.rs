@@ -20,6 +20,10 @@ pub struct AppConfig {
     pub web_push_vapid_public_key: Option<String>,
     pub web_push_vapid_private_key: Option<String>,
     pub web_push_subject: String,
+    pub whatsapp_call_provider: String,
+    pub whatsapp_call_signaling_url: Option<String>,
+    pub whatsapp_call_ice_servers_json: Option<String>,
+    pub whatsapp_call_bridge_token: Option<String>,
 }
 
 impl AppConfig {
@@ -51,6 +55,11 @@ impl AppConfig {
             web_push_vapid_private_key: env::var("WEB_PUSH_VAPID_PRIVATE_KEY").ok(),
             web_push_subject: env::var("WEB_PUSH_SUBJECT")
                 .unwrap_or_else(|_| "mailto:hello@kasitek.com".to_string()),
+            whatsapp_call_provider: env::var("WHATSAPP_CALL_PROVIDER")
+                .unwrap_or_else(|_| "stub".to_string()),
+            whatsapp_call_signaling_url: env::var("WHATSAPP_CALL_SIGNALING_URL").ok(),
+            whatsapp_call_ice_servers_json: env::var("WHATSAPP_CALL_ICE_SERVERS_JSON").ok(),
+            whatsapp_call_bridge_token: env::var("WHATSAPP_CALL_BRIDGE_TOKEN").ok(),
         })
     }
 

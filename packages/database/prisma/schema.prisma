@@ -33,6 +33,7 @@ model User {
   whatsappTemplates   WhatsappTemplate[]
   whatsappCampaigns   WhatsappCampaign[]
   whatsappSendEvents  WhatsappSendEvent[]
+  whatsappCallSessions WhatsappCallSession[]
   pushSubscriptions   PushSubscription[]
 
   createdAt DateTime @default(now())
@@ -406,6 +407,7 @@ model Conversation {
   unreadCount        Int      @default(0)
 
   messages Message[]
+  callSessions WhatsappCallSession[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -562,6 +564,22 @@ enum WhatsappConnectionQualityRating {
   RED
 }
 
+enum WhatsappCallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum WhatsappCallStatus {
+  RINGING
+  CONNECTING
+  ACTIVE
+  COMPLETED
+  REJECTED
+  MISSED
+  FAILED
+  CANCELLED
+}
+
 enum SocialPlatform {
   FACEBOOK
   INSTAGRAM
@@ -651,12 +669,62 @@ model WhatsappConnection {
   templates            WhatsappTemplate[]
   campaigns            WhatsappCampaign[]
   sendEvents           WhatsappSendEvent[]
+  callSessions         WhatsappCallSession[]
 
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   @@index([userId])
   @@index([wabaId])
+}
+
+model WhatsappCallSession {
+  id             String                @id @default(cuid())
+  userId         String
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  connectionId   String
+  connection     WhatsappConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  conversationId String?
+  conversation   Conversation?         @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  direction      WhatsappCallDirection
+  status         WhatsappCallStatus    @default(RINGING)
+  waCallId       String?               @unique
+  fromPhone      String
+  toPhone        String
+  agentLabel     String?
+  startedAt      DateTime?
+  answeredAt     DateTime?
+  endedAt        DateTime?
+  durationSeconds Int?
+  errorCode      String?
+  errorMessage   String?               @db.Text
+  rawPayload     Json?
+
+  events         WhatsappCallEvent[]
+
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([connectionId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt])
+}
+
+model WhatsappCallEvent {
+  id           String              @id @default(cuid())
+  sessionId    String
+  session      WhatsappCallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  eventType    String
+  status       WhatsappCallStatus?
+  payload      Json?
+  createdAt    DateTime            @default(now())
+
+  @@index([sessionId, createdAt])
+  @@index([eventType, createdAt])
 }
 
 model SocialChannelConnection {
