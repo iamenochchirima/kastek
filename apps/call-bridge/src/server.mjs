@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 const port = Number.parseInt(process.env.PORT || "8787", 10);
 const kasitekBaseUrl = (process.env.KASITEK_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
 const bridgeToken = process.env.WHATSAPP_CALL_BRIDGE_TOKEN || "";
+const callSessions = new Map();
 
 function json(response, status, payload) {
   response.writeHead(status, {
@@ -64,6 +65,18 @@ function notFound(response) {
   json(response, 404, { error: "Not found" });
 }
 
+function bridgeAuthorized(request) {
+  if (!bridgeToken) return true;
+  return request.headers["x-kasitek-call-bridge-token"] === bridgeToken;
+}
+
+function upsertSession(callId, patch) {
+  const current = callSessions.get(callId) || { callId, createdAt: new Date().toISOString() };
+  const next = { ...current, ...patch, updatedAt: new Date().toISOString() };
+  callSessions.set(callId, next);
+  return next;
+}
+
 function exampleAnswerSdp() {
   return [
     "v=0",
@@ -113,12 +126,134 @@ const server = createServer(async (request, response) => {
       service: "kasitek-call-bridge-stub",
       endpoints: [
         "GET /health",
+        "GET /sessions",
+        "POST /calls/:id/actions",
+        "POST /calls/:id/signals",
         "POST /simulate/status",
         "POST /simulate/signal",
         "POST /simulate/answer",
         "POST /simulate/candidate",
       ],
     });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/sessions") {
+    json(response, 200, {
+      sessions: [...callSessions.values()],
+    });
+    return;
+  }
+
+  const actionMatch = request.method === "POST" ? url.pathname.match(/^\/calls\/([^/]+)\/actions$/) : null;
+  if (actionMatch) {
+    if (!bridgeAuthorized(request)) {
+      json(response, 401, { error: "Unauthorized" });
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      const callId = decodeURIComponent(actionMatch[1]);
+      const session = upsertSession(callId, {
+        callId,
+        waCallId: body.waCallId || null,
+        lastAction: body.action || null,
+        lastActionPayload: body,
+      });
+      if (body.action === "accept") {
+        await postBridgeEvent({
+          callId,
+          waCallId: body.waCallId,
+          eventType: "provider_status",
+          status: "CONNECTING",
+          payload: {
+            provider: "stub",
+            note: "Bridge acknowledged accept action",
+          },
+          source: "bridge-stub",
+        });
+      }
+      json(response, 200, { ok: true, session });
+    } catch (error) {
+      json(response, 400, { error: error instanceof Error ? error.message : "Failed to process action" });
+    }
+    return;
+  }
+
+  const signalMatch = request.method === "POST" ? url.pathname.match(/^\/calls\/([^/]+)\/signals$/) : null;
+  if (signalMatch) {
+    if (!bridgeAuthorized(request)) {
+      json(response, 401, { error: "Unauthorized" });
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      const callId = decodeURIComponent(signalMatch[1]);
+      const session = upsertSession(callId, {
+        callId,
+        waCallId: body.waCallId || null,
+        lastSignalKind: body.kind || null,
+        lastSignalPayload: body.signal || null,
+      });
+
+      if (body.kind === "offer") {
+        await postBridgeEvent({
+          callId,
+          waCallId: body.waCallId,
+          eventType: "provider_answer",
+          status: "ACTIVE",
+          signalKind: "answer",
+          signalPayload: {
+            type: "answer",
+            sdp: exampleAnswerSdp(),
+          },
+          payload: {
+            provider: "stub",
+            note: "Bridge auto-generated answer for received offer",
+          },
+          source: "bridge-stub",
+        });
+
+        await postBridgeEvent({
+          callId,
+          waCallId: body.waCallId,
+          eventType: "provider_candidate",
+          signalKind: "candidate",
+          signalPayload: {
+            candidate: "candidate:stub 1 udp 2122260223 127.0.0.1 3478 typ host",
+            sdpMid: "0",
+            sdpMLineIndex: 0,
+          },
+          payload: {
+            provider: "stub",
+            note: "Bridge auto-generated ICE candidate",
+          },
+          source: "bridge-stub",
+        });
+      }
+
+      if (body.kind === "bye") {
+        await postBridgeEvent({
+          callId,
+          waCallId: body.waCallId,
+          eventType: "provider_hangup",
+          status: "COMPLETED",
+          signalKind: "bye",
+          signalPayload: body.signal || { reason: "remote-ended" },
+          payload: {
+            provider: "stub",
+            note: "Bridge acknowledged bye signal",
+          },
+          source: "bridge-stub",
+        });
+      }
+
+      json(response, 200, { ok: true, session });
+    } catch (error) {
+      json(response, 400, { error: error instanceof Error ? error.message : "Failed to process signal" });
+    }
     return;
   }
 

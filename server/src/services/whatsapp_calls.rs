@@ -237,46 +237,88 @@ fn build_media_session_payload(config: &AppConfig, call: &WhatsappCallSessionRow
     })
 }
 
+async fn notify_bridge(
+    config: &AppConfig,
+    endpoint: &str,
+    payload: &Value,
+) -> Result<Option<Value>, AppError> {
+    let Some(base_url) = config
+        .whatsapp_call_signaling_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(None);
+    };
+
+    let url = format!(
+        "{}/{}",
+        base_url.trim_end_matches('/'),
+        endpoint.trim_start_matches('/')
+    );
+    let client = reqwest::Client::new();
+    let mut request = client.post(&url).json(payload);
+    if let Some(token) = config
+        .whatsapp_call_bridge_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        request = request.header("x-kasitek-call-bridge-token", token);
+    }
+    let response = request.send().await?;
+    let status = response.status();
+    let body = response.json::<Value>().await.unwrap_or(Value::Null);
+    if !status.is_success() {
+        return Err(AppError::BadRequest(format!(
+            "Bridge request failed ({}): {}",
+            status,
+            body.get("error")
+                .and_then(|value| value.as_str())
+                .unwrap_or("Unknown error")
+        )));
+    }
+    Ok(Some(body))
+}
+
 async fn dispatch_call_provider_action(
     config: &AppConfig,
     call: &WhatsappCallSessionRow,
     action: &str,
 ) -> Value {
     let payload = build_media_session_payload(config, call);
-    let provider = config.whatsapp_call_provider.trim().to_lowercase();
+    let bridge_request = json!({
+        "callId": call.id,
+        "waCallId": call.wa_call_id,
+        "action": action,
+        "call": call,
+        "mediaSession": payload,
+    });
 
-    match provider.as_str() {
-        "webrtc" => {
-            log::info!(
-                "whatsapp call provider hook provider=webrtc action={} call_id={} room={} signaling_url={:?}",
+    let bridge_response = match notify_bridge(
+        config,
+        &format!("/calls/{}/actions", call.id),
+        &bridge_request,
+    )
+    .await
+    {
+        Ok(body) => body,
+        Err(error) => {
+            log::warn!(
+                "failed to notify call bridge about action action={} call_id={}: {}",
                 action,
                 call.id,
-                payload.get("roomName").and_then(|value| value.as_str()).unwrap_or(""),
-                config.whatsapp_call_signaling_url
+                error
             );
+            None
         }
-        "sip" => {
-            log::info!(
-                "whatsapp call provider hook provider=sip action={} call_id={} wa_call_id={:?}",
-                action,
-                call.id,
-                call.wa_call_id
-            );
-        }
-        _ => {
-            log::info!(
-                "whatsapp call provider hook provider=stub action={} call_id={} status={}",
-                action,
-                call.id,
-                call.status
-            );
-        }
-    }
+    };
 
     json!({
         "provider": config.whatsapp_call_provider,
         "action": action,
         "mediaSession": payload,
+        "bridgeResponse": bridge_response,
     })
 }
 
@@ -881,6 +923,7 @@ pub async fn list_call_signals(
 
 pub async fn post_call_signal(
     pool: &PgPool,
+    config: &AppConfig,
     user_id: &str,
     call_id: &str,
     input: &WhatsappCallSignalRequest,
@@ -930,10 +973,36 @@ pub async fn post_call_signal(
     )
     .await;
 
+    let media_session = build_media_session_payload(config, &existing);
+    let bridge_endpoint = format!("/calls/{}/signals", existing.id);
+    let bridge_request = json!({
+        "callId": existing.id,
+        "waCallId": existing.wa_call_id,
+        "kind": kind,
+        "source": source,
+        "signal": input.payload.clone().unwrap_or(Value::Null),
+        "call": existing,
+        "mediaSession": media_session,
+    });
+    let bridge_response = notify_bridge(config, &bridge_endpoint, &bridge_request);
+    let bridge_response = match bridge_response.await {
+        Ok(body) => body,
+        Err(error) => {
+            log::warn!(
+                "failed to notify call bridge about signal kind={} call_id={}: {}",
+                kind,
+                call_id,
+                error
+            );
+            None
+        }
+    };
+
     Ok(json!({
         "ok": true,
         "callId": call_id,
         "kind": kind,
+        "bridgeResponse": bridge_response,
     }))
 }
 

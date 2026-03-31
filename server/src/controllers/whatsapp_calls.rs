@@ -93,12 +93,15 @@ pub async fn apply_call_action(
 
 pub async fn post_call_signal(
     pool: web::Data<PgPool>,
+    config: web::Data<crate::config::AppConfig>,
     req: HttpRequest,
     path: web::Path<String>,
     body: web::Json<WhatsappCallSignalRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp_calls::post_call_signal(pool.get_ref(), &user.id, &path, &body).await?;
+    let result =
+        whatsapp_calls::post_call_signal(pool.get_ref(), config.get_ref(), &user.id, &path, &body)
+            .await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
