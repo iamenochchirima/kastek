@@ -186,12 +186,9 @@ async fn send_web_push(
     })?;
     builder.set_payload(ContentEncoding::Aes128Gcm, &payload_json);
 
-    let mut signature_builder = VapidSignatureBuilder::from_base64(
-        vapid_private_key,
-        URL_SAFE_NO_PAD,
-        &subscription_info,
-    )
-    .map_err(|error| AppError::Internal(format!("Invalid VAPID configuration: {error}")))?;
+    let mut signature_builder =
+        VapidSignatureBuilder::from_base64(vapid_private_key, URL_SAFE_NO_PAD, &subscription_info)
+            .map_err(|error| AppError::Internal(format!("Invalid VAPID configuration: {error}")))?;
     signature_builder.add_claim("sub", config.web_push_subject.clone());
     let signature = signature_builder
         .build()

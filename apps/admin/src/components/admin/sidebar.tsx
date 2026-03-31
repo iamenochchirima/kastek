@@ -43,11 +43,11 @@ export default function Sidebar() {
         <Link href="/dashboard" className="text-xl font-bold text-text whitespace-nowrap">
           {collapsed ? (
             <>
-              K<span className="text-primary">A</span>
+              K<span className="text-primary">T</span>
             </>
           ) : (
             <>
-              Kasi<span className="text-primary">AI</span>
+              Kasi<span className="text-primary">Tek</span>
               <span className="text-xs font-normal text-text-faint ml-2">Admin</span>
             </>
           )}
