@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const loginEnabled = process.env.NODE_ENV !== "production";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -93,14 +94,16 @@ export function Navbar() {
             Pricing
           </Link>
         </li>
-        <li>
-          <Link
-            href="/login"
-            className="text-muted-foreground transition-colors hover:text-white"
-          >
-            Login
-          </Link>
-        </li>
+        {loginEnabled ? (
+          <li>
+            <Link
+              href="/login"
+              className="text-muted-foreground transition-colors hover:text-white"
+            >
+              Login
+            </Link>
+          </li>
+        ) : null}
         <li>
           <Link
             href="/get-quote"
@@ -144,13 +147,15 @@ export function Navbar() {
             >
               Pricing
             </Link>
-            <Link
-              href="/login"
-              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Login
-            </Link>
+            {loginEnabled ? (
+              <Link
+                href="/login"
+                className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Login
+              </Link>
+            ) : null}
             <div className="mt-2 grid grid-cols-1 gap-3">
               <Link
                 href="/get-quote"
