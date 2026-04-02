@@ -332,7 +332,6 @@ export default function InboxPageClient({
   const [callMediaLoading, setCallMediaLoading] = useState<string | null>(null);
   const [callMediaState, setCallMediaState] = useState<"idle" | "requesting" | "connecting" | "connected" | "failed">("idle");
   const [callMediaError, setCallMediaError] = useState<string>("");
-  const [simulateCallLoading, setSimulateCallLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1566,42 +1565,6 @@ export default function InboxPageClient({
     }
   }
 
-  async function createSimulatedCall() {
-    if (!selectedConversation?.connectionId) {
-      setCallError("The selected conversation is not linked to a WhatsApp number");
-      return;
-    }
-
-    setSimulateCallLoading(true);
-    setCallError("");
-
-    try {
-      const response = await fetch(apiUrl("/api/whatsapp/calls/test"), {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          connectionId: selectedConversation.connectionId,
-          conversationId: selectedConversation.id,
-          phone: selectedConversation.handle,
-          customerName: selectedConversation.name,
-        }),
-      });
-      const payload = (await response.json()) as { call?: WhatsappCallSession; error?: string };
-      if (!response.ok || !payload.call) {
-        throw new Error(payload.error || "Failed to create simulated call");
-      }
-      setCallSessions((current) => upsertCallSession(current, payload.call as WhatsappCallSession));
-      setMobileConversationOpen(true);
-    } catch (error) {
-      setCallError(error instanceof Error ? error.message : "Failed to create simulated call");
-    } finally {
-      setSimulateCallLoading(false);
-    }
-  }
-
   async function sendReaction(messageId: string, emoji: string, remove = false) {
     if (!selectedConversationId) return;
 
@@ -2220,17 +2183,6 @@ export default function InboxPageClient({
                     </TooltipTrigger>
                     <TooltipContent>Archive</TooltipContent>
                   </Tooltip>
-                  {process.env.NODE_ENV !== "production" ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="hidden h-8 text-xs md:inline-flex"
-                      disabled={simulateCallLoading || !selectedConversation.connectionId}
-                      onClick={() => void createSimulatedCall()}
-                    >
-                      {simulateCallLoading ? "Creating..." : "Simulate Call"}
-                    </Button>
-                  ) : null}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">

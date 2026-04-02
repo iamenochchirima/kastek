@@ -4,7 +4,6 @@ use sqlx::PgPool;
 
 use crate::db::models::{
     WhatsappCallActionRequest, WhatsappCallBridgeEventRequest, WhatsappCallSignalRequest,
-    WhatsappCallTestCreateRequest,
 };
 use crate::error::AppError;
 use crate::middleware::extract_user;
@@ -103,16 +102,6 @@ pub async fn post_call_signal(
         whatsapp_calls::post_call_signal(pool.get_ref(), config.get_ref(), &user.id, &path, &body)
             .await?;
     Ok(HttpResponse::Ok().json(result))
-}
-
-pub async fn create_test_call(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-    body: web::Json<WhatsappCallTestCreateRequest>,
-) -> Result<HttpResponse, AppError> {
-    let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp_calls::create_test_call(pool.get_ref(), &user.id, &body).await?;
-    Ok(HttpResponse::Created().json(result))
 }
 
 pub async fn receive_bridge_event(

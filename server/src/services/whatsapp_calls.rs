@@ -5,7 +5,7 @@ use sqlx::{PgPool, Row};
 use crate::config::AppConfig;
 use crate::db::models::{
     WhatsappCallActionRequest, WhatsappCallEventRow, WhatsappCallSessionRow,
-    WhatsappCallSignalRequest, WhatsappCallTestCreateRequest,
+    WhatsappCallSignalRequest,
 };
 use crate::error::AppError;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
@@ -1004,106 +1004,6 @@ pub async fn post_call_signal(
         "kind": kind,
         "bridgeResponse": bridge_response,
     }))
-}
-
-pub async fn create_test_call(
-    pool: &PgPool,
-    user_id: &str,
-    input: &WhatsappCallTestCreateRequest,
-) -> Result<Value, AppError> {
-    let connection_id = input
-        .connection_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Connection is required".to_string()))?;
-
-    let connection = sqlx::query_as::<_, (String, Option<String>, String)>(
-        r#"
-        SELECT id,
-               "phoneDisplayNumber",
-               "phoneNumberId"
-        FROM "WhatsappConnection"
-        WHERE id = $1 AND "userId" = $2
-        LIMIT 1
-        "#,
-    )
-    .bind(connection_id)
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("WhatsApp connection not found".to_string()))?;
-
-    let phone = input
-        .phone
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Customer phone is required".to_string()))?;
-
-    let call_id = cuid2::create_id();
-    let wa_call_id = format!("wa-call-{}", cuid2::create_id());
-    let raw_payload = json!({
-        "source": "kasitek-test",
-        "direction": "INBOUND",
-        "phone": phone,
-        "conversationId": input.conversation_id,
-    });
-
-    sqlx::query(
-        r#"
-        INSERT INTO "WhatsappCallSession" (
-            id, "userId", "connectionId", "conversationId", direction, status, "waCallId",
-            "fromPhone", "toPhone", "agentLabel", "rawPayload", "startedAt", "createdAt", "updatedAt"
-        )
-        VALUES (
-            $1, $2, $3, $4, 'INBOUND'::"WhatsappCallDirection", 'RINGING'::"WhatsappCallStatus", $5,
-            $6, $7, $8, $9, NOW(), NOW(), NOW()
-        )
-        "#,
-    )
-    .bind(&call_id)
-    .bind(user_id)
-    .bind(&connection.0)
-    .bind(input.conversation_id.as_deref())
-    .bind(&wa_call_id)
-    .bind(phone)
-    .bind(connection.1.clone().unwrap_or(connection.2.clone()))
-    .bind(input.agent_label.as_deref())
-    .bind(raw_payload.clone())
-    .execute(pool)
-    .await?;
-
-    append_call_event(
-        pool,
-        &call_id,
-        "call.created",
-        Some("RINGING"),
-        json!({
-            "source": "kasitek-test",
-            "customerName": input.customer_name,
-            "phone": phone,
-        }),
-    )
-    .await?;
-
-    let call = scoped_call_row(pool, user_id, &call_id)
-        .await?
-        .ok_or_else(|| {
-            AppError::Internal("Created call session could not be loaded".to_string())
-        })?;
-
-    publish_call_event(
-        user_id,
-        json!({
-            "type": "call.created",
-            "callId": call.id,
-            "call": call,
-        }),
-    )
-    .await;
-
-    Ok(json!({ "call": call }))
 }
 
 pub async fn apply_call_action(

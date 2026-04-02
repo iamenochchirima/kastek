@@ -206,7 +206,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                             web::get().to(whatsapp_calls::get_bridge_contract),
                         )
                         .route("/summary", web::get().to(whatsapp_calls::call_summary))
-                        .route("/test", web::post().to(whatsapp_calls::create_test_call))
                         .route("/{id}", web::get().to(whatsapp_calls::get_call))
                         .route(
                             "/{id}/signals",

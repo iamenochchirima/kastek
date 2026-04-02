@@ -1092,19 +1092,6 @@ pub struct WhatsappCallBridgeEventRequest {
     pub source: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct WhatsappCallTestCreateRequest {
-    #[serde(rename = "connectionId")]
-    pub connection_id: Option<String>,
-    #[serde(rename = "conversationId")]
-    pub conversation_id: Option<String>,
-    pub phone: Option<String>,
-    #[serde(rename = "customerName")]
-    pub customer_name: Option<String>,
-    #[serde(rename = "agentLabel")]
-    pub agent_label: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct MessageRow {
     pub id: String,
