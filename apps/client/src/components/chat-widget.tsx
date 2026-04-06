@@ -15,6 +15,7 @@ type ChatMessage = {
 const storageKey = "kasitek-chat-session-id";
 const marketingPaths = new Set([
   "/",
+  "/demo",
   "/pricing",
   "/pricing1",
   "/fliers",
