@@ -150,6 +150,72 @@ const services: Service[] = [
     ),
   },
   {
+    id: "catalogue",
+    label: "WhatsApp Catalogue Agent",
+    color: "#34D399",
+    duration: "2:22",
+    headline: "Sell from WhatsApp like a real shop assistant",
+    description:
+      "Customers browse your catalogue conversationally, ask product questions, compare options, and place an order without needing a website.",
+    cta: "/get-quote?service=WhatsApp%20Catalogue%20Agent",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 2h12l4 7-10 13L2 9l4-7z" />
+        <path d="M6 2l6 20" />
+        <path d="M18 2 12 22" />
+        <path d="M2 9h20" />
+      </svg>
+    ),
+    thumbnail: (
+      <div className="flex h-full w-full flex-col">
+        <div className="relative flex flex-1 items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#34D399]/8 via-transparent to-transparent" />
+          <div className="relative z-10 w-[58%] max-w-[300px] overflow-hidden rounded-2xl border border-[#252525] bg-[#0D0D0D] shadow-2xl">
+            <div className="flex items-center gap-2 border-b border-[#1a1a1a] bg-[#111111] px-3 py-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full border border-[#34D399]/30 bg-[#34D399]/20 text-[9px] font-bold text-[#34D399]">
+                C
+              </div>
+              <div>
+                <p className="text-[9px] font-semibold text-[#F2EDE6]">Corner Shop Agent</p>
+                <p className="text-[8px] text-[#34D399]">catalogue live</p>
+              </div>
+            </div>
+            <div className="space-y-2 p-3">
+              {[
+                { reply: true, text: "Do you have size 6 school shoes?" },
+                { reply: false, text: "Yes. Black lace-up or velcro?" },
+                { reply: true, text: "Black velcro please" },
+                { reply: false, text: "We have Bata at R320 and SmartWalk at R260." },
+                { reply: true, text: "Send me the cheaper one with socks too" },
+                { reply: false, text: "Added. Total is R310. Can I confirm delivery area?" },
+              ].map((message, index) => (
+                <div key={index} className={`flex ${message.reply ? "justify-end" : ""}`}>
+                  <div
+                    className={`max-w-[85%] rounded-lg px-2 py-1.5 text-[8.5px] leading-relaxed ${
+                      message.reply
+                        ? "border border-[#34D399]/20 bg-[#34D399]/15 text-[#F2EDE6]"
+                        : "border border-[#252525] bg-[#1a1a1a] text-[#F2EDE6]"
+                    }`}
+                  >
+                    {message.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="px-6 pb-4 pt-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#34D399]">
+            WhatsApp Catalogue Agent
+          </p>
+          <p className="mt-0.5 text-[13px] font-medium text-[#F2EDE6]">
+            Catalogue browsing and ordering inside chat
+          </p>
+        </div>
+      </div>
+    ),
+  },
+  {
     id: "campaigns",
     label: "Bulk Campaigns",
     color: "#E8A020",
