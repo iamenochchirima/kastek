@@ -1,0 +1,24 @@
+[package]
+name = "kasitek-tenants"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+actix-cors.workspace = true
+actix-web.workspace = true
+chrono.workspace = true
+config = { path = "../crates/config" }
+crypto-utils = { path = "../crates/crypto-utils" }
+dotenv.workspace = true
+log.workspace = true
+observability = { path = "../crates/observability" }
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+types = { path = "../crates/types" }
+
+[[bin]]
+name = "kasitek-tenants"
+path = "src/main.rs"

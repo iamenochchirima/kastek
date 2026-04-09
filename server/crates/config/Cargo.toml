@@ -1,0 +1,9 @@
+[package]
+name = "config"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dotenv.workspace = true
+serde.workspace = true
+thiserror.workspace = true
