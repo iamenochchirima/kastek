@@ -2,6 +2,20 @@
 
 This file defines the default working structure for implementation tasks in this repository.
 
+## Project Direction
+
+For product and architecture direction, consult [`PROJECT_PLAN.md`](PROJECT_PLAN.md) before making meaningful structural decisions.
+
+In particular, do not lose the current white-label model:
+
+- `kasitek-tenants` is a separate white-label backend
+- `tenant-portal` is a separate white-label frontend
+- the tenant platform has its own database
+- the white-label system has three live layers from the start:
+  1. KasiTek platform
+  2. tenant admin/staff
+  3. tenant client/customer accounts
+
 ## Default Rule
 
 When implementing anything non-trivial, always start with a plan.

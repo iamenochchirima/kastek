@@ -21,7 +21,9 @@ pub fn env_required(name: &'static str) -> Result<String, ConfigError> {
 }
 
 pub fn env_string_or(name: &str, default: &str) -> String {
-    env_optional(name).filter(|value| !value.is_empty()).unwrap_or_else(|| default.to_string())
+    env_optional(name)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| default.to_string())
 }
 
 pub fn env_u16_or(name: &str, default: u16) -> u16 {
@@ -63,6 +65,15 @@ pub struct TenantServerConfig {
     pub database_url: String,
     pub database_max_connections: u32,
     pub allowed_origins: Vec<String>,
+    pub app_base_url: Option<String>,
+    pub default_workspace_slug: Option<String>,
+    pub session_cookie_name: String,
+    pub session_cookie_domain: Option<String>,
+    pub session_cookie_secure: bool,
+    pub session_ttl_hours: u32,
+    pub client_session_cookie_name: String,
+    pub client_session_ttl_hours: u32,
+    pub invite_ttl_hours: u32,
 }
 
 impl TenantServerConfig {
@@ -97,12 +108,47 @@ impl TenantServerConfig {
             }
         };
 
+        let app_base_url = env_optional("TENANT_APP_BASE_URL");
+        let default_workspace_slug = env_optional("TENANT_DEFAULT_WORKSPACE_SLUG");
+        let session_cookie_name = env_string_or("TENANT_SESSION_COOKIE_NAME", "kasitenant.session");
+        let session_cookie_domain = env_optional("TENANT_SESSION_COOKIE_DOMAIN");
+        let session_cookie_secure = env_optional("TENANT_SESSION_COOKIE_SECURE")
+            .map(|value| {
+                matches!(
+                    value.to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                )
+            })
+            .unwrap_or_else(|| environment.eq_ignore_ascii_case("production"));
+        let session_ttl_hours = env_optional("TENANT_SESSION_TTL_HOURS")
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(24 * 14);
+        let client_session_cookie_name = env_string_or(
+            "TENANT_CLIENT_SESSION_COOKIE_NAME",
+            "kasitenant.client.session",
+        );
+        let client_session_ttl_hours = env_optional("TENANT_CLIENT_SESSION_TTL_HOURS")
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(24 * 14);
+        let invite_ttl_hours = env_optional("TENANT_INVITE_TTL_HOURS")
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(24 * 7);
+
         Ok(Self {
             port,
             environment,
             database_url,
             database_max_connections,
             allowed_origins,
+            app_base_url,
+            default_workspace_slug,
+            session_cookie_name,
+            session_cookie_domain,
+            session_cookie_secure,
+            session_ttl_hours,
+            client_session_cookie_name,
+            client_session_ttl_hours,
+            invite_ttl_hours,
         })
     }
 

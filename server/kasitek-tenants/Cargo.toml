@@ -6,9 +6,11 @@ edition.workspace = true
 [dependencies]
 actix-cors.workspace = true
 actix-web.workspace = true
+bcrypt = "0.15"
 chrono.workspace = true
 config = { path = "../crates/config" }
 crypto-utils = { path = "../crates/crypto-utils" }
+cuid2 = "0.1"
 dotenv.workspace = true
 log.workspace = true
 observability = { path = "../crates/observability" }

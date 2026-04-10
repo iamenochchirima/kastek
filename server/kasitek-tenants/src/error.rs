@@ -11,8 +11,12 @@ pub enum AppError {
     NotFound(String),
     #[error("bad request: {0}")]
     BadRequest(String),
+    #[error("internal error: {0}")]
+    Internal(String),
     #[error("database error")]
     Database(#[from] sqlx::Error),
+    #[error("password error")]
+    Password(#[from] bcrypt::BcryptError),
 }
 
 impl ResponseError for AppError {
@@ -22,7 +26,9 @@ impl ResponseError for AppError {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
-            Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Internal(_) | Self::Database(_) | Self::Password(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
         }
     }
 

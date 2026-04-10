@@ -2087,9 +2087,11 @@ version = "0.1.0"
 dependencies = [
  "actix-cors",
  "actix-web",
+ "bcrypt",
  "chrono",
  "config",
  "crypto-utils",
+ "cuid2",
  "dotenv",
  "log",
  "observability",
