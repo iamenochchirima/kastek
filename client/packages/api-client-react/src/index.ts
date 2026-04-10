@@ -1,8 +1,59 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 const placeholder = <T,>(data: T) => data;
+const DEFAULT_TENANT_API_BASE_URL = "/api/tenant";
+
+function getTenantApiBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_TENANT_API_BASE_URL || DEFAULT_TENANT_API_BASE_URL
+  ).replace(/\/$/, "");
+}
+
+function tenantApiUrl(path: string) {
+  return `${getTenantApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+async function fetchTenantJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(tenantApiUrl(path), {
+    credentials: "include",
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
+  if (!response.ok) {
+    throw new Error(payload.error || `Request failed with status ${response.status}`);
+  }
+
+  return payload;
+}
 
 export const getListReportingDashboardsQueryKey = () => ["tenant", "reporting", "dashboards"];
+export const getListTenantClientsQueryKey = () => ["tenant", "clients"];
+export const getListTenantClientUsersQueryKey = (tenantClientId: string) => [
+  "tenant",
+  "clients",
+  tenantClientId,
+  "users",
+];
+export const getClientOverviewQueryKey = () => ["tenant", "client", "overview"];
+export const getClientConversationsQueryKey = () => ["tenant", "client", "conversations"];
+export const getClientConversationQueryKey = (conversationId: string) => [
+  "tenant",
+  "client",
+  "conversations",
+  conversationId,
+];
+export const getClientConversationMessagesQueryKey = (conversationId: string) => [
+  "tenant",
+  "client",
+  "conversations",
+  conversationId,
+  "messages",
+];
 export const getListNurturingSequencesQueryKey = () => ["tenant", "nurturing", "sequences"];
 export const getGetNurturingStatsQueryKey = () => ["tenant", "nurturing", "stats"];
 export const getListAeoContentQueryKey = () => ["tenant", "aeo", "content"];
@@ -21,30 +72,31 @@ export function useGetDashboardSummary(..._args: any[]) {
   return useQuery({
     queryKey: ["tenant", "dashboard", "summary"],
     queryFn: async () =>
-      placeholder<any>({
-        activeServices: 4,
-        servicesActive: 4,
-        totalLeads: 128,
-        leadsThisMonth: 24,
-        conversionRate: 18,
-        monthlyRevenue: 24500,
-        contentGenerated: 86,
-      }),
+      fetchTenantJson<{
+        summary: {
+          workspaceId: string;
+          workspaceSlug: string;
+          totalClients: number;
+          activeAgents: number;
+          totalConversations: number;
+          requestsThisMonth: number;
+        };
+      }>("/api/dashboard/summary").then((payload) => payload.summary),
   });
 }
 
 export function useGetDashboardActivity(..._args: any[]) {
   return useQuery<any>({
     queryKey: ["tenant", "dashboard", "activity"],
-    queryFn: async =>
-      placeholder([
-        {
-          id: "activity-1",
-          title: "Demo activity",
-          description: "Tenant portal activity feed placeholder",
-          timestamp: new Date().toISOString(),
-        },
-      ]),
+    queryFn: async () =>
+      fetchTenantJson<{
+        activity: Array<{
+          id: string;
+          title: string;
+          description: string;
+          timestamp: string;
+        }>;
+      }>("/api/dashboard/activity").then((payload) => payload.activity),
   });
 }
 
@@ -52,10 +104,9 @@ export function useListServices(..._args: any[]) {
   return useQuery<any>({
     queryKey: ["tenant", "services"],
     queryFn: async () =>
-      placeholder([
-        { id: "service-1", name: "Lead Intake", isActive: true },
-        { id: "service-2", name: "Content Pipeline", isActive: true },
-      ]),
+      fetchTenantJson<{
+        services: Array<{ id: string; name: string; isActive: boolean }>;
+      }>("/api/dashboard/services").then((payload) => payload.services),
   });
 }
 
@@ -66,6 +117,179 @@ export function useListLeads(..._args: any[]) {
       placeholder({
         leads: [],
       }),
+  });
+}
+
+export function useListTenantClients(..._args: any[]) {
+  return useQuery({
+    queryKey: getListTenantClientsQueryKey(),
+    queryFn: async () =>
+      fetchTenantJson<{
+        clients: Array<{
+          id: string;
+          name: string;
+          slug: string;
+          status: string;
+          external_ref?: string | null;
+          metadata?: Record<string, unknown>;
+          created_at: string;
+          updated_at: string;
+        }>;
+      }>("/api/clients").then((payload) => payload.clients),
+  });
+}
+
+export function useCreateTenantClient(..._args: any[]) {
+  return useMutation({
+    mutationFn: async (input: {
+      name: string;
+      slug?: string;
+      external_ref?: string;
+    }) =>
+      fetchTenantJson<{
+        client: {
+          id: string;
+          workspaceId: string;
+          name: string;
+          slug: string;
+          externalRef?: string | null;
+          status: string;
+        };
+      }>("/api/clients", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }).then((payload) => payload.client),
+  });
+}
+
+export function useListTenantClientUsers(tenantClientId: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: getListTenantClientUsersQueryKey(tenantClientId),
+    enabled: options?.enabled ?? !!tenantClientId,
+    queryFn: async () =>
+      fetchTenantJson<{
+        users: Array<{
+          id: string;
+          tenant_client_id: string;
+          email: string;
+          name?: string | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        }>;
+      }>(`/api/clients/${tenantClientId}/users`).then((payload) => payload.users),
+  });
+}
+
+export function useInviteTenantClientUser(..._args: any[]) {
+  return useMutation({
+    mutationFn: async (input: {
+      tenantClientId: string;
+      email: string;
+      name?: string;
+      role?: string;
+    }) =>
+      fetchTenantJson<{
+        invite: {
+          id: string;
+          tenantClientId: string;
+          tenantClientUserId: string;
+          email: string;
+          role: string;
+          expiresAt: string;
+          token: string;
+          activationUrl?: string | null;
+        };
+      }>(`/api/clients/${input.tenantClientId}/invites`, {
+        method: "POST",
+        body: JSON.stringify({
+          email: input.email,
+          name: input.name,
+          role: input.role,
+        }),
+      }).then((payload) => payload.invite),
+  });
+}
+
+export function useGetClientOverview(..._args: any[]) {
+  return useQuery({
+    queryKey: getClientOverviewQueryKey(),
+    queryFn: async () =>
+      fetchTenantJson<{
+        overview: {
+          workspaceId: string;
+          workspaceSlug: string;
+          tenantClientId: string;
+          tenantClientName: string;
+          totalUsers: number;
+          totalConversations: number;
+          openConversations: number;
+          totalMessages: number;
+        };
+      }>("/api/client/overview").then((payload) => payload.overview),
+  });
+}
+
+export function useListClientConversations(..._args: any[]) {
+  return useQuery({
+    queryKey: getClientConversationsQueryKey(),
+    queryFn: async () =>
+      fetchTenantJson<{
+        conversations: Array<{
+          id: string;
+          external_id?: string | null;
+          channel: string;
+          customer_identifier: string;
+          customer_name?: string | null;
+          status: string;
+          metadata: Record<string, unknown>;
+          last_message_at: string;
+          created_at: string;
+          updated_at: string;
+        }>;
+      }>("/api/client/conversations").then((payload) => payload.conversations),
+  });
+}
+
+export function useGetClientConversation(conversationId: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: getClientConversationQueryKey(conversationId),
+    enabled: options?.enabled ?? !!conversationId,
+    queryFn: async () =>
+      fetchTenantJson<{
+        conversation: {
+          id: string;
+          external_id?: string | null;
+          channel: string;
+          customer_identifier: string;
+          customer_name?: string | null;
+          status: string;
+          metadata: Record<string, unknown>;
+          last_message_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+      }>(`/api/client/conversations/${conversationId}`).then((payload) => payload.conversation),
+  });
+}
+
+export function useListClientConversationMessages(
+  conversationId: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: getClientConversationMessagesQueryKey(conversationId),
+    enabled: options?.enabled ?? !!conversationId,
+    queryFn: async () =>
+      fetchTenantJson<{
+        messages: Array<{
+          id: string;
+          sender_role: string;
+          content: string;
+          metadata: Record<string, unknown>;
+          created_at: string;
+        }>;
+      }>(`/api/client/conversations/${conversationId}/messages`).then((payload) => payload.messages),
   });
 }
 

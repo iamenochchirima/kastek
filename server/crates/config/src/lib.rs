@@ -58,6 +58,29 @@ pub fn env_truthy(name: &str) -> bool {
     )
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CookieSameSitePolicy {
+    Lax,
+    Strict,
+    None,
+}
+
+impl CookieSameSitePolicy {
+    pub fn from_env(name: &str, default: Self) -> Self {
+        match env_optional(name)
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "strict" => Self::Strict,
+            "none" => Self::None,
+            "lax" => Self::Lax,
+            _ => default,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TenantServerConfig {
     pub port: u16,
@@ -65,11 +88,13 @@ pub struct TenantServerConfig {
     pub database_url: String,
     pub database_max_connections: u32,
     pub allowed_origins: Vec<String>,
+    pub cors_allow_credentials: bool,
     pub app_base_url: Option<String>,
     pub default_workspace_slug: Option<String>,
     pub session_cookie_name: String,
     pub session_cookie_domain: Option<String>,
     pub session_cookie_secure: bool,
+    pub session_cookie_same_site: CookieSameSitePolicy,
     pub session_ttl_hours: u32,
     pub client_session_cookie_name: String,
     pub client_session_ttl_hours: u32,
@@ -110,6 +135,14 @@ impl TenantServerConfig {
 
         let app_base_url = env_optional("TENANT_APP_BASE_URL");
         let default_workspace_slug = env_optional("TENANT_DEFAULT_WORKSPACE_SLUG");
+        let cors_allow_credentials = env_optional("TENANT_CORS_ALLOW_CREDENTIALS")
+            .map(|value| {
+                matches!(
+                    value.to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                )
+            })
+            .unwrap_or(true);
         let session_cookie_name = env_string_or("TENANT_SESSION_COOKIE_NAME", "kasitenant.session");
         let session_cookie_domain = env_optional("TENANT_SESSION_COOKIE_DOMAIN");
         let session_cookie_secure = env_optional("TENANT_SESSION_COOKIE_SECURE")
@@ -120,6 +153,10 @@ impl TenantServerConfig {
                 )
             })
             .unwrap_or_else(|| environment.eq_ignore_ascii_case("production"));
+        let session_cookie_same_site = CookieSameSitePolicy::from_env(
+            "TENANT_SESSION_COOKIE_SAME_SITE",
+            CookieSameSitePolicy::Lax,
+        );
         let session_ttl_hours = env_optional("TENANT_SESSION_TTL_HOURS")
             .and_then(|value| value.parse::<u32>().ok())
             .unwrap_or(24 * 14);
@@ -140,11 +177,13 @@ impl TenantServerConfig {
             database_url,
             database_max_connections,
             allowed_origins,
+            cors_allow_credentials,
             app_base_url,
             default_workspace_slug,
             session_cookie_name,
             session_cookie_domain,
             session_cookie_secure,
+            session_cookie_same_site,
             session_ttl_hours,
             client_session_cookie_name,
             client_session_ttl_hours,

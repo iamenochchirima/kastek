@@ -10,7 +10,7 @@ KasiTek currently operates across three main surfaces:
 - `server/kasitek-tenants`: white-label tenant backend
 - `client/apps/client`: direct KasiTek client-facing app
 - `client/apps/admin`: internal KasiTek operations app
-- `client/apps/tenant-portal`: white-label tenant-facing app
+- `client/apps/tenant-portal`: unified white-label tenant web app
 
 ## White-Label Direction
 
@@ -20,7 +20,7 @@ The active direction is:
 
 - `kasitek-core` remains the backend for KasiTek's direct product
 - `kasitek-tenants` is the separate backend for white-label tenants
-- `tenant-portal` is the white-label frontend
+- `tenant-portal` is the unified white-label frontend for both tenant staff and tenant client users
 - the tenant platform uses its own database and its own auth/session model
 
 Future work should not collapse white-label back into `kasitek-core`.
@@ -95,7 +95,7 @@ Current implementation should move in this order:
 1. establish tenant workspace resolution by domain/host
 2. establish tenant staff identity, roles, and sessions
 3. establish tenant client identity, invites, credentials, and sessions
-4. connect the tenant portal to real tenant backend APIs
+4. connect the unified tenant portal to real tenant backend APIs
 5. add provisioning flows for workspace, domain, branding, keys, and first admin
 6. add usage metering, billing controls, and service entitlements
 
@@ -107,13 +107,14 @@ Keep these boundaries clear:
 - `kasitek-tenants` should own tenant-specific auth, routing, data isolation, and branded portal concerns
 - direct KasiTek users and tenant users are different identity systems
 - tenant staff and tenant clients are different identity layers inside the same tenant
+- tenant staff and tenant client users should share one frontend app where practical, but remain separated by auth, layouts, and route areas
 
 ## Working Assumption
 
 Unless explicitly changed, future work should assume:
 
 - separate white-label backend: `server/kasitek-tenants`
-- separate white-label frontend: `client/apps/tenant-portal`
+- unified white-label frontend: `client/apps/tenant-portal`
 - separate tenant database
 - three-layer model is mandatory:
   1. KasiTek platform

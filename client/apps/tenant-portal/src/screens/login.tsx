@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,6 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { tenantFetch } from "@/lib/api";
 import { BrainCircuit } from "lucide-react";
 
 const loginSchema = z.object({
@@ -18,7 +20,9 @@ const loginSchema = z.object({
 
 export default function Login() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, isAuthenticated, defaultRoute } = useAuth();
+  const [tenantName, setTenantName] = useState("AgencyOS");
+  const [tenantTagline, setTenantTagline] = useState("AI Command Center");
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -28,12 +32,50 @@ export default function Login() {
     },
   });
 
-  function onSubmit(data: z.infer<typeof loginSchema>) {
-    if (data.email === "admin@demo.com" && data.password === "password") {
-      login();
-      router.replace("/");
-    } else {
-      form.setError("root", { message: "Invalid credentials. Use admin@demo.com / password" });
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace(defaultRoute);
+    }
+  }, [defaultRoute, isAuthenticated, router]);
+
+  useEffect(() => {
+    let active = true;
+
+    void tenantFetch<{
+      workspace?: { displayName?: string };
+      branding?: { displayName?: string };
+    }>("/api/public/tenant-context", { method: "GET" })
+      .then((payload) => {
+        if (!active) {
+          return;
+        }
+
+        setTenantName(
+          payload.branding?.displayName || payload.workspace?.displayName || "AgencyOS",
+        );
+        setTenantTagline("Tenant Command Center");
+      })
+      .catch(() => {
+        if (active) {
+          setTenantName("AgencyOS");
+          setTenantTagline("AI Command Center");
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function onSubmit(data: z.infer<typeof loginSchema>) {
+    try {
+      const audience = await login(data.email, data.password);
+      router.replace(audience === "client" ? "/client" : "/");
+    } catch (error) {
+      form.setError("root", {
+        message:
+          error instanceof Error ? error.message : "Unable to sign in with those credentials",
+      });
     }
   }
 
@@ -46,8 +88,8 @@ export default function Login() {
           <div className="mx-auto w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 ring-1 ring-primary/20 shadow-lg shadow-primary/20">
             <BrainCircuit className="w-6 h-6 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">AgencyOS</h1>
-          <p className="text-muted-foreground">AI Command Center</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">{tenantName}</h1>
+          <p className="text-muted-foreground">{tenantTagline}</p>
         </div>
 
         <Card className="border-border/50 shadow-2xl bg-card/50 backdrop-blur-xl">
@@ -94,11 +136,6 @@ export default function Login() {
                 </Button>
               </form>
             </Form>
-
-            <div className="mt-6 text-center text-sm text-muted-foreground/60 border-t border-border/50 pt-6">
-              Demo Credentials: <br />
-              <span className="font-mono text-primary/80">admin@demo.com</span> / <span className="font-mono text-primary/80">password</span>
-            </div>
           </CardContent>
         </Card>
       </div>

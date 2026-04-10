@@ -7,7 +7,7 @@ use actix_web::{
 };
 use bcrypt::verify;
 use chrono::{Duration as ChronoDuration, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::{config::AppConfig, error::AppError, middleware};
@@ -28,11 +28,31 @@ struct TenantUserRow {
     status: String,
 }
 
-fn build_session_cookie(config: &AppConfig, value: &str) -> Cookie<'static> {
+#[derive(Debug, Serialize)]
+pub struct TenantUserPayload {
+    pub id: String,
+    #[serde(rename = "workspaceId")]
+    pub workspace_id: String,
+    #[serde(rename = "workspaceSlug")]
+    pub workspace_slug: String,
+    pub email: String,
+    pub name: Option<String>,
+    pub roles: Vec<String>,
+}
+
+fn same_site(config: &AppConfig) -> SameSite {
+    match config.session_cookie_same_site {
+        config::CookieSameSitePolicy::Lax => SameSite::Lax,
+        config::CookieSameSitePolicy::Strict => SameSite::Strict,
+        config::CookieSameSitePolicy::None => SameSite::None,
+    }
+}
+
+pub(crate) fn build_session_cookie(config: &AppConfig, value: &str) -> Cookie<'static> {
     let mut cookie = Cookie::build(config.session_cookie_name.clone(), value.to_string())
         .path("/")
         .http_only(true)
-        .same_site(SameSite::Lax)
+        .same_site(same_site(config))
         .secure(config.session_cookie_secure)
         .expires(OffsetDateTime::now_utc() + Duration::hours(i64::from(config.session_ttl_hours)))
         .finish();
@@ -44,11 +64,11 @@ fn build_session_cookie(config: &AppConfig, value: &str) -> Cookie<'static> {
     cookie
 }
 
-fn clear_session_cookie(config: &AppConfig) -> Cookie<'static> {
+pub(crate) fn clear_session_cookie(config: &AppConfig) -> Cookie<'static> {
     let mut cookie = Cookie::build(config.session_cookie_name.clone(), "")
         .path("/")
         .http_only(true)
-        .same_site(SameSite::Lax)
+        .same_site(same_site(config))
         .secure(config.session_cookie_secure)
         .expires(OffsetDateTime::now_utc() - Duration::days(1))
         .finish();
@@ -60,21 +80,14 @@ fn clear_session_cookie(config: &AppConfig) -> Cookie<'static> {
     cookie
 }
 
-pub async fn login(
-    req: HttpRequest,
-    body: web::Json<LoginRequest>,
-) -> Result<HttpResponse, AppError> {
-    let workspace = middleware::resolve_workspace_from_request(&req).await?;
-    let pool = middleware::db_pool(&req)?;
-    let config = middleware::app_config(&req)?;
-    let email = body.email.trim().to_ascii_lowercase();
-    let password = body.password.trim();
-
-    if email.is_empty() || password.is_empty() {
-        return Err(AppError::BadRequest(
-            "email and password are required".to_string(),
-        ));
-    }
+pub(crate) async fn authenticate_tenant_user(
+    req: &HttpRequest,
+    email: &str,
+    password: &str,
+) -> Result<Option<(TenantUserPayload, String)>, AppError> {
+    let workspace = middleware::resolve_workspace_from_request(req).await?;
+    let pool = middleware::db_pool(req)?;
+    let config = middleware::app_config(req)?;
 
     let user = sqlx::query_as::<_, TenantUserRow>(
         r#"
@@ -85,13 +98,16 @@ pub async fn login(
         "#,
     )
     .bind(&workspace.workspace_id)
-    .bind(&email)
+    .bind(email)
     .fetch_optional(pool)
-    .await?
-    .ok_or(AppError::Unauthorized)?;
+    .await?;
+
+    let Some(user) = user else {
+        return Ok(None);
+    };
 
     if user.status != "active" || !verify(password, &user.password_hash)? {
-        return Err(AppError::Unauthorized);
+        return Ok(None);
     }
 
     let session_token = crypto_utils::generate_token(48);
@@ -155,17 +171,42 @@ pub async fn login(
     .fetch_all(pool)
     .await?;
 
+    Ok(Some((
+        TenantUserPayload {
+            id: user.id,
+            workspace_id: user.workspace_id,
+            workspace_slug: workspace.workspace_slug,
+            email: user.email,
+            name: user.name,
+            roles,
+        },
+        session_token,
+    )))
+}
+
+pub async fn login(
+    req: HttpRequest,
+    body: web::Json<LoginRequest>,
+) -> Result<HttpResponse, AppError> {
+    let config = middleware::app_config(&req)?;
+    let email = body.email.trim().to_ascii_lowercase();
+    let password = body.password.trim();
+
+    if email.is_empty() || password.is_empty() {
+        return Err(AppError::BadRequest(
+            "email and password are required".to_string(),
+        ));
+    }
+
+    let Some((user, session_token)) = authenticate_tenant_user(&req, &email, password).await?
+    else {
+        return Err(AppError::Unauthorized);
+    };
+
     Ok(HttpResponse::Ok()
         .cookie(build_session_cookie(config, &session_token))
         .json(serde_json::json!({
-            "user": {
-                "id": user.id,
-                "workspaceId": user.workspace_id,
-                "workspaceSlug": workspace.workspace_slug,
-                "email": user.email,
-                "name": user.name,
-                "roles": roles,
-            }
+            "user": user
         })))
 }
 

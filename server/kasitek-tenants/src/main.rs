@@ -44,7 +44,7 @@ async fn main() -> std::io::Result<()> {
             cors = cors.allowed_origin(origin);
         }
 
-        if !config.is_production() {
+        if config.cors_allow_credentials {
             cors = cors.supports_credentials();
         }
 

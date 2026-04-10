@@ -36,39 +36,39 @@ export default function Dashboard() {
               <>
                 <Card className="bg-card border-border/50">
                   <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Leads</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Clients</CardTitle>
                     <Users className="w-4 h-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{summary?.totalLeads || 0}</div>
-                    <p className="text-xs text-muted-foreground mt-1">+{summary?.leadsThisMonth || 0} this month</p>
+                    <div className="text-3xl font-bold">{summary?.totalClients || 0}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Active accounts in this tenant</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-card border-border/50">
                   <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Conversion Rate</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Active Agents</CardTitle>
                     <BarChart className="w-4 h-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{summary?.conversionRate || 0}%</div>
+                    <div className="text-3xl font-bold">{summary?.activeAgents || 0}</div>
                   </CardContent>
                 </Card>
                 <Card className="bg-card border-border/50">
                   <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Content Generated</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Conversations</CardTitle>
                     <Zap className="w-4 h-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{summary?.contentGenerated || 0}</div>
+                    <div className="text-3xl font-bold">{summary?.totalConversations || 0}</div>
                   </CardContent>
                 </Card>
                 <Card className="bg-card border-border/50">
                   <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Active Services</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Requests This Month</CardTitle>
                     <Activity className="w-4 h-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-primary">{summary?.servicesActive || 0}</div>
+                    <div className="text-3xl font-bold text-primary">{summary?.requestsThisMonth || 0}</div>
                   </CardContent>
                 </Card>
               </>

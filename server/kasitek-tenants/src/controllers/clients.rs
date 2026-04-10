@@ -324,6 +324,13 @@ pub async fn invite_client_user(
     let invite_token = crypto_utils::generate_token(48);
     let invite_token_hash = crypto_utils::sha256_hex(&invite_token);
     let expires_at = Utc::now() + chrono::Duration::hours(i64::from(config.invite_ttl_hours));
+    let activation_url = config.app_base_url.as_ref().map(|base_url| {
+        format!(
+            "{}/activate?token={}",
+            base_url.trim_end_matches('/'),
+            invite_token
+        )
+    });
 
     sqlx::query(
         r#"
@@ -362,6 +369,7 @@ pub async fn invite_client_user(
             "role": role,
             "expiresAt": expires_at,
             "token": invite_token,
+            "activationUrl": activation_url,
         }
     })))
 }

@@ -7,10 +7,12 @@ use actix_web::{
 };
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::{Duration as ChronoDuration, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::{config::AppConfig, error::AppError, middleware};
+use crate::{
+    config::AppConfig, controllers::auth::clear_session_cookie, error::AppError, middleware,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct AcceptInviteRequest {
@@ -26,20 +28,6 @@ pub struct ClientLoginRequest {
 }
 
 #[derive(Debug, FromRow)]
-struct InviteRow {
-    id: String,
-    workspace_id: String,
-    tenant_client_id: String,
-    tenant_client_name: String,
-    tenant_client_user_id: String,
-    invite_email: String,
-    user_name: Option<String>,
-    revoked_at: Option<chrono::DateTime<chrono::Utc>>,
-    accepted_at: Option<chrono::DateTime<chrono::Utc>>,
-    expires_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, FromRow)]
 struct ClientUserRow {
     id: String,
     workspace_id: String,
@@ -51,11 +39,51 @@ struct ClientUserRow {
     status: String,
 }
 
-fn build_client_session_cookie(config: &AppConfig, value: &str) -> Cookie<'static> {
+#[derive(Debug, FromRow)]
+struct InvitePreviewRow {
+    id: String,
+    workspace_id: String,
+    workspace_slug: String,
+    workspace_display_name: String,
+    tenant_client_id: String,
+    tenant_client_name: String,
+    tenant_client_user_id: String,
+    invite_email: String,
+    user_name: Option<String>,
+    revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+    accepted_at: Option<chrono::DateTime<chrono::Utc>>,
+    expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ClientUserPayload {
+    pub id: String,
+    #[serde(rename = "workspaceId")]
+    pub workspace_id: String,
+    #[serde(rename = "workspaceSlug")]
+    pub workspace_slug: String,
+    #[serde(rename = "tenantClientId")]
+    pub tenant_client_id: String,
+    #[serde(rename = "tenantClientName")]
+    pub tenant_client_name: String,
+    pub email: String,
+    pub name: Option<String>,
+    pub roles: Vec<String>,
+}
+
+fn same_site(config: &AppConfig) -> SameSite {
+    match config.session_cookie_same_site {
+        config::CookieSameSitePolicy::Lax => SameSite::Lax,
+        config::CookieSameSitePolicy::Strict => SameSite::Strict,
+        config::CookieSameSitePolicy::None => SameSite::None,
+    }
+}
+
+pub(crate) fn build_client_session_cookie(config: &AppConfig, value: &str) -> Cookie<'static> {
     let mut cookie = Cookie::build(config.client_session_cookie_name.clone(), value.to_string())
         .path("/")
         .http_only(true)
-        .same_site(SameSite::Lax)
+        .same_site(same_site(config))
         .secure(config.session_cookie_secure)
         .expires(
             OffsetDateTime::now_utc() + Duration::hours(i64::from(config.client_session_ttl_hours)),
@@ -69,11 +97,11 @@ fn build_client_session_cookie(config: &AppConfig, value: &str) -> Cookie<'stati
     cookie
 }
 
-fn clear_client_session_cookie(config: &AppConfig) -> Cookie<'static> {
+pub(crate) fn clear_client_session_cookie(config: &AppConfig) -> Cookie<'static> {
     let mut cookie = Cookie::build(config.client_session_cookie_name.clone(), "")
         .path("/")
         .http_only(true)
-        .same_site(SameSite::Lax)
+        .same_site(same_site(config))
         .secure(config.session_cookie_secure)
         .expires(OffsetDateTime::now_utc() - Duration::days(1))
         .finish();
@@ -85,27 +113,21 @@ fn clear_client_session_cookie(config: &AppConfig) -> Cookie<'static> {
     cookie
 }
 
-pub async fn accept_invite(
-    req: HttpRequest,
-    body: web::Json<AcceptInviteRequest>,
-) -> Result<HttpResponse, AppError> {
-    let workspace = middleware::resolve_workspace_from_request(&req).await?;
-    let pool = middleware::db_pool(&req)?;
-    let token = body.token.trim();
-    let password = body.password.trim();
-
-    if token.is_empty() || password.is_empty() {
-        return Err(AppError::BadRequest(
-            "token and password are required".to_string(),
-        ));
-    }
-
+async fn find_invite_by_token(
+    req: &HttpRequest,
+    token: &str,
+) -> Result<Option<InvitePreviewRow>, AppError> {
+    let workspace = middleware::resolve_workspace_from_request(req).await?;
     let token_hash = crypto_utils::sha256_hex(token);
-    let invite = sqlx::query_as::<_, InviteRow>(
+    let pool = middleware::db_pool(req)?;
+
+    let invite = sqlx::query_as::<_, InvitePreviewRow>(
         r#"
         SELECT
             i.id,
             i.workspace_id,
+            w.slug AS workspace_slug,
+            w.display_name AS workspace_display_name,
             i.tenant_client_id,
             c.name AS tenant_client_name,
             i.tenant_client_user_id,
@@ -117,6 +139,7 @@ pub async fn accept_invite(
         FROM tenant_client_invites i
         JOIN tenant_client_users u ON u.id = i.tenant_client_user_id
         JOIN tenant_clients c ON c.id = i.tenant_client_id
+        JOIN workspaces w ON w.id = i.workspace_id
         WHERE i.token_hash = $1
           AND i.workspace_id = $2
         LIMIT 1
@@ -125,80 +148,19 @@ pub async fn accept_invite(
     .bind(token_hash)
     .bind(&workspace.workspace_id)
     .fetch_optional(pool)
-    .await?
-    .ok_or(AppError::Unauthorized)?;
-
-    if invite.revoked_at.is_some()
-        || invite.accepted_at.is_some()
-        || invite.expires_at <= Utc::now()
-    {
-        return Err(AppError::Unauthorized);
-    }
-
-    let password_hash = hash(password, DEFAULT_COST)?;
-    let name = body
-        .name
-        .as_ref()
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string)
-        .or(invite.user_name.clone());
-
-    sqlx::query(
-        r#"
-        UPDATE tenant_client_users
-        SET
-            password_hash = $1,
-            name = $2,
-            status = 'active',
-            updated_at = NOW()
-        WHERE id = $3
-        "#,
-    )
-    .bind(&password_hash)
-    .bind(&name)
-    .bind(&invite.tenant_client_user_id)
-    .execute(pool)
     .await?;
 
-    sqlx::query(
-        r#"
-        UPDATE tenant_client_invites
-        SET accepted_at = NOW(), updated_at = NOW()
-        WHERE id = $1
-        "#,
-    )
-    .bind(&invite.id)
-    .execute(pool)
-    .await?;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "clientUser": {
-            "id": invite.tenant_client_user_id,
-            "workspaceId": invite.workspace_id,
-            "tenantClientId": invite.tenant_client_id,
-            "tenantClientName": invite.tenant_client_name,
-            "email": invite.invite_email,
-            "name": name,
-        }
-    })))
+    Ok(invite)
 }
 
-pub async fn login(
-    req: HttpRequest,
-    body: web::Json<ClientLoginRequest>,
-) -> Result<HttpResponse, AppError> {
-    let workspace = middleware::resolve_workspace_from_request(&req).await?;
-    let pool = middleware::db_pool(&req)?;
-    let config = middleware::app_config(&req)?;
-    let email = body.email.trim().to_ascii_lowercase();
-    let password = body.password.trim();
-
-    if email.is_empty() || password.is_empty() {
-        return Err(AppError::BadRequest(
-            "email and password are required".to_string(),
-        ));
-    }
+pub(crate) async fn authenticate_client_user(
+    req: &HttpRequest,
+    email: &str,
+    password: &str,
+) -> Result<Option<(ClientUserPayload, String)>, AppError> {
+    let workspace = middleware::resolve_workspace_from_request(req).await?;
+    let pool = middleware::db_pool(req)?;
+    let config = middleware::app_config(req)?;
 
     let user = sqlx::query_as::<_, ClientUserRow>(
         r#"
@@ -218,14 +180,20 @@ pub async fn login(
         "#,
     )
     .bind(&workspace.workspace_id)
-    .bind(&email)
+    .bind(email)
     .fetch_optional(pool)
-    .await?
-    .ok_or(AppError::Unauthorized)?;
+    .await?;
 
-    let stored_hash = user.password_hash.clone().ok_or(AppError::Unauthorized)?;
+    let Some(user) = user else {
+        return Ok(None);
+    };
+
+    let Some(stored_hash) = user.password_hash.clone() else {
+        return Ok(None);
+    };
+
     if user.status != "active" || !verify(password, &stored_hash)? {
-        return Err(AppError::Unauthorized);
+        return Ok(None);
     }
 
     let session_token = crypto_utils::generate_token(48);
@@ -291,19 +259,214 @@ pub async fn login(
     .fetch_all(pool)
     .await?;
 
+    Ok(Some((
+        ClientUserPayload {
+            id: user.id,
+            workspace_id: user.workspace_id,
+            workspace_slug: workspace.workspace_slug,
+            tenant_client_id: user.tenant_client_id,
+            tenant_client_name: user.tenant_client_name,
+            email: user.email,
+            name: user.name,
+            roles,
+        },
+        session_token,
+    )))
+}
+
+pub async fn get_invite(req: HttpRequest) -> Result<HttpResponse, AppError> {
+    let token =
+        web::Query::<std::collections::HashMap<String, String>>::from_query(req.query_string())
+            .map_err(|_| AppError::BadRequest("invalid invite query".to_string()))?
+            .get("token")
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| AppError::BadRequest("token is required".to_string()))?;
+
+    let invite = find_invite_by_token(&req, &token)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+
+    let is_valid = invite.revoked_at.is_none()
+        && invite.accepted_at.is_none()
+        && invite.expires_at > Utc::now();
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "invite": {
+            "workspaceId": invite.workspace_id,
+            "workspaceSlug": invite.workspace_slug,
+            "workspaceDisplayName": invite.workspace_display_name,
+            "tenantClientId": invite.tenant_client_id,
+            "tenantClientName": invite.tenant_client_name,
+            "tenantClientUserId": invite.tenant_client_user_id,
+            "email": invite.invite_email,
+            "name": invite.user_name,
+            "expiresAt": invite.expires_at,
+            "isValid": is_valid,
+            "acceptedAt": invite.accepted_at,
+            "revokedAt": invite.revoked_at,
+        }
+    })))
+}
+
+pub async fn accept_invite(
+    req: HttpRequest,
+    body: web::Json<AcceptInviteRequest>,
+) -> Result<HttpResponse, AppError> {
+    let pool = middleware::db_pool(&req)?;
+    let config = middleware::app_config(&req)?;
+    let token = body.token.trim();
+    let password = body.password.trim();
+
+    if token.is_empty() || password.is_empty() {
+        return Err(AppError::BadRequest(
+            "token and password are required".to_string(),
+        ));
+    }
+
+    let invite = find_invite_by_token(&req, token)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+
+    if invite.revoked_at.is_some()
+        || invite.accepted_at.is_some()
+        || invite.expires_at <= Utc::now()
+    {
+        return Err(AppError::Unauthorized);
+    }
+
+    let password_hash = hash(password, DEFAULT_COST)?;
+    let name = body
+        .name
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .or(invite.user_name.clone());
+
+    sqlx::query(
+        r#"
+        UPDATE tenant_client_users
+        SET
+            password_hash = $1,
+            name = $2,
+            status = 'active',
+            updated_at = NOW()
+        WHERE id = $3
+        "#,
+    )
+    .bind(&password_hash)
+    .bind(&name)
+    .bind(&invite.tenant_client_user_id)
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        UPDATE tenant_client_invites
+        SET accepted_at = NOW(), updated_at = NOW()
+        WHERE id = $1
+        "#,
+    )
+    .bind(&invite.id)
+    .execute(pool)
+    .await?;
+
+    let roles = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT role
+        FROM tenant_client_user_roles
+        WHERE tenant_client_user_id = $1
+        ORDER BY role ASC
+        "#,
+    )
+    .bind(&invite.tenant_client_user_id)
+    .fetch_all(pool)
+    .await?;
+
+    let session_token = crypto_utils::generate_token(48);
+    let session_token_hash = crypto_utils::sha256_hex(&session_token);
+    let session_id = cuid2::create_id();
+    let expires_at = Utc::now() + ChronoDuration::hours(i64::from(config.client_session_ttl_hours));
+    let ip_address = req.peer_addr().map(|addr| addr.ip().to_string());
+    let user_agent = req
+        .headers()
+        .get("user-agent")
+        .and_then(|header| header.to_str().ok())
+        .map(ToString::to_string);
+
+    sqlx::query(
+        r#"
+        INSERT INTO tenant_client_sessions (
+            id,
+            workspace_id,
+            tenant_client_id,
+            tenant_client_user_id,
+            token_hash,
+            expires_at,
+            ip_address,
+            user_agent,
+            last_used_at,
+            created_at,
+            updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), NOW())
+        "#,
+    )
+    .bind(&session_id)
+    .bind(&invite.workspace_id)
+    .bind(&invite.tenant_client_id)
+    .bind(&invite.tenant_client_user_id)
+    .bind(&session_token_hash)
+    .bind(expires_at)
+    .bind(ip_address)
+    .bind(user_agent)
+    .execute(pool)
+    .await?;
+
     Ok(HttpResponse::Ok()
+        .cookie(clear_session_cookie(config))
         .cookie(build_client_session_cookie(config, &session_token))
         .json(serde_json::json!({
+            "audience": "client",
             "clientUser": {
-                "id": user.id,
-                "workspaceId": user.workspace_id,
-                "workspaceSlug": workspace.workspace_slug,
-                "tenantClientId": user.tenant_client_id,
-                "tenantClientName": user.tenant_client_name,
-                "email": user.email,
-                "name": user.name,
+                "id": invite.tenant_client_user_id,
+                "workspaceId": invite.workspace_id,
+                "workspaceSlug": invite.workspace_slug,
+                "tenantClientId": invite.tenant_client_id,
+                "tenantClientName": invite.tenant_client_name,
+                "email": invite.invite_email,
+                "name": name,
                 "roles": roles,
             }
+        })))
+}
+
+pub async fn login(
+    req: HttpRequest,
+    body: web::Json<ClientLoginRequest>,
+) -> Result<HttpResponse, AppError> {
+    let config = middleware::app_config(&req)?;
+    let email = body.email.trim().to_ascii_lowercase();
+    let password = body.password.trim();
+
+    if email.is_empty() || password.is_empty() {
+        return Err(AppError::BadRequest(
+            "email and password are required".to_string(),
+        ));
+    }
+
+    let Some((client_user, session_token)) =
+        authenticate_client_user(&req, &email, password).await?
+    else {
+        return Err(AppError::Unauthorized);
+    };
+
+    Ok(HttpResponse::Ok()
+        .cookie(build_client_session_cookie(config, &session_token))
+        .cookie(clear_session_cookie(config))
+        .json(serde_json::json!({
+            "clientUser": client_user
         })))
 }
 

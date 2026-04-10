@@ -1,7 +1,8 @@
 use actix_web::web;
 
 use crate::controllers::{
-    agents, auth, client_auth, clients, conversations, health, usage, workspace,
+    agents, auth, client_auth, client_portal, clients, conversations, dashboard, health, session,
+    usage, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -15,14 +16,34 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             web::scope("/api/auth")
                 .route("/login", web::post().to(auth::login))
                 .route("/logout", web::post().to(auth::logout))
-                .route("/me", web::get().to(auth::me)),
+                .route("/me", web::get().to(auth::me))
+                .route("/session", web::get().to(session::get))
+                .route("/session/login", web::post().to(session::login))
+                .route("/session/logout", web::post().to(session::logout)),
         )
         .service(
             web::scope("/api/client-auth")
+                .route("/invite", web::get().to(client_auth::get_invite))
                 .route("/accept-invite", web::post().to(client_auth::accept_invite))
                 .route("/login", web::post().to(client_auth::login))
                 .route("/logout", web::post().to(client_auth::logout))
                 .route("/me", web::get().to(client_auth::me)),
+        )
+        .service(
+            web::scope("/api/client")
+                .route("/overview", web::get().to(client_portal::get_overview))
+                .route(
+                    "/conversations",
+                    web::get().to(client_portal::list_conversations),
+                )
+                .route(
+                    "/conversations/{id}",
+                    web::get().to(client_portal::get_conversation),
+                )
+                .route(
+                    "/conversations/{id}/messages",
+                    web::get().to(client_portal::list_messages),
+                ),
         )
         .service(
             web::scope("/api/workspace")
@@ -35,6 +56,12 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("", web::post().to(clients::create_client))
                 .route("/{id}/users", web::get().to(clients::list_client_users))
                 .route("/{id}/invites", web::post().to(clients::invite_client_user)),
+        )
+        .service(
+            web::scope("/api/dashboard")
+                .route("/summary", web::get().to(dashboard::get_summary))
+                .route("/activity", web::get().to(dashboard::get_activity))
+                .route("/services", web::get().to(dashboard::list_services)),
         )
         .service(
             web::scope("/api/agents")

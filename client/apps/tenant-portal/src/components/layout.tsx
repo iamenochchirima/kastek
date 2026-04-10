@@ -2,24 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  Users, 
-  PenTool, 
-  BarChart3, 
-  Mail, 
-  SearchCheck, 
-  Mic, 
-  Star, 
+import {
+  LayoutDashboard,
+  Users,
+  PenTool,
+  BarChart3,
+  Mail,
+  SearchCheck,
+  Mic,
+  Star,
   Megaphone,
   LogOut,
-  BrainCircuit
+  BrainCircuit,
+  Building2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/clients", label: "Clients", icon: Building2 },
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/content", label: "Content Pipeline", icon: PenTool },
   { href: "/reporting", label: "Client Reporting", icon: BarChart3 },
@@ -32,7 +34,14 @@ const navItems = [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.href !== "/clients") {
+      return true;
+    }
+
+    return user?.roles?.some((role) => ["owner", "admin", "account_manager"].includes(role));
+  });
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -40,12 +49,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <aside className="w-64 border-r border-border bg-sidebar flex flex-col h-full shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-border">
           <BrainCircuit className="w-6 h-6 text-primary mr-3" />
-          <span className="font-bold text-lg tracking-tight">AgencyOS</span>
+          <div className="min-w-0">
+            <span className="block truncate font-bold text-lg tracking-tight">AgencyOS</span>
+            {user?.workspaceSlug && (
+              <span className="block truncate text-xs text-muted-foreground">{user.workspaceSlug}</span>
+            )}
+          </div>
         </div>
         
         <div className="flex-1 overflow-y-auto py-4">
           <nav className="space-y-1 px-3">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive =
                 pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
               const Icon = item.icon;
@@ -63,7 +77,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="p-4 border-t border-border">
-          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-foreground" onClick={logout}>
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-muted-foreground hover:text-foreground"
+            onClick={() => void logout()}
+          >
             <LogOut className="w-5 h-5 mr-3" />
             Logout
           </Button>
