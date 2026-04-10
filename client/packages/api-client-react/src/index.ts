@@ -41,6 +41,8 @@ export const getListTenantClientUsersQueryKey = (tenantClientId: string) => [
 ];
 export const getClientOverviewQueryKey = () => ["tenant", "client", "overview"];
 export const getClientConversationsQueryKey = () => ["tenant", "client", "conversations"];
+export const getClientLeadsQueryKey = () => ["tenant", "client", "leads"];
+export const getClientLeadStatsQueryKey = () => ["tenant", "client", "leads", "stats"];
 export const getClientConversationQueryKey = (conversationId: string) => [
   "tenant",
   "client",
@@ -79,6 +81,7 @@ export function useGetDashboardSummary(..._args: any[]) {
           totalClients: number;
           activeAgents: number;
           totalConversations: number;
+          totalLeads: number;
           requestsThisMonth: number;
         };
       }>("/api/dashboard/summary").then((payload) => payload.summary),
@@ -111,12 +114,26 @@ export function useListServices(..._args: any[]) {
 }
 
 export function useListLeads(..._args: any[]) {
-  return useQuery<any>({
+  return useQuery({
     queryKey: getListLeadsQueryKey(),
     queryFn: async () =>
-      placeholder({
-        leads: [],
-      }),
+      fetchTenantJson<{
+        leads: Array<{
+          id: string;
+          tenant_client_id: string;
+          tenant_client_name: string;
+          name: string;
+          email: string;
+          phone?: string | null;
+          company?: string | null;
+          source: string;
+          status: string;
+          score: number;
+          notes?: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+      }>("/api/leads").then((payload) => payload),
   });
 }
 
@@ -294,22 +311,89 @@ export function useListClientConversationMessages(
 }
 
 export function useGetLeadsStats(..._args: any[]) {
-  return useQuery<any>({
+  return useQuery({
     queryKey: getGetLeadsStatsQueryKey(),
     queryFn: async () =>
-      placeholder({
-        total: 0,
-        qualified: 0,
-        converted: 0,
-        weeklyTrend: [],
-        byStatus: [],
-      }),
+      fetchTenantJson<{
+        stats: {
+          total: number;
+          qualified: number;
+          converted: number;
+          weeklyTrend: Array<{ date: string; count: number }>;
+          byStatus: Array<{ status: string; count: number }>;
+        };
+      }>("/api/leads/stats").then((payload) => payload.stats),
   });
 }
 
 export function useCreateLead(..._args: any[]) {
-  return useMutation<any, any, any>({
-    mutationFn: async (input: unknown) => placeholder(input),
+  return useMutation({
+    mutationFn: async (input: {
+      tenantClientId: string;
+      name: string;
+      email: string;
+      phone?: string;
+      company?: string;
+      source: string;
+      notes?: string;
+    }) =>
+      fetchTenantJson<{
+        lead: {
+          id: string;
+          tenantClientId: string;
+          tenantClientName: string;
+          name: string;
+          email: string;
+          phone?: string | null;
+          company?: string | null;
+          source: string;
+          status: string;
+          score: number;
+          notes?: string | null;
+        };
+      }>("/api/leads", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }).then((payload) => payload.lead),
+  });
+}
+
+export function useListClientLeads(..._args: any[]) {
+  return useQuery({
+    queryKey: getClientLeadsQueryKey(),
+    queryFn: async () =>
+      fetchTenantJson<{
+        leads: Array<{
+          id: string;
+          tenant_client_id: string;
+          tenant_client_name: string;
+          name: string;
+          email: string;
+          phone?: string | null;
+          company?: string | null;
+          source: string;
+          status: string;
+          score: number;
+          notes?: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+      }>("/api/client/leads").then((payload) => payload.leads),
+  });
+}
+
+export function useGetClientLeadStats(..._args: any[]) {
+  return useQuery({
+    queryKey: getClientLeadStatsQueryKey(),
+    queryFn: async () =>
+      fetchTenantJson<{
+        stats: {
+          total: number;
+          qualified: number;
+          converted: number;
+          byStatus: Array<{ status: string; count: number }>;
+        };
+      }>("/api/client/leads/stats").then((payload) => payload.stats),
   });
 }
 

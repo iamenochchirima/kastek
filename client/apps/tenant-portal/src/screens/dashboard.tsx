@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, BarChart, Users, Zap } from "lucide-react";
+import { TENANT_ROUTE_ACCESS } from "@/lib/tenant-access";
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
@@ -12,7 +13,7 @@ export default function Dashboard() {
   const { data: services, isLoading: loadingServices } = useListServices();
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={TENANT_ROUTE_ACCESS.dashboard}>
       <Layout>
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
           <div className="flex justify-between items-end">

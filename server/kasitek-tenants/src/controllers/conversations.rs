@@ -29,6 +29,12 @@ struct MessageRow {
 
 pub async fn list_conversations(req: HttpRequest) -> Result<HttpResponse, AppError> {
     let access = middleware::extract_access_context(&req).await?;
+    if access.tenant_user_id.is_some() {
+        middleware::require_tenant_roles(
+            &access.tenant_user_roles,
+            &["owner", "admin", "account_manager", "support", "sales_manager"],
+        )?;
+    }
     let pool = middleware::db_pool(&req)?;
 
     let conversations = sqlx::query_as::<_, ConversationRow>(
@@ -64,6 +70,12 @@ pub async fn get_conversation(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let access = middleware::extract_access_context(&req).await?;
+    if access.tenant_user_id.is_some() {
+        middleware::require_tenant_roles(
+            &access.tenant_user_roles,
+            &["owner", "admin", "account_manager", "support", "sales_manager"],
+        )?;
+    }
     let pool = middleware::db_pool(&req)?;
     let id = path.into_inner();
 
@@ -102,6 +114,12 @@ pub async fn list_messages(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let access = middleware::extract_access_context(&req).await?;
+    if access.tenant_user_id.is_some() {
+        middleware::require_tenant_roles(
+            &access.tenant_user_roles,
+            &["owner", "admin", "account_manager", "support", "sales_manager"],
+        )?;
+    }
     let pool = middleware::db_pool(&req)?;
     let conversation_id = path.into_inner();
 

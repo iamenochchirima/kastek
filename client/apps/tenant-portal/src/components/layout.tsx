@@ -18,30 +18,25 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { TENANT_ROUTE_ACCESS, hasAnyTenantRole } from "@/lib/tenant-access";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/clients", label: "Clients", icon: Building2 },
-  { href: "/leads", label: "Leads", icon: Users },
-  { href: "/content", label: "Content Pipeline", icon: PenTool },
-  { href: "/reporting", label: "Client Reporting", icon: BarChart3 },
-  { href: "/nurturing", label: "Nurturing", icon: Mail },
-  { href: "/aeo", label: "AEO", icon: SearchCheck },
-  { href: "/voice", label: "Voice Agents", icon: Mic },
-  { href: "/reviews", label: "Reputation", icon: Star },
-  { href: "/adcreative", label: "Ad Creatives", icon: Megaphone },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, allowedRoles: TENANT_ROUTE_ACCESS.dashboard },
+  { href: "/clients", label: "Clients", icon: Building2, allowedRoles: TENANT_ROUTE_ACCESS.clients },
+  { href: "/leads", label: "Leads", icon: Users, allowedRoles: TENANT_ROUTE_ACCESS.leads },
+  { href: "/content", label: "Content Pipeline", icon: PenTool, allowedRoles: TENANT_ROUTE_ACCESS.content },
+  { href: "/reporting", label: "Client Reporting", icon: BarChart3, allowedRoles: TENANT_ROUTE_ACCESS.reporting },
+  { href: "/nurturing", label: "Nurturing", icon: Mail, allowedRoles: TENANT_ROUTE_ACCESS.nurturing },
+  { href: "/aeo", label: "AEO", icon: SearchCheck, allowedRoles: TENANT_ROUTE_ACCESS.aeo },
+  { href: "/voice", label: "Voice Agents", icon: Mic, allowedRoles: TENANT_ROUTE_ACCESS.voice },
+  { href: "/reviews", label: "Reputation", icon: Star, allowedRoles: TENANT_ROUTE_ACCESS.reviews },
+  { href: "/adcreative", label: "Ad Creatives", icon: Megaphone, allowedRoles: TENANT_ROUTE_ACCESS.adcreative },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { logout, user } = useAuth();
-  const visibleNavItems = navItems.filter((item) => {
-    if (item.href !== "/clients") {
-      return true;
-    }
-
-    return user?.roles?.some((role) => ["owner", "admin", "account_manager"].includes(role));
-  });
+  const visibleNavItems = navItems.filter((item) => hasAnyTenantRole(user?.roles, item.allowedRoles));
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">

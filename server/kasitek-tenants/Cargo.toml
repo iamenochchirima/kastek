@@ -24,3 +24,15 @@ types = { path = "../crates/types" }
 [[bin]]
 name = "kasitek-tenants"
 path = "src/main.rs"
+
+[[bin]]
+name = "bootstrap_tenant"
+path = "src/bin/bootstrap_tenant.rs"
+
+[[bin]]
+name = "seed_tenant_demo"
+path = "src/bin/seed_tenant_demo.rs"
+
+[[bin]]
+name = "verify_tenant_workspace"
+path = "src/bin/verify_tenant_workspace.rs"

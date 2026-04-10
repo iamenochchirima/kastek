@@ -39,8 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-const CLIENT_ADMIN_ROLES = ["owner", "admin", "account_manager"];
+import { CLIENT_ADMIN_ROLES } from "@/lib/tenant-access";
 
 const createClientSchema = z.object({
   name: z.string().min(2, "Client name is required"),

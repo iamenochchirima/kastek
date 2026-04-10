@@ -41,27 +41,13 @@ async fn ensure_client_conversation_access(
     tenant_client_id: &str,
     conversation_id: &str,
 ) -> Result<(), AppError> {
-    let exists = sqlx::query_scalar::<_, String>(
-        r#"
-        SELECT id
-        FROM conversations
-        WHERE workspace_id = $1
-          AND tenant_client_id = $2
-          AND id = $3
-        LIMIT 1
-        "#,
+    middleware::require_client_scoped_conversation(
+        pool,
+        workspace_id,
+        tenant_client_id,
+        conversation_id,
     )
-    .bind(workspace_id)
-    .bind(tenant_client_id)
-    .bind(conversation_id)
-    .fetch_optional(pool)
-    .await?;
-
-    if exists.is_none() {
-        return Err(AppError::NotFound("conversation not found".to_string()));
-    }
-
-    Ok(())
+    .await
 }
 
 pub async fn get_overview(req: HttpRequest) -> Result<HttpResponse, AppError> {

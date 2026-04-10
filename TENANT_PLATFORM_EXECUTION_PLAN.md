@@ -58,18 +58,19 @@ Move `kasitek-tenants` and `client/apps/tenant-portal` from scaffold/demo mode i
 - [x] Move tenant-portal browser traffic behind a same-origin backend proxy path
 - [x] Improve invite activation with preview + direct client session bootstrap
 - [x] Add client conversation detail views on real client-scoped data
-- [ ] Add role guards consistently across tenant-admin routes
+- [x] Add a real tenant/client lead workflow instead of placeholder lead data
+- [x] Add role guards consistently across tenant-admin routes
 - [ ] Add client-user-scoped access middleware for future client surfaces
-- [ ] Add tests or targeted verification scripts for auth and provisioning flows
+- [x] Add tests or targeted verification scripts for auth and provisioning flows
 - [x] Review CORS/cookie/domain setup for deployment topology
 
 ## Active Work
 
 Current execution focus:
 
-1. expand role hardening across the remaining tenant-admin surfaces
-2. add targeted verification scripts for auth, invite, and bootstrap flows
-3. deepen client deliverables and service workflows beyond conversations
+1. add client-user-scoped access middleware patterns for future client data modules
+2. deepen client deliverables and service workflows beyond conversations and leads
+3. replace additional tenant-admin placeholder modules with real backend-backed surfaces
 
 ## Notes
 

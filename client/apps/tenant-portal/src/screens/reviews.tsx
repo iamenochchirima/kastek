@@ -18,6 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getListReviewCampaignsQueryKey, getGetReviewStatsQueryKey } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { TENANT_ROUTE_ACCESS } from "@/lib/tenant-access";
 
 const createCampaignSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -70,7 +71,7 @@ export default function Reviews() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={TENANT_ROUTE_ACCESS.reviews}>
       <Layout>
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
           <div className="flex justify-between items-end">

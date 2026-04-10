@@ -17,6 +17,7 @@ import { Plus, SearchCheck, ExternalLink, Hash, TrendingUp, Cpu } from "lucide-r
 import { useQueryClient } from "@tanstack/react-query";
 import { getListAeoContentQueryKey, getGetAeoCitationsQueryKey } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
+import { TENANT_ROUTE_ACCESS } from "@/lib/tenant-access";
 
 const createAeoSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -65,7 +66,7 @@ export default function AEO() {
   ] as const;
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={TENANT_ROUTE_ACCESS.aeo}>
       <Layout>
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
           <div className="flex justify-between items-end">

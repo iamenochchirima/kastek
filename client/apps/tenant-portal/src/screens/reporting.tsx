@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getListReportingDashboardsQueryKey } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { TENANT_ROUTE_ACCESS } from "@/lib/tenant-access";
 
 const createDashboardSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -67,7 +68,7 @@ export default function Reporting() {
   const activeDashboard = dashboards?.find(d => d.id === activeDashboardId);
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={TENANT_ROUTE_ACCESS.reporting}>
       <Layout>
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
           <div className="flex justify-between items-end">

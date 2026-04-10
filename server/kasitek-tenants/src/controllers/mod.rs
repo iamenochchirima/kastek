@@ -6,6 +6,7 @@ pub mod clients;
 pub mod conversations;
 pub mod dashboard;
 pub mod health;
+pub mod leads;
 pub mod session;
 pub mod usage;
 pub mod workspace;

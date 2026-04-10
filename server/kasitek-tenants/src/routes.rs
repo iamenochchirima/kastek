@@ -1,8 +1,8 @@
 use actix_web::web;
 
 use crate::controllers::{
-    agents, auth, client_auth, client_portal, clients, conversations, dashboard, health, session,
-    usage, workspace,
+    agents, auth, client_auth, client_portal, clients, conversations, dashboard, health, leads,
+    session, usage, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -31,6 +31,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         )
         .service(
             web::scope("/api/client")
+                .route("/leads", web::get().to(leads::list_client_leads))
+                .route("/leads/stats", web::get().to(leads::get_client_lead_stats))
                 .route("/overview", web::get().to(client_portal::get_overview))
                 .route(
                     "/conversations",
@@ -56,6 +58,12 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("", web::post().to(clients::create_client))
                 .route("/{id}/users", web::get().to(clients::list_client_users))
                 .route("/{id}/invites", web::post().to(clients::invite_client_user)),
+        )
+        .service(
+            web::scope("/api/leads")
+                .route("", web::get().to(leads::list_leads))
+                .route("", web::post().to(leads::create_lead))
+                .route("/stats", web::get().to(leads::get_lead_stats)),
         )
         .service(
             web::scope("/api/dashboard")

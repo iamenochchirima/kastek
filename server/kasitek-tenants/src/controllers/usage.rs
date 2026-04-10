@@ -19,6 +19,12 @@ struct UsageLimitsRow {
 
 pub async fn get_usage(req: HttpRequest) -> Result<HttpResponse, AppError> {
     let access = middleware::extract_access_context(&req).await?;
+    if access.tenant_user_id.is_some() {
+        middleware::require_tenant_roles(
+            &access.tenant_user_roles,
+            &["owner", "admin", "account_manager", "viewer"],
+        )?;
+    }
     let pool = middleware::db_pool(&req)?;
 
     let usage = sqlx::query_as::<_, UsageTotalsRow>(

@@ -17,6 +17,7 @@ import { Plus, Mail, MessageCircle, GitBranch, ArrowRight, Play, Pause } from "l
 import { useQueryClient } from "@tanstack/react-query";
 import { getListNurturingSequencesQueryKey, getGetNurturingStatsQueryKey } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
+import { TENANT_ROUTE_ACCESS } from "@/lib/tenant-access";
 
 const createSequenceSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -71,7 +72,7 @@ export default function Nurturing() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={TENANT_ROUTE_ACCESS.nurturing}>
       <Layout>
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
           <div className="flex justify-between items-end">

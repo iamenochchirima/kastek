@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { MessageSquare, ShieldCheck, Sparkles, Users } from "lucide-react";
-import { useGetClientOverview, useListClientConversations } from "@workspace/api-client-react";
+import {
+  useGetClientLeadStats,
+  useGetClientOverview,
+  useListClientConversations,
+} from "@workspace/api-client-react";
 import { ProtectedRoute } from "@/lib/auth";
 import { ClientLayout } from "@/components/client-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 export default function ClientHomeScreen() {
   const { data: overview, isLoading: loadingOverview } = useGetClientOverview();
   const { data: conversations, isLoading: loadingConversations } = useListClientConversations();
+  const { data: leadStats, isLoading: loadingLeadStats } = useGetClientLeadStats();
 
   return (
     <ProtectedRoute audience="client">
@@ -30,9 +35,9 @@ export default function ClientHomeScreen() {
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            {loadingOverview ? (
-              Array.from({ length: 4 }).map((_, index) => (
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
+            {loadingOverview || loadingLeadStats ? (
+              Array.from({ length: 5 }).map((_, index) => (
                 <Skeleton key={index} className="h-32 rounded-xl" />
               ))
             ) : (
@@ -67,6 +72,15 @@ export default function ClientHomeScreen() {
                 <Card>
                   <CardHeader className="pb-2">
                     <Sparkles className="h-4 w-4 text-primary" />
+                    <CardTitle className="text-sm">Leads</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-semibold">{leadStats?.total ?? 0}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
                     <CardTitle className="text-sm">Messages</CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -76,6 +90,33 @@ export default function ClientHomeScreen() {
               </>
             )}
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Access</CardTitle>
+              <CardDescription>Jump into the seeded client-facing areas.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2">
+              <Link
+                href="/client/leads"
+                className="rounded-xl border border-border px-4 py-4 transition-colors hover:border-primary/40 hover:bg-muted/40"
+              >
+                <div className="font-medium">Lead Register</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Review your client-scoped leads and their current statuses.
+                </p>
+              </Link>
+              <Link
+                href="/client/conversations"
+                className="rounded-xl border border-border px-4 py-4 transition-colors hover:border-primary/40 hover:bg-muted/40"
+              >
+                <div className="font-medium">Conversation Hub</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Inspect messages and recent activity tied to this client account.
+                </p>
+              </Link>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

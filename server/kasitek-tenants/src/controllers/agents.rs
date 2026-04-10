@@ -16,6 +16,12 @@ struct AgentRow {
 
 pub async fn list_agents(req: HttpRequest) -> Result<HttpResponse, AppError> {
     let access = middleware::extract_access_context(&req).await?;
+    if access.tenant_user_id.is_some() {
+        middleware::require_tenant_roles(
+            &access.tenant_user_roles,
+            &["owner", "admin", "automation_manager", "support"],
+        )?;
+    }
     let pool = middleware::db_pool(&req)?;
 
     let agents = sqlx::query_as::<_, AgentRow>(
@@ -47,6 +53,12 @@ pub async fn get_agent(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let access = middleware::extract_access_context(&req).await?;
+    if access.tenant_user_id.is_some() {
+        middleware::require_tenant_roles(
+            &access.tenant_user_roles,
+            &["owner", "admin", "automation_manager", "support"],
+        )?;
+    }
     let pool = middleware::db_pool(&req)?;
     let id = path.into_inner();
 

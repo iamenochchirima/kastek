@@ -60,14 +60,7 @@ fn normalize_slug(input: &str) -> String {
 }
 
 fn ensure_client_management_roles(roles: &[String]) -> Result<(), AppError> {
-    if roles
-        .iter()
-        .any(|role| matches!(role.as_str(), "owner" | "admin" | "account_manager"))
-    {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden)
-    }
+    middleware::require_tenant_roles(roles, &["owner", "admin", "account_manager"])
 }
 
 pub async fn list_clients(req: HttpRequest) -> Result<HttpResponse, AppError> {

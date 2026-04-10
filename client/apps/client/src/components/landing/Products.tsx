@@ -1,330 +1,355 @@
 "use client";
 
 import Link from "next/link";
+import type { ComponentType, ReactNode } from "react";
 import { motion } from "framer-motion";
-import { Bot, CalendarRange, CheckCircle2, Megaphone, Wand2 } from "lucide-react";
+import {
+  Bot,
+  CheckCircle2,
+  Megaphone,
+  MessagesSquare,
+  PhoneCall,
+  Sparkles,
+  Wand2,
+} from "lucide-react";
+
+type Product = {
+  title: string;
+  description: string;
+  points: string[];
+  cta: string;
+  icon: ComponentType<{ className?: string }>;
+  status: string;
+  tone: "primary" | "accent" | "neutral";
+  demo: ReactNode;
+};
+
+const products: Product[] = [
+  {
+    title: "Customer Conversation AI",
+    description:
+      "Turn customer conversations into bookings, quotations, and qualified opportunities.",
+    points: [
+      "Website, WhatsApp, Facebook, and Instagram agents that respond in real time",
+      "Booking flows for appointments, enquiries, and service requests",
+      "WhatsApp catalogue journeys for product discovery and ordering",
+      "Automated quotation creation for qualifying jobs and service requests",
+      "Voice agents for after-hours calls, FAQs, and call routing",
+      "Smart handoff into your team, inbox, or booking workflow",
+    ],
+    cta: "/solutions",
+    icon: MessagesSquare,
+    status: "Live demos",
+    tone: "primary",
+    demo: <ConversationDemo />,
+  },
+  {
+    title: "Growth Automation",
+    description:
+      "Keep every lead warm, every follow-up on time, and every client visible.",
+    points: [
+      "Automated lead nurturing across WhatsApp, email, and reminder flows",
+      "Appointment reminders, reactivation, and follow-up sequences",
+      "Review automation that drives happy customers to public reviews and captures issues internally",
+      "Campaign, routing, and conversion workflows tied to your sales process",
+      "Branded dashboards and reporting for teams, clients, or partner delivery",
+    ],
+    cta: "/solutions",
+    icon: Megaphone,
+    status: "Configured around your flow",
+    tone: "accent",
+    demo: <AutomationDemo />,
+  },
+  {
+    title: "Content & Creative Systems",
+    description:
+      "Produce content, campaign assets, and AI-search-ready pages without starting from scratch.",
+    points: [
+      "AI-assisted blogs, social posts, ad copy, and email sequences",
+      "Creative variations for offers, campaigns, and testing",
+      "AEO-ready content structured for AI answers and citations",
+      "Approval, scheduling, and publishing workflows in one system",
+      "Built for internal teams, agencies, and repeatable client delivery",
+    ],
+    cta: "/solutions",
+    icon: Wand2,
+    status: "Built for repeatable output",
+    tone: "neutral",
+    demo: <ContentDemo />,
+  },
+];
+
+const toneClasses = {
+  primary: {
+    icon: "border-primary/20 bg-primary/10 text-primary",
+    badge: "border-primary/20 bg-primary/10 text-primary",
+    check: "text-primary",
+  },
+  accent: {
+    icon: "border-accent/20 bg-accent/10 text-accent",
+    badge: "border-accent/20 bg-accent/10 text-accent",
+    check: "text-accent",
+  },
+  neutral: {
+    icon: "border-white/10 bg-white/5 text-foreground",
+    badge: "border-white/10 bg-white/5 text-muted-foreground",
+    check: "text-foreground",
+  },
+};
 
 export function Products() {
   return (
     <section className="px-6 py-20 md:px-12 md:py-32" id="products">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-14 grid grid-cols-1 gap-8 md:mb-24 md:grid-cols-2 md:gap-12 md:items-end">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-14 text-center md:mb-24">
           <div>
-            <p className="text-sm font-semibold tracking-wider text-primary uppercase mb-4">Products</p>
-            <h2 className="font-display text-4xl leading-none sm:text-5xl md:text-7xl">Tools you can<br/>run yourself</h2>
+            <p className="mb-4 text-base font-semibold uppercase tracking-[0.2em] text-primary">
+              Products
+            </p>
           </div>
-          <p className="text-muted-foreground md:max-w-md text-base leading-relaxed">
-            Built as subscription products for SMBs. Join the waitlist now and get notified as access opens up.
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 bg-border p-[1px] rounded-2xl overflow-hidden">
-          
-          {/* PRODUCT 1: KasiAgents */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="relative grid grid-cols-1 gap-10 overflow-hidden rounded-xl bg-[#0D0D0D] p-6 sm:p-8 md:p-12 lg:grid-cols-2 lg:gap-24"
-          >
-            {/* Content Side */}
-            <div className="flex flex-col z-10">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary border border-primary/20">
-                  <Bot className="w-6 h-6" />
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-semibold tracking-wide">
-                  <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                  Live
-                </div>
-              </div>
-              
-              <h3 className="font-display text-4xl mb-4">KasiAgents</h3>
-              <p className="text-muted-foreground mb-8 leading-relaxed">
-                AI agents for WhatsApp, your website, Facebook, Instagram, and voice. Your agent responds instantly, qualifies leads, answers questions, and hands off to you when needed — 24/7.
-              </p>
+        <div className="space-y-6">
+          {products.map((product, index) => {
+            const tone = toneClasses[product.tone];
+            const Icon = product.icon;
+            const reverse = index % 2 === 1;
 
-              <ul className="flex flex-col gap-3 mb-10">
-                {[
-                  "WhatsApp Business agent — responds to every message instantly",
-                  "Website chat agent — captures leads while you sleep",
-                  "Facebook & Instagram DM agent — no more missed comments",
-                  "AI voice agent — answers calls and handles common requests",
-                  "Smart handoff — escalates to you when it matters"
-                ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="mt-auto">
-                <Link href="/waitlist?product=kasiagents" className="inline-flex items-center rounded-lg border border-primary px-5 py-2.5 font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground">
-                  Get early access &rarr;
-                </Link>
-              </div>
-            </div>
-
-            {/* Visual Side - Chat Mock */}
-            <div className="relative z-10 flex h-full min-h-[300px] flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-2xl shadow-black/50 sm:min-h-[350px] sm:p-6">
-              
-              <div className="flex gap-3 items-end">
-                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0 shadow-lg shadow-primary/20">T</div>
-                <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-foreground max-w-[85%]">
-                  Hi, what are your rates for a plumbing job in my area?
-                </div>
-              </div>
-
-              <div className="flex gap-3 items-end justify-end">
-                <div className="bg-primary/10 border border-primary/20 rounded-2xl rounded-br-sm px-4 py-3 text-sm text-foreground max-w-[85%]">
-                  Hi Thabo! Our rates start from R450 for call-outs in your area. Can I get your address and a quick description of the issue?
-                </div>
-              </div>
-
-              <div className="flex gap-3 items-end">
-                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0 shadow-lg shadow-primary/20">T</div>
-                <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-foreground max-w-[85%]">
-                  23 Berea Rd, burst geyser
-                </div>
-              </div>
-
-              <div className="flex gap-3 items-end justify-end">
-                <div className="bg-primary/10 border border-primary/20 rounded-2xl rounded-br-sm px-4 py-3 text-sm text-foreground max-w-[85%]">
-                  Got it! I&apos;ve logged your job. Someone will confirm your booking within 15 minutes. 🔧
-                </div>
-              </div>
-
-              <div className="mt-auto pt-4 border-t border-border">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10 text-xs font-medium text-accent">
-                  <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                  Agent active — 0 missed messages today
-                </div>
-              </div>
-            </div>
-            
-            {/* Decorative background gradient */}
-            <div className="absolute top-1/2 right-0 -translate-y-1/2 w-[500px] h-[500px] bg-primary/5 blur-[100px] rounded-full pointer-events-none" />
-          </motion.div>
-
-          {/* PRODUCT 2: KasiReach */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="relative grid grid-cols-1 gap-10 overflow-hidden rounded-xl bg-[#0D0D0D] p-6 sm:p-8 md:p-12 lg:grid-cols-2 lg:gap-24"
-          >
-            {/* Content Side */}
-            <div className="flex flex-col z-10">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/5 text-foreground border border-white/10">
-                  <Megaphone className="w-6 h-6" />
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-muted-foreground text-xs font-semibold tracking-wide">
-                  Coming Soon
-                </div>
-              </div>
-              
-              <h3 className="font-display text-4xl mb-4">KasiReach</h3>
-              <p className="text-muted-foreground mb-8 leading-relaxed">
-                Send bulk WhatsApp campaigns to your entire customer list. Templates, scheduling, and delivery reports.
-              </p>
-
-              <ul className="flex flex-col gap-3 mb-10">
-                {[
-                  "Bulk WhatsApp messaging with approved templates",
-                  "Schedule campaigns in advance",
-                  "Segment your contacts by behaviour",
-                  "Track delivery and read rates",
-                  "Pairs directly with KasiAgents"
-                ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="mt-auto">
-                <Link href="/waitlist?product=kasireach" className="inline-flex items-center font-semibold text-foreground transition-colors hover:text-primary">
-                  Join waitlist &rarr;
-                </Link>
-              </div>
-            </div>
-
-            {/* Visual Side - Campaign Mock */}
-            <div className="relative z-10 flex h-full min-h-[300px] flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-2xl shadow-black/50 sm:min-h-[350px] sm:p-6">
-              
-              <div className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-semibold">Campaign Preview</div>
-              
-              <div className="bg-white/5 border border-white/10 rounded-lg p-5">
-                <div className="text-xs text-muted-foreground mb-3 flex items-center justify-between">
-                  <span>To: All Customers (1,240)</span>
-                  <span className="px-2 py-0.5 bg-primary/20 text-primary rounded text-[10px]">Marketing</span>
-                </div>
-                <div className="text-sm text-foreground leading-relaxed">
-                  Hey {'{{name}}'} 👋 We&apos;re running a 20% off special this weekend only. Reply YES to claim yours!
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 mt-4">
-                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-center flex flex-col justify-center">
-                  <div className="font-display text-3xl text-primary leading-none mb-1">94%</div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Delivered</div>
-                </div>
-                <div className="bg-accent/10 border border-accent/20 rounded-lg p-4 text-center flex flex-col justify-center">
-                  <div className="font-display text-3xl text-accent leading-none mb-1">61%</div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Read</div>
-                </div>
-                <div className="bg-white/5 border border-white/10 rounded-lg p-4 text-center flex flex-col justify-center">
-                  <div className="font-display text-3xl text-foreground leading-none mb-1">238</div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Replies</div>
-                </div>
-              </div>
-
-              <div className="mt-auto pt-4 border-t border-border">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-muted-foreground">
-                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
-                  Campaign sent · 3 minutes ago
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* PRODUCT 3: KasiSocial */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="relative grid grid-cols-1 gap-10 overflow-hidden rounded-xl bg-[#0D0D0D] p-6 sm:p-8 md:p-12 lg:grid-cols-2 lg:gap-24"
-          >
-            <div className="flex flex-col z-10">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/5 text-foreground border border-white/10">
-                  <CalendarRange className="w-6 h-6" />
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-muted-foreground text-xs font-semibold tracking-wide">
-                  Coming Soon
-                </div>
-              </div>
-
-              <h3 className="font-display text-4xl mb-4">KasiSocial</h3>
-              <p className="text-muted-foreground mb-8 leading-relaxed">
-                Schedule, publish, and grow your social media presence from one place. Write once
-                — post everywhere. AI helps you create content that actually sounds like your
-                business.
-              </p>
-
-              <ul className="flex flex-col gap-3 mb-10">
-                {[
-                  "Post to Facebook, Instagram, LinkedIn, and X simultaneously",
-                  "AI caption generator — describe your offer, get post-ready copy instantly",
-                  "Visual content calendar — see your whole month at a glance",
-                  "WhatsApp Status scheduling — keep your updates planned and consistent",
-                  "Post performance analytics per channel",
-                ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="mt-auto">
-                <Link href="/waitlist?product=kasisocial" className="inline-flex items-center font-semibold text-foreground transition-colors hover:text-primary">
-                  Join waitlist &rarr;
-                </Link>
-              </div>
-            </div>
-
-            <div className="relative z-10 flex h-full min-h-[300px] flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-2xl shadow-black/50 sm:min-h-[350px] sm:p-6">
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-semibold">
-                  Content Studio
-                </div>
-                <div className="rounded-full border border-primary/15 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
-                  Multi-channel
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                      New Post
+            return (
+              <motion.div
+                key={product.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.45, delay: index * 0.06 }}
+                className="relative overflow-hidden rounded-2xl border border-border bg-[#0D0D0D] p-6 sm:p-8 md:p-10 lg:p-12"
+              >
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(232,160,32,0.08),transparent_65%)]" />
+                <div
+                  className={`grid grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-16 ${
+                    reverse ? "lg:[&>*:first-child]:order-2 lg:[&>*:last-child]:order-1" : ""
+                  }`}
+                >
+                  <div className="relative z-10 flex flex-col">
+                    <div className="mb-7 flex items-center gap-3">
+                      <div
+                        className={`flex h-12 w-12 items-center justify-center rounded-xl border ${tone.icon}`}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${tone.badge}`}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {product.status}
+                      </div>
                     </div>
-                    <div className="mt-2 text-sm text-foreground leading-relaxed">
-                      &quot;We&apos;re open this Sunday and taking bookings all day...&quot;
+
+                    <h3 className="mb-4 font-display text-4xl leading-none md:text-5xl">
+                      {product.title}
+                    </h3>
+
+                    <p className="mb-8 max-w-xl leading-relaxed text-muted-foreground">
+                      {product.description}
+                    </p>
+
+                    <ul className="mb-10 flex flex-col gap-3">
+                      {product.points.map((point) => (
+                        <li key={point} className="flex items-start gap-3 text-sm text-muted-foreground">
+                          <CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${tone.check}`} />
+                          <span>{point}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="mt-auto">
+                      <Link
+                        href={product.cta}
+                        className="inline-flex items-center rounded-lg border border-primary/20 bg-primary/10 px-5 py-2.5 font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                      >
+                        Explore Solutions &rarr;
+                      </Link>
                     </div>
                   </div>
-                  <div className="inline-flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">
-                    <Wand2 className="h-3.5 w-3.5" />
-                    AI Generate
-                  </div>
-                </div>
-              </div>
 
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                <div className="text-[10px] tracking-[0.16em] uppercase text-muted-foreground font-semibold">
-                  Publishing to
+                  <div className="relative z-10">{product.demo}</div>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-foreground/85">
-                  {["Facebook", "Instagram", "LinkedIn", "WhatsApp Status"].map((channel) => (
-                    <div
-                      key={channel}
-                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2"
-                    >
-                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary/15 text-primary">
-                        ✓
-                      </span>
-                      {channel}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                <div className="grid grid-cols-5 gap-2 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  {["Mon", "Tue", "Wed", "Thu", "Fri"].map((day) => (
-                    <div key={day}>{day}</div>
-                  ))}
-                </div>
-                <div className="mt-4 grid grid-cols-5 gap-2">
-                  {[
-                    "bg-primary",
-                    "",
-                    "bg-accent",
-                    "",
-                    "bg-primary",
-                    "",
-                    "bg-white/20",
-                    "",
-                    "bg-primary",
-                    "",
-                  ].map((dotClass, index) => (
-                    <div
-                      key={index}
-                      className="flex h-10 items-center justify-center rounded-lg border border-white/6 bg-white/[0.02]"
-                    >
-                      {dotClass ? <span className={`h-2.5 w-2.5 rounded-full ${dotClass}`} /> : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-auto pt-4 border-t border-border">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10 text-xs font-medium text-accent">
-                  <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                  3 posts scheduled this week
-                </div>
-              </div>
-            </div>
-
-            <div className="absolute top-1/2 right-0 -translate-y-1/2 w-[500px] h-[500px] bg-accent/5 blur-[100px] rounded-full pointer-events-none" />
-          </motion.div>
-
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </section>
+  );
+}
+
+function ConversationDemo() {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-2xl shadow-black/40 sm:p-6">
+      <div className="flex items-center justify-between border-b border-border pb-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            Live conversation
+          </p>
+          <p className="mt-2 text-sm text-foreground">Website, WhatsApp, and voice working together</p>
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold text-accent">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+          Active
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {[
+          { side: "left", label: "Website", text: "Can I book for Friday morning?" },
+          { side: "right", label: "Agent", text: "Yes. I have 9am or 11am open. Which suits you?" },
+          { side: "left", label: "WhatsApp", text: "9am works. I am in Randburg." },
+          { side: "right", label: "Agent", text: "Booked. I have sent your confirmation and notified the team." },
+        ].map((message, index) => (
+          <motion.div
+            key={index}
+            initial={{ opacity: 0.4, x: message.side === "left" ? -10 : 10 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.35, delay: index * 0.08 }}
+            className={`flex ${message.side === "right" ? "justify-end" : ""}`}
+          >
+            <div
+              className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                message.side === "right"
+                  ? "rounded-br-sm border border-primary/20 bg-primary/10 text-foreground"
+                  : "rounded-bl-sm border border-white/10 bg-white/5 text-foreground"
+              }`}
+            >
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {message.label}
+              </div>
+              {message.text}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-3 border-t border-border pt-4">
+        {[
+          { label: "Reply time", value: "< 10s" },
+          { label: "Channels", value: "4" },
+          { label: "Escalations", value: "Smart" },
+        ].map((item) => (
+          <div key={item.label} className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-center">
+            <div className="font-display text-2xl leading-none text-primary">{item.value}</div>
+            <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {item.label}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AutomationDemo() {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-2xl shadow-black/40 sm:p-6">
+      <div className="flex items-center justify-between border-b border-border pb-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            Workflow engine
+          </p>
+          <p className="mt-2 text-sm text-foreground">Lead capture to conversion with no dead space</p>
+        </div>
+        <div className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
+          Automation live
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-3">
+        {[
+          { icon: Bot, title: "Lead Captured", detail: "Meta ad form submitted for kitchen renovation quote" },
+          { icon: MessagesSquare, title: "Instant Follow-Up", detail: "WhatsApp sent in 6 seconds with qualification prompts" },
+          { icon: PhoneCall, title: "Team Alert", detail: "Sales rep assigned and notified for hot lead handoff" },
+          { icon: Sparkles, title: "Conversion Update", detail: "Booking confirmed and dashboard status moved to won" },
+        ].map((step, index) => {
+          const Icon = step.icon;
+          return (
+            <motion.div
+              key={step.title}
+              initial={{ opacity: 0.45, x: -10 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.35, delay: index * 0.08 }}
+              className="flex items-start gap-3 rounded-xl border border-white/8 bg-white/[0.03] p-4"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent">
+                <Icon className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">{step.title}</div>
+                <div className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.detail}</div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ContentDemo() {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-2xl shadow-black/40 sm:p-6">
+      <div className="flex items-center justify-between border-b border-border pb-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            Creative engine
+          </p>
+          <p className="mt-2 text-sm text-foreground">Campaign assets generated, reviewed, and queued</p>
+        </div>
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+          <Wand2 className="h-3.5 w-3.5" />
+          AI-assisted
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-xl border border-white/8 bg-white/[0.03] p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Campaign brief
+            </div>
+            <div className="mt-2 text-sm leading-relaxed text-foreground">
+              Promote winter specials for a local clinic across ads, social, and follow-up
+              messages.
+            </div>
+          </div>
+          <div className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">
+            Generate
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {[
+          { label: "Ad Copy", status: "3 variants ready" },
+          { label: "Social Captions", status: "7 posts queued" },
+          { label: "Landing Copy", status: "1 page drafted" },
+          { label: "Review", status: "Awaiting approval" },
+        ].map((item, index) => (
+          <motion.div
+            key={item.label}
+            initial={{ opacity: 0.4, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.35, delay: index * 0.07 }}
+            className="rounded-xl border border-white/8 bg-white/[0.03] p-4"
+          >
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {item.label}
+            </div>
+            <div className="mt-2 text-sm font-semibold text-foreground">{item.status}</div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
   );
 }

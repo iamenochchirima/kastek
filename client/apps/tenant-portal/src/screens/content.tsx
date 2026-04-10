@@ -16,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getListContentHistoryQueryKey } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { TENANT_ROUTE_ACCESS } from "@/lib/tenant-access";
 
 const generateSchema = z.object({
   topic: z.string().min(3, "Topic is required"),
@@ -61,7 +62,7 @@ export default function ContentPipeline() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={TENANT_ROUTE_ACCESS.content}>
       <Layout>
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
           <div>

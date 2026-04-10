@@ -31,6 +31,12 @@ struct DomainRow {
 
 pub async fn get_workspace(req: HttpRequest) -> Result<HttpResponse, AppError> {
     let access = middleware::extract_access_context(&req).await?;
+    if access.tenant_user_id.is_some() {
+        middleware::require_tenant_roles(
+            &access.tenant_user_roles,
+            &["owner", "admin", "account_manager", "viewer", "support"],
+        )?;
+    }
     let pool = middleware::db_pool(&req)?;
 
     let workspace = sqlx::query_as::<_, WorkspaceRow>(
@@ -77,6 +83,12 @@ pub async fn get_workspace(req: HttpRequest) -> Result<HttpResponse, AppError> {
 
 pub async fn get_branding(req: HttpRequest) -> Result<HttpResponse, AppError> {
     let access = middleware::extract_access_context(&req).await?;
+    if access.tenant_user_id.is_some() {
+        middleware::require_tenant_roles(
+            &access.tenant_user_roles,
+            &["owner", "admin", "account_manager", "viewer", "support"],
+        )?;
+    }
     let pool = middleware::db_pool(&req)?;
 
     let branding = sqlx::query_as::<_, BrandingRow>(

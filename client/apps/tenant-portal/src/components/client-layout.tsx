@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BrainCircuit, LayoutDashboard, LogOut, MessageSquare } from "lucide-react";
+import { BrainCircuit, LayoutDashboard, LogOut, MessageSquare, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/client", label: "Overview", icon: LayoutDashboard },
+  { href: "/client/leads", label: "Leads", icon: Users },
   { href: "/client/conversations", label: "Conversations", icon: MessageSquare },
 ];
 

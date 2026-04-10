@@ -54,6 +54,12 @@ struct TenantClientSessionRow {
     expires_at: DateTime<Utc>,
 }
 
+#[derive(Debug, FromRow)]
+pub struct TenantClientWorkspaceRow {
+    pub name: String,
+    pub status: String,
+}
+
 pub fn db_pool(req: &HttpRequest) -> Result<&PgPool, AppError> {
     req.app_data::<actix_web::web::Data<PgPool>>()
         .map(|data| data.get_ref())
@@ -64,6 +70,76 @@ pub fn app_config(req: &HttpRequest) -> Result<&AppConfig, AppError> {
     req.app_data::<actix_web::web::Data<AppConfig>>()
         .map(|data| data.get_ref())
         .ok_or_else(|| AppError::Internal("tenant config is not configured".to_string()))
+}
+
+pub fn tenant_user_has_any_role(roles: &[String], allowed_roles: &[&str]) -> bool {
+    allowed_roles
+        .iter()
+        .any(|allowed_role| roles.iter().any(|role| role == allowed_role))
+}
+
+pub fn require_tenant_roles(roles: &[String], allowed_roles: &[&str]) -> Result<(), AppError> {
+    if tenant_user_has_any_role(roles, allowed_roles) {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden)
+    }
+}
+
+pub async fn require_active_tenant_client(
+    pool: &PgPool,
+    workspace_id: &str,
+    tenant_client_id: &str,
+) -> Result<TenantClientWorkspaceRow, AppError> {
+    let client = sqlx::query_as::<_, TenantClientWorkspaceRow>(
+        r#"
+        SELECT name, status
+        FROM tenant_clients
+        WHERE workspace_id = $1
+          AND id = $2
+        LIMIT 1
+        "#,
+    )
+    .bind(workspace_id)
+    .bind(tenant_client_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("tenant client not found".to_string()))?;
+
+    if client.status != "active" {
+        return Err(AppError::Forbidden);
+    }
+
+    Ok(client)
+}
+
+pub async fn require_client_scoped_conversation(
+    pool: &PgPool,
+    workspace_id: &str,
+    tenant_client_id: &str,
+    conversation_id: &str,
+) -> Result<(), AppError> {
+    let exists = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT id
+        FROM conversations
+        WHERE workspace_id = $1
+          AND tenant_client_id = $2
+          AND id = $3
+        LIMIT 1
+        "#,
+    )
+    .bind(workspace_id)
+    .bind(tenant_client_id)
+    .bind(conversation_id)
+    .fetch_optional(pool)
+    .await?;
+
+    if exists.is_none() {
+        return Err(AppError::NotFound("conversation not found".to_string()));
+    }
+
+    Ok(())
 }
 
 pub fn extract_bearer_token(req: &HttpRequest) -> Result<String, AppError> {
