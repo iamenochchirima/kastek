@@ -5,9 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const headlines = [
-  { top: "Build your", bottom: "online presence.", color: "text-foreground", glow: "rgba(255,255,255,0.05)" },
+  { top: "Grow with", bottom: "smarter systems.", color: "text-muted-foreground", glow: "rgba(255,255,255,0.05)" },
   { top: "Automate customer", bottom: "conversations.", color: "text-primary", glow: "rgba(232,160,32,0.15)" },
-  { top: "Grow with", bottom: "smarter systems.", color: "text-muted-foreground", glow: "rgba(122,117,112,0.1)" },
+  { top: "AI built for", bottom: "your business.", color: "text-muted-foreground", glow: "rgba(122,117,112,0.1)" },
 ];
 
 export function Hero() {
@@ -62,7 +62,7 @@ export function Hero() {
               transition={{ delay: 0.4, duration: 0.6 }}
               className="text-muted-foreground text-sm sm:text-base leading-relaxed"
             >
-              <strong className="text-foreground font-semibold">AI agents and growth systems</strong> for businesses. KasiTek provides products and services that help you respond faster, automate key workflows, and grow more efficiently.
+              AI agents, automation, and growth systems for your business or your clients&apos; businesses, built to run 24/7, streamline workflows, and drive growth.
             </motion.p>
 
             <motion.p
