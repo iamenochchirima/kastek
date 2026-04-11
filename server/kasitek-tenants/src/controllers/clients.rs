@@ -3,7 +3,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::{error::AppError, middleware};
+use crate::{error::AppError, mail, middleware};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTenantClientRequest {
@@ -29,6 +29,12 @@ struct TenantClientRow {
     metadata: serde_json::Value,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, FromRow)]
+struct TenantClientInviteMailContext {
+    workspace_display_name: String,
+    tenant_client_name: String,
 }
 
 #[derive(Debug, FromRow, Serialize)]
@@ -353,6 +359,42 @@ pub async fn invite_client_user(
     .execute(pool)
     .await?;
 
+    let mail_context = sqlx::query_as::<_, TenantClientInviteMailContext>(
+        r#"
+        SELECT
+            w.display_name AS workspace_display_name,
+            c.name AS tenant_client_name
+        FROM workspaces w
+        JOIN tenant_clients c ON c.id = $2
+        WHERE w.id = $1
+        LIMIT 1
+        "#,
+    )
+    .bind(&session.workspace_id)
+    .bind(&tenant_client_id)
+    .fetch_one(pool)
+    .await?;
+
+    let email_sent = if let Some(url) = activation_url.as_deref() {
+        mail::send_client_invite_email(
+            config,
+            &email,
+            &mail_context.workspace_display_name,
+            &mail_context.tenant_client_name,
+            url,
+            expires_at,
+        )
+        .await?
+    } else {
+        log::warn!(
+            "tenant invite email skipped because TENANT_APP_BASE_URL is not configured: to={} workspace_id={} tenant_client_id={}",
+            email,
+            session.workspace_id,
+            tenant_client_id
+        );
+        false
+    };
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "invite": {
             "id": invite_id,
@@ -363,6 +405,7 @@ pub async fn invite_client_user(
             "expiresAt": expires_at,
             "token": invite_token,
             "activationUrl": activation_url,
+            "emailSent": email_sent,
         }
     })))
 }

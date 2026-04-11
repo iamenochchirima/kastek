@@ -99,7 +99,7 @@ export default function Reporting() {
                          <FormItem>
                           <FormLabel>Client Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="Acme Corp" {...field} />
+                            <Input placeholder="Northstar Agency" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

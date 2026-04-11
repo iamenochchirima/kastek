@@ -210,13 +210,14 @@ export function useInviteTenantClientUser(..._args: any[]) {
         invite: {
           id: string;
           tenantClientId: string;
-          tenantClientUserId: string;
-          email: string;
-          role: string;
-          expiresAt: string;
-          token: string;
-          activationUrl?: string | null;
-        };
+        tenantClientUserId: string;
+        email: string;
+        role: string;
+        expiresAt: string;
+        token: string;
+        activationUrl?: string | null;
+        emailSent: boolean;
+      };
       }>(`/api/clients/${input.tenantClientId}/invites`, {
         method: "POST",
         body: JSON.stringify({

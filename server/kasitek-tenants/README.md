@@ -24,6 +24,8 @@ Useful auth and portal settings:
 
 - `TENANT_APP_BASE_URL`
 - `TENANT_DEFAULT_WORKSPACE_SLUG`
+- `TENANT_RESEND_API_KEY` or `AUTH_RESEND_KEY`
+- `TENANT_RESEND_FROM_EMAIL` or `RESEND_FROM_EMAIL`
 - `TENANT_CORS_ALLOW_CREDENTIALS`
 - `TENANT_SESSION_COOKIE_NAME`
 - `TENANT_SESSION_COOKIE_DOMAIN`
@@ -34,84 +36,32 @@ Useful auth and portal settings:
 - `TENANT_CLIENT_SESSION_TTL_HOURS`
 - `TENANT_INVITE_TTL_HOURS`
 
-## Bootstrap A Tenant
+## Real Provisioning Flow
 
-Create a tenant workspace, branding row, domain, first tenant admin, and initial API key:
+Tenant workspaces are provisioned through the admin application, not through local bootstrap scripts.
 
-```bash
-cargo run -p kasitek-tenants --bin bootstrap_tenant -- \
-  --workspace-slug acme \
-  --workspace-name "Acme Agency" \
-  --admin-email owner@acme.com \
-  --admin-password "change-this-password" \
-  --admin-name "Acme Owner" \
-  --domain portal.acme.local \
-  --primary-color "#0f172a" \
-  --secondary-color "#334155" \
-  --api-key-label "initial-provisioning-key"
-```
+Expected flow:
 
-The command prints:
+1. Start `kasitek-core`, `kasitek-tenants`, the admin app, and the tenant portal app.
+2. In the admin UI, create a new agency workspace from `/agencies/new`.
+3. Use the tenant admin email and password entered there to sign into the tenant portal.
+4. Inside the tenant portal, create tenant clients from the Clients screen.
+5. Invite client users from the same screen and complete activation through `/activate?token=...`.
 
-- `workspace_id`
-- `tenant_admin_user_id`
-- `api_key`
+## Local Testing Notes
 
-Store the printed API key securely. Only the hash is stored in the database.
-
-## Verify A Tenant Workspace
-
-Validate that a bootstrapped workspace still has its core tenant setup in place:
-
-```bash
-cargo run -p kasitek-tenants --bin verify_tenant_workspace -- \
-  --workspace-slug acme \
-  --expect-domain portal.acme.local
-```
-
-The command prints a small summary including:
-
-- workspace status
-- domain count
-- owner/admin bootstrap count
-- tenant client count
-- client user count
-- lead count
-- conversation count
-- API key count
-
-## Seed Demo Data
-
-Once a workspace exists, you can seed a tryable tenant client account plus sample portal data:
-
-```bash
-cargo run -p kasitek-tenants --bin seed_tenant_demo -- \
-  --workspace-slug acme \
-  --client-name "Acme Dental" \
-  --client-slug acme-dental \
-  --client-user-email owner@acmedental.com \
-  --client-user-password "change-this-password" \
-  --client-user-name "Acme Dental Owner"
-```
-
-This creates:
-
-- 1 active tenant client
-- 1 active client user with password login
-- 2 active agents
-- 4 leads
-- 3 conversations
-- 6 messages
-- usage events for the tenant dashboard
-
-If `TENANT_APP_BASE_URL` is set, the command also prints the tenant login URL and the client portal URL.
+- Workspace resolution depends on request host or `TENANT_DEFAULT_WORKSPACE_SLUG`.
+- For local development, set `TENANT_DEFAULT_WORKSPACE_SLUG` if you are not routing real tenant domains locally.
+- Client-user invites send through Resend when `TENANT_APP_BASE_URL` and `TENANT_RESEND_API_KEY` or `AUTH_RESEND_KEY` are configured.
+- If invite email delivery is not configured locally, the API and portal UI fall back to exposing the activation link directly so the account-activation flow can still be tested.
 
 ## Local Trial Flow
 
 1. Start the tenant backend with a tenant database configured.
-2. Bootstrap a workspace with `bootstrap_tenant`.
-3. Seed a tenant client with `seed_tenant_demo`.
-4. Start `client/apps/tenant-portal`.
-5. Sign in at `/login` with the tenant admin credentials from bootstrap.
-6. Inspect dashboard, clients, leads, and client activity.
-7. Sign out, then sign back in with the seeded client-user credentials to test `/client`, `/client/leads`, and `/client/conversations`.
+2. Start the admin app and provision a workspace from the admin UI.
+3. Start `client/apps/tenant-portal`.
+4. Sign in at `/login` with the tenant admin credentials created in admin.
+5. If the workspace does not have its own mapped domain locally, set `TENANT_DEFAULT_WORKSPACE_SLUG` to the new workspace slug before testing the portal.
+6. Inspect dashboard, clients, leads, and tenant activity.
+7. Create a tenant client and invite a client user.
+8. Open the activation link, or receive the real invite email if Resend is configured, create the client-user password, and verify `/client`, `/client/leads`, and `/client/conversations`.

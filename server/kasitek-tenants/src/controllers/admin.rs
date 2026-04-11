@@ -652,6 +652,13 @@ pub async fn create_workspace(
             "slug": slug,
             "displayName": workspace_name,
             "status": "active",
+            "domains": body
+                .domain
+                .as_ref()
+                .map(|domain| domain.trim())
+                .filter(|domain| !domain.is_empty())
+                .map(|domain| vec![domain.to_string()])
+                .unwrap_or_default(),
             "createdAt": now,
         },
         "adminUser": {

@@ -1,5 +1,5 @@
 use actix_web::cookie::{Cookie, SameSite};
-use ::config::{env_optional, env_required, env_string_or, env_u16_or, env_u32_or};
+use ::config::{env_optional, env_string_or, env_u16_or, env_u32_or};
 use std::env;
 
 pub const USER_SESSION_COOKIE: &str = "kasitek_session";
@@ -34,7 +34,9 @@ impl AppConfig {
         Ok(Self {
             port: env_u16_or("PORT", 8080),
             environment: env_string_or("ENVIRONMENT", "development"),
-            database_url: env_required("DATABASE_URL").map_err(|_| env::VarError::NotPresent)?,
+            database_url: env_optional("KASITEK_CORE_DATABASE_URL")
+                .or_else(|| env_optional("DATABASE_URL"))
+                .ok_or(env::VarError::NotPresent)?,
             database_max_connections: env_u32_or("DATABASE_MAX_CONNECTIONS", 10),
             frontend_url: frontend_url.clone(),
             auth_url: frontend_url,

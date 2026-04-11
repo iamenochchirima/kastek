@@ -12,11 +12,13 @@ import { ClientLayout } from "@/components/client-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { useTenantContext } from "@/lib/tenant-context-provider";
 
 export default function ClientHomeScreen() {
   const { data: overview, isLoading: loadingOverview } = useGetClientOverview();
   const { data: conversations, isLoading: loadingConversations } = useListClientConversations();
   const { data: leadStats, isLoading: loadingLeadStats } = useGetClientLeadStats();
+  const { brandName } = useTenantContext();
 
   return (
     <ProtectedRoute audience="client">
@@ -27,7 +29,7 @@ export default function ClientHomeScreen() {
               Client Workspace
             </p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight">
-              {overview?.tenantClientName ?? "Client Portal"}
+              {overview?.tenantClientName ?? brandName}
             </h1>
             <p className="mt-3 max-w-2xl text-muted-foreground">
               Your client-facing portal is now connected to tenant-scoped data. Only records linked
@@ -94,7 +96,7 @@ export default function ClientHomeScreen() {
           <Card>
             <CardHeader>
               <CardTitle>Quick Access</CardTitle>
-              <CardDescription>Jump into the seeded client-facing areas.</CardDescription>
+              <CardDescription>Jump into the available client-facing areas.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2">
               <Link

@@ -6,6 +6,7 @@ use sqlx::postgres::PgPoolOptions;
 mod config;
 mod controllers;
 mod error;
+mod mail;
 mod middleware;
 mod routes;
 

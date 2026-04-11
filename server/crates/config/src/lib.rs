@@ -100,6 +100,8 @@ pub struct TenantServerConfig {
     pub client_session_ttl_hours: u32,
     pub invite_ttl_hours: u32,
     pub admin_secret: Option<String>,
+    pub resend_api_key: Option<String>,
+    pub resend_from_email: String,
 }
 
 impl TenantServerConfig {
@@ -111,9 +113,10 @@ impl TenantServerConfig {
 
         let environment = env_string_or("TENANT_SERVER_ENVIRONMENT", "development");
 
-        let database_url = env_optional("TENANT_DATABASE_URL")
+        let database_url = env_optional("KASITEK_TENANTS_DATABASE_URL")
+            .or_else(|| env_optional("TENANT_DATABASE_URL"))
             .or_else(|| env_optional("DATABASE_URL"))
-            .ok_or(ConfigError::MissingVar("TENANT_DATABASE_URL"))?;
+            .ok_or(ConfigError::MissingVar("KASITEK_TENANTS_DATABASE_URL"))?;
 
         let database_max_connections = env_optional("TENANT_DATABASE_MAX_CONNECTIONS")
             .and_then(|value| value.parse::<u32>().ok())
@@ -173,6 +176,11 @@ impl TenantServerConfig {
             .unwrap_or(24 * 7);
 
         let admin_secret = env_optional("TENANT_ADMIN_SECRET");
+        let resend_api_key =
+            env_optional("TENANT_RESEND_API_KEY").or_else(|| env_optional("AUTH_RESEND_KEY"));
+        let resend_from_email = env_optional("TENANT_RESEND_FROM_EMAIL")
+            .or_else(|| env_optional("RESEND_FROM_EMAIL"))
+            .unwrap_or_else(|| "KasiTek <onboarding@resend.dev>".to_string());
 
         Ok(Self {
             port,
@@ -192,6 +200,8 @@ impl TenantServerConfig {
             client_session_ttl_hours,
             invite_ttl_hours,
             admin_secret,
+            resend_api_key,
+            resend_from_email,
         })
     }
 

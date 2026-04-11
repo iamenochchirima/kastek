@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BrainCircuit, LayoutDashboard, LogOut, MessageSquare, Users } from "lucide-react";
+import { LayoutDashboard, LogOut, MessageSquare, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { TenantBrandMark } from "@/components/tenant-brand";
+import { useTenantContext } from "@/lib/tenant-context-provider";
 
 const navItems = [
   { href: "/client", label: "Overview", icon: LayoutDashboard },
@@ -15,6 +17,7 @@ const navItems = [
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { clientUser, logout } = useAuth();
+  const { brandName } = useTenantContext();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -22,18 +25,17 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <BrainCircuit className="h-5 w-5" />
-              </div>
+              <TenantBrandMark compact />
               <div className="min-w-0">
-                <p className="truncate text-base font-semibold">
-                  {clientUser?.tenantClientName ?? "Client Portal"}
-                </p>
+                <p className="truncate text-base font-semibold">{brandName}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {clientUser?.name || clientUser?.email || "Authenticated client user"}
+                  {clientUser?.tenantClientName || "Client workspace"}
                 </p>
               </div>
             </div>
+            <p className="truncate text-xs text-muted-foreground">
+              {clientUser?.name || clientUser?.email || "Authenticated client user"}
+            </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => void logout()}>
             <LogOut className="mr-2 h-4 w-4" />

@@ -5,13 +5,14 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BrainCircuit } from "lucide-react";
 import { tenantFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { TenantBrandMark } from "@/components/tenant-brand";
+import { useTenantContext } from "@/lib/tenant-context-provider";
 
 const acceptInviteSchema = z
   .object({
@@ -27,6 +28,7 @@ const acceptInviteSchema = z
 export default function AcceptInviteScreen() {
   const router = useRouter();
   const { refresh } = useAuth();
+  const { brandName, tagline } = useTenantContext();
   const searchParams = useSearchParams();
   const [success, setSuccess] = useState(false);
   const [inviteEmail, setInviteEmail] = useState<string | null>(null);
@@ -126,14 +128,14 @@ export default function AcceptInviteScreen() {
       <div className="mx-auto flex min-h-screen max-w-md items-center">
         <Card className="w-full border-border/60 shadow-xl">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <BrainCircuit className="h-6 w-6" />
+            <div className="mx-auto mb-4">
+              <TenantBrandMark />
             </div>
-            <CardTitle>Activate Your Access</CardTitle>
+            <CardTitle>{brandName}</CardTitle>
             <CardDescription>
               {workspaceDisplayName && tenantClientName
                 ? `Set credentials for ${tenantClientName} inside ${workspaceDisplayName}.`
-                : "Create credentials for your client portal account."}
+                : `Create credentials for your ${tagline.toLowerCase()}.`}
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -13,12 +13,12 @@ import {
   Star,
   Megaphone,
   LogOut,
-  BrainCircuit,
   Building2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { TENANT_ROUTE_ACCESS, hasAnyTenantRole } from "@/lib/tenant-access";
+import { TenantBrandMark, TenantBrandName } from "@/components/tenant-brand";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, allowedRoles: TENANT_ROUTE_ACCESS.dashboard },
@@ -43,13 +43,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside className="w-64 border-r border-border bg-sidebar flex flex-col h-full shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-border">
-          <BrainCircuit className="w-6 h-6 text-primary mr-3" />
-          <div className="min-w-0">
-            <span className="block truncate font-bold text-lg tracking-tight">AgencyOS</span>
-            {user?.workspaceSlug && (
-              <span className="block truncate text-xs text-muted-foreground">{user.workspaceSlug}</span>
-            )}
+          <div className="mr-3">
+            <TenantBrandMark compact />
           </div>
+          <TenantBrandName subtitle={user?.workspaceSlug} />
         </div>
         
         <div className="flex-1 overflow-y-auto py-4">

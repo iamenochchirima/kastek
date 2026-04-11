@@ -251,7 +251,7 @@ export default function LeadsScreen() {
                             <FormItem>
                               <FormLabel>Company</FormLabel>
                               <FormControl>
-                                <Input placeholder="Acme Holdings" {...field} />
+                                <Input placeholder="Northstar Holdings" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>

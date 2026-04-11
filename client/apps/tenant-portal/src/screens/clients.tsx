@@ -59,6 +59,8 @@ export default function ClientsScreen() {
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [latestInviteLink, setLatestInviteLink] = useState<string | null>(null);
+  const [latestInviteEmailSent, setLatestInviteEmailSent] = useState(false);
+  const [latestInviteEmail, setLatestInviteEmail] = useState<string | null>(null);
 
   const { data: clients, isLoading: isLoadingClients } = useListTenantClients();
   const activeClientId = selectedClientId || clients?.[0]?.id || "";
@@ -137,7 +139,9 @@ export default function ClientsScreen() {
             typeof window !== "undefined"
               ? `${window.location.origin}/activate?token=${invite.token}`
               : null;
-          setLatestInviteLink(invite.activationUrl ?? fallbackLink);
+          setLatestInviteEmail(invite.email);
+          setLatestInviteEmailSent(invite.emailSent);
+          setLatestInviteLink(invite.emailSent ? null : invite.activationUrl ?? fallbackLink);
           setIsInviteDialogOpen(false);
           inviteUserForm.reset({ email: "", name: "", role: "member" });
         },
@@ -193,7 +197,7 @@ export default function ClientsScreen() {
                           <FormItem>
                             <FormLabel>Client Name</FormLabel>
                             <FormControl>
-                              <Input placeholder="Acme Dental" {...field} />
+                              <Input placeholder="Harbor Dental" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -206,7 +210,7 @@ export default function ClientsScreen() {
                           <FormItem>
                             <FormLabel>Slug</FormLabel>
                             <FormControl>
-                              <Input placeholder="acme-dental" {...field} />
+                              <Input placeholder="harbor-dental" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -320,23 +324,29 @@ export default function ClientsScreen() {
             </div>
           </div>
 
-          {latestInviteLink && (
+          {(latestInviteLink || latestInviteEmailSent) && (
             <Card className="border-primary/20 bg-primary/5">
               <CardHeader>
-                <CardTitle className="text-base">Latest Invite Link</CardTitle>
+                <CardTitle className="text-base">
+                  {latestInviteEmailSent ? "Invite Sent" : "Latest Invite Link"}
+                </CardTitle>
                 <CardDescription>
-                  Copy this activation link into the client onboarding flow until email delivery is wired.
+                  {latestInviteEmailSent
+                    ? `An activation email was sent to ${latestInviteEmail ?? "the invited user"}.`
+                    : "Email delivery is not configured for this environment, so use this activation link directly."}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                <code className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm">
-                  {latestInviteLink}
-                </code>
-                <Button variant="secondary" onClick={() => void copyInviteToken()}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy Link
-                </Button>
-              </CardContent>
+              {latestInviteLink ? (
+                <CardContent className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                  <code className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm">
+                    {latestInviteLink}
+                  </code>
+                  <Button variant="secondary" onClick={() => void copyInviteToken()}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy Link
+                  </Button>
+                </CardContent>
+              ) : null}
             </Card>
           )}
 

@@ -6,9 +6,21 @@ import Link from "next/link";
 
 export default function NewAgencyPage() {
   const router = useRouter();
+  const tenantPortalBaseUrl = (
+    process.env.NEXT_PUBLIC_TENANT_PORTAL_URL || "http://localhost:3000"
+  ).replace(/\/$/, "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [createdWorkspace, setCreatedWorkspace] = useState<{
+    displayName: string;
+    slug: string;
+    status: string;
+    domains: string[];
+    portalUrl: string | null;
+    adminEmail: string;
+    adminPassword: string;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [form, setForm] = useState({
     workspaceName: "",
@@ -18,6 +30,20 @@ export default function NewAgencyPage() {
     primaryColor: "",
     domain: "",
   });
+
+  function portalUrlForDomain(domain: string) {
+    const trimmed = domain.trim().toLowerCase();
+    if (
+      trimmed === "localhost" ||
+      trimmed.endsWith(".local") ||
+      /^127(?:\.\d{1,3}){3}$/.test(trimmed) ||
+      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(trimmed)
+    ) {
+      return `http://${domain}`;
+    }
+
+    return `https://${domain}`;
+  }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
@@ -60,7 +86,32 @@ export default function NewAgencyPage() {
     }
 
     const data = await res.json().catch(() => ({}));
-    const key = data.apiKey ?? data.key ?? null;
+    const key =
+      typeof data?.apiKey?.key === "string"
+        ? data.apiKey.key
+        : typeof data?.key === "string"
+          ? data.key
+          : null;
+    const domains = Array.isArray(data?.workspace?.domains)
+      ? data.workspace.domains.filter((value: unknown): value is string => typeof value === "string" && value.trim().length > 0)
+      : form.domain.trim()
+        ? [form.domain.trim()]
+        : [];
+    const primaryDomain = domains[0] ?? null;
+    const portalUrl = primaryDomain
+      ? portalUrlForDomain(primaryDomain)
+      : tenantPortalBaseUrl;
+
+    setCreatedWorkspace({
+      displayName: data?.workspace?.displayName ?? form.workspaceName,
+      slug: data?.workspace?.slug ?? form.slug,
+      status: data?.workspace?.status ?? "active",
+      domains,
+      portalUrl,
+      adminEmail: data?.adminUser?.email ?? form.adminEmail,
+      adminPassword: form.adminPassword,
+    });
+
     if (key) {
       setCreatedKey(key);
     } else {
@@ -85,6 +136,45 @@ export default function NewAgencyPage() {
           </p>
         </div>
         <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
+          {createdWorkspace ? (
+            <div className="rounded-lg border border-border bg-surface px-4 py-4 space-y-2 text-sm">
+              <p className="text-text">
+                <span className="text-text-muted">Workspace:</span> {createdWorkspace.displayName}
+              </p>
+              <p className="text-text">
+                <span className="text-text-muted">Slug:</span>{" "}
+                <span className="font-mono">{createdWorkspace.slug}</span>
+              </p>
+              <p className="text-text">
+                <span className="text-text-muted">Status:</span> {createdWorkspace.status}
+              </p>
+              <p className="text-text">
+                <span className="text-text-muted">Tenant Admin Email:</span> {createdWorkspace.adminEmail}
+              </p>
+              <p className="text-text">
+                <span className="text-text-muted">Tenant Admin Password:</span>{" "}
+                <span className="font-mono">{createdWorkspace.adminPassword}</span>
+              </p>
+              {createdWorkspace.portalUrl ? (
+                <p className="text-text">
+                  <span className="text-text-muted">Portal Login URL:</span>{" "}
+                  <span className="font-mono break-all">{createdWorkspace.portalUrl}</span>
+                </p>
+              ) : null}
+              {createdWorkspace.domains.length > 0 ? (
+                <p className="text-text">
+                  <span className="text-text-muted">Primary Domain:</span>{" "}
+                  <span className="font-mono">{createdWorkspace.domains[0]}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-text-faint">
+                  Local portal access uses the shared tenant portal host. Point the tenants server at this
+                  workspace slug with <span className="font-mono">TENANT_DEFAULT_WORKSPACE_SLUG={createdWorkspace.slug}</span>{" "}
+                  when testing without a mapped tenant domain.
+                </p>
+              )}
+            </div>
+          ) : null}
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-4 space-y-2">
             <p className="text-sm font-medium text-amber-400">Save this API key — it will not be shown again.</p>
             <div className="flex items-center gap-2">
@@ -137,7 +227,7 @@ export default function NewAgencyPage() {
             value={form.workspaceName}
             onChange={handleChange}
             required
-            placeholder="Acme Marketing"
+            placeholder="Northstar Agency"
             className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
@@ -150,7 +240,7 @@ export default function NewAgencyPage() {
             onChange={handleChange}
             required
             pattern="[a-z0-9-]+"
-            placeholder="acme-marketing"
+            placeholder="northstar-agency"
             className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
           <p className="text-xs text-text-faint mt-1">Lowercase letters, numbers, and hyphens only.</p>
@@ -164,7 +254,7 @@ export default function NewAgencyPage() {
             value={form.adminEmail}
             onChange={handleChange}
             required
-            placeholder="admin@acmemarketing.com"
+            placeholder="admin@northstar.local"
             className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
@@ -203,7 +293,7 @@ export default function NewAgencyPage() {
             name="domain"
             value={form.domain}
             onChange={handleChange}
-            placeholder="portal.acmemarketing.com"
+            placeholder="portal.northstar.local"
             className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
