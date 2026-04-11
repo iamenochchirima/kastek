@@ -1,4 +1,4 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -10,47 +10,43 @@ const STATUS_COLORS: Record<string, string> = {
   lost: "bg-white/5 text-text-faint",
 };
 
+interface Lead {
+  id: string;
+  businessName: string;
+  contactPerson: string;
+  email: string;
+  status: string;
+  source: string;
+  createdAt: string;
+}
+
+interface Conversation {
+  id: string;
+  channel: string;
+  customerIdentifier: string;
+  customerName: string | null;
+  status: string;
+  lastMessageAt: string;
+}
+
 export default async function DashboardPage() {
-  const [total, byStatus, bySource, recentLeads, recentConversations, conversationCount, outreachCampaigns] = await Promise.all([
-    prisma.quoteRequest.count(),
-    prisma.quoteRequest.groupBy({
-      by: ["status"],
-      _count: true,
-    }),
-    prisma.quoteRequest.groupBy({
-      by: ["source"],
-      _count: true,
-    }),
-    prisma.quoteRequest.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    }),
-    prisma.conversation.findMany({
-      orderBy: { lastMessageAt: "desc" },
-      take: 5,
-      include: {
-        messages: {
-          orderBy: { timestamp: "desc" },
-          take: 1,
-        },
-      },
-    }),
-    prisma.conversation.count(),
-    prisma.outreachCampaign.findMany({
-      where: { status: { in: ["active", "draft"] } },
-    }),
+  const [leadsRes, convsRes] = await Promise.all([
+    fetchFromCore("/api/admin/leads"),
+    fetchFromCore("/api/admin/conversations"),
   ]);
 
-  const outreachSent = outreachCampaigns.reduce((s, c) => s + c.emailsSent, 0);
-  const outreachReplies = outreachCampaigns.reduce((s, c) => s + c.replies, 0);
-  const outreachRate = outreachSent > 0 ? Math.round((outreachReplies / outreachSent) * 100) : 0;
+  const leads: Lead[] = leadsRes.ok ? await leadsRes.json() : [];
+  const conversations: Conversation[] = convsRes.ok ? await convsRes.json() : [];
 
-  const statusMap = Object.fromEntries(
-    byStatus.map((s) => [s.status, s._count])
-  );
-  const sourceMap = Object.fromEntries(
-    bySource.map((s) => [s.source, s._count])
-  );
+  const total = leads.length;
+  const statusMap: Record<string, number> = {};
+  const sourceMap: Record<string, number> = {};
+  for (const lead of leads) {
+    statusMap[lead.status] = (statusMap[lead.status] ?? 0) + 1;
+    sourceMap[lead.source] = (sourceMap[lead.source] ?? 0) + 1;
+  }
+  const recentLeads = leads.slice(0, 5);
+  const recentConversations = conversations.slice(0, 5);
 
   return (
     <div className="space-y-8">
@@ -65,13 +61,12 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatCard label="Total Leads" value={total} color="bg-surface-raised border border-border text-text" />
-        <StatCard label="New" value={statusMap.new || 0} color="bg-blue-500/10 border border-blue-500/20 text-blue-400" />
-        <StatCard label="Interested" value={statusMap.interested || 0} color="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400" />
-        <StatCard label="Won" value={statusMap.won || 0} color="bg-green-500/10 border border-green-500/20 text-green-400" />
-        <StatCard label="Conversations" value={conversationCount} color="bg-purple-500/10 border border-purple-500/20 text-purple-400" />
-        <StatCard label="Outreach Sent" value={outreachSent} color="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400" />
+        <StatCard label="New" value={statusMap.new ?? 0} color="bg-blue-500/10 border border-blue-500/20 text-blue-400" />
+        <StatCard label="Interested" value={statusMap.interested ?? 0} color="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400" />
+        <StatCard label="Won" value={statusMap.won ?? 0} color="bg-green-500/10 border border-green-500/20 text-green-400" />
+        <StatCard label="Conversations" value={conversations.length} color="bg-purple-500/10 border border-purple-500/20 text-purple-400" />
       </div>
 
       {/* Two column layout */}
@@ -106,13 +101,13 @@ export default async function DashboardPage() {
                 <div key={status} className="flex items-center justify-between">
                   <span
                     className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${
-                      STATUS_COLORS[status] || ""
+                      STATUS_COLORS[status] ?? ""
                     }`}
                   >
                     {status}
                   </span>
                   <span className="text-sm font-semibold text-text">
-                    {statusMap[status] || 0}
+                    {statusMap[status] ?? 0}
                   </span>
                 </div>
               )
@@ -145,42 +140,13 @@ export default async function DashboardPage() {
                 </div>
                 <span
                   className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${
-                    STATUS_COLORS[lead.status] || ""
+                    STATUS_COLORS[lead.status] ?? ""
                   }`}
                 >
                   {lead.status}
                 </span>
               </Link>
             ))}
-          </div>
-        )}
-      </div>
-      {/* Outreach Summary */}
-      <div className="bg-surface-raised rounded-xl border border-border p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-text">Outreach Campaigns</h2>
-          <Link href="/outreach" className="text-primary text-sm font-medium hover:underline">
-            View all
-          </Link>
-        </div>
-        {outreachCampaigns.length === 0 ? (
-          <p className="text-text-faint text-sm">No active campaigns. <Link href="/outreach/import" className="text-primary hover:underline">Import leads</Link> to get started.</p>
-        ) : (
-          <div className="space-y-3">
-            {outreachCampaigns.slice(0, 5).map((c) => {
-              const rate = c.emailsSent > 0 ? Math.round((c.replies / c.emailsSent) * 100) : 0;
-              return (
-                <Link key={c.id} href={`/outreach/${c.id}`} className="flex items-center justify-between p-3 rounded-lg hover:bg-surface-overlay transition-colors">
-                  <div>
-                    <p className="font-medium text-sm text-text">{c.name}</p>
-                    <p className="text-text-faint text-xs">{c.totalLeads} leads &middot; {c.emailsSent} sent &middot; {rate}% rate</p>
-                  </div>
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${c.status === "active" ? "bg-green-500/15 text-green-400" : "bg-white/5 text-text-faint"}`}>
-                    {c.status}
-                  </span>
-                </Link>
-              );
-            })}
           </div>
         )}
       </div>
@@ -197,33 +163,25 @@ export default async function DashboardPage() {
           <p className="text-text-faint text-sm">No conversations yet.</p>
         ) : (
           <div className="space-y-1">
-            {recentConversations.map((conv) => {
-              const lastMsg = conv.messages[0];
-              return (
-                <Link
-                  key={conv.id}
-                  href={`/conversations/${conv.id}`}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-surface-overlay transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-lg">{conv.channel === "whatsapp" ? "💬" : "🌐"}</span>
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm text-text truncate">
-                        {conv.customerName || conv.customerIdentifier}
-                      </p>
-                      {lastMsg && (
-                        <p className="text-text-faint text-xs truncate">
-                          {lastMsg.content}
-                        </p>
-                      )}
-                    </div>
+            {recentConversations.map((conv) => (
+              <Link
+                key={conv.id}
+                href={`/conversations/${conv.id}`}
+                className="flex items-center justify-between p-3 rounded-lg hover:bg-surface-overlay transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-lg">{conv.channel === "whatsapp" ? "💬" : "🌐"}</span>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm text-text truncate">
+                      {conv.customerName ?? conv.customerIdentifier}
+                    </p>
                   </div>
-                  <span className="text-xs text-text-faint shrink-0 ml-2">
-                    {conv.lastMessageAt.toLocaleDateString()}
-                  </span>
-                </Link>
-              );
-            })}
+                </div>
+                <span className="text-xs text-text-faint shrink-0 ml-2">
+                  {new Date(conv.lastMessageAt).toLocaleDateString()}
+                </span>
+              </Link>
+            ))}
           </div>
         )}
       </div>

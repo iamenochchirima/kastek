@@ -1,5 +1,14 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
+
+interface Conversation {
+  id: string;
+  channel: string;
+  customerIdentifier: string;
+  customerName: string | null;
+  status: string;
+  lastMessageAt: string;
+}
 
 const CHANNEL_BADGES: Record<string, string> = {
   whatsapp: "bg-green-500/15 text-green-400",
@@ -13,25 +22,12 @@ export default async function ConversationsPage({
 }) {
   const params = await searchParams;
 
-  const where: Record<string, unknown> = {};
-  if (params.channel) where.channel = params.channel;
-  if (params.search) {
-    where.OR = [
-      { customerName: { contains: params.search, mode: "insensitive" } },
-      { customerIdentifier: { contains: params.search } },
-    ];
-  }
+  const qs = new URLSearchParams();
+  if (params.channel) qs.set("channel", params.channel);
+  if (params.search) qs.set("search", params.search);
 
-  const conversations = await prisma.conversation.findMany({
-    where,
-    orderBy: { lastMessageAt: "desc" },
-    include: {
-      messages: {
-        orderBy: { timestamp: "desc" },
-        take: 1,
-      },
-    },
-  });
+  const res = await fetchFromCore(`/api/admin/conversations?${qs.toString()}`);
+  const conversations: Conversation[] = res.ok ? await res.json() : [];
 
   return (
     <div className="space-y-6">
@@ -96,48 +92,36 @@ export default async function ConversationsPage({
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {conversations.map((conv) => {
-              const lastMessage = conv.messages[0];
-              return (
-                <Link
-                  key={conv.id}
-                  href={`/conversations/${conv.id}`}
-                  className="flex items-center gap-4 px-4 py-4 hover:bg-surface-overlay transition-colors"
-                >
-                  {/* Avatar */}
-                  <div className="w-10 h-10 rounded-full bg-surface-overlay flex items-center justify-center text-lg shrink-0">
-                    {conv.channel === "whatsapp" ? "💬" : "🌐"}
-                  </div>
+            {conversations.map((conv) => (
+              <Link
+                key={conv.id}
+                href={`/conversations/${conv.id}`}
+                className="flex items-center gap-4 px-4 py-4 hover:bg-surface-overlay transition-colors"
+              >
+                <div className="w-10 h-10 rounded-full bg-surface-overlay flex items-center justify-center text-lg shrink-0">
+                  {conv.channel === "whatsapp" ? "💬" : "🌐"}
+                </div>
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <p className="font-medium text-sm text-text truncate">
-                        {conv.customerName || conv.customerIdentifier}
-                      </p>
-                      <span
-                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase ${
-                          CHANNEL_BADGES[conv.channel] || ""
-                        }`}
-                      >
-                        {conv.channel}
-                      </span>
-                    </div>
-                    {lastMessage && (
-                      <p className="text-xs text-text-faint truncate">
-                        {lastMessage.sender === "bot" ? "Bot: " : ""}
-                        {lastMessage.content}
-                      </p>
-                    )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="font-medium text-sm text-text truncate">
+                      {conv.customerName ?? conv.customerIdentifier}
+                    </p>
+                    <span
+                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase ${
+                        CHANNEL_BADGES[conv.channel] ?? ""
+                      }`}
+                    >
+                      {conv.channel}
+                    </span>
                   </div>
+                </div>
 
-                  {/* Time */}
-                  <div className="text-xs text-text-faint shrink-0">
-                    {conv.lastMessageAt.toLocaleDateString()}
-                  </div>
-                </Link>
-              );
-            })}
+                <div className="text-xs text-text-faint shrink-0">
+                  {new Date(conv.lastMessageAt).toLocaleDateString()}
+                </div>
+              </Link>
+            ))}
           </div>
         )}
       </div>

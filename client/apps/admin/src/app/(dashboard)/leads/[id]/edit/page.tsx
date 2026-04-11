@@ -1,4 +1,4 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import LeadForm from "@/components/admin/lead-form";
@@ -10,11 +10,9 @@ export default async function EditLeadPage({
 }) {
   const { id } = await params;
 
-  const lead = await prisma.quoteRequest.findUnique({
-    where: { id },
-  });
-
-  if (!lead) notFound();
+  const res = await fetchFromCore(`/api/admin/leads/${id}`);
+  if (!res.ok) notFound();
+  const lead = await res.json();
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -41,7 +39,7 @@ export default async function EditLeadPage({
           status: lead.status,
           quoteAmount: lead.quoteAmount,
           followUpDate: lead.followUpDate
-            ? lead.followUpDate.toISOString().split("T")[0]
+            ? new Date(lead.followUpDate).toISOString().split("T")[0]
             : "",
         }}
       />

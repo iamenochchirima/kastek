@@ -1,6 +1,7 @@
 use actix_web::web;
 
 use crate::controllers::{
+    admin_conversations, admin_leads, admin_web_services,
     admin, ai, auth, bots, chat, health, notifications, profile, public, realtime, social,
     whatsapp, whatsapp_calls, workspace,
 };
@@ -260,6 +261,29 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/login", web::post().to(admin::login))
                 .route("/logout", web::post().to(admin::logout))
                 .route("/me", web::get().to(admin::me))
-                .route("/stats", web::get().to(admin::stats)),
+                .route("/stats", web::get().to(admin::stats))
+                .service(
+                    web::scope("/leads")
+                        .route("", web::get().to(admin_leads::list_leads))
+                        .route("", web::post().to(admin_leads::create_lead))
+                        .route("/{id}", web::get().to(admin_leads::get_lead))
+                        .route("/{id}", web::patch().to(admin_leads::update_lead))
+                        .route("/{id}", web::delete().to(admin_leads::delete_lead))
+                        .route("/{id}/notes", web::post().to(admin_leads::add_note)),
+                )
+                .service(
+                    web::scope("/web-services")
+                        .route("", web::get().to(admin_web_services::list))
+                        .route("", web::post().to(admin_web_services::create))
+                        .route("/import", web::post().to(admin_web_services::import))
+                        .route("/{id}", web::get().to(admin_web_services::get))
+                        .route("/{id}", web::patch().to(admin_web_services::update))
+                        .route("/{id}", web::delete().to(admin_web_services::delete)),
+                )
+                .service(
+                    web::scope("/conversations")
+                        .route("", web::get().to(admin_conversations::list_conversations))
+                        .route("/{id}", web::get().to(admin_conversations::get_conversation)),
+                ),
         );
 }

@@ -14,6 +14,7 @@ const navItems = [
   { href: "/outreach/delivery", label: "Delivery Log", icon: "📬" },
   { href: "/web-services", label: "Web Services", icon: "🌐" },
   { href: "/conversations", label: "Conversations", icon: "💬" },
+  { href: "/agencies", label: "Agencies", icon: "🏢" },
 ];
 
 export default function Sidebar() {

@@ -99,6 +99,7 @@ pub struct TenantServerConfig {
     pub client_session_cookie_name: String,
     pub client_session_ttl_hours: u32,
     pub invite_ttl_hours: u32,
+    pub admin_secret: Option<String>,
 }
 
 impl TenantServerConfig {
@@ -171,6 +172,8 @@ impl TenantServerConfig {
             .and_then(|value| value.parse::<u32>().ok())
             .unwrap_or(24 * 7);
 
+        let admin_secret = env_optional("TENANT_ADMIN_SECRET");
+
         Ok(Self {
             port,
             environment,
@@ -188,6 +191,7 @@ impl TenantServerConfig {
             client_session_cookie_name,
             client_session_ttl_hours,
             invite_ttl_hours,
+            admin_secret,
         })
     }
 

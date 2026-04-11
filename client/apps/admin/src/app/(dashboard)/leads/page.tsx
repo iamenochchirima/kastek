@@ -1,7 +1,18 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
 import LeadFilters from "@/components/admin/lead-filters";
 import LeadsTable from "@/components/admin/leads-table";
+
+interface Lead {
+  id: string;
+  businessName: string;
+  businessType: string;
+  contactPerson: string;
+  email: string;
+  source: string;
+  status: string;
+  createdAt: string;
+}
 
 export default async function LeadsPage({
   searchParams,
@@ -10,24 +21,14 @@ export default async function LeadsPage({
 }) {
   const params = await searchParams;
 
-  const where: Record<string, unknown> = {};
-  if (params.status) where.status = params.status;
-  if (params.source) where.source = params.source;
-  if (params.search) {
-    where.OR = [
-      { businessName: { contains: params.search, mode: "insensitive" } },
-      { contactPerson: { contains: params.search, mode: "insensitive" } },
-      { email: { contains: params.search, mode: "insensitive" } },
-      { phone: { contains: params.search } },
-    ];
-  }
+  const qs = new URLSearchParams();
+  if (params.status) qs.set("status", params.status);
+  if (params.source) qs.set("source", params.source);
+  if (params.search) qs.set("search", params.search);
 
-  const leads = await prisma.quoteRequest.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-  });
+  const res = await fetchFromCore(`/api/admin/leads?${qs.toString()}`);
+  const leads: Lead[] = res.ok ? await res.json() : [];
 
-  // Serialize dates for client component
   const serializedLeads = leads.map((lead) => ({
     id: lead.id,
     businessName: lead.businessName,
@@ -36,7 +37,7 @@ export default async function LeadsPage({
     email: lead.email,
     source: lead.source,
     status: lead.status,
-    createdAt: lead.createdAt.toISOString(),
+    createdAt: lead.createdAt,
   }));
 
   return (

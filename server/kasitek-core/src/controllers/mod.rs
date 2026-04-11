@@ -1,4 +1,7 @@
 pub mod admin;
+pub mod admin_conversations;
+pub mod admin_leads;
+pub mod admin_web_services;
 pub mod ai;
 pub mod auth;
 pub mod bots;

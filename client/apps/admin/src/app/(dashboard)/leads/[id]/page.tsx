@@ -1,4 +1,4 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import LeadNotes from "@/components/admin/lead-notes";
@@ -29,13 +29,12 @@ export default async function LeadDetailPage({
 }) {
   const { id } = await params;
 
-  const lead = await prisma.quoteRequest.findUnique({
-    where: { id },
-  });
+  const res = await fetchFromCore(`/api/admin/leads/${id}`);
+  if (!res.ok) notFound();
 
-  if (!lead) notFound();
-
-  const notes = (lead.notes as { text: string; timestamp: string; adminUserName: string }[]) || [];
+  const lead = await res.json();
+  const notes: { text: string; timestamp: string; adminUserName: string }[] =
+    Array.isArray(lead.notes) ? lead.notes : [];
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -49,7 +48,7 @@ export default async function LeadDetailPage({
           </Link>
           <h1 className="text-2xl font-bold text-text">{lead.businessName}</h1>
           <p className="text-text-muted text-sm">
-            Added {lead.createdAt.toLocaleDateString()} &middot;{" "}
+            Added {new Date(lead.createdAt).toLocaleDateString()} &middot;{" "}
             {SOURCE_LABELS[lead.source] || lead.source}
           </p>
         </div>
@@ -114,7 +113,7 @@ export default async function LeadDetailPage({
             <div>
               <dt className="text-xs text-text-faint uppercase tracking-wider">Services</dt>
               <dd className="flex flex-wrap gap-1.5 mt-1">
-                {lead.services.map((s) => (
+                {(lead.services as string[]).map((s) => (
                   <span
                     key={s}
                     className="bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded"
@@ -136,7 +135,7 @@ export default async function LeadDetailPage({
             {lead.followUpDate && (
               <div>
                 <dt className="text-xs text-text-faint uppercase tracking-wider">Follow-up Date</dt>
-                <dd className="text-sm text-text">{lead.followUpDate.toLocaleDateString()}</dd>
+                <dd className="text-sm text-text">{new Date(lead.followUpDate).toLocaleDateString()}</dd>
               </div>
             )}
           </dl>
