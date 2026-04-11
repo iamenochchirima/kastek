@@ -88,10 +88,10 @@ export function Navbar() {
         </li>
         <li>
           <Link
-            href="/demo"
+            href="/solutions"
             className="text-muted-foreground transition-colors hover:text-white"
           >
-            Demo
+            Solutions
           </Link>
         </li>
         <li>
@@ -149,11 +149,11 @@ export function Navbar() {
               Services
             </Link>
             <Link
-              href="/demo"
+              href="/solutions"
               className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              Demo
+              Solutions
             </Link>
             <Link
               href="/pricing"

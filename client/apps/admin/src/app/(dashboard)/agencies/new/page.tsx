@@ -8,6 +8,8 @@ export default function NewAgencyPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [form, setForm] = useState({
     workspaceName: "",
     slug: "",
@@ -37,7 +39,7 @@ export default function NewAgencyPage() {
     setError("");
     setLoading(true);
 
-    const res = await fetch("/api/tenants/admin/workspaces", {
+    const res = await fetch("/api/agencies", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -57,7 +59,53 @@ export default function NewAgencyPage() {
       return;
     }
 
-    router.push("/agencies");
+    const data = await res.json().catch(() => ({}));
+    const key = data.apiKey ?? data.key ?? null;
+    if (key) {
+      setCreatedKey(key);
+    } else {
+      router.push("/agencies");
+    }
+  }
+
+  async function copyKey() {
+    if (!createdKey) return;
+    await navigator.clipboard.writeText(createdKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (createdKey) {
+    return (
+      <div className="max-w-xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-text">Agency Created</h1>
+          <p className="text-text-muted text-sm mt-1">
+            The workspace was provisioned successfully.
+          </p>
+        </div>
+        <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-4 space-y-2">
+            <p className="text-sm font-medium text-amber-400">Save this API key — it will not be shown again.</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs font-mono text-text break-all">{createdKey}</code>
+              <button
+                onClick={copyKey}
+                className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-text-muted hover:text-text transition-colors"
+              >
+                {copied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          </div>
+          <Link
+            href="/agencies"
+            className="block w-full text-center bg-primary hover:bg-primary-dark text-white py-2.5 rounded-lg font-medium transition-colors"
+          >
+            Go to Agencies
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

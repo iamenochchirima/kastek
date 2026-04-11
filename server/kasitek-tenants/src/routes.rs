@@ -90,6 +90,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             web::scope("/api/admin")
                 .route("/workspaces", web::get().to(admin::list_workspaces))
                 .route("/workspaces", web::post().to(admin::create_workspace))
-                .route("/workspaces/{id}", web::get().to(admin::get_workspace)),
+                .route("/workspaces/{id}", web::get().to(admin::get_workspace))
+                .route("/workspaces/{id}", web::patch().to(admin::update_workspace))
+                .route("/workspaces/{id}/staff", web::get().to(admin::list_workspace_staff))
+                .route("/workspaces/{id}/staff", web::post().to(admin::add_workspace_staff))
+                .route("/workspaces/{id}/staff/{user_id}", web::delete().to(admin::remove_workspace_staff))
+                .route("/workspaces/{id}/clients", web::get().to(admin::list_workspace_clients))
+                .route("/workspaces/{id}/api-keys", web::get().to(admin::list_workspace_api_keys))
+                .route("/workspaces/{id}/api-keys", web::post().to(admin::create_workspace_api_key))
+                .route("/workspaces/{id}/api-keys/{key_id}", web::delete().to(admin::revoke_workspace_api_key)),
         );
 }

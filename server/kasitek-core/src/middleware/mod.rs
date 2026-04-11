@@ -66,7 +66,9 @@ pub async fn extract_admin(req: &HttpRequest, pool: &PgPool) -> Result<AdminUser
 
     sqlx::query_as::<_, AdminUser>(
         r#"
-        SELECT id, name, email, password, role, "createdAt", "updatedAt"
+        SELECT id, name, email, password, role,
+               "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
+               "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
         FROM "AdminUser"
         WHERE id = $1
         "#,

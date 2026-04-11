@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Globe, Layers, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { Layers, ShieldCheck, SlidersHorizontal } from "lucide-react";
 
 const reasons = [
   {
@@ -10,13 +10,6 @@ const reasons = [
     description:
       "Not a generic template. Booking flows, quotation logic, and automations are shaped around how your business actually runs — not the other way around.",
     tone: "primary" as const,
-  },
-  {
-    icon: Globe,
-    title: "Connected Across Every Channel",
-    description:
-      "One system across your website, WhatsApp, Facebook, Instagram, and voice. Not separate tools bolted together — a single layer your team manages from one place.",
-    tone: "accent" as const,
   },
   {
     icon: ShieldCheck,
@@ -76,7 +69,12 @@ export function Services() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-80px" }}
                 transition={{ duration: 0.45, delay: index * 0.07 }}
-                className="group relative overflow-hidden rounded-2xl border border-white/8 bg-[#0D0D0D] p-7 transition-colors duration-300 hover:border-primary/20 hover:bg-black md:p-9"
+                className={[
+                  "group relative overflow-hidden rounded-2xl border border-white/8 bg-[#0D0D0D] p-7 text-center transition-colors duration-300 hover:border-primary/20 hover:bg-black md:p-9",
+                  index === reasons.length - 1 && reasons.length % 2 === 1
+                    ? "sm:col-span-2 sm:mx-auto sm:w-[calc(50%-0.5rem)]"
+                    : "",
+                ].join(" ")}
               >
                 <div
                   className={`absolute left-0 top-0 h-[2px] w-full origin-left scale-x-0 transition-transform duration-500 ease-out group-hover:scale-x-100 ${tone.line}`}
@@ -92,7 +90,7 @@ export function Services() {
                   {reason.title}
                 </h3>
 
-                <p className="text-sm leading-relaxed text-muted-foreground">
+                <p className="mx-auto max-w-[34ch] text-sm leading-relaxed text-muted-foreground">
                   {reason.description}
                 </p>
               </motion.div>

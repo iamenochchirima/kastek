@@ -93,8 +93,11 @@ pub struct AddNoteBody {
 
 const SELECT_COLS: &str = r#"
     id, "businessName", "contactPerson", phone, email, "businessType",
-    services, description, source, status, "quoteAmount", "followUpDate",
-    notes, "assignedToId", "createdAt", "updatedAt"
+    services, description, source, status, "quoteAmount",
+    "followUpDate" AT TIME ZONE 'UTC' AS "followUpDate",
+    notes, "assignedToId",
+    "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
+    "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
 "#;
 
 pub async fn list_leads(

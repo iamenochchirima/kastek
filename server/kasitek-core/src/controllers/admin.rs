@@ -14,7 +14,9 @@ pub async fn login(
 ) -> Result<HttpResponse, AppError> {
     let admin = sqlx::query_as::<_, AdminUser>(
         r#"
-        SELECT id, name, email, password, role, "createdAt", "updatedAt"
+        SELECT id, name, email, password, role,
+               "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
+               "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
         FROM "AdminUser"
         WHERE lower(email) = lower($1)
         LIMIT 1

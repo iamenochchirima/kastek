@@ -122,6 +122,404 @@ pub async fn get_workspace(
     })))
 }
 
+pub async fn update_workspace(
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<serde_json::Value>,
+) -> Result<HttpResponse, AppError> {
+    require_admin_secret(&req)?;
+    let pool = middleware::db_pool(&req)?;
+    let id_or_slug = path.into_inner();
+
+    // Resolve to actual id
+    let workspace_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM workspaces WHERE id = $1 OR slug = $1 LIMIT 1"#,
+    )
+    .bind(&id_or_slug)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))?;
+
+    // Update workspace status / display_name if provided
+    if let Some(status) = body.get("status").and_then(|v| v.as_str()) {
+        sqlx::query(r#"UPDATE workspaces SET status = $1, updated_at = NOW() WHERE id = $2"#)
+            .bind(status)
+            .bind(&workspace_id)
+            .execute(pool)
+            .await?;
+    }
+    if let Some(name) = body.get("displayName").and_then(|v| v.as_str()) {
+        sqlx::query(
+            r#"UPDATE workspaces SET display_name = $1, updated_at = NOW() WHERE id = $2"#,
+        )
+        .bind(name)
+        .bind(&workspace_id)
+        .execute(pool)
+        .await?;
+        sqlx::query(
+            r#"UPDATE workspace_branding SET display_name = $1, updated_at = NOW() WHERE workspace_id = $2"#,
+        )
+        .bind(name)
+        .bind(&workspace_id)
+        .execute(pool)
+        .await?;
+    }
+
+    // Return updated workspace
+    get_workspace(req, web::Path::from(workspace_id)).await
+}
+
+// ── Staff ──────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, sqlx::FromRow, Serialize)]
+struct StaffRow {
+    id: String,
+    email: String,
+    status: String,
+    roles: serde_json::Value,
+    created_at: DateTime<Utc>,
+}
+
+pub async fn list_workspace_staff(
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    require_admin_secret(&req)?;
+    let pool = middleware::db_pool(&req)?;
+    let id_or_slug = path.into_inner();
+
+    let workspace_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM workspaces WHERE id = $1 OR slug = $1 LIMIT 1"#,
+    )
+    .bind(&id_or_slug)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))?;
+
+    let staff = sqlx::query_as::<_, StaffRow>(
+        r#"
+        SELECT
+            u.id,
+            u.email,
+            u.status,
+            COALESCE(
+                json_agg(r.role ORDER BY r.created_at) FILTER (WHERE r.role IS NOT NULL),
+                '[]'::json
+            ) AS roles,
+            u.created_at AT TIME ZONE 'UTC' AS created_at
+        FROM tenant_users u
+        LEFT JOIN tenant_user_roles r ON r.tenant_user_id = u.id
+        WHERE u.workspace_id = $1
+        GROUP BY u.id, u.email, u.status, u.created_at
+        ORDER BY u.created_at DESC
+        "#,
+    )
+    .bind(&workspace_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "staff": staff })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddStaffBody {
+    email: String,
+    password: String,
+    role: Option<String>,
+}
+
+pub async fn add_workspace_staff(
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<AddStaffBody>,
+) -> Result<HttpResponse, AppError> {
+    require_admin_secret(&req)?;
+    let pool = middleware::db_pool(&req)?;
+    let id_or_slug = path.into_inner();
+
+    let workspace_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM workspaces WHERE id = $1 OR slug = $1 LIMIT 1"#,
+    )
+    .bind(&id_or_slug)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))?;
+
+    let email = body.email.trim().to_ascii_lowercase();
+    let role = body.role.as_deref().unwrap_or("admin").trim().to_string();
+
+    let existing = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM tenant_users WHERE workspace_id = $1 AND lower(email) = $2 LIMIT 1"#,
+    )
+    .bind(&workspace_id)
+    .bind(&email)
+    .fetch_optional(pool)
+    .await?;
+
+    if existing.is_some() {
+        return Err(AppError::BadRequest(
+            "staff user already exists in this workspace".to_string(),
+        ));
+    }
+
+    let password_hash = bcrypt::hash(body.password.trim(), bcrypt::DEFAULT_COST)
+        .map_err(|e| AppError::Internal(format!("hash failed: {e}")))?;
+
+    let user_id = cuid2::create_id();
+    let mut tx = pool.begin().await?;
+
+    sqlx::query(
+        r#"INSERT INTO tenant_users (id, workspace_id, email, password_hash, status, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())"#,
+    )
+    .bind(&user_id)
+    .bind(&workspace_id)
+    .bind(&email)
+    .bind(&password_hash)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        r#"INSERT INTO tenant_user_roles (tenant_user_id, role, created_at) VALUES ($1, $2, NOW())"#,
+    )
+    .bind(&user_id)
+    .bind(&role)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(HttpResponse::Created().json(serde_json::json!({
+        "user": { "id": user_id, "email": email, "role": role, "status": "active" }
+    })))
+}
+
+pub async fn remove_workspace_staff(
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    require_admin_secret(&req)?;
+    let pool = middleware::db_pool(&req)?;
+    let (id_or_slug, user_id) = path.into_inner();
+
+    let workspace_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM workspaces WHERE id = $1 OR slug = $1 LIMIT 1"#,
+    )
+    .bind(&id_or_slug)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))?;
+
+    let deleted = sqlx::query_scalar::<_, String>(
+        r#"DELETE FROM tenant_users WHERE id = $1 AND workspace_id = $2 RETURNING id"#,
+    )
+    .bind(&user_id)
+    .bind(&workspace_id)
+    .fetch_optional(pool)
+    .await?;
+
+    if deleted.is_none() {
+        return Err(AppError::NotFound("staff user not found".to_string()));
+    }
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "deleted": true })))
+}
+
+// ── Clients (admin view) ───────────────────────────────────────────────────────
+
+#[derive(Debug, sqlx::FromRow, Serialize)]
+struct AdminClientRow {
+    id: String,
+    name: String,
+    slug: String,
+    status: String,
+    user_count: i64,
+    created_at: DateTime<Utc>,
+}
+
+pub async fn list_workspace_clients(
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    require_admin_secret(&req)?;
+    let pool = middleware::db_pool(&req)?;
+    let id_or_slug = path.into_inner();
+
+    let workspace_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM workspaces WHERE id = $1 OR slug = $1 LIMIT 1"#,
+    )
+    .bind(&id_or_slug)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))?;
+
+    let clients = sqlx::query_as::<_, AdminClientRow>(
+        r#"
+        SELECT
+            c.id,
+            c.name,
+            c.slug,
+            c.status,
+            COUNT(DISTINCT u.id) AS user_count,
+            c.created_at AT TIME ZONE 'UTC' AS created_at
+        FROM tenant_clients c
+        LEFT JOIN tenant_client_users u ON u.tenant_client_id = c.id AND u.status != 'revoked'
+        WHERE c.workspace_id = $1
+        GROUP BY c.id, c.name, c.slug, c.status, c.created_at
+        ORDER BY c.created_at DESC
+        "#,
+    )
+    .bind(&workspace_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "clients": clients })))
+}
+
+// ── API Keys ───────────────────────────────────────────────────────────────────
+
+#[derive(Debug, sqlx::FromRow, Serialize)]
+struct ApiKeyRow {
+    id: String,
+    label: String,
+    key_prefix: String,
+    scopes: serde_json::Value,
+    revoked_at: Option<DateTime<Utc>>,
+    created_at: DateTime<Utc>,
+}
+
+pub async fn list_workspace_api_keys(
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    require_admin_secret(&req)?;
+    let pool = middleware::db_pool(&req)?;
+    let id_or_slug = path.into_inner();
+
+    let workspace_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM workspaces WHERE id = $1 OR slug = $1 LIMIT 1"#,
+    )
+    .bind(&id_or_slug)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))?;
+
+    let keys = sqlx::query_as::<_, ApiKeyRow>(
+        r#"
+        SELECT
+            id,
+            label,
+            key_prefix,
+            scopes,
+            revoked_at AT TIME ZONE 'UTC' AS revoked_at,
+            created_at AT TIME ZONE 'UTC' AS created_at
+        FROM workspace_api_keys
+        WHERE workspace_id = $1
+        ORDER BY created_at DESC
+        "#,
+    )
+    .bind(&workspace_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "apiKeys": keys })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateApiKeyBody {
+    label: String,
+    scopes: Option<serde_json::Value>,
+}
+
+pub async fn create_workspace_api_key(
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<CreateApiKeyBody>,
+) -> Result<HttpResponse, AppError> {
+    require_admin_secret(&req)?;
+    let pool = middleware::db_pool(&req)?;
+    let id_or_slug = path.into_inner();
+
+    let workspace_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM workspaces WHERE id = $1 OR slug = $1 LIMIT 1"#,
+    )
+    .bind(&id_or_slug)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))?;
+
+    let label = body.label.trim();
+    if label.is_empty() {
+        return Err(AppError::BadRequest("label is required".to_string()));
+    }
+
+    let default_scopes = serde_json::json!(["workspace:read", "clients:read", "portal:bootstrap"]);
+    let scopes = body.scopes.as_ref().unwrap_or(&default_scopes);
+    let key_plain = format!("ktnt_{}", crypto_utils::generate_token(32));
+    let key_prefix = key_plain.chars().take(12).collect::<String>();
+    let key_hash = crypto_utils::sha256_hex(&key_plain);
+    let key_id = cuid2::create_id();
+
+    sqlx::query(
+        r#"INSERT INTO workspace_api_keys (id, workspace_id, label, key_prefix, key_hash, scopes, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())"#,
+    )
+    .bind(&key_id)
+    .bind(&workspace_id)
+    .bind(label)
+    .bind(&key_prefix)
+    .bind(&key_hash)
+    .bind(scopes)
+    .execute(pool)
+    .await?;
+
+    Ok(HttpResponse::Created().json(serde_json::json!({
+        "apiKey": {
+            "id": key_id,
+            "label": label,
+            "key": key_plain,
+            "prefix": key_prefix,
+            "scopes": scopes,
+        }
+    })))
+}
+
+pub async fn revoke_workspace_api_key(
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    require_admin_secret(&req)?;
+    let pool = middleware::db_pool(&req)?;
+    let (id_or_slug, key_id) = path.into_inner();
+
+    let workspace_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM workspaces WHERE id = $1 OR slug = $1 LIMIT 1"#,
+    )
+    .bind(&id_or_slug)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))?;
+
+    let revoked = sqlx::query_scalar::<_, String>(
+        r#"UPDATE workspace_api_keys
+           SET revoked_at = NOW(), updated_at = NOW()
+           WHERE id = $1 AND workspace_id = $2 AND revoked_at IS NULL
+           RETURNING id"#,
+    )
+    .bind(&key_id)
+    .bind(&workspace_id)
+    .fetch_optional(pool)
+    .await?;
+
+    if revoked.is_none() {
+        return Err(AppError::NotFound(
+            "api key not found or already revoked".to_string(),
+        ));
+    }
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "revoked": true })))
+}
+
 pub async fn create_workspace(
     req: HttpRequest,
     body: web::Json<CreateWorkspaceBody>,

@@ -18,7 +18,12 @@ export default async function AgenciesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-text">Agencies ({workspaces.length})</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-text">Agencies ({workspaces.length})</h1>
+          <p className="text-sm text-text-muted mt-1">
+            Tenant workspaces provisioned on the platform.
+          </p>
+        </div>
         <Link
           href="/agencies/new"
           className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -31,7 +36,10 @@ export default async function AgenciesPage() {
         {workspaces.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-text-faint text-sm">No agencies yet.</p>
-            <Link href="/agencies/new" className="text-primary text-sm hover:underline mt-2 inline-block">
+            <Link
+              href="/agencies/new"
+              className="text-primary text-sm hover:underline mt-2 inline-block"
+            >
               Create your first agency workspace
             </Link>
           </div>
@@ -44,6 +52,7 @@ export default async function AgenciesPage() {
                 <th className="px-4 py-3 text-left font-medium text-text-muted">Status</th>
                 <th className="px-4 py-3 text-right font-medium text-text-muted">Clients</th>
                 <th className="px-4 py-3 text-right font-medium text-text-muted">Created</th>
+                <th className="px-4 py-3 text-right font-medium text-text-muted"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -67,6 +76,14 @@ export default async function AgenciesPage() {
                   <td className="px-4 py-3 text-right text-text">{ws.clientCount}</td>
                   <td className="px-4 py-3 text-right text-text-faint">
                     {new Date(ws.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/agencies/${ws.id}`}
+                      className="inline-flex items-center rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-overlay transition-colors"
+                    >
+                      Manage
+                    </Link>
                   </td>
                 </tr>
               ))}

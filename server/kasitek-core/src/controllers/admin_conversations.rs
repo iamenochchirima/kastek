@@ -46,7 +46,8 @@ pub async fn list_conversations(
     let conversations = sqlx::query_as::<_, ConversationRow>(
         r#"
         SELECT id, channel, "customerIdentifier", "customerName", status,
-               "lastMessageAt", "createdAt"
+               "lastMessageAt" AT TIME ZONE 'UTC' AS "lastMessageAt",
+               "createdAt" AT TIME ZONE 'UTC' AS "createdAt"
         FROM "Conversation"
         ORDER BY "lastMessageAt" DESC
         "#,
@@ -81,7 +82,8 @@ pub async fn get_conversation(
     let conversation = sqlx::query_as::<_, ConversationRow>(
         r#"
         SELECT id, channel, "customerIdentifier", "customerName", status,
-               "lastMessageAt", "createdAt"
+               "lastMessageAt" AT TIME ZONE 'UTC' AS "lastMessageAt",
+               "createdAt" AT TIME ZONE 'UTC' AS "createdAt"
         FROM "Conversation"
         WHERE id = $1
         LIMIT 1

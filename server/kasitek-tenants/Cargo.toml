@@ -2,6 +2,7 @@
 name = "kasitek-tenants"
 version.workspace = true
 edition.workspace = true
+default-run = "kasitek-tenants"
 
 [dependencies]
 actix-cors.workspace = true

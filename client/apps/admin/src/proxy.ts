@@ -7,7 +7,7 @@ const ADMIN_SESSION_COOKIE = "kasitek_admin_session";
 
 const PUBLIC_PATHS = ["/login", "/api/"];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow public paths through without auth check
