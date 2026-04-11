@@ -1,4 +1,4 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
 import { getServiceLabel } from "@/lib/quotation";
 
@@ -11,20 +11,18 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default async function QuotationsPage() {
-  const quotations = await prisma.quotation.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      businessName: true,
-      contactPerson: true,
-      contactEmail: true,
-      serviceType: true,
-      title: true,
-      status: true,
-      pricingItems: true,
-      createdAt: true,
-    },
-  });
+  const res = await fetchFromCore("/api/admin/quotations");
+  const quotations: Array<{
+    id: string;
+    businessName: string;
+    contactPerson: string;
+    contactEmail: string;
+    serviceType: string;
+    title: string;
+    status: string;
+    pricingItems: Array<{ amount?: string }>;
+    createdAt: string;
+  }> = res.ok ? await res.json() : [];
 
   return (
     <div className="space-y-6">
@@ -66,7 +64,7 @@ export default async function QuotationsPage() {
                 <div>
                   <p className="font-medium text-sm text-text">{quotation.businessName}</p>
                   <p className="text-xs text-text-faint">
-                    Created {quotation.createdAt.toLocaleDateString()}
+                    Created {new Date(quotation.createdAt).toLocaleDateString()}
                   </p>
                 </div>
 
@@ -80,7 +78,7 @@ export default async function QuotationsPage() {
                   <p className="text-xs text-text-faint">
                     {getServiceLabel(quotation.serviceType)}
                     {Array.isArray(quotation.pricingItems) && quotation.pricingItems.length > 0
-                      ? ` · ${String((quotation.pricingItems[0] as { amount?: string }).amount || "")}`
+                      ? ` · ${String(quotation.pricingItems[0]?.amount || "")}`
                       : ""}
                   </p>
                 </div>

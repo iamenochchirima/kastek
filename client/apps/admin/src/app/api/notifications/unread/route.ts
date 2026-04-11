@@ -1,19 +1,10 @@
-import { auth } from "@/auth";
-import { NotificationRecipientType, getUnreadNotificationCount } from "@kasitek/database";
+import { getAdminSession, proxyToCore } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 
-export const runtime = "nodejs";
-
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const unreadCount = await getUnreadNotificationCount(
-    NotificationRecipientType.ADMIN,
-    session.user.id
-  );
-
-  return NextResponse.json({ unreadCount });
+export async function GET(req: Request) {
+  const admin = await getAdminSession();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const res = await proxyToCore(req, "/api/admin/notifications/unread");
+  const data = await res.json();
+  return NextResponse.json(data, { status: res.status });
 }

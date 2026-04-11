@@ -1,9 +1,41 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import OutreachLeadsTable from "@/components/admin/outreach-leads-table";
 import OutreachLeadFilters from "@/components/admin/outreach-lead-filters";
 import Pagination from "@/components/admin/pagination";
+
+const PAGE_SIZE = 50;
+
+type Lead = {
+  id: string;
+  campaignId: string;
+  businessName: string;
+  website: string | null;
+  address: string | null;
+  emailStatus: string;
+  emailAddress: string | null;
+  phone: string | null;
+  emailTemplate: string | null;
+  emailSentAt: string | null;
+  followUpCount: number;
+  nextFollowUp: string | null;
+  notes: string | null;
+};
+
+type DeliveryLog = {
+  id: string;
+  recipient: string;
+  subject: string;
+  status: string;
+  provider: string;
+  providerMessageId: string | null;
+  errorMessage: string | null;
+  attemptedAt: string;
+  campaign_name: string | null;
+  lead_business_name: string | null;
+  lead_website: string | null;
+};
 
 export default async function CampaignDetailPage({
   params,
@@ -14,75 +46,38 @@ export default async function CampaignDetailPage({
 }) {
   const { id } = await params;
   const filters = await searchParams;
-  const PAGE_SIZE = 50;
   const currentPage = Math.max(1, parseInt(filters.page || "1", 10));
 
-  const campaign = await prisma.outreachCampaign.findUnique({
-    where: { id },
-  });
+  // Fetch campaign + leads + delivery logs in parallel
+  const leadsUrl = new URL(`http://x/api/admin/outreach/${id}/leads`);
+  if (filters.emailStatus) leadsUrl.searchParams.set("emailStatus", filters.emailStatus);
+  if (filters.search) leadsUrl.searchParams.set("search", filters.search);
 
-  if (!campaign) notFound();
-
-  const where: Record<string, unknown> = { campaignId: id };
-  if (filters.emailStatus) where.emailStatus = filters.emailStatus;
-  if (filters.search) {
-    where.OR = [
-      { businessName: { contains: filters.search, mode: "insensitive" } },
-      { website: { contains: filters.search, mode: "insensitive" } },
-      { emailAddress: { contains: filters.search, mode: "insensitive" } },
-    ];
-  }
-
-  const [leads, filteredCount] = await Promise.all([
-    prisma.outreachLead.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      skip: (currentPage - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-    prisma.outreachLead.count({ where }),
+  const [campaignRes, leadsRes, logsRes] = await Promise.all([
+    fetchFromCore(`/api/admin/outreach/${id}`),
+    fetchFromCore(`/api/admin/outreach/${id}/leads?${leadsUrl.searchParams.toString()}`),
+    fetchFromCore(`/api/admin/outreach/delivery?campaignId=${id}&limit=100`),
   ]);
 
-  const deliveryLogs = await prisma.outreachEmailDeliveryLog.findMany({
-    where: { campaignId: id },
-    orderBy: { attemptedAt: "desc" },
-    take: 100,
-    select: {
-      id: true,
-      recipient: true,
-      subject: true,
-      status: true,
-      provider: true,
-      providerMessageId: true,
-      providerResponse: true,
-      errorMessage: true,
-      attemptedAt: true,
-      lead: {
-        select: {
-          businessName: true,
-          website: true,
-        },
-      },
-    },
-  });
+  if (!campaignRes.ok) notFound();
 
+  const campaign = await campaignRes.json() as {
+    id: string;
+    name: string;
+    category: string;
+    status: string;
+    totalLeads: number;
+    emailsSent: number;
+    replies: number;
+  };
+
+  const allLeads: Lead[] = leadsRes.ok ? await leadsRes.json() : [];
+  const deliveryLogs: DeliveryLog[] = logsRes.ok ? (await logsRes.json() as DeliveryLog[]) : [];
+
+  // Client-side pagination for leads
+  const filteredCount = allLeads.length;
   const totalPages = Math.ceil(filteredCount / PAGE_SIZE);
-
-  const serializedLeads = leads.map((l) => ({
-    id: l.id,
-    campaignId: l.campaignId,
-    businessName: l.businessName,
-    website: l.website,
-    address: l.address,
-    emailStatus: l.emailStatus,
-    emailAddress: l.emailAddress,
-    phone: l.phone,
-    emailTemplate: l.emailTemplate,
-    emailSentAt: l.emailSentAt?.toISOString() || null,
-    followUpCount: l.followUpCount,
-    nextFollowUp: l.nextFollowUp?.toISOString() || null,
-    notes: l.notes,
-  }));
+  const leads = allLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const rate =
     campaign.emailsSent > 0
@@ -125,7 +120,7 @@ export default async function CampaignDetailPage({
 
       <OutreachLeadFilters />
 
-      <OutreachLeadsTable leads={serializedLeads} campaignId={id} />
+      <OutreachLeadsTable leads={leads} campaignId={id} />
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
@@ -176,15 +171,15 @@ export default async function CampaignDetailPage({
                     </td>
                     <td className="px-2 py-2 text-xs text-text break-all">{log.recipient}</td>
                     <td className="px-2 py-2 text-xs text-text-muted">
-                      <p className="text-text">{log.lead?.businessName || "--"}</p>
-                      {log.lead?.website ? (
+                      <p className="text-text">{log.lead_business_name || "--"}</p>
+                      {log.lead_website ? (
                         <a
-                          href={log.lead.website}
+                          href={log.lead_website}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline break-all"
                         >
-                          {log.lead.website}
+                          {log.lead_website}
                         </a>
                       ) : null}
                     </td>

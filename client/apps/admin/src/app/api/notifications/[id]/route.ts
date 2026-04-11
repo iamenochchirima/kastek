@@ -1,28 +1,14 @@
-import { auth } from "@/auth";
-import { NotificationRecipientType, markNotificationAsRead } from "@kasitek/database";
+import { getAdminSession, proxyToCore } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 
-export const runtime = "nodejs";
-
 export async function PATCH(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const admin = await getAdminSession();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const result = await markNotificationAsRead(
-    NotificationRecipientType.ADMIN,
-    session.user.id,
-    id
-  );
-
-  if (result.count === 0) {
-    return NextResponse.json({ error: "Notification not found" }, { status: 404 });
-  }
-
-  return NextResponse.json({ updated: result.count });
+  const res = await proxyToCore(req, `/api/admin/notifications/${id}`);
+  const data = await res.json();
+  return NextResponse.json(data, { status: res.status });
 }

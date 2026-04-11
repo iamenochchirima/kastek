@@ -1,4 +1,4 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import QuotationBuilder from "@/components/admin/quotation-builder";
@@ -11,11 +11,9 @@ export default async function QuotationDetailPage({
 }) {
   const { id } = await params;
 
-  const quotation = await prisma.quotation.findUnique({
-    where: { id },
-  });
-
-  if (!quotation) notFound();
+  const res = await fetchFromCore(`/api/admin/quotations/${id}`);
+  if (!res.ok) notFound();
+  const quotation = await res.json();
 
   const draft = quotationRecordToDraft(quotation);
 

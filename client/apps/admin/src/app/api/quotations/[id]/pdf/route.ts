@@ -1,25 +1,18 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { prisma } from "@kasitek/database";
+import { getAdminSession, fetchFromCore } from "@/lib/admin-auth";
 import { buildQuotationPdf, quotationRecordToDraft } from "@/lib/quotation";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const admin = await getAdminSession();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const quotation = await prisma.quotation.findUnique({
-    where: { id },
-  });
-
-  if (!quotation) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const res = await fetchFromCore(`/api/admin/quotations/${id}`);
+  if (!res.ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const quotation = await res.json();
 
   const draft = quotationRecordToDraft(quotation);
   const pdf = buildQuotationPdf(draft);

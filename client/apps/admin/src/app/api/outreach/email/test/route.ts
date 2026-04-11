@@ -1,37 +1,31 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAdminSession, fetchFromCore } from "@/lib/admin-auth";
 import { sendSmtpMail, verifySmtpTransport } from "@/lib/smtp";
-import { prisma } from "@kasitek/database";
 
-async function ensureTestCampaignId() {
-  const existing = await prisma.outreachCampaign.findFirst({
-    where: { name: "System Test Sends", category: "system-test" },
-    select: { id: true },
-  });
+async function ensureTestCampaignId(): Promise<string> {
+  const res = await fetchFromCore("/api/admin/outreach");
+  const campaigns = res.ok ? (await res.json() as Array<{ id: string; name: string; category: string }>) : [];
+  const existing = Array.isArray(campaigns)
+    ? campaigns.find((c) => c.name === "System Test Sends" && c.category === "system-test")
+    : null;
+
   if (existing?.id) return existing.id;
 
-  const created = await prisma.outreachCampaign.create({
-    data: {
-      name: "System Test Sends",
-      category: "system-test",
-      status: "active",
-      totalLeads: 0,
-      emailsSent: 0,
-      replies: 0,
-    },
-    select: { id: true },
+  const createRes = await fetchFromCore("/api/admin/outreach", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "System Test Sends", category: "system-test", status: "active" }),
   });
+  const created = await createRes.json() as { id: string };
   return created.id;
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const admin = await getAdminSession();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const to = String(body?.to || session.user.email || "").trim();
+  const to = String(body?.to || admin.email || "").trim();
   const subject = String(body?.subject || "").trim();
   const text = String(body?.text || body?.emailBody || "").trim();
   const html = body?.html ? String(body.html) : undefined;
@@ -59,17 +53,21 @@ export async function POST(req: Request) {
     let logSaved = true;
     let logError: string | null = null;
     try {
-      await prisma.outreachEmailDeliveryLog.create({
-        data: {
-          campaignId: testCampaignId,
-          leadId: null,
-          recipient: String(to).trim().toLowerCase(),
-          subject,
-          status: "sent",
-          provider: "smtp",
-          providerMessageId: info.messageId ? String(info.messageId) : null,
-          providerResponse: info.response ? String(info.response) : null,
-        },
+      await fetchFromCore("/api/admin/outreach/delivery-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          logs: [{
+            campaignId: testCampaignId,
+            leadId: null,
+            recipient: to.toLowerCase(),
+            subject,
+            status: "sent",
+            provider: "smtp",
+            providerMessageId: info.messageId ? String(info.messageId) : null,
+            providerResponse: info.response ? String(info.response) : null,
+          }],
+        }),
       });
     } catch (e) {
       logSaved = false;
@@ -92,16 +90,20 @@ export async function POST(req: Request) {
     if (to) {
       try {
         const testCampaignId = await ensureTestCampaignId();
-        await prisma.outreachEmailDeliveryLog.create({
-          data: {
-            campaignId: testCampaignId,
-            leadId: null,
-            recipient: to.toLowerCase(),
-            subject,
-            status: "failed",
-            provider: "smtp",
-            errorMessage: message,
-          },
+        await fetchFromCore("/api/admin/outreach/delivery-logs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            logs: [{
+              campaignId: testCampaignId,
+              leadId: null,
+              recipient: to.toLowerCase(),
+              subject,
+              status: "failed",
+              provider: "smtp",
+              errorMessage: message,
+            }],
+          }),
         });
       } catch (e) {
         console.error(

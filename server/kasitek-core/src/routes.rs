@@ -1,8 +1,9 @@
 use actix_web::web;
 
 use crate::controllers::{
-    admin_conversations, admin_leads, admin_web_services,
-    admin, ai, auth, bots, chat, health, notifications, profile, public, realtime, social,
+    admin, admin_conversations, admin_invoices, admin_leads, admin_notifications,
+    admin_outreach, admin_quotations, admin_web_services,
+    ai, auth, bots, chat, health, notifications, profile, public, realtime, social,
     whatsapp, whatsapp_calls, workspace,
 };
 
@@ -284,6 +285,46 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::scope("/conversations")
                         .route("", web::get().to(admin_conversations::list_conversations))
                         .route("/{id}", web::get().to(admin_conversations::get_conversation)),
+                )
+                .service(
+                    web::scope("/quotations")
+                        .route("", web::get().to(admin_quotations::list_quotations))
+                        .route("", web::post().to(admin_quotations::create_quotation))
+                        .route("/{id}", web::get().to(admin_quotations::get_quotation))
+                        .route("/{id}", web::patch().to(admin_quotations::update_quotation))
+                        .route("/{id}", web::delete().to(admin_quotations::delete_quotation)),
+                )
+                .service(
+                    web::scope("/invoices")
+                        .route("", web::get().to(admin_invoices::list_invoices))
+                        .route("", web::post().to(admin_invoices::create_invoice))
+                        .route("/{id}", web::get().to(admin_invoices::get_invoice))
+                        .route("/{id}", web::patch().to(admin_invoices::update_invoice))
+                        .route("/{id}", web::delete().to(admin_invoices::delete_invoice)),
+                )
+                .service(
+                    web::scope("/outreach")
+                        .route("", web::get().to(admin_outreach::list_campaigns))
+                        .route("", web::post().to(admin_outreach::create_campaign))
+                        .route("", web::delete().to(admin_outreach::delete_all_campaigns))
+                        .route("/import", web::post().to(admin_outreach::import_campaign))
+                        .route("/delivery", web::get().to(admin_outreach::list_delivery_logs))
+                        .route("/{id}", web::get().to(admin_outreach::get_campaign))
+                        .route("/{id}", web::patch().to(admin_outreach::update_campaign))
+                        .route("/{id}", web::delete().to(admin_outreach::delete_campaign))
+                        .route("/delivery-logs", web::post().to(admin_outreach::create_delivery_logs))
+                        .route("/{id}/leads", web::get().to(admin_outreach::list_leads))
+                        .route("/{id}/leads", web::post().to(admin_outreach::create_lead))
+                        .route("/{id}/leads/{lead_id}", web::get().to(admin_outreach::get_lead))
+                        .route("/{id}/leads/{lead_id}", web::patch().to(admin_outreach::update_lead))
+                        .route("/{id}/leads/{lead_id}", web::delete().to(admin_outreach::delete_lead)),
+                )
+                .service(
+                    web::scope("/notifications")
+                        .route("", web::get().to(admin_notifications::list_notifications))
+                        .route("", web::post().to(admin_notifications::mark_all_read))
+                        .route("/unread", web::get().to(admin_notifications::unread_count))
+                        .route("/{id}", web::patch().to(admin_notifications::mark_notification_read)),
                 ),
         );
 }

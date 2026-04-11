@@ -1,26 +1,27 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { prisma } from "@kasitek/database";
+import { getAdminSession, fetchFromCore } from "@/lib/admin-auth";
 import { sendSmtpMail, verifySmtpTransport } from "@/lib/smtp";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string; leadId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const admin = await getAdminSession();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: campaignId, leadId } = await params;
 
-  const lead = await prisma.outreachLead.findFirst({
-    where: { id: leadId, campaignId },
-  });
-
-  if (!lead) {
+  // Fetch lead from Rust
+  const leadRes = await fetchFromCore(`/api/admin/outreach/${campaignId}/leads/${leadId}`);
+  if (!leadRes.ok) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
+  const lead = await leadRes.json() as {
+    id: string;
+    campaignId: string;
+    emailAddress: string | null;
+    notes: string | null;
+  };
 
   const body = await req.json();
   const rawTo = body.to;
@@ -59,46 +60,39 @@ export async function POST(
       (info.rejected || []).map((entry: unknown) => String(entry || "").trim().toLowerCase())
     );
 
-    const updatedLead = await prisma.outreachLead.update({
-      where: { id: leadId },
-      data: {
+    // Update lead status via Rust
+    const patchRes = await fetchFromCore(`/api/admin/outreach/${campaignId}/leads/${leadId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         emailStatus: "sent",
-        emailSentAt: new Date(),
+        emailSentAt: new Date().toISOString(),
         emailAddress: primaryTo || to[0] || null,
         emailTemplate: emailText,
-      },
+      }),
     });
+    const updatedLead = await patchRes.json();
 
+    // Create delivery logs via Rust
     if (to.length > 0) {
-      await prisma.outreachEmailDeliveryLog.createMany({
-        data: to.map((recipient) => ({
-          campaignId,
-          leadId,
-          recipient,
-          subject,
-          status: rejectedSet.has(recipient) ? "failed" : "sent",
-          provider: "smtp",
-          providerMessageId: info.messageId ? String(info.messageId) : null,
-          providerResponse: info.response ? String(info.response) : null,
-          errorMessage: rejectedSet.has(recipient) ? "Rejected by SMTP provider" : null,
-        })),
+      await fetchFromCore("/api/admin/outreach/delivery-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          logs: to.map((recipient) => ({
+            campaignId,
+            leadId,
+            recipient,
+            subject,
+            status: rejectedSet.has(recipient) ? "failed" : "sent",
+            provider: "smtp",
+            providerMessageId: info.messageId ? String(info.messageId) : null,
+            providerResponse: info.response ? String(info.response) : null,
+            errorMessage: rejectedSet.has(recipient) ? "Rejected by SMTP provider" : null,
+          })),
+        }),
       });
     }
-
-    const [sentCount, repliedCount] = await Promise.all([
-      prisma.outreachLead.count({ where: { campaignId, emailStatus: "sent" } }),
-      prisma.outreachLead.count({
-        where: {
-          campaignId,
-          emailStatus: { in: ["replied", "interested"] },
-        },
-      }),
-    ]);
-
-    await prisma.outreachCampaign.update({
-      where: { id: campaignId },
-      data: { emailsSent: sentCount, replies: repliedCount },
-    });
 
     return NextResponse.json({
       ok: true,
@@ -110,25 +104,33 @@ export async function POST(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Send failed";
-    await prisma.outreachLead.update({
-      where: { id: leadId },
-      data: {
+
+    // Update lead status back to pending
+    const existingNotes = (lead.notes || "");
+    await fetchFromCore(`/api/admin/outreach/${campaignId}/leads/${leadId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         emailStatus: "pending",
-        notes: [lead.notes, `Send failed: ${message}`].filter(Boolean).join("\n"),
-      },
+        notes: [existingNotes, `Send failed: ${message}`].filter(Boolean).join("\n"),
+      }),
     });
 
     if (to.length > 0) {
-      await prisma.outreachEmailDeliveryLog.createMany({
-        data: to.map((recipient) => ({
-          campaignId,
-          leadId,
-          recipient,
-          subject,
-          status: "failed",
-          provider: "smtp",
-          errorMessage: message,
-        })),
+      await fetchFromCore("/api/admin/outreach/delivery-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          logs: to.map((recipient) => ({
+            campaignId,
+            leadId,
+            recipient,
+            subject,
+            status: "failed",
+            provider: "smtp",
+            errorMessage: message,
+          })),
+        }),
       });
     }
 

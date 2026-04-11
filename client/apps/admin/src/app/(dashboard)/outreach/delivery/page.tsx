@@ -1,68 +1,27 @@
 import Link from "next/link";
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import Pagination from "@/components/admin/pagination";
 
 const PAGE_SIZE = 100;
 
-function parseDateStart(value?: string) {
-  if (!value) return null;
-  const d = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
+type DeliveryLog = {
+  id: string;
+  campaignId: string | null;
+  leadId: string | null;
+  recipient: string;
+  subject: string;
+  status: string;
+  provider: string;
+  providerMessageId: string | null;
+  errorMessage: string | null;
+  attemptedAt: string;
+  campaign_name: string | null;
+  campaign_category: string | null;
+  lead_business_name: string | null;
+  lead_website: string | null;
+};
 
-function parseDateEnd(value?: string) {
-  if (!value) return null;
-  const d = new Date(`${value}T23:59:59.999Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function buildWhere(filters: {
-  campaignId?: string;
-  status?: string;
-  mode?: string;
-  recipient?: string;
-  domain?: string;
-  dateFrom?: string;
-  dateTo?: string;
-}) {
-  const where: Record<string, unknown> = {};
-
-  if (filters.campaignId) where.campaignId = filters.campaignId;
-  if (filters.status) where.status = filters.status;
-  if (filters.mode === "test") {
-    where.campaign = { category: "system-test" };
-  }
-  if (filters.mode === "live") {
-    where.NOT = { campaign: { category: "system-test" } };
-  }
-  if (filters.recipient) {
-    where.recipient = {
-      contains: filters.recipient,
-      mode: "insensitive",
-    };
-  }
-  if (filters.domain) {
-    const normalizedDomain = filters.domain.replace(/^@+/, "").trim().toLowerCase();
-    if (normalizedDomain) {
-      where.recipient = {
-        ...(typeof where.recipient === "object" && where.recipient ? (where.recipient as object) : {}),
-        endsWith: `@${normalizedDomain}`,
-        mode: "insensitive",
-      };
-    }
-  }
-
-  const from = parseDateStart(filters.dateFrom);
-  const to = parseDateEnd(filters.dateTo);
-  if (from || to) {
-    where.attemptedAt = {
-      ...(from ? { gte: from } : {}),
-      ...(to ? { lte: to } : {}),
-    };
-  }
-
-  return where;
-}
+type Campaign = { id: string; name: string };
 
 export default async function OutreachDeliveryPage({
   searchParams,
@@ -80,45 +39,36 @@ export default async function OutreachDeliveryPage({
 }) {
   const filters = await searchParams;
   const currentPage = Math.max(1, parseInt(filters.page || "1", 10));
-  const where = buildWhere(filters);
 
-  const [campaigns, logs, totalItems, groupedStatus] = await Promise.all([
-    prisma.outreachCampaign.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.outreachEmailDeliveryLog.findMany({
-      where,
-      orderBy: { attemptedAt: "desc" },
-      skip: (currentPage - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: {
-        campaign: { select: { name: true, category: true } },
-        lead: { select: { businessName: true, website: true } },
-      },
-    }),
-    prisma.outreachEmailDeliveryLog.count({ where }),
-    prisma.outreachEmailDeliveryLog.groupBy({
-      by: ["status"],
-      where,
-      _count: true,
-    }),
+  // Build query params for Rust endpoint
+  const q = new URLSearchParams();
+  if (filters.campaignId) q.set("campaignId", filters.campaignId);
+  if (filters.status) q.set("status", filters.status);
+  if (filters.mode) q.set("mode", filters.mode);
+  if (filters.recipient) q.set("recipient", filters.recipient);
+  if (filters.domain) q.set("domain", filters.domain);
+  if (filters.dateFrom) q.set("dateFrom", filters.dateFrom);
+  if (filters.dateTo) q.set("dateTo", filters.dateTo);
+
+  const [campaignsRes, logsRes] = await Promise.all([
+    fetchFromCore("/api/admin/outreach"),
+    fetchFromCore(`/api/admin/outreach/delivery?${q.toString()}&limit=20000`),
   ]);
 
-  const totalPages = Math.ceil(totalItems / PAGE_SIZE);
-  const statusMap = Object.fromEntries(groupedStatus.map((row) => [row.status, row._count]));
-  const sentCount = Number(statusMap.sent || 0);
-  const failedCount = Number(statusMap.failed || 0);
+  const campaigns: Campaign[] = campaignsRes.ok ? await campaignsRes.json() : [];
+  const allLogs: DeliveryLog[] = logsRes.ok ? await logsRes.json() : [];
+
+  // Compute stats from returned logs
+  const totalItems = allLogs.length;
+  const sentCount = allLogs.filter((l) => l.status === "sent").length;
+  const failedCount = allLogs.filter((l) => l.status === "failed").length;
   const failRate = totalItems > 0 ? Math.round((failedCount / totalItems) * 100) : 0;
 
-  const exportParams = new URLSearchParams();
-  if (filters.campaignId) exportParams.set("campaignId", filters.campaignId);
-  if (filters.status) exportParams.set("status", filters.status);
-  if (filters.mode) exportParams.set("mode", filters.mode);
-  if (filters.recipient) exportParams.set("recipient", filters.recipient);
-  if (filters.domain) exportParams.set("domain", filters.domain);
-  if (filters.dateFrom) exportParams.set("dateFrom", filters.dateFrom);
-  if (filters.dateTo) exportParams.set("dateTo", filters.dateTo);
+  // Client-side pagination
+  const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+  const logs = allLogs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const exportParams = new URLSearchParams(q);
 
   return (
     <div className="space-y-6">
@@ -249,7 +199,6 @@ export default async function OutreachDeliveryPage({
                   <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Recipient</th>
                   <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Status</th>
                   <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Subject</th>
-                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Provider Response</th>
                   <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Error</th>
                 </tr>
               </thead>
@@ -260,21 +209,21 @@ export default async function OutreachDeliveryPage({
                       {new Date(log.attemptedAt).toLocaleString()}
                     </td>
                     <td className="px-2 py-2 text-xs text-text">
-                      {log.campaign?.name || "--"}
+                      {log.campaign_name || "--"}
                     </td>
                     <td className="px-2 py-2 text-xs text-text-muted">
-                      {log.campaign?.category === "system-test" ? "Test" : "Live"}
+                      {log.campaign_category === "system-test" ? "Test" : "Live"}
                     </td>
                     <td className="px-2 py-2 text-xs text-text-muted">
-                      <p className="text-text">{log.lead?.businessName || "--"}</p>
-                      {log.lead?.website ? (
+                      <p className="text-text">{log.lead_business_name || "--"}</p>
+                      {log.lead_website ? (
                         <a
-                          href={log.lead.website}
+                          href={log.lead_website}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline break-all"
                         >
-                          {log.lead.website}
+                          {log.lead_website}
                         </a>
                       ) : null}
                     </td>
@@ -292,9 +241,6 @@ export default async function OutreachDeliveryPage({
                     </td>
                     <td className="px-2 py-2 text-xs text-text max-w-[320px] truncate" title={log.subject}>
                       {log.subject}
-                    </td>
-                    <td className="px-2 py-2 text-xs text-text-muted max-w-[320px] truncate" title={log.providerResponse || ""}>
-                      {log.providerResponse || "--"}
                     </td>
                     <td className="px-2 py-2 text-xs text-red-300 max-w-[320px] truncate" title={log.errorMessage || ""}>
                       {log.errorMessage || "--"}

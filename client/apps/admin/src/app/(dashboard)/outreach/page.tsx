@@ -1,82 +1,44 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
 import CampaignsTable from "@/components/admin/campaigns-table";
 import OutreachDeleteAllButton from "@/components/admin/outreach-delete-all";
 import AddOutreachLead from "@/components/admin/add-outreach-lead";
 import OutreachSyncDraftsButton from "@/components/admin/outreach-sync-drafts-button";
 
+type Campaign = {
+  id: string;
+  name: string;
+  category: string;
+  status: string;
+  totalLeads: number;
+  emailsSent: number;
+  replies: number;
+  createdAt: string;
+};
+
 export default async function OutreachPage() {
-  const [campaigns, statusBreakdown, categoryBreakdown] = await Promise.all([
-    prisma.outreachCampaign.findMany({
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.outreachLead.groupBy({
-      by: ["emailStatus"],
-      _count: true,
-    }),
-    prisma.outreachLead.groupBy({
-      by: ["category", "emailStatus"],
-      _count: true,
-    }),
-  ]);
+  const res = await fetchFromCore("/api/admin/outreach");
+  const campaigns: Campaign[] = res.ok ? await res.json() : [];
 
-  const serialized = campaigns.map((c) => ({
-    id: c.id,
-    name: c.name,
-    category: c.category,
-    status: c.status,
-    totalLeads: c.totalLeads,
-    emailsSent: c.emailsSent,
-    replies: c.replies,
-    createdAt: c.createdAt.toISOString(),
-  }));
-
-  // Overall stats
-  const totalLeads = campaigns.reduce((sum, c) => sum + c.totalLeads, 0);
-  const statusMap = Object.fromEntries(
-    statusBreakdown.map((s) => [s.emailStatus, s._count])
-  );
-  const totalSent = (statusMap.sent || 0) + (statusMap.replied || 0) + (statusMap.interested || 0) + (statusMap.not_interested || 0);
-  const totalReplied = (statusMap.replied || 0) + (statusMap.interested || 0) + (statusMap.not_interested || 0);
-  const totalInterested = statusMap.interested || 0;
-  const totalBounced = statusMap.bounced || 0;
-  const totalPending = statusMap.pending || 0;
+  // Aggregate stats from campaign-level data
+  const totalLeads = campaigns.reduce((s, c) => s + c.totalLeads, 0);
+  const totalSent = campaigns.reduce((s, c) => s + c.emailsSent, 0);
+  const totalReplied = campaigns.reduce((s, c) => s + c.replies, 0);
   const responseRate = totalSent > 0 ? Math.round((totalReplied / totalSent) * 100) : 0;
-  const interestRate = totalSent > 0 ? Math.round((totalInterested / totalSent) * 100) : 0;
+  const totalPending = totalLeads - totalSent;
 
-  // Category stats
-  type CategoryStats = {
-    total: number;
-    pending: number;
-    sent: number;
-    replied: number;
-    interested: number;
-    not_interested: number;
-    bounced: number;
-  };
+  // By category: group campaigns by category
+  type CategoryStats = { total: number; sent: number; replied: number };
   const categoryMap: Record<string, CategoryStats> = {};
-  for (const row of categoryBreakdown) {
-    if (!categoryMap[row.category]) {
-      categoryMap[row.category] = {
-        total: 0,
-        pending: 0,
-        sent: 0,
-        replied: 0,
-        interested: 0,
-        not_interested: 0,
-        bounced: 0,
-      };
+  for (const c of campaigns) {
+    if (!categoryMap[c.category]) {
+      categoryMap[c.category] = { total: 0, sent: 0, replied: 0 };
     }
-    categoryMap[row.category].total += row._count;
-    const status = row.emailStatus as keyof CategoryStats;
-    if (status in categoryMap[row.category]) {
-      (categoryMap[row.category][status] as number) += row._count;
-    }
+    categoryMap[c.category].total += c.totalLeads;
+    categoryMap[c.category].sent += c.emailsSent;
+    categoryMap[c.category].replied += c.replies;
   }
-
-  const sortedCategories = Object.entries(categoryMap).sort(
-    (a, b) => b[1].total - a[1].total
-  );
+  const sortedCategories = Object.entries(categoryMap).sort((a, b) => b[1].total - a[1].total);
 
   return (
     <div className="space-y-6">
@@ -133,9 +95,11 @@ export default async function OutreachPage() {
           <p className="text-xs text-purple-400/60 mt-1">{responseRate}% response rate</p>
         </div>
         <div className="bg-green-500/10 rounded-xl border border-green-500/20 p-5">
-          <p className="text-sm text-green-400">Interested</p>
-          <p className="text-3xl font-bold text-green-400 mt-1">{totalInterested}</p>
-          <p className="text-xs text-green-400/60 mt-1">{interestRate}% interest rate</p>
+          <p className="text-sm text-green-400">Campaigns</p>
+          <p className="text-3xl font-bold text-green-400 mt-1">{campaigns.length}</p>
+          <p className="text-xs text-green-400/60 mt-1">
+            {campaigns.filter((c) => c.status === "active").length} active
+          </p>
         </div>
       </div>
 
@@ -145,11 +109,8 @@ export default async function OutreachPage() {
           <h2 className="font-semibold mb-4 text-text">Outreach Pipeline</h2>
           <div className="space-y-3">
             <PipelineRow label="Pending" count={totalPending} total={totalLeads} color="bg-white/20" />
-            <PipelineRow label="Sent" count={statusMap.sent || 0} total={totalLeads} color="bg-blue-500" />
-            <PipelineRow label="Replied" count={statusMap.replied || 0} total={totalLeads} color="bg-purple-500" />
-            <PipelineRow label="Interested" count={totalInterested} total={totalLeads} color="bg-green-500" />
-            <PipelineRow label="Not Interested" count={statusMap.not_interested || 0} total={totalLeads} color="bg-yellow-500" />
-            <PipelineRow label="Bounced" count={totalBounced} total={totalLeads} color="bg-red-500" />
+            <PipelineRow label="Sent" count={totalSent} total={totalLeads} color="bg-blue-500" />
+            <PipelineRow label="Replied" count={totalReplied} total={totalLeads} color="bg-purple-500" />
           </div>
         </div>
 
@@ -161,9 +122,7 @@ export default async function OutreachPage() {
           ) : (
             <div className="space-y-3 max-h-80 overflow-y-auto">
               {sortedCategories.map(([category, stats]) => {
-                const catSent = stats.sent + stats.replied + stats.interested + stats.not_interested;
-                const catReplied = stats.replied + stats.interested + stats.not_interested;
-                const catRate = catSent > 0 ? Math.round((catReplied / catSent) * 100) : 0;
+                const catRate = stats.sent > 0 ? Math.round((stats.replied / stats.sent) * 100) : 0;
                 return (
                   <div key={category} className="border-b border-border pb-3 last:border-0 last:pb-0">
                     <div className="flex items-center justify-between mb-1">
@@ -173,30 +132,19 @@ export default async function OutreachPage() {
                       <span className="text-xs text-text-muted">{stats.total} leads</span>
                     </div>
                     <div className="flex gap-2 text-xs">
-                      <span className="text-text-faint">{stats.pending} pending</span>
-                      <span className="text-blue-400">{catSent} sent</span>
-                      <span className="text-purple-400">{catReplied} replied</span>
-                      <span className="text-green-400">{stats.interested} interested</span>
+                      <span className="text-text-faint">{stats.total - stats.sent} pending</span>
+                      <span className="text-blue-400">{stats.sent} sent</span>
+                      <span className="text-purple-400">{stats.replied} replied</span>
                       {catRate > 0 && (
                         <span className="text-text-muted ml-auto">{catRate}% rate</span>
                       )}
                     </div>
-                    {/* Mini progress bar */}
                     <div className="flex h-1.5 rounded-full overflow-hidden mt-2 bg-white/5">
-                      {stats.interested > 0 && (
-                        <div className="bg-green-500" style={{ width: `${(stats.interested / stats.total) * 100}%` }} />
-                      )}
                       {stats.replied > 0 && (
                         <div className="bg-purple-500" style={{ width: `${(stats.replied / stats.total) * 100}%` }} />
                       )}
-                      {stats.not_interested > 0 && (
-                        <div className="bg-yellow-500" style={{ width: `${(stats.not_interested / stats.total) * 100}%` }} />
-                      )}
                       {stats.sent > 0 && (
-                        <div className="bg-blue-500" style={{ width: `${(stats.sent / stats.total) * 100}%` }} />
-                      )}
-                      {stats.bounced > 0 && (
-                        <div className="bg-red-500" style={{ width: `${(stats.bounced / stats.total) * 100}%` }} />
+                        <div className="bg-blue-500" style={{ width: `${((stats.sent - stats.replied) / stats.total) * 100}%` }} />
                       )}
                     </div>
                   </div>
@@ -208,7 +156,7 @@ export default async function OutreachPage() {
       </div>
 
       {/* Campaigns Table */}
-      <CampaignsTable campaigns={serialized} />
+      <CampaignsTable campaigns={campaigns} />
     </div>
   );
 }

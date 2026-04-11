@@ -1,14 +1,23 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { prisma } from "@kasitek/database";
+import { getAdminSession, fetchFromCore } from "@/lib/admin-auth";
 
 type DraftLead = {
   website?: string;
   contact_emails?: string[];
   subject?: string;
   email_body?: string;
+};
+
+type OutreachLeadRow = {
+  id: string;
+  campaignId: string;
+  businessName: string;
+  website: string | null;
+  emailAddress: string | null;
+  emailTemplate: string | null;
+  notes: string | null;
 };
 
 function normalizeEmails(input: string[] | null | undefined) {
@@ -66,11 +75,36 @@ async function resolveDraftDir() {
   return candidates[0];
 }
 
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+async function fetchAllLeads(campaignId: string | null): Promise<OutreachLeadRow[]> {
+  // Fetch campaigns first to get all campaign IDs when no specific campaign is given
+  if (campaignId) {
+    const res = await fetchFromCore(`/api/admin/outreach/${campaignId}/leads`);
+    if (!res.ok) return [];
+    const data = await res.json() as OutreachLeadRow[];
+    return Array.isArray(data) ? data.filter((l) => l.website) : [];
   }
+
+  // No campaign filter: fetch all campaigns then all their leads
+  const campaignsRes = await fetchFromCore("/api/admin/outreach");
+  if (!campaignsRes.ok) return [];
+  const campaignsData = await campaignsRes.json() as Array<{ id: string }>;
+  const campaigns = Array.isArray(campaignsData) ? campaignsData : [];
+
+  const allLeads: OutreachLeadRow[] = [];
+  for (const campaign of campaigns) {
+    const res = await fetchFromCore(`/api/admin/outreach/${campaign.id}/leads`);
+    if (!res.ok) continue;
+    const data = await res.json() as OutreachLeadRow[];
+    const filtered = Array.isArray(data) ? data.filter((l) => l.website) : [];
+    allLeads.push(...filtered);
+  }
+  return allLeads;
+}
+
+export async function POST(req: Request) {
+  const admin = await getAdminSession();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const debug = searchParams.get("debug") === "1";
   const body = await req.json().catch(() => ({}));
@@ -93,7 +127,6 @@ export async function POST(req: Request) {
         const key = normalizeWebsite(lead.website);
         if (!key || !lead.email_body?.trim()) continue;
         const existing = websiteMap.get(key);
-        // keep richer draft when duplicates exist
         if (!existing || (lead.email_body?.length || 0) > (existing.email_body?.length || 0)) {
           websiteMap.set(key, lead);
         }
@@ -103,13 +136,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const leads = await prisma.outreachLead.findMany({
-    where: {
-      website: { not: null },
-      ...(campaignId ? { campaignId } : {}),
-    },
-    select: { id: true, website: true, emailAddress: true, notes: true },
-  });
+  const leads = await fetchAllLeads(campaignId);
 
   let matched = 0;
   let updated = 0;
@@ -144,47 +171,20 @@ export async function POST(req: Request) {
 
     if (!emailTemplate) continue;
 
-    await prisma.outreachLead.update({
-      where: { id: lead.id },
-      data: {
-        emailTemplate,
-        ...(emailAddress ? { emailAddress } : {}),
-        ...(subject ? { notes: upsertSubjectInNotes(lead.notes, subject) } : {}),
-      },
+    const patchBody: Record<string, unknown> = { emailTemplate };
+    if (emailAddress) patchBody.emailAddress = emailAddress;
+    if (subject) patchBody.notes = upsertSubjectInNotes(lead.notes, subject);
+
+    await fetchFromCore(`/api/admin/outreach/${lead.campaignId}/leads/${lead.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patchBody),
     });
     updated += 1;
   }
 
-  const sendable = await prisma.outreachLead.count({
-    where: {
-      emailAddress: { not: null },
-      emailTemplate: { not: null },
-      ...(campaignId ? { campaignId } : {}),
-    },
-  });
-
   const draftKeySamples = debug ? Array.from(websiteMap.keys()).slice(0, 80) : [];
   const dbKeySamples = debug ? leads.map((l) => normalizeWebsite(l.website)).slice(0, 80) : [];
-
-  if (debug) {
-    console.log(
-      "[sync-drafts-debug]",
-      JSON.stringify(
-        {
-          draftWebsites: websiteMap.size,
-          dbLeadsWithWebsite: leads.length,
-          matched,
-          updated,
-          sendable,
-          draftKeySamples,
-          dbKeySamples,
-          debugSamples,
-        },
-        null,
-        2
-      )
-    );
-  }
 
   return NextResponse.json({
     ok: true,
@@ -193,7 +193,6 @@ export async function POST(req: Request) {
     dbLeadsWithWebsite: leads.length,
     matched,
     updated,
-    sendable,
     ...(debug
       ? {
           draftKeySamples,
@@ -206,10 +205,8 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const admin = await getAdminSession();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const debug = searchParams.get("debug") === "1";
@@ -240,23 +237,8 @@ export async function GET(req: Request) {
     }
   }
 
-  const leads = await prisma.outreachLead.findMany({
-    where: {
-      website: { not: null },
-      ...(campaignId ? { campaignId } : {}),
-    },
-    select: {
-      id: true,
-      campaignId: true,
-      businessName: true,
-      website: true,
-      emailAddress: true,
-      emailTemplate: true,
-      notes: true,
-    },
-    take: limit,
-    orderBy: { createdAt: "desc" },
-  });
+  const allLeads = await fetchAllLeads(campaignId);
+  const leads = allLeads.slice(0, limit);
 
   const debugSamples = leads.map((lead) => {
     const normalizedDbKey = normalizeWebsite(lead.website);

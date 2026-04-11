@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import InvoiceBuilder from "@/components/admin/invoice-builder";
 import { getDefaultInvoiceDraft, getTemplateDraft } from "@/lib/invoice";
 
@@ -9,9 +9,19 @@ export default async function NewInvoicePage({
   searchParams: Promise<{ leadId?: string }>;
 }) {
   const params = await searchParams;
-  const lead = params.leadId
-    ? await prisma.quoteRequest.findUnique({ where: { id: params.leadId } })
-    : null;
+  let lead: {
+    id: string;
+    businessName: string;
+    contactPerson: string;
+    email: string;
+    phone: string;
+    services: string[];
+  } | null = null;
+
+  if (params.leadId) {
+    const res = await fetchFromCore(`/api/admin/leads/${params.leadId}`);
+    if (res.ok) lead = await res.json();
+  }
 
   const draft = lead
     ? {

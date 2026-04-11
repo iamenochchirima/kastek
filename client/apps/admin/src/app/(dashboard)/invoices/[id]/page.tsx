@@ -1,4 +1,4 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import InvoiceBuilder from "@/components/admin/invoice-builder";
@@ -11,11 +11,9 @@ export default async function InvoiceDetailPage({
 }) {
   const { id } = await params;
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id },
-  });
-
-  if (!invoice) notFound();
+  const res = await fetchFromCore(`/api/admin/invoices/${id}`);
+  if (!res.ok) notFound();
+  const invoice = await res.json();
 
   const draft = invoiceRecordToDraft(invoice);
 

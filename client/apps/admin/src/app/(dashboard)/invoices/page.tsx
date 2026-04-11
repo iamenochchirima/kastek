@@ -1,4 +1,4 @@
-import { prisma } from "@kasitek/database";
+import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
 import { getServiceLabel } from "@/lib/invoice";
 
@@ -11,20 +11,18 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default async function InvoicesPage() {
-  const invoices = await prisma.invoice.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      businessName: true,
-      contactPerson: true,
-      contactEmail: true,
-      serviceType: true,
-      title: true,
-      status: true,
-      pricingItems: true,
-      createdAt: true,
-    },
-  });
+  const res = await fetchFromCore("/api/admin/invoices");
+  const invoices: Array<{
+    id: string;
+    businessName: string;
+    contactPerson: string;
+    contactEmail: string;
+    serviceType: string;
+    title: string;
+    status: string;
+    pricingItems: Array<{ amount?: string }>;
+    createdAt: string;
+  }> = res.ok ? await res.json() : [];
 
   return (
     <div className="space-y-6">
@@ -66,7 +64,7 @@ export default async function InvoicesPage() {
                 <div>
                   <p className="font-medium text-sm text-text">{invoice.businessName}</p>
                   <p className="text-xs text-text-faint">
-                    Created {invoice.createdAt.toLocaleDateString()}
+                    Created {new Date(invoice.createdAt).toLocaleDateString()}
                   </p>
                 </div>
 
@@ -80,7 +78,7 @@ export default async function InvoicesPage() {
                   <p className="text-xs text-text-faint">
                     {getServiceLabel(invoice.serviceType)}
                     {Array.isArray(invoice.pricingItems) && invoice.pricingItems.length > 0
-                      ? ` · ${String((invoice.pricingItems[0] as { amount?: string }).amount || "")}`
+                      ? ` · ${String(invoice.pricingItems[0]?.amount || "")}`
                       : ""}
                   </p>
                 </div>
