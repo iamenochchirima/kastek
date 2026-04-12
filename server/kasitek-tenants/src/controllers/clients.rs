@@ -377,9 +377,12 @@ pub async fn invite_client_user(
 
     let email_sent = if let Some(url) = activation_url.as_deref() {
         mail::send_client_invite_email(
+            pool,
             config,
-            &email,
+            &session.workspace_id,
+            &session.workspace_slug,
             &mail_context.workspace_display_name,
+            &email,
             &mail_context.tenant_client_name,
             url,
             expires_at,

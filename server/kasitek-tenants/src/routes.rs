@@ -1,8 +1,8 @@
 use actix_web::web;
 
 use crate::controllers::{
-    admin, agents, auth, client_auth, client_portal, clients, conversations, dashboard, health,
-    leads, session, usage, workspace,
+    admin, agents, auth, client_auth, client_portal, clients, conversations, dashboard,
+    email_settings, health, leads, session, usage, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -55,7 +55,19 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/domains", web::post().to(workspace::add_workspace_domain))
                 .route("/domains/{domain_id}", web::delete().to(workspace::remove_workspace_domain))
                 .route("/domains/{domain_id}/verify", web::post().to(workspace::verify_workspace_domain))
-                .route("/domains/{domain_id}/primary", web::post().to(workspace::set_workspace_primary_domain)),
+                .route("/domains/{domain_id}/primary", web::post().to(workspace::set_workspace_primary_domain))
+                .route("/email-sending", web::get().to(email_settings::get_email_settings))
+                .route("/email-sending", web::put().to(email_settings::update_email_settings))
+                .route("/email-sending/domains", web::post().to(email_settings::create_custom_email_domain))
+                .route(
+                    "/email-sending/domains/{domain_id}/verify",
+                    web::post().to(email_settings::verify_custom_email_domain),
+                )
+                .route(
+                    "/email-sending/domains/{domain_id}",
+                    web::delete().to(email_settings::remove_custom_email_domain),
+                )
+                .route("/email-sending/test", web::post().to(email_settings::send_test_email)),
         )
         .service(
             web::scope("/api/clients")

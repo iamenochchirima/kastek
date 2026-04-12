@@ -104,6 +104,7 @@ pub struct TenantServerConfig {
     pub admin_secret: Option<String>,
     pub resend_api_key: Option<String>,
     pub resend_from_email: String,
+    pub shared_email_domain: String,
 }
 
 impl TenantServerConfig {
@@ -117,8 +118,9 @@ impl TenantServerConfig {
 
         let database_url = env_optional("KASITEK_TENANTS_DATABASE_URL")
             .or_else(|| env_optional("TENANT_DATABASE_URL"))
-            .or_else(|| env_optional("DATABASE_URL"))
-            .ok_or(ConfigError::MissingVar("KASITEK_TENANTS_DATABASE_URL"))?;
+            .ok_or(ConfigError::MissingVar(
+                "tenant database url (KASITEK_TENANTS_DATABASE_URL or TENANT_DATABASE_URL)",
+            ))?;
 
         let database_max_connections = env_optional("TENANT_DATABASE_MAX_CONNECTIONS")
             .and_then(|value| value.parse::<u32>().ok())
@@ -200,6 +202,11 @@ impl TenantServerConfig {
         let resend_from_email = env_optional("TENANT_RESEND_FROM_EMAIL")
             .or_else(|| env_optional("RESEND_FROM_EMAIL"))
             .unwrap_or_else(|| "KasiTek <onboarding@resend.dev>".to_string());
+        let shared_email_domain =
+            env_string_or("TENANT_SHARED_EMAIL_DOMAIN", "send.kasitek.co.za")
+                .trim()
+                .trim_matches('.')
+                .to_ascii_lowercase();
 
         Ok(Self {
             port,
@@ -223,6 +230,7 @@ impl TenantServerConfig {
             admin_secret,
             resend_api_key,
             resend_from_email,
+            shared_email_domain,
         })
     }
 
