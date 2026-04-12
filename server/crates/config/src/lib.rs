@@ -90,6 +90,8 @@ pub struct TenantServerConfig {
     pub allowed_origins: Vec<String>,
     pub cors_allow_credentials: bool,
     pub app_base_url: Option<String>,
+    pub portal_host_target: Option<String>,
+    pub platform_base_domain: Option<String>,
     pub default_workspace_slug: Option<String>,
     pub session_cookie_name: String,
     pub session_cookie_domain: Option<String>,
@@ -138,6 +140,23 @@ impl TenantServerConfig {
         };
 
         let app_base_url = env_optional("TENANT_APP_BASE_URL");
+        let portal_host_target = env_optional("TENANT_PORTAL_HOST_TARGET").or_else(|| {
+            app_base_url.as_ref().and_then(|url| {
+                let trimmed = url
+                    .trim()
+                    .trim_start_matches("http://")
+                    .trim_start_matches("https://");
+                let host = trimmed.split('/').next().unwrap_or("").split(':').next().unwrap_or("");
+                if host.is_empty() {
+                    None
+                } else {
+                    Some(host.to_ascii_lowercase())
+                }
+            })
+        });
+        let platform_base_domain = env_optional("TENANT_PLATFORM_BASE_DOMAIN")
+            .map(|value| value.trim().trim_matches('.').to_ascii_lowercase())
+            .filter(|value| !value.is_empty());
         let default_workspace_slug = env_optional("TENANT_DEFAULT_WORKSPACE_SLUG");
         let cors_allow_credentials = env_optional("TENANT_CORS_ALLOW_CREDENTIALS")
             .map(|value| {
@@ -190,6 +209,8 @@ impl TenantServerConfig {
             allowed_origins,
             cors_allow_credentials,
             app_base_url,
+            portal_host_target,
+            platform_base_domain,
             default_workspace_slug,
             session_cookie_name,
             session_cookie_domain,

@@ -50,7 +50,12 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/workspace")
                 .route("", web::get().to(workspace::get_workspace))
-                .route("/branding", web::get().to(workspace::get_branding)),
+                .route("/branding", web::get().to(workspace::get_branding))
+                .route("/domains", web::get().to(workspace::list_workspace_domains))
+                .route("/domains", web::post().to(workspace::add_workspace_domain))
+                .route("/domains/{domain_id}", web::delete().to(workspace::remove_workspace_domain))
+                .route("/domains/{domain_id}/verify", web::post().to(workspace::verify_workspace_domain))
+                .route("/domains/{domain_id}/primary", web::post().to(workspace::set_workspace_primary_domain)),
         )
         .service(
             web::scope("/api/clients")
@@ -96,6 +101,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/workspaces/{id}/staff", web::post().to(admin::add_workspace_staff))
                 .route("/workspaces/{id}/staff/{user_id}", web::delete().to(admin::remove_workspace_staff))
                 .route("/workspaces/{id}/clients", web::get().to(admin::list_workspace_clients))
+                .route("/workspaces/{id}/domains", web::get().to(admin::list_workspace_domains))
+                .route("/workspaces/{id}/domains", web::post().to(admin::add_workspace_domain))
+                .route("/workspaces/{id}/domains/{domain_id}", web::delete().to(admin::remove_workspace_domain))
+                .route("/workspaces/{id}/domains/{domain_id}/verify", web::post().to(admin::verify_workspace_domain))
+                .route("/workspaces/{id}/domains/{domain_id}/primary", web::post().to(admin::set_workspace_primary_domain))
                 .route("/workspaces/{id}/api-keys", web::get().to(admin::list_workspace_api_keys))
                 .route("/workspaces/{id}/api-keys", web::post().to(admin::create_workspace_api_key))
                 .route("/workspaces/{id}/api-keys/{key_id}", web::delete().to(admin::revoke_workspace_api_key)),

@@ -194,6 +194,30 @@ fn normalize_host(host: &str) -> String {
         .to_ascii_lowercase()
 }
 
+fn workspace_slug_from_platform_host(host: &str, platform_base_domain: &str) -> Option<String> {
+    let host = host.trim().trim_matches('.').to_ascii_lowercase();
+    let base = platform_base_domain
+        .trim()
+        .trim_matches('.')
+        .to_ascii_lowercase();
+
+    if host.is_empty() || base.is_empty() {
+        return None;
+    }
+
+    if host == base {
+        return None;
+    }
+
+    let suffix = format!(".{base}");
+    let slug = host.strip_suffix(&suffix)?.trim();
+    if slug.is_empty() || slug.contains('.') {
+        return None;
+    }
+
+    Some(slug.to_string())
+}
+
 pub async fn resolve_workspace_from_request(
     req: &HttpRequest,
 ) -> Result<TenantResolvedWorkspace, AppError> {
@@ -230,6 +254,14 @@ pub async fn resolve_workspace_from_request(
                     workspace_slug: record.workspace_slug,
                     display_name: record.display_name,
                 });
+            }
+
+            if let Some(platform_base_domain) = &config.platform_base_domain {
+                if let Some(workspace_slug) =
+                    workspace_slug_from_platform_host(&host, platform_base_domain)
+                {
+                    return resolve_workspace_by_slug(pool, &workspace_slug).await;
+                }
             }
         }
     }

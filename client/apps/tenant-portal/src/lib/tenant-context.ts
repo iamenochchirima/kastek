@@ -22,6 +22,96 @@ export type PublicTenantContext = {
 
 export type TenantThemeStyle = CSSProperties & Record<string, string>;
 
+/**
+ * Feature flags derived from the tenant's widgetConfig.
+ * All features default to enabled when no config is present, so existing
+ * tenants see no change. A tenant can restrict features by setting:
+ *   widgetConfig.features = { voice: false, aeo: false }
+ * or by listing only allowed modules in:
+ *   widgetConfig.enabledModules = ["dashboard", "clients", "leads"]
+ */
+export type TenantFeatureConfig = {
+  dashboard: boolean;
+  clients: boolean;
+  leads: boolean;
+  content: boolean;
+  reporting: boolean;
+  nurturing: boolean;
+  aeo: boolean;
+  voice: boolean;
+  reviews: boolean;
+  adcreative: boolean;
+  settings: boolean;
+};
+
+export type TenantFeatureKey = keyof TenantFeatureConfig;
+
+const ALL_FEATURES_ENABLED: TenantFeatureConfig = {
+  dashboard: true,
+  clients: true,
+  leads: true,
+  content: true,
+  reporting: true,
+  nurturing: true,
+  aeo: true,
+  voice: true,
+  reviews: true,
+  adcreative: true,
+  settings: true,
+};
+
+export function getTenantFeatureConfig(
+  context: PublicTenantContext | null | undefined,
+): TenantFeatureConfig {
+  const widgetConfig = context?.branding?.widgetConfig;
+
+  if (!widgetConfig || typeof widgetConfig !== "object") {
+    return ALL_FEATURES_ENABLED;
+  }
+
+  const config = widgetConfig as Record<string, unknown>;
+
+  // Support widgetConfig.features = { voice: false, aeo: false, ... }
+  const featuresEntry = config["features"];
+  if (featuresEntry && typeof featuresEntry === "object" && !Array.isArray(featuresEntry)) {
+    const f = featuresEntry as Record<string, unknown>;
+    return {
+      dashboard: f["dashboard"] !== false,
+      clients: f["clients"] !== false,
+      leads: f["leads"] !== false,
+      content: f["content"] !== false,
+      reporting: f["reporting"] !== false,
+      nurturing: f["nurturing"] !== false,
+      aeo: f["aeo"] !== false,
+      voice: f["voice"] !== false,
+      reviews: f["reviews"] !== false,
+      adcreative: f["adcreative"] !== false,
+      settings: f["settings"] !== false,
+    };
+  }
+
+  // Support widgetConfig.enabledModules = ["dashboard", "clients", "leads"]
+  const enabledModules = config["enabledModules"];
+  if (Array.isArray(enabledModules)) {
+    const moduleSet = new Set(enabledModules as string[]);
+    return {
+      dashboard: moduleSet.has("dashboard"),
+      clients: moduleSet.has("clients"),
+      leads: moduleSet.has("leads"),
+      content: moduleSet.has("content"),
+      reporting: moduleSet.has("reporting"),
+      nurturing: moduleSet.has("nurturing"),
+      aeo: moduleSet.has("aeo"),
+      voice: moduleSet.has("voice"),
+      reviews: moduleSet.has("reviews"),
+      adcreative: moduleSet.has("adcreative"),
+      settings: moduleSet.has("settings"),
+    };
+  }
+
+  return ALL_FEATURES_ENABLED;
+}
+
 export const DEFAULT_TENANT_NAME = "KasiTek";
 export const DEFAULT_TENANT_TAGLINE = "White-label workspace";
 

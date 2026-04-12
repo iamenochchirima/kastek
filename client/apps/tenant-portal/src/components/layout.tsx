@@ -14,29 +14,42 @@ import {
   Megaphone,
   LogOut,
   Building2,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { TENANT_ROUTE_ACCESS, hasAnyTenantRole } from "@/lib/tenant-access";
 import { TenantBrandMark, TenantBrandName } from "@/components/tenant-brand";
+import { useTenantContext } from "@/lib/tenant-context-provider";
+import type { TenantFeatureKey } from "@/lib/tenant-context";
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, allowedRoles: TENANT_ROUTE_ACCESS.dashboard },
-  { href: "/clients", label: "Clients", icon: Building2, allowedRoles: TENANT_ROUTE_ACCESS.clients },
-  { href: "/leads", label: "Leads", icon: Users, allowedRoles: TENANT_ROUTE_ACCESS.leads },
-  { href: "/content", label: "Content Pipeline", icon: PenTool, allowedRoles: TENANT_ROUTE_ACCESS.content },
-  { href: "/reporting", label: "Client Reporting", icon: BarChart3, allowedRoles: TENANT_ROUTE_ACCESS.reporting },
-  { href: "/nurturing", label: "Nurturing", icon: Mail, allowedRoles: TENANT_ROUTE_ACCESS.nurturing },
-  { href: "/aeo", label: "AEO", icon: SearchCheck, allowedRoles: TENANT_ROUTE_ACCESS.aeo },
-  { href: "/voice", label: "Voice Agents", icon: Mic, allowedRoles: TENANT_ROUTE_ACCESS.voice },
-  { href: "/reviews", label: "Reputation", icon: Star, allowedRoles: TENANT_ROUTE_ACCESS.reviews },
-  { href: "/adcreative", label: "Ad Creatives", icon: Megaphone, allowedRoles: TENANT_ROUTE_ACCESS.adcreative },
+const navItems: Array<{
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  allowedRoles: readonly string[];
+  featureKey: TenantFeatureKey;
+}> = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, allowedRoles: TENANT_ROUTE_ACCESS.dashboard, featureKey: "dashboard" },
+  { href: "/clients", label: "Clients", icon: Building2, allowedRoles: TENANT_ROUTE_ACCESS.clients, featureKey: "clients" },
+  { href: "/leads", label: "Leads", icon: Users, allowedRoles: TENANT_ROUTE_ACCESS.leads, featureKey: "leads" },
+  { href: "/content", label: "Content Pipeline", icon: PenTool, allowedRoles: TENANT_ROUTE_ACCESS.content, featureKey: "content" },
+  { href: "/reporting", label: "Client Reporting", icon: BarChart3, allowedRoles: TENANT_ROUTE_ACCESS.reporting, featureKey: "reporting" },
+  { href: "/nurturing", label: "Nurturing", icon: Mail, allowedRoles: TENANT_ROUTE_ACCESS.nurturing, featureKey: "nurturing" },
+  { href: "/aeo", label: "AEO", icon: SearchCheck, allowedRoles: TENANT_ROUTE_ACCESS.aeo, featureKey: "aeo" },
+  { href: "/voice", label: "Voice Agents", icon: Mic, allowedRoles: TENANT_ROUTE_ACCESS.voice, featureKey: "voice" },
+  { href: "/reviews", label: "Reputation", icon: Star, allowedRoles: TENANT_ROUTE_ACCESS.reviews, featureKey: "reviews" },
+  { href: "/adcreative", label: "Ad Creatives", icon: Megaphone, allowedRoles: TENANT_ROUTE_ACCESS.adcreative, featureKey: "adcreative" },
+  { href: "/settings", label: "Settings", icon: Settings, allowedRoles: TENANT_ROUTE_ACCESS.settings, featureKey: "settings" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { logout, user } = useAuth();
-  const visibleNavItems = navItems.filter((item) => hasAnyTenantRole(user?.roles, item.allowedRoles));
+  const { features } = useTenantContext();
+  const visibleNavItems = navItems.filter(
+    (item) => features[item.featureKey] && hasAnyTenantRole(user?.roles, [...item.allowedRoles]),
+  );
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">

@@ -6,6 +6,7 @@ import AgencyAddStaff from "@/components/admin/agency-add-staff";
 import AgencyRemoveStaff from "@/components/admin/agency-remove-staff";
 import AgencyAddApiKey from "@/components/admin/agency-add-api-key";
 import AgencyRevokeApiKey from "@/components/admin/agency-revoke-api-key";
+import AgencyDomainsManager from "@/components/admin/agency-domains-manager";
 
 type StaffUser = {
   id: string;
@@ -38,8 +39,21 @@ type Workspace = {
   slug: string;
   displayName: string;
   status: string;
+  hostedDomain?: string | null;
   clientCount: number;
   domains: string[];
+  domainRecords?: Array<{
+    id: string;
+    domain: string;
+    is_primary: boolean;
+    dns_status: string;
+    verified_at: string | null;
+    created_at: string;
+    verification_message: string;
+  }>;
+  domainVerification?: {
+    expectedTargetHost?: string | null;
+  };
   createdAt: string;
 };
 
@@ -116,7 +130,34 @@ export default async function AgencyDetailPage({
         </div>
       </div>
 
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-text">Hosted Portal Domain</h2>
+          <p className="text-sm text-text-muted mt-1">
+            This system-managed domain is the tenant&apos;s immediate fallback access URL.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-surface-raised p-5 text-sm text-text space-y-2">
+          <p>
+            <span className="text-text-muted">Hosted Domain:</span>{" "}
+            <span className="font-mono">{workspace.hostedDomain ?? "Not configured"}</span>
+          </p>
+          <p className="text-text-faint text-xs">
+            Keep the hosted domain active even after a custom domain is added so support and recovery access
+            always have a stable fallback.
+          </p>
+        </div>
+      </section>
+
       {/* Staff */}
+      <AgencyDomainsManager
+        workspaceId={id}
+        workspaceSlug={workspace.slug}
+        domains={workspace.domainRecords ?? []}
+        expectedTargetHost={workspace.domainVerification?.expectedTargetHost ?? null}
+        hostedDomain={workspace.hostedDomain ?? null}
+      />
+
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-text">Staff Users</h2>

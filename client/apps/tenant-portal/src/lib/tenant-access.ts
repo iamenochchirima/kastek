@@ -26,6 +26,7 @@ export const AUTOMATION_ROLES = [
 ];
 export const VOICE_ROLES = [ROLE_OWNER, ROLE_ADMIN, ROLE_AUTOMATION_MANAGER, ROLE_SUPPORT];
 export const REPUTATION_ROLES = [ROLE_OWNER, ROLE_ADMIN, ROLE_ACCOUNT_MANAGER, ROLE_SUPPORT];
+export const SETTINGS_ROLES = [ROLE_OWNER, ROLE_ADMIN];
 export const DASHBOARD_ROLES = [
   ROLE_OWNER,
   ROLE_ADMIN,
@@ -55,6 +56,7 @@ export const TENANT_ROUTE_ACCESS = {
   voice: VOICE_ROLES,
   reviews: REPUTATION_ROLES,
   adcreative: CONTENT_ROLES,
+  settings: SETTINGS_ROLES,
 } as const;
 
 export function hasAnyTenantRole(userRoles: string[] | undefined, allowedRoles: string[]) {

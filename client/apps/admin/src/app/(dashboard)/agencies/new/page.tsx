@@ -16,6 +16,7 @@ export default function NewAgencyPage() {
     displayName: string;
     slug: string;
     status: string;
+    hostedDomain: string | null;
     domains: string[];
     portalUrl: string | null;
     adminEmail: string;
@@ -97,7 +98,11 @@ export default function NewAgencyPage() {
       : form.domain.trim()
         ? [form.domain.trim()]
         : [];
-    const primaryDomain = domains[0] ?? null;
+    const hostedDomain =
+      typeof data?.workspace?.hostedDomain === "string" && data.workspace.hostedDomain.trim().length > 0
+        ? data.workspace.hostedDomain
+        : null;
+    const primaryDomain = domains[0] ?? hostedDomain;
     const portalUrl = primaryDomain
       ? portalUrlForDomain(primaryDomain)
       : tenantPortalBaseUrl;
@@ -106,6 +111,7 @@ export default function NewAgencyPage() {
       displayName: data?.workspace?.displayName ?? form.workspaceName,
       slug: data?.workspace?.slug ?? form.slug,
       status: data?.workspace?.status ?? "active",
+      hostedDomain,
       domains,
       portalUrl,
       adminEmail: data?.adminUser?.email ?? form.adminEmail,
@@ -161,16 +167,22 @@ export default function NewAgencyPage() {
                   <span className="font-mono break-all">{createdWorkspace.portalUrl}</span>
                 </p>
               ) : null}
+              {createdWorkspace.hostedDomain ? (
+                <p className="text-text">
+                  <span className="text-text-muted">Hosted Domain:</span>{" "}
+                  <span className="font-mono">{createdWorkspace.hostedDomain}</span>
+                </p>
+              ) : null}
               {createdWorkspace.domains.length > 0 ? (
                 <p className="text-text">
-                  <span className="text-text-muted">Primary Domain:</span>{" "}
+                  <span className="text-text-muted">Custom Domain:</span>{" "}
                   <span className="font-mono">{createdWorkspace.domains[0]}</span>
                 </p>
               ) : (
                 <p className="text-xs text-text-faint">
-                  Local portal access uses the shared tenant portal host. Point the tenants server at this
-                  workspace slug with <span className="font-mono">TENANT_DEFAULT_WORKSPACE_SLUG={createdWorkspace.slug}</span>{" "}
-                  when testing without a mapped tenant domain.
+                  The hosted tenant domain is available immediately. For local fallback access without wildcard
+                  DNS, run the tenant backend with{" "}
+                  <span className="font-mono">TENANT_DEFAULT_WORKSPACE_SLUG={createdWorkspace.slug}</span>.
                 </p>
               )}
             </div>
