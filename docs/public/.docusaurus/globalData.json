@@ -1,0 +1,128 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/",
+          "mainDocId": "intro",
+          "docs": [
+            {
+              "id": "client-portal/client-experience",
+              "path": "/client-portal/client-experience",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "getting-started/accessing-your-workspace",
+              "path": "/getting-started/accessing-your-workspace",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "getting-started/overview",
+              "path": "/getting-started/overview",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "getting-started/roles-and-permissions",
+              "path": "/getting-started/roles-and-permissions",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "intro",
+              "path": "/intro",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "modules/aeo",
+              "path": "/modules/aeo",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "modules/content-pipeline",
+              "path": "/modules/content-pipeline",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "modules/nurturing",
+              "path": "/modules/nurturing",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "modules/reporting",
+              "path": "/modules/reporting",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "modules/reputation",
+              "path": "/modules/reputation",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "modules/voice-agents",
+              "path": "/modules/voice-agents",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "operations/clients",
+              "path": "/operations/clients",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "operations/conversations",
+              "path": "/operations/conversations",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "operations/dashboard",
+              "path": "/operations/dashboard",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "operations/leads",
+              "path": "/operations/leads",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "reference/implemented-features",
+              "path": "/reference/implemented-features",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "reference/url-structure",
+              "path": "/reference/url-structure",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "workspace/domains-and-branding",
+              "path": "/workspace/domains-and-branding",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "workspace/email-sending",
+              "path": "/workspace/email-sending",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "workspace/settings",
+              "path": "/workspace/settings",
+              "sidebar": "docsSidebar"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "docsSidebar": {
+              "link": {
+                "path": "/intro",
+                "label": "intro"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

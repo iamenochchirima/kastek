@@ -1,0 +1,25 @@
+{
+  "id": "client-portal/client-experience",
+  "title": "Client Portal Experience",
+  "description": "The client portal is already a distinct audience inside the same tenant web app.",
+  "source": "@site/docs/client-portal/client-experience.md",
+  "sourceDirName": "client-portal",
+  "slug": "/client-portal/client-experience",
+  "permalink": "/client-portal/client-experience",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Client Portal Experience"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Conversations",
+    "permalink": "/operations/conversations"
+  },
+  "next": {
+    "title": "Content Pipeline",
+    "permalink": "/modules/content-pipeline"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "reference/url-structure",
+  "title": "URL Structure",
+  "description": "Tenant portal hosts",
+  "source": "@site/docs/reference/url-structure.md",
+  "sourceDirName": "reference",
+  "slug": "/reference/url-structure",
+  "permalink": "/reference/url-structure",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "URL Structure"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Implemented Features",
+    "permalink": "/reference/implemented-features"
+  }
+}

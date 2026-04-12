@@ -1,0 +1,25 @@
+{
+  "id": "operations/clients",
+  "title": "Clients",
+  "description": "The client management flow is live and backed by the tenant backend.",
+  "source": "@site/docs/operations/clients.md",
+  "sourceDirName": "operations",
+  "slug": "/operations/clients",
+  "permalink": "/operations/clients",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Clients"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Dashboard",
+    "permalink": "/operations/dashboard"
+  },
+  "next": {
+    "title": "Leads",
+    "permalink": "/operations/leads"
+  }
+}

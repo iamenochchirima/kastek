@@ -1,0 +1,95 @@
+{
+  "/-441": {
+    "__comp": "5e95c892",
+    "__context": {
+      "plugin": "aba21aa0"
+    }
+  },
+  "/-9c9": {
+    "__comp": "a7bd4aaa",
+    "__props": "22dd74f7"
+  },
+  "/-242": {
+    "__comp": "a94703ab"
+  },
+  "/client-portal/client-experience-174": {
+    "__comp": "17896441",
+    "content": "3b3221bd"
+  },
+  "/getting-started/accessing-your-workspace-b34": {
+    "__comp": "17896441",
+    "content": "483e4b29"
+  },
+  "/getting-started/overview-c5a": {
+    "__comp": "17896441",
+    "content": "7a96ca3d"
+  },
+  "/getting-started/roles-and-permissions-eaf": {
+    "__comp": "17896441",
+    "content": "ad89f629"
+  },
+  "/intro-4a2": {
+    "__comp": "17896441",
+    "content": "0e384e19"
+  },
+  "/modules/aeo-626": {
+    "__comp": "17896441",
+    "content": "c554d8d3"
+  },
+  "/modules/content-pipeline-667": {
+    "__comp": "17896441",
+    "content": "b36cd615"
+  },
+  "/modules/nurturing-953": {
+    "__comp": "17896441",
+    "content": "8d847c5e"
+  },
+  "/modules/reporting-4fe": {
+    "__comp": "17896441",
+    "content": "a0a9f0cd"
+  },
+  "/modules/reputation-958": {
+    "__comp": "17896441",
+    "content": "0a5eea05"
+  },
+  "/modules/voice-agents-62a": {
+    "__comp": "17896441",
+    "content": "f8995360"
+  },
+  "/operations/clients-bf7": {
+    "__comp": "17896441",
+    "content": "551f66f8"
+  },
+  "/operations/conversations-0fb": {
+    "__comp": "17896441",
+    "content": "02087e6a"
+  },
+  "/operations/dashboard-6d3": {
+    "__comp": "17896441",
+    "content": "32a2dd79"
+  },
+  "/operations/leads-adf": {
+    "__comp": "17896441",
+    "content": "084d4374"
+  },
+  "/reference/implemented-features-0b0": {
+    "__comp": "17896441",
+    "content": "66c0ef9a"
+  },
+  "/reference/url-structure-59a": {
+    "__comp": "17896441",
+    "content": "a71c3d3b"
+  },
+  "/workspace/domains-and-branding-afb": {
+    "__comp": "17896441",
+    "content": "1218d9ff"
+  },
+  "/workspace/email-sending-2b6": {
+    "__comp": "17896441",
+    "content": "e3251e0c"
+  },
+  "/workspace/settings-aee": {
+    "__comp": "17896441",
+    "content": "b98ee94f"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "workspace/settings",
+  "title": "Workspace Settings",
+  "description": "The current Settings screen combines two operational areas:",
+  "source": "@site/docs/workspace/settings.md",
+  "sourceDirName": "workspace",
+  "slug": "/workspace/settings",
+  "permalink": "/workspace/settings",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Workspace Settings"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Email Sending",
+    "permalink": "/workspace/email-sending"
+  },
+  "next": {
+    "title": "Dashboard",
+    "permalink": "/operations/dashboard"
+  }
+}

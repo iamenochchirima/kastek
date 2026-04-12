@@ -1,0 +1,47 @@
+:root {
+  --ifm-color-primary: #d89a1f;
+  --ifm-color-primary-dark: #c38812;
+  --ifm-color-primary-darker: #b87f11;
+  --ifm-color-primary-darkest: #97670e;
+  --ifm-color-primary-light: #deaa3c;
+  --ifm-color-primary-lighter: #e1b24b;
+  --ifm-color-primary-lightest: #e8c16f;
+  --ifm-background-color: #0b0b0c;
+  --ifm-background-surface-color: #131315;
+  --ifm-navbar-background-color: rgba(11, 11, 12, 0.9);
+  --ifm-footer-background-color: #0b0b0c;
+  --ifm-font-color-base: #f2eee8;
+  --ifm-heading-color: #f7f3ee;
+  --ifm-color-content-secondary: #b6afa5;
+  --ifm-code-font-size: 95%;
+}
+
+html[data-theme="light"] {
+  --ifm-background-color: #f7f4ef;
+  --ifm-background-surface-color: #ffffff;
+  --ifm-navbar-background-color: rgba(247, 244, 239, 0.92);
+  --ifm-footer-background-color: #111111;
+  --ifm-font-color-base: #1c1916;
+  --ifm-heading-color: #15120f;
+  --ifm-color-content-secondary: #5f574c;
+}
+
+.navbar {
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(216, 154, 31, 0.12);
+}
+
+.footer {
+  border-top: 1px solid rgba(216, 154, 31, 0.12);
+}
+
+.theme-doc-markdown h1,
+.theme-doc-markdown h2,
+.theme-doc-markdown h3 {
+  letter-spacing: -0.02em;
+}
+
+.theme-doc-markdown blockquote {
+  border-left-color: var(--ifm-color-primary);
+  background: rgba(216, 154, 31, 0.08);
+}

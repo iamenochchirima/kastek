@@ -1,0 +1,25 @@
+{
+  "id": "modules/reputation",
+  "title": "Reputation",
+  "description": "The Reputation module is the tenant-facing review automation and negative-intercept area.",
+  "source": "@site/docs/modules/reputation.md",
+  "sourceDirName": "modules",
+  "slug": "/modules/reputation",
+  "permalink": "/modules/reputation",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Reputation"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "AEO",
+    "permalink": "/modules/aeo"
+  },
+  "next": {
+    "title": "Voice Agents",
+    "permalink": "/modules/voice-agents"
+  }
+}

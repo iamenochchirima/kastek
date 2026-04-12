@@ -1,0 +1,25 @@
+{
+  "id": "getting-started/overview",
+  "title": "Getting Started Overview",
+  "description": "KasiTek's white-label platform is designed for tenant workspaces that manage their own clients inside a branded environment.",
+  "source": "@site/docs/getting-started/overview.md",
+  "sourceDirName": "getting-started",
+  "slug": "/getting-started/overview",
+  "permalink": "/getting-started/overview",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Getting Started Overview"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "KasiTek Platform Docs",
+    "permalink": "/intro"
+  },
+  "next": {
+    "title": "Accessing Your Workspace",
+    "permalink": "/getting-started/accessing-your-workspace"
+  }
+}

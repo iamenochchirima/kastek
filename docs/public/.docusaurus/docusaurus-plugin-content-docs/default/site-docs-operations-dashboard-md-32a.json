@@ -1,0 +1,25 @@
+{
+  "id": "operations/dashboard",
+  "title": "Dashboard",
+  "description": "The dashboard is one of the fully backend-backed areas in the current tenant platform.",
+  "source": "@site/docs/operations/dashboard.md",
+  "sourceDirName": "operations",
+  "slug": "/operations/dashboard",
+  "permalink": "/operations/dashboard",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Dashboard"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Workspace Settings",
+    "permalink": "/workspace/settings"
+  },
+  "next": {
+    "title": "Clients",
+    "permalink": "/operations/clients"
+  }
+}

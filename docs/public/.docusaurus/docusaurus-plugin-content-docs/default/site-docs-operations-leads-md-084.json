@@ -1,0 +1,25 @@
+{
+  "id": "operations/leads",
+  "title": "Leads",
+  "description": "The lead pipeline is currently one of the stronger operational areas in the tenant backend.",
+  "source": "@site/docs/operations/leads.md",
+  "sourceDirName": "operations",
+  "slug": "/operations/leads",
+  "permalink": "/operations/leads",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Leads"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Clients",
+    "permalink": "/operations/clients"
+  },
+  "next": {
+    "title": "Conversations",
+    "permalink": "/operations/conversations"
+  }
+}

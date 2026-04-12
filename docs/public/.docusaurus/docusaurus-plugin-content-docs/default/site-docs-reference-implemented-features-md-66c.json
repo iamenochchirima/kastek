@@ -1,0 +1,25 @@
+{
+  "id": "reference/implemented-features",
+  "title": "Implemented Features",
+  "description": "This page separates areas that are live in the tenant backend from areas that are currently exposed in the tenant portal but still depend on placeholder responses.",
+  "source": "@site/docs/reference/implemented-features.md",
+  "sourceDirName": "reference",
+  "slug": "/reference/implemented-features",
+  "permalink": "/reference/implemented-features",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Implemented Features"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Voice Agents",
+    "permalink": "/modules/voice-agents"
+  },
+  "next": {
+    "title": "URL Structure",
+    "permalink": "/reference/url-structure"
+  }
+}

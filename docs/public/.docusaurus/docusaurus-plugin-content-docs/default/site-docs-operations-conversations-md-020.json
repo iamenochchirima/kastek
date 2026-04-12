@@ -1,0 +1,25 @@
+{
+  "id": "operations/conversations",
+  "title": "Conversations",
+  "description": "Conversation support currently exists most clearly in the client-facing portal.",
+  "source": "@site/docs/operations/conversations.md",
+  "sourceDirName": "operations",
+  "slug": "/operations/conversations",
+  "permalink": "/operations/conversations",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Conversations"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Leads",
+    "permalink": "/operations/leads"
+  },
+  "next": {
+    "title": "Client Portal Experience",
+    "permalink": "/client-portal/client-experience"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "modules/content-pipeline",
+  "title": "Content Pipeline",
+  "description": "The Content Pipeline module is already visible in the tenant portal and role-gated for content-related roles.",
+  "source": "@site/docs/modules/content-pipeline.md",
+  "sourceDirName": "modules",
+  "slug": "/modules/content-pipeline",
+  "permalink": "/modules/content-pipeline",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Content Pipeline"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Client Portal Experience",
+    "permalink": "/client-portal/client-experience"
+  },
+  "next": {
+    "title": "Client Reporting",
+    "permalink": "/modules/reporting"
+  }
+}
