@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Footer } from "@/components/landing/Footer";
 import { Navbar } from "@/components/landing/Navbar";
+import { SolutionServicesShowcase } from "@/components/landing/solution-services-showcase";
 import { SolutionsMenu } from "@/components/landing/solutions-menu";
 import { solutionCategoryMap } from "../data";
 
@@ -45,52 +46,20 @@ export default async function SolutionCategoryPage({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl border border-white/8 bg-[#0D0D0D] p-7 md:p-9">
-              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.22em] text-primary">
-                {solution.primarySectionTitle}
-              </p>
-              <h2 className="font-display text-3xl leading-none text-foreground md:text-4xl">
-                {solution.shortTitle}
-              </h2>
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground md:text-base">
-                {solution.primarySectionDescription}
-              </p>
+          <div className="space-y-6">
+            <SolutionServicesShowcase
+              eyebrow={solution.primarySectionTitle}
+              title={solution.shortTitle}
+              description={solution.primarySectionDescription}
+              services={solution.primaryServices}
+            />
 
-              <ul className="mt-8 space-y-3">
-                {solution.primaryItems.map((item) => (
-                  <li
-                    key={item}
-                    className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm leading-relaxed text-foreground/90"
-                  >
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="rounded-2xl border border-white/8 bg-[#0D0D0D] p-7 md:p-9">
-              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.22em] text-primary">
-                {solution.secondarySectionTitle}
-              </p>
-              <h2 className="font-display text-3xl leading-none text-foreground md:text-4xl">
-                Tailored for your model
-              </h2>
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground md:text-base">
-                {solution.secondarySectionDescription}
-              </p>
-
-              <ul className="mt-8 space-y-3">
-                {solution.secondaryItems.map((item) => (
-                  <li
-                    key={item}
-                    className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm leading-relaxed text-foreground/90"
-                  >
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <SolutionServicesShowcase
+              eyebrow={solution.secondarySectionTitle}
+              title={solution.secondarySectionTitle}
+              description={solution.secondarySectionDescription}
+              services={solution.secondaryServices}
+            />
           </div>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">

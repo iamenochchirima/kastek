@@ -74,8 +74,8 @@ export default function SolutionsPage() {
                     ))}
                   </div>
 
-                  <div className="mt-6 inline-flex items-center rounded-lg border border-primary/20 bg-primary/10 px-3.5 py-2 text-sm font-semibold text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
-                    View path
+                  <div className="mt-5 text-sm font-semibold text-primary transition group-hover:text-white">
+                    View
                   </div>
                 </Link>
               );

@@ -6,10 +6,12 @@ import { tenantFetch } from "@/lib/api";
 import {
   buildTenantThemeStyle,
   getTenantDisplayName,
+  getTenantFeatureConfig,
   getTenantLogoUrl,
   getTenantTagline,
   normalizeTenantContext,
   type PublicTenantContext,
+  type TenantFeatureConfig,
   type TenantThemeStyle,
 } from "@/lib/tenant-context";
 
@@ -21,6 +23,7 @@ type TenantContextValue = {
   tagline: string;
   logoUrl: string | null;
   themeStyle: TenantThemeStyle;
+  features: TenantFeatureConfig;
 };
 
 const DEFAULT_CONTEXT: PublicTenantContext = {
@@ -83,6 +86,7 @@ export function TenantContextProvider({
       tagline: getTenantTagline(context),
       logoUrl: getTenantLogoUrl(context),
       themeStyle: buildTenantThemeStyle(context),
+      features: getTenantFeatureConfig(context),
     };
   }, [context, isLoading, refresh]);
 
