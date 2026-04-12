@@ -155,6 +155,31 @@ fn parse_sender_email(value: &str) -> String {
     trimmed.to_string()
 }
 
+fn url_for_host(host: &str, path: &str) -> String {
+    let protocol = if host == "localhost"
+        || host.ends_with(".local")
+        || host.starts_with("127.")
+        || host.chars().all(|ch| ch.is_ascii_digit() || ch == '.')
+    {
+        "http"
+    } else {
+        "https"
+    };
+
+    format!("{protocol}://{}{}", host.trim_matches('/'), path)
+}
+
+pub fn workspace_portal_url(config: &AppConfig, workspace_slug: &str) -> Option<String> {
+    if let Some(base_domain) = config.platform_base_domain.as_ref() {
+        let normalized = base_domain.trim().trim_matches('.').to_ascii_lowercase();
+        if !normalized.is_empty() {
+            return Some(url_for_host(&format!("{workspace_slug}.{normalized}"), ""));
+        }
+    }
+
+    config.app_base_url.as_ref().map(|url| url.trim_end_matches('/').to_string())
+}
+
 async fn resend_request<T: for<'de> Deserialize<'de>>(
     config: &AppConfig,
     method: reqwest::Method,
@@ -553,6 +578,7 @@ pub async fn send_client_invite_email(
     to: &str,
     tenant_client_name: &str,
     activation_url: &str,
+    portal_url: Option<&str>,
     expires_at: DateTime<Utc>,
 ) -> Result<bool, AppError> {
     if config.resend_api_key.is_none() {
@@ -575,12 +601,18 @@ pub async fn send_client_invite_email(
     .await?;
 
     let expires_label = expires_at.format("%Y-%m-%d %H:%M UTC");
-    let subject = format!("Activate your access to {}", tenant_client_name);
+    let subject = format!("Your {} portal access is ready", workspace_name);
+    let portal_line = portal_url
+        .map(|url| format!("Portal link: {url}\n"))
+        .unwrap_or_default();
     let text = format!(
-        "You were invited to access {tenant_client_name} inside {workspace_name}.\n\nActivate your account here:\n{activation_url}\n\nThis link expires on {expires_label}.\n"
+        "Your access to {workspace_name} is ready.\n\nYou can now use the portal to view conversations, follow up on leads, and stay connected to the services your team is running for you.\n\n{portal_line}To get started:\n1. Open your portal\n2. Complete your account setup\n3. Sign in and start using the portal\n\nSetup link:\n{activation_url}\n\nThis setup link expires on {expires_label}.\n"
     );
+    let portal_html = portal_url
+        .map(|url| format!("<p><strong>Portal link:</strong> <a href=\"{url}\">{url}</a></p>"))
+        .unwrap_or_default();
     let html = format!(
-        "<p>You were invited to access <strong>{tenant_client_name}</strong> inside <strong>{workspace_name}</strong>.</p><p><a href=\"{activation_url}\">Activate your account</a></p><p>This link expires on {expires_label}.</p>"
+        "<p>Your access to <strong>{workspace_name}</strong> is ready.</p><p>You can now use the portal to view conversations, follow up on leads, and stay connected to the services your team is running for you.</p>{portal_html}<p><strong>To get started:</strong></p><ol><li>Open your portal</li><li>Complete your account setup</li><li>Sign in and start using the portal</li></ol><p><a href=\"{activation_url}\">Open your portal</a></p><p>This setup link expires on {expires_label}.</p>"
     );
 
     send_email(config, &sender, &[to.to_string()], &subject, &text, &html).await?;
@@ -589,4 +621,60 @@ pub async fn send_client_invite_email(
 
 pub fn platform_from_email(config: &AppConfig) -> String {
     parse_sender_email(&config.resend_from_email)
+}
+
+pub async fn send_tenant_admin_invite_email(
+    config: &AppConfig,
+    to: &str,
+    workspace_name: &str,
+    activation_url: &str,
+    portal_url: Option<&str>,
+    expires_at: DateTime<Utc>,
+) -> Result<bool, AppError> {
+    let Some(api_key) = config.resend_api_key.as_ref() else {
+        log::warn!(
+            "tenant admin invite email not sent because no Resend key is configured: to={} workspace={}",
+            to,
+            workspace_name
+        );
+        return Ok(false);
+    };
+
+    let expires_label = expires_at.format("%Y-%m-%d %H:%M UTC");
+    let subject = format!("Your client portal is ready");
+    let portal_line = portal_url
+        .map(|url| format!("Portal link: {url}\n"))
+        .unwrap_or_default();
+    let text = format!(
+        "Your client portal is ready.\n\nYou now have access to your branded KasiTek portal, where you’ll manage your setup, configure services, and prepare the experience your clients will use.\n\nInside your portal, you’ll be able to:\n- Set up branding and portal settings\n- Connect email and domain configuration\n- Add clients and manage access\n- Start delivering services through one platform\n\n{portal_line}To get started:\n1. Open your portal\n2. Complete your admin setup\n3. Review your settings and branding\n4. Start onboarding clients\n\nSetup link:\n{activation_url}\n\nThis setup link expires on {expires_label}.\n"
+    );
+    let portal_html = portal_url
+        .map(|url| format!("<p><strong>Portal link:</strong> <a href=\"{url}\">{url}</a></p>"))
+        .unwrap_or_default();
+    let html = format!(
+        "<p>Your client portal is ready.</p><p>You now have access to your branded KasiTek portal, where you’ll manage your setup, configure services, and prepare the experience your clients will use.</p><p>Inside your portal, you’ll be able to:</p><ul><li>Set up branding and portal settings</li><li>Connect email and domain configuration</li><li>Add clients and manage access</li><li>Start delivering services through one platform</li></ul>{portal_html}<p><strong>To get started:</strong></p><ol><li>Open your portal</li><li>Complete your admin setup</li><li>Review your settings and branding</li><li>Start onboarding clients</li></ol><p><a href=\"{activation_url}\">Open your portal</a></p><p>This setup link expires on {expires_label}.</p>"
+    );
+
+    let response = reqwest::Client::new()
+        .post(format!("{RESEND_API_BASE_URL}/emails"))
+        .bearer_auth(api_key)
+        .json(&serde_json::json!({
+            "from": config.resend_from_email,
+            "to": [to],
+            "subject": subject,
+            "text": text,
+            "html": html,
+        }))
+        .send()
+        .await?;
+
+    if response.status() != StatusCode::OK && response.status() != StatusCode::CREATED {
+        let body = response.text().await.unwrap_or_default();
+        log::error!("tenant admin invite email rejected by resend: {}", body);
+        return Err(AppError::Internal(
+            "Failed to send tenant admin invite email".to_string(),
+        ));
+    }
+
+    Ok(true)
 }

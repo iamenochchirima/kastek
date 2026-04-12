@@ -14,6 +14,16 @@ use crate::{
     config::AppConfig, controllers::auth::clear_session_cookie, error::AppError, middleware,
 };
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssuedClientInvite {
+    pub invite_id: String,
+    pub activation_url: Option<String>,
+    pub portal_url: Option<String>,
+    pub email_sent: bool,
+    pub expires_at: chrono::DateTime<Utc>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AcceptInviteRequest {
     pub token: String,
@@ -151,6 +161,120 @@ async fn find_invite_by_token(
     .await?;
 
     Ok(invite)
+}
+
+pub async fn issue_client_invite(
+    pool: &sqlx::PgPool,
+    config: &AppConfig,
+    workspace_id: &str,
+    workspace_slug: &str,
+    tenant_client_id: &str,
+    tenant_client_user_id: &str,
+    email: &str,
+    invited_by_tenant_user_id: Option<&str>,
+) -> Result<IssuedClientInvite, AppError> {
+    sqlx::query(
+        r#"
+        UPDATE tenant_client_invites
+        SET revoked_at = NOW(), updated_at = NOW()
+        WHERE tenant_client_user_id = $1
+          AND accepted_at IS NULL
+          AND revoked_at IS NULL
+        "#,
+    )
+    .bind(tenant_client_user_id)
+    .execute(pool)
+    .await?;
+
+    let invite_id = cuid2::create_id();
+    let invite_token = crypto_utils::generate_token(48);
+    let invite_token_hash = crypto_utils::sha256_hex(&invite_token);
+    let expires_at = Utc::now() + ChronoDuration::hours(i64::from(config.invite_ttl_hours));
+    let portal_url = crate::mail::workspace_portal_url(config, workspace_slug);
+    let activation_url = portal_url
+        .as_ref()
+        .map(|url| format!("{}/activate?token={}", url.trim_end_matches('/'), invite_token));
+
+    sqlx::query(
+        r#"
+        INSERT INTO tenant_client_invites (
+            id,
+            workspace_id,
+            tenant_client_id,
+            tenant_client_user_id,
+            email,
+            token_hash,
+            invited_by_tenant_user_id,
+            expires_at,
+            created_at,
+            updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+        "#,
+    )
+    .bind(&invite_id)
+    .bind(workspace_id)
+    .bind(tenant_client_id)
+    .bind(tenant_client_user_id)
+    .bind(email)
+    .bind(invite_token_hash)
+    .bind(invited_by_tenant_user_id)
+    .bind(expires_at)
+    .execute(pool)
+    .await?;
+
+    let mail_context = sqlx::query_as::<_, InvitePreviewRow>(
+        r#"
+        SELECT
+            i.id,
+            i.workspace_id,
+            w.slug AS workspace_slug,
+            w.display_name AS workspace_display_name,
+            i.tenant_client_id,
+            c.name AS tenant_client_name,
+            i.tenant_client_user_id,
+            i.email AS invite_email,
+            u.name AS user_name,
+            i.revoked_at AT TIME ZONE 'UTC' AS revoked_at,
+            i.accepted_at AT TIME ZONE 'UTC' AS accepted_at,
+            i.expires_at AT TIME ZONE 'UTC' AS expires_at
+        FROM tenant_client_invites i
+        JOIN tenant_client_users u ON u.id = i.tenant_client_user_id
+        JOIN tenant_clients c ON c.id = i.tenant_client_id
+        JOIN workspaces w ON w.id = i.workspace_id
+        WHERE i.id = $1
+        LIMIT 1
+        "#,
+    )
+    .bind(&invite_id)
+    .fetch_one(pool)
+    .await?;
+
+    let email_sent = if let Some(url) = activation_url.as_deref() {
+        crate::mail::send_client_invite_email(
+            pool,
+            config,
+            workspace_id,
+            workspace_slug,
+            &mail_context.workspace_display_name,
+            email,
+            &mail_context.tenant_client_name,
+            url,
+            portal_url.as_deref(),
+            expires_at,
+        )
+        .await?
+    } else {
+        false
+    };
+
+    Ok(IssuedClientInvite {
+        invite_id,
+        activation_url,
+        portal_url,
+        email_sent,
+        expires_at,
+    })
 }
 
 pub(crate) async fn authenticate_client_user(

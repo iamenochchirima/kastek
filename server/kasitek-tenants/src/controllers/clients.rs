@@ -1,9 +1,8 @@
 use actix_web::{web, HttpRequest, HttpResponse};
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::{error::AppError, mail, middleware};
+use crate::{controllers::client_auth, error::AppError, middleware};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTenantClientRequest {
@@ -29,12 +28,6 @@ struct TenantClientRow {
     metadata: serde_json::Value,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, FromRow)]
-struct TenantClientInviteMailContext {
-    workspace_display_name: String,
-    tenant_client_name: String,
 }
 
 #[derive(Debug, FromRow, Serialize)]
@@ -319,96 +312,29 @@ pub async fn invite_client_user(
     .execute(pool)
     .await?;
 
-    let invite_id = cuid2::create_id();
-    let invite_token = crypto_utils::generate_token(48);
-    let invite_token_hash = crypto_utils::sha256_hex(&invite_token);
-    let expires_at = Utc::now() + chrono::Duration::hours(i64::from(config.invite_ttl_hours));
-    let activation_url = config.app_base_url.as_ref().map(|base_url| {
-        format!(
-            "{}/activate?token={}",
-            base_url.trim_end_matches('/'),
-            invite_token
-        )
-    });
-
-    sqlx::query(
-        r#"
-        INSERT INTO tenant_client_invites (
-            id,
-            workspace_id,
-            tenant_client_id,
-            tenant_client_user_id,
-            email,
-            token_hash,
-            invited_by_tenant_user_id,
-            expires_at,
-            created_at,
-            updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-        "#,
+    let invite = client_auth::issue_client_invite(
+        pool,
+        config,
+        &session.workspace_id,
+        &session.workspace_slug,
+        &tenant_client_id,
+        &tenant_client_user_id,
+        &email,
+        Some(&session.tenant_user_id),
     )
-    .bind(&invite_id)
-    .bind(&session.workspace_id)
-    .bind(&tenant_client_id)
-    .bind(&tenant_client_user_id)
-    .bind(&email)
-    .bind(&invite_token_hash)
-    .bind(&session.tenant_user_id)
-    .bind(expires_at)
-    .execute(pool)
     .await?;
-
-    let mail_context = sqlx::query_as::<_, TenantClientInviteMailContext>(
-        r#"
-        SELECT
-            w.display_name AS workspace_display_name,
-            c.name AS tenant_client_name
-        FROM workspaces w
-        JOIN tenant_clients c ON c.id = $2
-        WHERE w.id = $1
-        LIMIT 1
-        "#,
-    )
-    .bind(&session.workspace_id)
-    .bind(&tenant_client_id)
-    .fetch_one(pool)
-    .await?;
-
-    let email_sent = if let Some(url) = activation_url.as_deref() {
-        mail::send_client_invite_email(
-            pool,
-            config,
-            &session.workspace_id,
-            &session.workspace_slug,
-            &mail_context.workspace_display_name,
-            &email,
-            &mail_context.tenant_client_name,
-            url,
-            expires_at,
-        )
-        .await?
-    } else {
-        log::warn!(
-            "tenant invite email skipped because TENANT_APP_BASE_URL is not configured: to={} workspace_id={} tenant_client_id={}",
-            email,
-            session.workspace_id,
-            tenant_client_id
-        );
-        false
-    };
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "invite": {
-            "id": invite_id,
+            "id": invite.invite_id,
             "tenantClientId": tenant_client_id,
             "tenantClientUserId": tenant_client_user_id,
             "email": email,
             "role": role,
-            "expiresAt": expires_at,
-            "token": invite_token,
-            "activationUrl": activation_url,
-            "emailSent": email_sent,
+            "expiresAt": invite.expires_at,
+            "activationUrl": invite.activation_url,
+            "portalUrl": invite.portal_url,
+            "emailSent": invite.email_sent,
         }
     })))
 }

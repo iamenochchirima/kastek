@@ -20,14 +20,14 @@ export default function NewAgencyPage() {
     domains: string[];
     portalUrl: string | null;
     adminEmail: string;
-    adminPassword: string;
+    adminInviteUrl: string | null;
+    adminInviteEmailSent: boolean;
   } | null>(null);
   const [copied, setCopied] = useState(false);
   const [form, setForm] = useState({
     workspaceName: "",
     slug: "",
     adminEmail: "",
-    adminPassword: "",
     primaryColor: "",
     domain: "",
   });
@@ -73,7 +73,6 @@ export default function NewAgencyPage() {
         workspaceName: form.workspaceName,
         slug: form.slug,
         adminEmail: form.adminEmail,
-        adminPassword: form.adminPassword,
         primaryColor: form.primaryColor || undefined,
         domain: form.domain || undefined,
       }),
@@ -115,7 +114,9 @@ export default function NewAgencyPage() {
       domains,
       portalUrl,
       adminEmail: data?.adminUser?.email ?? form.adminEmail,
-      adminPassword: form.adminPassword,
+      adminInviteUrl:
+        typeof data?.adminInvite?.activationUrl === "string" ? data.adminInvite.activationUrl : null,
+      adminInviteEmailSent: Boolean(data?.adminInvite?.emailSent),
     });
 
     if (key) {
@@ -158,13 +159,19 @@ export default function NewAgencyPage() {
                 <span className="text-text-muted">Tenant Admin Email:</span> {createdWorkspace.adminEmail}
               </p>
               <p className="text-text">
-                <span className="text-text-muted">Tenant Admin Password:</span>{" "}
-                <span className="font-mono">{createdWorkspace.adminPassword}</span>
+                <span className="text-text-muted">Admin Onboarding:</span>{" "}
+                {createdWorkspace.adminInviteEmailSent ? "Email sent" : "Use fallback setup link below"}
               </p>
               {createdWorkspace.portalUrl ? (
                 <p className="text-text">
                   <span className="text-text-muted">Portal Login URL:</span>{" "}
                   <span className="font-mono break-all">{createdWorkspace.portalUrl}</span>
+                </p>
+              ) : null}
+              {createdWorkspace.adminInviteUrl ? (
+                <p className="text-text">
+                  <span className="text-text-muted">Admin Setup URL:</span>{" "}
+                  <span className="font-mono break-all">{createdWorkspace.adminInviteUrl}</span>
                 </p>
               ) : null}
               {createdWorkspace.hostedDomain ? (
@@ -221,7 +228,7 @@ export default function NewAgencyPage() {
         </Link>
         <h1 className="text-2xl font-bold text-text">New Agency Workspace</h1>
         <p className="text-text-muted text-sm mt-1">
-          Creates a tenant workspace with an admin user and API key.
+          Creates a tenant workspace, provisions the admin account, and sends the onboarding email.
         </p>
       </div>
 
@@ -267,19 +274,6 @@ export default function NewAgencyPage() {
             onChange={handleChange}
             required
             placeholder="admin@northstar.local"
-            className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">Admin Password</label>
-          <input
-            name="adminPassword"
-            type="password"
-            value={form.adminPassword}
-            onChange={handleChange}
-            required
-            minLength={8}
             className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>

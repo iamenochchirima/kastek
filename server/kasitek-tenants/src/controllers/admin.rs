@@ -1,5 +1,4 @@
 use actix_web::{web, HttpRequest, HttpResponse};
-use bcrypt::{hash, DEFAULT_COST};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -189,8 +188,6 @@ pub struct CreateWorkspaceBody {
     slug: String,
     #[serde(rename = "adminEmail")]
     admin_email: String,
-    #[serde(rename = "adminPassword")]
-    admin_password: String,
     #[serde(rename = "primaryColor")]
     primary_color: Option<String>,
     domain: Option<String>,
@@ -1004,15 +1001,15 @@ pub async fn create_workspace(
 ) -> Result<HttpResponse, AppError> {
     require_admin_secret(&req)?;
     let pool = middleware::db_pool(&req)?;
+    let config = middleware::app_config(&req)?;
 
     let workspace_name = body.workspace_name.trim();
     let slug = body.slug.trim().to_ascii_lowercase();
     let admin_email = body.admin_email.trim().to_ascii_lowercase();
-    let admin_password = body.admin_password.trim();
 
-    if workspace_name.is_empty() || slug.is_empty() || admin_email.is_empty() || admin_password.is_empty() {
+    if workspace_name.is_empty() || slug.is_empty() || admin_email.is_empty() {
         return Err(AppError::BadRequest(
-            "workspaceName, slug, adminEmail, and adminPassword are required".to_string(),
+            "workspaceName, slug, and adminEmail are required".to_string(),
         ));
     }
 
@@ -1032,8 +1029,6 @@ pub async fn create_workspace(
     let workspace_id = cuid2::create_id();
     let tenant_user_id = cuid2::create_id();
     let api_key_id = cuid2::create_id();
-    let password_hash = hash(admin_password, DEFAULT_COST)
-        .map_err(|e| AppError::Internal(format!("password hash failed: {e}")))?;
     let api_key_plain = format!("ktnt_{}", crypto_utils::generate_token(32));
     let api_key_prefix = api_key_plain.chars().take(12).collect::<String>();
     let api_key_hash = crypto_utils::sha256_hex(&api_key_plain);
@@ -1045,7 +1040,7 @@ pub async fn create_workspace(
         "portal:bootstrap"
     ]);
     let now = Utc::now();
-    let hosted_domain = hosted_workspace_domain(&slug, middleware::app_config(&req)?.platform_base_domain.as_deref());
+    let hosted_domain = hosted_workspace_domain(&slug, config.platform_base_domain.as_deref());
 
     let mut tx = pool.begin().await?;
 
@@ -1095,12 +1090,11 @@ pub async fn create_workspace(
 
     sqlx::query(
         r#"INSERT INTO tenant_users (id, workspace_id, email, password_hash, status, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())"#,
+           VALUES ($1, $2, $3, '', 'invited', NOW(), NOW())"#,
     )
     .bind(&tenant_user_id)
     .bind(&workspace_id)
     .bind(&admin_email)
-    .bind(&password_hash)
     .execute(&mut *tx)
     .await?;
 
@@ -1124,6 +1118,16 @@ pub async fn create_workspace(
     .await?;
 
     tx.commit().await?;
+    let admin_invite = crate::controllers::admin_invites::issue_admin_invite(
+        pool,
+        config,
+        &workspace_id,
+        &slug,
+        workspace_name,
+        &tenant_user_id,
+        &admin_email,
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "workspace": {
@@ -1145,11 +1149,18 @@ pub async fn create_workspace(
             "id": tenant_user_id,
             "email": admin_email,
             "role": "owner",
+            "status": "invited",
         },
         "apiKey": {
             "id": api_key_id,
             "key": api_key_plain,
             "prefix": api_key_prefix,
+        },
+        "adminInvite": {
+            "activationUrl": admin_invite.activation_url,
+            "portalUrl": admin_invite.portal_url,
+            "emailSent": admin_invite.email_sent,
+            "expiresAt": admin_invite.expires_at,
         }
     })))
 }

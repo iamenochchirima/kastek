@@ -1,8 +1,8 @@
 use actix_web::web;
 
 use crate::controllers::{
-    admin, agents, auth, client_auth, client_portal, clients, conversations, dashboard,
-    email_settings, health, leads, session, usage, workspace,
+    admin, admin_invites, agents, auth, client_auth, client_portal, clients, conversations,
+    dashboard, email_settings, health, leads, session, usage, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -17,7 +17,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/login", web::post().to(auth::login))
                 .route("/logout", web::post().to(auth::logout))
                 .route("/me", web::get().to(auth::me))
+                .route("/admin-invite", web::get().to(admin_invites::get_admin_invite))
+                .route("/accept-admin-invite", web::post().to(admin_invites::accept_admin_invite))
                 .route("/session", web::get().to(session::get))
+                .route("/session/continue", web::post().to(session::continue_with_email))
                 .route("/session/login", web::post().to(session::login))
                 .route("/session/logout", web::post().to(session::logout)),
         )
