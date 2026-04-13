@@ -187,9 +187,9 @@ async fn load_custom_domains(
             provider_domain_id,
             domain,
             status,
-            verified_at AT TIME ZONE 'UTC' AS verified_at,
-            created_at AT TIME ZONE 'UTC' AS created_at,
-            updated_at AT TIME ZONE 'UTC' AS updated_at
+            verified_at AS verified_at,
+            created_at AS created_at,
+            updated_at AS updated_at
         FROM workspace_email_domains
         WHERE workspace_id = $1
         ORDER BY created_at DESC
@@ -269,8 +269,8 @@ async fn load_response(
             reply_to_email,
             shared_sender_local_part,
             custom_domain_id,
-            created_at AT TIME ZONE 'UTC' AS created_at,
-            updated_at AT TIME ZONE 'UTC' AS updated_at
+            created_at AS created_at,
+            updated_at AS updated_at
         FROM workspace_email_settings
         WHERE workspace_id = $1
         LIMIT 1
@@ -440,9 +440,9 @@ pub async fn verify_custom_email_domain(
             provider_domain_id,
             domain,
             status,
-            verified_at AT TIME ZONE 'UTC' AS verified_at,
-            created_at AT TIME ZONE 'UTC' AS created_at,
-            updated_at AT TIME ZONE 'UTC' AS updated_at
+            verified_at AS verified_at,
+            created_at AS created_at,
+            updated_at AS updated_at
         FROM workspace_email_domains
         WHERE workspace_id = $1 AND id = $2
         LIMIT 1
@@ -504,9 +504,9 @@ pub async fn remove_custom_email_domain(
             provider_domain_id,
             domain,
             status,
-            verified_at AT TIME ZONE 'UTC' AS verified_at,
-            created_at AT TIME ZONE 'UTC' AS created_at,
-            updated_at AT TIME ZONE 'UTC' AS updated_at
+            verified_at AS verified_at,
+            created_at AS created_at,
+            updated_at AS updated_at
         FROM workspace_email_domains
         WHERE workspace_id = $1 AND id = $2
         LIMIT 1

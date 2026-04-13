@@ -53,7 +53,7 @@ pub async fn get_summary(req: HttpRequest) -> Result<HttpResponse, AppError> {
             (SELECT COUNT(*) FROM conversations WHERE workspace_id = $1) AS total_conversations,
             (SELECT COUNT(*) FROM tenant_leads WHERE workspace_id = $1) AS total_leads,
             (
-                SELECT COALESCE(SUM(quantity), 0)
+                SELECT COALESCE(SUM(quantity), 0)::bigint
                 FROM workspace_usage_events
                 WHERE workspace_id = $1
                   AND event_type = 'request'
