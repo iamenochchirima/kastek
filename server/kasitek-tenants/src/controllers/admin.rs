@@ -205,7 +205,7 @@ pub async fn list_workspaces(req: HttpRequest) -> Result<HttpResponse, AppError>
             w.display_name,
             w.status,
             COUNT(DISTINCT c.id) AS client_count,
-            w.created_at AT TIME ZONE 'UTC' AS created_at
+            w.created_at AS created_at
         FROM workspaces w
         LEFT JOIN tenant_clients c ON c.workspace_id = w.id
         GROUP BY w.id, w.slug, w.display_name, w.status, w.created_at
@@ -249,7 +249,7 @@ pub async fn get_workspace(
             w.display_name,
             w.status,
             COUNT(DISTINCT c.id) AS client_count,
-            w.created_at AT TIME ZONE 'UTC' AS created_at
+            w.created_at AS created_at
         FROM workspaces w
         LEFT JOIN tenant_clients c ON c.workspace_id = w.id
         WHERE w.id = $1 OR w.slug = $1
@@ -269,8 +269,8 @@ pub async fn get_workspace(
             domain,
             is_primary,
             dns_status,
-            verified_at AT TIME ZONE 'UTC' AS verified_at,
-            created_at AT TIME ZONE 'UTC' AS created_at
+            verified_at AS verified_at,
+            created_at AS created_at
         FROM workspace_domains
         WHERE workspace_id = $1
         ORDER BY is_primary DESC, created_at ASC
@@ -389,7 +389,7 @@ pub async fn list_workspace_staff(
                 json_agg(r.role ORDER BY r.created_at) FILTER (WHERE r.role IS NOT NULL),
                 '[]'::json
             ) AS roles,
-            u.created_at AT TIME ZONE 'UTC' AS created_at
+            u.created_at AS created_at
         FROM tenant_users u
         LEFT JOIN tenant_user_roles r ON r.tenant_user_id = u.id
         WHERE u.workspace_id = $1
@@ -544,7 +544,7 @@ pub async fn list_workspace_clients(
             c.slug,
             c.status,
             COUNT(DISTINCT u.id) AS user_count,
-            c.created_at AT TIME ZONE 'UTC' AS created_at
+            c.created_at AS created_at
         FROM tenant_clients c
         LEFT JOIN tenant_client_users u ON u.tenant_client_id = c.id AND u.status != 'revoked'
         WHERE c.workspace_id = $1
@@ -594,8 +594,8 @@ pub async fn list_workspace_api_keys(
             label,
             key_prefix,
             scopes,
-            revoked_at AT TIME ZONE 'UTC' AS revoked_at,
-            created_at AT TIME ZONE 'UTC' AS created_at
+            revoked_at AS revoked_at,
+            created_at AS created_at
         FROM workspace_api_keys
         WHERE workspace_id = $1
         ORDER BY created_at DESC
@@ -726,8 +726,8 @@ pub async fn list_workspace_domains(
             domain,
             is_primary,
             dns_status,
-            verified_at AT TIME ZONE 'UTC' AS verified_at,
-            created_at AT TIME ZONE 'UTC' AS created_at
+            verified_at AS verified_at,
+            created_at AS created_at
         FROM workspace_domains
         WHERE workspace_id = $1
         ORDER BY is_primary DESC, created_at ASC
@@ -842,8 +842,8 @@ pub async fn verify_workspace_domain(
             domain,
             is_primary,
             dns_status,
-            verified_at AT TIME ZONE 'UTC' AS verified_at,
-            created_at AT TIME ZONE 'UTC' AS created_at
+            verified_at AS verified_at,
+            created_at AS created_at
         FROM workspace_domains
         WHERE workspace_id = $1 AND id = $2
         LIMIT 1
@@ -965,8 +965,8 @@ pub async fn remove_workspace_domain(
             domain,
             is_primary,
             dns_status,
-            verified_at AT TIME ZONE 'UTC' AS verified_at,
-            created_at AT TIME ZONE 'UTC' AS created_at
+            verified_at AS verified_at,
+            created_at AS created_at
         FROM workspace_domains
         WHERE workspace_id = $1 AND id = $2
         LIMIT 1
