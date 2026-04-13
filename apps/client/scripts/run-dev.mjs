@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 
 const processes = [
-  { cmd: "pnpm", args: ["exec", "next", "dev"], label: "app" },
+  { cmd: "pnpm", args: ["exec", "next", "dev", "-p", "5000", "-H", "0.0.0.0"], label: "app" },
 ];
 
 const children = processes.map(({ cmd, args, label }) => {
