@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 
 const CORE_BACKEND_URL =
   process.env.CORE_BACKEND_URL ?? "http://localhost:4000";
+const TENANTS_BACKEND_URL =
+  process.env.TENANTS_BACKEND_URL ?? "http://localhost:8090";
 const ADMIN_SESSION_COOKIE = "kasitek_admin_session";
 
 export interface AdminUser {
@@ -10,6 +12,24 @@ export interface AdminUser {
   name: string;
   email: string;
   role: string;
+}
+
+function unavailableJsonResponse(service: string, error: unknown): Response {
+  const message =
+    error instanceof Error ? error.message : "Unable to reach upstream service";
+
+  return new Response(
+    JSON.stringify({
+      error: `${service} is unavailable`,
+      detail: message,
+    }),
+    {
+      status: 503,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
 }
 
 /**
@@ -78,16 +98,17 @@ export async function fetchFromTenants(
   init?: RequestInit
 ): Promise<Response> {
   const adminSecret = process.env.TENANT_ADMIN_SECRET ?? "";
-  return fetch(
-    `${process.env.TENANTS_BACKEND_URL ?? "http://localhost:8090"}${path}`,
-    {
+  try {
+    return await fetch(`${TENANTS_BACKEND_URL}${path}`, {
       headers: {
         ...(adminSecret ? { "x-admin-secret": adminSecret } : {}),
       },
       cache: "no-store",
       ...init,
-    }
-  );
+    });
+  } catch (error) {
+    return unavailableJsonResponse("Tenant backend", error);
+  }
 }
 
 /**
@@ -133,19 +154,23 @@ export async function proxyToTenants(
 ): Promise<Response> {
   const adminSecret = process.env.TENANT_ADMIN_SECRET ?? "";
   const url = new URL(req.url);
-  const target = `${process.env.TENANTS_BACKEND_URL ?? "http://localhost:8090"}${path}${url.search}`;
+  const target = `${TENANTS_BACKEND_URL}${path}${url.search}`;
 
-  return fetch(target, {
-    method: req.method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(adminSecret ? { "x-admin-secret": adminSecret } : {}),
-    },
-    body:
-      req.method !== "GET" && req.method !== "HEAD"
-        ? await req.text()
-        : undefined,
-    cache: "no-store",
-    ...init,
-  });
+  try {
+    return await fetch(target, {
+      method: req.method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(adminSecret ? { "x-admin-secret": adminSecret } : {}),
+      },
+      body:
+        req.method !== "GET" && req.method !== "HEAD"
+          ? await req.text()
+          : undefined,
+      cache: "no-store",
+      ...init,
+    });
+  } catch (error) {
+    return unavailableJsonResponse("Tenant backend", error);
+  }
 }

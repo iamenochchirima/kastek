@@ -215,6 +215,20 @@ pub async fn list_workspaces(req: HttpRequest) -> Result<HttpResponse, AppError>
     .fetch_all(pool)
     .await?;
 
+    let workspaces = workspaces
+        .into_iter()
+        .map(|workspace| {
+            serde_json::json!({
+                "id": workspace.id,
+                "slug": workspace.slug,
+                "displayName": workspace.display_name,
+                "status": workspace.status,
+                "clientCount": workspace.client_count,
+                "createdAt": workspace.created_at,
+            })
+        })
+        .collect::<Vec<_>>();
+
     Ok(HttpResponse::Ok().json(serde_json::json!({ "workspaces": workspaces })))
 }
 

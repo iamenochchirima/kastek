@@ -71,7 +71,33 @@ export default async function AgencyDetailPage({
     fetchFromTenants(`/api/admin/workspaces/${id}/api-keys`),
   ]);
 
-  if (!wsRes.ok) notFound();
+  if (wsRes.status === 404) notFound();
+
+  if (!wsRes.ok) {
+    const errorData = await wsRes.json().catch(() => ({}));
+    const message =
+      typeof errorData?.error === "string"
+        ? errorData.error
+        : "Unable to load the agency right now.";
+
+    return (
+      <div className="space-y-4">
+        <Link
+          href="/agencies"
+          className="text-sm text-text-muted hover:text-text inline-block"
+        >
+          &larr; Back to Agencies
+        </Link>
+        <div className="rounded-xl border border-danger/30 bg-danger/10 p-5">
+          <h1 className="text-lg font-semibold text-text">Agency unavailable</h1>
+          <p className="mt-2 text-sm text-text-muted">
+            {message}
+            {typeof errorData?.detail === "string" ? ` ${errorData.detail}` : null}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const wsData = await wsRes.json();
   const workspace: Workspace = wsData.workspace ?? wsData;

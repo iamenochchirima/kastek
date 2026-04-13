@@ -12,8 +12,36 @@ interface Workspace {
 
 export default async function AgenciesPage() {
   const res = await fetchFromTenants("/api/admin/workspaces");
-  const data = res.ok ? await res.json() : { workspaces: [] };
-  const workspaces: Workspace[] = data.workspaces ?? [];
+  const data = await res.json().catch(() => ({}));
+  const loadError =
+    !res.ok && typeof data?.error === "string"
+      ? data.error
+      : !res.ok
+        ? "Unable to load agencies right now."
+        : null;
+
+  const workspaces: Workspace[] = Array.isArray(data?.workspaces)
+    ? data.workspaces.map(
+        (workspace: {
+          id: string;
+          slug: string;
+          displayName?: string;
+          display_name?: string;
+          status: string;
+          clientCount?: number;
+          client_count?: number;
+          createdAt?: string;
+          created_at?: string;
+        }) => ({
+          id: workspace.id,
+          slug: workspace.slug,
+          displayName: workspace.displayName ?? workspace.display_name ?? workspace.slug,
+          status: workspace.status,
+          clientCount: workspace.clientCount ?? workspace.client_count ?? 0,
+          createdAt: workspace.createdAt ?? workspace.created_at ?? "",
+        })
+      )
+    : [];
 
   return (
     <div className="space-y-6">
@@ -33,9 +61,17 @@ export default async function AgenciesPage() {
       </div>
 
       <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+        {loadError ? (
+          <div className="border-b border-border bg-danger/10 px-4 py-3 text-sm text-danger">
+            {loadError}
+            {typeof data?.detail === "string" ? ` ${data.detail}` : null}
+          </div>
+        ) : null}
         {workspaces.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-text-faint text-sm">No agencies yet.</p>
+            <p className="text-text-faint text-sm">
+              {loadError ? "The agencies list is temporarily unavailable." : "No agencies yet."}
+            </p>
             <Link
               href="/agencies/new"
               className="text-primary text-sm hover:underline mt-2 inline-block"
@@ -75,7 +111,7 @@ export default async function AgenciesPage() {
                   </td>
                   <td className="px-4 py-3 text-right text-text">{ws.clientCount}</td>
                   <td className="px-4 py-3 text-right text-text-faint">
-                    {new Date(ws.createdAt).toLocaleDateString()}
+                    {ws.createdAt ? new Date(ws.createdAt).toLocaleDateString() : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
