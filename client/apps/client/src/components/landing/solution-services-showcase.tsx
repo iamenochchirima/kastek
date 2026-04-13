@@ -405,6 +405,10 @@ function WebsiteAgentDemo() {
   const scenario = WEB_SCENARIOS[scenarioIdx];
   const nextStep = scenario.steps[msgStep];
   const showTyping = msgStep < scenario.steps.length && nextStep?.kind === "agent";
+  const msgEndRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    msgEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [msgStep, showTyping, scenarioIdx]);
 
   return (
     <div className="space-y-3">
@@ -479,8 +483,8 @@ function WebsiteAgentDemo() {
                 </svg>
               </div>
 
-              {/* Messages — fixed height, overflow hidden so widget never grows */}
-              <div className="p-3 space-y-2.5 overflow-hidden" style={{ background: "#f0f4f8", height: 242 }}>
+              {/* Messages — fixed height, scrolls to bottom as messages appear */}
+              <div className="p-3 space-y-2.5 no-scrollbar" style={{ background: "#f0f4f8", height: 242, overflowY: "scroll" }}>
                 {scenario.steps.map((s, i) => {
                   const visible = msgStep > i;
                   if (s.kind === "agent") return (
@@ -541,6 +545,7 @@ function WebsiteAgentDemo() {
                     {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-300" style={{ animation: `bounce 1s ease infinite ${i*0.15}s` }} />)}
                   </div>
                 </div>
+                <div ref={msgEndRef} />
               </div>
 
               {/* Input bar */}
