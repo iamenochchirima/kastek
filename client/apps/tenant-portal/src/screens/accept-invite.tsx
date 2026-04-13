@@ -202,7 +202,12 @@ export default function AcceptInviteScreen() {
                   {form.formState.errors.root && (
                     <p className="text-sm text-destructive">{form.formState.errors.root.message}</p>
                   )}
-                  <Button className="w-full" type="submit">
+                  <Button
+                    className="w-full"
+                    type="submit"
+                    loading={form.formState.isSubmitting}
+                    loadingLabel="Saving..."
+                  >
                     Activate Account
                   </Button>
                 </form>

@@ -197,7 +197,12 @@ export default function AdminSetupScreen() {
                   {form.formState.errors.root ? (
                     <p className="text-sm text-destructive">{form.formState.errors.root.message}</p>
                   ) : null}
-                  <Button className="w-full" type="submit">
+                  <Button
+                    className="w-full"
+                    type="submit"
+                    loading={form.formState.isSubmitting}
+                    loadingLabel="Saving..."
+                  >
                     Complete Setup
                   </Button>
                 </form>

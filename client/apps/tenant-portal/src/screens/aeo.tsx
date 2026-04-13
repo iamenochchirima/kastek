@@ -182,8 +182,8 @@ export default function AEO() {
                       )}
                     />
                     <div className="flex justify-end pt-4">
-                      <Button type="submit" disabled={createAeo.isPending}>
-                        {createAeo.isPending ? "Processing..." : "Generate Structure"}
+                      <Button type="submit" loading={createAeo.isPending} loadingLabel="Generating structure...">
+                        Generate Structure
                       </Button>
                     </div>
                   </form>

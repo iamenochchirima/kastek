@@ -155,8 +155,8 @@ export default function Nurturing() {
                       )}
                     />
                     <div className="flex justify-end pt-4">
-                      <Button type="submit" disabled={createSequence.isPending}>
-                        {createSequence.isPending ? "Creating..." : "Create Sequence"}
+                      <Button type="submit" loading={createSequence.isPending} loadingLabel="Creating sequence...">
+                        Create Sequence
                       </Button>
                     </div>
                   </form>

@@ -476,8 +476,7 @@ export default function SettingsScreen() {
                     </Label>
                   </div>
                 </div>
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                <Button type="submit" loading={submitting} loadingLabel="Adding domain...">
                   Add Domain
                 </Button>
               </form>
@@ -704,8 +703,12 @@ export default function SettingsScreen() {
                     </div>
 
                     <div className="flex flex-wrap gap-3">
-                      <Button type="submit" disabled={emailSaving || !resendConfigured}>
-                        {emailSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                      <Button
+                        type="submit"
+                        loading={emailSaving}
+                        loadingLabel="Saving email settings..."
+                        disabled={!resendConfigured}
+                      >
                         Save Email Settings
                       </Button>
                       {sendingMode === "custom" && !activeEmailDomain ? (
@@ -753,8 +756,12 @@ export default function SettingsScreen() {
                         required
                       />
                     </div>
-                    <Button type="submit" disabled={emailTesting || !resendConfigured}>
-                      {emailTesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    <Button
+                      type="submit"
+                      loading={emailTesting}
+                      loadingLabel="Sending test email..."
+                      disabled={!resendConfigured}
+                    >
                       Send Test Email
                     </Button>
                   </form>
@@ -789,8 +796,12 @@ export default function SettingsScreen() {
                       Use a dedicated sending subdomain, not the main website root domain.
                     </p>
                   </div>
-                  <Button type="submit" disabled={creatingEmailDomain || !resendConfigured}>
-                    {creatingEmailDomain ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                  <Button
+                    type="submit"
+                    loading={creatingEmailDomain}
+                    loadingLabel="Adding email domain..."
+                    disabled={!resendConfigured}
+                  >
                     Add Email Domain
                   </Button>
                 </form>

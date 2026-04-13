@@ -161,8 +161,8 @@ export default function Reviews() {
                       )}
                     />
                     <div className="flex justify-end pt-4">
-                      <Button type="submit" disabled={createCampaign.isPending}>
-                        {createCampaign.isPending ? "Creating..." : "Launch Campaign"}
+                      <Button type="submit" loading={createCampaign.isPending} loadingLabel="Launching campaign...">
+                        Launch Campaign
                       </Button>
                     </div>
                   </form>

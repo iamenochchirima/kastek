@@ -192,8 +192,8 @@ export default function AdCreative() {
                       )}
                     />
                     <div className="flex justify-end pt-4">
-                      <Button type="submit" disabled={createCampaign.isPending}>
-                        {createCampaign.isPending ? "Generating..." : "Generate Creatives"}
+                      <Button type="submit" loading={createCampaign.isPending} loadingLabel="Generating creatives...">
+                        Generate Creatives
                       </Button>
                     </div>
                   </form>

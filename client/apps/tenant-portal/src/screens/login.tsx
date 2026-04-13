@@ -205,7 +205,13 @@ export default function Login() {
                       <p className="text-sm text-destructive">{emailForm.formState.errors.root.message}</p>
                     ) : null}
 
-                    <Button type="submit" className="w-full" size="lg">
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      size="lg"
+                      loading={emailForm.formState.isSubmitting}
+                      loadingLabel="Checking access..."
+                    >
                       Continue
                     </Button>
                   </form>
@@ -244,7 +250,12 @@ export default function Login() {
                       <Button type="button" variant="outline" className="flex-1" onClick={resetToEmail}>
                         Back
                       </Button>
-                      <Button type="submit" className="flex-1">
+                      <Button
+                        type="submit"
+                        className="flex-1"
+                        loading={passwordForm.formState.isSubmitting}
+                        loadingLabel="Signing in..."
+                      >
                         Sign in
                       </Button>
                     </div>

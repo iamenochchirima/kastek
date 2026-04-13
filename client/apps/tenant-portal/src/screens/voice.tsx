@@ -136,8 +136,8 @@ export default function Voice() {
                       )}
                     />
                     <div className="flex justify-end pt-4">
-                      <Button type="submit" disabled={createAgent.isPending}>
-                        {createAgent.isPending ? "Deploying..." : "Deploy Agent"}
+                      <Button type="submit" loading={createAgent.isPending} loadingLabel="Deploying agent...">
+                        Deploy Agent
                       </Button>
                     </div>
                   </form>

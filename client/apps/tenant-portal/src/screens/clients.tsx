@@ -235,9 +235,9 @@ export default function ClientsScreen() {
                         </p>
                       )}
                       <div className="flex justify-end">
-                        <Button type="submit" disabled={createClient.isPending}>
-                          {createClient.isPending ? "Creating..." : "Create Client"}
-                        </Button>
+                      <Button type="submit" loading={createClient.isPending} loadingLabel="Creating client...">
+                          Create Client
+                      </Button>
                       </div>
                     </form>
                   </Form>
@@ -313,8 +313,8 @@ export default function ClientsScreen() {
                         </p>
                       )}
                       <div className="flex justify-end">
-                        <Button type="submit" disabled={inviteClientUser.isPending}>
-                          {inviteClientUser.isPending ? "Sending..." : "Send Invite"}
+                        <Button type="submit" loading={inviteClientUser.isPending} loadingLabel="Sending invite...">
+                          Send Invite
                         </Button>
                       </div>
                     </form>

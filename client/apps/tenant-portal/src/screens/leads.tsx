@@ -304,8 +304,8 @@ export default function LeadsScreen() {
                       )}
 
                       <div className="flex justify-end">
-                        <Button type="submit" disabled={createLead.isPending}>
-                          {createLead.isPending ? "Creating..." : "Create Lead"}
+                        <Button type="submit" loading={createLead.isPending} loadingLabel="Creating lead...">
+                          Create Lead
                         </Button>
                       </div>
                     </form>

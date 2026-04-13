@@ -165,8 +165,8 @@ export default function Reporting() {
                       )}
                     />
                     <div className="flex justify-end pt-4">
-                      <Button type="submit" disabled={createDashboard.isPending}>
-                        {createDashboard.isPending ? "Creating..." : "Create Dashboard"}
+                      <Button type="submit" loading={createDashboard.isPending} loadingLabel="Creating dashboard...">
+                        Create Dashboard
                       </Button>
                     </div>
                   </form>

@@ -143,15 +143,16 @@ export default function ContentPipeline() {
                         )}
                       />
 
-                      <Button type="submit" className="w-full" disabled={generateMutation.isPending}>
-                        {generateMutation.isPending ? (
-                          "Generating..."
-                        ) : (
-                          <>
-                            <Sparkles className="w-4 h-4 mr-2" />
-                            Generate Content
-                          </>
-                        )}
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        loading={generateMutation.isPending}
+                        loadingLabel="Generating content..."
+                      >
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          Generate Content
+                        </>
                       </Button>
                     </form>
                   </Form>
