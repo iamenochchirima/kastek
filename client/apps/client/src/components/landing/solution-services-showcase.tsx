@@ -143,39 +143,39 @@ const WA_SCENARIOS: { title: string; subtitle: string; accent: string; emoji: st
     title: "AI Assistant", subtitle: "Instant answers, 24/7",
     accent: "#3DBA7A", emoji: "🤖", agentName: "KasiTek AI",
     steps: [
-      { kind: "out", text: "Hi, what are your business hours?" },
-      { kind: "in", text: "Mon–Fri 7am–6pm, Sat 8am–1pm 🕐" },
-      { kind: "out", text: "Do you cover the Pretoria area?" },
-      { kind: "in", text: "Yes! Joburg, Pretoria & surrounds. Want to book a job?" },
+      { kind: "out", text: "Hi, what time do you close on Saturdays?" },
+      { kind: "in", text: "Hey! 👋 We're open Sat 8am–1pm. Anything I can help with?" },
+      { kind: "out", text: "Do you guys service Pretoria East?" },
+      { kind: "in", text: "Yes, we cover all of Tshwane & surrounds. Want me to book a technician for you?" },
     ],
   },
   {
     title: "Appointment Booking", subtitle: "Zero-friction bookings in chat",
     accent: "#60A5FA", emoji: "📅", agentName: "KasiTek Booking",
     steps: [
-      { kind: "out", text: "Can I book a plumber for Friday?" },
-      { kind: "in", text: "Sure! 9am or 2pm — which works?" },
-      { kind: "out", text: "9am please — 14 Elm Street, Soweto" },
-      { kind: "in", text: "✓ Booked! Sending your confirmation." },
-      { kind: "booking", service: "Plumbing", time: "Friday · 09:00", address: "14 Elm St, Soweto" },
+      { kind: "out", text: "I need a plumber — is Friday morning free?" },
+      { kind: "in", text: "Friday is open ✅ — 9am or 11am, which suits you better?" },
+      { kind: "out", text: "9am please. Address is 14 Elm Street, Soweto" },
+      { kind: "in", text: "Got it — booking you in now 📲" },
+      { kind: "booking", service: "Plumbing Inspection", time: "Friday · 09:00", address: "14 Elm St, Soweto" },
     ],
   },
   {
     title: "Quote Generation", subtitle: "Instant quotes inside WhatsApp",
     accent: "#E8A020", emoji: "🧾", agentName: "KasiTek Quotes",
     steps: [
-      { kind: "out", text: "Need a quote for a DB board upgrade, 16 circuits" },
-      { kind: "in", text: "On it! Calculating that for you." },
-      { kind: "quote", items: [{ label: "DB Board 16-way", amount: "R 2,800" }, { label: "Labour & fitting", amount: "R 1,600" }, { label: "Certificate of compliance", amount: "R 450" }], total: "R 4,850" },
-      { kind: "in", text: "Quote ready — valid for 7 days 🧾" },
+      { kind: "out", text: "Can I get a price on upgrading my DB board to 16 circuits?" },
+      { kind: "in", text: "Sure thing! Let me pull that together for you 🔧" },
+      { kind: "quote", items: [{ label: "DB Board 16-way", amount: "R 2,800" }, { label: "Labour & installation", amount: "R 1,600" }, { label: "Certificate of compliance", amount: "R 450" }], total: "R 4,850" },
+      { kind: "in", text: "There's your quote — valid 7 days. Reply ACCEPT to confirm 👍" },
     ],
   },
   {
     title: "Product Catalogue", subtitle: "Browse & order conversationally",
     accent: "#A78BFA", emoji: "🛍️", agentName: "KasiTek Shop",
     steps: [
-      { kind: "out", text: "Show me solar packages under R15k" },
-      { kind: "in", text: "Found 3 options in your budget:" },
+      { kind: "out", text: "What solar backup options do you have under R15k?" },
+      { kind: "in", text: "We've got 3 packages in that range — here they are 👇" },
       { kind: "products", items: [{ name: "5kWh LiFePO4 Pack", price: "R 8,990", emoji: "🔋" }, { name: "8kWh Premium Pack", price: "R 12,500", emoji: "⚡" }, { name: "3kWh Starter Kit", price: "R 5,800", emoji: "🔌" }] },
     ],
   },
@@ -187,7 +187,7 @@ const MSG_TIMES = ["08:42", "08:43", "08:43", "08:44", "08:44", "08:45", "08:45"
 
 function WhatsAppAgentDemo() {
   const stepCounts = WA_SCENARIOS.map(s => s.steps.length);
-  const { scenarioIdx, msgStep, fading } = useScenarioSequence(WA_SCENARIOS.length, stepCounts, 950, 2500, 420);
+  const { scenarioIdx, msgStep, fading } = useScenarioSequence(WA_SCENARIOS.length, stepCounts, 1400, 3500, 500);
   const scenario = WA_SCENARIOS[scenarioIdx];
   const nextStep = scenario.steps[msgStep];
   const showTyping = msgStep < scenario.steps.length && nextStep?.kind === "in";
@@ -256,18 +256,18 @@ function WhatsAppAgentDemo() {
 
                 if (s.kind === "out") return (
                   <div key={i} style={{ display: "flex", justifyContent: "flex-end", opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)", transition: "all 0.45s ease" }}>
-                    <div style={{ maxWidth: "80%" }}>
-                      <div style={{ background: "#dcf8c6", borderRadius: "12px 0 12px 12px", padding: "6px 10px 4px", fontSize: 12, lineHeight: 1.5, color: "#111", boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>{s.text}</div>
-                      <p style={{ fontSize: 9, color: "#8e9297", margin: "2px 0 0", textAlign: "right" }}>{t} <span style={{ color: "#4fc3f7" }}>✓✓</span></p>
+                    <div style={{ maxWidth: "82%" }}>
+                      <div style={{ background: "#dcf8c6", borderRadius: "12px 0 12px 12px", padding: "7px 11px 5px", fontSize: 13, lineHeight: 1.55, color: "#111", boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>{s.text}</div>
+                      <p style={{ fontSize: 10, color: "#8e9297", margin: "2px 0 0", textAlign: "right" }}>{t} <span style={{ color: "#4fc3f7" }}>✓✓</span></p>
                     </div>
                   </div>
                 );
 
                 if (s.kind === "in") return (
                   <div key={i} style={{ display: "flex", justifyContent: "flex-start", opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)", transition: "all 0.45s ease" }}>
-                    <div style={{ maxWidth: "80%" }}>
-                      <div style={{ background: "#fff", borderRadius: "0 12px 12px 12px", padding: "6px 10px 4px", fontSize: 12, lineHeight: 1.5, color: "#111", boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>{s.text}</div>
-                      <p style={{ fontSize: 9, color: "#8e9297", margin: "2px 0 0" }}>{t}</p>
+                    <div style={{ maxWidth: "82%" }}>
+                      <div style={{ background: "#fff", borderRadius: "0 12px 12px 12px", padding: "7px 11px 5px", fontSize: 13, lineHeight: 1.55, color: "#111", boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>{s.text}</div>
+                      <p style={{ fontSize: 10, color: "#8e9297", margin: "2px 0 0" }}>{t}</p>
                     </div>
                   </div>
                 );
@@ -345,8 +345,8 @@ function WhatsAppAgentDemo() {
             </div>
           </div>
         </div>
-        {/* Notch */}
-        <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 80, height: 22, background: "#1c1c1e", borderRadius: "0 0 16px 16px", zIndex: 10 }} />
+        {/* Notch — offset by shell padding (10px) so it sits on the screen, not the bezel */}
+        <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", width: 76, height: 20, background: "#1c1c1e", borderRadius: "0 0 14px 14px", zIndex: 10 }} />
       </div>
     </div>
   );
