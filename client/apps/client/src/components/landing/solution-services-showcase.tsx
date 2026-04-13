@@ -1240,7 +1240,9 @@ export function SolutionServicesShowcase({
           <h3 className="font-display text-xl leading-none text-foreground">{activeService.title}</h3>
         </div>
 
-        {renderDemo(activeService.demoKind)}
+        <div className="pointer-events-none select-none">
+          {renderDemo(activeService.demoKind)}
+        </div>
       </div>
     </section>
   );
