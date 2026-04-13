@@ -68,9 +68,9 @@ async fn load_admin_invite(
             i.workspace_id,
             w.display_name AS workspace_display_name,
             w.slug AS workspace_slug,
-            i.expires_at AT TIME ZONE 'UTC' AS expires_at,
-            i.accepted_at AT TIME ZONE 'UTC' AS accepted_at,
-            i.revoked_at AT TIME ZONE 'UTC' AS revoked_at
+            i.expires_at AS expires_at,
+            i.accepted_at AS accepted_at,
+            i.revoked_at AS revoked_at
         FROM tenant_user_invites i
         JOIN tenant_users u ON u.id = i.tenant_user_id
         JOIN workspaces w ON w.id = i.workspace_id

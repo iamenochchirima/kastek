@@ -327,8 +327,8 @@ pub async fn extract_workspace_context_from_api_key(
             w.status AS workspace_status,
             k.scopes AS scopes,
             k.id AS key_id,
-            k.revoked_at AT TIME ZONE 'UTC' AS revoked_at,
-            k.expires_at AT TIME ZONE 'UTC' AS expires_at
+            k.revoked_at AS revoked_at,
+            k.expires_at AS expires_at
         FROM workspace_api_keys k
         JOIN workspaces w ON w.id = k.workspace_id
         WHERE k.key_hash = $1
@@ -390,7 +390,7 @@ pub async fn extract_tenant_user_session(
             u.name,
             u.status AS user_status,
             s.id AS session_id,
-            s.expires_at AT TIME ZONE 'UTC' AS expires_at
+            s.expires_at AS expires_at
         FROM tenant_sessions s
         JOIN tenant_users u ON u.id = s.tenant_user_id
         JOIN workspaces w ON w.id = s.workspace_id
@@ -462,7 +462,7 @@ pub async fn extract_tenant_client_user_session(
             u.name,
             u.status AS user_status,
             s.id AS session_id,
-            s.expires_at AT TIME ZONE 'UTC' AS expires_at
+            s.expires_at AS expires_at
         FROM tenant_client_sessions s
         JOIN tenant_client_users u ON u.id = s.tenant_client_user_id
         JOIN tenant_clients c ON c.id = s.tenant_client_id

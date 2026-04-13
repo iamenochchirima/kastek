@@ -143,9 +143,9 @@ async fn find_invite_by_token(
             i.tenant_client_user_id,
             i.email AS invite_email,
             u.name AS user_name,
-            i.revoked_at AT TIME ZONE 'UTC' AS revoked_at,
-            i.accepted_at AT TIME ZONE 'UTC' AS accepted_at,
-            i.expires_at AT TIME ZONE 'UTC' AS expires_at
+            i.revoked_at AS revoked_at,
+            i.accepted_at AS accepted_at,
+            i.expires_at AS expires_at
         FROM tenant_client_invites i
         JOIN tenant_client_users u ON u.id = i.tenant_client_user_id
         JOIN tenant_clients c ON c.id = i.tenant_client_id
@@ -235,9 +235,9 @@ pub async fn issue_client_invite(
             i.tenant_client_user_id,
             i.email AS invite_email,
             u.name AS user_name,
-            i.revoked_at AT TIME ZONE 'UTC' AS revoked_at,
-            i.accepted_at AT TIME ZONE 'UTC' AS accepted_at,
-            i.expires_at AT TIME ZONE 'UTC' AS expires_at
+            i.revoked_at AS revoked_at,
+            i.accepted_at AS accepted_at,
+            i.expires_at AS expires_at
         FROM tenant_client_invites i
         JOIN tenant_client_users u ON u.id = i.tenant_client_user_id
         JOIN tenant_clients c ON c.id = i.tenant_client_id
