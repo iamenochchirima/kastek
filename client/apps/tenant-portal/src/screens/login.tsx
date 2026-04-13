@@ -123,7 +123,9 @@ export default function Login() {
             <div className="mx-auto mb-4 flex items-center justify-center">
               <TenantBrandMark className="ring-1 ring-primary/20 shadow-lg shadow-primary/20" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">{brandName}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              {brandName === "Portal" ? "Welcome to your portal" : `Welcome to ${brandName}`}
+            </h1>
             <p className="mt-2 text-muted-foreground">{tagline}</p>
             {context.workspace?.slug ? (
               <p className="mt-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
@@ -134,22 +136,22 @@ export default function Login() {
 
           <div className="space-y-3 text-center">
             <h2 className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">
-              Shared portal access
+              Portal access
             </h2>
             <p className="text-sm text-muted-foreground">
-              Start with your email. We’ll guide you to sign in or finish setting up your access.
+              Start with your email. We’ll verify your access to {brandName}.
             </p>
             {isLoading ? <p className="text-xs text-muted-foreground">Loading workspace branding...</p> : null}
           </div>
 
           <Card className="border-border/50 bg-card/80 shadow-2xl backdrop-blur-xl">
-            <CardHeader>
-              <CardTitle>
-                {stage === "email" ? "Access your portal" : stage === "password" ? "Enter your password" : "Check your inbox"}
-              </CardTitle>
+              <CardHeader>
+                <CardTitle>
+                  {stage === "email" ? "Access your portal" : stage === "password" ? "Enter your password" : "Check your inbox"}
+                </CardTitle>
               <CardDescription>
                 {stage === "email"
-                  ? "Use the email address connected to this portal."
+                  ? `Use the email address connected to ${brandName}.`
                   : stage === "password"
                     ? "This email already has access. Enter the password to continue."
                     : "We’ve sent a secure setup link so you can finish creating your access."}

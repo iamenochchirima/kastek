@@ -112,8 +112,8 @@ export function getTenantFeatureConfig(
   return ALL_FEATURES_ENABLED;
 }
 
-export const DEFAULT_TENANT_NAME = "KasiTek";
-export const DEFAULT_TENANT_TAGLINE = "White-label workspace";
+export const DEFAULT_TENANT_NAME = "Portal";
+export const DEFAULT_TENANT_TAGLINE = "Access your workspace";
 
 export function normalizeTenantContext(payload: unknown): PublicTenantContext {
   if (!payload || typeof payload !== "object") {

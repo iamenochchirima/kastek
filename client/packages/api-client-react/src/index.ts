@@ -4,9 +4,7 @@ const placeholder = <T,>(data: T) => data;
 const DEFAULT_TENANT_API_BASE_URL = "/api/tenant";
 
 function getTenantApiBaseUrl() {
-  return (
-    process.env.NEXT_PUBLIC_TENANT_API_BASE_URL || DEFAULT_TENANT_API_BASE_URL
-  ).replace(/\/$/, "");
+  return DEFAULT_TENANT_API_BASE_URL;
 }
 
 function tenantApiUrl(path: string) {

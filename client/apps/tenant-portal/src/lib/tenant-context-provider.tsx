@@ -77,6 +77,10 @@ export function TenantContextProvider({
     });
   }, [context]);
 
+  useEffect(() => {
+    document.title = getTenantDisplayName(context);
+  }, [context]);
+
   const value = useMemo<TenantContextValue>(() => {
     return {
       context,

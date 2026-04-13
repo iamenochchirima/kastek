@@ -3,9 +3,7 @@
 export const DEFAULT_TENANT_API_BASE_URL = "/api/tenant";
 
 export function getTenantApiBaseUrl() {
-  return (
-    process.env.NEXT_PUBLIC_TENANT_API_BASE_URL || DEFAULT_TENANT_API_BASE_URL
-  ).replace(/\/$/, "");
+  return DEFAULT_TENANT_API_BASE_URL;
 }
 
 export function tenantApiUrl(path: string) {
