@@ -601,18 +601,18 @@ pub async fn send_client_invite_email(
     .await?;
 
     let expires_label = expires_at.format("%Y-%m-%d %H:%M UTC");
-    let subject = format!("Your {} portal access is ready", workspace_name);
+    let subject = format!("Verify your email for {workspace_name}");
     let portal_line = portal_url
         .map(|url| format!("Portal link: {url}\n"))
         .unwrap_or_default();
     let text = format!(
-        "Your access to {workspace_name} is ready.\n\nYou can now use the portal to view conversations, follow up on leads, and stay connected to the services your team is running for you.\n\n{portal_line}To get started:\n1. Open your portal\n2. Complete your account setup\n3. Sign in and start using the portal\n\nSetup link:\n{activation_url}\n\nThis setup link expires on {expires_label}.\n"
+        "Verify your email to finish setting up your access.\n\nOpen the link below to confirm this address and create your password.\n\nVerify link:\n{activation_url}\n\n{portal_line}What happens next:\n1. Verify your email\n2. Create your password\n3. Sign in and start using the portal\n\nThis link expires on {expires_label}.\n"
     );
     let portal_html = portal_url
         .map(|url| format!("<p><strong>Portal link:</strong> <a href=\"{url}\">{url}</a></p>"))
         .unwrap_or_default();
     let html = format!(
-        "<p>Your access to <strong>{workspace_name}</strong> is ready.</p><p>You can now use the portal to view conversations, follow up on leads, and stay connected to the services your team is running for you.</p>{portal_html}<p><strong>To get started:</strong></p><ol><li>Open your portal</li><li>Complete your account setup</li><li>Sign in and start using the portal</li></ol><p><a href=\"{activation_url}\">Open your portal</a></p><p>This setup link expires on {expires_label}.</p>"
+        "<p><strong>Verify your email to finish setting up your access.</strong></p><p>Open the link below to confirm this address and create your password.</p><p><a href=\"{activation_url}\">Verify email</a></p>{portal_html}<p><strong>What happens next:</strong></p><ol><li>Verify your email</li><li>Create your password</li><li>Sign in and start using the portal</li></ol><p>This link expires on {expires_label}.</p>"
     );
 
     send_email(config, &sender, &[to.to_string()], &subject, &text, &html).await?;
@@ -641,18 +641,18 @@ pub async fn send_tenant_admin_invite_email(
     };
 
     let expires_label = expires_at.format("%Y-%m-%d %H:%M UTC");
-    let subject = format!("Your client portal is ready");
+    let subject = format!("Verify your email to access {workspace_name}");
     let portal_line = portal_url
         .map(|url| format!("Portal link: {url}\n"))
         .unwrap_or_default();
     let text = format!(
-        "Your client portal is ready.\n\nYou now have access to your branded KasiTek portal, where you’ll manage your setup, configure services, and prepare the experience your clients will use.\n\nInside your portal, you’ll be able to:\n- Set up branding and portal settings\n- Connect email and domain configuration\n- Add clients and manage access\n- Start delivering services through one platform\n\n{portal_line}To get started:\n1. Open your portal\n2. Complete your admin setup\n3. Review your settings and branding\n4. Start onboarding clients\n\nSetup link:\n{activation_url}\n\nThis setup link expires on {expires_label}.\n"
+        "Verify your email to finish setting up your admin access.\n\nOpen the link below to confirm this address and create your password.\n\nVerify link:\n{activation_url}\n\n{portal_line}What happens next:\n1. Verify your email\n2. Create your password\n3. Sign in and complete portal setup\n4. Start onboarding clients\n\nThis link expires on {expires_label}.\n"
     );
     let portal_html = portal_url
         .map(|url| format!("<p><strong>Portal link:</strong> <a href=\"{url}\">{url}</a></p>"))
         .unwrap_or_default();
     let html = format!(
-        "<p>Your client portal is ready.</p><p>You now have access to your branded KasiTek portal, where you’ll manage your setup, configure services, and prepare the experience your clients will use.</p><p>Inside your portal, you’ll be able to:</p><ul><li>Set up branding and portal settings</li><li>Connect email and domain configuration</li><li>Add clients and manage access</li><li>Start delivering services through one platform</li></ul>{portal_html}<p><strong>To get started:</strong></p><ol><li>Open your portal</li><li>Complete your admin setup</li><li>Review your settings and branding</li><li>Start onboarding clients</li></ol><p><a href=\"{activation_url}\">Open your portal</a></p><p>This setup link expires on {expires_label}.</p>"
+        "<p><strong>Verify your email to finish setting up your admin access.</strong></p><p>Open the link below to confirm this address and create your password.</p><p><a href=\"{activation_url}\">Verify email</a></p>{portal_html}<p><strong>What happens next:</strong></p><ol><li>Verify your email</li><li>Create your password</li><li>Sign in and complete portal setup</li><li>Start onboarding clients</li></ol><p>This link expires on {expires_label}.</p>"
     );
 
     let response = reqwest::Client::new()
