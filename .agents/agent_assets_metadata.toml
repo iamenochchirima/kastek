@@ -6,3 +6,15 @@ id = "aNx-UKH6KEnemB6ZOmujc"
 uri = "file://client/apps/client/public/images/smb-hero.png"
 type = "image"
 title = "smb hero person phone"
+
+[[generated]]
+id = "TB8kR7tgRQqK0nHyxotU7"
+uri = "file://client/apps/client/public/images/smb-hero-v2.png"
+type = "image"
+title = "hand phone dark whatsapp"
+
+[[generated]]
+id = "BCuNmwikDwSJSVG2NEJAJ"
+uri = "file://client/apps/client/public/images/smb-hero-v3.png"
+type = "image"
+title = "hand phone abstract chat glow"

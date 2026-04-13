@@ -188,8 +188,8 @@ export function CategoryHeroVisual({ slug }: CategoryHeroVisualProps) {
           style={{ background: "radial-gradient(ellipse at 30% 60%, #3DBA7A33, transparent 60%), radial-gradient(ellipse at 70% 30%, #E8A02033, transparent 60%)" }} />
         <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/8">
           <Image
-            src="/images/smb-hero.png"
-            alt="Business owner using KasiTek AI on WhatsApp"
+            src="/images/smb-hero-v3.png"
+            alt="AI-powered chat services running on mobile"
             width={700}
             height={933}
             className="w-full h-auto object-cover"
