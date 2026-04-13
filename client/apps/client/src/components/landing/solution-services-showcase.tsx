@@ -181,17 +181,20 @@ const WA_SCENARIOS: { title: string; subtitle: string; accent: string; emoji: st
   },
 ];
 
+const WA_CHAT_BG = `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4c9ba' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`;
+
+const MSG_TIMES = ["08:42", "08:43", "08:43", "08:44", "08:44", "08:45", "08:45"];
+
 function WhatsAppAgentDemo() {
   const stepCounts = WA_SCENARIOS.map(s => s.steps.length);
   const { scenarioIdx, msgStep, fading } = useScenarioSequence(WA_SCENARIOS.length, stepCounts, 950, 2500, 420);
   const scenario = WA_SCENARIOS[scenarioIdx];
-
   const nextStep = scenario.steps[msgStep];
   const showTyping = msgStep < scenario.steps.length && nextStep?.kind === "in";
 
   return (
     <div className="space-y-3">
-      {/* Scenario indicator bar */}
+      {/* Scenario indicator */}
       <div className="rounded-2xl border border-white/8 bg-[#0D0D0D] px-4 py-3 flex items-center gap-3">
         <div className="flex gap-1.5">
           {WA_SCENARIOS.map((s, i) => (
@@ -200,111 +203,150 @@ function WhatsAppAgentDemo() {
           ))}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-semibold text-white/90 truncate leading-tight transition-opacity duration-300"
-            style={{ color: scenario.accent }}>{scenario.title}</p>
+          <p className="text-[11px] font-semibold truncate leading-tight" style={{ color: scenario.accent }}>{scenario.title}</p>
           <p className="text-[9px] text-white/35 truncate leading-tight">{scenario.subtitle}</p>
         </div>
         <span className="text-[9px] text-white/30 font-semibold flex-shrink-0">{scenarioIdx + 1}/{WA_SCENARIOS.length}</span>
       </div>
 
-      {/* WhatsApp phone */}
-      <div className="rounded-xl overflow-hidden border border-white/10 shadow-xl w-full transition-opacity duration-[420ms]"
-        style={{ opacity: fading ? 0 : 1 }}>
-        <div className="flex items-center gap-2.5 px-4 py-3" style={{ background: "#2D9A62" }}>
-          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-lg flex-shrink-0">{scenario.emoji}</div>
-          <div className="flex-1 min-w-0">
-            <p className="text-white text-[13px] font-semibold leading-tight">{scenario.agentName}</p>
-            <p className="text-green-200 text-[10px]">Typically replies instantly</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-            <svg className="w-5 h-5 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-          </div>
-        </div>
+      {/* Phone frame — same structure as solutions-v2/WhatsAppMockup */}
+      <div className="relative mx-auto transition-opacity duration-[420ms]" style={{ width: 300, opacity: fading ? 0 : 1 }}>
+        {/* Device shell */}
+        <div style={{ background: "#1c1c1e", borderRadius: 44, padding: 10, boxShadow: "0 30px 80px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.07)" }}>
+          {/* Screen */}
+          <div style={{ borderRadius: 34, overflow: "hidden" }}>
 
-        <div className="px-3 py-3 space-y-2.5 overflow-hidden" style={{ background: "#ece5dd", minHeight: 300 }}>
-          {scenario.steps.map((s, i) => {
-            const visible = msgStep > i;
-            if (s.kind === "out") return (
-              <div key={i} className="flex justify-end transition-all duration-450" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)" }}>
-                <div className="max-w-[75%] px-3.5 py-2 text-[12px] leading-relaxed shadow-sm rounded-[14px_0_14px_14px]" style={{ background: "#dcf8c6", color: "#1a1a1a" }}>{s.text}</div>
-              </div>
-            );
-            if (s.kind === "in") return (
-              <div key={i} className="flex justify-start transition-all duration-450" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)" }}>
-                <div className="max-w-[75%] px-3.5 py-2 text-[12px] leading-relaxed shadow-sm rounded-[0_14px_14px_14px] bg-white" style={{ color: "#1a1a1a" }}>{s.text}</div>
-              </div>
-            );
-            if (s.kind === "booking") return (
-              <div key={i} className="flex justify-start transition-all duration-450" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)" }}>
-                <div className="bg-white rounded-[0_12px_12px_12px] overflow-hidden shadow-sm max-w-[88%]">
-                  <div className="px-3 py-1.5 flex items-center gap-1.5" style={{ background: scenario.accent }}>
-                    <svg className="w-3 h-3 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    <span className="text-white text-[10px] font-semibold">Appointment Confirmed</span>
+            {/* Status bar (sits inside green header) */}
+            <div style={{ background: "#2D9A62", padding: "5px 16px 3px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "white", letterSpacing: 0.3 }}>08:45</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <svg style={{ width: 13, height: 10, fill: "white" }} viewBox="0 0 20 14">
+                  <rect x="0" y="8" width="3" height="6" rx="1"/><rect x="4.5" y="5" width="3" height="9" rx="1"/>
+                  <rect x="9" y="2.5" width="3" height="11.5" rx="1"/><rect x="13.5" y="0" width="3" height="14" rx="1"/>
+                </svg>
+                <svg style={{ width: 13, height: 10, fill: "white" }} viewBox="0 0 22 16">
+                  <path d="M11 11a2.5 2.5 0 110 5 2.5 2.5 0 010-5zm0-5c2.76 0 5.24 1.12 7.05 2.93L16.3 10.7A7.47 7.47 0 0011 8.5c-2.07 0-3.94.84-5.3 2.2L3.95 8.93A10.47 10.47 0 0111 6zm0-6C15.97 0 20.45 2.07 23.6 5.42L21.84 7.2A14.96 14.96 0 0011 2.5 14.96 14.96 0 00.16 7.2L-1.6 5.42A17.47 17.47 0 0111 0z"/>
+                </svg>
+                <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <div style={{ width: 19, height: 10, border: "1.5px solid rgba(255,255,255,0.9)", borderRadius: 3, padding: "1.5px 2px", boxSizing: "border-box" }}>
+                    <div style={{ width: "78%", height: "100%", background: "white", borderRadius: 1 }} />
                   </div>
-                  <div className="p-2.5 space-y-0.5">
-                    <p className="text-[11px] font-semibold text-gray-800">{s.time}</p>
-                    <p className="text-[10px] text-gray-500">{s.service} · {s.address}</p>
-                  </div>
+                  <div style={{ width: 2, height: 6, background: "rgba(255,255,255,0.7)", borderRadius: "0 1px 1px 0" }} />
                 </div>
               </div>
-            );
-            if (s.kind === "quote") return (
-              <div key={i} className="flex justify-start transition-all duration-450" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)" }}>
-                <div className="bg-white rounded-[0_12px_12px_12px] overflow-hidden shadow-sm max-w-[90%]">
-                  <div className="px-3 py-1.5 flex items-center gap-1.5" style={{ background: scenario.accent }}>
-                    <span className="text-white text-[10px] font-semibold">Quotation Ready</span>
+            </div>
+
+            {/* WA header */}
+            <div style={{ background: "#2D9A62", padding: "8px 12px 10px", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{scenario.emoji}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ color: "white", fontSize: 13, fontWeight: 600, margin: 0, lineHeight: 1.25 }}>{scenario.agentName}</p>
+                <p style={{ color: "#b5e7cc", fontSize: 10, margin: 0, lineHeight: 1.4 }}>Typically replies instantly</p>
+              </div>
+              <svg style={{ width: 20, height: 20, fill: "none", stroke: "rgba(255,255,255,0.8)", strokeWidth: 2 }} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 7V5z"/>
+              </svg>
+            </div>
+
+            {/* Chat area with WhatsApp wallpaper */}
+            <div style={{ background: "#eae6df", backgroundImage: WA_CHAT_BG, padding: "10px 10px 6px", minHeight: 390, maxHeight: 390, overflow: "hidden", display: "flex", flexDirection: "column", gap: 5 }}>
+              {scenario.steps.map((s, i) => {
+                const visible = msgStep > i;
+                const t = MSG_TIMES[i] ?? "08:45";
+
+                if (s.kind === "out") return (
+                  <div key={i} style={{ display: "flex", justifyContent: "flex-end", opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)", transition: "all 0.45s ease" }}>
+                    <div style={{ maxWidth: "80%" }}>
+                      <div style={{ background: "#dcf8c6", borderRadius: "12px 0 12px 12px", padding: "6px 10px 4px", fontSize: 12, lineHeight: 1.5, color: "#111", boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>{s.text}</div>
+                      <p style={{ fontSize: 9, color: "#8e9297", margin: "2px 0 0", textAlign: "right" }}>{t} <span style={{ color: "#4fc3f7" }}>✓✓</span></p>
+                    </div>
                   </div>
-                  <div className="p-2.5 space-y-1">
-                    {s.items.map((it, j) => (
-                      <div key={j} className="flex justify-between gap-4">
-                        <span className="text-[9px] text-gray-600 truncate">{it.label}</span>
-                        <span className="text-[9px] font-semibold text-gray-800 flex-shrink-0">{it.amount}</span>
+                );
+
+                if (s.kind === "in") return (
+                  <div key={i} style={{ display: "flex", justifyContent: "flex-start", opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)", transition: "all 0.45s ease" }}>
+                    <div style={{ maxWidth: "80%" }}>
+                      <div style={{ background: "#fff", borderRadius: "0 12px 12px 12px", padding: "6px 10px 4px", fontSize: 12, lineHeight: 1.5, color: "#111", boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>{s.text}</div>
+                      <p style={{ fontSize: 9, color: "#8e9297", margin: "2px 0 0" }}>{t}</p>
+                    </div>
+                  </div>
+                );
+
+                if (s.kind === "booking") return (
+                  <div key={i} style={{ display: "flex", justifyContent: "flex-start", opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)", transition: "all 0.45s ease" }}>
+                    <div style={{ maxWidth: "90%", background: "#fff", borderRadius: "0 12px 12px 12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}>
+                      <div style={{ background: scenario.accent, padding: "6px 10px", display: "flex", alignItems: "center", gap: 6 }}>
+                        <svg style={{ width: 12, height: 12, fill: "none", stroke: "white", strokeWidth: 2, flexShrink: 0 }} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <span style={{ color: "white", fontSize: 10, fontWeight: 600 }}>Appointment Confirmed</span>
+                      </div>
+                      <div style={{ padding: "7px 10px" }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: "#111", margin: 0 }}>{s.time}</p>
+                        <p style={{ fontSize: 10, color: "#666", margin: "2px 0 0" }}>{s.service} · {s.address}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+
+                if (s.kind === "quote") return (
+                  <div key={i} style={{ display: "flex", justifyContent: "flex-start", opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)", transition: "all 0.45s ease" }}>
+                    <div style={{ maxWidth: "92%", background: "#fff", borderRadius: "0 12px 12px 12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}>
+                      <div style={{ background: scenario.accent, padding: "6px 10px" }}>
+                        <span style={{ color: "white", fontSize: 10, fontWeight: 600 }}>Quotation Ready</span>
+                      </div>
+                      <div style={{ padding: "7px 10px" }}>
+                        {s.items.map((it, j) => (
+                          <div key={j} style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                            <span style={{ fontSize: 10, color: "#555" }}>{it.label}</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: "#111" }}>{it.amount}</span>
+                          </div>
+                        ))}
+                        <div style={{ borderTop: "1px solid #eee", paddingTop: 4, marginTop: 2, display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#111" }}>Total</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: scenario.accent }}>{s.total}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+
+                if (s.kind === "products") return (
+                  <div key={i} style={{ opacity: visible ? 1 : 0, transition: "opacity 0.45s ease" }}>
+                    {s.items.map((p, j) => (
+                      <div key={j} style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", borderRadius: j === 0 ? "0 12px 6px 6px" : j === s.items.length - 1 ? "6px 6px 12px 12px" : 6, padding: "6px 8px", marginBottom: 3, boxShadow: "0 1px 2px rgba(0,0,0,0.1)", opacity: visible ? 1 : 0, transition: `opacity 0.4s ${j * 120}ms ease` }}>
+                        <span style={{ fontSize: 18 }}>{p.emoji}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 11, fontWeight: 600, color: "#111", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</p>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: scenario.accent, margin: 0 }}>{p.price}</p>
+                        </div>
+                        <button style={{ fontSize: 9, border: `1px solid ${scenario.accent}`, color: scenario.accent, padding: "2px 6px", borderRadius: 4, background: "transparent", cursor: "default", flexShrink: 0 }}>Quote</button>
                       </div>
                     ))}
-                    <div className="border-t border-gray-100 pt-1 flex justify-between">
-                      <span className="text-[10px] font-bold text-gray-900">Total</span>
-                      <span className="text-[10px] font-bold" style={{ color: scenario.accent }}>{s.total}</span>
-                    </div>
                   </div>
+                );
+                return null;
+              })}
+
+              {/* Typing dots */}
+              <div style={{ display: "flex", justifyContent: "flex-start", opacity: showTyping ? 1 : 0, transition: "opacity 0.3s" }}>
+                <div style={{ background: "#fff", borderRadius: "0 12px 12px 12px", padding: "8px 12px", display: "flex", gap: 4, boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>
+                  {[0,1,2].map(i => <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#aaa", display: "inline-block", animation: `bounce 1s ease infinite ${i*0.15}s` }} />)}
                 </div>
               </div>
-            );
-            if (s.kind === "products") return (
-              <div key={i} className="space-y-1.5 transition-all duration-450" style={{ opacity: visible ? 1 : 0 }}>
-                {s.items.map((p, j) => (
-                  <div key={j} className="bg-white rounded-xl overflow-hidden shadow-sm flex items-center gap-2 p-2 transition-all duration-450"
-                    style={{ opacity: visible ? 1 : 0, transitionDelay: `${j * 120}ms` }}>
-                    <span className="text-lg flex-shrink-0">{p.emoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-semibold text-gray-800 truncate">{p.name}</p>
-                      <p className="text-[9px] font-bold" style={{ color: scenario.accent }}>{p.price}</p>
-                    </div>
-                    <button className="text-[8px] border px-1.5 py-0.5 rounded-md flex-shrink-0 font-medium"
-                      style={{ borderColor: scenario.accent, color: scenario.accent }}>Quote</button>
-                  </div>
-                ))}
-              </div>
-            );
-            return null;
-          })}
+            </div>
 
-          {/* Typing indicator */}
-          <div className="flex justify-start transition-opacity duration-300" style={{ opacity: showTyping ? 1 : 0 }}>
-            <div className="bg-white rounded-[0_12px_12px_12px] px-3 py-2 flex gap-1 shadow-sm">
-              {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-400" style={{ animation: `bounce 1s ease infinite ${i*0.15}s` }} />)}
+            {/* Input bar */}
+            <div style={{ background: "#f0f0f0", padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ flex: 1, background: "white", borderRadius: 20, padding: "7px 14px", fontSize: 11, color: "#bbb", boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}>Message...</div>
+              <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#2D9A62", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 8px rgba(45,154,98,0.4)" }}>
+                <svg style={{ width: 16, height: 16, fill: "none", stroke: "white", strokeWidth: 2.5 }} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                </svg>
+              </div>
             </div>
           </div>
         </div>
-
-        <div className="bg-[#f0f0f0] px-3 py-2.5 flex items-center gap-2.5">
-          <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 14.5h-2v-2h2v2zm0-4h-2c0-3.25 3-3 3-5 0-1.1-.9-2-2-2s-2 .9-2 2h-2c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.5-3 2.75-3 5z"/></svg>
-          <div className="flex-1 bg-white rounded-full px-3.5 py-1.5 text-[11px] text-gray-400 shadow-sm">Message...</div>
-          <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 15c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v7c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-2.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#2D9A62" }}>
-            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-          </div>
-        </div>
+        {/* Notch */}
+        <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 80, height: 22, background: "#1c1c1e", borderRadius: "0 0 16px 16px", zIndex: 10 }} />
       </div>
     </div>
   );
