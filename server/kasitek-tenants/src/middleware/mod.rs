@@ -171,8 +171,13 @@ pub fn extract_client_session_token(req: &HttpRequest) -> Result<String, AppErro
 
 fn request_host(req: &HttpRequest) -> Option<String> {
     req.headers()
-        .get("x-forwarded-host")
+        .get("x-kasitek-tenant-host")
         .and_then(|header| header.to_str().ok())
+        .or_else(|| {
+            req.headers()
+                .get("x-forwarded-host")
+                .and_then(|header| header.to_str().ok())
+        })
         .or_else(|| {
             req.headers()
                 .get("host")

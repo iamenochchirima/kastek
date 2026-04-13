@@ -31,6 +31,7 @@ function buildForwardHeaders(req: Request) {
 
   const host = req.headers.get("host");
   if (host) {
+    headers.set("x-kasitek-tenant-host", host);
     headers.set("x-forwarded-host", host);
     headers.set("x-forwarded-proto", new URL(req.url).protocol.replace(":", ""));
   }
