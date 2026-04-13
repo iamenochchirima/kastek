@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -27,9 +26,6 @@ type ContinueResponse = {
   audience?: "tenant" | "client";
   nextStep: "password" | "setup_link_sent" | "not_found";
   email?: string;
-  activationUrl?: string | null;
-  portalUrl?: string | null;
-  expiresAt?: string | null;
 };
 
 export default function Login() {
@@ -39,7 +35,6 @@ export default function Login() {
   const [stage, setStage] = useState<"email" | "password" | "setup_link_sent">("email");
   const [email, setEmail] = useState("");
   const [audience, setAudience] = useState<"tenant" | "client" | null>(null);
-  const [activationUrl, setActivationUrl] = useState<string | null>(null);
 
   const emailForm = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
@@ -66,7 +61,6 @@ export default function Login() {
 
       setEmail(values.email);
       setAudience(payload.audience ?? null);
-      setActivationUrl(payload.activationUrl ?? null);
 
       if (payload.nextStep === "password") {
         setStage("password");
@@ -103,7 +97,6 @@ export default function Login() {
   function resetToEmail() {
     setStage("email");
     setAudience(null);
-    setActivationUrl(null);
     passwordForm.reset({ password: "" });
   }
 
@@ -138,7 +131,7 @@ export default function Login() {
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Sorry, this portal is not available</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Check the link and try again, or contact the KasiTek team if you need a new portal setup.
+              Check the link and try again, or contact support if you need a new portal setup.
             </p>
           </div>
         </div>
@@ -263,16 +256,8 @@ export default function Login() {
                 <div className="space-y-4">
                   <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-5 text-center text-sm text-muted-foreground">
                     We&apos;ve sent a secure setup link to <span className="font-medium text-foreground">{email}</span>.
-                    Open it to finish setting up your access.
+                    Check your email to finish setting up your access.
                   </div>
-
-                  {activationUrl ? (
-                    <div className="space-y-3 pt-1">
-                      <Button asChild className="w-full">
-                        <Link href={activationUrl}>Open setup link</Link>
-                      </Button>
-                    </div>
-                  ) : null}
 
                   <div className="text-center">
                     <Button type="button" variant="outline" onClick={resetToEmail}>
