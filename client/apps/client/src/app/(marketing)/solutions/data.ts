@@ -9,7 +9,6 @@ import type { LucideIcon } from "lucide-react";
 export type SolutionDemoKind =
   | "website-agent"
   | "whatsapp-agent"
-  | "catalogue-agent"
   | "quote-automation"
   | "voice-agent"
   | "lead-nurturing"
@@ -80,12 +79,6 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Handle FAQs, bookings, support, and sales conversations inside WhatsApp.",
         demoKind: "whatsapp-agent",
-      },
-      {
-        title: "WhatsApp Catalogue",
-        description:
-          "Let customers browse products, ask questions, and place orders conversationally.",
-        demoKind: "catalogue-agent",
       },
       {
         title: "Bulk Campaigns",

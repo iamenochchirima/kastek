@@ -566,73 +566,6 @@ function WebsiteAgentDemo() {
   );
 }
 
-function CatalogueAgentDemo() {
-  const step = useLoop(6, 900, 3200);
-  const products = [
-    { name: "5kWh LiFePO4 Battery", price: "R 8,990", emoji: "🔋", at: 3 },
-    { name: "10kWh Premium Pack", price: "R 16,500", emoji: "⚡", at: 4 },
-    { name: "3kWh Compact Unit", price: "R 5,400", emoji: "🔌", at: 5 },
-  ];
-
-  return (
-    <DemoShell label="Catalogue Agent">
-      <div className="rounded-xl overflow-hidden border border-white/10 shadow-xl max-w-xs mx-auto">
-        <div className="flex items-center gap-2 px-3 py-2 bg-[#2D9A62]">
-          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-sm">🛍️</div>
-          <div>
-            <p className="text-white text-[11px] font-semibold">KasiTek Shop</p>
-            <p className="text-green-200 text-[9px]">Product catalogue</p>
-          </div>
-        </div>
-
-        <div className="px-2.5 py-2.5 space-y-2" style={{ background: "#ece5dd", minHeight: 240 }}>
-          {/* User query */}
-          <div className="flex justify-end transition-all duration-500" style={{ opacity: step >= 1 ? 1 : 0, transform: step >= 1 ? "none" : "translateY(6px)" }}>
-            <div className="px-3 py-1.5 text-[11px] leading-relaxed rounded-[12px_0_12px_12px] shadow-sm" style={{ background: "#dcf8c6", color: "#1a1a1a" }}>
-              Show me solar batteries under R10k
-            </div>
-          </div>
-
-          {/* Typing */}
-          <div className="flex justify-start" style={{ opacity: step === 2 ? 1 : 0, transition: "opacity 0.3s" }}>
-            <div className="bg-white rounded-[0_12px_12px_12px] px-3 py-2 flex gap-1 shadow-sm">
-              {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-400" style={{ animation: `bounce 1s ease infinite ${i*0.15}s` }} />)}
-            </div>
-          </div>
-
-          {/* Agent text */}
-          <div className="flex justify-start transition-all duration-500" style={{ opacity: step >= 3 ? 1 : 0, transform: step >= 3 ? "none" : "translateY(4px)" }}>
-            <div className="bg-white rounded-[0_12px_12px_12px] px-3 py-1.5 text-[11px] text-gray-800 shadow-sm max-w-[85%]">
-              Found 3 options matching your budget:
-            </div>
-          </div>
-
-          {/* Product cards */}
-          <div className="space-y-1.5">
-            {products.map((p, i) => (
-              <div key={i} className="bg-white rounded-xl overflow-hidden shadow-sm transition-all duration-500 flex items-center gap-2 p-2"
-                style={{ opacity: step >= p.at ? 1 : 0, transform: step >= p.at ? "none" : "translateY(4px)" }}>
-                <span className="text-xl flex-shrink-0">{p.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold text-gray-800 truncate">{p.name}</p>
-                  <p className="text-[10px] text-[#2D9A62] font-bold">{p.price}</p>
-                </div>
-                <button className="text-[9px] border border-[#2D9A62] text-[#2D9A62] px-1.5 py-0.5 rounded-md flex-shrink-0 font-medium">Quote</button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-[#f0f0f0] px-2.5 py-2 flex items-center gap-2">
-          <div className="flex-1 bg-white rounded-full px-3 py-1 text-[10px] text-gray-400 shadow-sm">Message...</div>
-          <div className="w-6 h-6 rounded-full bg-[#2D9A62] flex items-center justify-center">
-            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
-          </div>
-        </div>
-      </div>
-    </DemoShell>
-  );
-}
 
 function QuoteDemo() {
   const step = useLoop(7, 700, 3000);
@@ -1231,7 +1164,6 @@ function renderDemo(kind: SolutionDemoKind) {
   switch (kind) {
     case "website-agent": return <WebsiteAgentDemo />;
     case "whatsapp-agent": return <WhatsAppAgentDemo />;
-    case "catalogue-agent": return <CatalogueAgentDemo />;
     case "quote-automation": return <QuoteDemo />;
     case "voice-agent": return <VoiceDemo />;
     case "lead-nurturing": return <LeadNurturingDemo />;
