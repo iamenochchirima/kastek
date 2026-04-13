@@ -423,158 +423,139 @@ function WebsiteAgentDemo() {
         <span className="text-[9px] text-white/30 font-semibold flex-shrink-0">{scenarioIdx + 1}/{WEB_SCENARIOS.length}</span>
       </div>
 
-      {/* Browser window */}
-      <div className="rounded-xl overflow-hidden shadow-2xl transition-opacity duration-[450ms]"
-        style={{ opacity: fading ? 0 : 1, border: "1px solid #D1D5DB" }}>
+      {/* Browser — mirrors solution-v2/WebAgentMockup exactly */}
+      <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-200 transition-opacity duration-[450ms]"
+        style={{ opacity: fading ? 0 : 1 }}>
 
-        {/* Browser chrome — light macOS style */}
-        <div style={{ background: "#EBEBEB", padding: "8px 12px", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid #D1D5DB" }}>
-          <div style={{ display: "flex", gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#FF5F57" }} />
-            <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#FEBC2E" }} />
-            <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#28C840" }} />
+        {/* Dark browser chrome */}
+        <div className="bg-gray-700 px-4 py-2.5 flex items-center gap-3">
+          <div className="flex gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-red-400" />
+            <div className="w-3 h-3 rounded-full bg-yellow-400" />
+            <div className="w-3 h-3 rounded-full bg-green-400" />
           </div>
-          <div style={{ flex: 1, background: "white", borderRadius: 6, padding: "4px 10px", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}>
-            <svg style={{ width: 10, height: 10, color: "#3DBA7A", fill: "currentColor", flexShrink: 0 }} viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-            <span style={{ fontSize: 10, color: "#6B7280" }}>kasitek.co.za/services</span>
+          <div className="flex-1 bg-gray-600 rounded-md px-3 py-1 flex items-center gap-2">
+            <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <span className="text-gray-300 text-xs truncate">kasitek.co.za/services</span>
           </div>
         </div>
 
-        {/* Page body — two-column: website content left, chat widget right */}
-        <div style={{ background: "#F9FAFB", display: "flex" }}>
+        {/* White page — fixed height, chat widget floats absolute bottom-right */}
+        <div className="relative bg-white" style={{ height: 420 }}>
 
-          {/* Left column: website content */}
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-
-            {/* Site nav */}
-            <div style={{ background: "white", padding: "9px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #E5E7EB" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <div style={{ width: 22, height: 22, borderRadius: 5, background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "white", fontSize: 9, fontWeight: 700 }}>K</span>
-                </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#111827" }}>KasiTek</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                {["Services", "About", "Contact"].map(l => (
-                  <span key={l} style={{ fontSize: 9, color: "#6B7280" }}>{l}</span>
-                ))}
-                <div style={{ background: scenario.accent, color: "white", fontSize: 8, fontWeight: 600, padding: "3px 8px", borderRadius: 5 }}>Book Now</div>
-              </div>
+          {/* Page skeleton */}
+          <div className="p-6 pointer-events-none select-none">
+            <div className="h-5 bg-gray-100 rounded w-1/3 mb-3" />
+            <div className="h-3 bg-gray-100 rounded w-2/3 mb-2" />
+            <div className="h-3 bg-gray-100 rounded w-1/2 mb-6" />
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              {[1,2,3].map(i => <div key={i} className="h-24 bg-gray-50 rounded-xl border border-gray-100" />)}
             </div>
-
-            {/* Hero */}
-            <div style={{ background: "white", padding: "14px 14px 12px", borderBottom: "1px solid #E5E7EB" }}>
-              <div style={{ height: 13, background: "#1F2937", borderRadius: 4, width: "50%", marginBottom: 7 }} />
-              <div style={{ height: 8, background: "#D1D5DB", borderRadius: 4, width: "70%", marginBottom: 4 }} />
-              <div style={{ height: 8, background: "#E5E7EB", borderRadius: 4, width: "55%", marginBottom: 12 }} />
-              <div style={{ display: "flex", gap: 7 }}>
-                <div style={{ background: scenario.accent, color: "white", fontSize: 9, fontWeight: 600, padding: "5px 12px", borderRadius: 6 }}>Get a Free Quote</div>
-                <div style={{ border: "1px solid #D1D5DB", color: "#374151", fontSize: 9, padding: "5px 12px", borderRadius: 6 }}>Our Services</div>
-              </div>
-            </div>
-
-            {/* Service cards */}
-            <div style={{ padding: "12px 14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, flex: 1 }}>
-              {[
-                { icon: "⚡", color: "#FEF3C7" },
-                { icon: "☀️", color: "#D1FAE5" },
-                { icon: "🔐", color: "#EDE9FE" },
-                { icon: "📡", color: "#E0F2FE" },
-              ].map((card, i) => (
-                <div key={i} style={{ background: "white", border: "1px solid #E5E7EB", borderRadius: 9, padding: 9 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: 6, background: card.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, marginBottom: 7 }}>{card.icon}</div>
-                  <div style={{ height: 7, background: "#D1D5DB", borderRadius: 3, width: "60%", marginBottom: 4 }} />
-                  <div style={{ height: 5, background: "#E5E7EB", borderRadius: 3, width: "80%" }} />
-                </div>
-              ))}
-            </div>
+            <div className="h-3 bg-gray-100 rounded w-full mb-2" />
+            <div className="h-3 bg-gray-100 rounded w-5/6 mb-2" />
+            <div className="h-3 bg-gray-100 rounded w-4/6" />
           </div>
 
-          {/* Right column: chat widget — always fully visible */}
-          <div style={{ width: 252, borderLeft: "1px solid #E5E7EB", background: "#F0F2F5", padding: "14px 12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Floating chat widget */}
+          <div className="absolute bottom-4 right-4 flex flex-col items-end gap-2" style={{ width: 280 }}>
 
             {/* Chat window */}
-            <div style={{ width: "100%", borderRadius: 14, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", border: "1px solid rgba(0,0,0,0.07)" }}>
+            <div className="w-full bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
 
               {/* Header */}
-              <div style={{ background: scenario.accent, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ position: "relative", flexShrink: 0 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(255,255,255,0.22)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "white" }}>K</div>
-                  <div style={{ position: "absolute", bottom: -1, right: -1, width: 10, height: 10, background: "#86EFAC", borderRadius: "50%", border: "2px solid " + scenario.accent }} />
+              <div className="px-4 py-3 flex items-center gap-2.5" style={{ background: scenario.accent }}>
+                <div className="relative flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold text-white">K</div>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 bg-green-300" style={{ borderColor: scenario.accent }} />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ color: "white", fontSize: 12, fontWeight: 600, margin: 0, lineHeight: 1.3 }}>KasiTek Assistant</p>
-                  <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 10, margin: 0 }}>Online · replies instantly</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs font-semibold leading-tight">KasiTek Assistant</p>
+                  <p className="text-white/75 text-[10px] leading-tight">Online — typically replies instantly</p>
                 </div>
-                <svg style={{ width: 14, height: 14, stroke: "rgba(255,255,255,0.6)", fill: "none", flexShrink: 0 }} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
+                <svg className="w-4 h-4 text-white/60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                </svg>
               </div>
 
-              {/* Messages */}
-              <div style={{ background: "#F8FAFC", padding: "12px 10px", display: "flex", flexDirection: "column", gap: 8, minHeight: 190, overflow: "hidden" }}>
+              {/* Messages — fixed height, overflow hidden so widget never grows */}
+              <div className="p-3 space-y-2.5 overflow-hidden" style={{ background: "#f0f4f8", height: 242 }}>
                 {scenario.steps.map((s, i) => {
                   const visible = msgStep > i;
                   if (s.kind === "agent") return (
-                    <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-end", opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(5px)", transition: "all 0.4s ease" }}>
-                      <div style={{ width: 22, height: 22, borderRadius: "50%", background: scenario.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "white", flexShrink: 0, marginBottom: 2 }}>K</div>
-                      <div style={{ background: "white", borderRadius: "14px 14px 14px 4px", padding: "8px 11px", fontSize: 11.5, color: "#1F2937", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", maxWidth: "85%", lineHeight: 1.5 }}>{s.text}</div>
+                    <div key={i} className="flex gap-2 items-end transition-all duration-400"
+                      style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(4px)" }}>
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0 mb-0.5" style={{ background: scenario.accent }}>K</div>
+                      <div className="bg-white rounded-2xl rounded-bl-sm px-3 py-2 text-[11px] text-gray-800 shadow-sm max-w-[85%] leading-relaxed">{s.text}</div>
                     </div>
                   );
                   if (s.kind === "user") return (
-                    <div key={i} style={{ display: "flex", justifyContent: "flex-end", opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(5px)", transition: "all 0.4s ease" }}>
-                      <div style={{ background: scenario.accent, borderRadius: "14px 14px 4px 14px", padding: "8px 11px", fontSize: 11.5, color: "white", maxWidth: "82%", lineHeight: 1.5 }}>{s.text}</div>
+                    <div key={i} className="flex justify-end transition-all duration-400"
+                      style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(4px)" }}>
+                      <div className="rounded-2xl rounded-br-sm px-3 py-2 text-[11px] text-white shadow-sm max-w-[80%] leading-relaxed"
+                        style={{ background: scenario.accent }}>{s.text}</div>
                     </div>
                   );
                   if (s.kind === "quick-replies") return (
-                    <div key={i} style={{ display: "flex", flexWrap: "wrap", gap: 6, paddingLeft: 30, opacity: visible ? 1 : 0, transition: "opacity 0.4s ease" }}>
+                    <div key={i} className="flex flex-wrap gap-1.5 ml-7 transition-all duration-400"
+                      style={{ opacity: visible ? 1 : 0 }}>
                       {s.options.map((opt, j) => (
-                        <button key={j} style={{ fontSize: 10, fontWeight: 500, padding: "4px 10px", borderRadius: 20, background: `${scenario.accent}18`, color: scenario.accent, border: `1px solid ${scenario.accent}40` }}>{opt}</button>
+                        <button key={j} className="text-[10px] px-2.5 py-1 rounded-full font-medium whitespace-nowrap"
+                          style={{ background: scenario.accent, color: "white" }}>{opt}</button>
                       ))}
                     </div>
                   );
                   if (s.kind === "form") return (
-                    <div key={i} style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(5px)", transition: "all 0.4s ease" }}>
-                      <div style={{ background: "white", borderRadius: "14px 14px 14px 4px", padding: "10px 11px", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div key={i} className="flex gap-2 items-end transition-all duration-400"
+                      style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(4px)" }}>
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0 mb-0.5" style={{ background: scenario.accent }}>K</div>
+                      <div className="bg-white rounded-2xl rounded-bl-sm px-3 py-2 shadow-sm max-w-[88%] space-y-1.5">
                         {s.fields.map((f, j) => (
-                          <div key={j} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid #E5E7EB", borderRadius: 8, padding: "5px 9px" }}>
-                            <span style={{ fontSize: 10, color: "#9CA3AF" }}>{f.label}</span>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: "#374151" }}>{f.value}</span>
+                          <div key={j} className="bg-gray-100 rounded-lg px-2.5 py-1.5 flex justify-between items-center border border-gray-200">
+                            <span className="text-[9px] text-gray-400">{f.label}</span>
+                            <span className="text-[9px] font-semibold text-gray-700">{f.value}</span>
                           </div>
                         ))}
-                        <button style={{ width: "100%", background: scenario.accent, color: "white", fontSize: 11, fontWeight: 600, padding: "7px 0", borderRadius: 8, border: "none" }}>{s.submit}</button>
+                        <button className="w-full text-white text-[10px] py-1.5 rounded-lg font-semibold"
+                          style={{ background: scenario.accent }}>{s.submit}</button>
                       </div>
                     </div>
                   );
                   if (s.kind === "success") return (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 11px", borderRadius: 12, opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(5px)", transition: "all 0.4s ease", background: `${scenario.accent}12`, border: `1px solid ${scenario.accent}30` }}>
-                      <svg style={{ width: 14, height: 14, stroke: scenario.accent, fill: "none", flexShrink: 0 }} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
-                      <p style={{ fontSize: 11, fontWeight: 600, color: scenario.accent, margin: 0 }}>{s.text}</p>
+                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-400"
+                      style={{ opacity: visible ? 1 : 0, background: `${scenario.accent}15`, border: `1px solid ${scenario.accent}30` }}>
+                      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: scenario.accent }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/>
+                      </svg>
+                      <p className="text-[10px] font-semibold" style={{ color: scenario.accent }}>{s.text}</p>
                     </div>
                   );
                   return null;
                 })}
 
-                {/* Typing dots */}
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-end", opacity: showTyping ? 1 : 0, transition: "opacity 0.3s" }}>
-                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: scenario.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "white", flexShrink: 0 }}>K</div>
-                  <div style={{ background: "white", borderRadius: "14px 14px 14px 4px", padding: "9px 13px", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", display: "flex", gap: 4 }}>
-                    {[0,1,2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#CBD5E1", display: "inline-block", animation: `bounce 1s ease infinite ${i*0.15}s` }} />)}
+                {/* Typing */}
+                <div className="flex gap-2 items-end transition-opacity duration-300" style={{ opacity: showTyping ? 1 : 0 }}>
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0" style={{ background: scenario.accent }}>K</div>
+                  <div className="bg-white rounded-2xl rounded-bl-sm px-3 py-2 shadow-sm flex gap-1">
+                    {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-300" style={{ animation: `bounce 1s ease infinite ${i*0.15}s` }} />)}
                   </div>
                 </div>
               </div>
 
               {/* Input bar */}
-              <div style={{ background: "white", padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid #F1F5F9" }}>
-                <div style={{ flex: 1, background: "#F8FAFC", borderRadius: 20, padding: "7px 14px", fontSize: 11, color: "#9CA3AF", border: "1px solid #E5E7EB" }}>Type a message...</div>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: scenario.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 8px ${scenario.accent}55` }}>
-                  <svg style={{ width: 13, height: 13, fill: "white" }} viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                </div>
+              <div className="bg-white px-3 py-2.5 flex items-center gap-2 border-t border-gray-100">
+                <div className="flex-1 bg-gray-100 rounded-full px-3 py-1.5 text-[10px] text-gray-400 border border-gray-200">Type a message...</div>
+                <button className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm" style={{ background: scenario.accent }}>
+                  <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
               </div>
             </div>
 
             {/* FAB */}
-            <div style={{ width: 40, height: 40, borderRadius: "50%", background: scenario.accent, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 14px ${scenario.accent}55`, alignSelf: "flex-end" }}>
-              <svg style={{ width: 18, height: 18, fill: "white" }} viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-            </div>
+            <button className="w-12 h-12 rounded-full flex items-center justify-center shadow-xl" style={{ background: scenario.accent }}>
+              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+            </button>
           </div>
         </div>
       </div>
