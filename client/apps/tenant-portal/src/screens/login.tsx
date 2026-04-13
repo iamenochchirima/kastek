@@ -49,6 +49,7 @@ export default function Login() {
     resolver: zodResolver(passwordSchema),
     defaultValues: { password: "" },
   });
+  const portalMissing = !isLoading && !context.workspace && !context.branding;
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -106,6 +107,45 @@ export default function Login() {
     passwordForm.reset({ password: "" });
   }
 
+  if (isLoading) {
+    return (
+      <div className="relative min-h-screen w-full overflow-hidden bg-background p-4">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-background to-background" />
+        <div className="absolute left-1/2 top-0 h-72 w-[42rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md items-center">
+          <div className="w-full rounded-3xl border border-border/60 bg-card/60 p-6 text-center shadow-2xl backdrop-blur-xl">
+            <div className="mx-auto mb-4 h-12 w-12 animate-pulse rounded-full bg-primary/15" />
+            <div className="mx-auto h-9 w-56 animate-pulse rounded-full bg-muted/70" />
+            <div className="mx-auto mt-3 h-4 w-40 animate-pulse rounded-full bg-muted/50" />
+            <div className="mx-auto mt-3 h-3 w-44 animate-pulse rounded-full bg-muted/40" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (portalMissing) {
+    return (
+      <div className="relative min-h-screen w-full overflow-hidden bg-background p-4">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-background to-background" />
+        <div className="absolute left-1/2 top-0 h-72 w-[42rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md items-center">
+          <div className="w-full rounded-3xl border border-destructive/20 bg-card/80 p-6 text-center shadow-2xl backdrop-blur-xl">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10 text-destructive">
+              !
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Sorry, this portal is not available</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Check the link and try again, or contact the KasiTek team if you need a new portal setup.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-background p-4">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-background to-background" />
@@ -135,7 +175,6 @@ export default function Login() {
             <p className="text-sm text-muted-foreground">
               Start with your email. We’ll verify your access to {brandName}.
             </p>
-            {isLoading ? <p className="text-xs text-muted-foreground">Loading workspace branding...</p> : null}
           </div>
 
           <Card className="border-border/50 bg-card/80 shadow-2xl backdrop-blur-xl">
