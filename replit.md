@@ -3,6 +3,16 @@
 ## Overview
 A Next.js pnpm monorepo migrated from Vercel to Replit. The main client app is a Next.js 16 application using React 19, Tailwind CSS v4, and Prisma with a Neon PostgreSQL database.
 
+## Solutions Pages Architecture
+- `/solutions` — 4-card picker (SMBs, Agencies, Software Vendors, Franchises)
+- `/solutions/[category]` — full detail page with 2-col hero + service showcase tabs
+- `SolutionServicesShowcase` — interactive service selector with per-kind animated demos
+- Each `SolutionDemoKind` maps to a self-looping animated component:
+  `website-agent`, `whatsapp-agent`, `catalogue-agent`, `quote-automation`,
+  `voice-agent`, `lead-nurturing`, `reviews`, `reporting`, `content-engine`,
+  `aeo`, `platform-embed`, `usage-reporting`, `tenant-provisioning`
+- Animations use a `useLoop(steps, stepMs, holdMs)` hook (setTimeout chain + auto-restart)
+
 ## Project Structure
 ```
 client/                        # pnpm monorepo root
