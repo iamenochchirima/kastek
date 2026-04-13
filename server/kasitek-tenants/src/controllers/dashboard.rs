@@ -103,7 +103,7 @@ pub async fn get_activity(req: HttpRequest) -> Result<HttpResponse, AppError> {
                 tc.id AS id,
                 'Client added' AS title,
                 'Added client ' || tc.name AS description,
-                tc.created_at AT TIME ZONE 'UTC' AS timestamp
+                tc.created_at AS timestamp
             FROM tenant_clients tc
             WHERE tc.workspace_id = $1
 
@@ -113,7 +113,7 @@ pub async fn get_activity(req: HttpRequest) -> Result<HttpResponse, AppError> {
                 i.id AS id,
                 'Client invite sent' AS title,
                 'Sent invite to ' || i.email AS description,
-                i.created_at AT TIME ZONE 'UTC' AS timestamp
+                i.created_at AS timestamp
             FROM tenant_client_invites i
             WHERE i.workspace_id = $1
 
@@ -123,7 +123,7 @@ pub async fn get_activity(req: HttpRequest) -> Result<HttpResponse, AppError> {
                 l.id AS id,
                 'Lead added' AS title,
                 l.name || ' for ' || COALESCE(l.company, c.name) AS description,
-                l.created_at AT TIME ZONE 'UTC' AS timestamp
+                l.created_at AS timestamp
             FROM tenant_leads l
             JOIN tenant_clients c ON c.id = l.tenant_client_id
             WHERE l.workspace_id = $1
@@ -134,7 +134,7 @@ pub async fn get_activity(req: HttpRequest) -> Result<HttpResponse, AppError> {
                 c.id AS id,
                 'Conversation updated' AS title,
                 COALESCE(c.customer_name, c.customer_identifier) || ' on ' || c.channel AS description,
-                c.last_message_at AT TIME ZONE 'UTC' AS timestamp
+                c.last_message_at AS timestamp
             FROM conversations c
             WHERE c.workspace_id = $1
 
@@ -144,7 +144,7 @@ pub async fn get_activity(req: HttpRequest) -> Result<HttpResponse, AppError> {
                 a.id AS id,
                 'Agent updated' AS title,
                 a.name || ' is ' || a.status AS description,
-                a.updated_at AT TIME ZONE 'UTC' AS timestamp
+                a.updated_at AS timestamp
             FROM workspace_agents a
             WHERE a.workspace_id = $1
         ) activity

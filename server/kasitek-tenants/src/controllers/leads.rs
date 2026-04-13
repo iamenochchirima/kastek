@@ -118,8 +118,8 @@ pub async fn list_leads(req: HttpRequest) -> Result<HttpResponse, AppError> {
             l.status,
             l.score,
             l.notes,
-            l.created_at AT TIME ZONE 'UTC' AS created_at,
-            l.updated_at AT TIME ZONE 'UTC' AS updated_at
+            l.created_at,
+            l.updated_at
         FROM tenant_leads l
         JOIN tenant_clients c ON c.id = l.tenant_client_id
         WHERE l.workspace_id = $1
@@ -317,8 +317,8 @@ pub async fn list_client_leads(req: HttpRequest) -> Result<HttpResponse, AppErro
             l.status,
             l.score,
             l.notes,
-            l.created_at AT TIME ZONE 'UTC' AS created_at,
-            l.updated_at AT TIME ZONE 'UTC' AS updated_at
+            l.created_at,
+            l.updated_at
         FROM tenant_leads l
         JOIN tenant_clients c ON c.id = l.tenant_client_id
         WHERE l.workspace_id = $1

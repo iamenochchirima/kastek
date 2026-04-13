@@ -277,8 +277,8 @@ pub async fn list_workspace_domains(req: HttpRequest) -> Result<HttpResponse, Ap
             domain,
             is_primary,
             dns_status,
-            verified_at AT TIME ZONE 'UTC' AS verified_at,
-            created_at AT TIME ZONE 'UTC' AS created_at
+            verified_at,
+            created_at
         FROM workspace_domains
         WHERE workspace_id = $1
         ORDER BY is_primary DESC, created_at ASC
@@ -392,8 +392,8 @@ pub async fn verify_workspace_domain(
             domain,
             is_primary,
             dns_status,
-            verified_at AT TIME ZONE 'UTC' AS verified_at,
-            created_at AT TIME ZONE 'UTC' AS created_at
+            verified_at,
+            created_at
         FROM workspace_domains
         WHERE workspace_id = $1 AND id = $2
         LIMIT 1
@@ -506,8 +506,8 @@ pub async fn remove_workspace_domain(
             domain,
             is_primary,
             dns_status,
-            verified_at AT TIME ZONE 'UTC' AS verified_at,
-            created_at AT TIME ZONE 'UTC' AS created_at
+            verified_at,
+            created_at
         FROM workspace_domains
         WHERE workspace_id = $1 AND id = $2
         LIMIT 1

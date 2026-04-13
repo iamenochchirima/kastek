@@ -30,9 +30,9 @@ pub async fn get_usage(req: HttpRequest) -> Result<HttpResponse, AppError> {
     let usage = sqlx::query_as::<_, UsageTotalsRow>(
         r#"
         SELECT
-            COALESCE(SUM(CASE WHEN event_type = 'request' THEN quantity ELSE 0 END), 0) AS requests_this_month,
-            COALESCE(SUM(CASE WHEN event_type = 'token' THEN quantity ELSE 0 END), 0) AS tokens_this_month,
-            COALESCE(SUM(CASE WHEN event_type = 'conversation' THEN quantity ELSE 0 END), 0) AS conversations_this_month
+            COALESCE(SUM(CASE WHEN event_type = 'request' THEN quantity ELSE 0 END), 0)::bigint AS requests_this_month,
+            COALESCE(SUM(CASE WHEN event_type = 'token' THEN quantity ELSE 0 END), 0)::bigint AS tokens_this_month,
+            COALESCE(SUM(CASE WHEN event_type = 'conversation' THEN quantity ELSE 0 END), 0)::bigint AS conversations_this_month
         FROM workspace_usage_events
         WHERE workspace_id = $1
           AND created_at >= date_trunc('month', NOW())

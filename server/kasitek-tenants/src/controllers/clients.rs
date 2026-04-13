@@ -75,8 +75,8 @@ pub async fn list_clients(req: HttpRequest) -> Result<HttpResponse, AppError> {
             status,
             external_ref,
             metadata,
-            created_at AT TIME ZONE 'UTC' AS created_at,
-            updated_at AT TIME ZONE 'UTC' AS updated_at
+            created_at,
+            updated_at
         FROM tenant_clients
         WHERE workspace_id = $1
         ORDER BY updated_at DESC, created_at DESC
@@ -176,8 +176,8 @@ pub async fn list_client_users(
             email,
             name,
             status,
-            created_at AT TIME ZONE 'UTC' AS created_at,
-            updated_at AT TIME ZONE 'UTC' AS updated_at
+            created_at,
+            updated_at
         FROM tenant_client_users
         WHERE workspace_id = $1 AND tenant_client_id = $2
         ORDER BY updated_at DESC, created_at DESC

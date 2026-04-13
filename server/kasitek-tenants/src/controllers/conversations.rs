@@ -47,9 +47,9 @@ pub async fn list_conversations(req: HttpRequest) -> Result<HttpResponse, AppErr
             customer_name,
             status,
             metadata,
-            last_message_at AT TIME ZONE 'UTC' AS last_message_at,
-            created_at AT TIME ZONE 'UTC' AS created_at,
-            updated_at AT TIME ZONE 'UTC' AS updated_at
+            last_message_at,
+            created_at,
+            updated_at
         FROM conversations
         WHERE workspace_id = $1
         ORDER BY last_message_at DESC, updated_at DESC
@@ -89,9 +89,9 @@ pub async fn get_conversation(
             customer_name,
             status,
             metadata,
-            last_message_at AT TIME ZONE 'UTC' AS last_message_at,
-            created_at AT TIME ZONE 'UTC' AS created_at,
-            updated_at AT TIME ZONE 'UTC' AS updated_at
+            last_message_at,
+            created_at,
+            updated_at
         FROM conversations
         WHERE workspace_id = $1 AND id = $2
         LIMIT 1
@@ -147,7 +147,7 @@ pub async fn list_messages(
             sender_role,
             content,
             metadata,
-            created_at AT TIME ZONE 'UTC' AS created_at
+            created_at
         FROM messages
         WHERE workspace_id = $1 AND conversation_id = $2
         ORDER BY created_at ASC

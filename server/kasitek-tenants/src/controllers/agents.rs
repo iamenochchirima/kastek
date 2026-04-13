@@ -31,8 +31,8 @@ pub async fn list_agents(req: HttpRequest) -> Result<HttpResponse, AppError> {
             name,
             status,
             config,
-            created_at AT TIME ZONE 'UTC' AS created_at,
-            updated_at AT TIME ZONE 'UTC' AS updated_at
+            created_at,
+            updated_at
         FROM workspace_agents
         WHERE workspace_id = $1
         ORDER BY updated_at DESC, created_at DESC
@@ -69,8 +69,8 @@ pub async fn get_agent(
             name,
             status,
             config,
-            created_at AT TIME ZONE 'UTC' AS created_at,
-            updated_at AT TIME ZONE 'UTC' AS updated_at
+            created_at,
+            updated_at
         FROM workspace_agents
         WHERE workspace_id = $1 AND id = $2
         LIMIT 1
