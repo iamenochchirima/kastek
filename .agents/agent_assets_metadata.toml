@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "aNx-UKH6KEnemB6ZOmujc"
+uri = "file://client/apps/client/public/images/smb-hero.png"
+type = "image"
+title = "smb hero person phone"

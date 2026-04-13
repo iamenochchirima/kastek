@@ -1,15 +1,6 @@
 "use client";
 
-import WhatsAppMockup from "../solutions-v2/_components/WhatsAppMockup";
-import WebAgentMockup from "../solutions-v2/_components/WebAgentMockup";
-import "../solutions-v2/brochure-scope.css";
-
-const SMB_MESSAGES = [
-  { type: "out" as const, text: "Hi, are you open on Saturdays?", time: "08:45", delay: 0 },
-  { type: "in" as const, text: "Yes! Saturday 8am–1pm. Can I help you book or get a quote?", time: "08:45", delay: 900 },
-  { type: "out" as const, text: "Book me for an electrical inspection Friday 10am.", time: "08:46", delay: 2000 },
-  { type: "in" as const, text: "", time: "08:46", attachment: "booking" as const, delay: 3200 },
-];
+import Image from "next/image";
 
 function AgencyVisual() {
   const clients = [
@@ -191,12 +182,22 @@ interface CategoryHeroVisualProps {
 export function CategoryHeroVisual({ slug }: CategoryHeroVisualProps) {
   if (slug === "smbs") {
     return (
-      <div className="flex flex-col sm:flex-row items-start gap-6">
-        <div className="brochure-scope flex-shrink-0">
-          <WhatsAppMockup messages={SMB_MESSAGES} autoAnimate />
-        </div>
-        <div className="flex-shrink-0 hidden lg:block">
-          <WebAgentMockup scenario="lead" />
+      <div className="relative w-full max-w-md">
+        {/* Ambient glow behind the image */}
+        <div className="absolute -inset-4 rounded-3xl opacity-40 blur-2xl pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at 30% 60%, #3DBA7A33, transparent 60%), radial-gradient(ellipse at 70% 30%, #E8A02033, transparent 60%)" }} />
+        <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/8">
+          <Image
+            src="/images/smb-hero.png"
+            alt="Business owner using KasiTek AI on WhatsApp"
+            width={700}
+            height={933}
+            className="w-full h-auto object-cover"
+            priority
+          />
+          {/* Subtle bottom gradient so it blends into the dark page */}
+          <div className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none"
+            style={{ background: "linear-gradient(to top, #0A0A0A 0%, transparent 100%)" }} />
         </div>
       </div>
     );
