@@ -145,6 +145,7 @@ export function useListTenantClients(..._args: any[]) {
           name: string;
           slug: string;
           status: string;
+          user_count: number;
           external_ref?: string | null;
           metadata?: Record<string, unknown>;
           created_at: string;
@@ -160,6 +161,7 @@ export function useCreateTenantClient(..._args: any[]) {
       name: string;
       slug?: string;
       external_ref?: string;
+      admin_email: string;
     }) =>
       fetchTenantJson<{
         client: {
@@ -170,10 +172,17 @@ export function useCreateTenantClient(..._args: any[]) {
           externalRef?: string | null;
           status: string;
         };
+        adminInvite: {
+          email: string;
+          emailSent: boolean;
+          activationUrl?: string | null;
+          portalUrl?: string | null;
+          expiresAt: string;
+        };
       }>("/api/clients", {
         method: "POST",
         body: JSON.stringify(input),
-      }).then((payload) => payload.client),
+      }),
   });
 }
 

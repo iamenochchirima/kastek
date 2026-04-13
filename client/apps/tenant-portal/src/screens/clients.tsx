@@ -1,19 +1,14 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import {
-  getListTenantClientsQueryKey,
-  getListTenantClientUsersQueryKey,
-  useCreateTenantClient,
-  useInviteTenantClientUser,
-  useListTenantClients,
-  useListTenantClientUsers,
-} from "@workspace/api-client-react";
+import { getListTenantClientsQueryKey, useCreateTenantClient, useListTenantClients } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Building2, Copy, MailPlus, Plus, Users } from "lucide-react";
+import { Building2, Plus, Users, ArrowRight } from "lucide-react";
 import { ProtectedRoute } from "@/lib/auth";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,139 +22,75 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CLIENT_ADMIN_ROLES } from "@/lib/tenant-access";
 
 const createClientSchema = z.object({
   name: z.string().min(2, "Client name is required"),
-  slug: z.string().optional(),
+  admin_email: z.string().email("Valid admin email is required"),
   external_ref: z.string().optional(),
 });
 
-const inviteUserSchema = z.object({
-  email: z.string().email("Valid email is required"),
-  name: z.string().optional(),
-  role: z.string().min(1, "Role is required"),
-});
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString();
+}
 
 export default function ClientsScreen() {
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
-  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
-  const [latestInviteLink, setLatestInviteLink] = useState<string | null>(null);
-  const [latestInviteEmailSent, setLatestInviteEmailSent] = useState(false);
-  const [latestInviteEmail, setLatestInviteEmail] = useState<string | null>(null);
-
+  const [createError, setCreateError] = useState<string | null>(null);
   const { data: clients, isLoading: isLoadingClients } = useListTenantClients();
-  const activeClientId = selectedClientId || clients?.[0]?.id || "";
-  const { data: clientUsers, isLoading: isLoadingUsers } = useListTenantClientUsers(activeClientId, {
-    enabled: !!activeClientId,
-  });
-
   const createClient = useCreateTenantClient();
-  const inviteClientUser = useInviteTenantClientUser();
 
   const createClientForm = useForm<z.infer<typeof createClientSchema>>({
     resolver: zodResolver(createClientSchema),
     defaultValues: {
       name: "",
-      slug: "",
+      admin_email: "",
       external_ref: "",
     },
   });
 
-  const inviteUserForm = useForm<z.infer<typeof inviteUserSchema>>({
-    resolver: zodResolver(inviteUserSchema),
-    defaultValues: {
-      email: "",
-      name: "",
-      role: "member",
-    },
-  });
-
-  const selectedClient = useMemo(
-    () => clients?.find((client) => client.id === activeClientId) ?? null,
-    [activeClientId, clients],
+  const totalUsers = useMemo(
+    () => clients?.reduce((sum, client) => sum + (client.user_count ?? 0), 0) ?? 0,
+    [clients],
   );
 
   const onCreateClient = (values: z.infer<typeof createClientSchema>) => {
+    setCreateError(null);
+
     createClient.mutate(
       {
         name: values.name,
-        slug: values.slug,
+        admin_email: values.admin_email,
         external_ref: values.external_ref,
       },
       {
-        onSuccess: (client) => {
-          void queryClient.invalidateQueries({ queryKey: getListTenantClientsQueryKey() });
-          setSelectedClientId(client.id);
-          setIsClientDialogOpen(false);
+        onSuccess: async (payload) => {
+          await queryClient.invalidateQueries({ queryKey: getListTenantClientsQueryKey() });
           createClientForm.reset();
-      },
-      onError: (error) => {
-        createClientForm.setError("root", {
-          message: error instanceof Error ? error.message : "Unable to create client",
-        });
-      },
-      },
-    );
-  };
-
-  const onInviteUser = (values: z.infer<typeof inviteUserSchema>) => {
-    if (!activeClientId) {
-      inviteUserForm.setError("root", { message: "Select a client first" });
-      return;
-    }
-
-    inviteClientUser.mutate(
-      {
-        tenantClientId: activeClientId,
-        email: values.email,
-        name: values.name,
-        role: values.role,
-      },
-      {
-        onSuccess: (invite) => {
-          void queryClient.invalidateQueries({
-            queryKey: getListTenantClientUsersQueryKey(activeClientId),
+          setIsClientDialogOpen(false);
+          const inviteQuery = new URLSearchParams({
+            adminInviteEmail: payload.adminInvite.email,
+            adminInviteSent: payload.adminInvite.emailSent ? "1" : "0",
           });
-          const fallbackLink =
-            typeof window !== "undefined"
-              ? `${window.location.origin}/activate?token=${invite.token}`
-              : null;
-          setLatestInviteEmail(invite.email);
-          setLatestInviteEmailSent(invite.emailSent);
-          setLatestInviteLink(invite.emailSent ? null : invite.activationUrl ?? fallbackLink);
-          setIsInviteDialogOpen(false);
-          inviteUserForm.reset({ email: "", name: "", role: "member" });
+          if (!payload.adminInvite.emailSent && payload.adminInvite.activationUrl) {
+            inviteQuery.set("adminInviteUrl", payload.adminInvite.activationUrl);
+          }
+          router.push(`/clients/${payload.client.id}?${inviteQuery.toString()}`);
         },
         onError: (error) => {
-          inviteUserForm.setError("root", {
-            message: error instanceof Error ? error.message : "Unable to invite client user",
+          createClientForm.setError("root", {
+            message: error instanceof Error ? error.message : "Unable to create client",
           });
+          setCreateError(error instanceof Error ? error.message : "Unable to create client");
         },
       },
     );
-  };
-
-  const copyInviteToken = async () => {
-    if (!latestInviteLink || typeof navigator === "undefined") {
-      return;
-    }
-
-    await navigator.clipboard.writeText(latestInviteLink);
   };
 
   return (
@@ -170,7 +101,7 @@ export default function ClientsScreen() {
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
               <p className="mt-1 text-muted-foreground">
-                Manage the companies under this tenant workspace and invite their users into the platform.
+                Manage the client accounts inside this portal.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -183,9 +114,9 @@ export default function ClientsScreen() {
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Create Tenant Client</DialogTitle>
+                    <DialogTitle>Create Client Account</DialogTitle>
                     <DialogDescription>
-                      Add a new client account under this tenant workspace.
+                      Add a new client account to this portal. The first admin invite is sent immediately.
                     </DialogDescription>
                   </DialogHeader>
                   <Form {...createClientForm}>
@@ -205,12 +136,12 @@ export default function ClientsScreen() {
                       />
                       <FormField
                         control={createClientForm.control}
-                        name="slug"
+                        name="admin_email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Slug</FormLabel>
+                            <FormLabel>Client Admin Email</FormLabel>
                             <FormControl>
-                              <Input placeholder="harbor-dental" {...field} />
+                              <Input placeholder="admin@harbordental.com" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -229,92 +160,18 @@ export default function ClientsScreen() {
                           </FormItem>
                         )}
                       />
-                      {createClientForm.formState.errors.root && (
+                      {createError || createClientForm.formState.errors.root ? (
                         <p className="text-sm text-destructive">
-                          {createClientForm.formState.errors.root.message}
+                          {createError || createClientForm.formState.errors.root?.message}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          We send the first admin invite to the email above.
                         </p>
                       )}
                       <div className="flex justify-end">
-                      <Button type="submit" loading={createClient.isPending} loadingLabel="Creating client...">
+                        <Button type="submit" loading={createClient.isPending} loadingLabel="Creating client...">
                           Create Client
-                      </Button>
-                      </div>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
-
-              <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" disabled={!activeClientId}>
-                    <MailPlus className="mr-2 h-4 w-4" />
-                    Invite User
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Invite Client User</DialogTitle>
-                    <DialogDescription>
-                      Invite a user into {selectedClient?.name ?? "this client account"}.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <Form {...inviteUserForm}>
-                    <form onSubmit={inviteUserForm.handleSubmit(onInviteUser)} className="space-y-4">
-                      <FormField
-                        control={inviteUserForm.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Email</FormLabel>
-                            <FormControl>
-                              <Input placeholder="owner@client.com" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={inviteUserForm.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Jane Doe" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={inviteUserForm.control}
-                        name="role"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Role</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select role" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="member">Member</SelectItem>
-                                <SelectItem value="owner">Owner</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      {inviteUserForm.formState.errors.root && (
-                        <p className="text-sm text-destructive">
-                          {inviteUserForm.formState.errors.root.message}
-                        </p>
-                      )}
-                      <div className="flex justify-end">
-                        <Button type="submit" loading={inviteClientUser.isPending} loadingLabel="Sending invite...">
-                          Send Invite
                         </Button>
                       </div>
                     </form>
@@ -324,149 +181,100 @@ export default function ClientsScreen() {
             </div>
           </div>
 
-          {(latestInviteLink || latestInviteEmailSent) && (
-            <Card className="border-primary/20 bg-primary/5">
-              <CardHeader>
-                <CardTitle className="text-base">
-                  {latestInviteEmailSent ? "Invite Sent" : "Latest Invite Link"}
-                </CardTitle>
-                <CardDescription>
-                  {latestInviteEmailSent
-                    ? `An activation email was sent to ${latestInviteEmail ?? "the invited user"}.`
-                    : "Email delivery is not configured for this environment, so use this activation link directly."}
-                </CardDescription>
-              </CardHeader>
-              {latestInviteLink ? (
-                <CardContent className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                  <code className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm">
-                    {latestInviteLink}
-                  </code>
-                  <Button variant="secondary" onClick={() => void copyInviteToken()}>
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copy Link
-                  </Button>
-                </CardContent>
-              ) : null}
-            </Card>
-          )}
-
-          <div className="grid gap-8 xl:grid-cols-[1.1fr,0.9fr]">
+          <div className="grid gap-4 md:grid-cols-3">
             <Card>
-              <CardHeader>
-                <CardTitle>Tenant Clients</CardTitle>
-                <CardDescription>Organizations currently operating inside this tenant workspace.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isLoadingClients ? (
-                  Array.from({ length: 4 }).map((_, index) => (
-                    <Skeleton key={index} className="h-24 w-full rounded-xl" />
-                  ))
-                ) : clients?.length ? (
-                  clients.map((client) => {
-                    const isActive = activeClientId === client.id;
-
-                    return (
-                      <button
-                        key={client.id}
-                        type="button"
-                        onClick={() => setSelectedClientId(client.id)}
-                        className={`w-full rounded-xl border p-4 text-left transition-colors ${
-                          isActive
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-card hover:border-primary/30 hover:bg-muted/40"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <Building2 className="h-4 w-4 text-primary" />
-                              <span className="truncate font-semibold">{client.name}</span>
-                            </div>
-                            <p className="mt-1 text-sm text-muted-foreground">{client.slug}</p>
-                            {client.external_ref && (
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                External ref: {client.external_ref}
-                              </p>
-                            )}
-                          </div>
-                          <Badge variant={client.status === "active" ? "default" : "outline"}>
-                            {client.status}
-                          </Badge>
-                        </div>
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center text-muted-foreground">
-                    No tenant clients yet.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Client Users</CardTitle>
-                <CardDescription>
-                  {selectedClient
-                    ? `Users invited into ${selectedClient.name}.`
-                    : "Select a client to view its users."}
-                </CardDescription>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Clients</CardTitle>
               </CardHeader>
               <CardContent>
-                {!selectedClient ? (
-                  <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center text-muted-foreground">
-                    Choose a client first.
-                  </div>
-                ) : isLoadingUsers ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: 4 }).map((_, index) => (
-                      <Skeleton key={index} className="h-12 w-full" />
-                    ))}
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>User</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Updated</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {clientUsers?.length ? (
-                        clientUsers.map((user) => (
-                          <TableRow key={user.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <Users className="h-4 w-4 text-muted-foreground" />
-                                <div>
-                                  <div className="font-medium">{user.name || "Unnamed user"}</div>
-                                  <div className="text-xs text-muted-foreground">{user.email}</div>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{user.status}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right text-sm text-muted-foreground">
-                              {new Date(user.updated_at).toLocaleDateString()}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                            No users invited yet.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                )}
+                <div className="text-3xl font-semibold">{clients?.length ?? 0}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Users</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-semibold">{totalUsers}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-semibold">{clients?.length ? "Active" : "Empty"}</div>
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Client Directory</CardTitle>
+              <CardDescription>
+                Each row opens a client details page where you can manage its users and invitations.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingClients ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton key={index} className="h-16 w-full rounded-xl" />
+                  ))}
+                </div>
+              ) : clients?.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Client</TableHead>
+                      <TableHead>Slug</TableHead>
+                      <TableHead>Users</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Open</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clients.map((client) => (
+                      <TableRow key={client.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Building2 className="h-4 w-4 text-primary" />
+                            <div>
+                              <div className="font-medium">{client.name}</div>
+                              {client.external_ref ? (
+                                <div className="text-xs text-muted-foreground">External ref: {client.external_ref}</div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{client.slug}</TableCell>
+                        <TableCell>{client.user_count ?? 0}</TableCell>
+                        <TableCell>
+                          <Badge variant={client.status === "active" ? "default" : "outline"}>{client.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDate(client.created_at)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button asChild variant="ghost" size="sm">
+                            <Link href={`/clients/${client.id}`}>
+                              Open
+                              <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center text-muted-foreground">
+                  No clients yet. Add your first client account to get started.
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </Layout>
     </ProtectedRoute>
