@@ -405,17 +405,10 @@ function WebsiteAgentDemo() {
   const scenario = WEB_SCENARIOS[scenarioIdx];
   const nextStep = scenario.steps[msgStep];
   const showTyping = msgStep < scenario.steps.length && nextStep?.kind === "agent";
-  const msgContainerRef = useRef<HTMLDivElement>(null);
   const msgEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (msgContainerRef.current) msgContainerRef.current.scrollTop = 0;
-  }, [scenarioIdx]);
-
-  useEffect(() => {
-    if (msgStep > 0) {
-      msgEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
+    msgEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [msgStep, showTyping]);
 
   return (
@@ -491,27 +484,23 @@ function WebsiteAgentDemo() {
                 </svg>
               </div>
 
-              {/* Messages — fixed height, scrolls to bottom as messages appear */}
-              <div ref={msgContainerRef} className="p-3 space-y-2.5 no-scrollbar" style={{ background: "#f0f4f8", height: 242, overflowY: "scroll" }}>
-                {scenario.steps.map((s, i) => {
-                  const visible = msgStep > i;
+              {/* Messages — only revealed steps are mounted; sentinel tracks real content bottom */}
+              <div className="p-3 space-y-2.5 no-scrollbar" style={{ background: "#f0f4f8", height: 242, overflowY: "scroll" }}>
+                {scenario.steps.slice(0, msgStep).map((s, i) => {
                   if (s.kind === "agent") return (
-                    <div key={i} className="flex gap-2 items-end transition-all duration-400"
-                      style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(4px)" }}>
+                    <div key={i} className="flex gap-2 items-end msg-in">
                       <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0 mb-0.5" style={{ background: scenario.accent }}>K</div>
                       <div className="bg-white rounded-2xl rounded-bl-sm px-3 py-2 text-[11px] text-gray-800 shadow-sm max-w-[85%] leading-relaxed">{s.text}</div>
                     </div>
                   );
                   if (s.kind === "user") return (
-                    <div key={i} className="flex justify-end transition-all duration-400"
-                      style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(4px)" }}>
+                    <div key={i} className="flex justify-end msg-in">
                       <div className="rounded-2xl rounded-br-sm px-3 py-2 text-[11px] text-white shadow-sm max-w-[80%] leading-relaxed"
                         style={{ background: scenario.accent }}>{s.text}</div>
                     </div>
                   );
                   if (s.kind === "quick-replies") return (
-                    <div key={i} className="flex flex-wrap gap-1.5 ml-7 transition-all duration-400"
-                      style={{ opacity: visible ? 1 : 0 }}>
+                    <div key={i} className="flex flex-wrap gap-1.5 ml-7 msg-in">
                       {s.options.map((opt, j) => (
                         <button key={j} className="text-[10px] px-2.5 py-1 rounded-full font-medium whitespace-nowrap"
                           style={{ background: scenario.accent, color: "white" }}>{opt}</button>
@@ -519,8 +508,7 @@ function WebsiteAgentDemo() {
                     </div>
                   );
                   if (s.kind === "form") return (
-                    <div key={i} className="flex gap-2 items-end transition-all duration-400"
-                      style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(4px)" }}>
+                    <div key={i} className="flex gap-2 items-end msg-in">
                       <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0 mb-0.5" style={{ background: scenario.accent }}>K</div>
                       <div className="bg-white rounded-2xl rounded-bl-sm px-3 py-2 shadow-sm max-w-[88%] space-y-1.5">
                         {s.fields.map((f, j) => (
@@ -535,8 +523,8 @@ function WebsiteAgentDemo() {
                     </div>
                   );
                   if (s.kind === "success") return (
-                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-400"
-                      style={{ opacity: visible ? 1 : 0, background: `${scenario.accent}15`, border: `1px solid ${scenario.accent}30` }}>
+                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl msg-in"
+                      style={{ background: `${scenario.accent}15`, border: `1px solid ${scenario.accent}30` }}>
                       <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: scenario.accent }}>
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/>
                       </svg>
@@ -546,13 +534,15 @@ function WebsiteAgentDemo() {
                   return null;
                 })}
 
-                {/* Typing */}
-                <div className="flex gap-2 items-end transition-opacity duration-300" style={{ opacity: showTyping ? 1 : 0 }}>
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0" style={{ background: scenario.accent }}>K</div>
-                  <div className="bg-white rounded-2xl rounded-bl-sm px-3 py-2 shadow-sm flex gap-1">
-                    {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-300" style={{ animation: `bounce 1s ease infinite ${i*0.15}s` }} />)}
+                {/* Typing dots — mounted/unmounted so content height stays accurate */}
+                {showTyping && (
+                  <div className="flex gap-2 items-end msg-in">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0" style={{ background: scenario.accent }}>K</div>
+                    <div className="bg-white rounded-2xl rounded-bl-sm px-3 py-2 shadow-sm flex gap-1">
+                      {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-300" style={{ animation: `bounce 1s ease infinite ${i*0.15}s` }} />)}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div ref={msgEndRef} />
               </div>
 
