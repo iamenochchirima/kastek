@@ -440,54 +440,58 @@ function WebsiteAgentDemo() {
           </div>
         </div>
 
-        {/* Page body — white light website */}
-        <div style={{ background: "#F9FAFB", position: "relative", overflow: "hidden", minHeight: 420 }}>
+        {/* Page body — two-column: website content left, chat widget right */}
+        <div style={{ background: "#F9FAFB", display: "flex" }}>
 
-          {/* Site nav */}
-          <div style={{ background: "white", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #E5E7EB" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 6, background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "white", fontSize: 10, fontWeight: 700 }}>K</span>
+          {/* Left column: website content */}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+
+            {/* Site nav */}
+            <div style={{ background: "white", padding: "9px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #E5E7EB" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 5, background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "white", fontSize: 9, fontWeight: 700 }}>K</span>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#111827" }}>KasiTek</span>
               </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>KasiTek</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                {["Services", "About", "Contact"].map(l => (
+                  <span key={l} style={{ fontSize: 9, color: "#6B7280" }}>{l}</span>
+                ))}
+                <div style={{ background: scenario.accent, color: "white", fontSize: 8, fontWeight: 600, padding: "3px 8px", borderRadius: 5 }}>Book Now</div>
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              {["Services", "About", "Contact"].map(l => (
-                <span key={l} style={{ fontSize: 10, color: "#6B7280" }}>{l}</span>
+
+            {/* Hero */}
+            <div style={{ background: "white", padding: "14px 14px 12px", borderBottom: "1px solid #E5E7EB" }}>
+              <div style={{ height: 13, background: "#1F2937", borderRadius: 4, width: "50%", marginBottom: 7 }} />
+              <div style={{ height: 8, background: "#D1D5DB", borderRadius: 4, width: "70%", marginBottom: 4 }} />
+              <div style={{ height: 8, background: "#E5E7EB", borderRadius: 4, width: "55%", marginBottom: 12 }} />
+              <div style={{ display: "flex", gap: 7 }}>
+                <div style={{ background: scenario.accent, color: "white", fontSize: 9, fontWeight: 600, padding: "5px 12px", borderRadius: 6 }}>Get a Free Quote</div>
+                <div style={{ border: "1px solid #D1D5DB", color: "#374151", fontSize: 9, padding: "5px 12px", borderRadius: 6 }}>Our Services</div>
+              </div>
+            </div>
+
+            {/* Service cards */}
+            <div style={{ padding: "12px 14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, flex: 1 }}>
+              {[
+                { icon: "⚡", color: "#FEF3C7" },
+                { icon: "☀️", color: "#D1FAE5" },
+                { icon: "🔐", color: "#EDE9FE" },
+                { icon: "📡", color: "#E0F2FE" },
+              ].map((card, i) => (
+                <div key={i} style={{ background: "white", border: "1px solid #E5E7EB", borderRadius: 9, padding: 9 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: 6, background: card.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, marginBottom: 7 }}>{card.icon}</div>
+                  <div style={{ height: 7, background: "#D1D5DB", borderRadius: 3, width: "60%", marginBottom: 4 }} />
+                  <div style={{ height: 5, background: "#E5E7EB", borderRadius: 3, width: "80%" }} />
+                </div>
               ))}
-              <div style={{ background: scenario.accent, color: "white", fontSize: 9, fontWeight: 600, padding: "4px 10px", borderRadius: 6 }}>Book Now</div>
             </div>
           </div>
 
-          {/* Hero strip */}
-          <div style={{ background: "white", padding: "16px 16px 14px", borderBottom: "1px solid #E5E7EB" }}>
-            <div style={{ height: 14, background: "#1F2937", borderRadius: 4, width: "40%", marginBottom: 8 }} />
-            <div style={{ height: 9, background: "#D1D5DB", borderRadius: 4, width: "62%", marginBottom: 5 }} />
-            <div style={{ height: 9, background: "#E5E7EB", borderRadius: 4, width: "48%", marginBottom: 14 }} />
-            <div style={{ display: "flex", gap: 8 }}>
-              <div style={{ background: scenario.accent, color: "white", fontSize: 10, fontWeight: 600, padding: "6px 14px", borderRadius: 7 }}>Get a Free Quote</div>
-              <div style={{ background: "transparent", border: "1px solid #D1D5DB", color: "#374151", fontSize: 10, padding: "6px 14px", borderRadius: 7 }}>Our Services</div>
-            </div>
-          </div>
-
-          {/* Service cards */}
-          <div style={{ padding: "14px 16px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            {[
-              { label: "Electrical", icon: "⚡", color: "#FEF3C7" },
-              { label: "Solar", icon: "☀️", color: "#D1FAE5" },
-              { label: "Security", icon: "🔐", color: "#EDE9FE" },
-            ].map((card, i) => (
-              <div key={i} style={{ background: "white", border: "1px solid #E5E7EB", borderRadius: 10, padding: 10 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: card.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, marginBottom: 8 }}>{card.icon}</div>
-                <div style={{ height: 8, background: "#1F2937", borderRadius: 3, width: "65%", marginBottom: 5 }} />
-                <div style={{ height: 6, background: "#E5E7EB", borderRadius: 3, width: "85%", marginBottom: 3 }} />
-                <div style={{ height: 6, background: "#E5E7EB", borderRadius: 3, width: "70%" }} />
-              </div>
-            ))}
-          </div>
-
-          {/* Chat widget — bottom right, floating above page */}
-          <div style={{ position: "absolute", bottom: 14, right: 14, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10, width: 250 }}>
+          {/* Right column: chat widget — always fully visible */}
+          <div style={{ width: 252, borderLeft: "1px solid #E5E7EB", background: "#F0F2F5", padding: "14px 12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
 
             {/* Chat window */}
             <div style={{ width: "100%", borderRadius: 14, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", border: "1px solid rgba(0,0,0,0.07)" }}>
@@ -568,8 +572,8 @@ function WebsiteAgentDemo() {
             </div>
 
             {/* FAB */}
-            <div style={{ width: 42, height: 42, borderRadius: "50%", background: scenario.accent, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 16px ${scenario.accent}66` }}>
-              <svg style={{ width: 20, height: 20, fill: "white" }} viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", background: scenario.accent, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 14px ${scenario.accent}55`, alignSelf: "flex-end" }}>
+              <svg style={{ width: 18, height: 18, fill: "white" }} viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
             </div>
           </div>
         </div>
