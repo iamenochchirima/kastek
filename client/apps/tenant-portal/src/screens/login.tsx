@@ -40,8 +40,6 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [audience, setAudience] = useState<"tenant" | "client" | null>(null);
   const [activationUrl, setActivationUrl] = useState<string | null>(null);
-  const [portalUrl, setPortalUrl] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<string | null>(null);
 
   const emailForm = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
@@ -68,8 +66,6 @@ export default function Login() {
       setEmail(values.email);
       setAudience(payload.audience ?? null);
       setActivationUrl(payload.activationUrl ?? null);
-      setPortalUrl(payload.portalUrl ?? null);
-      setExpiresAt(payload.expiresAt ?? null);
 
       if (payload.nextStep === "password") {
         setStage("password");
@@ -107,8 +103,6 @@ export default function Login() {
     setStage("email");
     setAudience(null);
     setActivationUrl(null);
-    setPortalUrl(null);
-    setExpiresAt(null);
     passwordForm.reset({ password: "" });
   }
 
@@ -228,37 +222,24 @@ export default function Login() {
 
               {stage === "setup_link_sent" ? (
                 <div className="space-y-4">
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-4 text-sm text-muted-foreground">
-                    <div className="font-medium text-foreground">{email}</div>
-                    <div className="mt-2">
-                      We sent a secure setup link to this email so you can create your password and finish access setup.
-                    </div>
-                    {expiresAt ? (
-                      <div className="mt-2 text-xs">Link expires {new Date(expiresAt).toLocaleString()}.</div>
-                    ) : null}
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-5 text-center text-sm text-muted-foreground">
+                    We&apos;ve sent a secure setup link to <span className="font-medium text-foreground">{email}</span>.
+                    Open it to finish setting up your access.
                   </div>
 
-                  {portalUrl ? (
-                    <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm">
-                      <div className="text-muted-foreground">Portal link</div>
-                      <div className="mt-1 break-all font-mono text-foreground">{portalUrl}</div>
-                    </div>
-                  ) : null}
-
                   {activationUrl ? (
-                    <div className="space-y-3">
+                    <div className="space-y-3 pt-1">
                       <Button asChild className="w-full">
                         <Link href={activationUrl}>Open setup link</Link>
                       </Button>
-                      <p className="text-xs text-muted-foreground">
-                        The link above is shown here as a fallback so you can test the flow immediately.
-                      </p>
                     </div>
                   ) : null}
 
-                  <Button type="button" variant="outline" className="w-full" onClick={resetToEmail}>
-                    Use a different email
-                  </Button>
+                  <div className="text-center">
+                    <Button type="button" variant="outline" onClick={resetToEmail}>
+                      Use a different email
+                    </Button>
+                  </div>
                 </div>
               ) : null}
             </CardContent>
