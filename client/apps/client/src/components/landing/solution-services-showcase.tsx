@@ -91,176 +91,413 @@ function TypingDots({ visible }: { visible: boolean }) {
 // DEMO COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function WebsiteAgentDemo() {
-  const step = useLoop(6, 900, 3000);
-  return (
-    <DemoShell label="Website Agent">
-      {/* Blurred page background */}
-      <div className="relative rounded-xl bg-[#111] overflow-hidden" style={{ minHeight: 280 }}>
-        {/* Fake page content */}
-        <div className="p-4 select-none pointer-events-none opacity-30">
-          <div className="h-3 bg-white/20 rounded w-1/3 mb-2" />
-          <div className="h-2 bg-white/15 rounded w-2/3 mb-1.5" />
-          <div className="h-2 bg-white/15 rounded w-1/2 mb-4" />
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {[1,2,3].map(i => <div key={i} className="h-14 bg-white/10 rounded-lg" />)}
-          </div>
-          <div className="h-2 bg-white/15 rounded w-full mb-1.5" />
-          <div className="h-2 bg-white/15 rounded w-4/5" />
-        </div>
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED: Scenario sequencer hook
+// ─────────────────────────────────────────────────────────────────────────────
+function useScenarioSequence(totalScenarios: number, stepsPerScenario: number[], stepMs = 950, holdMs = 2400, fadeMs = 420) {
+  const [scenarioIdx, setScenarioIdx] = useState(0);
+  const [msgStep, setMsgStep] = useState(0);
+  const [fading, setFading] = useState(false);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-        {/* Chat widget */}
-        <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2" style={{ width: 230 }}>
-          {/* Chat window */}
-          <div
-            className="w-full rounded-xl overflow-hidden shadow-2xl border border-white/10 transition-all duration-500"
-            style={{ opacity: step >= 1 ? 1 : 0, transform: step >= 1 ? "scale(1) translateY(0)" : "scale(0.95) translateY(8px)" }}
-          >
-            <div className="bg-[#2D9A62] px-3 py-2 flex items-center gap-2">
-              <div className="relative">
-                <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold text-white">K</div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-300 rounded-full border border-[#2D9A62]" />
-              </div>
-              <div>
-                <p className="text-white text-[10px] font-semibold leading-tight">KasiTek Assistant</p>
-                <p className="text-green-200 text-[9px]">Online · replies instantly</p>
-              </div>
-            </div>
+  useEffect(() => {
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+    setMsgStep(0);
+    setFading(false);
 
-            <div className="p-2.5 space-y-2" style={{ background: "#f0f4f8", minHeight: 130 }}>
-              {/* Agent greeting */}
-              <div className="flex gap-1.5 items-end">
-                <div className="w-4 h-4 rounded-full bg-[#2D9A62] flex items-center justify-center text-[8px] text-white font-bold flex-shrink-0 mb-0.5">K</div>
-                <div
-                  className="bg-white rounded-xl rounded-bl-sm px-2.5 py-1.5 text-[10px] text-gray-800 shadow-sm max-w-[90%] transition-all duration-400"
-                  style={{ opacity: step >= 1 ? 1 : 0, transform: step >= 1 ? "translateY(0)" : "translateY(4px)" }}
-                >
-                  Hi! 👋 How can I help you today?
-                </div>
-              </div>
+    const stepCount = stepsPerScenario[scenarioIdx] ?? 4;
+    for (let i = 1; i <= stepCount; i++) {
+      const t = setTimeout(() => setMsgStep(i), i * stepMs);
+      timersRef.current.push(t);
+    }
+    const total = stepCount * stepMs + holdMs;
+    const t1 = setTimeout(() => {
+      setFading(true);
+      const t2 = setTimeout(() => {
+        setScenarioIdx(prev => (prev + 1) % totalScenarios);
+      }, fadeMs);
+      timersRef.current.push(t2);
+    }, total);
+    timersRef.current.push(t1);
 
-              {/* Quick replies */}
-              <div
-                className="flex gap-1 ml-5 flex-wrap transition-all duration-400"
-                style={{ opacity: step >= 2 ? 1 : 0, transform: step >= 2 ? "translateY(0)" : "translateY(4px)", transitionDelay: "100ms" }}
-              >
-                {["Request Demo", "Get Pricing", "Talk to Sales"].map((label, i) => (
-                  <button key={label} className={`text-white text-[9px] px-2 py-0.5 rounded-full font-medium transition-colors ${step >= 4 && i === 0 ? "bg-[#1d7a4c]" : "bg-[#2D9A62]"}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+    return () => { timersRef.current.forEach(clearTimeout); timersRef.current = []; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenarioIdx]);
 
-              {/* User reply */}
-              <div
-                className="flex justify-end transition-all duration-400"
-                style={{ opacity: step >= 3 ? 1 : 0, transform: step >= 3 ? "translateY(0)" : "translateY(4px)" }}
-              >
-                <div className="bg-[#2D9A62] rounded-xl rounded-br-sm px-2.5 py-1.5 text-[10px] text-white max-w-[80%]">
-                  I&apos;d like to request a demo
-                </div>
-              </div>
-
-              {/* Agent form */}
-              <div
-                className="flex gap-1.5 items-end transition-all duration-500"
-                style={{ opacity: step >= 4 ? 1 : 0, transform: step >= 4 ? "translateY(0)" : "translateY(6px)" }}
-              >
-                <div className="w-4 h-4 rounded-full bg-[#2D9A62] flex items-center justify-center text-[8px] text-white font-bold flex-shrink-0 mb-0.5">K</div>
-                <div className="bg-white rounded-xl rounded-bl-sm px-2.5 py-2 text-[10px] text-gray-800 shadow-sm max-w-[90%] space-y-1.5">
-                  <p className="font-semibold text-gray-900 text-[10px]">Quick details:</p>
-                  {["Your name", "Email address"].map((f, i) => (
-                    <div key={f} className="bg-gray-100 rounded-md px-2 py-1 text-[9px] text-gray-400">{f}</div>
-                  ))}
-                  <button className="w-full bg-[#2D9A62] text-white text-[9px] py-1 rounded-md font-semibold">
-                    Book Demo →
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Input bar */}
-            <div className="bg-white px-2.5 py-2 flex items-center gap-1.5 border-t border-gray-100">
-              <div className="flex-1 bg-gray-100 rounded-full px-2.5 py-1 text-[9px] text-gray-400">Type a message...</div>
-              <div className="w-6 h-6 rounded-full bg-[#2D9A62] flex items-center justify-center flex-shrink-0">
-                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Launcher button */}
-          <button className="w-10 h-10 rounded-full bg-[#2D9A62] flex items-center justify-center shadow-xl">
-            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
-          </button>
-        </div>
-      </div>
-    </DemoShell>
-  );
+  return { scenarioIdx, msgStep, fading };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// WHATSAPP AGENT — 4 sequential scenarios
+// ─────────────────────────────────────────────────────────────────────────────
+type WaStep =
+  | { kind: "out"; text: string }
+  | { kind: "in"; text: string }
+  | { kind: "booking"; service: string; time: string; address: string }
+  | { kind: "quote"; items: { label: string; amount: string }[]; total: string }
+  | { kind: "products"; items: { name: string; price: string; emoji: string }[] };
+
+const WA_SCENARIOS: { title: string; subtitle: string; accent: string; emoji: string; agentName: string; steps: WaStep[] }[] = [
+  {
+    title: "AI Assistant", subtitle: "Instant answers, 24/7",
+    accent: "#3DBA7A", emoji: "🤖", agentName: "KasiTek AI",
+    steps: [
+      { kind: "out", text: "Hi, what are your business hours?" },
+      { kind: "in", text: "Mon–Fri 7am–6pm, Sat 8am–1pm 🕐" },
+      { kind: "out", text: "Do you cover the Pretoria area?" },
+      { kind: "in", text: "Yes! Joburg, Pretoria & surrounds. Want to book a job?" },
+    ],
+  },
+  {
+    title: "Appointment Booking", subtitle: "Zero-friction bookings in chat",
+    accent: "#60A5FA", emoji: "📅", agentName: "KasiTek Booking",
+    steps: [
+      { kind: "out", text: "Can I book a plumber for Friday?" },
+      { kind: "in", text: "Sure! 9am or 2pm — which works?" },
+      { kind: "out", text: "9am please — 14 Elm Street, Soweto" },
+      { kind: "in", text: "✓ Booked! Sending your confirmation." },
+      { kind: "booking", service: "Plumbing", time: "Friday · 09:00", address: "14 Elm St, Soweto" },
+    ],
+  },
+  {
+    title: "Quote Generation", subtitle: "Instant quotes inside WhatsApp",
+    accent: "#E8A020", emoji: "🧾", agentName: "KasiTek Quotes",
+    steps: [
+      { kind: "out", text: "Need a quote for a DB board upgrade, 16 circuits" },
+      { kind: "in", text: "On it! Calculating that for you." },
+      { kind: "quote", items: [{ label: "DB Board 16-way", amount: "R 2,800" }, { label: "Labour & fitting", amount: "R 1,600" }, { label: "Certificate of compliance", amount: "R 450" }], total: "R 4,850" },
+      { kind: "in", text: "Quote ready — valid for 7 days 🧾" },
+    ],
+  },
+  {
+    title: "Product Catalogue", subtitle: "Browse & order conversationally",
+    accent: "#A78BFA", emoji: "🛍️", agentName: "KasiTek Shop",
+    steps: [
+      { kind: "out", text: "Show me solar packages under R15k" },
+      { kind: "in", text: "Found 3 options in your budget:" },
+      { kind: "products", items: [{ name: "5kWh LiFePO4 Pack", price: "R 8,990", emoji: "🔋" }, { name: "8kWh Premium Pack", price: "R 12,500", emoji: "⚡" }, { name: "3kWh Starter Kit", price: "R 5,800", emoji: "🔌" }] },
+    ],
+  },
+];
+
 function WhatsAppAgentDemo() {
-  const step = useLoop(7, 800, 3000);
-  const messages = [
-    { dir: "out" as const, text: "Can I book for tomorrow morning?", showAt: 1 },
-    { dir: "in" as const, text: "Yes. I have 9am and 11am open.", showAt: 3 },
-    { dir: "out" as const, text: "9am works. 14 Elm Street.", showAt: 4 },
-    { dir: "in" as const, text: "Booked ✓ Confirmation sent!", showAt: 6, green: true },
-  ];
+  const stepCounts = WA_SCENARIOS.map(s => s.steps.length);
+  const { scenarioIdx, msgStep, fading } = useScenarioSequence(WA_SCENARIOS.length, stepCounts, 950, 2500, 420);
+  const scenario = WA_SCENARIOS[scenarioIdx];
+
+  const nextStep = scenario.steps[msgStep];
+  const showTyping = msgStep < scenario.steps.length && nextStep?.kind === "in";
 
   return (
-    <DemoShell label="WhatsApp Agent">
-      <div className="rounded-xl overflow-hidden border border-white/10 shadow-xl max-w-xs mx-auto">
-        {/* WA header */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-[#2D9A62]">
-          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-sm">🤖</div>
+    <div className="space-y-3">
+      {/* Scenario indicator bar */}
+      <div className="rounded-2xl border border-white/8 bg-[#0D0D0D] px-4 py-3 flex items-center gap-3">
+        <div className="flex gap-1.5">
+          {WA_SCENARIOS.map((s, i) => (
+            <div key={i} className="h-1.5 rounded-full transition-all duration-500"
+              style={{ width: i === scenarioIdx ? 20 : 6, background: i === scenarioIdx ? s.accent : "rgba(255,255,255,0.15)" }} />
+          ))}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-semibold text-white/90 truncate leading-tight transition-opacity duration-300"
+            style={{ color: scenario.accent }}>{scenario.title}</p>
+          <p className="text-[9px] text-white/35 truncate leading-tight">{scenario.subtitle}</p>
+        </div>
+        <span className="text-[9px] text-white/30 font-semibold flex-shrink-0">{scenarioIdx + 1}/{WA_SCENARIOS.length}</span>
+      </div>
+
+      {/* WhatsApp phone */}
+      <div className="rounded-xl overflow-hidden border border-white/10 shadow-xl max-w-xs mx-auto transition-opacity duration-[420ms]"
+        style={{ opacity: fading ? 0 : 1 }}>
+        <div className="flex items-center gap-2 px-3 py-2" style={{ background: "#2D9A62" }}>
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-sm">{scenario.emoji}</div>
           <div>
-            <p className="text-white text-[11px] font-semibold leading-tight">KasiTek AI</p>
+            <p className="text-white text-[11px] font-semibold leading-tight">{scenario.agentName}</p>
             <p className="text-green-200 text-[9px]">Typically replies instantly</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <svg className="w-4 h-4 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+            <svg className="w-4 h-4 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
           </div>
         </div>
 
-        {/* Chat area */}
-        <div className="px-2.5 py-2.5 space-y-2" style={{ background: "#ece5dd", minHeight: 220 }}>
-          {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.dir === "out" ? "justify-end" : "justify-start"} transition-all duration-500`}
-              style={{ opacity: step >= m.showAt ? 1 : 0, transform: step >= m.showAt ? "translateY(0)" : "translateY(6px)" }}>
-              <div className={`max-w-[82%] px-3 py-1.5 text-[11px] leading-relaxed shadow-sm ${m.dir === "out" ? "rounded-[12px_0_12px_12px]" : "rounded-[0_12px_12px_12px] bg-white"}`}
-                style={m.dir === "out" ? { background: "#dcf8c6", color: "#1a1a1a" } : { color: "#1a1a1a" }}>
-                {m.text}
+        <div className="px-2.5 py-2.5 space-y-2 overflow-hidden" style={{ background: "#ece5dd", minHeight: 230 }}>
+          {scenario.steps.map((s, i) => {
+            const visible = msgStep > i;
+            if (s.kind === "out") return (
+              <div key={i} className="flex justify-end transition-all duration-450" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)" }}>
+                <div className="max-w-[82%] px-3 py-1.5 text-[11px] leading-relaxed shadow-sm rounded-[12px_0_12px_12px]" style={{ background: "#dcf8c6", color: "#1a1a1a" }}>{s.text}</div>
               </div>
-            </div>
-          ))}
+            );
+            if (s.kind === "in") return (
+              <div key={i} className="flex justify-start transition-all duration-450" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)" }}>
+                <div className="max-w-[82%] px-3 py-1.5 text-[11px] leading-relaxed shadow-sm rounded-[0_12px_12px_12px] bg-white" style={{ color: "#1a1a1a" }}>{s.text}</div>
+              </div>
+            );
+            if (s.kind === "booking") return (
+              <div key={i} className="flex justify-start transition-all duration-450" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)" }}>
+                <div className="bg-white rounded-[0_12px_12px_12px] overflow-hidden shadow-sm max-w-[88%]">
+                  <div className="px-3 py-1.5 flex items-center gap-1.5" style={{ background: scenario.accent }}>
+                    <svg className="w-3 h-3 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span className="text-white text-[10px] font-semibold">Appointment Confirmed</span>
+                  </div>
+                  <div className="p-2.5 space-y-0.5">
+                    <p className="text-[11px] font-semibold text-gray-800">{s.time}</p>
+                    <p className="text-[10px] text-gray-500">{s.service} · {s.address}</p>
+                  </div>
+                </div>
+              </div>
+            );
+            if (s.kind === "quote") return (
+              <div key={i} className="flex justify-start transition-all duration-450" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)" }}>
+                <div className="bg-white rounded-[0_12px_12px_12px] overflow-hidden shadow-sm max-w-[90%]">
+                  <div className="px-3 py-1.5 flex items-center gap-1.5" style={{ background: scenario.accent }}>
+                    <span className="text-white text-[10px] font-semibold">Quotation Ready</span>
+                  </div>
+                  <div className="p-2.5 space-y-1">
+                    {s.items.map((it, j) => (
+                      <div key={j} className="flex justify-between gap-4">
+                        <span className="text-[9px] text-gray-600 truncate">{it.label}</span>
+                        <span className="text-[9px] font-semibold text-gray-800 flex-shrink-0">{it.amount}</span>
+                      </div>
+                    ))}
+                    <div className="border-t border-gray-100 pt-1 flex justify-between">
+                      <span className="text-[10px] font-bold text-gray-900">Total</span>
+                      <span className="text-[10px] font-bold" style={{ color: scenario.accent }}>{s.total}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+            if (s.kind === "products") return (
+              <div key={i} className="space-y-1.5 transition-all duration-450" style={{ opacity: visible ? 1 : 0 }}>
+                {s.items.map((p, j) => (
+                  <div key={j} className="bg-white rounded-xl overflow-hidden shadow-sm flex items-center gap-2 p-2 transition-all duration-450"
+                    style={{ opacity: visible ? 1 : 0, transitionDelay: `${j * 120}ms` }}>
+                    <span className="text-lg flex-shrink-0">{p.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-semibold text-gray-800 truncate">{p.name}</p>
+                      <p className="text-[9px] font-bold" style={{ color: scenario.accent }}>{p.price}</p>
+                    </div>
+                    <button className="text-[8px] border px-1.5 py-0.5 rounded-md flex-shrink-0 font-medium"
+                      style={{ borderColor: scenario.accent, color: scenario.accent }}>Quote</button>
+                  </div>
+                ))}
+              </div>
+            );
+            return null;
+          })}
+
           {/* Typing indicator */}
-          <div className={`flex justify-start transition-all duration-300`} style={{ opacity: step === 2 || step === 5 ? 1 : 0 }}>
+          <div className="flex justify-start transition-opacity duration-300" style={{ opacity: showTyping ? 1 : 0 }}>
             <div className="bg-white rounded-[0_12px_12px_12px] px-3 py-2 flex gap-1 shadow-sm">
               {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-400" style={{ animation: `bounce 1s ease infinite ${i*0.15}s` }} />)}
             </div>
           </div>
-          {/* Booking card */}
-          <div className="flex justify-start transition-all duration-500"
-            style={{ opacity: step >= 7 ? 1 : 0, transform: step >= 7 ? "translateY(0)" : "translateY(6px)" }}>
-            <div className="bg-white rounded-[0_12px_12px_12px] overflow-hidden shadow-sm max-w-[85%]">
-              <div className="bg-[#2D9A62] px-3 py-1.5 flex items-center gap-1.5">
-                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                <span className="text-white text-[10px] font-semibold">Appointment Confirmed</span>
-              </div>
-              <div className="p-2.5">
-                <p className="text-[11px] font-semibold text-gray-800">Tomorrow · 09:00</p>
-                <p className="text-[10px] text-gray-500">14 Elm Street</p>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Input */}
         <div className="bg-[#f0f0f0] px-2.5 py-2 flex items-center gap-2">
+          <div className="flex gap-1.5 flex-shrink-0">
+            <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24"><path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 14.5h-2v-2h2v2zm0-4h-2c0-3.25 3-3 3-5 0-1.1-.9-2-2-2s-2 .9-2 2h-2c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.5-3 2.75-3 5z"/></svg>
+          </div>
           <div className="flex-1 bg-white rounded-full px-3 py-1 text-[10px] text-gray-400 shadow-sm">Message...</div>
-          <div className="w-6 h-6 rounded-full bg-[#2D9A62] flex items-center justify-center">
-            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+          <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#2D9A62" }}>
+            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </div>
         </div>
       </div>
-    </DemoShell>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WEBSITE AGENT — 3 desktop widget scenarios
+// ─────────────────────────────────────────────────────────────────────────────
+type WebStep =
+  | { kind: "agent"; text: string }
+  | { kind: "user"; text: string }
+  | { kind: "quick-replies"; options: string[]; selected?: number }
+  | { kind: "form"; fields: { label: string; value: string }[]; submit: string }
+  | { kind: "success"; text: string };
+
+const WEB_SCENARIOS: { title: string; subtitle: string; accent: string; steps: WebStep[] }[] = [
+  {
+    title: "Lead Capture", subtitle: "Converting visitors into leads",
+    accent: "#3DBA7A",
+    steps: [
+      { kind: "agent", text: "Welcome to KasiTek! How can I help you today? 👋" },
+      { kind: "quick-replies", options: ["Request a Quote", "Book a Service", "Ask a Question"], selected: 0 },
+      { kind: "user", text: "Request a Quote" },
+      { kind: "agent", text: "Great! What service do you need quoted?" },
+      { kind: "user", text: "Electrical inspection, Sandton" },
+      { kind: "agent", text: "Got it! Our team will call you within the hour." },
+      { kind: "success", text: "Lead captured — sales team notified ✓" },
+    ],
+  },
+  {
+    title: "Support & FAQ", subtitle: "Instant answers to common questions",
+    accent: "#60A5FA",
+    steps: [
+      { kind: "agent", text: "Hi! Any questions? I can help right now." },
+      { kind: "user", text: "Do you offer same-day electrical repairs?" },
+      { kind: "agent", text: "Yes! Emergencies dispatched within 2 hours. Same-day slots open until noon." },
+      { kind: "user", text: "What does a basic inspection cost?" },
+      { kind: "agent", text: "Inspections start at R650 incl. callout fee. Want to book?" },
+      { kind: "quick-replies", options: ["Book Now", "Get Full Quote"] },
+    ],
+  },
+  {
+    title: "Instant Booking", subtitle: "Book directly through the widget",
+    accent: "#E8A020",
+    steps: [
+      { kind: "agent", text: "I can book a service for you right now 📅" },
+      { kind: "form", fields: [{ label: "Service", value: "Electrical" }, { label: "Date", value: "Tomorrow" }, { label: "Time", value: "09:00" }], submit: "Confirm Booking →" },
+      { kind: "success", text: "Booking confirmed for Tomorrow at 9am ✓" },
+    ],
+  },
+];
+
+function WebsiteAgentDemo() {
+  const stepCounts = WEB_SCENARIOS.map(s => s.steps.length);
+  const { scenarioIdx, msgStep, fading } = useScenarioSequence(WEB_SCENARIOS.length, stepCounts, 900, 2200, 380);
+  const scenario = WEB_SCENARIOS[scenarioIdx];
+
+  const nextStep = scenario.steps[msgStep];
+  const showTyping = msgStep < scenario.steps.length && nextStep?.kind === "agent";
+
+  return (
+    <div className="space-y-3">
+      {/* Scenario indicator */}
+      <div className="rounded-2xl border border-white/8 bg-[#0D0D0D] px-4 py-3 flex items-center gap-3">
+        <div className="flex gap-1.5">
+          {WEB_SCENARIOS.map((s, i) => (
+            <div key={i} className="h-1.5 rounded-full transition-all duration-500"
+              style={{ width: i === scenarioIdx ? 20 : 6, background: i === scenarioIdx ? s.accent : "rgba(255,255,255,0.15)" }} />
+          ))}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-semibold truncate leading-tight transition-all duration-300" style={{ color: scenario.accent }}>{scenario.title}</p>
+          <p className="text-[9px] text-white/35 truncate leading-tight">{scenario.subtitle}</p>
+        </div>
+        <span className="text-[9px] text-white/30 font-semibold flex-shrink-0">{scenarioIdx + 1}/{WEB_SCENARIOS.length}</span>
+      </div>
+
+      {/* Desktop browser + widget */}
+      <div className="relative rounded-xl overflow-hidden border border-white/10 bg-[#0F0F0F] transition-opacity duration-[380ms]"
+        style={{ opacity: fading ? 0 : 1, minHeight: 300 }}>
+        {/* Browser chrome */}
+        <div className="flex items-center gap-2 px-3 py-2 bg-[#1A1A1A] border-b border-white/8">
+          <div className="flex gap-1"><div className="w-2 h-2 rounded-full bg-white/15" /><div className="w-2 h-2 rounded-full bg-white/15" /><div className="w-2 h-2 rounded-full bg-white/15" /></div>
+          <div className="flex-1 bg-white/5 rounded px-2 py-0.5 flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#3DBA7A]/50 flex-shrink-0" />
+            <span className="text-[9px] text-white/25 truncate">kasitek.co.za/services</span>
+          </div>
+        </div>
+
+        {/* Page skeleton */}
+        <div className="p-4 pointer-events-none select-none opacity-25">
+          <div className="h-4 bg-white/20 rounded w-1/3 mb-3" />
+          <div className="h-2 bg-white/12 rounded w-2/3 mb-2" />
+          <div className="h-2 bg-white/12 rounded w-1/2 mb-5" />
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {[1,2,3].map(i => <div key={i} className="h-16 bg-white/8 rounded-lg" />)}
+          </div>
+          <div className="h-2 bg-white/10 rounded w-full mb-1.5" />
+          <div className="h-2 bg-white/10 rounded w-4/5 mb-1.5" />
+          <div className="h-2 bg-white/10 rounded w-3/5" />
+        </div>
+
+        {/* Chat widget — bottom right */}
+        <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2" style={{ width: 220 }}>
+          {/* Chat window */}
+          <div className="w-full rounded-xl overflow-hidden shadow-2xl border border-white/10">
+            {/* Widget header */}
+            <div className="px-3 py-2 flex items-center gap-2" style={{ background: scenario.accent }}>
+              <div className="relative">
+                <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold text-white">K</div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-200 rounded-full border-2" style={{ borderColor: scenario.accent }} />
+              </div>
+              <div>
+                <p className="text-white text-[9px] font-semibold leading-tight">KasiTek Assistant</p>
+                <p className="text-[8px] opacity-80 text-white">Online · replies instantly</p>
+              </div>
+              <button className="ml-auto text-white/60 hover:text-white">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="p-2.5 space-y-2 overflow-hidden" style={{ background: "#f8fafc", minHeight: 170 }}>
+              {scenario.steps.map((s, i) => {
+                const visible = msgStep > i;
+                if (s.kind === "agent") return (
+                  <div key={i} className="flex gap-1.5 items-end transition-all duration-400" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(4px)" }}>
+                    <div className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] text-white font-bold flex-shrink-0 mb-0.5" style={{ background: scenario.accent }}>K</div>
+                    <div className="bg-white rounded-xl rounded-bl-sm px-2.5 py-1.5 text-[10px] text-gray-800 shadow-sm max-w-[90%]">{s.text}</div>
+                  </div>
+                );
+                if (s.kind === "user") return (
+                  <div key={i} className="flex justify-end transition-all duration-400" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(4px)" }}>
+                    <div className="rounded-xl rounded-br-sm px-2.5 py-1.5 text-[10px] text-white max-w-[82%]" style={{ background: scenario.accent }}>{s.text}</div>
+                  </div>
+                );
+                if (s.kind === "quick-replies") return (
+                  <div key={i} className="flex flex-wrap gap-1 pl-5 transition-all duration-400" style={{ opacity: visible ? 1 : 0 }}>
+                    {s.options.map((opt, j) => (
+                      <button key={j} className="text-white text-[8px] px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+                        style={{ background: s.selected === j ? `${scenario.accent}cc` : scenario.accent }}>{opt}</button>
+                    ))}
+                  </div>
+                );
+                if (s.kind === "form") return (
+                  <div key={i} className="transition-all duration-400" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(4px)" }}>
+                    <div className="bg-white rounded-xl rounded-bl-sm px-2.5 py-2 shadow-sm space-y-1.5">
+                      {s.fields.map((f, j) => (
+                        <div key={j} className="flex items-center justify-between border border-gray-100 rounded-lg px-2 py-1">
+                          <span className="text-[9px] text-gray-400">{f.label}</span>
+                          <span className="text-[9px] font-semibold text-gray-700">{f.value}</span>
+                        </div>
+                      ))}
+                      <button className="w-full text-white text-[9px] py-1.5 rounded-lg font-semibold" style={{ background: scenario.accent }}>{s.submit}</button>
+                    </div>
+                  </div>
+                );
+                if (s.kind === "success") return (
+                  <div key={i} className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border transition-all duration-400"
+                    style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(4px)", borderColor: `${scenario.accent}40`, background: `${scenario.accent}10` }}>
+                    <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: scenario.accent }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                    <p className="text-[9px] font-semibold" style={{ color: scenario.accent }}>{s.text}</p>
+                  </div>
+                );
+                return null;
+              })}
+
+              {/* Typing dots */}
+              <div className="flex gap-1.5 items-end transition-opacity duration-300" style={{ opacity: showTyping ? 1 : 0 }}>
+                <div className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] text-white font-bold flex-shrink-0" style={{ background: scenario.accent }}>K</div>
+                <div className="bg-white rounded-xl rounded-bl-sm px-2.5 py-2 shadow-sm flex gap-1">
+                  {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-300" style={{ animation: `bounce 1s ease infinite ${i*0.15}s` }} />)}
+                </div>
+              </div>
+            </div>
+
+            {/* Input */}
+            <div className="bg-white px-2 py-1.5 flex items-center gap-1.5 border-t border-gray-100">
+              <div className="flex-1 bg-gray-50 rounded-full px-2.5 py-1 text-[8px] text-gray-400">Type a message...</div>
+              <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: scenario.accent }}>
+                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Launcher fab */}
+          <div className="w-9 h-9 rounded-full flex items-center justify-center shadow-xl cursor-pointer" style={{ background: scenario.accent }}>
+            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
