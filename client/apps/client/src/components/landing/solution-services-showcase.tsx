@@ -208,31 +208,31 @@ function WhatsAppAgentDemo() {
       </div>
 
       {/* WhatsApp phone */}
-      <div className="rounded-xl overflow-hidden border border-white/10 shadow-xl max-w-xs mx-auto transition-opacity duration-[420ms]"
+      <div className="rounded-xl overflow-hidden border border-white/10 shadow-xl w-full transition-opacity duration-[420ms]"
         style={{ opacity: fading ? 0 : 1 }}>
-        <div className="flex items-center gap-2 px-3 py-2" style={{ background: "#2D9A62" }}>
-          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-sm">{scenario.emoji}</div>
-          <div>
-            <p className="text-white text-[11px] font-semibold leading-tight">{scenario.agentName}</p>
-            <p className="text-green-200 text-[9px]">Typically replies instantly</p>
+        <div className="flex items-center gap-2.5 px-4 py-3" style={{ background: "#2D9A62" }}>
+          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-lg flex-shrink-0">{scenario.emoji}</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-[13px] font-semibold leading-tight">{scenario.agentName}</p>
+            <p className="text-green-200 text-[10px]">Typically replies instantly</p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <svg className="w-4 h-4 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-            <svg className="w-4 h-4 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+            <svg className="w-5 h-5 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
           </div>
         </div>
 
-        <div className="px-2.5 py-2.5 space-y-2 overflow-hidden" style={{ background: "#ece5dd", minHeight: 230 }}>
+        <div className="px-3 py-3 space-y-2.5 overflow-hidden" style={{ background: "#ece5dd", minHeight: 300 }}>
           {scenario.steps.map((s, i) => {
             const visible = msgStep > i;
             if (s.kind === "out") return (
               <div key={i} className="flex justify-end transition-all duration-450" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)" }}>
-                <div className="max-w-[82%] px-3 py-1.5 text-[11px] leading-relaxed shadow-sm rounded-[12px_0_12px_12px]" style={{ background: "#dcf8c6", color: "#1a1a1a" }}>{s.text}</div>
+                <div className="max-w-[75%] px-3.5 py-2 text-[12px] leading-relaxed shadow-sm rounded-[14px_0_14px_14px]" style={{ background: "#dcf8c6", color: "#1a1a1a" }}>{s.text}</div>
               </div>
             );
             if (s.kind === "in") return (
               <div key={i} className="flex justify-start transition-all duration-450" style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(6px)" }}>
-                <div className="max-w-[82%] px-3 py-1.5 text-[11px] leading-relaxed shadow-sm rounded-[0_12px_12px_12px] bg-white" style={{ color: "#1a1a1a" }}>{s.text}</div>
+                <div className="max-w-[75%] px-3.5 py-2 text-[12px] leading-relaxed shadow-sm rounded-[0_14px_14px_14px] bg-white" style={{ color: "#1a1a1a" }}>{s.text}</div>
               </div>
             );
             if (s.kind === "booking") return (
@@ -297,13 +297,12 @@ function WhatsAppAgentDemo() {
           </div>
         </div>
 
-        <div className="bg-[#f0f0f0] px-2.5 py-2 flex items-center gap-2">
-          <div className="flex gap-1.5 flex-shrink-0">
-            <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24"><path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 14.5h-2v-2h2v2zm0-4h-2c0-3.25 3-3 3-5 0-1.1-.9-2-2-2s-2 .9-2 2h-2c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.5-3 2.75-3 5z"/></svg>
-          </div>
-          <div className="flex-1 bg-white rounded-full px-3 py-1 text-[10px] text-gray-400 shadow-sm">Message...</div>
-          <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#2D9A62" }}>
-            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        <div className="bg-[#f0f0f0] px-3 py-2.5 flex items-center gap-2.5">
+          <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 14.5h-2v-2h2v2zm0-4h-2c0-3.25 3-3 3-5 0-1.1-.9-2-2-2s-2 .9-2 2h-2c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.5-3 2.75-3 5z"/></svg>
+          <div className="flex-1 bg-white rounded-full px-3.5 py-1.5 text-[11px] text-gray-400 shadow-sm">Message...</div>
+          <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 15c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v7c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-2.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#2D9A62" }}>
+            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </div>
         </div>
       </div>
@@ -1237,12 +1236,10 @@ export function SolutionServicesShowcase({
 
       {/* Right: animated demo */}
       <div className="rounded-2xl border border-white/8 bg-[#0D0D0D] p-5 md:p-6">
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground mb-2">Live Demo</p>
-            <h3 className="font-display text-2xl leading-none text-foreground md:text-3xl">{activeService.title}</h3>
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground max-w-sm">{activeService.description}</p>
-          </div>
+        <div className="mb-4 flex items-center gap-3">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Live Demo</span>
+          <span className="w-px h-3 bg-white/10" />
+          <h3 className="font-display text-xl leading-none text-foreground">{activeService.title}</h3>
         </div>
 
         {renderDemo(activeService.demoKind)}
