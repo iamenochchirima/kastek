@@ -405,10 +405,18 @@ function WebsiteAgentDemo() {
   const scenario = WEB_SCENARIOS[scenarioIdx];
   const nextStep = scenario.steps[msgStep];
   const showTyping = msgStep < scenario.steps.length && nextStep?.kind === "agent";
+  const msgContainerRef = useRef<HTMLDivElement>(null);
   const msgEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    msgEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [msgStep, showTyping, scenarioIdx]);
+    if (msgContainerRef.current) msgContainerRef.current.scrollTop = 0;
+  }, [scenarioIdx]);
+
+  useEffect(() => {
+    if (msgStep > 0) {
+      msgEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [msgStep, showTyping]);
 
   return (
     <div className="space-y-3">
@@ -484,7 +492,7 @@ function WebsiteAgentDemo() {
               </div>
 
               {/* Messages — fixed height, scrolls to bottom as messages appear */}
-              <div className="p-3 space-y-2.5 no-scrollbar" style={{ background: "#f0f4f8", height: 242, overflowY: "scroll" }}>
+              <div ref={msgContainerRef} className="p-3 space-y-2.5 no-scrollbar" style={{ background: "#f0f4f8", height: 242, overflowY: "scroll" }}>
                 {scenario.steps.map((s, i) => {
                   const visible = msgStep > i;
                   if (s.kind === "agent") return (
