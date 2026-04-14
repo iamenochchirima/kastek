@@ -18,7 +18,7 @@ export default function Dashboard() {
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
           <div className="flex justify-between items-end">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Command Center</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
               <p className="text-muted-foreground mt-1">Platform overview and active services.</p>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
