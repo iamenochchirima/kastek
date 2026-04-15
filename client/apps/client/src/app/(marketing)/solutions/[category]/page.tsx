@@ -6,6 +6,7 @@ import { Navbar } from "@/components/landing/Navbar";
 import { SolutionServicesShowcase } from "@/components/landing/solution-services-showcase";
 import { SolutionsMenu } from "@/components/landing/solutions-menu";
 import { CategoryHeroVisual } from "../_components/CategoryHeroVisual";
+import { CustomServicesCards } from "../_components/CustomServicesCards";
 import { solutionCategoryMap } from "../data";
 
 const ACCENT = {
@@ -132,21 +133,16 @@ export default async function SolutionCategoryPage({
           />
 
           {solution.secondaryServices.length > 0 && (
-            <>
-              <div className="pt-6 mb-4">
-                <span className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: accent.color }}>
-                  {solution.secondarySectionTitle}
-                </span>
-                <p className="mt-1 text-sm text-muted-foreground max-w-lg">{solution.secondarySectionDescription}</p>
-              </div>
-
-              <SolutionServicesShowcase
-                eyebrow={solution.secondarySectionTitle}
+            <div className="pt-6">
+              <CustomServicesCards
                 title={solution.secondarySectionTitle}
                 description={solution.secondarySectionDescription}
                 services={solution.secondaryServices}
+                accentColor={accent.color}
+                accentBorder={accent.border}
+                accentDim={accent.dim}
               />
-            </>
+            </div>
           )}
         </div>
       </section>

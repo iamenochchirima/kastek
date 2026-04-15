@@ -18,3 +18,39 @@ id = "BCuNmwikDwSJSVG2NEJAJ"
 uri = "file://client/apps/client/public/images/smb-hero-v3.png"
 type = "image"
 title = "hand phone abstract chat glow"
+
+[[generated]]
+id = "CzQtepZPPP3anipkd5zKe"
+uri = "file://client/apps/client/public/images/custom-services/lead-capture.png"
+type = "image"
+title = "lead capture dashboard"
+
+[[generated]]
+id = "uLyL6R4FX7c4iObEl2QcK"
+uri = "file://client/apps/client/public/images/custom-services/campaigns.png"
+type = "image"
+title = "campaign analytics dashboard"
+
+[[generated]]
+id = "xaf02KjzYTwpYVyz7QwBT"
+uri = "file://client/apps/client/public/images/custom-services/reporting.png"
+type = "image"
+title = "reporting analytics dashboard"
+
+[[generated]]
+id = "MZd69xOhnD0Bg7z8AiQ-j"
+uri = "file://client/apps/client/public/images/custom-services/automation.png"
+type = "image"
+title = "workflow automation builder"
+
+[[generated]]
+id = "zjCiuGMgpa6ePK3Py7XrJ"
+uri = "file://client/apps/client/public/images/custom-services/booking.png"
+type = "image"
+title = "booking scheduling dashboard"
+
+[[generated]]
+id = "SFsoWp2ZAx-1TemSWdR7B"
+uri = "file://client/apps/client/public/images/custom-services/portal.png"
+type = "image"
+title = "branded client portal"

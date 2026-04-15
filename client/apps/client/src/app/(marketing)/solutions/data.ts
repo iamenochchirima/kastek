@@ -25,6 +25,7 @@ export type SolutionService = {
   title: string;
   description: string;
   demoKind: SolutionDemoKind;
+  image?: string;
 };
 
 export type SolutionCategory = {
@@ -102,30 +103,35 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Appointment and enquiry flows connected to the way your team actually schedules and confirms work.",
         demoKind: "whatsapp-agent",
+        image: "/images/custom-services/booking.png",
       },
       {
         title: "Quotation Automation",
         description:
           "Generate quotations automatically from customer requests, job details, and pricing rules.",
         demoKind: "quote-automation",
+        image: "/images/custom-services/automation.png",
       },
       {
         title: "Voice Agents",
         description:
           "After-hours call handling, triage, routing, and common request automation.",
         demoKind: "voice-agent",
+        image: "/images/custom-services/campaigns.png",
       },
       {
         title: "Nurturing & Reviews",
         description:
           "Reminder flows, follow-up sequences, and review requests that keep leads warm and customers visible.",
         demoKind: "reviews",
+        image: "/images/custom-services/lead-capture.png",
       },
       {
         title: "Custom Reporting",
         description:
           "Dashboards, visibility layers, and integrations tailored to your operation.",
         demoKind: "reporting",
+        image: "/images/custom-services/reporting.png",
       },
     ],
   },
@@ -190,30 +196,35 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Handoff logic, onboarding, and service flows tailored to the client engagement model.",
         demoKind: "lead-nurturing",
+        image: "/images/custom-services/automation.png",
       },
       {
         title: "Branded Portals",
         description:
           "Agency-facing and client-facing dashboards, portals, and reporting experiences.",
         demoKind: "reporting",
+        image: "/images/custom-services/portal.png",
       },
       {
         title: "Campaign Automations",
         description:
           "Automations tied to the agency process for acquisition, follow-up, and retention.",
         demoKind: "lead-nurturing",
+        image: "/images/custom-services/campaigns.png",
       },
       {
         title: "Industry Packages",
         description:
           "Packaged solutions for healthcare, home services, retail, and other repeatable verticals.",
         demoKind: "platform-embed",
+        image: "/images/custom-services/reporting.png",
       },
       {
         title: "Rollout Support",
         description:
           "Delivery support for launch, optimisation, and recurring agency service operations.",
         demoKind: "tenant-provisioning",
+        image: "/images/custom-services/lead-capture.png",
       },
     ],
   },
@@ -278,30 +289,35 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Connect the AI layer to your CRM, billing, notifications, and operational systems.",
         demoKind: "platform-embed",
+        image: "/images/custom-services/automation.png",
       },
       {
         title: "Provisioning Flows",
         description:
           "Customer onboarding, setup, permissions, and rollout logic that matches the platform model.",
         demoKind: "tenant-provisioning",
+        image: "/images/custom-services/booking.png",
       },
       {
         title: "Usage Tracking",
         description:
           "Operational dashboards and reporting layers for customer usage and internal visibility.",
         demoKind: "usage-reporting",
+        image: "/images/custom-services/reporting.png",
       },
       {
         title: "Industry-Specific Features",
         description:
           "AI features shaped around the vendor customer base and market vertical.",
         demoKind: "platform-embed",
+        image: "/images/custom-services/campaigns.png",
       },
       {
         title: "Launch Support",
         description:
           "Rollout support for pilots, launches, and expansion across customer segments.",
         demoKind: "tenant-provisioning",
+        image: "/images/custom-services/portal.png",
       },
     ],
   },
