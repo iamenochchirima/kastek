@@ -125,12 +125,23 @@ export default async function SolutionCategoryPage({
             <p className="mt-1 text-sm text-muted-foreground max-w-lg">{solution.primarySectionDescription}</p>
           </div>
 
-          <SolutionServicesShowcase
-            eyebrow={solution.primarySectionTitle}
-            title={solution.shortTitle}
-            description={solution.primarySectionDescription}
-            services={solution.primaryServices}
-          />
+          {solution.primaryServices.some((s) => s.image) ? (
+            <CustomServicesCards
+              title={solution.primarySectionTitle}
+              description={solution.primarySectionDescription}
+              services={solution.primaryServices}
+              accentColor={accent.color}
+              accentBorder={accent.border}
+              accentDim={accent.dim}
+            />
+          ) : (
+            <SolutionServicesShowcase
+              eyebrow={solution.primarySectionTitle}
+              title={solution.shortTitle}
+              description={solution.primarySectionDescription}
+              services={solution.primaryServices}
+            />
+          )}
 
           {solution.secondaryServices.length > 0 && (
             <div className="pt-6">

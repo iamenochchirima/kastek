@@ -161,30 +161,35 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Website, WhatsApp, Instagram, and voice services agencies can package for lead capture and support.",
         demoKind: "website-agent",
+        image: "/images/custom-services/agencies-lead-gen.png",
       },
       {
         title: "Lead Nurturing & Reviews",
         description:
           "Automated follow-up, reminders, and review flows for better client retention.",
         demoKind: "reviews",
+        image: "/images/custom-services/agencies-nurturing.png",
       },
       {
         title: "Content & Creative Engine",
         description:
           "Blogs, social posts, ad copy, creative variants, and campaign assets for client delivery.",
         demoKind: "content-engine",
+        image: "/images/custom-services/agencies-content.png",
       },
       {
         title: "Branded Reporting",
         description:
           "Client-facing dashboards and reporting delivered under the agency brand.",
         demoKind: "reporting",
+        image: "/images/custom-services/agencies-reporting.png",
       },
       {
         title: "Voice & Quotation Add-ons",
         description:
           "Recurring service add-ons for after-hours calls, qualification, and quote generation.",
         demoKind: "voice-agent",
+        image: "/images/custom-services/agencies-voice.png",
       },
     ],
     secondarySectionTitle: "Custom Partner Builds",

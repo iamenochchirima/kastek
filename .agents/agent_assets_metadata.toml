@@ -84,3 +84,33 @@ id = "DASIh5s909fusS2i7jqtG"
 uri = "file://client/apps/client/public/images/custom-services/agencies-rollout.png"
 type = "image"
 title = "agencies rollout support launch dark"
+
+[[generated]]
+id = "y0rP97gfB1MO1aWKRCMdz"
+uri = "file://client/apps/client/public/images/custom-services/agencies-lead-gen.png"
+type = "image"
+title = "multi-channel lead generation dark dashboard"
+
+[[generated]]
+id = "KAWr58UClehARhuK76lG-"
+uri = "file://client/apps/client/public/images/custom-services/agencies-nurturing.png"
+type = "image"
+title = "lead nurturing reviews dark dashboard"
+
+[[generated]]
+id = "mfVoeNYZg_bCr6L7hKjwr"
+uri = "file://client/apps/client/public/images/custom-services/agencies-content.png"
+type = "image"
+title = "AI content creative engine dark dashboard"
+
+[[generated]]
+id = "E3Zpud09gUQjGO-s0TSJr"
+uri = "file://client/apps/client/public/images/custom-services/agencies-reporting.png"
+type = "image"
+title = "branded agency reporting dark dashboard"
+
+[[generated]]
+id = "lGc3RGlnkD12b0mLBnBVG"
+uri = "file://client/apps/client/public/images/custom-services/agencies-voice.png"
+type = "image"
+title = "voice agent quotation dark dashboard"
