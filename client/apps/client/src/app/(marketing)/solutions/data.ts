@@ -196,35 +196,35 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Handoff logic, onboarding, and service flows tailored to the client engagement model.",
         demoKind: "lead-nurturing",
-        image: "/images/custom-services/automation.png",
+        image: "/images/custom-services/agencies-workflows.png",
       },
       {
         title: "Branded Portals",
         description:
           "Agency-facing and client-facing dashboards, portals, and reporting experiences.",
         demoKind: "reporting",
-        image: "/images/custom-services/portal.png",
+        image: "/images/custom-services/agencies-portal.png",
       },
       {
         title: "Campaign Automations",
         description:
           "Automations tied to the agency process for acquisition, follow-up, and retention.",
         demoKind: "lead-nurturing",
-        image: "/images/custom-services/campaigns.png",
+        image: "/images/custom-services/agencies-campaigns.png",
       },
       {
         title: "Industry Packages",
         description:
           "Packaged solutions for healthcare, home services, retail, and other repeatable verticals.",
         demoKind: "platform-embed",
-        image: "/images/custom-services/reporting.png",
+        image: "/images/custom-services/agencies-packages.png",
       },
       {
         title: "Rollout Support",
         description:
           "Delivery support for launch, optimisation, and recurring agency service operations.",
         demoKind: "tenant-provisioning",
-        image: "/images/custom-services/lead-capture.png",
+        image: "/images/custom-services/agencies-rollout.png",
       },
     ],
   },

@@ -54,3 +54,33 @@ id = "SFsoWp2ZAx-1TemSWdR7B"
 uri = "file://client/apps/client/public/images/custom-services/portal.png"
 type = "image"
 title = "branded client portal"
+
+[[generated]]
+id = "ni6RF875q4ztJZDikDzuw"
+uri = "file://client/apps/client/public/images/custom-services/agencies-workflows.png"
+type = "image"
+title = "agencies workflow builder dark UI"
+
+[[generated]]
+id = "RoG-vu3KPH8JOkroKO4Lp"
+uri = "file://client/apps/client/public/images/custom-services/agencies-portal.png"
+type = "image"
+title = "agencies branded portal dark dashboard"
+
+[[generated]]
+id = "yGetLXwIR5xbPwAJZamWg"
+uri = "file://client/apps/client/public/images/custom-services/agencies-campaigns.png"
+type = "image"
+title = "agencies campaign automation dark UI"
+
+[[generated]]
+id = "YtAavSj3Ivk-LQq0s7TUu"
+uri = "file://client/apps/client/public/images/custom-services/agencies-packages.png"
+type = "image"
+title = "agencies industry packages selector dark"
+
+[[generated]]
+id = "DASIh5s909fusS2i7jqtG"
+uri = "file://client/apps/client/public/images/custom-services/agencies-rollout.png"
+type = "image"
+title = "agencies rollout support launch dark"
