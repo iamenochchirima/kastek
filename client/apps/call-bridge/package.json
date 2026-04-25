@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node src/server.mjs",
     "start": "node src/server.mjs",
-    "check": "node --check src/server.mjs"
+    "check": "node --check src/server.mjs && node --check src/workers/meta-cloud-api-stub.mjs",
+    "worker:meta-stub": "node src/workers/meta-cloud-api-stub.mjs"
   }
 }

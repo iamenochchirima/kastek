@@ -184,7 +184,7 @@ pub async fn ingest_bridge_event(
     pool: &PgPool,
     input: &WhatsappCallBridgeEventRequest,
 ) -> Result<Value, AppError> {
-    let call = if let Some(call_id) = input
+    let initial_call = if let Some(call_id) = input
         .call_id
         .as_deref()
         .map(str::trim)
@@ -207,17 +207,17 @@ pub async fn ingest_bridge_event(
     if let Some(status) = next_status {
         let now = Utc::now();
         let answered_at = if status == "ACTIVE" {
-            Some(call.answered_at.unwrap_or(now))
+            Some(initial_call.answered_at.unwrap_or(now))
         } else {
-            call.answered_at
+            initial_call.answered_at
         };
         let ended_at = if matches!(
             status,
             "COMPLETED" | "REJECTED" | "MISSED" | "FAILED" | "CANCELLED"
         ) {
-            Some(call.ended_at.unwrap_or(now))
+            Some(initial_call.ended_at.unwrap_or(now))
         } else {
-            call.ended_at
+            initial_call.ended_at
         };
         let duration_seconds = answered_at
             .zip(ended_at)
@@ -238,10 +238,14 @@ pub async fn ingest_bridge_event(
         .bind(answered_at)
         .bind(ended_at)
         .bind(duration_seconds)
-        .bind(&call.id)
+        .bind(&initial_call.id)
         .execute(pool)
         .await?;
     }
+
+    let call = scoped_call_row_by_id(pool, &initial_call.id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Updated call session could not be reloaded".to_string()))?;
 
     let bridge_event_type = format!(
         "call.bridge.{}",
@@ -257,7 +261,7 @@ pub async fn ingest_bridge_event(
         pool,
         &call.id,
         &bridge_event_type,
-        next_status.or(Some(call.status.as_str())),
+        Some(call.status.as_str()),
         json!({
             "source": bridge_source(input),
             "payload": input.payload.clone().unwrap_or(Value::Null),
@@ -278,7 +282,7 @@ pub async fn ingest_bridge_event(
             pool,
             &call.id,
             &signal_event_type,
-            next_status.or(Some(call.status.as_str())),
+            Some(call.status.as_str()),
             json!({
                 "kind": kind,
                 "source": bridge_source(input),
@@ -300,7 +304,7 @@ pub async fn ingest_bridge_event(
                     "connectionId": call.connection_id,
                     "conversationId": call.conversation_id,
                     "direction": call.direction,
-                    "status": next_status.unwrap_or(call.status.as_str()),
+                    "status": call.status,
                     "fromPhone": call.from_phone,
                     "toPhone": call.to_phone,
                     "agentLabel": call.agent_label,

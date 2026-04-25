@@ -18,6 +18,9 @@ WHATSAPP_CALL_TURN_CREDENTIAL=your-turn-password
 You can still provide a raw ICE payload with `WHATSAPP_CALL_ICE_SERVERS_JSON`, but for normal
 deployments the `WHATSAPP_CALL_TURN_*` env vars are now the simpler option.
 
+For the production-shaped local relay loop, set the Rust server provider to `meta-cloud-api`
+instead of `webrtc` so the bridge contract and provider worker use the same mode.
+
 On the bridge stub:
 
 ```bash
@@ -44,10 +47,24 @@ PORT=8787
 pnpm dev:call-bridge
 ```
 
+For the production-shaped local relay loop, start the worker in a second terminal:
+
+```bash
+pnpm dev:call-bridge:worker:meta-stub
+```
+
 Health check:
 
 ```bash
 curl http://127.0.0.1:8787/health
+```
+
+Worker env defaults:
+
+```bash
+CALL_BRIDGE_BASE_URL=http://127.0.0.1:8787
+WHATSAPP_CALL_BRIDGE_TOKEN=your-shared-token
+CALL_BRIDGE_WORKER_POLL_MS=1000
 ```
 
 ## Fast local call-loop test
@@ -85,6 +102,7 @@ Available on the stub:
 - `POST /provider/calls/:id/status`
 - `POST /provider/calls/:id/signals`
 - `POST /provider/meta/events`
+- `POST /provider/tasks/claim-next`
 - `POST /provider/tasks/:id/claim`
 - `POST /provider/tasks/:id/result`
 - `POST /simulate/status`
@@ -101,3 +119,7 @@ needs provider-specific media and signaling integration behind the provider endp
 provider work rather than completing true provider media integration. The bridge now also exposes
 provider task endpoints so an external worker can claim outbound action/signal work and report
 results back to the bridge.
+
+The `worker:meta-stub` process closes that relay loop for local development by claiming
+`meta-cloud-api` provider tasks and feeding normalized bridge events back into KasiTek. It is
+still a stub worker, not a real production media provider.

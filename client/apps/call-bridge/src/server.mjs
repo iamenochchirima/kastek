@@ -85,20 +85,77 @@ async function handleProviderTaskClaim(request, response, taskId) {
   json(response, 200, { ok: true, task });
 }
 
+async function handleClaimNextProviderTask(request, response) {
+  if (!requireBridgeAuthorization(request, response)) return;
+
+  try {
+    const body =
+      request.method === "POST"
+        ? await readJsonBody(request)
+        : {};
+
+    const task = context.claimNextProviderTask({
+      provider: body.provider || null,
+      kind: body.kind || null,
+    });
+
+    if (!task) {
+      json(response, 404, { error: "No pending provider task available" });
+      return;
+    }
+
+    context.log("provider_task.claimed_next", {
+      taskId: task.id,
+      callId: task.callId,
+      kind: task.kind,
+      provider: task.provider,
+      attempts: task.attempts,
+    });
+
+    json(response, 200, { ok: true, task });
+  } catch (error) {
+    json(response, 400, { error: error instanceof Error ? error.message : "Failed to claim next provider task" });
+  }
+}
+
 async function handleProviderTaskResult(request, response, taskId) {
   if (!requireBridgeAuthorization(request, response)) return;
 
   try {
     const body = await readJsonBody(request);
+    const existingTask = context.getProviderTask(taskId);
+    if (!existingTask) {
+      json(response, 404, { error: "Provider task not found" });
+      return;
+    }
+
     const task = context.completeProviderTask(taskId, {
       status: body.status || "completed",
       result: body.result,
       error: body.error || null,
     });
 
-    if (!task) {
-      json(response, 404, { error: "Provider task not found" });
-      return;
+    let forwardedEvent = null;
+    if (body.providerEvent) {
+      const normalizedEvent = providerAdapter.normalizeProviderEvent
+        ? providerAdapter.normalizeProviderEvent(body.providerEvent, {
+            callId: existingTask.callId,
+            waCallId: existingTask.waCallId,
+            path: "provider/tasks/:id/result",
+          })
+        : normalizeProviderEvent(body.providerEvent, {
+            callId: existingTask.callId,
+            waCallId: existingTask.waCallId,
+          });
+
+      const forwarded = await context.forwardProviderEvent(normalizedEvent, {
+        path: "provider/tasks/:id/result",
+        taskId,
+        normalizedEventType: normalizedEvent.eventType,
+        normalizedStatus: normalizedEvent.status || null,
+        normalizedSignalKind: normalizedEvent.signalKind || null,
+      });
+      forwardedEvent = forwarded.forwarded;
     }
 
     context.log("provider_task.completed", {
@@ -107,9 +164,10 @@ async function handleProviderTaskResult(request, response, taskId) {
       kind: task.kind,
       status: task.status,
       hasError: Boolean(task.error),
+      forwardedEvent: Boolean(forwardedEvent),
     });
 
-    json(response, 200, { ok: true, task });
+    json(response, 200, { ok: true, task, forwardedEvent });
   } catch (error) {
     json(response, 400, { error: error instanceof Error ? error.message : "Failed to store provider task result" });
   }
@@ -165,6 +223,7 @@ const server = createServer(async (request, response) => {
         "POST /provider/calls/:id/status",
         "POST /provider/calls/:id/signals",
         "POST /provider/meta/events",
+        "POST /provider/tasks/claim-next",
         "POST /provider/tasks/:id/claim",
         "POST /provider/tasks/:id/result",
         "POST /simulate/status",
@@ -181,6 +240,11 @@ const server = createServer(async (request, response) => {
     json(response, 200, {
       tasks: context.listProviderTasks(),
     });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/provider/tasks/claim-next") {
+    await handleClaimNextProviderTask(request, response);
     return;
   }
 

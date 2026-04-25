@@ -95,6 +95,18 @@ export function createBridgeContext(env = process.env) {
     return providerTasks.get(taskId) || null;
   }
 
+  function claimNextProviderTask(filters = {}) {
+    const nextTask = listProviderTasks().find((task) => {
+      if (task.status !== "pending") return false;
+      if (filters.provider && task.provider !== filters.provider) return false;
+      if (filters.kind && task.kind !== filters.kind) return false;
+      return true;
+    });
+
+    if (!nextTask) return null;
+    return claimProviderTask(nextTask.id);
+  }
+
   function claimProviderTask(taskId) {
     const task = getProviderTask(taskId);
     if (!task) return null;
@@ -121,6 +133,19 @@ export function createBridgeContext(env = process.env) {
       error: patch.error ?? null,
     };
     providerTasks.set(taskId, next);
+
+    const session = getSession(task.callId);
+    if (session) {
+      const pendingProviderAction =
+        session.pendingProviderAction?.taskId === taskId ? null : session.pendingProviderAction || null;
+      const pendingProviderSignal =
+        session.pendingProviderSignal?.taskId === taskId ? null : session.pendingProviderSignal || null;
+      upsertSession(task.callId, {
+        pendingProviderAction,
+        pendingProviderSignal,
+      });
+    }
+
     return next;
   }
 
@@ -203,6 +228,7 @@ export function createBridgeContext(env = process.env) {
     listProviderTasks,
     createProviderTask,
     getProviderTask,
+    claimNextProviderTask,
     claimProviderTask,
     completeProviderTask,
     forwardProviderEvent,
