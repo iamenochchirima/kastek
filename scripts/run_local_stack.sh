@@ -4,6 +4,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+"$ROOT_DIR/scripts/sync_local_envs.sh" pull
+
 # Editable local defaults.
 LIVEKIT_URL="${LIVEKIT_URL:-ws://127.0.0.1:7880}"
 LIVEKIT_API_KEY="${LIVEKIT_API_KEY:-devkey}"

@@ -7,6 +7,17 @@ The direct KasiTek stack uses local env files for the main services:
 - `server/kasitek-core/.env`
 - `server/kasitek-calls/.env`
 - `client/apps/call-bridge/.env.local`
+- `client/apps/client/.env.local`
+
+The tracked source of truth lives in `local-envs/`.
+
+Use these commands to keep everything in sync:
+
+```bash
+./scripts/sync_local_envs.sh pull
+./scripts/sync_local_envs.sh push
+./scripts/sync_local_envs.sh status
+```
 
 The tenant platform and admin client are not part of this local stack.
 
