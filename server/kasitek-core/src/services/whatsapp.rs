@@ -212,6 +212,7 @@ async fn subscribe_waba_webhook(access_token: &str, waba_id: &str) -> Result<(),
         &url,
         reqwest::Client::new().post(&url).json(&json!({
             "subscribed_fields": [
+                "calls",
                 "messages",
                 "message_template_status_update",
                 "message_template_quality_update",
