@@ -63,7 +63,7 @@ open_terminal() {
   fi
 }
 
-echo "Launching local WhatsApp calling stack from $ROOT_DIR"
+echo "Launching local KasiTek stack from $ROOT_DIR"
 echo "LiveKit URL: $LIVEKIT_URL"
 echo "KasiTek core: http://127.0.0.1:${KASITEK_CORE_PORT}"
 echo "KasiTek calls: http://127.0.0.1:${KASITEK_CALLS_PORT}"
@@ -132,7 +132,21 @@ open_terminal \
 
 cat <<EOF
 
-Local WhatsApp calling stack launched.
+Local KasiTek stack launched.
+
+Included:
+- LiveKit
+- kasitek-calls
+- kasitek-core
+- call bridge
+- provider relay
+- provider worker
+- client
+- ngrok
+
+Excluded by design:
+- tenant services
+- admin client
 
 Expected local endpoints:
 - LiveKit: ${LIVEKIT_URL}
