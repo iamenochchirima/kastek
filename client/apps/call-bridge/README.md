@@ -8,7 +8,7 @@ On the Rust server:
 
 ```bash
 WHATSAPP_CALL_PROVIDER=webrtc
-WHATSAPP_CALL_SIGNALING_URL=http://127.0.0.1:8787
+WHATSAPP_CALL_SIGNALING_URL=http://127.0.0.1:8987
 WHATSAPP_CALL_BRIDGE_TOKEN=your-shared-token
 WHATSAPP_CALL_TURN_URLS=turn:turn.example.com:3478?transport=udp,turn:turn.example.com:3478?transport=tcp
 WHATSAPP_CALL_TURN_USERNAME=your-turn-username
@@ -28,7 +28,7 @@ KASITEK_API_BASE_URL=http://127.0.0.1:8080
 WHATSAPP_CALL_BRIDGE_TOKEN=your-shared-token
 WHATSAPP_CALL_BRIDGE_MODE=stub
 WHATSAPP_CALL_PROVIDER=manual
-PORT=8787
+PORT=8987
 ```
 
 For a real provider-oriented deployment shape, use:
@@ -38,7 +38,7 @@ KASITEK_API_BASE_URL=http://127.0.0.1:8080
 WHATSAPP_CALL_BRIDGE_TOKEN=your-shared-token
 WHATSAPP_CALL_BRIDGE_MODE=production
 WHATSAPP_CALL_PROVIDER=meta-cloud-api
-PORT=8787
+PORT=8987
 ```
 
 ## Run locally
@@ -66,7 +66,7 @@ For a local LiveKit-backed provider relay process that the worker can call:
 
 ```bash
 META_CLOUD_API_PROVIDER_TOKEN=your-provider-token \
-PORT=8790 \
+PORT=8990 \
 pnpm provider:meta-livekit-relay
 ```
 
@@ -74,7 +74,7 @@ Then point the worker at it:
 
 ```bash
 META_CLOUD_API_WORKER_MODE=relay \
-META_CLOUD_API_PROVIDER_BASE_URL=http://127.0.0.1:8790 \
+META_CLOUD_API_PROVIDER_BASE_URL=http://127.0.0.1:8990 \
 META_CLOUD_API_PROVIDER_TOKEN=your-provider-token \
 pnpm dev:call-bridge:worker:meta-relay
 ```
@@ -82,13 +82,13 @@ pnpm dev:call-bridge:worker:meta-relay
 Health check:
 
 ```bash
-curl http://127.0.0.1:8787/health
+curl http://127.0.0.1:8987/health
 ```
 
 Worker env defaults:
 
 ```bash
-CALL_BRIDGE_BASE_URL=http://127.0.0.1:8787
+CALL_BRIDGE_BASE_URL=http://127.0.0.1:8987
 WHATSAPP_CALL_BRIDGE_TOKEN=your-shared-token
 CALL_BRIDGE_WORKER_POLL_MS=1000
 ```

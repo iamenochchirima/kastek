@@ -1,13 +1,13 @@
 import { createServer } from "node:http";
 
 process.loadEnvFile?.(".env.local");
-process.env.PORT ??= process.env.PROVIDER_RELAY_PORT ?? "8790";
+process.env.PORT ??= process.env.PROVIDER_RELAY_PORT ?? "8990";
 
 import { Room, RoomEvent } from "@livekit/rtc-node";
 
 import { json, notFound, readJsonBody } from "../lib/http.mjs";
 
-const port = Number.parseInt(process.env.PORT || "8790", 10);
+const port = Number.parseInt(process.env.PORT || "8990", 10);
 const authToken = process.env.META_CLOUD_API_PROVIDER_TOKEN || "";
 const serviceName = "kasitek-meta-provider-livekit-relay";
 const bridgeSessions = new Map();

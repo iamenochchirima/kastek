@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 
 process.loadEnvFile?.(".env.local");
-process.env.PORT ??= process.env.CALL_BRIDGE_PORT ?? "8787";
+process.env.PORT ??= process.env.CALL_BRIDGE_PORT ?? "8987";
 
 import { createBridgeContext } from "./lib/bridge-context.mjs";
 import { exampleAnswerSdp } from "./lib/example-answer.mjs";

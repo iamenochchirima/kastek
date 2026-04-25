@@ -1,6 +1,6 @@
 process.loadEnvFile?.(".env.local");
 
-const bridgeBaseUrl = (process.env.CALL_BRIDGE_BASE_URL || "http://127.0.0.1:8787").replace(/\/$/, "");
+const bridgeBaseUrl = (process.env.CALL_BRIDGE_BASE_URL || "http://127.0.0.1:8987").replace(/\/$/, "");
 const bridgeToken = process.env.WHATSAPP_CALL_BRIDGE_TOKEN || "";
 const provider = "meta-cloud-api";
 const pollIntervalMs = Number.parseInt(process.env.CALL_BRIDGE_WORKER_POLL_MS || "1000", 10);

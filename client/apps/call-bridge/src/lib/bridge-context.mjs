@@ -6,7 +6,7 @@ function ensureValue(value, message) {
 }
 
 export function createBridgeContext(env = process.env) {
-  const port = Number.parseInt(env.PORT || "8787", 10);
+  const port = Number.parseInt(env.PORT || "8987", 10);
   const kasitekBaseUrl = (env.KASITEK_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
   const bridgeToken = env.WHATSAPP_CALL_BRIDGE_TOKEN || "";
   const bridgeMode = (env.WHATSAPP_CALL_BRIDGE_MODE || "stub").trim().toLowerCase();
