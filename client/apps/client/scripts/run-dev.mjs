@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
 
+const useTurbopack = /^(1|true|yes)$/i.test(process.env.CLIENT_USE_TURBOPACK || "");
+const nextDevArgs = useTurbopack ? ["exec", "next", "dev"] : ["exec", "next", "dev", "--webpack"];
+
 const processes = [
-  { cmd: "pnpm", args: ["exec", "next", "dev"], label: "app" },
+  { cmd: "pnpm", args: nextDevArgs, label: "app" },
 ];
 
 const children = processes.map(({ cmd, args, label }) => {
