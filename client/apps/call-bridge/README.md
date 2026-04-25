@@ -62,6 +62,23 @@ META_CLOUD_API_PROVIDER_TOKEN=your-provider-token \
 pnpm dev:call-bridge:worker:meta-relay
 ```
 
+For a local LiveKit-backed provider relay process that the worker can call:
+
+```bash
+META_CLOUD_API_PROVIDER_TOKEN=your-provider-token \
+PORT=8790 \
+pnpm provider:meta-livekit-relay
+```
+
+Then point the worker at it:
+
+```bash
+META_CLOUD_API_WORKER_MODE=relay \
+META_CLOUD_API_PROVIDER_BASE_URL=http://127.0.0.1:8790 \
+META_CLOUD_API_PROVIDER_TOKEN=your-provider-token \
+pnpm dev:call-bridge:worker:meta-relay
+```
+
 Health check:
 
 ```bash
@@ -110,6 +127,11 @@ When KasiTek runs with `WHATSAPP_CALL_PROVIDER=livekit`, the action payload also
 `mediaSession.livekit.bridgeParticipant`. That object contains the upstream bridge participant
 token, identity, and room details the provider worker should use to join the same LiveKit room
 as the browser agent.
+
+The local `provider:meta-livekit-relay` process does exactly that. On `accept` it joins the
+LiveKit room as the `upstream_bridge` participant and returns normalized `CONNECTING` and `ACTIVE`
+provider events to KasiTek. On `reject` or `end` it disconnects that bridge participant and
+returns a normalized hangup event.
 
 ## Fast local call-loop test
 
@@ -171,3 +193,8 @@ still a stub worker, not a real production media provider.
 `worker:meta-relay` is the production-facing version of the same worker contract. It no longer
 generates answers locally; it forwards each task to an external provider service and relays the
 provider's normalized events back into KasiTek.
+
+`provider:meta-livekit-relay` closes part of that gap for local and pre-production work by
+joining the agent's LiveKit room as the upstream bridge participant. It still does not inject
+real WhatsApp caller media on its own; a true upstream media connector is still required for
+real end-to-end customer audio.
