@@ -260,7 +260,35 @@ fn livekit_participant_metadata(call: &WhatsappCallSessionRow) -> String {
     .to_string()
 }
 
-fn livekit_token(config: &AppConfig, call: &WhatsappCallSessionRow) -> Result<(String, chrono::DateTime<Utc>), AppError> {
+fn livekit_bridge_participant_identity(call: &WhatsappCallSessionRow) -> String {
+    format!("upstream-bridge:{}", call.id)
+}
+
+fn livekit_bridge_participant_name(call: &WhatsappCallSessionRow) -> String {
+    format!("WhatsApp Caller Bridge {}", call.id)
+}
+
+fn livekit_bridge_participant_metadata(call: &WhatsappCallSessionRow) -> String {
+    json!({
+        "callId": call.id,
+        "waCallId": call.wa_call_id,
+        "conversationId": call.conversation_id,
+        "direction": call.direction,
+        "fromPhone": call.from_phone,
+        "toPhone": call.to_phone,
+        "role": "upstream_bridge",
+    })
+    .to_string()
+}
+
+fn livekit_token(
+    config: &AppConfig,
+    call: &WhatsappCallSessionRow,
+    participant_identity: &str,
+    participant_name: &str,
+    participant_metadata: &str,
+    extra_attributes: HashMap<String, String>,
+) -> Result<(String, chrono::DateTime<Utc>), AppError> {
     let api_key = config
         .livekit_api_key
         .as_deref()
@@ -273,23 +301,24 @@ fn livekit_token(config: &AppConfig, call: &WhatsappCallSessionRow) -> Result<(S
         .ok_or_else(|| AppError::Internal("LIVEKIT_API_SECRET is not configured".to_string()))?;
 
     let expires_at = Utc::now() + ChronoDuration::seconds(config.livekit_token_ttl_seconds as i64);
-    let participant_identity = livekit_participant_identity(call);
-    let participant_name = livekit_participant_name(call);
-    let participant_metadata = livekit_participant_metadata(call);
     let room_name = livekit_room_name(call);
+    let mut attributes = HashMap::from([
+        ("callId".to_string(), call.id.clone()),
+        (
+            "conversationId".to_string(),
+            call.conversation_id.clone().unwrap_or_default(),
+        ),
+        ("userId".to_string(), call.user_id.clone()),
+    ]);
+    for (key, value) in extra_attributes {
+        attributes.insert(key, value);
+    }
 
     let token = access_token::AccessToken::with_api_key(api_key, api_secret)
-        .with_identity(&participant_identity)
-        .with_name(&participant_name)
-        .with_metadata(&participant_metadata)
-        .with_attributes(HashMap::from([
-            ("callId".to_string(), call.id.clone()),
-            (
-                "conversationId".to_string(),
-                call.conversation_id.clone().unwrap_or_default(),
-            ),
-            ("userId".to_string(), call.user_id.clone()),
-        ]))
+        .with_identity(participant_identity)
+        .with_name(participant_name)
+        .with_metadata(participant_metadata)
+        .with_attributes(attributes)
         .with_grants(access_token::VideoGrants {
             room_join: true,
             room: room_name,
@@ -318,10 +347,29 @@ impl RtcMediaProvider for LiveKitMediaProvider {
             .as_deref()
             .filter(|value| !value.trim().is_empty())
             .ok_or_else(|| AppError::Internal("LIVEKIT_URL is not configured".to_string()))?;
-        let (participant_token, expires_at) = livekit_token(input.config, input.call)?;
         let room_name = livekit_room_name(input.call);
         let participant_identity = livekit_participant_identity(input.call);
         let participant_name = livekit_participant_name(input.call);
+        let participant_metadata = livekit_participant_metadata(input.call);
+        let (participant_token, expires_at) = livekit_token(
+            input.config,
+            input.call,
+            &participant_identity,
+            &participant_name,
+            &participant_metadata,
+            HashMap::from([("role".to_string(), "agent".to_string())]),
+        )?;
+        let bridge_participant_identity = livekit_bridge_participant_identity(input.call);
+        let bridge_participant_name = livekit_bridge_participant_name(input.call);
+        let bridge_participant_metadata = livekit_bridge_participant_metadata(input.call);
+        let (bridge_participant_token, bridge_expires_at) = livekit_token(
+            input.config,
+            input.call,
+            &bridge_participant_identity,
+            &bridge_participant_name,
+            &bridge_participant_metadata,
+            HashMap::from([("role".to_string(), "upstream_bridge".to_string())]),
+        )?;
 
         Ok(json!({
             "provider": "livekit",
@@ -341,6 +389,14 @@ impl RtcMediaProvider for LiveKitMediaProvider {
                 "participantName": participant_name,
                 "participantToken": participant_token,
                 "expiresAt": expires_at,
+                "bridgeParticipant": {
+                    "identity": bridge_participant_identity,
+                    "name": bridge_participant_name,
+                    "participantToken": bridge_participant_token,
+                    "expiresAt": bridge_expires_at,
+                    "metadata": serde_json::from_str::<Value>(&bridge_participant_metadata)
+                        .unwrap_or(Value::Null),
+                }
             }
         }))
     }
@@ -352,11 +408,38 @@ impl RtcMediaProvider for LiveKitMediaProvider {
                 call: input.call,
             })
             .await?;
+        let bridge_request = json!({
+            "callId": input.call.id,
+            "waCallId": input.call.wa_call_id,
+            "action": input.action,
+            "call": input.call,
+            "mediaSession": media_session,
+        });
+        let bridge_response = match notify_bridge(
+            input.config,
+            &format!("/calls/{}/actions", input.call.id),
+            &bridge_request,
+        )
+        .await
+        {
+            Ok(body) => body,
+            Err(error) => {
+                log::warn!(
+                    "failed to notify call bridge about livekit action action={} call_id={}: {}",
+                    input.action,
+                    input.call.id,
+                    error
+                );
+                None
+            }
+        };
         Ok(json!({
             "provider": "livekit",
             "action": input.action,
             "mediaSession": media_session,
-            "note": "LiveKit media session prepared for agent-side connection",
+            "bridgeResponse": bridge_response,
+            "requiresUpstreamProviderRelay": true,
+            "note": "LiveKit media session prepared for agent and upstream bridge connection",
         }))
     }
 

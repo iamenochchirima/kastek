@@ -106,6 +106,11 @@ respond with JSON shaped like:
 }
 ```
 
+When KasiTek runs with `WHATSAPP_CALL_PROVIDER=livekit`, the action payload also includes
+`mediaSession.livekit.bridgeParticipant`. That object contains the upstream bridge participant
+token, identity, and room details the provider worker should use to join the same LiveKit room
+as the browser agent.
+
 ## Fast local call-loop test
 
 1. Start the Rust server with the call bridge env vars above.
