@@ -1,5 +1,8 @@
 import { createServer } from "node:http";
 
+process.loadEnvFile?.(".env.local");
+process.env.PORT ??= process.env.PROVIDER_RELAY_PORT ?? "8790";
+
 import { Room, RoomEvent } from "@livekit/rtc-node";
 
 import { json, notFound, readJsonBody } from "../lib/http.mjs";
