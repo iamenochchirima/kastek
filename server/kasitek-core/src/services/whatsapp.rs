@@ -25,6 +25,41 @@ use crate::services::whatsapp_calls;
 
 const GRAPH_BASE: &str = "https://graph.facebook.com/v19.0";
 
+async fn forward_call_webhook_to_calls_service(
+    config: &AppConfig,
+    value: &Value,
+) -> Result<bool, AppError> {
+    let Some(base_url) = config
+        .kasitek_calls_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+    else {
+        return Ok(false);
+    };
+
+    let has_calls = value
+        .get("calls")
+        .and_then(|payload| payload.as_array())
+        .map(|calls| !calls.is_empty())
+        .unwrap_or(false);
+    if !has_calls {
+        return Ok(false);
+    }
+
+    reqwest::Client::new()
+        .post(format!(
+            "{}/api/webhooks/whatsapp/calls/provider",
+            base_url.trim_end_matches('/')
+        ))
+        .json(value)
+        .send()
+        .await?
+        .error_for_status()?;
+
+    Ok(true)
+}
+
 #[derive(serde::Deserialize)]
 struct GraphErrorEnvelope {
     error: Option<GraphError>,
@@ -4593,7 +4628,9 @@ pub async fn process_webhook_payload(
             for status in statuses {
                 handle_status(pool, &status).await?;
             }
-            whatsapp_calls::ingest_webhook_calls(pool, config, &value).await?;
+            if !forward_call_webhook_to_calls_service(config, &value).await? {
+                whatsapp_calls::ingest_webhook_calls(pool, config, &value).await?;
+            }
             handle_incoming_messages(pool, config, &value).await?;
         }
     }

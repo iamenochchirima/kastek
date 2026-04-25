@@ -1063,19 +1063,19 @@ pub struct WhatsappCallEventRow {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct WhatsappCallActionRequest {
     pub action: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct WhatsappCallSignalRequest {
     pub kind: Option<String>,
     pub payload: Option<Value>,
     pub source: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct WhatsappCallBridgeEventRequest {
     #[serde(rename = "callId")]
     pub call_id: Option<String>,
