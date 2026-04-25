@@ -24,6 +24,9 @@ pub struct AppConfig {
     pub whatsapp_call_provider: String,
     pub whatsapp_call_signaling_url: Option<String>,
     pub whatsapp_call_ice_servers_json: Option<String>,
+    pub whatsapp_call_turn_urls: Option<String>,
+    pub whatsapp_call_turn_username: Option<String>,
+    pub whatsapp_call_turn_credential: Option<String>,
     pub whatsapp_call_bridge_token: Option<String>,
 }
 
@@ -52,6 +55,10 @@ impl AppConfig {
             whatsapp_call_provider: env_string_or("WHATSAPP_CALL_PROVIDER", "stub"),
             whatsapp_call_signaling_url: env_optional("WHATSAPP_CALL_SIGNALING_URL"),
             whatsapp_call_ice_servers_json: env_optional("WHATSAPP_CALL_ICE_SERVERS_JSON"),
+            whatsapp_call_turn_urls: env_optional("WHATSAPP_CALL_TURN_URLS")
+                .or_else(|| env_optional("WHATSAPP_CALL_TURN_URL")),
+            whatsapp_call_turn_username: env_optional("WHATSAPP_CALL_TURN_USERNAME"),
+            whatsapp_call_turn_credential: env_optional("WHATSAPP_CALL_TURN_CREDENTIAL"),
             whatsapp_call_bridge_token: env_optional("WHATSAPP_CALL_BRIDGE_TOKEN"),
         })
     }

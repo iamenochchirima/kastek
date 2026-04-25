@@ -210,16 +210,41 @@ async fn append_call_event(
 }
 
 fn parse_ice_servers(config: &AppConfig) -> Value {
-    config
+    if let Some(servers) = config
         .whatsapp_call_ice_servers_json
         .as_deref()
         .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
         .filter(|value| value.is_array())
-        .unwrap_or_else(|| {
-            json!([
-                { "urls": ["stun:stun.l.google.com:19302"] }
-            ])
+    {
+        return servers;
+    }
+
+    let turn_urls = config
+        .whatsapp_call_turn_urls
+        .as_deref()
+        .map(|raw| {
+            raw.split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
         })
+        .filter(|items| !items.is_empty());
+
+    if let Some(turn_urls) = turn_urls {
+        return json!([
+            { "urls": ["stun:stun.l.google.com:19302"] },
+            {
+                "urls": turn_urls,
+                "username": config.whatsapp_call_turn_username,
+                "credential": config.whatsapp_call_turn_credential,
+            }
+        ]);
+    }
+
+    json!([
+        { "urls": ["stun:stun.l.google.com:19302"] }
+    ])
 }
 
 fn build_media_session_payload(config: &AppConfig, call: &WhatsappCallSessionRow) -> Value {
@@ -1024,14 +1049,33 @@ pub async fn apply_call_action(
         .await?
         .ok_or_else(|| AppError::NotFound("Call session not found".to_string()))?;
 
+    match action {
+        "accept" if existing.status != "RINGING" => {
+            return Err(AppError::BadRequest(
+                "Only ringing calls can be accepted".to_string(),
+            ))
+        }
+        "reject" if !matches!(existing.status.as_str(), "RINGING" | "CONNECTING") => {
+            return Err(AppError::BadRequest(
+                "Only ringing or connecting calls can be rejected".to_string(),
+            ))
+        }
+        "end" if !matches!(existing.status.as_str(), "RINGING" | "CONNECTING" | "ACTIVE") => {
+            return Err(AppError::BadRequest(
+                "Only ringing, connecting, or active calls can be ended".to_string(),
+            ))
+        }
+        _ => {}
+    }
+
     let now = Utc::now();
     let (next_status, answered_at, ended_at, duration_seconds, event_type) = match action {
         "accept" => (
-            "ACTIVE",
-            Some(existing.answered_at.unwrap_or(now)),
+            "CONNECTING",
+            existing.answered_at,
             None,
             None,
-            "call.accepted",
+            "call.accept.requested",
         ),
         "reject" => (
             "REJECTED",

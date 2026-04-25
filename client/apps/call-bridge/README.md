@@ -10,13 +10,31 @@ On the Rust server:
 WHATSAPP_CALL_PROVIDER=webrtc
 WHATSAPP_CALL_SIGNALING_URL=http://127.0.0.1:8787
 WHATSAPP_CALL_BRIDGE_TOKEN=your-shared-token
+WHATSAPP_CALL_TURN_URLS=turn:turn.example.com:3478?transport=udp,turn:turn.example.com:3478?transport=tcp
+WHATSAPP_CALL_TURN_USERNAME=your-turn-username
+WHATSAPP_CALL_TURN_CREDENTIAL=your-turn-password
 ```
+
+You can still provide a raw ICE payload with `WHATSAPP_CALL_ICE_SERVERS_JSON`, but for normal
+deployments the `WHATSAPP_CALL_TURN_*` env vars are now the simpler option.
 
 On the bridge stub:
 
 ```bash
 KASITEK_API_BASE_URL=http://127.0.0.1:8080
 WHATSAPP_CALL_BRIDGE_TOKEN=your-shared-token
+WHATSAPP_CALL_BRIDGE_MODE=stub
+WHATSAPP_CALL_PROVIDER=manual
+PORT=8787
+```
+
+For a real provider-oriented deployment shape, use:
+
+```bash
+KASITEK_API_BASE_URL=http://127.0.0.1:8080
+WHATSAPP_CALL_BRIDGE_TOKEN=your-shared-token
+WHATSAPP_CALL_BRIDGE_MODE=production
+WHATSAPP_CALL_PROVIDER=meta-cloud-api
 PORT=8787
 ```
 
@@ -58,8 +76,17 @@ Available on the stub:
 
 - `GET /health`
 - `GET /sessions`
+- `GET /sessions/:id`
+- `GET /provider/tasks`
+- `GET /provider/tasks/:id`
 - `POST /calls/:id/actions`
 - `POST /calls/:id/signals`
+- `POST /provider/events`
+- `POST /provider/calls/:id/status`
+- `POST /provider/calls/:id/signals`
+- `POST /provider/meta/events`
+- `POST /provider/tasks/:id/claim`
+- `POST /provider/tasks/:id/result`
 - `POST /simulate/status`
 - `POST /simulate/signal`
 - `POST /simulate/answer`
@@ -67,4 +94,10 @@ Available on the stub:
 
 ## Current limitation
 
-This service is still a stub. It simulates the provider/media side and does not carry real WhatsApp audio yet.
+This service now exposes a provider-facing bridge surface, but `WHATSAPP_CALL_BRIDGE_MODE=stub`
+still uses synthetic answer/candidate events for local testing. A real production bridge still
+needs provider-specific media and signaling integration behind the provider endpoints. The current
+`meta-cloud-api` adapter is a production-shaped entry point, but it still records and normalizes
+provider work rather than completing true provider media integration. The bridge now also exposes
+provider task endpoints so an external worker can claim outbound action/signal work and report
+results back to the bridge.

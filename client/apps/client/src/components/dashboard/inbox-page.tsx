@@ -254,6 +254,54 @@ function formatCallDuration(startedAt?: string | null, endedAt?: string | null) 
   return `${minutes}m ${remainder}s`;
 }
 
+async function requestPreferredAudioStream() {
+  const audioConstraints: MediaTrackConstraints = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  };
+
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: audioConstraints,
+      video: false,
+    });
+  } catch (error) {
+    const mediaError = error instanceof DOMException ? error : null;
+    const recoverable =
+      mediaError?.name === "NotFoundError" ||
+      mediaError?.name === "DevicesNotFoundError" ||
+      mediaError?.name === "OverconstrainedError";
+
+    if (!recoverable || !navigator.mediaDevices.enumerateDevices) {
+      throw error;
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const firstAudioInput = devices.find((device) => device.kind === "audioinput" && device.deviceId);
+    if (!firstAudioInput) {
+      throw new Error("No microphone is available on this device");
+    }
+
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: {
+          ...audioConstraints,
+          deviceId: { exact: firstAudioInput.deviceId },
+        },
+        video: false,
+      });
+    } catch (fallbackError) {
+      if (fallbackError instanceof DOMException && fallbackError.name === "NotFoundError") {
+        throw new Error(
+          "The selected microphone is unavailable. Reconnect it or choose another input device.",
+        );
+      }
+      throw fallbackError;
+    }
+  }
+}
+
 function InboxMessagesSkeleton() {
   return (
     <div className="space-y-4 py-2">
@@ -1404,10 +1452,7 @@ export default function InboxPageClient({
     }
 
     setCallMediaState("requesting");
-    const localStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: false,
-    });
+    const localStream = await requestPreferredAudioStream();
     localStreamRef.current = localStream;
 
     const peerConnection = new RTCPeerConnection({
@@ -1475,7 +1520,11 @@ export default function InboxPageClient({
       }
     } catch (error) {
       setCallMediaState("failed");
-      setCallMediaError(error instanceof Error ? error.message : "Failed to start call media");
+      setCallMediaError(
+        error instanceof Error
+          ? error.message
+          : "Failed to start call media. Check microphone permission and available input devices.",
+      );
       throw error;
     } finally {
       setCallMediaLoading(null);
@@ -1530,7 +1579,11 @@ export default function InboxPageClient({
       }
     } catch (error) {
       setCallMediaState("failed");
-      setCallMediaError(error instanceof Error ? error.message : "Failed to process call signal");
+      setCallMediaError(
+        error instanceof Error
+          ? error.message
+          : "Failed to process call signal. Check microphone permission and device availability.",
+      );
     }
   }
 
