@@ -10,6 +10,9 @@ use crate::db::models::{
 use crate::error::AppError;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
 use crate::services::realtime;
+use crate::services::rtc_media_provider::{
+    create_provider, MediaSessionContext, ProviderActionContext, ProviderSignalContext,
+};
 
 async fn list_call_rows(
     pool: &PgPool,
@@ -207,144 +210,6 @@ async fn append_call_event(
     .execute(pool)
     .await?;
     Ok(())
-}
-
-fn parse_ice_servers(config: &AppConfig) -> Value {
-    if let Some(servers) = config
-        .whatsapp_call_ice_servers_json
-        .as_deref()
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
-        .filter(|value| value.is_array())
-    {
-        return servers;
-    }
-
-    let turn_urls = config
-        .whatsapp_call_turn_urls
-        .as_deref()
-        .map(|raw| {
-            raw.split(',')
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-        })
-        .filter(|items| !items.is_empty());
-
-    if let Some(turn_urls) = turn_urls {
-        return json!([
-            { "urls": ["stun:stun.l.google.com:19302"] },
-            {
-                "urls": turn_urls,
-                "username": config.whatsapp_call_turn_username,
-                "credential": config.whatsapp_call_turn_credential,
-            }
-        ]);
-    }
-
-    json!([
-        { "urls": ["stun:stun.l.google.com:19302"] }
-    ])
-}
-
-fn build_media_session_payload(config: &AppConfig, call: &WhatsappCallSessionRow) -> Value {
-    json!({
-        "provider": config.whatsapp_call_provider,
-        "callId": call.id,
-        "waCallId": call.wa_call_id,
-        "conversationId": call.conversation_id,
-        "roomName": format!("kasitek-wa-call-{}", call.id),
-        "signalingUrl": config.whatsapp_call_signaling_url,
-        "iceServers": parse_ice_servers(config),
-        "agentRole": "agent",
-        "canAccept": call.status == "RINGING",
-        "canEnd": call.status == "ACTIVE" || call.status == "CONNECTING" || call.status == "RINGING",
-    })
-}
-
-async fn notify_bridge(
-    config: &AppConfig,
-    endpoint: &str,
-    payload: &Value,
-) -> Result<Option<Value>, AppError> {
-    let Some(base_url) = config
-        .whatsapp_call_signaling_url
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
-        return Ok(None);
-    };
-
-    let url = format!(
-        "{}/{}",
-        base_url.trim_end_matches('/'),
-        endpoint.trim_start_matches('/')
-    );
-    let client = reqwest::Client::new();
-    let mut request = client.post(&url).json(payload);
-    if let Some(token) = config
-        .whatsapp_call_bridge_token
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        request = request.header("x-kasitek-call-bridge-token", token);
-    }
-    let response = request.send().await?;
-    let status = response.status();
-    let body = response.json::<Value>().await.unwrap_or(Value::Null);
-    if !status.is_success() {
-        return Err(AppError::BadRequest(format!(
-            "Bridge request failed ({}): {}",
-            status,
-            body.get("error")
-                .and_then(|value| value.as_str())
-                .unwrap_or("Unknown error")
-        )));
-    }
-    Ok(Some(body))
-}
-
-async fn dispatch_call_provider_action(
-    config: &AppConfig,
-    call: &WhatsappCallSessionRow,
-    action: &str,
-) -> Value {
-    let payload = build_media_session_payload(config, call);
-    let bridge_request = json!({
-        "callId": call.id,
-        "waCallId": call.wa_call_id,
-        "action": action,
-        "call": call,
-        "mediaSession": payload,
-    });
-
-    let bridge_response = match notify_bridge(
-        config,
-        &format!("/calls/{}/actions", call.id),
-        &bridge_request,
-    )
-    .await
-    {
-        Ok(body) => body,
-        Err(error) => {
-            log::warn!(
-                "failed to notify call bridge about action action={} call_id={}: {}",
-                action,
-                call.id,
-                error
-            );
-            None
-        }
-    };
-
-    json!({
-        "provider": config.whatsapp_call_provider,
-        "action": action,
-        "mediaSession": payload,
-        "bridgeResponse": bridge_response,
-    })
 }
 
 fn normalize_phone(raw: &str) -> String {
@@ -924,10 +789,13 @@ pub async fn get_call_media_session(
     let call = scoped_call_row(pool, user_id, call_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Call session not found".to_string()))?;
+    let provider = create_provider(config);
 
     Ok(json!({
         "call": call,
-        "mediaSession": build_media_session_payload(config, &call),
+        "mediaSession": provider
+            .build_media_session(MediaSessionContext { config, call: &call })
+            .await?,
     }))
 }
 
@@ -998,36 +866,22 @@ pub async fn post_call_signal(
     )
     .await;
 
-    let media_session = build_media_session_payload(config, &existing);
-    let bridge_endpoint = format!("/calls/{}/signals", existing.id);
-    let bridge_request = json!({
-        "callId": existing.id,
-        "waCallId": existing.wa_call_id,
-        "kind": kind,
-        "source": source,
-        "signal": input.payload.clone().unwrap_or(Value::Null),
-        "call": existing,
-        "mediaSession": media_session,
-    });
-    let bridge_response = notify_bridge(config, &bridge_endpoint, &bridge_request);
-    let bridge_response = match bridge_response.await {
-        Ok(body) => body,
-        Err(error) => {
-            log::warn!(
-                "failed to notify call bridge about signal kind={} call_id={}: {}",
-                kind,
-                call_id,
-                error
-            );
-            None
-        }
-    };
+    let provider = create_provider(config);
+    let provider_result = provider
+        .dispatch_signal(ProviderSignalContext {
+            config,
+            call: &existing,
+            kind: &kind,
+            source,
+            signal: input.payload.clone().unwrap_or(Value::Null),
+        })
+        .await?;
 
     Ok(json!({
         "ok": true,
         "callId": call_id,
         "kind": kind,
-        "bridgeResponse": bridge_response,
+        "providerSignal": provider_result,
     }))
 }
 
@@ -1143,7 +997,14 @@ pub async fn apply_call_action(
         .ok_or_else(|| {
             AppError::Internal("Updated call session could not be loaded".to_string())
         })?;
-    let provider_result = dispatch_call_provider_action(config, &call, action).await;
+    let provider = create_provider(config);
+    let provider_result = provider
+        .dispatch_action(ProviderActionContext {
+            config,
+            call: &call,
+            action,
+        })
+        .await?;
 
     publish_call_event(
         user_id,

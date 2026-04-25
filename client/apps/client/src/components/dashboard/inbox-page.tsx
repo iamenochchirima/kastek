@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Picker from "@emoji-mart/react";
 import emojiData from "@emoji-mart/data";
 import { AnimatePresence, motion } from "framer-motion";
+import { Room, RoomEvent, Track } from "livekit-client";
 import {
   ArrowLeft,
   Archive,
@@ -167,6 +168,14 @@ type CallMediaSession = {
   agentRole?: string;
   canAccept?: boolean;
   canEnd?: boolean;
+  livekit?: {
+    serverUrl: string;
+    roomName: string;
+    participantIdentity: string;
+    participantName: string;
+    participantToken: string;
+    expiresAt?: string | null;
+  } | null;
 };
 
 type ReactionPickerState = {
@@ -240,6 +249,25 @@ function formatCallTimestamp(value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function isLiveKitMediaSession(
+  mediaSession: CallMediaSession | null | undefined,
+): mediaSession is CallMediaSession & {
+  livekit: {
+    serverUrl: string;
+    roomName: string;
+    participantIdentity: string;
+    participantName: string;
+    participantToken: string;
+    expiresAt?: string | null;
+  };
+} {
+  return Boolean(
+    mediaSession?.provider === "livekit" &&
+      mediaSession.livekit?.serverUrl &&
+      mediaSession.livekit?.participantToken,
+  );
 }
 
 function formatCallDuration(startedAt?: string | null, endedAt?: string | null) {
@@ -391,6 +419,8 @@ export default function InboxPageClient({
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const activeWebRtcCallIdRef = useRef<string | null>(null);
+  const liveKitRoomRef = useRef<Room | null>(null);
+  const activeLiveKitCallIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setLiveConversations(conversations);
@@ -782,9 +812,10 @@ export default function InboxPageClient({
   }, [selectedConversationCall]);
 
   useEffect(() => {
-    return () => {
+    const stopActiveCallMedia = async () => {
       peerConnectionRef.current?.close();
       peerConnectionRef.current = null;
+
       if (localStreamRef.current) {
         for (const track of localStreamRef.current.getTracks()) {
           track.stop();
@@ -792,13 +823,32 @@ export default function InboxPageClient({
       }
       localStreamRef.current = null;
       activeWebRtcCallIdRef.current = null;
+
+      if (liveKitRoomRef.current) {
+        try {
+          await liveKitRoomRef.current.disconnect();
+        } catch {
+          // Ignore disconnect failures during local cleanup.
+        }
+      }
+      liveKitRoomRef.current = null;
+      activeLiveKitCallIdRef.current = null;
+
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = null;
+      }
+    };
+
+    return () => {
+      void stopActiveCallMedia();
     };
   }, []);
 
   useEffect(() => {
-    if (!selectedConversationCall && activeWebRtcCallIdRef.current) {
+    const stopActiveCallMedia = async () => {
       peerConnectionRef.current?.close();
       peerConnectionRef.current = null;
+
       if (localStreamRef.current) {
         for (const track of localStreamRef.current.getTracks()) {
           track.stop();
@@ -806,6 +856,24 @@ export default function InboxPageClient({
       }
       localStreamRef.current = null;
       activeWebRtcCallIdRef.current = null;
+
+      if (liveKitRoomRef.current) {
+        try {
+          await liveKitRoomRef.current.disconnect();
+        } catch {
+          // Ignore disconnect failures during local cleanup.
+        }
+      }
+      liveKitRoomRef.current = null;
+      activeLiveKitCallIdRef.current = null;
+
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = null;
+      }
+    };
+
+    if (!selectedConversationCall && (activeWebRtcCallIdRef.current || activeLiveKitCallIdRef.current)) {
+      void stopActiveCallMedia();
       setCallMediaState("idle");
       setCallMediaError("");
       return;
@@ -814,17 +882,10 @@ export default function InboxPageClient({
     if (
       selectedConversationCall &&
       !isLiveCallStatus(selectedConversationCall.status) &&
-      activeWebRtcCallIdRef.current === selectedConversationCall.id
+      (activeWebRtcCallIdRef.current === selectedConversationCall.id ||
+        activeLiveKitCallIdRef.current === selectedConversationCall.id)
     ) {
-      peerConnectionRef.current?.close();
-      peerConnectionRef.current = null;
-      if (localStreamRef.current) {
-        for (const track of localStreamRef.current.getTracks()) {
-          track.stop();
-        }
-      }
-      localStreamRef.current = null;
-      activeWebRtcCallIdRef.current = null;
+      void stopActiveCallMedia();
       setCallMediaState("idle");
     }
   }, [selectedConversationCall]);
@@ -1531,7 +1592,115 @@ export default function InboxPageClient({
     }
   }
 
+  async function startLiveKitForCall(callId: string) {
+    if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error("This browser does not support LiveKit audio calling");
+    }
+
+    setCallMediaLoading(callId);
+    setCallMediaError("");
+    setCallMediaState("requesting");
+
+    try {
+      const mediaSession = await ensureCallMediaSession(callId);
+      if (!isLiveKitMediaSession(mediaSession)) {
+        throw new Error("LiveKit media session is not available for this call");
+      }
+
+      if (liveKitRoomRef.current && activeLiveKitCallIdRef.current === callId) {
+        return;
+      }
+
+      peerConnectionRef.current?.close();
+      peerConnectionRef.current = null;
+      if (localStreamRef.current) {
+        for (const track of localStreamRef.current.getTracks()) {
+          track.stop();
+        }
+      }
+      localStreamRef.current = null;
+      activeWebRtcCallIdRef.current = null;
+
+      if (liveKitRoomRef.current) {
+        try {
+          await liveKitRoomRef.current.disconnect();
+        } catch {
+          // Ignore stale-room disconnect failures.
+        }
+      }
+
+      const room = new Room();
+      room
+        .on(RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind !== Track.Kind.Audio || !remoteAudioRef.current) return;
+          track.attach(remoteAudioRef.current);
+          void remoteAudioRef.current.play().catch(() => {
+            // Playback can still require interaction on some mobile browsers.
+          });
+        })
+        .on(RoomEvent.TrackUnsubscribed, (track) => {
+          if (track.kind !== Track.Kind.Audio || !remoteAudioRef.current) return;
+          track.detach(remoteAudioRef.current);
+          remoteAudioRef.current.srcObject = null;
+        })
+        .on(RoomEvent.ConnectionStateChanged, (state) => {
+          if (activeLiveKitCallIdRef.current !== callId) return;
+          if (state === "connected") {
+            setCallMediaState("connected");
+          } else if (state === "connecting" || state === "reconnecting") {
+            setCallMediaState("connecting");
+          } else if (state === "disconnected") {
+            setCallMediaState("idle");
+          }
+        })
+        .on(RoomEvent.Disconnected, () => {
+          if (activeLiveKitCallIdRef.current !== callId) return;
+          liveKitRoomRef.current = null;
+          activeLiveKitCallIdRef.current = null;
+          setCallMediaState("idle");
+        })
+        .on(RoomEvent.MediaDevicesError, (error) => {
+          if (activeLiveKitCallIdRef.current !== callId) return;
+          setCallMediaState("failed");
+          setCallMediaError(error instanceof Error ? error.message : "Failed to access call media devices");
+        });
+
+      const { serverUrl, participantToken } = mediaSession.livekit;
+      room.prepareConnection(serverUrl, participantToken);
+      liveKitRoomRef.current = room;
+      activeLiveKitCallIdRef.current = callId;
+      setCallMediaState("connecting");
+      await room.connect(serverUrl, participantToken);
+      await room.localParticipant.setMicrophoneEnabled(true);
+      setCallMediaState("connected");
+    } catch (error) {
+      if (liveKitRoomRef.current) {
+        try {
+          await liveKitRoomRef.current.disconnect();
+        } catch {
+          // Ignore cleanup failures after a failed connection attempt.
+        }
+      }
+      liveKitRoomRef.current = null;
+      activeLiveKitCallIdRef.current = null;
+      setCallMediaState("failed");
+      setCallMediaError(
+        error instanceof Error
+          ? error.message
+          : "Failed to start LiveKit call media. Check microphone permission and device availability.",
+      );
+      throw error;
+    } finally {
+      setCallMediaLoading(null);
+    }
+  }
+
   async function handleRealtimeCallSignal(callId: string, kind: string, signal: unknown) {
+    const mediaSession = callMediaSessionsByCallId[callId];
+    if (isLiveKitMediaSession(mediaSession)) {
+      return;
+    }
+
     if (activeWebRtcCallIdRef.current !== callId && kind !== "offer") {
       return;
     }
@@ -1606,10 +1775,25 @@ export default function InboxPageClient({
       }
       setCallSessions((current) => upsertCallSession(current, payload.call as WhatsappCallSession));
       if (action === "accept") {
-        await startWebRtcForCall(callId, "offer");
+        const mediaSession = await ensureCallMediaSession(callId);
+        if (isLiveKitMediaSession(mediaSession)) {
+          await startLiveKitForCall(callId);
+        } else {
+          await startWebRtcForCall(callId, "offer");
+        }
       }
       if (action === "end" || action === "reject") {
-        await postCallSignal(callId, "bye", { reason: action });
+        const mediaSession = callMediaSessionsByCallId[callId];
+        if (isLiveKitMediaSession(mediaSession)) {
+          if (liveKitRoomRef.current && activeLiveKitCallIdRef.current === callId) {
+            await liveKitRoomRef.current.disconnect();
+            liveKitRoomRef.current = null;
+            activeLiveKitCallIdRef.current = null;
+            setCallMediaState("idle");
+          }
+        } else {
+          await postCallSignal(callId, "bye", { reason: action });
+        }
       }
     } catch (error) {
       setCallError(error instanceof Error ? error.message : "Failed to update call state");

@@ -27,6 +27,10 @@ pub struct AppConfig {
     pub whatsapp_call_turn_username: Option<String>,
     pub whatsapp_call_turn_credential: Option<String>,
     pub whatsapp_call_bridge_token: Option<String>,
+    pub livekit_url: Option<String>,
+    pub livekit_api_key: Option<String>,
+    pub livekit_api_secret: Option<String>,
+    pub livekit_token_ttl_seconds: u64,
 }
 
 impl AppConfig {
@@ -63,6 +67,13 @@ impl AppConfig {
             whatsapp_call_turn_username: env_optional("WHATSAPP_CALL_TURN_USERNAME"),
             whatsapp_call_turn_credential: env_optional("WHATSAPP_CALL_TURN_CREDENTIAL"),
             whatsapp_call_bridge_token: env_optional("WHATSAPP_CALL_BRIDGE_TOKEN"),
+            livekit_url: env_optional("LIVEKIT_URL"),
+            livekit_api_key: env_optional("LIVEKIT_API_KEY"),
+            livekit_api_secret: env_optional("LIVEKIT_API_SECRET"),
+            livekit_token_ttl_seconds: env::var("LIVEKIT_TOKEN_TTL_SECONDS")
+                .ok()
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or(600),
         })
     }
 
