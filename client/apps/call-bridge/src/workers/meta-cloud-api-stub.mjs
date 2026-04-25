@@ -2,11 +2,21 @@ const bridgeBaseUrl = (process.env.CALL_BRIDGE_BASE_URL || "http://127.0.0.1:878
 const bridgeToken = process.env.WHATSAPP_CALL_BRIDGE_TOKEN || "";
 const provider = "meta-cloud-api";
 const pollIntervalMs = Number.parseInt(process.env.CALL_BRIDGE_WORKER_POLL_MS || "1000", 10);
+const workerMode = (process.env.META_CLOUD_API_WORKER_MODE || "stub").trim().toLowerCase();
+const providerBaseUrl = (process.env.META_CLOUD_API_PROVIDER_BASE_URL || "").replace(/\/$/, "");
+const providerAuthToken = process.env.META_CLOUD_API_PROVIDER_TOKEN || "";
 
 function authHeaders() {
   return {
     "Content-Type": "application/json",
     "x-kasitek-call-bridge-token": bridgeToken,
+  };
+}
+
+function providerHeaders() {
+  return {
+    "Content-Type": "application/json",
+    ...(providerAuthToken ? { Authorization: `Bearer ${providerAuthToken}` } : {}),
   };
 }
 
@@ -41,6 +51,10 @@ function exampleAnswerSdp() {
     "a=rtpmap:111 opus/48000/2",
     "",
   ].join("\r\n");
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function claimNextTask() {
@@ -201,13 +215,83 @@ function buildTaskResult(task) {
   };
 }
 
+function buildProviderRequest(task) {
+  const request = task.payload?.request || {};
+  if (task.kind === "action") {
+    return {
+      path: `/calls/${encodeURIComponent(task.callId)}/actions`,
+      body: {
+        taskId: task.id,
+        provider,
+        callId: task.callId,
+        waCallId: task.waCallId,
+        action: task.payload?.action || null,
+        request,
+        mediaSession: request.mediaSession || null,
+        call: request.call || null,
+      },
+    };
+  }
+
+  if (task.kind === "signal") {
+    return {
+      path: `/calls/${encodeURIComponent(task.callId)}/signals`,
+      body: {
+        taskId: task.id,
+        provider,
+        callId: task.callId,
+        waCallId: task.waCallId,
+        kind: task.payload?.kind || null,
+        signal: task.payload?.signal || null,
+        request,
+      },
+    };
+  }
+
+  throw new Error(`Unsupported provider task kind=${task.kind}`);
+}
+
+function normalizeProviderResult(task, body) {
+  const rawEvents = Array.isArray(body?.providerEvents)
+    ? body.providerEvents
+    : body?.providerEvent
+      ? [body.providerEvent]
+      : [];
+
+  return {
+    status: body?.status || "completed",
+    result: body?.result || { providerAccepted: true, mode: workerMode },
+    error: body?.error || null,
+    providerEvents: rawEvents,
+  };
+}
+
+async function processTaskViaProvider(task) {
+  if (!providerBaseUrl) {
+    throw new Error("META_CLOUD_API_PROVIDER_BASE_URL is required in relay mode");
+  }
+
+  const request = buildProviderRequest(task);
+  const response = await fetch(`${providerBaseUrl}${request.path}`, {
+    method: "POST",
+    headers: providerHeaders(),
+    body: JSON.stringify(request.body),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body.error || `Provider request failed (${response.status})`);
+  }
+  return normalizeProviderResult(task, body);
+}
+
 async function processTask(task) {
   log("task.processing", {
     taskId: task.id,
     callId: task.callId,
     kind: task.kind,
+    mode: workerMode,
   });
-  const result = buildTaskResult(task);
+  const result = workerMode === "relay" ? await processTaskViaProvider(task) : buildTaskResult(task);
   const completed = await completeTask(task.id, result);
   log("task.completed", {
     taskId: task.id,
@@ -218,7 +302,7 @@ async function processTask(task) {
 }
 
 async function run() {
-  log("worker.started", { bridgeBaseUrl, pollIntervalMs });
+  log("worker.started", { bridgeBaseUrl, pollIntervalMs, workerMode, providerBaseUrl: providerBaseUrl || null });
   while (true) {
     try {
       const task = await claimNextTask();
@@ -230,7 +314,7 @@ async function run() {
         message: error instanceof Error ? error.message : "Unknown worker failure",
       });
     }
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    await sleep(pollIntervalMs);
   }
 }
 

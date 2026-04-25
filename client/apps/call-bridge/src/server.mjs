@@ -135,15 +135,21 @@ async function handleProviderTaskResult(request, response, taskId) {
       error: body.error || null,
     });
 
-    let forwardedEvent = null;
-    if (body.providerEvent) {
+    const providerEvents = Array.isArray(body.providerEvents)
+      ? body.providerEvents
+      : body.providerEvent
+        ? [body.providerEvent]
+        : [];
+    const forwardedEvents = [];
+
+    for (const event of providerEvents) {
       const normalizedEvent = providerAdapter.normalizeProviderEvent
-        ? providerAdapter.normalizeProviderEvent(body.providerEvent, {
+        ? providerAdapter.normalizeProviderEvent(event, {
             callId: existingTask.callId,
             waCallId: existingTask.waCallId,
             path: "provider/tasks/:id/result",
           })
-        : normalizeProviderEvent(body.providerEvent, {
+        : normalizeProviderEvent(event, {
             callId: existingTask.callId,
             waCallId: existingTask.waCallId,
           });
@@ -155,7 +161,7 @@ async function handleProviderTaskResult(request, response, taskId) {
         normalizedStatus: normalizedEvent.status || null,
         normalizedSignalKind: normalizedEvent.signalKind || null,
       });
-      forwardedEvent = forwarded.forwarded;
+      forwardedEvents.push(forwarded.forwarded);
     }
 
     context.log("provider_task.completed", {
@@ -164,10 +170,15 @@ async function handleProviderTaskResult(request, response, taskId) {
       kind: task.kind,
       status: task.status,
       hasError: Boolean(task.error),
-      forwardedEvent: Boolean(forwardedEvent),
+      forwardedEventCount: forwardedEvents.length,
     });
 
-    json(response, 200, { ok: true, task, forwardedEvent });
+    json(response, 200, {
+      ok: true,
+      task,
+      forwardedEvent: forwardedEvents[0] || null,
+      forwardedEvents,
+    });
   } catch (error) {
     json(response, 400, { error: error instanceof Error ? error.message : "Failed to store provider task result" });
   }

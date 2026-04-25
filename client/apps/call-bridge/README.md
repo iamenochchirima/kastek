@@ -53,6 +53,15 @@ For the production-shaped local relay loop, start the worker in a second termina
 pnpm dev:call-bridge:worker:meta-stub
 ```
 
+For a real provider relay instead of the built-in stub behavior:
+
+```bash
+META_CLOUD_API_WORKER_MODE=relay \
+META_CLOUD_API_PROVIDER_BASE_URL=https://your-provider-worker.example.com \
+META_CLOUD_API_PROVIDER_TOKEN=your-provider-token \
+pnpm dev:call-bridge:worker:meta-relay
+```
+
 Health check:
 
 ```bash
@@ -65,6 +74,36 @@ Worker env defaults:
 CALL_BRIDGE_BASE_URL=http://127.0.0.1:8787
 WHATSAPP_CALL_BRIDGE_TOKEN=your-shared-token
 CALL_BRIDGE_WORKER_POLL_MS=1000
+```
+
+Provider relay contract in `META_CLOUD_API_WORKER_MODE=relay`:
+
+- `POST /calls/:callId/actions`
+- `POST /calls/:callId/signals`
+
+Each provider endpoint receives the claimed bridge task plus normalized call metadata and should
+respond with JSON shaped like:
+
+```json
+{
+  "status": "completed",
+  "result": { "accepted": true },
+  "providerEvents": [
+    {
+      "eventType": "provider_status",
+      "status": "CONNECTING"
+    },
+    {
+      "eventType": "provider_answer",
+      "status": "ACTIVE",
+      "signalKind": "answer",
+      "signalPayload": {
+        "type": "answer",
+        "sdp": "..."
+      }
+    }
+  ]
+}
 ```
 
 ## Fast local call-loop test
@@ -123,3 +162,7 @@ results back to the bridge.
 The `worker:meta-stub` process closes that relay loop for local development by claiming
 `meta-cloud-api` provider tasks and feeding normalized bridge events back into KasiTek. It is
 still a stub worker, not a real production media provider.
+
+`worker:meta-relay` is the production-facing version of the same worker contract. It no longer
+generates answers locally; it forwards each task to an external provider service and relays the
+provider's normalized events back into KasiTek.
