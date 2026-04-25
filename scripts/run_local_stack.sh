@@ -65,11 +65,25 @@ open_terminal() {
 
 open_gnome_tabs() {
   local -a args=()
+  local first=1
 
   while [[ "$#" -gt 0 ]]; do
     local title="$1"
     local workdir="$2"
     local command="$3"
+
+    if [[ "$first" -eq 1 ]]; then
+      args+=(
+        --window
+        --title="$title"
+        --working-directory="$workdir"
+        -- bash -lc "$command; printf '\n[%s] exited. Press Enter to close...' '$title'; read -r _"
+      )
+      first=0
+      shift 3
+      continue
+    fi
+
     args+=(
       --tab
       --title="$title"
