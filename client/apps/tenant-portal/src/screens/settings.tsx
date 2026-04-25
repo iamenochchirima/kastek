@@ -6,13 +6,15 @@ import {
   Globe,
   Loader2,
   Mail,
-  Plus,
   RefreshCw,
   Send,
+  UserPlus,
   ShieldCheck,
   Trash2,
+  Users,
 } from "lucide-react";
 import { ProtectedRoute } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";
 import { tenantFetch } from "@/lib/api";
 import { SETTINGS_ROLES } from "@/lib/tenant-access";
@@ -21,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type DomainRecord = {
   id: string;
@@ -104,6 +107,25 @@ type EmailSettingsResponse = {
   };
 };
 
+type StaffMember = {
+  id: string;
+  email: string;
+  name: string | null;
+  status: string;
+  roles: string[];
+  createdAt: string;
+  lastLoginAt: string | null;
+};
+
+type StaffResponse = {
+  staff: StaffMember[];
+};
+
+type StaffInviteResponse = {
+  staff: StaffMember;
+  inviteSent: boolean;
+};
+
 function statusTone(status: string) {
   switch (status) {
     case "verified":
@@ -131,6 +153,7 @@ function emailStatusTone(status: string) {
 }
 
 export default function SettingsScreen() {
+  const { user } = useAuth();
   const [hostedDomain, setHostedDomain] = useState<string | null>(null);
   const [expectedTargetHost, setExpectedTargetHost] = useState<string | null>(null);
   const [workspaceSlug, setWorkspaceSlug] = useState<string>("");
@@ -156,6 +179,14 @@ export default function SettingsScreen() {
   const [platformFromEmail, setPlatformFromEmail] = useState("");
   const [emailSender, setEmailSender] = useState<EmailSenderPreview | null>(null);
   const [emailDomains, setEmailDomains] = useState<EmailDomain[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
+  const [staffLoading, setStaffLoading] = useState(true);
+  const [staffSaving, setStaffSaving] = useState(false);
+  const [staffRemovingId, setStaffRemovingId] = useState<string | null>(null);
+  const [staffError, setStaffError] = useState("");
+  const [newStaffEmail, setNewStaffEmail] = useState("");
+  const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffRole, setNewStaffRole] = useState("admin");
   const [sendingMode, setSendingMode] = useState<"shared" | "custom">("shared");
   const [senderName, setSenderName] = useState("");
   const [replyToEmail, setReplyToEmail] = useState("");
@@ -176,6 +207,7 @@ export default function SettingsScreen() {
     () => emailDomains.find((entry) => entry.id === selectedCustomDomainId) ?? null,
     [emailDomains, selectedCustomDomainId],
   );
+  const currentUserId = user?.id ?? null;
 
   function applyEmailPayload(payload: EmailSettingsResponse["email"]) {
     setResendConfigured(payload.resendConfigured);
@@ -193,14 +225,17 @@ export default function SettingsScreen() {
   async function loadSettings() {
     setLoading(true);
     setEmailLoading(true);
+    setStaffLoading(true);
     setError("");
     setEmailError("");
+    setStaffError("");
 
     try {
-      const [workspace, domainPayload, emailPayload] = await Promise.all([
+      const [workspace, domainPayload, emailPayload, staffPayload] = await Promise.all([
         tenantFetch<WorkspaceResponse>("/api/workspace"),
         tenantFetch<WorkspaceDomainsResponse>("/api/workspace/domains"),
         tenantFetch<EmailSettingsResponse>("/api/workspace/email-sending"),
+        tenantFetch<StaffResponse>("/api/workspace/staff"),
       ]);
 
       setWorkspaceSlug(workspace.workspace.slug);
@@ -212,13 +247,16 @@ export default function SettingsScreen() {
       );
       setDomains(domainPayload.domains ?? []);
       applyEmailPayload(emailPayload.email);
+      setStaffMembers(staffPayload.staff ?? []);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to load workspace settings";
       setError(message);
       setEmailError(message);
+      setStaffError(message);
     } finally {
       setLoading(false);
       setEmailLoading(false);
+      setStaffLoading(false);
     }
   }
 
@@ -281,6 +319,49 @@ export default function SettingsScreen() {
       setError(err instanceof Error ? err.message : "Unable to remove domain");
     } finally {
       setRemovingId(null);
+    }
+  }
+
+  async function inviteStaffMember(e: React.FormEvent) {
+    e.preventDefault();
+    setStaffSaving(true);
+    setStaffError("");
+
+    try {
+      const response = await tenantFetch<StaffInviteResponse>("/api/workspace/staff", {
+        method: "POST",
+        body: JSON.stringify({
+          email: newStaffEmail,
+          name: newStaffName || null,
+          role: newStaffRole,
+        }),
+      });
+
+      setNewStaffEmail("");
+      setNewStaffName("");
+      setNewStaffRole("admin");
+      setStaffMembers((current) => {
+        const next = current.filter((member) => member.id !== response.staff.id);
+        return [response.staff, ...next];
+      });
+    } catch (err) {
+      setStaffError(err instanceof Error ? err.message : "Unable to invite staff member");
+    } finally {
+      setStaffSaving(false);
+    }
+  }
+
+  async function removeStaffMember(staffId: string) {
+    setStaffRemovingId(staffId);
+    setStaffError("");
+
+    try {
+      await tenantFetch(`/api/workspace/staff/${staffId}`, { method: "DELETE" });
+      setStaffMembers((current) => current.filter((member) => member.id !== staffId));
+    } catch (err) {
+      setStaffError(err instanceof Error ? err.message : "Unable to remove staff member");
+    } finally {
+      setStaffRemovingId(null);
     }
   }
 
@@ -437,7 +518,7 @@ export default function SettingsScreen() {
               <CardContent className="space-y-3 text-sm">
                 <p className="text-muted-foreground">Recommended record:</p>
                 <p className="font-mono text-foreground">
-                  {primaryCustomDomain?.domain ?? "portal.yourcompany.com"} CNAME {expectedTargetHost ?? "portal.kasitek.co.za"}
+                  {primaryCustomDomain?.domain ?? "your branded domain"} CNAME {expectedTargetHost ?? "portal.kasitek.co.za"}
                 </p>
                 <p className="text-muted-foreground">
                   Once DNS propagates, hit Verify. A verified custom domain can then be made primary.
@@ -462,7 +543,7 @@ export default function SettingsScreen() {
                     id="custom-domain"
                     value={newDomain}
                     onChange={(event) => setNewDomain(event.target.value)}
-                    placeholder="portal.tomorrowlabs.com"
+                    placeholder="your branded domain"
                     required
                   />
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -558,6 +639,129 @@ export default function SettingsScreen() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Staff Members
+              </CardTitle>
+              <CardDescription>
+                Invite internal team members to manage the workspace with their own login and role.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {staffError ? (
+                <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {staffError}
+                </div>
+              ) : null}
+
+              <form onSubmit={inviteStaffMember} className="grid gap-4 xl:grid-cols-[1fr_1fr_180px_auto] xl:items-end">
+                <div className="space-y-2">
+                    <Label htmlFor="staff-email">Email</Label>
+                    <Input
+                      id="staff-email"
+                      value={newStaffEmail}
+                      onChange={(event) => setNewStaffEmail(event.target.value)}
+                      placeholder="admin@yourdomain.co.za"
+                      required
+                    />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="staff-name">Name</Label>
+                  <Input
+                    id="staff-name"
+                    value={newStaffName}
+                    onChange={(event) => setNewStaffName(event.target.value)}
+                    placeholder="Alex"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="staff-role">Role</Label>
+                  <Select value={newStaffRole} onValueChange={setNewStaffRole}>
+                    <SelectTrigger id="staff-role">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="owner">Owner</SelectItem>
+                      <SelectItem value="account_manager">Account Manager</SelectItem>
+                      <SelectItem value="support">Support</SelectItem>
+                      <SelectItem value="viewer">Viewer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit" loading={staffSaving} loadingLabel="Inviting staff...">
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Invite Staff
+                </Button>
+              </form>
+
+              <div className="space-y-3">
+                {staffLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading staff members...</p>
+                ) : staffMembers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No staff members yet. Invite the first internal user to manage the workspace.
+                  </p>
+                ) : (
+                  staffMembers.map((member) => (
+                    <div key={member.id} className="rounded-xl border border-border bg-background/60 p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-foreground">{member.name || member.email}</span>
+                            <span className="text-sm text-muted-foreground">{member.email}</span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                                member.status === "active"
+                                  ? "bg-green-500/15 text-green-400"
+                                  : "bg-amber-500/15 text-amber-400"
+                              }`}
+                            >
+                              {member.status}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {member.roles.map((role) => (
+                              <span
+                                key={role}
+                                className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary capitalize"
+                              >
+                                {role}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Added {new Date(member.createdAt).toLocaleString()}
+                            {member.lastLoginAt ? ` · Last login ${new Date(member.lastLoginAt).toLocaleString()}` : ""}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void removeStaffMember(member.id)}
+                            disabled={staffRemovingId === member.id || member.id === currentUserId}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            {staffRemovingId === member.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="mr-2 h-4 w-4" />
+                            )}
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-semibold tracking-tight">Email Sending</h2>
@@ -617,7 +821,7 @@ export default function SettingsScreen() {
                           id="sender-name"
                           value={senderName}
                           onChange={(event) => setSenderName(event.target.value)}
-                          placeholder="Tomorrow Labs"
+                          placeholder="Your Brand"
                         />
                       </div>
                       <div className="space-y-2">
@@ -626,7 +830,7 @@ export default function SettingsScreen() {
                           id="reply-to-email"
                           value={replyToEmail}
                           onChange={(event) => setReplyToEmail(event.target.value)}
-                          placeholder="hello@yourcompany.com"
+                          placeholder="hello@yourdomain.co.za"
                         />
                       </div>
                     </div>
@@ -774,14 +978,14 @@ export default function SettingsScreen() {
             </div>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Custom Sending Domain</CardTitle>
-                <CardDescription>
-                  Connect a sending subdomain like <span className="font-mono">mail.yourcompany.com</span>. Resend handles verification;
-                  KasiTek manages the onboarding and sender switching inside the portal.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
+                <CardHeader>
+                  <CardTitle>Custom Sending Domain</CardTitle>
+                  <CardDescription>
+                    Connect a sending subdomain like <span className="font-mono">mail.yourdomain.co.za</span>. Resend handles verification;
+                    KasiTek manages the onboarding and sender switching inside the portal.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
                 <form onSubmit={addEmailDomain} className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
                   <div className="space-y-2">
                     <Label htmlFor="email-domain">Sending domain</Label>
@@ -789,7 +993,7 @@ export default function SettingsScreen() {
                       id="email-domain"
                       value={newEmailDomain}
                       onChange={(event) => setNewEmailDomain(event.target.value)}
-                      placeholder="mail.yourcompany.com"
+                      placeholder="mail.yourdomain.co.za"
                       required
                     />
                     <p className="text-xs text-muted-foreground">

@@ -23,6 +23,18 @@ export default function SolutionsPage() {
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base">
                 Browse the category that best fits your business.
               </p>
+
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <Link
+                  href="/solutions/partner-pack"
+                  className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground"
+                >
+                  Open partner brochure
+                </Link>
+                <span className="text-sm text-muted-foreground">
+                  A printable overview partners can share with clients.
+                </span>
+              </div>
             </div>
 
             <div className="md:pt-2">

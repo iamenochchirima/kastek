@@ -17,11 +17,6 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    console.log("[admin-login] submit", {
-      email,
-      origin: window.location.origin,
-    });
-
     try {
       const res = await fetch("/api/core/admin/login", {
         method: "POST",
@@ -30,29 +25,8 @@ export default function LoginPage() {
         credentials: "include",
       });
 
-      console.log("[admin-login] login response", {
-        status: res.status,
-        ok: res.ok,
-        url: res.url,
-      });
-
       if (!res.ok) {
         setError("Invalid email or password");
-        return;
-      }
-
-      const meRes = await fetch("/api/core/admin/me", {
-        credentials: "include",
-      });
-      const meBody = await meRes.text().catch(() => "");
-      console.log("[admin-login] session check", {
-        status: meRes.status,
-        ok: meRes.ok,
-        body: meBody,
-      });
-
-      if (!meRes.ok) {
-        setError("Signed in, but the session cookie was not stored");
         return;
       }
 

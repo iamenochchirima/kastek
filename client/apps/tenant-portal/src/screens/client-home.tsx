@@ -26,7 +26,7 @@ export default function ClientHomeScreen() {
         <div className="space-y-8">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.18em] text-primary">
-              Client Workspace
+              Client Portal
             </p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight">
               {overview?.tenantClientName ?? brandName}
@@ -47,7 +47,7 @@ export default function ClientHomeScreen() {
                 <Card>
                   <CardHeader className="pb-2">
                     <Users className="h-4 w-4 text-primary" />
-                    <CardTitle className="text-sm">Client Users</CardTitle>
+                    <CardTitle className="text-sm">Users</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-semibold">{overview?.totalUsers ?? 0}</div>

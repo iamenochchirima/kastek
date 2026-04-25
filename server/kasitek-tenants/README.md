@@ -16,12 +16,13 @@ This service is intentionally separate from the KasiTek core `server/` deploymen
 
 Minimum environment for local development:
 
-- `TENANT_DATABASE_URL`
+- `KASITEK_TENANTS_DATABASE_URL`
 - `TENANT_SERVER_PORT` or `PORT`
 - `TENANT_ALLOWED_ORIGINS`
 
 Useful auth and portal settings:
 
+- `TENANT_DATABASE_URL` as a legacy fallback if you are migrating old envs
 - `TENANT_APP_BASE_URL`
 - `TENANT_PORTAL_HOST_TARGET`
 - `TENANT_PLATFORM_BASE_DOMAIN`

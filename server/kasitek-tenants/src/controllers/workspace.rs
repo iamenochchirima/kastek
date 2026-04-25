@@ -1,6 +1,7 @@
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
+use bcrypt::{hash, DEFAULT_COST};
 use chrono::Utc;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::collections::BTreeSet;
 use tokio::net::lookup_host;
@@ -135,6 +136,360 @@ async fn sync_workspace_custom_domain(
 
 fn require_workspace_admin(access: &types::TenantAccessContext) -> Result<(), AppError> {
     middleware::require_tenant_roles(&access.tenant_user_roles, &["owner", "admin"])
+}
+
+#[derive(Debug, FromRow)]
+struct WorkspaceStaffRow {
+    id: String,
+    email: String,
+    name: Option<String>,
+    status: String,
+    roles: serde_json::Value,
+    created_at: chrono::DateTime<Utc>,
+    last_login_at: Option<chrono::DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InviteWorkspaceStaffBody {
+    email: String,
+    name: Option<String>,
+    role: Option<String>,
+}
+
+fn normalize_staff_role(value: Option<&str>) -> Result<String, AppError> {
+    let role = value.unwrap_or("admin").trim().to_ascii_lowercase();
+    if role.is_empty() {
+        return Err(AppError::BadRequest("role is required".to_string()));
+    }
+
+    match role.as_str() {
+        "owner" | "admin" | "account_manager" | "support" | "viewer" => Ok(role),
+        _ => Err(AppError::BadRequest("invalid staff role".to_string())),
+    }
+}
+
+fn normalize_staff_email(value: &str) -> Result<String, AppError> {
+    let email = value.trim().to_ascii_lowercase();
+    if email.is_empty() {
+        return Err(AppError::BadRequest("email is required".to_string()));
+    }
+
+    if !email.contains('@') {
+        return Err(AppError::BadRequest("email must be valid".to_string()));
+    }
+
+    Ok(email)
+}
+
+async fn issue_workspace_staff_invite(
+    pool: &sqlx::PgPool,
+    config: &crate::config::AppConfig,
+    access: &types::TenantAccessContext,
+    tenant_user_id: &str,
+    email: &str,
+) -> Result<serde_json::Value, AppError> {
+    let workspace = sqlx::query_scalar::<_, String>(
+        r#"SELECT display_name FROM workspaces WHERE id = $1 LIMIT 1"#,
+    )
+    .bind(&access.workspace_id)
+    .fetch_optional(pool)
+    .await?
+    .unwrap_or_else(|| access.workspace_slug.clone());
+
+    let invite = crate::controllers::admin_invites::issue_admin_invite(
+        pool,
+        config,
+        &access.workspace_id,
+        &access.workspace_slug,
+        &workspace,
+        tenant_user_id,
+        email,
+    )
+    .await?;
+
+    Ok(serde_json::json!({
+        "activationUrl": invite.activation_url,
+        "portalUrl": invite.portal_url,
+        "emailSent": invite.email_sent,
+        "expiresAt": invite.expires_at,
+    }))
+}
+
+pub async fn list_workspace_staff(req: HttpRequest) -> Result<HttpResponse, AppError> {
+    let access = middleware::extract_access_context(&req).await?;
+    require_workspace_admin(&access)?;
+    let pool = middleware::db_pool(&req)?;
+
+    let staff = sqlx::query_as::<_, WorkspaceStaffRow>(
+        r#"
+        SELECT
+            u.id,
+            u.email,
+            u.name,
+            u.status,
+            COALESCE(
+                json_agg(r.role ORDER BY r.created_at) FILTER (WHERE r.role IS NOT NULL),
+                '[]'::json
+            ) AS roles,
+            u.created_at AS created_at,
+            u.last_login_at AS last_login_at
+        FROM tenant_users u
+        LEFT JOIN tenant_user_roles r ON r.tenant_user_id = u.id
+        WHERE u.workspace_id = $1
+        GROUP BY u.id, u.email, u.name, u.status, u.created_at, u.last_login_at
+        ORDER BY u.created_at DESC
+        "#,
+    )
+    .bind(&access.workspace_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "staff": staff.into_iter().map(|row| serde_json::json!({
+            "id": row.id,
+            "email": row.email,
+            "name": row.name,
+            "status": row.status,
+            "roles": row.roles,
+            "createdAt": row.created_at,
+            "lastLoginAt": row.last_login_at,
+        })).collect::<Vec<_>>()
+    })))
+}
+
+pub async fn add_workspace_staff(
+    req: HttpRequest,
+    body: web::Json<InviteWorkspaceStaffBody>,
+) -> Result<HttpResponse, AppError> {
+    let access = middleware::extract_access_context(&req).await?;
+    require_workspace_admin(&access)?;
+    let pool = middleware::db_pool(&req)?;
+    let config = middleware::app_config(&req)?;
+
+    let email = normalize_staff_email(&body.email)?;
+    let role = normalize_staff_role(body.role.as_deref())?;
+    let name = body
+        .name
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+
+    let existing = sqlx::query_as::<_, WorkspaceStaffRow>(
+        r#"
+        SELECT
+            u.id,
+            u.email,
+            u.name,
+            u.status,
+            COALESCE(
+                json_agg(r.role ORDER BY r.created_at) FILTER (WHERE r.role IS NOT NULL),
+                '[]'::json
+            ) AS roles,
+            u.created_at AS created_at,
+            u.last_login_at AS last_login_at
+        FROM tenant_users u
+        LEFT JOIN tenant_user_roles r ON r.tenant_user_id = u.id
+        WHERE u.workspace_id = $1 AND lower(u.email) = lower($2)
+        GROUP BY u.id, u.email, u.name, u.status, u.created_at, u.last_login_at
+        LIMIT 1
+        "#,
+    )
+    .bind(&access.workspace_id)
+    .bind(&email)
+    .fetch_optional(pool)
+    .await?;
+
+    let user_id = if let Some(existing) = existing {
+        if existing.status == "active" && existing.roles.as_array().is_some() {
+            sqlx::query(
+                r#"INSERT INTO tenant_user_roles (tenant_user_id, role, created_at)
+                   VALUES ($1, $2, NOW())
+                   ON CONFLICT DO NOTHING"#,
+            )
+            .bind(&existing.id)
+            .bind(&role)
+            .execute(pool)
+            .await?;
+
+            return Ok(HttpResponse::Ok().json(serde_json::json!({
+                "staff": {
+                    "id": existing.id,
+                    "email": existing.email,
+                    "name": existing.name,
+                    "status": existing.status,
+                    "roles": existing.roles,
+                    "createdAt": existing.created_at,
+                    "lastLoginAt": existing.last_login_at,
+                },
+                "inviteSent": false,
+            })));
+        }
+
+        let temp_hash = hash(crypto_utils::generate_token(24), DEFAULT_COST)
+            .map_err(|e| AppError::Internal(format!("password hash failed: {e}")))?;
+
+        sqlx::query(
+            r#"
+            UPDATE tenant_users
+            SET name = COALESCE($1, name),
+                password_hash = $2,
+                status = 'pending',
+                updated_at = NOW()
+            WHERE id = $3 AND workspace_id = $4
+            "#,
+        )
+        .bind(&name)
+        .bind(&temp_hash)
+        .bind(&existing.id)
+        .bind(&access.workspace_id)
+        .execute(pool)
+        .await?;
+
+        sqlx::query("DELETE FROM tenant_user_roles WHERE tenant_user_id = $1")
+            .bind(&existing.id)
+            .execute(pool)
+            .await?;
+
+        sqlx::query(
+            r#"INSERT INTO tenant_user_roles (tenant_user_id, role, created_at) VALUES ($1, $2, NOW())"#,
+        )
+        .bind(&existing.id)
+        .bind(&role)
+        .execute(pool)
+        .await?;
+
+        existing.id
+    } else {
+        let temp_hash = hash(crypto_utils::generate_token(24), DEFAULT_COST)
+            .map_err(|e| AppError::Internal(format!("password hash failed: {e}")))?;
+        let user_id = cuid2::create_id();
+
+        sqlx::query(
+            r#"
+            INSERT INTO tenant_users (id, workspace_id, email, password_hash, name, status, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, 'pending', NOW(), NOW())
+            "#,
+        )
+        .bind(&user_id)
+        .bind(&access.workspace_id)
+        .bind(&email)
+        .bind(&temp_hash)
+        .bind(&name)
+        .execute(pool)
+        .await?;
+
+        sqlx::query(
+            r#"INSERT INTO tenant_user_roles (tenant_user_id, role, created_at) VALUES ($1, $2, NOW())"#,
+        )
+        .bind(&user_id)
+        .bind(&role)
+        .execute(pool)
+        .await?;
+
+        user_id
+    };
+
+    let invite = issue_workspace_staff_invite(pool, config, &access, &user_id, &email).await?;
+
+    let staff = sqlx::query_as::<_, WorkspaceStaffRow>(
+        r#"
+        SELECT
+            u.id,
+            u.email,
+            u.name,
+            u.status,
+            COALESCE(
+                json_agg(r.role ORDER BY r.created_at) FILTER (WHERE r.role IS NOT NULL),
+                '[]'::json
+            ) AS roles,
+            u.created_at AS created_at,
+            u.last_login_at AS last_login_at
+        FROM tenant_users u
+        LEFT JOIN tenant_user_roles r ON r.tenant_user_id = u.id
+        WHERE u.id = $1
+        GROUP BY u.id, u.email, u.name, u.status, u.created_at, u.last_login_at
+        LIMIT 1
+        "#,
+    )
+    .bind(&user_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(HttpResponse::Created().json(serde_json::json!({
+        "staff": {
+            "id": staff.id,
+            "email": staff.email,
+            "name": staff.name,
+            "status": staff.status,
+            "roles": staff.roles,
+            "createdAt": staff.created_at,
+            "lastLoginAt": staff.last_login_at,
+        },
+        "invite": invite,
+        "inviteSent": invite["emailSent"].as_bool().unwrap_or(false),
+    })))
+}
+
+pub async fn remove_workspace_staff(
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let access = middleware::extract_access_context(&req).await?;
+    require_workspace_admin(&access)?;
+    let pool = middleware::db_pool(&req)?;
+    let user_id = path.into_inner();
+
+    if access.tenant_user_id.as_deref() == Some(user_id.as_str()) {
+        return Err(AppError::BadRequest(
+            "you cannot remove your own account".to_string(),
+        ));
+    }
+
+    let owner_count = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(*)
+        FROM tenant_users u
+        JOIN tenant_user_roles r ON r.tenant_user_id = u.id
+        WHERE u.workspace_id = $1
+          AND r.role = 'owner'
+        "#,
+    )
+    .bind(&access.workspace_id)
+    .fetch_one(pool)
+    .await?;
+
+    let target_is_owner = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(*)
+        FROM tenant_user_roles
+        WHERE tenant_user_id = $1 AND role = 'owner'
+        "#,
+    )
+    .bind(&user_id)
+    .fetch_one(pool)
+    .await?
+        > 0;
+
+    if target_is_owner && owner_count <= 1 {
+        return Err(AppError::BadRequest(
+            "you must keep at least one owner on the workspace".to_string(),
+        ));
+    }
+
+    let deleted = sqlx::query_scalar::<_, String>(
+        r#"DELETE FROM tenant_users WHERE id = $1 AND workspace_id = $2 RETURNING id"#,
+    )
+    .bind(&user_id)
+    .bind(&access.workspace_id)
+    .fetch_optional(pool)
+    .await?;
+
+    if deleted.is_none() {
+        return Err(AppError::NotFound("staff user not found".to_string()));
+    }
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "deleted": true })))
 }
 
 pub async fn get_workspace(req: HttpRequest) -> Result<HttpResponse, AppError> {
