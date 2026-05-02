@@ -3,7 +3,6 @@ import { Check } from "lucide-react";
 import type { SolutionOutcome } from "../data";
 
 interface OutcomesGridProps {
-  intro?: string;
   outcomes: SolutionOutcome[];
   accentColor: string;
   accentBorder: string;
@@ -11,7 +10,6 @@ interface OutcomesGridProps {
 }
 
 export function OutcomesGrid({
-  intro,
   outcomes,
   accentColor,
   accentBorder,
@@ -19,12 +17,6 @@ export function OutcomesGrid({
 }: OutcomesGridProps) {
   return (
     <div className="space-y-8">
-      {intro && (
-        <p className="max-w-2xl text-base leading-relaxed text-muted-foreground">
-          {intro}
-        </p>
-      )}
-
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {outcomes.map((outcome, i) => (
           <div

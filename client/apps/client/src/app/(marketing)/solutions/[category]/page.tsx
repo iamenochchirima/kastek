@@ -11,11 +11,10 @@ import { OutcomesGrid } from "../_components/OutcomesGrid";
 import { ServiceCatalogueAccordion } from "../_components/ServiceCatalogueAccordion";
 import { solutionCategoryMap } from "../data";
 
-const ACCENT = {
-  smbs: { color: "#3DBA7A", dim: "rgba(61,186,122,0.08)", border: "rgba(61,186,122,0.2)", text: "text-[#3DBA7A]" },
-  agencies: { color: "#E8A020", dim: "rgba(232,160,32,0.08)", border: "rgba(232,160,32,0.2)", text: "text-[#E8A020]" },
-  "software-vendors": { color: "#60A5FA", dim: "rgba(96,165,250,0.08)", border: "rgba(96,165,250,0.2)", text: "text-[#60A5FA]" },
-  franchises: { color: "#A78BFA", dim: "rgba(167,139,250,0.08)", border: "rgba(167,139,250,0.2)", text: "text-[#A78BFA]" },
+const BRAND = {
+  color: "#E8A020",
+  dim: "rgba(232,160,32,0.08)",
+  border: "rgba(232,160,32,0.2)",
 } as const;
 
 export default async function SolutionCategoryPage({
@@ -30,7 +29,7 @@ export default async function SolutionCategoryPage({
     notFound();
   }
 
-  const accent = ACCENT[category as keyof typeof ACCENT] ?? ACCENT.smbs;
+  const accent = BRAND;
 
   return (
     <main className="relative min-h-screen w-full bg-background text-foreground">
@@ -86,19 +85,19 @@ export default async function SolutionCategoryPage({
                 {solution.intro}
               </p>
 
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <a
                   href="mailto:hello@kasitek.co.za?subject=Demo Request"
                   className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-bold transition-colors"
-                  style={{ background: accent.color, color: accent.color === "#E8A020" ? "#000" : "#fff" }}
+                  style={{ background: accent.color, color: "#000" }}
                 >
                   Request a Demo
                 </a>
                 <Link
                   href="/pricing"
-                  className="inline-flex items-center justify-center rounded-xl border border-border px-6 py-3 text-sm font-semibold text-foreground transition hover:bg-white/5"
+                  className="inline-flex items-center justify-center px-3 py-3 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
                 >
-                  View Pricing
+                  or view pricing →
                 </Link>
               </div>
             </div>
@@ -116,49 +115,80 @@ export default async function SolutionCategoryPage({
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
       </div>
 
-      {/* ── Service Showcase ── */}
-      <section className="px-6 py-16 md:px-12">
-        <div className="mx-auto max-w-6xl space-y-6">
-          {/* Section label */}
-          <div className="mb-4">
-            <span className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: accent.color }}>
-              {solution.primarySectionTitle}
-            </span>
-            <p className="mt-1 text-sm text-muted-foreground max-w-lg">{solution.primarySectionDescription}</p>
-          </div>
+      {/* ── Outcomes ── */}
+      {solution.outcomes && solution.outcomes.length > 0 ? (
+        <section className="px-6 py-16 md:px-12">
+          <div className="mx-auto max-w-6xl space-y-10">
+            <div>
+              <span
+                className="text-xs font-semibold uppercase tracking-[0.22em]"
+                style={{ color: accent.color }}
+              >
+                What you can do
+              </span>
+              {solution.outcomesIntro && (
+                <h2 className="mt-2 font-display text-3xl leading-tight text-foreground md:text-4xl max-w-2xl">
+                  {solution.outcomesIntro}
+                </h2>
+              )}
+            </div>
 
-          {solution.primaryServices.some((s) => s.image) ? (
-            <CustomServicesCards
-              title={solution.primarySectionTitle}
-              description={solution.primarySectionDescription}
-              services={solution.primaryServices}
+            <OutcomesGrid
+              outcomes={solution.outcomes}
               accentColor={accent.color}
               accentBorder={accent.border}
               accentDim={accent.dim}
             />
-          ) : (
+
+            {/* Full catalogue accordion */}
+            <ServiceCatalogueAccordion
+              primaryLabel={solution.primarySectionTitle}
+              primaryServices={solution.primaryServices}
+              secondaryLabel={solution.secondarySectionTitle}
+              secondaryServices={solution.secondaryServices}
+              accentColor={accent.color}
+              accentBorder={accent.border}
+            />
+          </div>
+        </section>
+      ) : (
+        // Fallback for categories without outcomes (e.g. coming soon)
+        <section className="px-6 py-16 md:px-12">
+          <div className="mx-auto max-w-6xl space-y-6">
+            <div className="mb-4">
+              <span
+                className="text-xs font-semibold uppercase tracking-[0.22em]"
+                style={{ color: accent.color }}
+              >
+                {solution.primarySectionTitle}
+              </span>
+              <p className="mt-1 text-sm text-muted-foreground max-w-lg">
+                {solution.primarySectionDescription}
+              </p>
+            </div>
+
             <SolutionServicesShowcase
               eyebrow={solution.primarySectionTitle}
               title={solution.shortTitle}
               description={solution.primarySectionDescription}
               services={solution.primaryServices}
             />
-          )}
 
-          {solution.secondaryServices.length > 0 && (
-            <div className="pt-6">
-              <CustomServicesCards
-                title={solution.secondarySectionTitle}
-                description={solution.secondarySectionDescription}
-                services={solution.secondaryServices}
-                accentColor={accent.color}
-                accentBorder={accent.border}
-                accentDim={accent.dim}
-              />
-            </div>
-          )}
-        </div>
-      </section>
+            {solution.secondaryServices.length > 0 && (
+              <div className="pt-6">
+                <CustomServicesCards
+                  title={solution.secondarySectionTitle}
+                  description={solution.secondarySectionDescription}
+                  services={solution.secondaryServices}
+                  accentColor={accent.color}
+                  accentBorder={accent.border}
+                  accentDim={accent.dim}
+                />
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* ── CTA strip ── */}
       <section className="px-6 py-16 md:px-12">
@@ -179,7 +209,7 @@ export default async function SolutionCategoryPage({
               <a
                 href="mailto:hello@kasitek.co.za?subject=Demo Request"
                 className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-bold whitespace-nowrap transition-opacity hover:opacity-90"
-                style={{ background: accent.color, color: accent.color === "#E8A020" ? "#000" : "#fff" }}
+                style={{ background: accent.color, color: "#000" }}
               >
                 Book a Free Demo
               </a>

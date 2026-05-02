@@ -40,50 +40,41 @@ function Reveal({ children, className = "", delay = 0 }: { children: React.React
   );
 }
 
+const BRAND = {
+  accent: "#E8A020",
+  accentDim: "rgba(232,160,32,0.07)",
+  accentBorder: "rgba(232,160,32,0.25)",
+  accentText: "text-[#E8A020]",
+};
+
 const CARD_CONFIG = {
   smbs: {
-    accent: "#3DBA7A",
-    accentDim: "rgba(61,186,122,0.07)",
-    accentBorder: "rgba(61,186,122,0.25)",
-    accentText: "text-[#3DBA7A]",
+    ...BRAND,
     label: "SMBs",
     headline: "Run your business on autopilot.",
     pitch: "WhatsApp AI, website chat, bookings, and quotations — ready to deploy for any business that needs to respond faster and convert more.",
     icon: BriefcaseBusiness,
-    badge: null,
   },
   agencies: {
-    accent: "#E8A020",
-    accentDim: "rgba(232,160,32,0.07)",
-    accentBorder: "rgba(232,160,32,0.25)",
-    accentText: "text-[#E8A020]",
+    ...BRAND,
     label: "Agencies & Consultants",
     headline: "Deliver AI for your clients, under your brand.",
     pitch: "White-label AI services, branded client dashboards, content engines, and campaign automations — yours to package and sell.",
     icon: Building2,
-    badge: null,
   },
   "software-vendors": {
-    accent: "#60A5FA",
-    accentDim: "rgba(96,165,250,0.07)",
-    accentBorder: "rgba(96,165,250,0.25)",
-    accentText: "text-[#60A5FA]",
+    ...BRAND,
     label: "Software Vendors",
     headline: "Add AI features to your product.",
     pitch: "Embedded conversation layers, branded AI features, usage reporting, and provisioning flows that slot into your existing platform.",
     icon: Layers3,
-    badge: null,
   },
   franchises: {
-    accent: "#A78BFA",
-    accentDim: "rgba(167,139,250,0.07)",
-    accentBorder: "rgba(167,139,250,0.25)",
-    accentText: "text-[#A78BFA]",
+    ...BRAND,
     label: "Franchises & Multi-Location",
     headline: "Consistent AI across every branch.",
     pitch: "One communication system with branch-aware routing, centralised campaigns, and cross-location reporting.",
     icon: Store,
-    badge: "Coming Soon",
   },
 };
 

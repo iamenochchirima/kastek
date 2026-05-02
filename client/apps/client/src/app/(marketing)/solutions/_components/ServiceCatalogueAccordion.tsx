@@ -23,6 +23,7 @@ export function ServiceCatalogueAccordion({
 }: ServiceCatalogueAccordionProps) {
   const [open, setOpen] = useState(false);
   const totalCount = primaryServices.length + secondaryServices.length;
+  const panelId = "service-catalogue-panel";
 
   return (
     <div
@@ -32,6 +33,8 @@ export function ServiceCatalogueAccordion({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-controls={panelId}
         className="flex w-full items-center justify-between px-6 py-5 text-left transition-colors hover:bg-white/[0.02]"
       >
         <div className="flex items-center gap-3">
@@ -53,7 +56,11 @@ export function ServiceCatalogueAccordion({
       </button>
 
       {open && (
-        <div className="border-t px-6 py-6 space-y-8" style={{ borderColor: accentBorder }}>
+        <div
+          id={panelId}
+          className="border-t px-6 py-6 space-y-8"
+          style={{ borderColor: accentBorder }}
+        >
           {/* Primary services */}
           <div>
             <p
