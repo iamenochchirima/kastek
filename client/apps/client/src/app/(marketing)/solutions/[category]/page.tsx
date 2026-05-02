@@ -7,6 +7,8 @@ import { SolutionServicesShowcase } from "@/components/landing/solution-services
 import { SolutionsMenu } from "@/components/landing/solutions-menu";
 import { CategoryHeroVisual } from "../_components/CategoryHeroVisual";
 import { CustomServicesCards } from "../_components/CustomServicesCards";
+import { OutcomesGrid } from "../_components/OutcomesGrid";
+import { ServiceCatalogueAccordion } from "../_components/ServiceCatalogueAccordion";
 import { solutionCategoryMap } from "../data";
 
 const ACCENT = {

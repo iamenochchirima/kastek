@@ -27,23 +27,22 @@ export function ServiceCatalogueAccordion({
   return (
     <div
       className="rounded-2xl border bg-[#0A0A0A] overflow-hidden"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      style={{ borderColor: accentBorder }}
     >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-white/[0.02] md:px-6 md:py-5"
-        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center justify-between px-6 py-5 text-left transition-colors hover:bg-white/[0.02]"
       >
         <div className="flex items-center gap-3">
           <span
-            className="text-xs font-semibold uppercase tracking-[0.22em]"
+            className="text-[10px] font-semibold uppercase tracking-[0.2em]"
             style={{ color: accentColor }}
           >
-            Full service catalogue
+            All services
           </span>
-          <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-            {totalCount} services
+          <span className="text-sm text-muted-foreground">
+            See the full catalogue ({totalCount})
           </span>
         </div>
         <ChevronDown
@@ -54,55 +53,49 @@ export function ServiceCatalogueAccordion({
       </button>
 
       {open && (
-        <div className="border-t border-white/5 px-5 py-6 md:px-6 md:py-7">
-          {/* Primary group */}
-          <div className="mb-7">
+        <div className="border-t px-6 py-6 space-y-8" style={{ borderColor: accentBorder }}>
+          {/* Primary services */}
+          <div>
             <p
-              className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+              className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em]"
+              style={{ color: accentColor }}
             >
               {primaryLabel}
             </p>
-            <ul className="grid grid-cols-1 gap-x-8 gap-y-3 md:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {primaryServices.map((service) => (
-                <li key={service.title} className="flex items-start gap-3">
-                  <div
-                    className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full"
-                    style={{ background: accentColor }}
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {service.title}
-                    </p>
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      {service.description}
-                    </p>
-                  </div>
+                <li
+                  key={service.title}
+                  className="rounded-lg border border-white/5 bg-white/[0.02] p-3"
+                >
+                  <p className="text-sm font-semibold text-foreground">{service.title}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {service.description}
+                  </p>
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* Secondary group */}
+          {/* Secondary services */}
           {secondaryServices.length > 0 && (
-            <div className="border-t border-white/5 pt-6">
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            <div>
+              <p
+                className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em]"
+                style={{ color: accentColor }}
+              >
                 {secondaryLabel}
               </p>
-              <ul className="grid grid-cols-1 gap-x-8 gap-y-3 md:grid-cols-2">
+              <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {secondaryServices.map((service) => (
-                  <li key={service.title} className="flex items-start gap-3">
-                    <div
-                      className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full border"
-                      style={{ borderColor: accentBorder }}
-                    />
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        {service.title}
-                      </p>
-                      <p className="text-xs leading-relaxed text-muted-foreground">
-                        {service.description}
-                      </p>
-                    </div>
+                  <li
+                    key={service.title}
+                    className="rounded-lg border border-white/5 bg-white/[0.02] p-3"
+                  >
+                    <p className="text-sm font-semibold text-foreground">{service.title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {service.description}
+                    </p>
                   </li>
                 ))}
               </ul>
