@@ -1,4 +1,5 @@
 use chrono::{DateTime, TimeZone, Utc};
+use crypto_utils::decrypt_with_aes256_gcm;
 use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 
@@ -13,6 +14,16 @@ use crate::services::realtime;
 use crate::services::rtc_media_provider::{
     create_provider, MediaSessionContext, ProviderActionContext, ProviderSignalContext,
 };
+
+const GRAPH_BASE: &str = "https://graph.facebook.com/v19.0";
+
+#[derive(Debug, sqlx::FromRow)]
+struct CallConnectionAuthRow {
+    #[sqlx(rename = "phone_number_id")]
+    phone_number_id: String,
+    #[sqlx(rename = "access_token_encrypted")]
+    access_token_encrypted: String,
+}
 
 async fn list_call_rows(
     pool: &PgPool,
@@ -210,6 +221,178 @@ async fn append_call_event(
     .execute(pool)
     .await?;
     Ok(())
+}
+
+fn whatsapp_token_encryption_secret() -> Result<String, AppError> {
+    std::env::var("SOCIAL_TOKEN_ENCRYPTION_KEY")
+        .or_else(|_| std::env::var("WHATSAPP_TOKEN_ENCRYPTION_KEY"))
+        .map_err(|_| {
+            AppError::Internal(
+                "SOCIAL_TOKEN_ENCRYPTION_KEY or WHATSAPP_TOKEN_ENCRYPTION_KEY is required"
+                    .to_string(),
+            )
+        })
+}
+
+fn decrypt_whatsapp_access_token(payload: &str) -> Result<String, AppError> {
+    let secret = whatsapp_token_encryption_secret()?;
+    decrypt_with_aes256_gcm(&secret, payload)
+        .map_err(|error| AppError::Internal(format!("Failed to decrypt token: {error}")))
+}
+
+fn meta_offer_session_from_payload(payload: &Value) -> Option<Value> {
+    payload
+        .get("session")
+        .or_else(|| payload.get("call").and_then(|call_payload| call_payload.get("session")))
+        .filter(|session| {
+            session
+                .get("sdp")
+                .and_then(|value| value.as_str())
+                .is_some_and(|value| !value.trim().is_empty())
+        })
+        .cloned()
+}
+
+async fn load_meta_offer_session(
+    pool: &PgPool,
+    call: &WhatsappCallSessionRow,
+) -> Result<Option<Value>, AppError> {
+    if let Some(session) = call
+        .raw_payload
+        .as_ref()
+        .and_then(meta_offer_session_from_payload)
+    {
+        return Ok(Some(session));
+    }
+
+    let payload = sqlx::query(
+        r#"
+        SELECT payload
+        FROM "WhatsappCallEvent"
+        WHERE "sessionId" = $1
+          AND "eventType" = 'call.webhook.connect'
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(&call.id)
+    .fetch_optional(pool)
+    .await?
+    .map(|row| row.get::<Value, _>("payload"));
+
+    Ok(payload.and_then(|value| meta_offer_session_from_payload(&value)))
+}
+
+fn normalize_sdp(sdp: &str) -> String {
+    let normalized = sdp.replace("\r\n", "\n").replace('\r', "\n");
+    let lines = normalized
+        .split('\n')
+        .map(str::trim_end)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+    if lines.is_empty() {
+        return String::new();
+    }
+    let mut result = lines.join("\r\n");
+    result.push_str("\r\n");
+    result
+}
+
+fn build_direct_meta_media_session(
+    call: &WhatsappCallSessionRow,
+    session: &Value,
+) -> Result<Value, AppError> {
+    let sdp = session
+        .get("sdp")
+        .and_then(|value| value.as_str())
+        .map(normalize_sdp)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Incoming Meta call SDP offer is empty".to_string()))?;
+    let sdp_type = session
+        .get("sdp_type")
+        .and_then(|value| value.as_str())
+        .unwrap_or("offer");
+
+    Ok(json!({
+        "provider": "meta-direct-webrtc",
+        "callId": call.id,
+        "waCallId": call.wa_call_id,
+        "conversationId": call.conversation_id,
+        "agentRole": "agent",
+        "canAccept": call.status == "RINGING" || call.status == "CONNECTING",
+        "canEnd": call.status == "ACTIVE" || call.status == "CONNECTING" || call.status == "RINGING",
+        "webrtc": {
+            "sdpType": sdp_type,
+            "sdp": sdp,
+        }
+    }))
+}
+
+async fn load_call_connection_auth(
+    pool: &PgPool,
+    connection_id: &str,
+) -> Result<CallConnectionAuthRow, AppError> {
+    sqlx::query_as::<_, CallConnectionAuthRow>(
+        r#"
+        SELECT "phoneNumberId" AS phone_number_id,
+               "accessTokenEncrypted" AS access_token_encrypted
+        FROM "WhatsappConnection"
+        WHERE id = $1
+        LIMIT 1
+        "#,
+    )
+    .bind(connection_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("WhatsApp connection not found for call".to_string()))
+}
+
+async fn manage_meta_call(
+    pool: &PgPool,
+    call: &WhatsappCallSessionRow,
+    action: &str,
+    session: Option<Value>,
+) -> Result<Value, AppError> {
+    let wa_call_id = call
+        .wa_call_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("WhatsApp call id is missing".to_string()))?;
+    let connection = load_call_connection_auth(pool, &call.connection_id).await?;
+    let access_token = decrypt_whatsapp_access_token(&connection.access_token_encrypted)?;
+    let url = format!("{GRAPH_BASE}/{}/calls", connection.phone_number_id);
+
+    let mut payload = json!({
+        "messaging_product": "whatsapp",
+        "call_id": wa_call_id,
+        "action": action,
+    });
+    if let Some(session_payload) = session {
+        payload["session"] = session_payload;
+    }
+
+    let response = reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(access_token)
+        .json(&payload)
+        .send()
+        .await?;
+    let status = response.status();
+    let body = response.json::<Value>().await.unwrap_or(Value::Null);
+    if !status.is_success() {
+        return Err(AppError::BadRequest(format!(
+            "Meta Calling API request failed ({}): {}",
+            status,
+            body.get("error")
+                .and_then(|value| value.get("message"))
+                .and_then(|value| value.as_str())
+                .or_else(|| body.get("message").and_then(|value| value.as_str()))
+                .unwrap_or("Unknown error")
+        )));
+    }
+
+    Ok(body)
 }
 
 fn normalize_phone(raw: &str) -> String {
@@ -789,6 +972,12 @@ pub async fn get_call_media_session(
     let call = scoped_call_row(pool, user_id, call_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Call session not found".to_string()))?;
+    if let Some(session) = load_meta_offer_session(pool, &call).await? {
+        return Ok(json!({
+            "call": call.clone(),
+            "mediaSession": build_direct_meta_media_session(&call, &session)?,
+        }));
+    }
     let provider = create_provider(config);
 
     Ok(json!({
@@ -865,6 +1054,57 @@ pub async fn post_call_signal(
         }),
     )
     .await;
+
+    if load_meta_offer_session(pool, &existing).await?.is_some() {
+        if kind == "answer" {
+            let signal = input
+                .payload
+                .clone()
+                .ok_or_else(|| AppError::BadRequest("Answer payload is required".to_string()))?;
+            let sdp = signal
+                .get("sdp")
+                .and_then(|value| value.as_str())
+                .map(normalize_sdp)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| AppError::BadRequest("Answer SDP is required".to_string()))?;
+            let sdp_type = signal
+                .get("type")
+                .and_then(|value| value.as_str())
+                .unwrap_or("answer");
+            let graph_response = manage_meta_call(
+                pool,
+                &existing,
+                "accept",
+                Some(json!({
+                    "sdp_type": sdp_type,
+                    "sdp": sdp,
+                })),
+            )
+            .await?;
+
+            return Ok(json!({
+                "ok": true,
+                "callId": call_id,
+                "kind": kind,
+                "providerSignal": {
+                    "provider": "meta-direct-webrtc",
+                    "action": "accept",
+                    "graphResponse": graph_response,
+                },
+            }));
+        }
+
+        return Ok(json!({
+            "ok": true,
+            "callId": call_id,
+            "kind": kind,
+            "providerSignal": {
+                "provider": "meta-direct-webrtc",
+                "ignored": true,
+                "note": "Only the SDP answer is sent back to Meta in the direct WebRTC flow.",
+            },
+        }));
+    }
 
     let provider = create_provider(config);
     let provider_result = provider
@@ -994,14 +1234,40 @@ pub async fn apply_call_action(
         .ok_or_else(|| {
             AppError::Internal("Updated call session could not be loaded".to_string())
         })?;
-    let provider = create_provider(config);
-    let provider_result = provider
-        .dispatch_action(ProviderActionContext {
-            config,
-            call: &call,
-            action,
-        })
-        .await?;
+    let provider_result = if let Some(session) = load_meta_offer_session(pool, &call).await? {
+        match action {
+            "accept" => json!({
+                "provider": "meta-direct-webrtc",
+                "action": action,
+                "mediaSession": build_direct_meta_media_session(&call, &session)?,
+                "awaitingLocalAnswer": true,
+                "note": "Browser must create an SDP answer and post it back before Meta considers the call accepted.",
+            }),
+            "reject" => json!({
+                "provider": "meta-direct-webrtc",
+                "action": action,
+                "graphResponse": manage_meta_call(pool, &call, "reject", None).await?,
+            }),
+            "end" => json!({
+                "provider": "meta-direct-webrtc",
+                "action": action,
+                "graphResponse": manage_meta_call(pool, &call, "terminate", None).await?,
+            }),
+            _ => json!({
+                "provider": "meta-direct-webrtc",
+                "action": action,
+            }),
+        }
+    } else {
+        let provider = create_provider(config);
+        provider
+            .dispatch_action(ProviderActionContext {
+                config,
+                call: &call,
+                action,
+            })
+            .await?
+    };
 
     publish_call_event(
         user_id,

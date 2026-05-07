@@ -214,16 +214,6 @@ async function handleCallAction(request, response, callId) {
               session,
             },
           },
-          {
-            eventType: "provider_status",
-            status: "ACTIVE",
-            source: "meta-cloud-api-livekit-relay",
-            payload: {
-              relay: "livekit",
-              callId,
-              session,
-            },
-          },
         ],
       });
       return;
