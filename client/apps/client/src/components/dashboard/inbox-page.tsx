@@ -116,6 +116,14 @@ type ChannelCounts = {
   };
 };
 
+function logCallMediaEvent(callId: string, event: string, details?: Record<string, unknown>) {
+  console.info("[call-media]", {
+    callId,
+    event,
+    ...(details || {}),
+  });
+}
+
 type ConversationMessage = {
   id: string;
   sender: "customer" | "bot";
@@ -163,8 +171,6 @@ type CallMediaSession = {
   waCallId?: string | null;
   conversationId?: string | null;
   roomName?: string;
-  signalingUrl?: string | null;
-  iceServers?: RTCIceServer[];
   agentRole?: string;
   canAccept?: boolean;
   canEnd?: boolean;
@@ -282,54 +288,6 @@ function formatCallDuration(startedAt?: string | null, endedAt?: string | null) 
   return `${minutes}m ${remainder}s`;
 }
 
-async function requestPreferredAudioStream() {
-  const audioConstraints: MediaTrackConstraints = {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
-  };
-
-  try {
-    return await navigator.mediaDevices.getUserMedia({
-      audio: audioConstraints,
-      video: false,
-    });
-  } catch (error) {
-    const mediaError = error instanceof DOMException ? error : null;
-    const recoverable =
-      mediaError?.name === "NotFoundError" ||
-      mediaError?.name === "DevicesNotFoundError" ||
-      mediaError?.name === "OverconstrainedError";
-
-    if (!recoverable || !navigator.mediaDevices.enumerateDevices) {
-      throw error;
-    }
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const firstAudioInput = devices.find((device) => device.kind === "audioinput" && device.deviceId);
-    if (!firstAudioInput) {
-      throw new Error("No microphone is available on this device");
-    }
-
-    try {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: {
-          ...audioConstraints,
-          deviceId: { exact: firstAudioInput.deviceId },
-        },
-        video: false,
-      });
-    } catch (fallbackError) {
-      if (fallbackError instanceof DOMException && fallbackError.name === "NotFoundError") {
-        throw new Error(
-          "The selected microphone is unavailable. Reconnect it or choose another input device.",
-        );
-      }
-      throw fallbackError;
-    }
-  }
-}
-
 function InboxMessagesSkeleton() {
   return (
     <div className="space-y-4 py-2">
@@ -416,9 +374,6 @@ export default function InboxPageClient({
   const reactionTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const copyFeedbackTimerRef = useRef<number | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const activeWebRtcCallIdRef = useRef<string | null>(null);
   const liveKitRoomRef = useRef<Room | null>(null);
   const activeLiveKitCallIdRef = useRef<string | null>(null);
 
@@ -790,18 +745,18 @@ export default function InboxPageClient({
           },
         );
         const payload = (await response.json()) as { mediaSession?: CallMediaSession };
-        if (!response.ok || !payload.mediaSession) {
-          throw new Error("Failed to load call media session");
-        }
-        if (!cancelled) {
-          setCallMediaSessionsByCallId((current) => ({
-            ...current,
-            [selectedConversationCall.id]: payload.mediaSession!,
-          }));
-        }
-      } catch {
-        // Ignore until the signaling backend is fully configured.
+      if (!response.ok || !payload.mediaSession) {
+        throw new Error("Failed to load call media session");
       }
+      if (!cancelled) {
+        setCallMediaSessionsByCallId((current) => ({
+          ...current,
+          [selectedConversationCall.id]: payload.mediaSession!,
+        }));
+      }
+    } catch {
+      // Ignore transient media-session load failures while the call is initializing.
+    }
     };
 
     void loadMediaSession();
@@ -813,17 +768,6 @@ export default function InboxPageClient({
 
   useEffect(() => {
     const stopActiveCallMedia = async () => {
-      peerConnectionRef.current?.close();
-      peerConnectionRef.current = null;
-
-      if (localStreamRef.current) {
-        for (const track of localStreamRef.current.getTracks()) {
-          track.stop();
-        }
-      }
-      localStreamRef.current = null;
-      activeWebRtcCallIdRef.current = null;
-
       if (liveKitRoomRef.current) {
         try {
           await liveKitRoomRef.current.disconnect();
@@ -846,17 +790,6 @@ export default function InboxPageClient({
 
   useEffect(() => {
     const stopActiveCallMedia = async () => {
-      peerConnectionRef.current?.close();
-      peerConnectionRef.current = null;
-
-      if (localStreamRef.current) {
-        for (const track of localStreamRef.current.getTracks()) {
-          track.stop();
-        }
-      }
-      localStreamRef.current = null;
-      activeWebRtcCallIdRef.current = null;
-
       if (liveKitRoomRef.current) {
         try {
           await liveKitRoomRef.current.disconnect();
@@ -872,7 +805,7 @@ export default function InboxPageClient({
       }
     };
 
-    if (!selectedConversationCall && (activeWebRtcCallIdRef.current || activeLiveKitCallIdRef.current)) {
+    if (!selectedConversationCall && activeLiveKitCallIdRef.current) {
       void stopActiveCallMedia();
       setCallMediaState("idle");
       setCallMediaError("");
@@ -882,8 +815,7 @@ export default function InboxPageClient({
     if (
       selectedConversationCall &&
       !isLiveCallStatus(selectedConversationCall.status) &&
-      (activeWebRtcCallIdRef.current === selectedConversationCall.id ||
-        activeLiveKitCallIdRef.current === selectedConversationCall.id)
+      activeLiveKitCallIdRef.current === selectedConversationCall.id
     ) {
       void stopActiveCallMedia();
       setCallMediaState("idle");
@@ -1269,7 +1201,7 @@ export default function InboxPageClient({
           [payload.callId]: [...currentSignals, nextSignal],
         };
       });
-      void handleRealtimeCallSignal(payload.callId, payload.kind, payload.signal);
+      handleRealtimeCallSignal(payload.callId, payload.kind, payload.source);
       return;
     }
 
@@ -1457,30 +1389,11 @@ export default function InboxPageClient({
     }
   });
 
-  async function postCallSignal(callId: string, kind: string, payload: unknown) {
-    const response = await fetch(apiUrl(`/api/whatsapp/calls/${callId}/signals`), {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        kind,
-        source: "agent-ui",
-        payload,
-      }),
-    });
-
-    if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error || `Failed to send ${kind} signal`);
-    }
-  }
-
   async function ensureCallMediaSession(callId: string) {
     const existing = callMediaSessionsByCallId[callId];
     if (existing) return existing;
 
+    logCallMediaEvent(callId, "media-session.load.start");
     const response = await fetch(apiUrl(`/api/whatsapp/calls/${callId}/media-session`), {
       cache: "no-store",
       credentials: "include",
@@ -1489,107 +1402,14 @@ export default function InboxPageClient({
     if (!response.ok || !payload.mediaSession) {
       throw new Error(payload.error || "Failed to load media session");
     }
+    logCallMediaEvent(callId, "media-session.load.success", {
+      provider: "livekit" in payload.mediaSession ? "livekit" : "webrtc",
+    });
     setCallMediaSessionsByCallId((current) => ({
       ...current,
       [callId]: payload.mediaSession!,
     }));
     return payload.mediaSession!;
-  }
-
-  async function createPeerConnection(callId: string, mediaSession: CallMediaSession) {
-    if (peerConnectionRef.current && activeWebRtcCallIdRef.current === callId) {
-      return peerConnectionRef.current;
-    }
-
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
-    }
-    if (localStreamRef.current) {
-      for (const track of localStreamRef.current.getTracks()) {
-        track.stop();
-      }
-      localStreamRef.current = null;
-    }
-
-    setCallMediaState("requesting");
-    const localStream = await requestPreferredAudioStream();
-    localStreamRef.current = localStream;
-
-    const peerConnection = new RTCPeerConnection({
-      iceServers: mediaSession.iceServers?.length
-        ? mediaSession.iceServers
-        : [{ urls: ["stun:stun.l.google.com:19302"] }],
-    });
-
-    for (const track of localStream.getTracks()) {
-      peerConnection.addTrack(track, localStream);
-    }
-
-    peerConnection.onicecandidate = (event) => {
-      if (!event.candidate) return;
-      void postCallSignal(callId, "candidate", event.candidate.toJSON()).catch((error) => {
-        setCallMediaError(error instanceof Error ? error.message : "Failed to send ICE candidate");
-      });
-    };
-
-    peerConnection.ontrack = (event) => {
-      const [remoteStream] = event.streams;
-      if (remoteAudioRef.current && remoteStream) {
-        remoteAudioRef.current.srcObject = remoteStream;
-        void remoteAudioRef.current.play().catch(() => {
-          // Playback can still require interaction on some mobile browsers.
-        });
-      }
-    };
-
-    peerConnection.onconnectionstatechange = () => {
-      const state = peerConnection.connectionState;
-      if (state === "connected") {
-        setCallMediaState("connected");
-      } else if (state === "connecting") {
-        setCallMediaState("connecting");
-      } else if (state === "failed" || state === "disconnected" || state === "closed") {
-        setCallMediaState("failed");
-      }
-    };
-
-    peerConnectionRef.current = peerConnection;
-    activeWebRtcCallIdRef.current = callId;
-    return peerConnection;
-  }
-
-  async function startWebRtcForCall(callId: string, mode: "offer" | "await-offer") {
-    if (typeof window === "undefined" || !("RTCPeerConnection" in window) || !navigator.mediaDevices?.getUserMedia) {
-      throw new Error("This browser does not support WebRTC audio calling");
-    }
-
-    setCallMediaLoading(callId);
-    setCallMediaError("");
-
-    try {
-      const mediaSession = await ensureCallMediaSession(callId);
-      const peerConnection = await createPeerConnection(callId, mediaSession);
-
-      if (mode === "offer") {
-        setCallMediaState("connecting");
-        const offer = await peerConnection.createOffer({
-          offerToReceiveAudio: true,
-        });
-        await peerConnection.setLocalDescription(offer);
-        await postCallSignal(callId, "offer", offer);
-      }
-    } catch (error) {
-      setCallMediaState("failed");
-      setCallMediaError(
-        error instanceof Error
-          ? error.message
-          : "Failed to start call media. Check microphone permission and available input devices.",
-      );
-      throw error;
-    } finally {
-      setCallMediaLoading(null);
-    }
   }
 
   async function startLiveKitForCall(callId: string) {
@@ -1606,20 +1426,16 @@ export default function InboxPageClient({
       if (!isLiveKitMediaSession(mediaSession)) {
         throw new Error("LiveKit media session is not available for this call");
       }
+      logCallMediaEvent(callId, "livekit.start", {
+        roomName: mediaSession.livekit.roomName,
+        serverUrl: mediaSession.livekit.serverUrl,
+        participantIdentity: mediaSession.livekit.participantIdentity,
+      });
 
       if (liveKitRoomRef.current && activeLiveKitCallIdRef.current === callId) {
+        logCallMediaEvent(callId, "livekit.reuse-existing-room");
         return;
       }
-
-      peerConnectionRef.current?.close();
-      peerConnectionRef.current = null;
-      if (localStreamRef.current) {
-        for (const track of localStreamRef.current.getTracks()) {
-          track.stop();
-        }
-      }
-      localStreamRef.current = null;
-      activeWebRtcCallIdRef.current = null;
 
       if (liveKitRoomRef.current) {
         try {
@@ -1633,6 +1449,10 @@ export default function InboxPageClient({
       room
         .on(RoomEvent.TrackSubscribed, (track) => {
           if (track.kind !== Track.Kind.Audio || !remoteAudioRef.current) return;
+          logCallMediaEvent(callId, "livekit.track-subscribed", {
+            trackKind: track.kind,
+            trackSid: track.sid,
+          });
           track.attach(remoteAudioRef.current);
           void remoteAudioRef.current.play().catch(() => {
             // Playback can still require interaction on some mobile browsers.
@@ -1640,11 +1460,16 @@ export default function InboxPageClient({
         })
         .on(RoomEvent.TrackUnsubscribed, (track) => {
           if (track.kind !== Track.Kind.Audio || !remoteAudioRef.current) return;
+          logCallMediaEvent(callId, "livekit.track-unsubscribed", {
+            trackKind: track.kind,
+            trackSid: track.sid,
+          });
           track.detach(remoteAudioRef.current);
           remoteAudioRef.current.srcObject = null;
         })
         .on(RoomEvent.ConnectionStateChanged, (state) => {
           if (activeLiveKitCallIdRef.current !== callId) return;
+          logCallMediaEvent(callId, "livekit.connection-state", { state });
           if (state === "connected") {
             setCallMediaState("connected");
           } else if (state === "connecting" || state === "reconnecting") {
@@ -1655,23 +1480,37 @@ export default function InboxPageClient({
         })
         .on(RoomEvent.Disconnected, () => {
           if (activeLiveKitCallIdRef.current !== callId) return;
+          logCallMediaEvent(callId, "livekit.disconnected");
           liveKitRoomRef.current = null;
           activeLiveKitCallIdRef.current = null;
           setCallMediaState("idle");
         })
         .on(RoomEvent.MediaDevicesError, (error) => {
           if (activeLiveKitCallIdRef.current !== callId) return;
+          logCallMediaEvent(callId, "livekit.media-devices-error", {
+            message: error instanceof Error ? error.message : "Unknown media device error",
+          });
           setCallMediaState("failed");
           setCallMediaError(error instanceof Error ? error.message : "Failed to access call media devices");
         });
 
       const { serverUrl, participantToken } = mediaSession.livekit;
+      logCallMediaEvent(callId, "livekit.connect.begin", {
+        roomName: mediaSession.livekit.roomName,
+        tokenPresent: Boolean(participantToken),
+      });
       room.prepareConnection(serverUrl, participantToken);
       liveKitRoomRef.current = room;
       activeLiveKitCallIdRef.current = callId;
       setCallMediaState("connecting");
       await room.connect(serverUrl, participantToken);
+      logCallMediaEvent(callId, "livekit.connect.success", {
+        localParticipantIdentity: room.localParticipant.identity,
+      });
       await room.localParticipant.setMicrophoneEnabled(true);
+      logCallMediaEvent(callId, "livekit.microphone.enabled", {
+        isMicrophoneEnabled: room.localParticipant.isMicrophoneEnabled,
+      });
       setCallMediaState("connected");
     } catch (error) {
       if (liveKitRoomRef.current) {
@@ -1684,6 +1523,9 @@ export default function InboxPageClient({
       liveKitRoomRef.current = null;
       activeLiveKitCallIdRef.current = null;
       setCallMediaState("failed");
+      logCallMediaEvent(callId, "livekit.start.failed", {
+        message: error instanceof Error ? error.message : "Unknown LiveKit startup failure",
+      });
       setCallMediaError(
         error instanceof Error
           ? error.message
@@ -1695,65 +1537,12 @@ export default function InboxPageClient({
     }
   }
 
-  async function handleRealtimeCallSignal(callId: string, kind: string, signal: unknown) {
-    const mediaSession = callMediaSessionsByCallId[callId];
-    if (isLiveKitMediaSession(mediaSession)) {
-      return;
-    }
-
-    if (activeWebRtcCallIdRef.current !== callId && kind !== "offer") {
-      return;
-    }
-
-    try {
-      if (kind === "offer") {
-        const mediaSession = await ensureCallMediaSession(callId);
-        const peerConnection = await createPeerConnection(callId, mediaSession);
-        const offer = signal as RTCSessionDescriptionInit;
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        await postCallSignal(callId, "answer", answer);
-        setCallMediaState("connecting");
-        return;
-      }
-
-      if (!peerConnectionRef.current || activeWebRtcCallIdRef.current !== callId) {
-        return;
-      }
-
-      if (kind === "answer") {
-        const answer = signal as RTCSessionDescriptionInit;
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-        setCallMediaState("connecting");
-        return;
-      }
-
-      if (kind === "candidate") {
-        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(signal as RTCIceCandidateInit));
-        return;
-      }
-
-      if (kind === "bye") {
-        peerConnectionRef.current.close();
-        peerConnectionRef.current = null;
-        activeWebRtcCallIdRef.current = null;
-        if (localStreamRef.current) {
-          for (const track of localStreamRef.current.getTracks()) {
-            track.stop();
-          }
-        }
-        localStreamRef.current = null;
-        setCallMediaState("idle");
-      }
-    } catch (error) {
-      setCallMediaState("failed");
-      setCallMediaError(
-        error instanceof Error
-          ? error.message
-          : "Failed to process call signal. Check microphone permission and device availability.",
-      );
-    }
+  function handleRealtimeCallSignal(callId: string, kind: string, source?: string | null) {
+    logCallMediaEvent(callId, "signal.receive.ignored", {
+      kind,
+      source: source || null,
+      reason: "legacy-webrtc-path-removed",
+    });
   }
 
   async function applyCallAction(callId: string, action: "accept" | "reject" | "end") {
@@ -1775,12 +1564,14 @@ export default function InboxPageClient({
       }
       setCallSessions((current) => upsertCallSession(current, payload.call as WhatsappCallSession));
       if (action === "accept") {
+        logCallMediaEvent(callId, "action.accepted-by-api", {
+          status: payload.call.status,
+        });
         const mediaSession = await ensureCallMediaSession(callId);
-        if (isLiveKitMediaSession(mediaSession)) {
-          await startLiveKitForCall(callId);
-        } else {
-          await startWebRtcForCall(callId, "offer");
+        if (!isLiveKitMediaSession(mediaSession)) {
+          throw new Error("Received a legacy non-LiveKit media session. The old WebRTC path has been removed.");
         }
+        await startLiveKitForCall(callId);
       }
       if (action === "end" || action === "reject") {
         const mediaSession = callMediaSessionsByCallId[callId];
@@ -1791,8 +1582,6 @@ export default function InboxPageClient({
             activeLiveKitCallIdRef.current = null;
             setCallMediaState("idle");
           }
-        } else {
-          await postCallSignal(callId, "bye", { reason: action });
         }
       }
     } catch (error) {

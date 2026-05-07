@@ -247,6 +247,16 @@ pub async fn ingest_bridge_event(
         .await?
         .ok_or_else(|| AppError::Internal("Updated call session could not be reloaded".to_string()))?;
 
+    log::info!(
+        "call bridge event ingested: call_id={}, wa_call_id={:?}, event_type={:?}, status={:?}, signal_kind={:?}, source={}",
+        call.id,
+        call.wa_call_id,
+        input.event_type,
+        next_status,
+        input.signal_kind,
+        bridge_source(input),
+    );
+
     let bridge_event_type = format!(
         "call.bridge.{}",
         input

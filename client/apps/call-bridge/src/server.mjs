@@ -143,6 +143,16 @@ async function handleProviderTaskResult(request, response, taskId) {
       : body.providerEvent
         ? [body.providerEvent]
         : [];
+    context.log("provider_task.result_received", {
+      taskId,
+      callId: existingTask.callId,
+      kind: existingTask.kind,
+      status: body.status || "completed",
+      hasError: Boolean(body.error),
+      providerEventCount: providerEvents.length,
+      providerEventTypes: providerEvents.map((event) => event?.eventType || event?.event_type || "unknown"),
+      providerStatuses: providerEvents.map((event) => event?.status || event?.state || null),
+    });
     const forwardedEvents = [];
 
     for (const event of providerEvents) {

@@ -100,6 +100,11 @@ async function connectBridgeParticipant(body) {
 
   const existing = bridgeSessions.get(callId);
   if (existing?.connected) {
+    log("relay.connect_reused", {
+      callId,
+      roomName: existing.roomName,
+      participantIdentity: existing.participantIdentity,
+    });
     return summarizeSession(existing);
   }
 
@@ -108,6 +113,14 @@ async function connectBridgeParticipant(body) {
   }
 
   const room = new Room();
+  log("relay.connect_begin", {
+    callId,
+    waCallId,
+    roomName: livekit.roomName,
+    serverUrl: livekit.serverUrl,
+    participantIdentity: livekit.participantIdentity,
+    hasParticipantToken: Boolean(livekit.participantToken),
+  });
   const session = {
     callId,
     waCallId,
@@ -154,6 +167,12 @@ async function connectBridgeParticipant(body) {
 
   bridgeSessions.set(callId, session);
   await room.connect(livekit.serverUrl, livekit.participantToken);
+  log("relay.connect_success", {
+    callId,
+    roomName: session.roomName,
+    participantIdentity: session.participantIdentity,
+    connected: session.connected,
+  });
   return summarizeSession(session);
 }
 
@@ -163,6 +182,13 @@ async function handleCallAction(request, response, callId) {
   try {
     const body = await readJsonBody(request);
     const action = body.action || null;
+    log("relay.action_received", {
+      callId,
+      action,
+      roomName: body?.mediaSession?.livekit?.roomName || null,
+      serverUrl: body?.mediaSession?.livekit?.serverUrl || null,
+      bridgeParticipantIdentity: body?.mediaSession?.livekit?.bridgeParticipant?.identity || null,
+    });
 
     if (action === "accept") {
       const session = await connectBridgeParticipant({
@@ -231,6 +257,10 @@ async function handleCallAction(request, response, callId) {
 
     json(response, 400, { error: `Unsupported action: ${action || "unknown"}` });
   } catch (error) {
+    log("relay.action_failed", {
+      callId,
+      message: error instanceof Error ? error.message : "Failed to process action",
+    });
     json(response, 400, { error: error instanceof Error ? error.message : "Failed to process action" });
   }
 }
@@ -242,6 +272,11 @@ async function handleCallSignal(request, response, callId) {
     const body = await readJsonBody(request);
     const kind = body.kind || null;
     const session = bridgeSessions.get(callId);
+    log("relay.signal_received", {
+      callId,
+      kind,
+      hasSession: Boolean(session),
+    });
 
     json(response, 200, {
       status: "completed",

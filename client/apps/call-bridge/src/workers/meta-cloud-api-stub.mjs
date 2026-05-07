@@ -59,12 +59,25 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function fetchJson(url, options, errorContext) {
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown fetch failure";
+    throw new Error(`${errorContext} (${url}): ${message}`);
+  }
+
+  return response;
+}
+
 async function claimNextTask() {
-  const response = await fetch(`${bridgeBaseUrl}/provider/tasks/claim-next`, {
+  const url = `${bridgeBaseUrl}/provider/tasks/claim-next`;
+  const response = await fetchJson(url, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ provider }),
-  });
+  }, "Failed to reach call bridge while claiming provider task");
 
   if (response.status === 404) {
     return null;
@@ -78,11 +91,12 @@ async function claimNextTask() {
 }
 
 async function completeTask(taskId, payload) {
-  const response = await fetch(`${bridgeBaseUrl}/provider/tasks/${taskId}/result`, {
+  const url = `${bridgeBaseUrl}/provider/tasks/${taskId}/result`;
+  const response = await fetchJson(url, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify(payload),
-  });
+  }, "Failed to reach call bridge while completing provider task");
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(body.error || `Failed to complete provider task (${response.status})`);
@@ -274,11 +288,12 @@ async function processTaskViaProvider(task) {
   }
 
   const request = buildProviderRequest(task);
-  const response = await fetch(`${providerBaseUrl}${request.path}`, {
+  const url = `${providerBaseUrl}${request.path}`;
+  const response = await fetchJson(url, {
     method: "POST",
     headers: providerHeaders(),
     body: JSON.stringify(request.body),
-  });
+  }, "Failed to reach provider relay while processing task");
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(body.error || `Provider request failed (${response.status})`);

@@ -24,11 +24,11 @@ pub struct AppConfig {
     pub web_push_subject: String,
     pub whatsapp_call_provider: String,
     pub whatsapp_call_signaling_url: Option<String>,
-    pub whatsapp_call_ice_servers_json: Option<String>,
-    pub whatsapp_call_turn_urls: Option<String>,
-    pub whatsapp_call_turn_username: Option<String>,
-    pub whatsapp_call_turn_credential: Option<String>,
     pub whatsapp_call_bridge_token: Option<String>,
+    pub livekit_url: Option<String>,
+    pub livekit_api_key: Option<String>,
+    pub livekit_api_secret: Option<String>,
+    pub livekit_token_ttl_seconds: u64,
 }
 
 impl AppConfig {
@@ -56,12 +56,14 @@ impl AppConfig {
             web_push_subject: env_string_or("WEB_PUSH_SUBJECT", "mailto:hello@kasitek.com"),
             whatsapp_call_provider: env_string_or("WHATSAPP_CALL_PROVIDER", "stub"),
             whatsapp_call_signaling_url: env_optional("WHATSAPP_CALL_SIGNALING_URL"),
-            whatsapp_call_ice_servers_json: env_optional("WHATSAPP_CALL_ICE_SERVERS_JSON"),
-            whatsapp_call_turn_urls: env_optional("WHATSAPP_CALL_TURN_URLS")
-                .or_else(|| env_optional("WHATSAPP_CALL_TURN_URL")),
-            whatsapp_call_turn_username: env_optional("WHATSAPP_CALL_TURN_USERNAME"),
-            whatsapp_call_turn_credential: env_optional("WHATSAPP_CALL_TURN_CREDENTIAL"),
             whatsapp_call_bridge_token: env_optional("WHATSAPP_CALL_BRIDGE_TOKEN"),
+            livekit_url: env_optional("LIVEKIT_URL"),
+            livekit_api_key: env_optional("LIVEKIT_API_KEY"),
+            livekit_api_secret: env_optional("LIVEKIT_API_SECRET"),
+            livekit_token_ttl_seconds: env::var("LIVEKIT_TOKEN_TTL_SECONDS")
+                .ok()
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or(600),
         })
     }
 

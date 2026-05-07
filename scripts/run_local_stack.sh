@@ -16,6 +16,7 @@ require_command() {
 require_command cargo
 require_command pnpm
 require_command gnome-terminal
+require_command curl
 
 if ! command -v livekit-server >/dev/null 2>&1; then
   echo "Warning: livekit-server not found — the LiveKit tab will fail to start." >&2
@@ -28,9 +29,39 @@ make_launcher() {
   local dir="$2"
   local cmd="$3"
   local script="/tmp/kasitek_${name}.sh"
+  local preamble=""
+
+  if [[ "$name" == "worker" ]]; then
+    preamble=$(cat <<'SCRIPT'
+wait_for_http() {
+  local service_name="$1"
+  local url="$2"
+  local attempts="${3:-60}"
+  local delay="${4:-1}"
+  local i
+
+  for ((i = 1; i <= attempts; i++)); do
+    if curl --silent --show-error --fail "$url" >/dev/null 2>&1; then
+      echo "[$service_name] ready: $url"
+      return 0
+    fi
+    sleep "$delay"
+  done
+
+  echo "[$service_name] failed to become ready: $url" >&2
+  return 1
+}
+
+wait_for_http "call-bridge" "http://127.0.0.1:8987/"
+wait_for_http "provider-relay" "http://127.0.0.1:8990/"
+SCRIPT
+)
+  fi
+
   cat > "$script" <<SCRIPT
 #!/usr/bin/env bash
 cd '$dir'
+$preamble
 $cmd
 echo
 echo "[$name] process exited. Press Enter to close."
@@ -41,6 +72,19 @@ SCRIPT
 }
 
 declare -a tabs=()
+declare -A services
+
+# Define all available services
+services["livekit"]="$ROOT_DIR|livekit-server --dev --bind 0.0.0.0"
+services["core"]="$ROOT_DIR/server/kasitek-core|cargo run"
+services["calls"]="$ROOT_DIR/server/kasitek-calls|cargo run"
+services["tenants"]="$ROOT_DIR/server/kasitek-tenants|cargo run"
+services["call-bridge"]="$ROOT_DIR/client|pnpm dev:call-bridge"
+services["provider-relay"]="$ROOT_DIR/client|pnpm --filter call-bridge provider:meta-livekit-relay"
+services["worker"]="$ROOT_DIR/client|pnpm --filter call-bridge worker:meta-relay"
+services["client"]="$ROOT_DIR/client|pnpm run dev"
+services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
+services["ngrok"]="$ROOT_DIR|ngrok http http://localhost:4000"
 
 add_tab() {
   local name="$1"
@@ -51,15 +95,65 @@ add_tab() {
   tabs+=(--tab --title="$name" -e "bash $script")
 }
 
-add_tab "livekit"        "$ROOT_DIR"                        "livekit-server --dev --bind 0.0.0.0"
-add_tab "core"           "$ROOT_DIR/server/kasitek-core"    "cargo run"
-add_tab "calls"          "$ROOT_DIR/server/kasitek-calls"   "cargo run"
-add_tab "tenants"        "$ROOT_DIR/server/kasitek-tenants" "cargo run"
-add_tab "call-bridge"    "$ROOT_DIR/client"                 "pnpm dev:call-bridge"
-add_tab "provider-relay" "$ROOT_DIR/client"                 "pnpm --filter call-bridge provider:meta-livekit-relay"
-add_tab "client"         "$ROOT_DIR/client"                 "pnpm run dev"
-add_tab "admin"          "$ROOT_DIR/client"                 "pnpm dev:admin"
-add_tab "ngrok"          "$ROOT_DIR"                        "ngrok http http://localhost:4000"
+add_service() {
+  local name="$1"
+
+  # Special handling for ngrok
+  if [[ "$name" == "ngrok" ]]; then
+    if pgrep -x ngrok > /dev/null; then
+      echo "ngrok is already running, skipping..."
+      return
+    fi
+  fi
+
+  if [[ -z "${services[$name]:-}" ]]; then
+    echo "Error: Unknown service '$name'" >&2
+    echo "Available services: ${!services[*]}" >&2
+    exit 1
+  fi
+
+  local service_def="${services[$name]}"
+  local dir="${service_def%%|*}"
+  local cmd="${service_def#*|}"
+
+  add_tab "$name" "$dir" "$cmd"
+}
+
+show_usage() {
+  echo "Usage: $0 [service1 service2 ...]"
+  echo ""
+  echo "Available services:"
+  for service in "${!services[@]}"; do
+    echo "  - $service"
+  done | sort
+  echo ""
+  echo "Examples:"
+  echo "  $0                    # Run all services"
+  echo "  $0 calls              # Run only the calls service"
+  echo "  $0 core calls client  # Run core, calls, and client"
+  echo ""
+}
+
+# Parse command line arguments
+if [[ $# -eq 0 ]]; then
+  # No arguments - run all services
+  for service in livekit core calls tenants call-bridge provider-relay worker client admin ngrok; do
+    add_service "$service"
+  done
+elif [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
+  show_usage
+  exit 0
+else
+  # Run specified services
+  for service in "$@"; do
+    add_service "$service"
+  done
+fi
+
+if [[ ${#tabs[@]} -eq 0 ]]; then
+  echo "Error: No services to launch" >&2
+  exit 1
+fi
 
 echo "Launching local KasiTek stack..."
 gnome-terminal "${tabs[@]}"

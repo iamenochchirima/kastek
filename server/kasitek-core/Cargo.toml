@@ -7,6 +7,7 @@ edition = "2021"
 actix-web.workspace = true
 actix-cors.workspace = true
 actix-multipart = "0.7"
+async-trait = "0.1"
 
 tokio.workspace = true
 
@@ -16,6 +17,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 chrono.workspace = true
+livekit-api = "0.4"
 bcrypt = "0.15"
 cuid2 = "0.1"
 urlencoding = "2.1"

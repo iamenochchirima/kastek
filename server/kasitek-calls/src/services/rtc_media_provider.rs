@@ -23,66 +23,19 @@ pub struct ProviderActionContext<'a> {
 
 #[derive(Debug, Clone)]
 pub struct ProviderSignalContext<'a> {
-    pub config: &'a AppConfig,
     pub call: &'a WhatsappCallSessionRow,
     pub kind: &'a str,
-    pub source: &'a str,
-    pub signal: Value,
 }
 
 #[async_trait]
 pub trait RtcMediaProvider: Send + Sync {
-    fn provider_name(&self) -> &'static str;
     async fn build_media_session(&self, input: MediaSessionContext<'_>) -> Result<Value, AppError>;
     async fn dispatch_action(&self, input: ProviderActionContext<'_>) -> Result<Value, AppError>;
     async fn dispatch_signal(&self, input: ProviderSignalContext<'_>) -> Result<Value, AppError>;
 }
 
-pub fn create_provider(config: &AppConfig) -> Box<dyn RtcMediaProvider> {
-    match config.whatsapp_call_provider.trim() {
-        "livekit" => Box::new(LiveKitMediaProvider),
-        _ => Box::new(BridgeMediaProvider),
-    }
-}
-
-struct BridgeMediaProvider;
-
-fn parse_ice_servers(config: &AppConfig) -> Value {
-    if let Some(servers) = config
-        .whatsapp_call_ice_servers_json
-        .as_deref()
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
-        .filter(|value| value.is_array())
-    {
-        return servers;
-    }
-
-    let turn_urls = config
-        .whatsapp_call_turn_urls
-        .as_deref()
-        .map(|raw| {
-            raw.split(',')
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-        })
-        .filter(|items| !items.is_empty());
-
-    if let Some(turn_urls) = turn_urls {
-        return json!([
-            { "urls": ["stun:stun.l.google.com:19302"] },
-            {
-                "urls": turn_urls,
-                "username": config.whatsapp_call_turn_username,
-                "credential": config.whatsapp_call_turn_credential,
-            }
-        ]);
-    }
-
-    json!([
-        { "urls": ["stun:stun.l.google.com:19302"] }
-    ])
+pub fn create_provider(_config: &AppConfig) -> Box<dyn RtcMediaProvider> {
+    Box::new(LiveKitMediaProvider)
 }
 
 async fn notify_bridge(
@@ -127,108 +80,6 @@ async fn notify_bridge(
         )));
     }
     Ok(Some(body))
-}
-
-#[async_trait]
-impl RtcMediaProvider for BridgeMediaProvider {
-    fn provider_name(&self) -> &'static str {
-        "bridge"
-    }
-
-    async fn build_media_session(&self, input: MediaSessionContext<'_>) -> Result<Value, AppError> {
-        Ok(json!({
-            "provider": input.config.whatsapp_call_provider,
-            "callId": input.call.id,
-            "waCallId": input.call.wa_call_id,
-            "conversationId": input.call.conversation_id,
-            "roomName": format!("kasitek-wa-call-{}", input.call.id),
-            "signalingUrl": input.config.whatsapp_call_signaling_url,
-            "iceServers": parse_ice_servers(input.config),
-            "agentRole": "agent",
-            "canAccept": input.call.status == "RINGING",
-            "canEnd": input.call.status == "ACTIVE"
-                || input.call.status == "CONNECTING"
-                || input.call.status == "RINGING",
-        }))
-    }
-
-    async fn dispatch_action(&self, input: ProviderActionContext<'_>) -> Result<Value, AppError> {
-        let media_session = self
-            .build_media_session(MediaSessionContext {
-                config: input.config,
-                call: input.call,
-            })
-            .await?;
-        let bridge_request = json!({
-            "callId": input.call.id,
-            "waCallId": input.call.wa_call_id,
-            "action": input.action,
-            "call": input.call,
-            "mediaSession": media_session,
-        });
-
-        let bridge_response =
-            match notify_bridge(input.config, &format!("/calls/{}/actions", input.call.id), &bridge_request)
-                .await
-            {
-                Ok(body) => body,
-                Err(error) => {
-                    log::warn!(
-                        "failed to notify call bridge about action action={} call_id={}: {}",
-                        input.action,
-                        input.call.id,
-                        error
-                    );
-                    None
-                }
-            };
-
-        Ok(json!({
-            "provider": input.config.whatsapp_call_provider,
-            "action": input.action,
-            "mediaSession": media_session,
-            "bridgeResponse": bridge_response,
-        }))
-    }
-
-    async fn dispatch_signal(&self, input: ProviderSignalContext<'_>) -> Result<Value, AppError> {
-        let media_session = self
-            .build_media_session(MediaSessionContext {
-                config: input.config,
-                call: input.call,
-            })
-            .await?;
-        let bridge_request = json!({
-            "callId": input.call.id,
-            "waCallId": input.call.wa_call_id,
-            "kind": input.kind,
-            "source": input.source,
-            "signal": input.signal,
-            "call": input.call,
-            "mediaSession": media_session,
-        });
-        let bridge_response =
-            match notify_bridge(input.config, &format!("/calls/{}/signals", input.call.id), &bridge_request)
-                .await
-            {
-                Ok(body) => body,
-                Err(error) => {
-                    log::warn!(
-                        "failed to notify call bridge about signal kind={} call_id={}: {}",
-                        input.kind,
-                        input.call.id,
-                        error
-                    );
-                    None
-                }
-            };
-
-        Ok(json!({
-            "provider": input.config.whatsapp_call_provider,
-            "kind": input.kind,
-            "bridgeResponse": bridge_response,
-        }))
-    }
 }
 
 struct LiveKitMediaProvider;
@@ -336,10 +187,6 @@ fn livekit_token(
 
 #[async_trait]
 impl RtcMediaProvider for LiveKitMediaProvider {
-    fn provider_name(&self) -> &'static str {
-        "livekit"
-    }
-
     async fn build_media_session(&self, input: MediaSessionContext<'_>) -> Result<Value, AppError> {
         let server_url = input
             .config
@@ -449,6 +296,7 @@ impl RtcMediaProvider for LiveKitMediaProvider {
             "kind": input.kind,
             "ignored": true,
             "note": "LiveKit sessions do not use the legacy bridge signaling path",
+            "callId": input.call.id,
         }))
     }
 }

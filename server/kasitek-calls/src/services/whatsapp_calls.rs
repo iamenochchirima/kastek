@@ -869,11 +869,8 @@ pub async fn post_call_signal(
     let provider = create_provider(config);
     let provider_result = provider
         .dispatch_signal(ProviderSignalContext {
-            config,
             call: &existing,
             kind: &kind,
-            source,
-            signal: input.payload.clone().unwrap_or(Value::Null),
         })
         .await?;
 

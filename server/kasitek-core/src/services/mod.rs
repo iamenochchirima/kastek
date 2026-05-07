@@ -5,6 +5,7 @@ pub mod notifications;
 pub mod public;
 pub mod push;
 pub mod realtime;
+pub mod rtc_media_provider;
 pub mod social;
 pub mod whatsapp;
 pub mod whatsapp_call_bridge;
