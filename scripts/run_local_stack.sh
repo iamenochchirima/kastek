@@ -59,6 +59,7 @@ add_tab "call-bridge"    "$ROOT_DIR/client"                 "pnpm dev:call-bridg
 add_tab "provider-relay" "$ROOT_DIR/client"                 "pnpm --filter call-bridge provider:meta-livekit-relay"
 add_tab "client"         "$ROOT_DIR/client"                 "pnpm run dev"
 add_tab "admin"          "$ROOT_DIR/client"                 "pnpm dev:admin"
+add_tab "ngrok"          "$ROOT_DIR"                        "ngrok http http://localhost:4000"
 
 echo "Launching local KasiTek stack..."
 gnome-terminal "${tabs[@]}"

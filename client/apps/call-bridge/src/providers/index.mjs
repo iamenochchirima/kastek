@@ -6,6 +6,7 @@ export function createProviderAdapter(context) {
     case "meta":
     case "meta-cloud-api":
     case "whatsapp-meta":
+    case "livekit":
       return createMetaCloudApiProvider(context);
     case "manual":
     case "stub":
