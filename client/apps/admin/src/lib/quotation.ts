@@ -410,6 +410,11 @@ function padDatePart(value: number) {
   return String(value).padStart(2, "0");
 }
 
+function coerceQuotationDate(value: Date | string | number) {
+  if (value instanceof Date) return value;
+  return new Date(value);
+}
+
 export function formatQuotationDateInput(date: Date, useUTC = false) {
   const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
   const month = useUTC ? date.getUTCMonth() + 1 : date.getMonth() + 1;
@@ -684,7 +689,7 @@ export function quotationRecordToDraft(record: {
   contactPerson: string;
   contactEmail: string;
   contactPhone: string;
-  date: Date;
+  date: Date | string;
   serviceType: string;
   title: string;
   introduction: string | null;
@@ -709,6 +714,7 @@ export function quotationRecordToDraft(record: {
 
   const customSections = asSections(record.implementationSteps);
   const noteSections = asNoteSections(record.importantNotes);
+  const date = coerceQuotationDate(record.date);
 
   return {
     id: record.id,
@@ -718,7 +724,9 @@ export function quotationRecordToDraft(record: {
     contactPerson: record.contactPerson,
     contactEmail: record.contactEmail,
     contactPhone: record.contactPhone,
-    date: formatQuotationDateInput(record.date, true),
+    date: Number.isNaN(date.getTime())
+      ? fallback.date
+      : formatQuotationDateInput(date, true),
     title: record.title,
     introduction: record.introduction || "",
     scopeOfWork: asStringArray(record.scopeOfWork, fallback.scopeOfWork),

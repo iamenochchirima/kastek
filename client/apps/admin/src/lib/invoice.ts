@@ -407,6 +407,11 @@ function padDatePart(value: number) {
   return String(value).padStart(2, "0");
 }
 
+function coerceInvoiceDate(value: Date | string | number) {
+  if (value instanceof Date) return value;
+  return new Date(value);
+}
+
 export function formatInvoiceDateInput(date: Date, useUTC = false) {
   const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
   const month = useUTC ? date.getUTCMonth() + 1 : date.getMonth() + 1;
@@ -681,7 +686,7 @@ export function invoiceRecordToDraft(record: {
   contactPerson: string;
   contactEmail: string;
   contactPhone: string;
-  date: Date;
+  date: Date | string;
   serviceType: string;
   title: string;
   introduction: string | null;
@@ -706,6 +711,7 @@ export function invoiceRecordToDraft(record: {
 
   const customSections = asSections(record.implementationSteps);
   const noteSections = asNoteSections(record.importantNotes);
+  const date = coerceInvoiceDate(record.date);
 
   return {
     id: record.id,
@@ -715,7 +721,9 @@ export function invoiceRecordToDraft(record: {
     contactPerson: record.contactPerson,
     contactEmail: record.contactEmail,
     contactPhone: record.contactPhone,
-    date: formatInvoiceDateInput(record.date, true),
+    date: Number.isNaN(date.getTime())
+      ? fallback.date
+      : formatInvoiceDateInput(date, true),
     title: record.title,
     introduction: record.introduction || "",
     scopeOfWork: asStringArray(record.scopeOfWork, fallback.scopeOfWork),

@@ -36,7 +36,7 @@ impl AppConfig {
         let frontend_url = env_string_or("FRONTEND_URL", "http://localhost:3000");
 
         Ok(Self {
-            port: env_u16_or("PORT", 8080),
+            port: env_u16_or("PORT", 4000),
             environment: env_string_or("ENVIRONMENT", "development"),
             database_url: env_optional("KASITEK_CORE_DATABASE_URL")
                 .or_else(|| env_optional("DATABASE_URL"))
