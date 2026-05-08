@@ -1,0 +1,116 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "aNx-UKH6KEnemB6ZOmujc"
+uri = "file://client/apps/client/public/images/smb-hero.png"
+type = "image"
+title = "smb hero person phone"
+
+[[generated]]
+id = "TB8kR7tgRQqK0nHyxotU7"
+uri = "file://client/apps/client/public/images/smb-hero-v2.png"
+type = "image"
+title = "hand phone dark whatsapp"
+
+[[generated]]
+id = "BCuNmwikDwSJSVG2NEJAJ"
+uri = "file://client/apps/client/public/images/smb-hero-v3.png"
+type = "image"
+title = "hand phone abstract chat glow"
+
+[[generated]]
+id = "CzQtepZPPP3anipkd5zKe"
+uri = "file://client/apps/client/public/images/custom-services/lead-capture.png"
+type = "image"
+title = "lead capture dashboard"
+
+[[generated]]
+id = "uLyL6R4FX7c4iObEl2QcK"
+uri = "file://client/apps/client/public/images/custom-services/campaigns.png"
+type = "image"
+title = "campaign analytics dashboard"
+
+[[generated]]
+id = "xaf02KjzYTwpYVyz7QwBT"
+uri = "file://client/apps/client/public/images/custom-services/reporting.png"
+type = "image"
+title = "reporting analytics dashboard"
+
+[[generated]]
+id = "MZd69xOhnD0Bg7z8AiQ-j"
+uri = "file://client/apps/client/public/images/custom-services/automation.png"
+type = "image"
+title = "workflow automation builder"
+
+[[generated]]
+id = "zjCiuGMgpa6ePK3Py7XrJ"
+uri = "file://client/apps/client/public/images/custom-services/booking.png"
+type = "image"
+title = "booking scheduling dashboard"
+
+[[generated]]
+id = "SFsoWp2ZAx-1TemSWdR7B"
+uri = "file://client/apps/client/public/images/custom-services/portal.png"
+type = "image"
+title = "branded client portal"
+
+[[generated]]
+id = "ni6RF875q4ztJZDikDzuw"
+uri = "file://client/apps/client/public/images/custom-services/agencies-workflows.png"
+type = "image"
+title = "agencies workflow builder dark UI"
+
+[[generated]]
+id = "RoG-vu3KPH8JOkroKO4Lp"
+uri = "file://client/apps/client/public/images/custom-services/agencies-portal.png"
+type = "image"
+title = "agencies branded portal dark dashboard"
+
+[[generated]]
+id = "yGetLXwIR5xbPwAJZamWg"
+uri = "file://client/apps/client/public/images/custom-services/agencies-campaigns.png"
+type = "image"
+title = "agencies campaign automation dark UI"
+
+[[generated]]
+id = "YtAavSj3Ivk-LQq0s7TUu"
+uri = "file://client/apps/client/public/images/custom-services/agencies-packages.png"
+type = "image"
+title = "agencies industry packages selector dark"
+
+[[generated]]
+id = "DASIh5s909fusS2i7jqtG"
+uri = "file://client/apps/client/public/images/custom-services/agencies-rollout.png"
+type = "image"
+title = "agencies rollout support launch dark"
+
+[[generated]]
+id = "y0rP97gfB1MO1aWKRCMdz"
+uri = "file://client/apps/client/public/images/custom-services/agencies-lead-gen.png"
+type = "image"
+title = "multi-channel lead generation dark dashboard"
+
+[[generated]]
+id = "KAWr58UClehARhuK76lG-"
+uri = "file://client/apps/client/public/images/custom-services/agencies-nurturing.png"
+type = "image"
+title = "lead nurturing reviews dark dashboard"
+
+[[generated]]
+id = "mfVoeNYZg_bCr6L7hKjwr"
+uri = "file://client/apps/client/public/images/custom-services/agencies-content.png"
+type = "image"
+title = "AI content creative engine dark dashboard"
+
+[[generated]]
+id = "E3Zpud09gUQjGO-s0TSJr"
+uri = "file://client/apps/client/public/images/custom-services/agencies-reporting.png"
+type = "image"
+title = "branded agency reporting dark dashboard"
+
+[[generated]]
+id = "lGc3RGlnkD12b0mLBnBVG"
+uri = "file://client/apps/client/public/images/custom-services/agencies-voice.png"
+type = "image"
+title = "voice agent quotation dark dashboard"

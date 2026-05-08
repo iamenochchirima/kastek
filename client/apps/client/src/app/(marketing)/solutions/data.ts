@@ -9,7 +9,6 @@ import type { LucideIcon } from "lucide-react";
 export type SolutionDemoKind =
   | "website-agent"
   | "whatsapp-agent"
-  | "catalogue-agent"
   | "quote-automation"
   | "voice-agent"
   | "lead-nurturing"
@@ -26,6 +25,14 @@ export type SolutionService = {
   title: string;
   description: string;
   demoKind: SolutionDemoKind;
+  image?: string;
+};
+
+export type SolutionOutcome = {
+  title: string;
+  description: string;
+  image: string;
+  includes: string[];
 };
 
 export type SolutionCategory = {
@@ -38,6 +45,8 @@ export type SolutionCategory = {
   menuLabel: string;
   icon: LucideIcon;
   readiness: "active" | "coming-soon";
+  outcomesIntro?: string;
+  outcomes?: SolutionOutcome[];
   primarySectionTitle: string;
   primarySectionDescription: string;
   primaryServices: SolutionService[];
@@ -65,6 +74,30 @@ export const solutionCategories: SolutionCategory[] = [
       "For business owners who want practical AI systems that help them capture leads, answer customers, automate follow-up, and keep operations moving.",
     icon: BriefcaseBusiness,
     readiness: "active",
+    outcomesIntro: "Three things KasiTek does for your business — every day, on autopilot.",
+    outcomes: [
+      {
+        title: "Capture every lead",
+        description:
+          "Website chat, WhatsApp, and voice agents that respond instantly — even after hours.",
+        image: "/images/custom-services/lead-capture.png",
+        includes: ["Website Agent", "WhatsApp Agent", "Voice Agents", "Booking Systems"],
+      },
+      {
+        title: "Convert & follow up automatically",
+        description:
+          "Quotes, reminders, and review requests sent without lifting a finger.",
+        image: "/images/custom-services/automation.png",
+        includes: ["Quotation Automation", "Nurturing & Reviews", "Bulk Campaigns"],
+      },
+      {
+        title: "Stay visible & in control",
+        description:
+          "Content that keeps you top-of-mind plus dashboards that show what's working.",
+        image: "/images/custom-services/reporting.png",
+        includes: ["Content Workflows", "Custom Reporting"],
+      },
+    ],
     primarySectionTitle: "Platform Services",
     primarySectionDescription:
       "The ready-made service layer you can deploy first.",
@@ -80,12 +113,6 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Handle FAQs, bookings, support, and sales conversations inside WhatsApp.",
         demoKind: "whatsapp-agent",
-      },
-      {
-        title: "WhatsApp Catalogue",
-        description:
-          "Let customers browse products, ask questions, and place orders conversationally.",
-        demoKind: "catalogue-agent",
       },
       {
         title: "Bulk Campaigns",
@@ -109,30 +136,35 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Appointment and enquiry flows connected to the way your team actually schedules and confirms work.",
         demoKind: "whatsapp-agent",
+        image: "/images/custom-services/booking.png",
       },
       {
         title: "Quotation Automation",
         description:
           "Generate quotations automatically from customer requests, job details, and pricing rules.",
         demoKind: "quote-automation",
+        image: "/images/custom-services/automation.png",
       },
       {
         title: "Voice Agents",
         description:
           "After-hours call handling, triage, routing, and common request automation.",
         demoKind: "voice-agent",
+        image: "/images/custom-services/campaigns.png",
       },
       {
         title: "Nurturing & Reviews",
         description:
           "Reminder flows, follow-up sequences, and review requests that keep leads warm and customers visible.",
         demoKind: "reviews",
+        image: "/images/custom-services/lead-capture.png",
       },
       {
         title: "Custom Reporting",
         description:
           "Dashboards, visibility layers, and integrations tailored to your operation.",
         demoKind: "reporting",
+        image: "/images/custom-services/reporting.png",
       },
     ],
   },
@@ -153,6 +185,40 @@ export const solutionCategories: SolutionCategory[] = [
       "For agencies and consultants that want to add AI services to their offering without building the infrastructure from scratch.",
     icon: Building2,
     readiness: "active",
+    outcomesIntro: "Three things KasiTek lets your agency do — without growing headcount.",
+    outcomes: [
+      {
+        title: "Win more clients",
+        description:
+          "Multi-channel lead generation and creative engines you package as your own services.",
+        image: "/images/custom-services/agencies-lead-gen.png",
+        includes: ["Conversational Lead Generation", "Content & Creative Engine"],
+      },
+      {
+        title: "Deliver faster, under your brand",
+        description:
+          "White-label dashboards, automated nurturing, and rollout support — your name, our infrastructure.",
+        image: "/images/custom-services/agencies-portal.png",
+        includes: [
+          "Branded Reporting",
+          "Lead Nurturing & Reviews",
+          "Branded Portals",
+          "Rollout Support",
+        ],
+      },
+      {
+        title: "Add a recurring revenue line",
+        description:
+          "Voice add-ons, campaign automations, and industry packages that turn projects into retainers.",
+        image: "/images/custom-services/agencies-campaigns.png",
+        includes: [
+          "Voice & Quotation Add-ons",
+          "Campaign Automations",
+          "Industry Packages",
+          "Client-Specific Workflows",
+        ],
+      },
+    ],
     primarySectionTitle: "Partner-Ready Services",
     primarySectionDescription:
       "The service catalogue you can package and resell.",
@@ -162,30 +228,35 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Website, WhatsApp, Instagram, and voice services agencies can package for lead capture and support.",
         demoKind: "website-agent",
+        image: "/images/custom-services/agencies-lead-gen.png",
       },
       {
         title: "Lead Nurturing & Reviews",
         description:
           "Automated follow-up, reminders, and review flows for better client retention.",
         demoKind: "reviews",
+        image: "/images/custom-services/agencies-nurturing.png",
       },
       {
         title: "Content & Creative Engine",
         description:
           "Blogs, social posts, ad copy, creative variants, and campaign assets for client delivery.",
         demoKind: "content-engine",
+        image: "/images/custom-services/agencies-content.png",
       },
       {
         title: "Branded Reporting",
         description:
           "Client-facing dashboards and reporting delivered under the agency brand.",
         demoKind: "reporting",
+        image: "/images/custom-services/agencies-reporting.png",
       },
       {
         title: "Voice & Quotation Add-ons",
         description:
           "Recurring service add-ons for after-hours calls, qualification, and quote generation.",
         demoKind: "voice-agent",
+        image: "/images/custom-services/agencies-voice.png",
       },
     ],
     secondarySectionTitle: "Custom Partner Builds",
@@ -197,30 +268,35 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Handoff logic, onboarding, and service flows tailored to the client engagement model.",
         demoKind: "lead-nurturing",
+        image: "/images/custom-services/agencies-workflows.png",
       },
       {
         title: "Branded Portals",
         description:
           "Agency-facing and client-facing dashboards, portals, and reporting experiences.",
         demoKind: "reporting",
+        image: "/images/custom-services/agencies-portal.png",
       },
       {
         title: "Campaign Automations",
         description:
           "Automations tied to the agency process for acquisition, follow-up, and retention.",
         demoKind: "lead-nurturing",
+        image: "/images/custom-services/agencies-campaigns.png",
       },
       {
         title: "Industry Packages",
         description:
           "Packaged solutions for healthcare, home services, retail, and other repeatable verticals.",
         demoKind: "platform-embed",
+        image: "/images/custom-services/agencies-packages.png",
       },
       {
         title: "Rollout Support",
         description:
           "Delivery support for launch, optimisation, and recurring agency service operations.",
         demoKind: "tenant-provisioning",
+        image: "/images/custom-services/agencies-rollout.png",
       },
     ],
   },
@@ -241,6 +317,40 @@ export const solutionCategories: SolutionCategory[] = [
       "For software vendors who want to expand their product with customer communication, automation, and AI-assisted growth services.",
     icon: Layers3,
     readiness: "active",
+    outcomesIntro: "Three things KasiTek adds to your software product — without rebuilding it.",
+    outcomes: [
+      {
+        title: "Add AI to your product",
+        description:
+          "Conversation layers and brandable features that fit inside your existing surface.",
+        image: "/images/custom-services/portal.png",
+        includes: ["Embedded Conversation Layer", "Brandable AI Features"],
+      },
+      {
+        title: "Drive activation & retention",
+        description:
+          "Nurturing flows, content modules, and reporting tied to actual user behaviour.",
+        image: "/images/custom-services/campaigns.png",
+        includes: [
+          "Nurturing Workflows",
+          "Content Modules",
+          "Reporting Surfaces",
+          "Industry-Specific Features",
+        ],
+      },
+      {
+        title: "Plug into your stack",
+        description:
+          "Custom integrations, provisioning, and rollout support so the AI layer works with your operations.",
+        image: "/images/custom-services/automation.png",
+        includes: [
+          "Custom Integrations",
+          "Provisioning Flows",
+          "Usage Tracking",
+          "Launch Support",
+        ],
+      },
+    ],
     primarySectionTitle: "Embedded Solution Areas",
     primarySectionDescription:
       "The core service layers vendors can add to their product offering.",
@@ -285,30 +395,35 @@ export const solutionCategories: SolutionCategory[] = [
         description:
           "Connect the AI layer to your CRM, billing, notifications, and operational systems.",
         demoKind: "platform-embed",
+        image: "/images/custom-services/automation.png",
       },
       {
         title: "Provisioning Flows",
         description:
           "Customer onboarding, setup, permissions, and rollout logic that matches the platform model.",
         demoKind: "tenant-provisioning",
+        image: "/images/custom-services/booking.png",
       },
       {
         title: "Usage Tracking",
         description:
           "Operational dashboards and reporting layers for customer usage and internal visibility.",
         demoKind: "usage-reporting",
+        image: "/images/custom-services/reporting.png",
       },
       {
         title: "Industry-Specific Features",
         description:
           "AI features shaped around the vendor customer base and market vertical.",
         demoKind: "platform-embed",
+        image: "/images/custom-services/campaigns.png",
       },
       {
         title: "Launch Support",
         description:
           "Rollout support for pilots, launches, and expansion across customer segments.",
         demoKind: "tenant-provisioning",
+        image: "/images/custom-services/portal.png",
       },
     ],
   },
