@@ -3,7 +3,7 @@ use actix_web::web;
 use crate::controllers::{
     admin, admin_conversations, admin_invoices, admin_leads, admin_notifications,
     admin_outreach, admin_quotations, admin_web_services,
-    ai, auth, bots, chat, health, notifications, profile, public, realtime, social,
+    ai, auth, bots, chat, health, notifications, orgs, profile, public, realtime, social,
     whatsapp, whatsapp_calls, workspace,
 };
 
@@ -23,6 +23,25 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         )
         .route("/api/chat", web::post().to(chat::post))
         .route("/api/workspace/summary", web::get().to(workspace::summary))
+        .service(
+            web::scope("/api/orgs")
+                .route("", web::get().to(orgs::list_orgs))
+                .route("", web::post().to(orgs::create_org))
+                .route("/{id}", web::get().to(orgs::get_org))
+                .route("/{id}", web::patch().to(orgs::update_org))
+                .route("/{id}", web::delete().to(orgs::delete_org))
+                .route("/{id}/members", web::get().to(orgs::list_members))
+                .route("/{id}/members/{userId}", web::patch().to(orgs::update_member))
+                .route("/{id}/members/{userId}", web::delete().to(orgs::remove_member))
+                .route("/{id}/invitations", web::get().to(orgs::list_invitations))
+                .route("/{id}/invitations", web::post().to(orgs::invite_member))
+                .route("/{id}/invitations/{invId}", web::delete().to(orgs::revoke_invitation)),
+        )
+        .service(
+            web::scope("/api/invitations")
+                .route("/{token}", web::get().to(orgs::get_invitation_preview))
+                .route("/{token}/accept", web::post().to(orgs::accept_invitation)),
+        )
         .service(
             web::scope("/api/auth")
                 .route("/signup", web::post().to(auth::signup))

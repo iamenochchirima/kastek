@@ -12,6 +12,7 @@ pub mod bots;
 pub mod chat;
 pub mod health;
 pub mod notifications;
+pub mod orgs;
 pub mod profile;
 pub mod public;
 pub mod realtime;

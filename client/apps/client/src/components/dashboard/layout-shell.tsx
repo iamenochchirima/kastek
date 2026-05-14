@@ -40,6 +40,8 @@ import {
   WhatsappRealtimeProvider,
 } from "@/components/dashboard/whatsapp-realtime-provider";
 import PushNotificationReminder from "@/components/dashboard/notifications/push-notification-reminder";
+import { OrgSwitcher } from "@/components/dashboard/org-switcher";
+import type { Org } from "@/lib/orgs";
 
 type NavItem = {
   name: string;
@@ -72,6 +74,7 @@ const products: ProductDefinition[] = [
     accent: "text-primary",
     nav: [
       { name: "Overview", href: "/workspace", icon: LayoutGrid },
+      { name: "Team", href: "/workspace/team", icon: Users },
       { name: "Notifications", href: "/workspace/notifications", icon: Bell },
       { name: "Profile", href: "/workspace/profile", icon: UserRound },
     ],
@@ -289,6 +292,8 @@ function SidebarContent({
   hasPwaUpdate = false,
   onOpenSwitcher,
   onNavigate,
+  orgs = [],
+  activeOrgId = null,
 }: {
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
@@ -296,6 +301,8 @@ function SidebarContent({
   hasPwaUpdate?: boolean;
   onOpenSwitcher: () => void;
   onNavigate?: () => void;
+  orgs?: Org[];
+  activeOrgId?: string | null;
 }) {
   const pathname = usePathname();
   const currentProduct = resolveProduct(pathname);
@@ -357,7 +364,7 @@ function SidebarContent({
       </div>
 
       {!collapsed ? (
-        <div className="border-b border-border px-3 py-3">
+        <div className="border-b border-border px-3 py-3 space-y-2">
           <button
             type="button"
             onClick={onOpenSwitcher}
@@ -371,8 +378,17 @@ function SidebarContent({
               <p className="truncate text-xs text-muted-foreground">{currentProduct.description}</p>
             </div>
           </button>
+          {orgs.length > 0 ? (
+            <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={false} />
+          ) : null}
         </div>
-      ) : null}
+      ) : (
+        orgs.length > 0 ? (
+          <div className="border-b border-border px-2 py-2">
+            <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={true} />
+          </div>
+        ) : null
+      )}
 
       <nav className={cn("flex-1 space-y-1 overflow-x-hidden overflow-y-auto p-3", collapsed && "px-2")}>
         {currentProduct.nav.map((item) => {
@@ -546,10 +562,14 @@ export function LayoutShell({
   children,
   user,
   inboxUnreadCount = 0,
+  orgs = [],
+  activeOrgId = null,
 }: {
   children: React.ReactNode;
   user?: { name?: string | null; email?: string | null; image?: string | null };
   inboxUnreadCount?: number;
+  orgs?: Org[];
+  activeOrgId?: string | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -594,6 +614,8 @@ export function LayoutShell({
                 setCollapsed={setCollapsed}
                 user={user}
                 hasPwaUpdate={hasPwaUpdate}
+                orgs={orgs}
+                activeOrgId={activeOrgId}
                 onOpenSwitcher={() => {
                   setMobileSheetOpen(false);
                   setSwitcherOpen(true);
@@ -647,6 +669,8 @@ export function LayoutShell({
                 collapsed={false}
                 user={user}
                 hasPwaUpdate={hasPwaUpdate}
+                orgs={orgs}
+                activeOrgId={activeOrgId}
                 onOpenSwitcher={() => {
                   setMobileSheetOpen(false);
                   setSwitcherOpen(true);

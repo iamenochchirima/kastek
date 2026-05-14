@@ -14,6 +14,7 @@ use crate::middleware::extract_user;
 use crate::services::auth::{
     create_session, delete_session, issue_verification_token, send_email, send_sms_message,
 };
+use crate::services::orgs;
 
 fn auth_server_base_url(config: &AppConfig) -> String {
     std::env::var("API_BASE_URL").unwrap_or_else(|_| format!("http://localhost:{}", config.port))
@@ -137,6 +138,17 @@ pub async fn signup(
     )
     .execute(pool.get_ref())
     .await?;
+
+    // Auto-create personal organisation for new user
+    let org_name = body
+        .name
+        .as_ref()
+        .map(|n| n.trim())
+        .filter(|n| !n.is_empty())
+        .map(|n| format!("{}'s Workspace", n))
+        .unwrap_or_else(|| "My Workspace".to_string());
+    let base_slug = orgs::slugify(&user_id);
+    let _ = orgs::create_org(pool.get_ref(), &user_id, &org_name, &base_slug, None).await;
 
     let token = issue_verification_token(pool.get_ref(), &email).await?;
     let verify_url = format!(
@@ -411,6 +423,15 @@ pub async fn google_oauth_callback(
             .bind(image)
             .execute(pool.get_ref())
             .await?;
+
+            // Auto-create personal organisation for new Google user
+            let org_name = name
+                .filter(|n| !n.is_empty())
+                .map(|n| format!("{}'s Workspace", n))
+                .unwrap_or_else(|| "My Workspace".to_string());
+            let base_slug = orgs::slugify(&new_user_id);
+            let _ = orgs::create_org(pool.get_ref(), &new_user_id, &org_name, &base_slug, None).await;
+
             new_user_id
         };
 

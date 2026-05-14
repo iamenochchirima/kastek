@@ -7,6 +7,83 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─── Organizations ─────────────────────────────────────────
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logo        String?
+  ownerId     String
+
+  owner       User     @relation("OwnedOrganizations", fields: [ownerId], references: [id], onDelete: Restrict)
+  members     OrganizationMember[]
+  invitations OrganizationInvitation[]
+
+  botConfigurations        BotConfiguration[]
+  socialChannelConnections SocialChannelConnection[]
+  socialPosts              SocialPost[]
+  socialPublishJobs        SocialPublishJob[]
+  whatsappConnections      WhatsappConnection[]
+  whatsappContacts         WhatsappContact[]
+  whatsappContactListMemberships WhatsappContactListMembership[]
+  whatsappTemplates        WhatsappTemplate[]
+  whatsappCampaigns        WhatsappCampaign[]
+  whatsappSendEvents       WhatsappSendEvent[]
+  whatsappCallSessions     WhatsappCallSession[]
+  conversations            Conversation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+model OrganizationMember {
+  id     String @id @default(cuid())
+  orgId  String
+  userId String
+  role   OrgRole @default(MEMBER)
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, userId])
+  @@index([userId])
+  @@index([orgId, role])
+}
+
+model OrganizationInvitation {
+  id           String   @id @default(cuid())
+  orgId        String
+  email        String
+  role         OrgRole  @default(MEMBER)
+  token        String   @unique @default(cuid())
+  invitedById  String
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("SentInvitations", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([orgId, email])
+  @@index([token])
+  @@index([orgId, acceptedAt])
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
 // ─── Auth.js Required Tables (Client App) ─────────────────
 
 model User {
@@ -20,6 +97,10 @@ model User {
 
   accounts      Account[]
   sessions      Session[]
+
+  ownedOrganizations   Organization[]         @relation("OwnedOrganizations")
+  orgMemberships       OrganizationMember[]
+  sentInvitations      OrganizationInvitation[] @relation("SentInvitations")
 
   businessProfile   BusinessProfile?
   botConfigurations BotConfiguration[]
@@ -140,6 +221,8 @@ model BotConfiguration {
   id     String @id @default(cuid())
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   name   String
   type   String
@@ -157,6 +240,7 @@ model BotConfiguration {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([orgId])
 }
 
 model OnboardingConversation {
@@ -406,7 +490,10 @@ model Conversation {
   lastReadAt         DateTime?
   unreadCount        Int      @default(0)
 
-  messages Message[]
+  orgId              String?
+  org                Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  messages     Message[]
   callSessions WhatsappCallSession[]
 
   createdAt DateTime @default(now())
@@ -414,6 +501,7 @@ model Conversation {
 
   @@unique([channel, customerIdentifier])
   @@index([channel])
+  @@index([orgId, lastMessageAt])
   @@index([lastMessageAt])
 }
 
@@ -656,6 +744,8 @@ model WhatsappConnection {
   id                   String   @id @default(cuid())
   userId               String
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId                String?
+  org                  Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   phoneNumberId        String   @unique
   phoneDisplayNumber   String?
@@ -675,6 +765,7 @@ model WhatsappConnection {
   updatedAt            DateTime @updatedAt
 
   @@index([userId])
+  @@index([orgId])
   @@index([wabaId])
 }
 
@@ -682,6 +773,8 @@ model WhatsappCallSession {
   id             String                @id @default(cuid())
   userId         String
   user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId          String?
+  org            Organization?         @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   connectionId   String
   connection     WhatsappConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
@@ -709,6 +802,7 @@ model WhatsappCallSession {
   updatedAt      DateTime              @updatedAt
 
   @@index([userId, createdAt])
+  @@index([orgId, createdAt])
   @@index([connectionId, createdAt])
   @@index([conversationId, createdAt])
   @@index([status, createdAt])
@@ -731,6 +825,8 @@ model SocialChannelConnection {
   id                String              @id @default(cuid())
   userId            String
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId             String?
+  org               Organization?       @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   platform          SocialPlatform
   status            SocialChannelStatus @default(CONNECTED)
@@ -752,12 +848,15 @@ model SocialChannelConnection {
   @@unique([userId, platform, externalAccountId])
   @@index([userId, platform])
   @@index([userId, status])
+  @@index([orgId, platform])
 }
 
 model SocialPost {
   id                String             @id @default(cuid())
   userId            String
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId             String?
+  org               Organization?      @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   primaryChannelId  String?
   primaryChannel    SocialChannelConnection? @relation(fields: [primaryChannelId], references: [id], onDelete: SetNull)
@@ -778,6 +877,7 @@ model SocialPost {
   updatedAt         DateTime           @updatedAt
 
   @@index([userId, status])
+  @@index([orgId, status])
   @@index([scheduledFor])
   @@index([primaryChannelId])
 }
@@ -806,6 +906,8 @@ model SocialPublishJob {
   id                String                 @id @default(cuid())
   userId            String
   user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId             String?
+  org               Organization?          @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   postId            String
   post              SocialPost             @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -828,6 +930,7 @@ model SocialPublishJob {
   updatedAt         DateTime               @updatedAt
 
   @@index([userId, status])
+  @@index([orgId, status])
   @@index([postId, platform])
   @@index([variantId])
   @@index([channelConnectionId])
@@ -838,6 +941,8 @@ model WhatsappContact {
   id                String   @id @default(cuid())
   userId            String
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId             String?
+  org               Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   phone             String
   fullName          String?
@@ -864,6 +969,7 @@ model WhatsappContact {
   @@unique([userId, phone])
   @@index([userId, optIn, excluded])
   @@index([userId, listLabel])
+  @@index([orgId, listLabel])
   @@index([lastMarketingSent])
 }
 
@@ -871,6 +977,8 @@ model WhatsappContactListMembership {
   id                String   @id @default(cuid())
   userId            String
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId             String?
+  org               Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   contactId         String
   contact           WhatsappContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
@@ -892,6 +1000,7 @@ model WhatsappContactListMembership {
 
   @@unique([userId, contactId, listLabel])
   @@index([userId, listLabel])
+  @@index([orgId, listLabel])
   @@index([contactId])
 }
 
@@ -899,6 +1008,8 @@ model WhatsappTemplate {
   id             String                   @id @default(cuid())
   userId         String
   user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId          String?
+  org            Organization?            @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   connectionId   String?
   connection     WhatsappConnection?      @relation(fields: [connectionId], references: [id], onDelete: SetNull)
@@ -921,12 +1032,15 @@ model WhatsappTemplate {
 
   @@unique([userId, templateName, language])
   @@index([userId, status, category])
+  @@index([orgId, status])
 }
 
 model WhatsappCampaign {
   id                String                @id @default(cuid())
   userId            String
   user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId             String?
+  org               Organization?         @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   connectionId      String
   connection        WhatsappConnection    @relation(fields: [connectionId], references: [id], onDelete: Restrict)
@@ -962,6 +1076,7 @@ model WhatsappCampaign {
   updatedAt         DateTime @updatedAt
 
   @@index([userId, status])
+  @@index([orgId, status])
   @@index([userId, listLabel])
   @@index([connectionId])
   @@index([templateId])
@@ -1006,6 +1121,8 @@ model WhatsappSendEvent {
   id                   String                    @id @default(cuid())
   userId               String
   user                 User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId                String?
+  org                  Organization?             @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   connectionId         String
   connection           WhatsappConnection        @relation(fields: [connectionId], references: [id], onDelete: Cascade)
@@ -1039,6 +1156,7 @@ model WhatsappSendEvent {
   createdAt            DateTime @default(now())
 
   @@index([userId, createdAt])
+  @@index([orgId, createdAt])
   @@index([campaignId])
   @@index([recipientId])
   @@index([contactId])

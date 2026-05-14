@@ -1,6 +1,7 @@
 pub mod ai;
 pub mod auth;
 pub mod bots;
+pub mod orgs;
 pub mod notifications;
 pub mod public;
 pub mod push;
