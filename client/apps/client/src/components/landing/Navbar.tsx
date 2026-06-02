@@ -96,6 +96,14 @@ export function Navbar() {
         </li>
         <li>
           <Link
+            href="/meta-business-platform"
+            className="text-muted-foreground transition-colors hover:text-white"
+          >
+            Meta Platform
+          </Link>
+        </li>
+        <li>
+          <Link
             href="/pricing"
             className="text-muted-foreground transition-colors hover:text-white"
           >
@@ -154,6 +162,13 @@ export function Navbar() {
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Solutions
+            </Link>
+            <Link
+              href="/meta-business-platform"
+              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Meta Platform
             </Link>
             <Link
               href="/pricing"

@@ -100,7 +100,7 @@ export default function SolutionsPage() {
           }}
         />
 
-        <div className="relative z-10 mx-auto max-w-5xl">
+        <div className="relative z-10 mx-auto max-w-5xl text-center">
           <Reveal>
             <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#E8A020]/20 bg-[#E8A020]/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#E8A020]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#E8A020] animate-pulse" />
@@ -116,7 +116,7 @@ export default function SolutionsPage() {
           </Reveal>
 
           <Reveal delay={120}>
-            <p className="max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
+            <p className="mx-auto max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
               Pick the path that fits your business model. Every category is a different way to deploy the same AI infrastructure — shaped around your role and your clients.
             </p>
           </Reveal>

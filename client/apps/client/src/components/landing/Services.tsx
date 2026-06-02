@@ -42,7 +42,7 @@ export function Services() {
   return (
     <section
       className="border-y border-border bg-card px-6 py-20 md:px-12 md:py-32"
-      id="why"
+      id="services"
     >
       <div className="mx-auto max-w-7xl">
         <div className="mb-14 grid grid-cols-1 gap-8 md:mb-20 md:grid-cols-2 md:items-end">

@@ -27,8 +27,9 @@ export default function TermsPage() {
           <h2 className="text-2xl font-bold uppercase">Services</h2>
           <p className="text-base leading-8 text-muted-foreground">
             KasiTek provides digital services including websites, AI agents, campaigns, outreach
-            systems, automation workflows, and related support. Exact scope, pricing, timelines,
-            and deliverables are defined in the relevant quotation, agreement, or project terms.
+            systems, messaging systems, social management tools, automation workflows, and related
+            support. Exact scope, pricing, timelines, and deliverables are defined in the relevant
+            quotation, agreement, or project terms.
           </p>
         </section>
 
@@ -38,6 +39,51 @@ export default function TermsPage() {
             <p>Clients must provide accurate information, required approvals, and timely access to systems and accounts.</p>
             <p>Clients remain responsible for third-party platform accounts, policy compliance, and content they provide.</p>
             <p>Clients must ensure they have the right to use any data, assets, or materials supplied to KasiTek.</p>
+            <p>Clients are responsible for the legality, accuracy, consent status, and compliance of contact lists, message recipients, campaign audiences, templates, posts, comments, media, and other content submitted to or managed through KasiTek.</p>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold uppercase">Meta And Third-Party Platforms</h2>
+          <div className="space-y-3 text-base leading-8 text-muted-foreground">
+            <p>
+              KasiTek may allow clients to connect third-party platforms such as WhatsApp Business,
+              Facebook Pages, Instagram Business, and other communication or social channels. These
+              integrations depend on the relevant platform APIs, permissions, review decisions,
+              account status, rate limits, policies, and availability.
+            </p>
+            <p>
+              Clients are responsible for complying with all applicable third-party platform terms,
+              including Meta and WhatsApp policies, messaging rules, commerce rules, template
+              requirements, consent and opt-in requirements, campaign restrictions, and content
+              standards.
+            </p>
+            <p>
+              KasiTek may suspend, limit, or remove access to messaging, publishing, automation, or
+              campaign features where needed to protect platform integrity, comply with third-party
+              requirements, respond to abuse, or prevent policy violations.
+            </p>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold uppercase">Messaging And Social Content</h2>
+          <div className="space-y-3 text-base leading-8 text-muted-foreground">
+            <p>
+              Clients control the content they send, publish, schedule, automate, or approve through
+              KasiTek, including WhatsApp messages, Facebook Page content, Instagram content,
+              comments, replies, templates, campaigns, and media.
+            </p>
+            <p>
+              Clients must only message people where they have a valid basis to do so and must honor
+              opt-outs, unsubscribe requests, customer preferences, and applicable privacy and
+              electronic communications laws.
+            </p>
+            <p>
+              AI-assisted features may draft, classify, route, summarize, or recommend responses,
+              but clients remain responsible for reviewing outputs where appropriate and for the
+              final use of content in their business.
+            </p>
           </div>
         </section>
 
@@ -65,6 +111,11 @@ export default function TermsPage() {
             Services are provided on a reasonable-efforts basis. KasiTek does not guarantee specific
             business outcomes, uninterrupted third-party platform availability, or error-free
             operation at all times.
+          </p>
+          <p className="text-base leading-8 text-muted-foreground">
+            KasiTek does not control third-party platform decisions, including account restrictions,
+            app review outcomes, template approvals, message delivery, reach, ranking, rate limits,
+            or policy enforcement by Meta, WhatsApp, Facebook, Instagram, or other platforms.
           </p>
         </section>
 

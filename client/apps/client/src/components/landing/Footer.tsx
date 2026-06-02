@@ -29,18 +29,27 @@ export function Footer() {
           </div>
         </Link>
 
-        <div className="text-xs text-muted-foreground font-medium">
-          © {new Date().getFullYear()} KasiTek · Built for SMBs
+        <div className="text-center text-xs text-muted-foreground font-medium md:text-left">
+          © {new Date().getFullYear()} KasiTek · South Africa ·{" "}
+          <a href="mailto:info@kasitek.co.za" className="hover:text-white transition-colors">
+            info@kasitek.co.za
+          </a>
         </div>
 
-        <div className="flex items-center gap-6 text-sm font-medium">
+        <div className="flex flex-wrap items-center justify-center gap-4 text-sm font-medium md:justify-end">
           <button onClick={() => scrollTo("products")} className="text-muted-foreground hover:text-white transition-colors">Products</button>
           <button onClick={() => scrollTo("services")} className="text-muted-foreground hover:text-white transition-colors">Services</button>
+          <Link href="/meta-business-platform" className="text-muted-foreground hover:text-white transition-colors">
+            Meta Platform
+          </Link>
           <Link href="/privacy-policy" className="text-muted-foreground hover:text-white transition-colors">
             Privacy
           </Link>
           <Link href="/terms" className="text-muted-foreground hover:text-white transition-colors">
             Terms of Service
+          </Link>
+          <Link href="/data-deletion" className="text-muted-foreground hover:text-white transition-colors">
+            Data Deletion
           </Link>
         </div>
 
