@@ -1075,23 +1075,6 @@ pub struct WhatsappCallSignalRequest {
     pub source: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct WhatsappCallBridgeEventRequest {
-    #[serde(rename = "callId")]
-    pub call_id: Option<String>,
-    #[serde(rename = "waCallId")]
-    pub wa_call_id: Option<String>,
-    #[serde(rename = "eventType")]
-    pub event_type: Option<String>,
-    pub status: Option<String>,
-    #[serde(rename = "signalKind")]
-    pub signal_kind: Option<String>,
-    #[serde(rename = "signalPayload")]
-    pub signal_payload: Option<Value>,
-    pub payload: Option<Value>,
-    pub source: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct MessageRow {
     pub id: String,

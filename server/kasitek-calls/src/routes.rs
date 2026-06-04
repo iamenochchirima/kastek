@@ -8,10 +8,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/whatsapp/calls")
                 .route("", web::get().to(whatsapp_calls::list_calls))
-                .route(
-                    "/bridge/contract",
-                    web::get().to(whatsapp_calls::get_bridge_contract),
-                )
                 .route("/summary", web::get().to(whatsapp_calls::call_summary))
                 .route("/{id}", web::get().to(whatsapp_calls::get_call))
                 .route(
@@ -31,15 +27,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::post().to(whatsapp_calls::apply_call_action),
                 ),
         )
-        .service(
-            web::scope("/api/webhooks/whatsapp")
-                .route(
-                    "/calls/provider",
-                    web::post().to(whatsapp_calls::receive_provider_call_webhook),
-                )
-                .route(
-                    "/calls/bridge",
-                    web::post().to(whatsapp_calls::receive_bridge_event),
-                ),
-        );
+        .service(web::scope("/api/webhooks/whatsapp").route(
+            "/calls/provider",
+            web::post().to(whatsapp_calls::receive_provider_call_webhook),
+        ));
 }

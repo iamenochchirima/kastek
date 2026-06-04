@@ -7,9 +7,6 @@
   "scripts": {
     "dev": "pnpm --filter client dev",
     "dev:admin": "pnpm --filter admin dev",
-    "dev:call-bridge": "pnpm --filter call-bridge dev",
-    "dev:call-bridge:worker:meta-stub": "pnpm --filter call-bridge worker:meta-stub",
-    "dev:call-bridge:worker:meta-relay": "pnpm --filter call-bridge worker:meta-relay",
     "dev:all": "pnpm --parallel --filter './apps/*' dev",
     "dev:worker:whatsapp": "cd ../server/kasitek-core && KASITEK_PROCESS=whatsapp-marketing-worker cargo run",
     "build": "pnpm db:generate && pnpm --filter './apps/*' build",

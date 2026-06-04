@@ -4,12 +4,10 @@ use serde_json::Value;
 use sqlx::PgPool;
 
 use crate::config::AppConfig;
-use crate::db::models::{
-    WhatsappCallActionRequest, WhatsappCallBridgeEventRequest, WhatsappCallSignalRequest,
-};
+use crate::db::models::{WhatsappCallActionRequest, WhatsappCallSignalRequest};
 use crate::error::AppError;
 use crate::middleware::extract_user;
-use crate::services::{whatsapp_call_bridge, whatsapp_calls};
+use crate::services::whatsapp_calls;
 
 #[derive(Deserialize)]
 pub struct WhatsappCallSummaryQuery {
@@ -37,24 +35,12 @@ pub async fn get_call(
 
 pub async fn get_call_media_session(
     pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
     req: HttpRequest,
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result =
-        whatsapp_calls::get_call_media_session(pool.get_ref(), config.get_ref(), &user.id, &path)
-            .await?;
+    let result = whatsapp_calls::get_call_media_session(pool.get_ref(), &user.id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
-}
-
-pub async fn get_bridge_contract(
-    config: web::Data<AppConfig>,
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-) -> Result<HttpResponse, AppError> {
-    let _user = extract_user(&req, pool.get_ref()).await?;
-    Ok(HttpResponse::Ok().json(whatsapp_call_bridge::bridge_contract(config.get_ref())))
 }
 
 pub async fn list_call_signals(
@@ -80,29 +66,23 @@ pub async fn call_summary(
 
 pub async fn apply_call_action(
     pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
     req: HttpRequest,
     path: web::Path<String>,
     body: web::Json<WhatsappCallActionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result =
-        whatsapp_calls::apply_call_action(pool.get_ref(), config.get_ref(), &user.id, &path, &body)
-            .await?;
+    let result = whatsapp_calls::apply_call_action(pool.get_ref(), &user.id, &path, &body).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
 pub async fn post_call_signal(
     pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
     req: HttpRequest,
     path: web::Path<String>,
     body: web::Json<WhatsappCallSignalRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result =
-        whatsapp_calls::post_call_signal(pool.get_ref(), config.get_ref(), &user.id, &path, &body)
-            .await?;
+    let result = whatsapp_calls::post_call_signal(pool.get_ref(), &user.id, &path, &body).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -115,32 +95,4 @@ pub async fn receive_provider_call_webhook(
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "success": true
     })))
-}
-
-pub async fn receive_bridge_event(
-    pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
-    req: HttpRequest,
-    body: web::Json<WhatsappCallBridgeEventRequest>,
-) -> Result<HttpResponse, AppError> {
-    let provided = req
-        .headers()
-        .get("x-kasitek-call-bridge-token")
-        .and_then(|value| value.to_str().ok())
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-
-    let expected = config
-        .whatsapp_call_bridge_token
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or(AppError::Unauthorized)?;
-
-    if provided != Some(expected) {
-        return Err(AppError::Unauthorized);
-    }
-
-    let result = whatsapp_call_bridge::ingest_bridge_event(pool.get_ref(), &body).await?;
-    Ok(HttpResponse::Ok().json(result))
 }

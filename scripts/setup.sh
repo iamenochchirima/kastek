@@ -23,12 +23,6 @@ require_command npx
 require_command pnpm
 require_command cargo
 
-if ! command -v livekit-server >/dev/null 2>&1; then
-  echo "WARNING: livekit-server not found — calls won't work without it."
-  echo "         Install from https://docs.livekit.io/home/self-hosting/local/"
-  echo ""
-fi
-
 if ! command -v ngrok >/dev/null 2>&1; then
   echo "WARNING: ngrok not found — WhatsApp webhooks won't reach your machine."
   echo "         Install from https://ngrok.com/download"

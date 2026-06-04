@@ -12,7 +12,6 @@ declare -a SOURCE_ENV_FILES=(
   "server/kasitek-calls/.env"
   "server/kasitek-tenants/.env"
   "client/.env.local"
-  "client/apps/call-bridge/.env.local"
   "client/apps/tenant-portal/.env"
   "client/apps/tenant-portal/.env.local"
 )
@@ -24,7 +23,6 @@ declare -a GENERATED_ENV_FILES=(
   "server/kasitek-tenants/.env"
   "client/.env"
   "client/.env.local"
-  "client/apps/call-bridge/.env.local"
   "client/apps/tenant-portal/.env"
   "client/apps/tenant-portal/.env.local"
 )

@@ -10,9 +10,6 @@ use crate::db::models::{
 use crate::error::AppError;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
 use crate::services::realtime;
-use crate::services::rtc_media_provider::{
-    create_provider, MediaSessionContext, ProviderActionContext, ProviderSignalContext,
-};
 use crate::services::social::decrypt_social_secret;
 
 const GRAPH_BASE: &str = "https://graph.facebook.com/v19.0";
@@ -226,7 +223,11 @@ async fn append_call_event(
 fn meta_offer_session_from_payload(payload: &Value) -> Option<Value> {
     payload
         .get("session")
-        .or_else(|| payload.get("call").and_then(|call_payload| call_payload.get("session")))
+        .or_else(|| {
+            payload
+                .get("call")
+                .and_then(|call_payload| call_payload.get("session"))
+        })
         .filter(|session| {
             session
                 .get("sdp")
@@ -948,30 +949,19 @@ pub async fn get_call(pool: &PgPool, user_id: &str, call_id: &str) -> Result<Val
 
 pub async fn get_call_media_session(
     pool: &PgPool,
-    config: &AppConfig,
     user_id: &str,
     call_id: &str,
 ) -> Result<Value, AppError> {
     let call = scoped_call_row(pool, user_id, call_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Call session not found".to_string()))?;
-    if let Some(session) = load_meta_offer_session(pool, &call).await? {
-        return Ok(json!({
-            "call": call.clone(),
-            "mediaSession": build_direct_meta_media_session(&call, &session)?,
-        }));
-    }
-    let provider = create_provider(config);
-    let media_session = provider
-        .build_media_session(MediaSessionContext {
-            config,
-            call: &call,
-        })
-        .await?;
+    let session = load_meta_offer_session(pool, &call).await?.ok_or_else(|| {
+        AppError::BadRequest("Incoming Meta call SDP offer is unavailable".to_string())
+    })?;
 
     Ok(json!({
-        "call": call,
-        "mediaSession": media_session,
+        "call": call.clone(),
+        "mediaSession": build_direct_meta_media_session(&call, &session)?,
     }))
 }
 
@@ -992,7 +982,6 @@ pub async fn list_call_signals(
 
 pub async fn post_call_signal(
     pool: &PgPool,
-    config: &AppConfig,
     user_id: &str,
     call_id: &str,
     input: &WhatsappCallSignalRequest,
@@ -1042,46 +1031,49 @@ pub async fn post_call_signal(
     )
     .await;
 
-    if load_meta_offer_session(pool, &existing).await?.is_some() {
-        if kind == "answer" {
-            let signal = input
-                .payload
-                .clone()
-                .ok_or_else(|| AppError::BadRequest("Answer payload is required".to_string()))?;
-            let sdp = signal
-                .get("sdp")
-                .and_then(|value| value.as_str())
-                .map(normalize_sdp)
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| AppError::BadRequest("Answer SDP is required".to_string()))?;
-            let sdp_type = signal
-                .get("type")
-                .and_then(|value| value.as_str())
-                .unwrap_or("answer");
-            let graph_response = manage_meta_call(
-                pool,
-                &existing,
-                "accept",
-                Some(json!({
-                    "sdp_type": sdp_type,
-                    "sdp": sdp,
-                })),
-            )
-            .await?;
+    load_meta_offer_session(pool, &existing)
+        .await?
+        .ok_or_else(|| {
+            AppError::BadRequest("Incoming Meta call SDP offer is unavailable".to_string())
+        })?;
+    if kind == "answer" {
+        let signal = input
+            .payload
+            .clone()
+            .ok_or_else(|| AppError::BadRequest("Answer payload is required".to_string()))?;
+        let sdp = signal
+            .get("sdp")
+            .and_then(|value| value.as_str())
+            .map(normalize_sdp)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| AppError::BadRequest("Answer SDP is required".to_string()))?;
+        let sdp_type = signal
+            .get("type")
+            .and_then(|value| value.as_str())
+            .unwrap_or("answer");
+        let graph_response = manage_meta_call(
+            pool,
+            &existing,
+            "accept",
+            Some(json!({
+                "sdp_type": sdp_type,
+                "sdp": sdp,
+            })),
+        )
+        .await?;
 
-            return Ok(json!({
-                "ok": true,
-                "callId": call_id,
-                "kind": kind,
-                "providerResult": {
-                    "provider": "meta-direct-webrtc",
-                    "action": "accept",
-                    "graphResponse": graph_response,
-                },
-            }));
-        }
-
-        return Ok(json!({
+        Ok(json!({
+            "ok": true,
+            "callId": call_id,
+            "kind": kind,
+            "providerResult": {
+                "provider": "meta-direct-webrtc",
+                "action": "accept",
+                "graphResponse": graph_response,
+            },
+        }))
+    } else {
+        Ok(json!({
             "ok": true,
             "callId": call_id,
             "kind": kind,
@@ -1090,28 +1082,12 @@ pub async fn post_call_signal(
                 "ignored": true,
                 "note": "Only the SDP answer is sent back to Meta in the direct WebRTC flow.",
             },
-        }));
+        }))
     }
-
-    let provider = create_provider(config);
-    let provider_result = provider
-        .dispatch_signal(ProviderSignalContext {
-            call: &existing,
-            kind: &kind,
-        })
-        .await?;
-
-    Ok(json!({
-        "ok": true,
-        "callId": call_id,
-        "kind": kind,
-        "providerResult": provider_result,
-    }))
 }
 
 pub async fn apply_call_action(
     pool: &PgPool,
-    config: &AppConfig,
     user_id: &str,
     call_id: &str,
     input: &WhatsappCallActionRequest,
@@ -1126,6 +1102,11 @@ pub async fn apply_call_action(
     let existing = scoped_call_row(pool, user_id, call_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Call session not found".to_string()))?;
+    let meta_offer_session = load_meta_offer_session(pool, &existing)
+        .await?
+        .ok_or_else(|| {
+            AppError::BadRequest("Incoming Meta call SDP offer is unavailable".to_string())
+        })?;
 
     match action {
         "accept" if existing.status != "RINGING" => {
@@ -1138,7 +1119,12 @@ pub async fn apply_call_action(
                 "Only ringing or connecting calls can be rejected".to_string(),
             ))
         }
-        "end" if !matches!(existing.status.as_str(), "RINGING" | "CONNECTING" | "ACTIVE") => {
+        "end"
+            if !matches!(
+                existing.status.as_str(),
+                "RINGING" | "CONNECTING" | "ACTIVE"
+            ) =>
+        {
             return Err(AppError::BadRequest(
                 "Only ringing, connecting, or active calls can be ended".to_string(),
             ))
@@ -1221,39 +1207,28 @@ pub async fn apply_call_action(
         .ok_or_else(|| {
             AppError::Internal("Updated call session could not be loaded".to_string())
         })?;
-    let provider_result = if let Some(session) = load_meta_offer_session(pool, &call).await? {
-        match action {
-            "accept" => json!({
-                "provider": "meta-direct-webrtc",
-                "action": action,
-                "mediaSession": build_direct_meta_media_session(&call, &session)?,
-                "awaitingLocalAnswer": true,
-                "note": "Browser must create an SDP answer and post it back before Meta considers the call accepted.",
-            }),
-            "reject" => json!({
-                "provider": "meta-direct-webrtc",
-                "action": action,
-                "graphResponse": manage_meta_call(pool, &call, "reject", None).await?,
-            }),
-            "end" => json!({
-                "provider": "meta-direct-webrtc",
-                "action": action,
-                "graphResponse": manage_meta_call(pool, &call, "terminate", None).await?,
-            }),
-            _ => json!({
-                "provider": "meta-direct-webrtc",
-                "action": action,
-            }),
-        }
-    } else {
-        let provider = create_provider(config);
-        provider
-            .dispatch_action(ProviderActionContext {
-                config,
-                call: &call,
-                action,
-            })
-            .await?
+    let provider_result = match action {
+        "accept" => json!({
+            "provider": "meta-direct-webrtc",
+            "action": action,
+            "mediaSession": build_direct_meta_media_session(&call, &meta_offer_session)?,
+            "awaitingLocalAnswer": true,
+            "note": "Browser must create an SDP answer and post it back before Meta considers the call accepted.",
+        }),
+        "reject" => json!({
+            "provider": "meta-direct-webrtc",
+            "action": action,
+            "graphResponse": manage_meta_call(pool, &call, "reject", None).await?,
+        }),
+        "end" => json!({
+            "provider": "meta-direct-webrtc",
+            "action": action,
+            "graphResponse": manage_meta_call(pool, &call, "terminate", None).await?,
+        }),
+        _ => json!({
+            "provider": "meta-direct-webrtc",
+            "action": action,
+        }),
     };
 
     publish_call_event(

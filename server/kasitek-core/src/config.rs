@@ -1,5 +1,5 @@
-use actix_web::cookie::{Cookie, SameSite};
 use ::config::{env_optional, env_string_or, env_u16_or, env_u32_or};
+use actix_web::cookie::{Cookie, SameSite};
 use std::env;
 
 pub const USER_SESSION_COOKIE: &str = "kasitek_session";
@@ -22,13 +22,6 @@ pub struct AppConfig {
     pub web_push_vapid_public_key: Option<String>,
     pub web_push_vapid_private_key: Option<String>,
     pub web_push_subject: String,
-    pub whatsapp_call_provider: String,
-    pub whatsapp_call_signaling_url: Option<String>,
-    pub whatsapp_call_bridge_token: Option<String>,
-    pub livekit_url: Option<String>,
-    pub livekit_api_key: Option<String>,
-    pub livekit_api_secret: Option<String>,
-    pub livekit_token_ttl_seconds: u64,
 }
 
 impl AppConfig {
@@ -48,22 +41,15 @@ impl AppConfig {
                 .or_else(|| env_optional("AUTH_SECRET"))
                 .unwrap_or_else(|| "kasitek-dev-session-secret".to_string()),
             resend_api_key: env_optional("AUTH_RESEND_KEY"),
-            resend_from_email: env_string_or("RESEND_FROM_EMAIL", "KasiTek <noreply@kasitek.co.za>"),
+            resend_from_email: env_string_or(
+                "RESEND_FROM_EMAIL",
+                "KasiTek <noreply@kasitek.co.za>",
+            ),
             zoomconnect_send_url: env_optional("ZOOMCONNECT_SEND_URL"),
             kasitek_calls_url: env_optional("KASITEK_CALLS_URL"),
             web_push_vapid_public_key: env_optional("WEB_PUSH_VAPID_PUBLIC_KEY"),
             web_push_vapid_private_key: env_optional("WEB_PUSH_VAPID_PRIVATE_KEY"),
             web_push_subject: env_string_or("WEB_PUSH_SUBJECT", "mailto:hello@kasitek.co.za"),
-            whatsapp_call_provider: env_string_or("WHATSAPP_CALL_PROVIDER", "stub"),
-            whatsapp_call_signaling_url: env_optional("WHATSAPP_CALL_SIGNALING_URL"),
-            whatsapp_call_bridge_token: env_optional("WHATSAPP_CALL_BRIDGE_TOKEN"),
-            livekit_url: env_optional("LIVEKIT_URL"),
-            livekit_api_key: env_optional("LIVEKIT_API_KEY"),
-            livekit_api_secret: env_optional("LIVEKIT_API_SECRET"),
-            livekit_token_ttl_seconds: env::var("LIVEKIT_TOKEN_TTL_SECONDS")
-                .ok()
-                .and_then(|value| value.parse::<u64>().ok())
-                .unwrap_or(600),
         })
     }
 

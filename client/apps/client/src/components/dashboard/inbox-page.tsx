@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import Picker from "@emoji-mart/react";
 import emojiData from "@emoji-mart/data";
 import { AnimatePresence, motion } from "framer-motion";
-import { Room, RoomEvent, Track } from "livekit-client";
 import {
   ArrowLeft,
   Archive,
@@ -178,14 +177,6 @@ type CallMediaSession = {
     sdpType: string;
     sdp: string;
   } | null;
-  livekit?: {
-    serverUrl: string;
-    roomName: string;
-    participantIdentity: string;
-    participantName: string;
-    participantToken: string;
-    expiresAt?: string | null;
-  } | null;
 };
 
 type ReactionPickerState = {
@@ -259,25 +250,6 @@ function formatCallTimestamp(value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function isLiveKitMediaSession(
-  mediaSession: CallMediaSession | null | undefined,
-): mediaSession is CallMediaSession & {
-  livekit: {
-    serverUrl: string;
-    roomName: string;
-    participantIdentity: string;
-    participantName: string;
-    participantToken: string;
-    expiresAt?: string | null;
-  };
-} {
-  return Boolean(
-    mediaSession?.provider === "livekit" &&
-      mediaSession.livekit?.serverUrl &&
-      mediaSession.livekit?.participantToken,
-  );
 }
 
 function isMetaDirectWebRtcMediaSession(
@@ -435,8 +407,6 @@ export default function InboxPageClient({
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const activeWebRtcCallIdRef = useRef<string | null>(null);
-  const liveKitRoomRef = useRef<Room | null>(null);
-  const activeLiveKitCallIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setLiveConversations(conversations);
@@ -828,7 +798,7 @@ export default function InboxPageClient({
   }, [selectedConversationCall]);
 
   useEffect(() => {
-    const stopActiveCallMedia = async () => {
+    const stopActiveCallMedia = () => {
       peerConnectionRef.current?.close();
       peerConnectionRef.current = null;
 
@@ -839,16 +809,6 @@ export default function InboxPageClient({
       }
       localStreamRef.current = null;
       activeWebRtcCallIdRef.current = null;
-
-      if (liveKitRoomRef.current) {
-        try {
-          await liveKitRoomRef.current.disconnect();
-        } catch {
-          // Ignore disconnect failures during local cleanup.
-        }
-      }
-      liveKitRoomRef.current = null;
-      activeLiveKitCallIdRef.current = null;
 
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = null;
@@ -856,12 +816,12 @@ export default function InboxPageClient({
     };
 
     return () => {
-      void stopActiveCallMedia();
+      stopActiveCallMedia();
     };
   }, []);
 
   useEffect(() => {
-    const stopActiveCallMedia = async () => {
+    const stopActiveCallMedia = () => {
       peerConnectionRef.current?.close();
       peerConnectionRef.current = null;
 
@@ -873,23 +833,13 @@ export default function InboxPageClient({
       localStreamRef.current = null;
       activeWebRtcCallIdRef.current = null;
 
-      if (liveKitRoomRef.current) {
-        try {
-          await liveKitRoomRef.current.disconnect();
-        } catch {
-          // Ignore disconnect failures during local cleanup.
-        }
-      }
-      liveKitRoomRef.current = null;
-      activeLiveKitCallIdRef.current = null;
-
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = null;
       }
     };
 
-    if (!selectedConversationCall && (activeLiveKitCallIdRef.current || activeWebRtcCallIdRef.current)) {
-      void stopActiveCallMedia();
+    if (!selectedConversationCall && activeWebRtcCallIdRef.current) {
+      stopActiveCallMedia();
       setCallMediaState("idle");
       setCallMediaError("");
       return;
@@ -898,10 +848,9 @@ export default function InboxPageClient({
     if (
       selectedConversationCall &&
       !isLiveCallStatus(selectedConversationCall.status) &&
-      (activeLiveKitCallIdRef.current === selectedConversationCall.id ||
-        activeWebRtcCallIdRef.current === selectedConversationCall.id)
+      activeWebRtcCallIdRef.current === selectedConversationCall.id
     ) {
-      void stopActiveCallMedia();
+      stopActiveCallMedia();
       setCallMediaState("idle");
     }
   }, [selectedConversationCall]);
@@ -1487,7 +1436,7 @@ export default function InboxPageClient({
       throw new Error(payload.error || "Failed to load media session");
     }
     logCallMediaEvent(callId, "media-session.load.success", {
-      provider: "livekit" in payload.mediaSession ? "livekit" : "webrtc",
+      provider: payload.mediaSession.provider || "unknown",
     });
     setCallMediaSessionsByCallId((current) => ({
       ...current,
@@ -1635,130 +1584,6 @@ export default function InboxPageClient({
     }
   }
 
-  async function startLiveKitForCall(callId: string) {
-    if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      throw new Error("This browser does not support LiveKit audio calling");
-    }
-
-    setCallMediaLoading(callId);
-    setCallMediaError("");
-    setCallMediaState("requesting");
-
-    try {
-      const mediaSession = await ensureCallMediaSession(callId);
-      if (!isLiveKitMediaSession(mediaSession)) {
-        throw new Error("LiveKit media session is not available for this call");
-      }
-      logCallMediaEvent(callId, "livekit.start", {
-        roomName: mediaSession.livekit.roomName,
-        serverUrl: mediaSession.livekit.serverUrl,
-        participantIdentity: mediaSession.livekit.participantIdentity,
-      });
-
-      if (liveKitRoomRef.current && activeLiveKitCallIdRef.current === callId) {
-        logCallMediaEvent(callId, "livekit.reuse-existing-room");
-        return;
-      }
-
-      if (liveKitRoomRef.current) {
-        try {
-          await liveKitRoomRef.current.disconnect();
-        } catch {
-          // Ignore stale-room disconnect failures.
-        }
-      }
-
-      const room = new Room();
-      room
-        .on(RoomEvent.TrackSubscribed, (track) => {
-          if (track.kind !== Track.Kind.Audio || !remoteAudioRef.current) return;
-          logCallMediaEvent(callId, "livekit.track-subscribed", {
-            trackKind: track.kind,
-            trackSid: track.sid,
-          });
-          setCallMediaState("connected");
-          track.attach(remoteAudioRef.current);
-          void remoteAudioRef.current.play().catch(() => {
-            // Playback can still require interaction on some mobile browsers.
-          });
-        })
-        .on(RoomEvent.TrackUnsubscribed, (track) => {
-          if (track.kind !== Track.Kind.Audio || !remoteAudioRef.current) return;
-          logCallMediaEvent(callId, "livekit.track-unsubscribed", {
-            trackKind: track.kind,
-            trackSid: track.sid,
-          });
-          track.detach(remoteAudioRef.current);
-          remoteAudioRef.current.srcObject = null;
-        })
-        .on(RoomEvent.ConnectionStateChanged, (state) => {
-          if (activeLiveKitCallIdRef.current !== callId) return;
-          logCallMediaEvent(callId, "livekit.connection-state", { state });
-          if (state === "connected" || state === "connecting" || state === "reconnecting") {
-            setCallMediaState("connecting");
-          } else if (state === "disconnected") {
-            setCallMediaState("idle");
-          }
-        })
-        .on(RoomEvent.Disconnected, () => {
-          if (activeLiveKitCallIdRef.current !== callId) return;
-          logCallMediaEvent(callId, "livekit.disconnected");
-          liveKitRoomRef.current = null;
-          activeLiveKitCallIdRef.current = null;
-          setCallMediaState("idle");
-        })
-        .on(RoomEvent.MediaDevicesError, (error) => {
-          if (activeLiveKitCallIdRef.current !== callId) return;
-          logCallMediaEvent(callId, "livekit.media-devices-error", {
-            message: error instanceof Error ? error.message : "Unknown media device error",
-          });
-          setCallMediaState("failed");
-          setCallMediaError(error instanceof Error ? error.message : "Failed to access call media devices");
-        });
-
-      const { serverUrl, participantToken } = mediaSession.livekit;
-      logCallMediaEvent(callId, "livekit.connect.begin", {
-        roomName: mediaSession.livekit.roomName,
-        tokenPresent: Boolean(participantToken),
-      });
-      room.prepareConnection(serverUrl, participantToken);
-      liveKitRoomRef.current = room;
-      activeLiveKitCallIdRef.current = callId;
-      setCallMediaState("connecting");
-      await room.connect(serverUrl, participantToken);
-      logCallMediaEvent(callId, "livekit.connect.success", {
-        localParticipantIdentity: room.localParticipant.identity,
-      });
-      await room.localParticipant.setMicrophoneEnabled(true);
-      logCallMediaEvent(callId, "livekit.microphone.enabled", {
-        isMicrophoneEnabled: room.localParticipant.isMicrophoneEnabled,
-      });
-      setCallMediaState("connecting");
-    } catch (error) {
-      if (liveKitRoomRef.current) {
-        try {
-          await liveKitRoomRef.current.disconnect();
-        } catch {
-          // Ignore cleanup failures after a failed connection attempt.
-        }
-      }
-      liveKitRoomRef.current = null;
-      activeLiveKitCallIdRef.current = null;
-      setCallMediaState("failed");
-      logCallMediaEvent(callId, "livekit.start.failed", {
-        message: error instanceof Error ? error.message : "Unknown LiveKit startup failure",
-      });
-      setCallMediaError(
-        error instanceof Error
-          ? error.message
-          : "Failed to start LiveKit call media. Check microphone permission and device availability.",
-      );
-      throw error;
-    } finally {
-      setCallMediaLoading(null);
-    }
-  }
-
   function handleRealtimeCallSignal(callId: string, kind: string, source?: string | null) {
     logCallMediaEvent(callId, "signal.receive.ignored", {
       kind,
@@ -1792,10 +1617,8 @@ export default function InboxPageClient({
         const mediaSession = await ensureCallMediaSession(callId);
         if (isMetaDirectWebRtcMediaSession(mediaSession)) {
           await startMetaDirectWebRtcForCall(callId, mediaSession);
-        } else if (isLiveKitMediaSession(mediaSession)) {
-          await startLiveKitForCall(callId);
         } else {
-          throw new Error("Received an unsupported call media session.");
+          throw new Error("Received a call without a valid Meta WebRTC session.");
         }
       }
       if (action === "end" || action === "reject") {
@@ -1811,13 +1634,6 @@ export default function InboxPageClient({
           }
           localStreamRef.current = null;
           setCallMediaState("idle");
-        } else if (isLiveKitMediaSession(mediaSession)) {
-          if (liveKitRoomRef.current && activeLiveKitCallIdRef.current === callId) {
-            await liveKitRoomRef.current.disconnect();
-            liveKitRoomRef.current = null;
-            activeLiveKitCallIdRef.current = null;
-            setCallMediaState("idle");
-          }
         }
       }
     } catch (error) {

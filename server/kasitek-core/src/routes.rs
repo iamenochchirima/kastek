@@ -1,10 +1,9 @@
 use actix_web::web;
 
 use crate::controllers::{
-    admin, admin_conversations, admin_invoices, admin_leads, admin_notifications,
-    admin_outreach, admin_quotations, admin_web_services,
-    ai, auth, bots, chat, health, notifications, orgs, profile, public, realtime, social,
-    whatsapp, whatsapp_calls, workspace,
+    admin, admin_conversations, admin_invoices, admin_leads, admin_notifications, admin_outreach,
+    admin_quotations, admin_web_services, ai, auth, bots, chat, health, notifications, orgs,
+    profile, public, realtime, social, whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -31,11 +30,20 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/{id}", web::patch().to(orgs::update_org))
                 .route("/{id}", web::delete().to(orgs::delete_org))
                 .route("/{id}/members", web::get().to(orgs::list_members))
-                .route("/{id}/members/{userId}", web::patch().to(orgs::update_member))
-                .route("/{id}/members/{userId}", web::delete().to(orgs::remove_member))
+                .route(
+                    "/{id}/members/{userId}",
+                    web::patch().to(orgs::update_member),
+                )
+                .route(
+                    "/{id}/members/{userId}",
+                    web::delete().to(orgs::remove_member),
+                )
                 .route("/{id}/invitations", web::get().to(orgs::list_invitations))
                 .route("/{id}/invitations", web::post().to(orgs::invite_member))
-                .route("/{id}/invitations/{invId}", web::delete().to(orgs::revoke_invitation)),
+                .route(
+                    "/{id}/invitations/{invId}",
+                    web::delete().to(orgs::revoke_invitation),
+                ),
         )
         .service(
             web::scope("/api/invitations")
@@ -222,10 +230,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .service(
                     web::scope("/calls")
                         .route("", web::get().to(whatsapp_calls::list_calls))
-                        .route(
-                            "/bridge/contract",
-                            web::get().to(whatsapp_calls::get_bridge_contract),
-                        )
                         .route("/summary", web::get().to(whatsapp_calls::call_summary))
                         .route("/{id}", web::get().to(whatsapp_calls::get_call))
                         .route(
@@ -262,11 +266,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/webhooks/whatsapp")
                 .route("", web::get().to(whatsapp::verify_webhook))
-                .route("", web::post().to(whatsapp::receive_webhook))
-                .route(
-                    "/calls/bridge",
-                    web::post().to(whatsapp_calls::receive_bridge_event),
-                ),
+                .route("", web::post().to(whatsapp::receive_webhook)),
         )
         .route(
             "/api/quote-requests",
@@ -303,7 +303,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .service(
                     web::scope("/conversations")
                         .route("", web::get().to(admin_conversations::list_conversations))
-                        .route("/{id}", web::get().to(admin_conversations::get_conversation)),
+                        .route(
+                            "/{id}",
+                            web::get().to(admin_conversations::get_conversation),
+                        ),
                 )
                 .service(
                     web::scope("/quotations")
@@ -311,7 +314,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         .route("", web::post().to(admin_quotations::create_quotation))
                         .route("/{id}", web::get().to(admin_quotations::get_quotation))
                         .route("/{id}", web::patch().to(admin_quotations::update_quotation))
-                        .route("/{id}", web::delete().to(admin_quotations::delete_quotation)),
+                        .route(
+                            "/{id}",
+                            web::delete().to(admin_quotations::delete_quotation),
+                        ),
                 )
                 .service(
                     web::scope("/invoices")
@@ -327,23 +333,41 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         .route("", web::post().to(admin_outreach::create_campaign))
                         .route("", web::delete().to(admin_outreach::delete_all_campaigns))
                         .route("/import", web::post().to(admin_outreach::import_campaign))
-                        .route("/delivery", web::get().to(admin_outreach::list_delivery_logs))
+                        .route(
+                            "/delivery",
+                            web::get().to(admin_outreach::list_delivery_logs),
+                        )
                         .route("/{id}", web::get().to(admin_outreach::get_campaign))
                         .route("/{id}", web::patch().to(admin_outreach::update_campaign))
                         .route("/{id}", web::delete().to(admin_outreach::delete_campaign))
-                        .route("/delivery-logs", web::post().to(admin_outreach::create_delivery_logs))
+                        .route(
+                            "/delivery-logs",
+                            web::post().to(admin_outreach::create_delivery_logs),
+                        )
                         .route("/{id}/leads", web::get().to(admin_outreach::list_leads))
                         .route("/{id}/leads", web::post().to(admin_outreach::create_lead))
-                        .route("/{id}/leads/{lead_id}", web::get().to(admin_outreach::get_lead))
-                        .route("/{id}/leads/{lead_id}", web::patch().to(admin_outreach::update_lead))
-                        .route("/{id}/leads/{lead_id}", web::delete().to(admin_outreach::delete_lead)),
+                        .route(
+                            "/{id}/leads/{lead_id}",
+                            web::get().to(admin_outreach::get_lead),
+                        )
+                        .route(
+                            "/{id}/leads/{lead_id}",
+                            web::patch().to(admin_outreach::update_lead),
+                        )
+                        .route(
+                            "/{id}/leads/{lead_id}",
+                            web::delete().to(admin_outreach::delete_lead),
+                        ),
                 )
                 .service(
                     web::scope("/notifications")
                         .route("", web::get().to(admin_notifications::list_notifications))
                         .route("", web::post().to(admin_notifications::mark_all_read))
                         .route("/unread", web::get().to(admin_notifications::unread_count))
-                        .route("/{id}", web::patch().to(admin_notifications::mark_notification_read)),
+                        .route(
+                            "/{id}",
+                            web::patch().to(admin_notifications::mark_notification_read),
+                        ),
                 ),
         );
 }

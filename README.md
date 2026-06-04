@@ -12,7 +12,6 @@ truth:
   - `server/kasitek-calls/.env`
   - `server/kasitek-tenants/.env`
   - `client/.env.local`
-  - `client/apps/call-bridge/.env.local`
   - `client/apps/tenant-portal/.env`
   - `client/apps/tenant-portal/.env.local`
 - generated copies restored on pull:
@@ -22,7 +21,6 @@ truth:
   - `server/kasitek-tenants/.env`
   - `client/.env`
   - `client/.env.local`
-  - `client/apps/call-bridge/.env.local`
   - `client/apps/tenant-portal/.env`
   - `client/apps/tenant-portal/.env.local`
 
@@ -43,10 +41,6 @@ secret values stay in dotenv-vault, not in plain git-tracked files.
 Run these in separate terminals:
 
 ```bash
-livekit-server --dev --bind 0.0.0.0
-```
-
-```bash
 cd /home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/server/kasitek-tenants
 cargo run
 ```
@@ -59,21 +53,6 @@ cargo run
 ```bash
 cd /home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/server/kasitek-core
 cargo run
-```
-
-```bash
-cd /home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/client
-pnpm dev:call-bridge
-```
-
-```bash
-cd /home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/client
-pnpm --filter call-bridge provider:meta-livekit-relay
-```
-
-```bash
-cd /home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/client
-pnpm dev:call-bridge:worker:meta-relay
 ```
 
 ```bash

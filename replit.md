@@ -19,7 +19,6 @@ client/                        # pnpm monorepo root
   apps/
     client/                    # Main Next.js app (port 5000)
     admin/                     # Admin Next.js app
-    call-bridge/               # Call bridge app
     tenant-portal/             # Tenant portal app
   packages/
     database/                  # Shared Prisma database package (@kasitek/database)

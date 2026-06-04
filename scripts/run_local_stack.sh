@@ -18,10 +18,6 @@ require_command pnpm
 require_command gnome-terminal
 require_command curl
 
-if ! command -v livekit-server >/dev/null 2>&1; then
-  echo "Warning: livekit-server not found — the LiveKit tab will fail to start." >&2
-fi
-
 # Write a temp launcher script for each service to avoid gnome-terminal's
 # argument parsing bug where '--' stops processing subsequent '--tab' flags.
 make_launcher() {
@@ -29,39 +25,9 @@ make_launcher() {
   local dir="$2"
   local cmd="$3"
   local script="/tmp/kasitek_${name}.sh"
-  local preamble=""
-
-  if [[ "$name" == "worker" ]]; then
-    preamble=$(cat <<'SCRIPT'
-wait_for_http() {
-  local service_name="$1"
-  local url="$2"
-  local attempts="${3:-60}"
-  local delay="${4:-1}"
-  local i
-
-  for ((i = 1; i <= attempts; i++)); do
-    if curl --silent --show-error --fail "$url" >/dev/null 2>&1; then
-      echo "[$service_name] ready: $url"
-      return 0
-    fi
-    sleep "$delay"
-  done
-
-  echo "[$service_name] failed to become ready: $url" >&2
-  return 1
-}
-
-wait_for_http "call-bridge" "http://127.0.0.1:8987/"
-wait_for_http "provider-relay" "http://127.0.0.1:8990/"
-SCRIPT
-)
-  fi
-
   cat > "$script" <<SCRIPT
 #!/usr/bin/env bash
 cd '$dir'
-$preamble
 $cmd
 echo
 echo "[$name] process exited. Press Enter to close."
@@ -75,13 +41,9 @@ declare -a tabs=()
 declare -A services
 
 # Define all available services
-services["livekit"]="$ROOT_DIR|livekit-server --dev --bind 0.0.0.0"
 services["core"]="$ROOT_DIR/server/kasitek-core|cargo run"
 services["calls"]="$ROOT_DIR/server/kasitek-calls|cargo run"
 services["tenants"]="$ROOT_DIR/server/kasitek-tenants|cargo run"
-services["call-bridge"]="$ROOT_DIR/client|pnpm dev:call-bridge"
-services["provider-relay"]="$ROOT_DIR/client|pnpm --filter call-bridge provider:meta-livekit-relay"
-services["worker"]="$ROOT_DIR/client|pnpm --filter call-bridge worker:meta-relay"
 services["client"]="$ROOT_DIR/client|pnpm run dev"
 services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
 services["ngrok"]="$ROOT_DIR|ngrok http http://localhost:4000"
@@ -137,7 +99,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  for service in livekit core calls tenants call-bridge provider-relay worker client admin ngrok; do
+  for service in core calls tenants client admin ngrok; do
     add_service "$service"
   done
 elif [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
