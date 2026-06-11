@@ -18,9 +18,9 @@ export function TableRow({ className, ...props }: React.HTMLAttributes<HTMLTable
 }
 
 export function TableHead({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
-  return <th className={cn("py-3 text-left font-medium text-muted-foreground", className)} {...props} />;
+  return <th className={cn("py-2.5 text-left font-medium text-muted-foreground", className)} {...props} />;
 }
 
 export function TableCell({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("py-4", className)} {...props} />;
+  return <td className={cn("py-3", className)} {...props} />;
 }
