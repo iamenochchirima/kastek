@@ -82,9 +82,12 @@ export function Navbar() {
           </button>
         </li>
         <li>
-          <button type="button" onClick={() => scrollTo("footer")} className="text-muted-foreground transition-colors hover:text-white">
+          <Link
+            href="/about"
+            className="text-muted-foreground transition-colors hover:text-white"
+          >
             About
-          </button>
+          </Link>
         </li>
         <li>
           <Link
@@ -92,14 +95,6 @@ export function Navbar() {
             className="text-muted-foreground transition-colors hover:text-white"
           >
             Solutions
-          </Link>
-        </li>
-        <li>
-          <Link
-            href="/meta-business-platform"
-            className="text-muted-foreground transition-colors hover:text-white"
-          >
-            Meta Platform
           </Link>
         </li>
         <li>
@@ -164,11 +159,11 @@ export function Navbar() {
               Solutions
             </Link>
             <Link
-              href="/meta-business-platform"
+              href="/about"
               className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              Meta Platform
+              About
             </Link>
             <Link
               href="/pricing"

@@ -172,18 +172,17 @@ export default function SolutionsPage() {
                         </div>
                       </div>
 
-                      {/* Label */}
-                      <p className={`mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] ${config.accentText}`}>
+                      <h2 className="mb-3 font-display text-4xl leading-none text-foreground md:text-5xl">
                         {config.label}
-                      </p>
-
-                      {/* Headline */}
-                      <h2 className="font-display text-3xl leading-none text-foreground md:text-4xl mb-3">
-                        {config.headline}
                       </h2>
 
+                      {/* Supporting line */}
+                      <p className="mb-3 text-base font-medium leading-snug text-foreground/88 md:text-lg">
+                        {config.headline}
+                      </p>
+
                       {/* Pitch */}
-                      <p className="text-sm leading-relaxed text-muted-foreground mb-6 max-w-sm">
+                      <p className="mb-6 max-w-sm text-sm leading-relaxed text-muted-foreground">
                         {config.pitch}
                       </p>
 

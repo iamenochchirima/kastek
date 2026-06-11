@@ -37,6 +37,9 @@ export function Footer() {
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-4 text-sm font-medium md:justify-end">
+          <Link href="/about" className="text-muted-foreground hover:text-white transition-colors">
+            About
+          </Link>
           <button onClick={() => scrollTo("products")} className="text-muted-foreground hover:text-white transition-colors">Products</button>
           <button onClick={() => scrollTo("services")} className="text-muted-foreground hover:text-white transition-colors">Services</button>
           <Link href="/meta-business-platform" className="text-muted-foreground hover:text-white transition-colors">
