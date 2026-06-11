@@ -15,7 +15,8 @@ import {
   Bell,
   Download,
   Bot,
-  CircleHelp,
+  ChevronDown,
+  ChevronRight,
   FileText,
   Grid2x2,
   LayoutGrid,
@@ -49,10 +50,10 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
 };
 
-type ProductKey = "workspace" | "agents" | "reach" | "inbox" | "social";
+type ProductKey = "agents" | "reach" | "inbox" | "social";
 
 type ProductDefinition = {
-  key: ProductKey | "social";
+  key: ProductKey;
   name: string;
   shortName: string;
   description: string;
@@ -60,25 +61,9 @@ type ProductDefinition = {
   icon: React.ComponentType<{ className?: string }>;
   nav: NavItem[];
   settingsHref?: string;
-  accent: string;
 };
 
 const products: ProductDefinition[] = [
-  {
-    key: "workspace",
-    name: "Workspace",
-    shortName: "Workspace",
-    description: "Cross-product overview, activity, and navigation.",
-    href: "/workspace",
-    icon: LayoutGrid,
-    accent: "text-primary",
-    nav: [
-      { name: "Overview", href: "/workspace", icon: LayoutGrid },
-      { name: "Team", href: "/workspace/team", icon: Users },
-      { name: "Notifications", href: "/workspace/notifications", icon: Bell },
-      { name: "Profile", href: "/workspace/profile", icon: UserRound },
-    ],
-  },
   {
     key: "agents",
     name: "KasiAgents",
@@ -86,7 +71,6 @@ const products: ProductDefinition[] = [
     description: "AI agents, workflows, and automation logic.",
     href: "/agents",
     icon: Bot,
-    accent: "text-primary",
     nav: [{ name: "Overview", href: "/agents", icon: Bot }],
   },
   {
@@ -96,7 +80,6 @@ const products: ProductDefinition[] = [
     description: "Contacts, templates, campaigns, and outbound growth.",
     href: "/reach",
     icon: Send,
-    accent: "text-primary",
     settingsHref: "/reach/settings",
     nav: [
       { name: "Overview", href: "/reach", icon: LayoutGrid },
@@ -113,7 +96,6 @@ const products: ProductDefinition[] = [
     description: "Live conversations, human replies, and team response workflows.",
     href: "/inbox",
     icon: Bell,
-    accent: "text-primary",
     nav: [{ name: "Overview", href: "/inbox", icon: Bell }],
   },
   {
@@ -123,7 +105,6 @@ const products: ProductDefinition[] = [
     description: "Social planning, publishing, channels, and analytics.",
     href: "/social",
     icon: Sparkles,
-    accent: "text-primary",
     nav: [
       { name: "Overview", href: "/social", icon: LayoutGrid },
       { name: "Planner", href: "/social/planner", icon: Sparkles },
@@ -169,118 +150,103 @@ function ThemeToggleSimple({ className }: { className?: string }) {
   );
 }
 
-function resolveProduct(pathname: string): ProductDefinition {
-  if (pathname.startsWith("/agents") || pathname.startsWith("/dashboard/bots")) {
-    return products.find((product) => product.key === "agents")!;
-  }
-
-  if (
-    pathname.startsWith("/reach") ||
-    pathname.startsWith("/dashboard/contacts") ||
-    pathname.startsWith("/dashboard/templates") ||
-    pathname.startsWith("/dashboard/campaigns") ||
-    pathname.startsWith("/dashboard/settings")
-  ) {
-    return products.find((product) => product.key === "reach")!;
-  }
-
-  if (pathname.startsWith("/inbox") || pathname.startsWith("/dashboard/inbox")) {
-    return products.find((product) => product.key === "inbox")!;
-  }
-
-  if (pathname.startsWith("/social")) {
-    return products.find((product) => product.key === "social")!;
-  }
-
-  return products.find((product) => product.key === "workspace")!;
-}
-
 function isItemActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function ProductSwitcher({
-  currentProduct,
-  open,
-  onClose,
+function getActiveProduct(pathname: string): ProductDefinition | null {
+  return products.find((product) => isItemActive(pathname, product.href)) ?? null;
+}
+
+function getSectionLabel(pathname: string, activeProduct: ProductDefinition | null) {
+  if (activeProduct) return activeProduct.shortName;
+  if (pathname.startsWith("/workspace/team")) return "Team";
+  if (pathname.startsWith("/workspace/notifications")) return "Notifications";
+  if (pathname.startsWith("/workspace/profile")) return "Profile";
+  return "Overview";
+}
+
+function ProductSection({
+  product,
+  pathname,
+  collapsed,
   onNavigate,
+  inboxUnreadCount,
 }: {
-  currentProduct: ProductDefinition;
-  open: boolean;
-  onClose: () => void;
+  product: ProductDefinition;
+  pathname: string;
+  collapsed: boolean;
   onNavigate?: () => void;
+  inboxUnreadCount: number;
 }) {
-  const inboxUnreadCount = useWhatsappInboxUnreadCount();
-  if (!open) return null;
+  const active = isItemActive(pathname, product.href);
+  const showBadge = product.key === "inbox" && inboxUnreadCount > 0;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/55 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6" onClick={onClose}>
-      <div
-        className="flex max-h-[calc(100dvh-24px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_90px_rgba(0,0,0,0.45)] sm:max-h-[min(88vh,920px)]"
-        onClick={(event) => event.stopPropagation()}
+    <div className="space-y-1">
+      <Link
+        href={product.href}
+        onClick={onNavigate}
+        className={cn(
+          "group relative flex items-center rounded-xl text-sm font-medium transition-all duration-200 no-underline",
+          collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-3",
+          active
+            ? "bg-[linear-gradient(135deg,rgba(232,160,32,0.18),rgba(232,160,32,0.04))] text-primary shadow-[inset_0_0_0_1px_rgba(232,160,32,0.16)]"
+            : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
+        )}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6 sm:py-6">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Products</p>
-            <h2 className="mt-2 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">Switch workspace product</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Jump between your overall workspace view and each focused product area without losing context.
-            </p>
-          </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={onClose}>
-            <PanelLeftOpen className="h-4 w-4 rotate-90" />
-          </Button>
+        <product.icon className={cn("h-5 w-5 shrink-0", active && "text-primary")} />
+        {!collapsed ? (
+          <>
+            <div className="min-w-0 flex-1">
+              <span className="block">{product.name}</span>
+              <span className="block truncate text-[11px] font-normal text-muted-foreground">
+                {product.description}
+              </span>
+            </div>
+            {active ? (
+              <ChevronDown className="h-4 w-4 shrink-0 text-primary" />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            )}
+          </>
+        ) : null}
+        {showBadge ? (
+          <span
+            className={cn(
+              "shrink-0 rounded-full bg-primary text-[11px] font-semibold text-primary-foreground",
+              collapsed ? "absolute right-1 top-1 min-w-[18px] px-1.5 py-0.5 text-center" : "px-2 py-0.5",
+            )}
+          >
+            {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
+          </span>
+        ) : null}
+      </Link>
+
+      {active && !collapsed ? (
+        <div className="space-y-1 border-l border-border/70 pl-4 ml-5">
+          {product.nav.map((item) => {
+            const itemActive = isItemActive(pathname, item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm no-underline transition-colors",
+                  itemActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
+                )}
+              >
+                <item.icon className={cn("h-4 w-4 shrink-0", itemActive && "text-primary")} />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
         </div>
-
-        <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {products.map((product) => {
-              const active = product.key === currentProduct.key;
-              const Icon = product.icon;
-              const unreadBadge =
-                product.key === "inbox" && inboxUnreadCount > 0 ? (
-                  <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
-                    {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
-                  </span>
-                ) : null;
-
-              return (
-                <Link
-                  key={product.key}
-                  href={product.href}
-                  onClick={() => {
-                    onNavigate?.();
-                    onClose();
-                  }}
-                  className={cn(
-                    "rounded-xl border p-4 no-underline transition-all duration-200 sm:p-5",
-                    active
-                      ? "border-primary/30 bg-primary/10 shadow-[inset_0_0_0_1px_rgba(232,160,32,0.18)]"
-                      : "border-border bg-secondary/35 hover:border-primary/20 hover:bg-secondary/60",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-card">
-                        <Icon className={cn("h-5 w-5", active ? "text-primary" : "text-foreground")} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-base font-semibold text-foreground sm:text-lg">{product.name}</p>
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          {active ? "Current product" : "Open product"}
-                        </p>
-                      </div>
-                    </div>
-                    {unreadBadge}
-                  </div>
-
-                  <p className="mt-4 text-sm leading-6 text-muted-foreground">{product.description}</p>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -290,7 +256,6 @@ function SidebarContent({
   setCollapsed,
   user,
   hasPwaUpdate = false,
-  onOpenSwitcher,
   onNavigate,
   orgs = [],
   activeOrgId = null,
@@ -299,13 +264,12 @@ function SidebarContent({
   setCollapsed?: (value: boolean) => void;
   user?: { name?: string | null; email?: string | null; image?: string | null };
   hasPwaUpdate?: boolean;
-  onOpenSwitcher: () => void;
   onNavigate?: () => void;
   orgs?: Org[];
   activeOrgId?: string | null;
 }) {
   const pathname = usePathname();
-  const currentProduct = resolveProduct(pathname);
+  const activeProduct = getActiveProduct(pathname);
   const liveInboxUnreadCount = useWhatsappInboxUnreadCount();
   const accountName = user?.name ?? "Admin";
   const accountEmail = user?.email ?? "admin@kasitek.com";
@@ -313,44 +277,46 @@ function SidebarContent({
     ? accountName.split(" ").filter(Boolean).slice(0, 2)
     : (accountEmail.split("@")[0] || accountName).split(/[\s._-]+/).filter(Boolean).slice(0, 2);
   const initials = initialsSource.map((part) => part.slice(0, 1).toUpperCase()).join("") || "AD";
+  const sectionLabel = getSectionLabel(pathname, activeProduct);
+  const hasOrgs = orgs.length > 0;
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-border bg-card">
       <div
         className={cn(
           "flex h-16 items-center border-b border-border",
-          collapsed ? "justify-center px-3" : "justify-between px-4",
+          collapsed ? "justify-center px-3" : "justify-between gap-2 px-3",
         )}
       >
-        <button
-          type="button"
-          onClick={onOpenSwitcher}
-          className={cn(
-            "flex min-w-0 items-center gap-2 text-left no-underline transition-opacity hover:opacity-90",
-            collapsed && "justify-center",
-          )}
-        >
-          <Image src="/logo.png" alt="KasiTek" width={32} height={32} className="h-8 w-8 rounded-sm" />
-          {!collapsed ? (
-            <div className="flex flex-col">
-              <span className="font-display text-lg tracking-wide text-foreground">KasiTek</span>
-              <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                {currentProduct.shortName}
-              </span>
-            </div>
-          ) : null}
-        </button>
+        {hasOrgs ? (
+          <div className={cn("min-w-0 flex-1", collapsed && "flex justify-center")}>
+            <OrgSwitcher
+              orgs={orgs}
+              activeOrgId={activeOrgId}
+              collapsed={collapsed}
+              variant="header"
+            />
+          </div>
+        ) : (
+          <Link
+            href="/workspace"
+            onClick={onNavigate}
+            className={cn("flex min-w-0 items-center gap-2 text-left no-underline transition-opacity hover:opacity-90", collapsed && "justify-center")}
+          >
+            <Image src="/logo.png" alt="KasiTek" width={32} height={32} className="h-8 w-8 rounded-sm" />
+            {!collapsed ? (
+              <div className="flex flex-col">
+                <span className="font-display text-lg tracking-wide text-foreground">KasiTek</span>
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {sectionLabel}
+                </span>
+              </div>
+            ) : null}
+          </Link>
+        )}
 
         {setCollapsed && !collapsed ? (
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={onOpenSwitcher}>
-              <span className="relative">
-                <Grid2x2 className="h-4 w-4" />
-                {hasPwaUpdate ? (
-                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />
-                ) : null}
-              </span>
-            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -363,69 +329,39 @@ function SidebarContent({
         ) : null}
       </div>
 
-      {!collapsed ? (
-        <div className="border-b border-border px-3 py-3 space-y-2">
-          <button
-            type="button"
-            onClick={onOpenSwitcher}
-            className="flex w-full items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-3 text-left transition-colors hover:border-primary/20 hover:bg-secondary/70"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card">
-              <currentProduct.icon className="h-4 w-4 text-primary" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground">{currentProduct.name}</p>
-              <p className="truncate text-xs text-muted-foreground">{currentProduct.description}</p>
-            </div>
-          </button>
-          {orgs.length > 0 ? (
-            <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={false} />
-          ) : null}
-        </div>
-      ) : (
-        orgs.length > 0 ? (
-          <div className="border-b border-border px-2 py-2">
-            <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={true} />
-          </div>
-        ) : null
-      )}
-
       <nav className={cn("flex-1 space-y-1 overflow-x-hidden overflow-y-auto p-3", collapsed && "px-2")}>
-        {currentProduct.nav.map((item) => {
-          const active = isItemActive(pathname, item.href);
-          const showInboxBadge = item.href === "/inbox" && liveInboxUnreadCount > 0;
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={cn(
-                "group relative flex items-center rounded-xl text-sm font-medium transition-all duration-200 no-underline",
-                collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-3",
-                active
-                  ? "bg-[linear-gradient(135deg,rgba(232,160,32,0.18),rgba(232,160,32,0.04))] text-primary shadow-[inset_0_0_0_1px_rgba(232,160,32,0.16)]"
-                  : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
-              )}
-            >
-              <item.icon className={cn("h-5 w-5 shrink-0", active && "text-primary")} />
-              {!collapsed ? <span className="flex-1">{item.name}</span> : null}
-              {showInboxBadge ? (
-                <span
-                  className={cn(
-                    "shrink-0 rounded-full bg-primary text-[11px] font-semibold text-primary-foreground",
-                    collapsed ? "absolute right-1 top-1 min-w-[18px] px-1.5 py-0.5 text-center" : "px-2 py-0.5",
-                  )}
-                >
-                  {liveInboxUnreadCount > 99 ? "99+" : liveInboxUnreadCount}
-                </span>
-              ) : null}
-            </Link>
-          );
-        })}
+        {!collapsed ? (
+          <div className="px-3 pb-1">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Products
+              </p>
+              <span className="truncate text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                {sectionLabel}
+              </span>
+            </div>
+          </div>
+        ) : null}
+        {products.map((product) => (
+          <ProductSection
+            key={product.key}
+            product={product}
+            pathname={pathname}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+            inboxUnreadCount={liveInboxUnreadCount}
+          />
+        ))}
       </nav>
 
       <div className={cn("space-y-1 border-t border-border p-3", collapsed && "px-2")}>
+        {!collapsed ? (
+          <div className="px-3 pb-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Account
+            </p>
+          </div>
+        ) : null}
         <div className={cn("flex items-center gap-3 rounded-md px-3 py-1", collapsed && "justify-center px-2")}>
           <ThemeToggleSimple />
           {!collapsed ? <span className="text-sm text-muted-foreground">Theme</span> : null}
@@ -470,24 +406,18 @@ function SidebarContent({
                 Profile
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/workspace" onClick={onNavigate}>
-                <LayoutGrid className="mr-2 h-4 w-4" />
-                Workspace
-              </Link>
-            </DropdownMenuItem>
-            {currentProduct.settingsHref ? (
+            {activeProduct?.settingsHref ? (
               <DropdownMenuItem asChild>
-                <Link href={currentProduct.settingsHref} onClick={onNavigate}>
+                <Link href={activeProduct.settingsHref} onClick={onNavigate}>
                   <Settings className="mr-2 h-4 w-4" />
                   Product Settings
                 </Link>
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem asChild>
-              <Link href="/workspace" onClick={onNavigate}>
-                <CircleHelp className="mr-2 h-4 w-4" />
-                Help
+              <Link href="/workspace/team" onClick={onNavigate}>
+                <Users className="mr-2 h-4 w-4" />
+                Team
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -572,11 +502,11 @@ export function LayoutShell({
   activeOrgId?: string | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
   const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const pathname = usePathname();
-  const currentProduct = resolveProduct(pathname);
+  const activeProduct = getActiveProduct(pathname);
+  const sectionLabel = getSectionLabel(pathname, activeProduct);
 
   useEffect(() => {
     const onPwaUpdate = (event: Event) => {
@@ -594,19 +524,6 @@ export function LayoutShell({
   return (
     <WhatsappRealtimeProvider initialInboxUnreadCount={inboxUnreadCount}>
       <>
-        <ProductSwitcher
-          currentProduct={currentProduct}
-          open={switcherOpen}
-          onNavigate={() => {
-            setMobileSheetOpen(false);
-            setSwitcherOpen(false);
-          }}
-          onClose={() => {
-            setSwitcherOpen(false);
-            setMobileSheetOpen(false);
-          }}
-        />
-
         <div className="dashboard-theme flex h-screen bg-background">
           <aside className={cn("hidden lg:flex lg:flex-col", collapsed ? "w-[72px]" : "w-64")}>
               <SidebarContent
@@ -616,10 +533,6 @@ export function LayoutShell({
                 hasPwaUpdate={hasPwaUpdate}
                 orgs={orgs}
                 activeOrgId={activeOrgId}
-                onOpenSwitcher={() => {
-                  setMobileSheetOpen(false);
-                  setSwitcherOpen(true);
-                }}
               />
             </aside>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
@@ -630,39 +543,19 @@ export function LayoutShell({
                     <Menu className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileSheetOpen(false);
-                    setSwitcherOpen(true);
-                  }}
-                  className="flex min-w-0 items-center gap-2 text-left"
-                >
+                <Link href="/workspace" onClick={() => setMobileSheetOpen(false)} className="flex min-w-0 items-center gap-2 text-left no-underline">
                   <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">{currentProduct.name}</p>
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {activeProduct?.name ?? "KasiTek"}
+                    </p>
                     <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                      Workspace
+                      {sectionLabel}
                     </p>
                   </div>
-                </button>
+                </Link>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 shrink-0"
-                onClick={() => {
-                  setMobileSheetOpen(false);
-                  setSwitcherOpen(true);
-                }}
-              >
-                <span className="relative">
-                  <Grid2x2 className="h-4 w-4" />
-                  {hasPwaUpdate ? (
-                    <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />
-                  ) : null}
-                </span>
-              </Button>
+              {hasPwaUpdate ? <span className="h-2 w-2 rounded-full bg-primary" /> : <span className="w-2" />}
             </div>
             <SheetContent side="left" className="w-64 p-0">
               <SidebarContent
@@ -671,10 +564,6 @@ export function LayoutShell({
                 hasPwaUpdate={hasPwaUpdate}
                 orgs={orgs}
                 activeOrgId={activeOrgId}
-                onOpenSwitcher={() => {
-                  setMobileSheetOpen(false);
-                  setSwitcherOpen(true);
-                }}
                 onNavigate={() => setMobileSheetOpen(false)}
               />
             </SheetContent>

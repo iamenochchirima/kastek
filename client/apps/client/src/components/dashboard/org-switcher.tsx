@@ -18,10 +18,12 @@ export function OrgSwitcher({
   orgs,
   activeOrgId,
   collapsed = false,
+  variant = "panel",
 }: {
   orgs: Org[];
   activeOrgId: string | null;
   collapsed?: boolean;
+  variant?: "panel" | "header";
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -51,15 +53,32 @@ export function OrgSwitcher({
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            "flex w-full items-center gap-2.5 rounded-xl border border-border bg-secondary/40 text-left transition-colors hover:border-primary/20 hover:bg-secondary/70",
-            collapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5",
+            "flex w-full items-center gap-2.5 text-left transition-colors",
+            variant === "header"
+              ? "rounded-xl bg-transparent hover:bg-secondary/70"
+              : "rounded-xl border border-border bg-secondary/40 hover:border-primary/20 hover:bg-secondary/70",
+            collapsed
+              ? "justify-center px-2 py-2.5"
+              : variant === "header"
+                ? "px-2 py-2"
+                : "px-3 py-2.5",
           )}
         >
-          <Avatar className="h-7 w-7 shrink-0 rounded-lg border border-border">
+          <Avatar
+            className={cn(
+              "shrink-0 border border-border",
+              variant === "header" ? "h-8 w-8 rounded-full" : "h-7 w-7 rounded-lg",
+            )}
+          >
             {activeOrg.logo ? (
               <AvatarImage src={activeOrg.logo} alt={activeOrg.name} />
             ) : null}
-            <AvatarFallback className="rounded-lg bg-primary/20 text-[11px] font-semibold text-primary">
+            <AvatarFallback
+              className={cn(
+                "bg-primary/20 text-[11px] font-semibold text-primary",
+                variant === "header" ? "rounded-full" : "rounded-lg",
+              )}
+            >
               {initials}
             </AvatarFallback>
           </Avatar>
@@ -67,9 +86,15 @@ export function OrgSwitcher({
             <>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">{activeOrg.name}</p>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Organisation
-                </p>
+                {variant === "header" ? (
+                  <div className="mt-1 inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Org
+                  </div>
+                ) : (
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Organisation
+                  </p>
+                )}
               </div>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </>
