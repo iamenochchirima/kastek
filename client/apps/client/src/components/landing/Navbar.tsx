@@ -106,14 +106,6 @@ export function Navbar() {
         </li>
         <li>
           <Link
-            href="/login"
-            className="text-muted-foreground transition-colors hover:text-white"
-          >
-            Login
-          </Link>
-        </li>
-        <li>
-          <Link
             href="/get-quote"
             className="rounded-lg border border-primary/15 bg-white/5 px-5 py-2.5 font-semibold text-muted-foreground transition-all duration-300 hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
           >
@@ -122,10 +114,10 @@ export function Navbar() {
         </li>
         <li>
           <Link
-            href="/waitlist"
+            href="/login"
             className="rounded-lg border border-primary/20 bg-primary/10 px-5 py-2.5 font-semibold text-primary transition-all duration-300 hover:bg-primary hover:text-primary-foreground"
           >
-            Join Waitlist
+            Login
           </Link>
         </li>
         </ul>
@@ -169,13 +161,6 @@ export function Navbar() {
             >
               Pricing
             </Link>
-            <Link
-              href="/login"
-              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-muted-foreground transition hover:border-white/14 hover:bg-white/[0.05] hover:text-white"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Login
-            </Link>
             <div className="mt-2 grid grid-cols-1 gap-3">
               <Link
                 href="/get-quote"
@@ -185,11 +170,11 @@ export function Navbar() {
                 Get Quote
               </Link>
               <Link
-                href="/waitlist"
+                href="/login"
                 className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-center font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                Join Waitlist
+                Login
               </Link>
             </div>
           </div>
