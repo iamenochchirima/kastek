@@ -239,8 +239,63 @@ model BotConfiguration {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  events BotEvent[]
+  deployments BotDeployment[]
+
   @@index([userId])
   @@index([orgId])
+}
+
+model BotEvent {
+  id      String @id @default(cuid())
+  botId   String
+  bot     BotConfiguration @relation(fields: [botId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId   String?
+  org     Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  eventType      String
+  channel        String?
+  status         String?
+  conversationId String?
+  responseTimeMs Int?
+  metadata       Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([botId, createdAt])
+  @@index([userId, createdAt])
+  @@index([orgId, createdAt])
+}
+
+model BotDeployment {
+  id     String @id @default(cuid())
+  botId  String
+  bot    BotConfiguration @relation(fields: [botId], references: [id], onDelete: Cascade)
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  provider         String
+  target           String
+  status           String
+  versionNumber    Int
+  workflowId       String?
+  templateKey      String?
+  configSnapshot   Json?
+  responsePayload  Json?
+  errorMessage     String? @db.Text
+  deployedAt       DateTime?
+  pausedAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([botId, createdAt])
+  @@index([userId, createdAt])
+  @@index([orgId, createdAt])
 }
 
 model OnboardingConversation {

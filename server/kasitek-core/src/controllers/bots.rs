@@ -2,7 +2,10 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use serde_json::Value;
 use sqlx::PgPool;
 
-use crate::db::models::BotCreateRequest;
+use crate::config::AppConfig;
+use crate::db::models::{
+    BotActionRequest, BotCreateRequest, BotDeploymentCallbackRequest, BotEventCreateRequest,
+};
 use crate::error::AppError;
 use crate::middleware::extract_user;
 use crate::services::bots;
@@ -15,6 +18,12 @@ pub async fn create(
     let user = extract_user(&req, pool.get_ref()).await?;
     let bot = bots::create_bot(pool.get_ref(), &user.id, body.into_inner()).await?;
     Ok(HttpResponse::Created().json(serde_json::json!({ "bot": bot })))
+}
+
+pub async fn list(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let bots = bots::list_bots(pool.get_ref(), &user.id).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "bots": bots })))
 }
 
 pub async fn get(
@@ -48,4 +57,93 @@ pub async fn delete(
     let user = extract_user(&req, pool.get_ref()).await?;
     bots::delete_bot(pool.get_ref(), &user.id, &path).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
+}
+
+pub async fn create_event(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<BotEventCreateRequest>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    bots::record_bot_event(pool.get_ref(), &user.id, &path, body.into_inner()).await?;
+    Ok(HttpResponse::Created().json(serde_json::json!({ "success": true })))
+}
+
+pub async fn action(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<BotActionRequest>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let bot =
+        bots::execute_bot_action(pool.get_ref(), config.get_ref(), &user.id, &path, body.into_inner())
+            .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "bot": bot })))
+}
+
+pub async fn deployment_callback(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+    body: web::Json<BotDeploymentCallbackRequest>,
+) -> Result<HttpResponse, AppError> {
+    let expected_token = config
+        .n8n_provisioner_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or(AppError::Unauthorized)?;
+
+    let authorized = req
+        .headers()
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .map(|token| token == expected_token)
+        .unwrap_or(false);
+
+    if !authorized {
+        return Err(AppError::Unauthorized);
+    }
+
+    let (bot_id, deployment_id) = path.into_inner();
+    bots::apply_deployment_callback(pool.get_ref(), &bot_id, &deployment_id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
+}
+
+pub async fn create_event_trusted(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<BotEventCreateRequest>,
+) -> Result<HttpResponse, AppError> {
+    let expected_token = config
+        .n8n_provisioner_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or(AppError::Unauthorized)?;
+
+    let authorized = req
+        .headers()
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .map(|token| token == expected_token)
+        .unwrap_or(false);
+
+    if !authorized {
+        return Err(AppError::Unauthorized);
+    }
+
+    bots::record_bot_event_trusted(pool.get_ref(), &path, body.into_inner()).await?;
+    Ok(HttpResponse::Created().json(serde_json::json!({ "success": true })))
 }

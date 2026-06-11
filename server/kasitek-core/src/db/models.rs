@@ -1226,8 +1226,41 @@ pub struct BotCreateRequest {
     #[serde(rename = "type")]
     pub bot_type: Option<String>,
     pub language: Option<String>,
+    #[serde(rename = "greetingMessage")]
+    pub greeting_message: Option<String>,
+    pub personality: Option<String>,
+    pub capabilities: Option<Value>,
+    #[serde(rename = "integrationConfig")]
+    pub integration_config: Option<Value>,
     #[serde(rename = "businessDetails")]
     pub business_details: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BotEventCreateRequest {
+    #[serde(rename = "eventType")]
+    pub event_type: Option<String>,
+    pub channel: Option<String>,
+    pub status: Option<String>,
+    #[serde(rename = "conversationId")]
+    pub conversation_id: Option<String>,
+    #[serde(rename = "responseTimeMs")]
+    pub response_time_ms: Option<i32>,
+    pub metadata: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BotActionRequest {
+    pub action: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BotDeploymentCallbackRequest {
+    pub status: Option<String>,
+    #[serde(rename = "workflowId")]
+    pub workflow_id: Option<String>,
+    pub message: Option<String>,
+    pub payload: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]

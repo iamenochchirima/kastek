@@ -12,6 +12,7 @@ pub struct AppConfig {
     pub database_url: String,
     pub database_max_connections: u32,
     pub frontend_url: String,
+    pub public_api_url: String,
     pub auth_url: String,
     #[allow(dead_code)]
     pub session_secret: String,
@@ -19,6 +20,8 @@ pub struct AppConfig {
     pub resend_from_email: String,
     pub zoomconnect_send_url: Option<String>,
     pub kasitek_calls_url: Option<String>,
+    pub n8n_provisioner_url: Option<String>,
+    pub n8n_provisioner_token: Option<String>,
     pub web_push_vapid_public_key: Option<String>,
     pub web_push_vapid_private_key: Option<String>,
     pub web_push_subject: String,
@@ -27,6 +30,7 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn from_env() -> Result<Self, env::VarError> {
         let frontend_url = env_string_or("FRONTEND_URL", "http://localhost:3000");
+        let public_api_url = env_string_or("KASITEK_CORE_PUBLIC_URL", "http://localhost:4000");
 
         Ok(Self {
             port: env_u16_or("PORT", 4000),
@@ -36,6 +40,7 @@ impl AppConfig {
                 .ok_or(env::VarError::NotPresent)?,
             database_max_connections: env_u32_or("DATABASE_MAX_CONNECTIONS", 10),
             frontend_url: frontend_url.clone(),
+            public_api_url,
             auth_url: frontend_url,
             session_secret: env_optional("SESSION_SECRET")
                 .or_else(|| env_optional("AUTH_SECRET"))
@@ -47,6 +52,8 @@ impl AppConfig {
             ),
             zoomconnect_send_url: env_optional("ZOOMCONNECT_SEND_URL"),
             kasitek_calls_url: env_optional("KASITEK_CALLS_URL"),
+            n8n_provisioner_url: env_optional("N8N_PROVISIONER_URL"),
+            n8n_provisioner_token: env_optional("N8N_PROVISIONER_TOKEN"),
             web_push_vapid_public_key: env_optional("WEB_PUSH_VAPID_PUBLIC_KEY"),
             web_push_vapid_private_key: env_optional("WEB_PUSH_VAPID_PRIVATE_KEY"),
             web_push_subject: env_string_or("WEB_PUSH_SUBJECT", "mailto:hello@kasitek.co.za"),

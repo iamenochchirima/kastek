@@ -15,10 +15,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         )
         .service(
             web::scope("/api/bots")
+                .route("", web::get().to(bots::list))
                 .route("", web::post().to(bots::create))
                 .route("/{id}", web::get().to(bots::get))
                 .route("/{id}", web::patch().to(bots::patch))
-                .route("/{id}", web::delete().to(bots::delete)),
+                .route("/{id}", web::delete().to(bots::delete))
+                .route("/{id}/actions", web::post().to(bots::action))
+                .route(
+                    "/{id}/deployments/{deploymentId}/callback",
+                    web::post().to(bots::deployment_callback),
+                )
+                .route("/{id}/events/trusted", web::post().to(bots::create_event_trusted))
+                .route("/{id}/events", web::post().to(bots::create_event)),
         )
         .route("/api/chat", web::post().to(chat::post))
         .route("/api/workspace/summary", web::get().to(workspace::summary))
@@ -104,6 +112,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             web::scope("/api/social")
                 .service(
                     web::scope("/oauth")
+                        .route("/meta/start", web::get().to(social::start_meta_oauth))
+                        .route("/meta/callback", web::get().to(social::meta_oauth_callback))
                         .route("/x/start", web::get().to(social::start_x_oauth))
                         .route("/x/callback", web::get().to(social::x_oauth_callback))
                         .route(
