@@ -53,21 +53,21 @@ export function OrgSwitcher({
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            "flex w-full items-center gap-2.5 text-left transition-colors",
+            "flex w-full items-center gap-2 text-left transition-colors",
             variant === "header"
               ? "rounded-xl bg-transparent hover:bg-secondary/70"
               : "rounded-xl border border-border bg-secondary/40 hover:border-primary/20 hover:bg-secondary/70",
             collapsed
-              ? "justify-center px-2 py-2.5"
+              ? "justify-center px-2 py-2"
               : variant === "header"
-                ? "px-2 py-2"
-                : "px-3 py-2.5",
+                ? "px-2 py-1.5"
+                : "px-3 py-2",
           )}
         >
           <Avatar
             className={cn(
               "shrink-0 border border-border",
-              variant === "header" ? "h-8 w-8 rounded-full" : "h-7 w-7 rounded-lg",
+              variant === "header" ? "h-7 w-7 rounded-full" : "h-7 w-7 rounded-lg",
             )}
           >
             {activeOrg.logo ? (
@@ -87,9 +87,7 @@ export function OrgSwitcher({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">{activeOrg.name}</p>
                 {variant === "header" ? (
-                  <div className="mt-1 inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    Org
-                  </div>
+                  null
                 ) : (
                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
                     Organisation
@@ -107,7 +105,7 @@ export function OrgSwitcher({
           <DropdownMenuItem
             key={org.id}
             onSelect={() => switchOrg(org.id)}
-            className="flex items-center gap-2.5"
+            className="flex items-center gap-2"
           >
             <Avatar className="h-6 w-6 shrink-0 rounded-md border border-border">
               {org.logo ? <AvatarImage src={org.logo} alt={org.name} /> : null}

@@ -188,14 +188,14 @@ function ProductSection({
         href={product.href}
         onClick={onNavigate}
         className={cn(
-          "group relative flex items-center rounded-xl text-sm font-medium transition-all duration-200 no-underline",
-          collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-3",
+          "group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200 no-underline",
+          collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2.5",
           active
             ? "bg-[linear-gradient(135deg,rgba(232,160,32,0.18),rgba(232,160,32,0.04))] text-primary shadow-[inset_0_0_0_1px_rgba(232,160,32,0.16)]"
             : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
         )}
       >
-        <product.icon className={cn("h-5 w-5 shrink-0", active && "text-primary")} />
+        <product.icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-primary")} />
         {!collapsed ? (
           <>
             <div className="min-w-0 flex-1">
@@ -224,7 +224,7 @@ function ProductSection({
       </Link>
 
       {active && !collapsed ? (
-        <div className="space-y-1 border-l border-border/70 pl-4 ml-5">
+        <div className="ml-4 space-y-1 border-l border-border/70 pl-3">
           {product.nav.map((item) => {
             const itemActive = isItemActive(pathname, item.href);
 
@@ -234,7 +234,7 @@ function ProductSection({
                 href={item.href}
                 onClick={onNavigate}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm no-underline transition-colors",
+                  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm no-underline transition-colors",
                   itemActive
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
@@ -284,7 +284,7 @@ function SidebarContent({
     <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-border bg-card">
       <div
         className={cn(
-          "flex h-16 items-center border-b border-border",
+          "flex h-14 items-center border-b border-border",
           collapsed ? "justify-center px-3" : "justify-between gap-2 px-3",
         )}
       >
@@ -329,7 +329,7 @@ function SidebarContent({
         ) : null}
       </div>
 
-      <nav className={cn("flex-1 space-y-1 overflow-x-hidden overflow-y-auto p-3", collapsed && "px-2")}>
+      <nav className={cn("flex-1 space-y-1 overflow-x-hidden overflow-y-auto p-2.5", collapsed && "px-2")}>
         {!collapsed ? (
           <div className="px-3 pb-1">
             <div className="flex items-center justify-between gap-3">
@@ -354,7 +354,7 @@ function SidebarContent({
         ))}
       </nav>
 
-      <div className={cn("space-y-1 border-t border-border p-3", collapsed && "px-2")}>
+      <div className={cn("space-y-1 border-t border-border p-2.5", collapsed && "px-2")}>
         {!collapsed ? (
           <div className="px-3 pb-1">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -362,7 +362,7 @@ function SidebarContent({
             </p>
           </div>
         ) : null}
-        <div className={cn("flex items-center gap-3 rounded-md px-3 py-1", collapsed && "justify-center px-2")}>
+        <div className={cn("flex items-center gap-2.5 rounded-md px-3 py-1", collapsed && "justify-center px-2")}>
           <ThemeToggleSimple />
           {!collapsed ? <span className="text-sm text-muted-foreground">Theme</span> : null}
         </div>
@@ -371,11 +371,11 @@ function SidebarContent({
           href="/workspace/notifications"
           onClick={onNavigate}
           className={cn(
-            "flex items-center rounded-xl text-sm font-medium text-muted-foreground no-underline transition-all duration-200 hover:bg-secondary/80 hover:text-foreground",
-            collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-3",
+            "flex items-center rounded-lg text-sm font-medium text-muted-foreground no-underline transition-all duration-200 hover:bg-secondary/80 hover:text-foreground",
+            collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2.5",
           )}
         >
-          <Bell className="h-5 w-5 shrink-0" />
+          <Bell className="h-[18px] w-[18px] shrink-0" />
           {!collapsed ? <span>Notifications</span> : null}
         </Link>
 
@@ -383,8 +383,8 @@ function SidebarContent({
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "flex w-full items-center rounded-xl text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-secondary/80 hover:text-foreground",
-                collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-3",
+                "flex w-full items-center rounded-lg text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-secondary/80 hover:text-foreground",
+                collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2.5",
               )}
             >
               <Avatar className="h-7 w-7 border border-border">
@@ -445,7 +445,7 @@ function SidebarContent({
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-full rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground"
+              className="h-9 w-full rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
               onClick={() => setCollapsed(false)}
             >
               <PanelLeftOpen className="h-4 w-4" />
@@ -465,8 +465,8 @@ function PwaUpdateBanner({
   if (!visible) return null;
 
   return (
-    <div className="mx-auto max-w-[1600px] px-6 pt-6 lg:px-8 lg:pt-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,rgba(8,8,8,0.96),rgba(24,24,24,0.94))] p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+    <div className="mx-auto max-w-[1600px] px-5 pt-5 lg:px-6 lg:pt-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-primary/20 bg-[linear-gradient(135deg,rgba(8,8,8,0.96),rgba(24,24,24,0.94))] p-3.5 text-white shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
         <div className="min-w-0">
           <p className="text-sm font-semibold">Update available</p>
           <p className="mt-1 text-sm text-white/70">
@@ -478,7 +478,7 @@ function PwaUpdateBanner({
           onClick={() => {
             window.dispatchEvent(new CustomEvent("kasitek:apply-pwa-update"));
           }}
-          className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-[13px] font-semibold text-primary-foreground transition hover:bg-primary/90"
         >
           <Download className="h-4 w-4" />
           Update now
@@ -536,7 +536,7 @@ export function LayoutShell({
               />
             </aside>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
-            <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
+            <div className="fixed inset-x-0 top-0 z-40 flex h-13 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
               <div className="flex min-w-0 items-center gap-2">
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
@@ -568,7 +568,7 @@ export function LayoutShell({
               />
             </SheetContent>
           </Sheet>
-          <main className="flex-1 overflow-auto pt-14 lg:pt-0">
+          <main className="flex-1 overflow-auto pt-13 lg:pt-0">
             <PwaUpdateBanner visible={hasPwaUpdate} />
             <PushNotificationReminder />
             {children}
