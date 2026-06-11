@@ -4,7 +4,6 @@ import { getRustSession } from "@/lib/rust-auth";
 
 export default async function Navbar() {
   const session = await getRustSession();
-  const loginEnabled = process.env.NODE_ENV !== "production";
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-bg/82 backdrop-blur-xl">
@@ -39,11 +38,11 @@ export default async function Navbar() {
               </Link>
               <SignOutButton />
             </>
-          ) : loginEnabled ? (
+          ) : (
             <Link href="/login" className="text-sm text-text-muted transition hover:text-text">
               Log In
             </Link>
-          ) : null}
+          )}
         </div>
       </div>
     </nav>
