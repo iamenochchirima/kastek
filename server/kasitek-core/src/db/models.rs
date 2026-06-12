@@ -1225,6 +1225,8 @@ pub struct BotCreateRequest {
     pub name: Option<String>,
     #[serde(rename = "type")]
     pub bot_type: Option<String>,
+    #[serde(rename = "autoProvision")]
+    pub auto_provision: Option<bool>,
     pub language: Option<String>,
     #[serde(rename = "greetingMessage")]
     pub greeting_message: Option<String>,

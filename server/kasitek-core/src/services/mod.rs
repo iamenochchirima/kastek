@@ -1,7 +1,8 @@
+pub mod agents;
 pub mod ai;
 pub mod auth;
 pub mod bots;
-pub mod n8n;
+pub mod inbox;
 pub mod notifications;
 pub mod orgs;
 pub mod public;

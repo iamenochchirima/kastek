@@ -9,10 +9,11 @@ use crate::db::models::{
     BotEventCreateRequest,
 };
 use crate::error::AppError;
-use crate::services::n8n::{
-    channel_config, dispatch_provisioner_action, template_definition, ProvisionerCallbacks,
-    ProvisionerDispatchPayload,
+use crate::services::agents::provisioning::{
+    callbacks as agent_callbacks, channel_config, execute as execute_agent_action,
+    template_definition,
 };
+use crate::services::agents::types::AgentDispatchPayload;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct BotListRow {
@@ -103,6 +104,38 @@ fn valid_bot_type(bot_type: &str) -> bool {
             | "booking_agent"
             | "lead_qualification_agent"
     )
+}
+
+pub fn should_auto_provision(input: &BotCreateRequest) -> bool {
+    if input.auto_provision.unwrap_or(false) {
+        return true;
+    }
+
+    let managed_launch = input
+        .integration_config
+        .as_ref()
+        .and_then(|value| value.get("launchMode"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        == Some("managed");
+
+    let managed_business = input
+        .business_details
+        .as_ref()
+        .and_then(|value| value.get("launchMode"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        == Some("managed");
+
+    let managed_capabilities = input
+        .capabilities
+        .as_ref()
+        .and_then(|value| value.get("deploymentMode"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        == Some("managed");
+
+    managed_launch || managed_business || managed_capabilities
 }
 
 pub async fn list_bots(pool: &PgPool, user_id: &str) -> Result<Vec<BotListRow>, AppError> {
@@ -278,13 +311,14 @@ pub async fn execute_bot_action(
             .execute(pool)
             .await?;
 
-            let dispatch = dispatch_provisioner_action(
+            let dispatch = execute_agent_action(
                 config,
-                &ProvisionerDispatchPayload {
+                AgentDispatchPayload {
                     action: "provision".to_string(),
                     bot_id: bot.id.clone(),
                     user_id: bot.user_id.clone(),
                     deployment_id: deployment_id.clone(),
+                    workflow_id: None,
                     version_number: next_version,
                     name: bot.name.clone(),
                     bot_type: bot.bot_type.clone(),
@@ -296,24 +330,55 @@ pub async fn execute_bot_action(
                     knowledge_base: bot.knowledge_base.clone(),
                     integration_config: bot.integration_config.clone(),
                     template: template_definition(&bot.bot_type, bot.integration_config.as_ref()),
-                    callbacks: ProvisionerCallbacks {
-                        deployment_callback_url: format!(
-                            "{}/api/bots/{}/deployments/{}/callback",
-                            config.public_api_url.trim_end_matches('/'),
-                            bot.id,
-                            deployment_id
-                        ),
-                        runtime_event_url: format!(
-                            "{}/api/bots/{}/events",
-                            config.public_api_url.trim_end_matches('/'),
-                            bot.id
-                        ),
-                        auth_token: config.n8n_provisioner_token.clone(),
-                    },
+                    callbacks: agent_callbacks(config, &bot.id, &deployment_id),
                     channel_config: channel_config(&bot.bot_type, bot.integration_config.as_ref()),
                 },
             )
-            .await?;
+            .await
+            .map_err(|error| {
+                let message = error.to_string();
+                log::warn!(
+                    "bot provisioning dispatch failed for user_id={} bot_id={} deployment_id={}: {}",
+                    user_id,
+                    bot_id,
+                    deployment_id,
+                    message
+                );
+                error
+            });
+
+            let dispatch = match dispatch {
+                Ok(result) => result,
+                Err(error) => {
+                    sqlx::query(
+                        r#"
+                        UPDATE "BotDeployment"
+                        SET status = 'error',
+                            "errorMessage" = $1,
+                            "updatedAt" = NOW()
+                        WHERE id = $2
+                        "#,
+                    )
+                    .bind(error.to_string())
+                    .bind(&deployment_id)
+                    .execute(pool)
+                    .await?;
+
+                    sqlx::query(
+                        r#"
+                        UPDATE "BotConfiguration"
+                        SET status = 'error', "updatedAt" = NOW()
+                        WHERE id = $1 AND "userId" = $2
+                        "#,
+                    )
+                    .bind(bot_id)
+                    .bind(user_id)
+                    .execute(pool)
+                    .await?;
+
+                    return Err(error);
+                }
+            };
 
             match dispatch {
                 Some(result) => {
@@ -388,24 +453,32 @@ pub async fn execute_bot_action(
             }
         }
         "pause" | "resume" => {
-            let (deployment_id, current_status, workflow_id, version_number) = latest_bot_deployment_status(pool, bot_id)
-                .await?
-                .ok_or_else(|| AppError::Conflict("This agent has no deployment to manage".to_string()))?;
+            let (deployment_id, current_status, workflow_id, version_number) =
+                latest_bot_deployment_status(pool, bot_id)
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::Conflict("This agent has no deployment to manage".to_string())
+                    })?;
 
             if action == "pause" && current_status != "active" {
-                return Err(AppError::Conflict("Only active deployments can be paused".to_string()));
+                return Err(AppError::Conflict(
+                    "Only active deployments can be paused".to_string(),
+                ));
             }
             if action == "resume" && current_status != "paused" {
-                return Err(AppError::Conflict("Only paused deployments can be resumed".to_string()));
+                return Err(AppError::Conflict(
+                    "Only paused deployments can be resumed".to_string(),
+                ));
             }
 
-            let dispatch = dispatch_provisioner_action(
+            let dispatch = execute_agent_action(
                 config,
-                &ProvisionerDispatchPayload {
+                AgentDispatchPayload {
                     action: action.to_string(),
                     bot_id: bot.id.clone(),
                     user_id: bot.user_id.clone(),
                     deployment_id: deployment_id.clone(),
+                    workflow_id: workflow_id.clone(),
                     version_number,
                     name: bot.name.clone(),
                     bot_type: bot.bot_type.clone(),
@@ -417,26 +490,17 @@ pub async fn execute_bot_action(
                     knowledge_base: bot.knowledge_base.clone(),
                     integration_config: bot.integration_config.clone(),
                     template: template_definition(&bot.bot_type, bot.integration_config.as_ref()),
-                    callbacks: ProvisionerCallbacks {
-                        deployment_callback_url: format!(
-                            "{}/api/bots/{}/deployments/{}/callback",
-                            config.public_api_url.trim_end_matches('/'),
-                            bot.id,
-                            deployment_id
-                        ),
-                        runtime_event_url: format!(
-                            "{}/api/bots/{}/events",
-                            config.public_api_url.trim_end_matches('/'),
-                            bot.id
-                        ),
-                        auth_token: config.n8n_provisioner_token.clone(),
-                    },
+                    callbacks: agent_callbacks(config, &bot.id, &deployment_id),
                     channel_config: channel_config(&bot.bot_type, bot.integration_config.as_ref()),
                 },
             )
             .await?;
 
-            let next_status = if action == "pause" { "paused" } else { "active" };
+            let next_status = if action == "pause" {
+                "paused"
+            } else {
+                "active"
+            };
             sqlx::query(
                 r#"
                 UPDATE "BotDeployment"
@@ -453,7 +517,7 @@ pub async fn execute_bot_action(
             .bind(next_status)
             .bind(workflow_id)
             .bind(dispatch.and_then(|item| item.payload))
-            .bind(config.n8n_provisioner_url.is_none())
+            .bind(config.n8n_api_url.is_none())
             .bind(bot_id)
             .bind(version_number)
             .execute(pool)
@@ -563,9 +627,7 @@ pub async fn create_bot(
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("Name and type are required".to_string()))?;
     if !valid_bot_type(bot_type) {
-        return Err(AppError::BadRequest(
-            "Unsupported agent type".to_string(),
-        ));
+        return Err(AppError::BadRequest("Unsupported agent type".to_string()));
     }
     let id = cuid2::create_id();
     sqlx::query(

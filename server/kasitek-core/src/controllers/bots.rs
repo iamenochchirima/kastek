@@ -12,11 +12,46 @@ use crate::services::bots;
 
 pub async fn create(
     pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
     req: HttpRequest,
     body: web::Json<BotCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let bot = bots::create_bot(pool.get_ref(), &user.id, body.into_inner()).await?;
+    let input = body.into_inner();
+    let auto_provision = bots::should_auto_provision(&input);
+    let bot = bots::create_bot(pool.get_ref(), &user.id, input).await?;
+
+    if auto_provision {
+        match bots::execute_bot_action(
+            pool.get_ref(),
+            config.get_ref(),
+            &user.id,
+            &bot.id,
+            BotActionRequest {
+                action: Some("provision".to_string()),
+            },
+        )
+        .await
+        {
+            Ok(provisioned_bot) => {
+                return Ok(HttpResponse::Created()
+                    .json(serde_json::json!({ "bot": bot, "provisionedBot": provisioned_bot })));
+            }
+            Err(error) => {
+                log::warn!(
+                    "automatic provisioning failed after bot creation for user_id={} bot_id={}: {}",
+                    user.id,
+                    bot.id,
+                    error
+                );
+                return Ok(HttpResponse::Created().json(serde_json::json!({
+                    "bot": bot,
+                    "provisioningError": error.to_string(),
+                })));
+            }
+        }
+    }
+
     Ok(HttpResponse::Created().json(serde_json::json!({ "bot": bot })))
 }
 
@@ -78,9 +113,14 @@ pub async fn action(
     body: web::Json<BotActionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let bot =
-        bots::execute_bot_action(pool.get_ref(), config.get_ref(), &user.id, &path, body.into_inner())
-            .await?;
+    let bot = bots::execute_bot_action(
+        pool.get_ref(),
+        config.get_ref(),
+        &user.id,
+        &path,
+        body.into_inner(),
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "bot": bot })))
 }
 
@@ -92,7 +132,7 @@ pub async fn deployment_callback(
     body: web::Json<BotDeploymentCallbackRequest>,
 ) -> Result<HttpResponse, AppError> {
     let expected_token = config
-        .n8n_provisioner_token
+        .n8n_callback_token
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -125,7 +165,7 @@ pub async fn create_event_trusted(
     body: web::Json<BotEventCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let expected_token = config
-        .n8n_provisioner_token
+        .n8n_callback_token
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
