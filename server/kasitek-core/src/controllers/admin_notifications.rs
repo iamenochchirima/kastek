@@ -68,7 +68,8 @@ pub async fn list_notifications(
 
     let where_clause = format!("WHERE {}", conditions.join(" AND "));
 
-    let sql = format!(r#"
+    let sql = format!(
+        r#"
         SELECT
             n.id, n."eventId", n."recipientType", n."recipientId",
             n.channel, n.status,
@@ -82,7 +83,8 @@ pub async fn list_notifications(
         {where_clause}
         ORDER BY n."createdAt" DESC
         LIMIT {limit}
-    "#);
+    "#
+    );
 
     let notifications = sqlx::query_as::<_, NotificationRow>(&sql)
         .fetch_all(pool.get_ref())

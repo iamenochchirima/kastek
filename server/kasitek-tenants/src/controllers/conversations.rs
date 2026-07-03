@@ -32,7 +32,13 @@ pub async fn list_conversations(req: HttpRequest) -> Result<HttpResponse, AppErr
     if access.tenant_user_id.is_some() {
         middleware::require_tenant_roles(
             &access.tenant_user_roles,
-            &["owner", "admin", "account_manager", "support", "sales_manager"],
+            &[
+                "owner",
+                "admin",
+                "account_manager",
+                "support",
+                "sales_manager",
+            ],
         )?;
     }
     let pool = middleware::db_pool(&req)?;
@@ -73,7 +79,13 @@ pub async fn get_conversation(
     if access.tenant_user_id.is_some() {
         middleware::require_tenant_roles(
             &access.tenant_user_roles,
-            &["owner", "admin", "account_manager", "support", "sales_manager"],
+            &[
+                "owner",
+                "admin",
+                "account_manager",
+                "support",
+                "sales_manager",
+            ],
         )?;
     }
     let pool = middleware::db_pool(&req)?;
@@ -117,7 +129,13 @@ pub async fn list_messages(
     if access.tenant_user_id.is_some() {
         middleware::require_tenant_roles(
             &access.tenant_user_roles,
-            &["owner", "admin", "account_manager", "support", "sales_manager"],
+            &[
+                "owner",
+                "admin",
+                "account_manager",
+                "support",
+                "sales_manager",
+            ],
         )?;
     }
     let pool = middleware::db_pool(&req)?;

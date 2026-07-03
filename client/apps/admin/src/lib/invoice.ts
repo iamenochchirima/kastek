@@ -38,6 +38,10 @@ export type InvoiceDraft = {
   id?: string;
   quoteRequestId?: string;
   serviceType: string;
+  billingMode: "one_off" | "monthly";
+  recurringActive: boolean;
+  billingAnchorDay: string;
+  reminderDaysAfterDue: string;
   preparedFor: string;
   contactPerson: string;
   contactEmail: string;
@@ -72,6 +76,11 @@ export const INVOICE_SERVICE_TYPES = [
   { value: "voice_agent", label: "Voice Agent" },
   { value: "custom_ai", label: "Custom AI Solution" },
 ];
+
+export const INVOICE_BILLING_MODES = [
+  { value: "one_off", label: "One-off invoice" },
+  { value: "monthly", label: "Monthly recurring client" },
+] as const;
 
 const COLORS = {
   ink: "#111111",
@@ -435,6 +444,10 @@ export function getTemplateDraft(serviceType: string, lead?: Partial<QuoteLead>)
     id: undefined,
     quoteRequestId: lead?.id,
     serviceType,
+    billingMode: "one_off",
+    recurringActive: false,
+    billingAnchorDay: String(new Date().getDate()),
+    reminderDaysAfterDue: "3",
     preparedFor: businessName,
     contactPerson: lead?.contactPerson || "",
     contactEmail: lead?.email || "",
@@ -688,6 +701,10 @@ export function invoiceRecordToDraft(record: {
   contactPhone: string;
   date: Date | string;
   serviceType: string;
+  billingMode?: string | null;
+  recurringActive?: boolean | null;
+  billingAnchorDay?: number | null;
+  reminderDaysAfterDue?: number | null;
   title: string;
   introduction: string | null;
   scopeOfWork: unknown;
@@ -717,6 +734,10 @@ export function invoiceRecordToDraft(record: {
     id: record.id,
     quoteRequestId: record.quoteRequestId ?? undefined,
     serviceType: record.serviceType,
+    billingMode: record.billingMode === "monthly" ? "monthly" : "one_off",
+    recurringActive: Boolean(record.recurringActive),
+    billingAnchorDay: record.billingAnchorDay ? String(record.billingAnchorDay) : String(date.getUTCDate()),
+    reminderDaysAfterDue: String(record.reminderDaysAfterDue ?? 3),
     preparedFor: record.businessName,
     contactPerson: record.contactPerson,
     contactEmail: record.contactEmail,

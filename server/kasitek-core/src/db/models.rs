@@ -171,6 +171,18 @@ pub struct ChangePasswordRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct AdminForgotPasswordRequest {
+    pub email: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AdminResetPasswordRequest {
+    pub email: Option<String>,
+    pub token: Option<String>,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct NotificationListQuery {
     pub limit: Option<i64>,
     pub cursor: Option<String>,

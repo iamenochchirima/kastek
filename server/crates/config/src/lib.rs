@@ -148,7 +148,13 @@ impl TenantServerConfig {
                     .trim()
                     .trim_start_matches("http://")
                     .trim_start_matches("https://");
-                let host = trimmed.split('/').next().unwrap_or("").split(':').next().unwrap_or("");
+                let host = trimmed
+                    .split('/')
+                    .next()
+                    .unwrap_or("")
+                    .split(':')
+                    .next()
+                    .unwrap_or("");
                 if host.is_empty() {
                     None
                 } else {
@@ -202,11 +208,10 @@ impl TenantServerConfig {
         let resend_from_email = env_optional("TENANT_RESEND_FROM_EMAIL")
             .or_else(|| env_optional("RESEND_FROM_EMAIL"))
             .unwrap_or_else(|| "KasiTek <onboarding@resend.dev>".to_string());
-        let shared_email_domain =
-            env_string_or("TENANT_SHARED_EMAIL_DOMAIN", "send.kasitek.co.za")
-                .trim()
-                .trim_matches('.')
-                .to_ascii_lowercase();
+        let shared_email_domain = env_string_or("TENANT_SHARED_EMAIL_DOMAIN", "send.kasitek.co.za")
+            .trim()
+            .trim_matches('.')
+            .to_ascii_lowercase();
 
         Ok(Self {
             port,

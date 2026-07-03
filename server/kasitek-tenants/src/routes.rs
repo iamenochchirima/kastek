@@ -17,10 +17,19 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/login", web::post().to(auth::login))
                 .route("/logout", web::post().to(auth::logout))
                 .route("/me", web::get().to(auth::me))
-                .route("/admin-invite", web::get().to(admin_invites::get_admin_invite))
-                .route("/accept-admin-invite", web::post().to(admin_invites::accept_admin_invite))
+                .route(
+                    "/admin-invite",
+                    web::get().to(admin_invites::get_admin_invite),
+                )
+                .route(
+                    "/accept-admin-invite",
+                    web::post().to(admin_invites::accept_admin_invite),
+                )
                 .route("/session", web::get().to(session::get))
-                .route("/session/continue", web::post().to(session::continue_with_email))
+                .route(
+                    "/session/continue",
+                    web::post().to(session::continue_with_email),
+                )
                 .route("/session/login", web::post().to(session::login))
                 .route("/session/logout", web::post().to(session::logout)),
         )
@@ -56,15 +65,36 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/branding", web::get().to(workspace::get_branding))
                 .route("/staff", web::get().to(workspace::list_workspace_staff))
                 .route("/staff", web::post().to(workspace::add_workspace_staff))
-                .route("/staff/{user_id}", web::delete().to(workspace::remove_workspace_staff))
+                .route(
+                    "/staff/{user_id}",
+                    web::delete().to(workspace::remove_workspace_staff),
+                )
                 .route("/domains", web::get().to(workspace::list_workspace_domains))
                 .route("/domains", web::post().to(workspace::add_workspace_domain))
-                .route("/domains/{domain_id}", web::delete().to(workspace::remove_workspace_domain))
-                .route("/domains/{domain_id}/verify", web::post().to(workspace::verify_workspace_domain))
-                .route("/domains/{domain_id}/primary", web::post().to(workspace::set_workspace_primary_domain))
-                .route("/email-sending", web::get().to(email_settings::get_email_settings))
-                .route("/email-sending", web::put().to(email_settings::update_email_settings))
-                .route("/email-sending/domains", web::post().to(email_settings::create_custom_email_domain))
+                .route(
+                    "/domains/{domain_id}",
+                    web::delete().to(workspace::remove_workspace_domain),
+                )
+                .route(
+                    "/domains/{domain_id}/verify",
+                    web::post().to(workspace::verify_workspace_domain),
+                )
+                .route(
+                    "/domains/{domain_id}/primary",
+                    web::post().to(workspace::set_workspace_primary_domain),
+                )
+                .route(
+                    "/email-sending",
+                    web::get().to(email_settings::get_email_settings),
+                )
+                .route(
+                    "/email-sending",
+                    web::put().to(email_settings::update_email_settings),
+                )
+                .route(
+                    "/email-sending/domains",
+                    web::post().to(email_settings::create_custom_email_domain),
+                )
                 .route(
                     "/email-sending/domains/{domain_id}/verify",
                     web::post().to(email_settings::verify_custom_email_domain),
@@ -73,7 +103,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     "/email-sending/domains/{domain_id}",
                     web::delete().to(email_settings::remove_custom_email_domain),
                 )
-                .route("/email-sending/test", web::post().to(email_settings::send_test_email)),
+                .route(
+                    "/email-sending/test",
+                    web::post().to(email_settings::send_test_email),
+                ),
         )
         .service(
             web::scope("/api/clients")
@@ -115,17 +148,53 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/workspaces", web::post().to(admin::create_workspace))
                 .route("/workspaces/{id}", web::get().to(admin::get_workspace))
                 .route("/workspaces/{id}", web::patch().to(admin::update_workspace))
-                .route("/workspaces/{id}/staff", web::get().to(admin::list_workspace_staff))
-                .route("/workspaces/{id}/staff", web::post().to(admin::add_workspace_staff))
-                .route("/workspaces/{id}/staff/{user_id}", web::delete().to(admin::remove_workspace_staff))
-                .route("/workspaces/{id}/clients", web::get().to(admin::list_workspace_clients))
-                .route("/workspaces/{id}/domains", web::get().to(admin::list_workspace_domains))
-                .route("/workspaces/{id}/domains", web::post().to(admin::add_workspace_domain))
-                .route("/workspaces/{id}/domains/{domain_id}", web::delete().to(admin::remove_workspace_domain))
-                .route("/workspaces/{id}/domains/{domain_id}/verify", web::post().to(admin::verify_workspace_domain))
-                .route("/workspaces/{id}/domains/{domain_id}/primary", web::post().to(admin::set_workspace_primary_domain))
-                .route("/workspaces/{id}/api-keys", web::get().to(admin::list_workspace_api_keys))
-                .route("/workspaces/{id}/api-keys", web::post().to(admin::create_workspace_api_key))
-                .route("/workspaces/{id}/api-keys/{key_id}", web::delete().to(admin::revoke_workspace_api_key)),
+                .route(
+                    "/workspaces/{id}/staff",
+                    web::get().to(admin::list_workspace_staff),
+                )
+                .route(
+                    "/workspaces/{id}/staff",
+                    web::post().to(admin::add_workspace_staff),
+                )
+                .route(
+                    "/workspaces/{id}/staff/{user_id}",
+                    web::delete().to(admin::remove_workspace_staff),
+                )
+                .route(
+                    "/workspaces/{id}/clients",
+                    web::get().to(admin::list_workspace_clients),
+                )
+                .route(
+                    "/workspaces/{id}/domains",
+                    web::get().to(admin::list_workspace_domains),
+                )
+                .route(
+                    "/workspaces/{id}/domains",
+                    web::post().to(admin::add_workspace_domain),
+                )
+                .route(
+                    "/workspaces/{id}/domains/{domain_id}",
+                    web::delete().to(admin::remove_workspace_domain),
+                )
+                .route(
+                    "/workspaces/{id}/domains/{domain_id}/verify",
+                    web::post().to(admin::verify_workspace_domain),
+                )
+                .route(
+                    "/workspaces/{id}/domains/{domain_id}/primary",
+                    web::post().to(admin::set_workspace_primary_domain),
+                )
+                .route(
+                    "/workspaces/{id}/api-keys",
+                    web::get().to(admin::list_workspace_api_keys),
+                )
+                .route(
+                    "/workspaces/{id}/api-keys",
+                    web::post().to(admin::create_workspace_api_key),
+                )
+                .route(
+                    "/workspaces/{id}/api-keys/{key_id}",
+                    web::delete().to(admin::revoke_workspace_api_key),
+                ),
         );
 }

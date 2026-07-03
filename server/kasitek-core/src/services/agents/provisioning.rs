@@ -81,7 +81,53 @@ pub fn channel_config(bot_type: &str, integration_config: Option<&Value>) -> Val
     }
 }
 
+fn derive_n8n_base_url(api_url: &str) -> String {
+    api_url
+        .trim_end_matches('/')
+        .trim_end_matches("/api/v1")
+        .trim_end_matches("/api")
+        .to_string()
+}
+
+fn attach_ingress_urls(config: &AppConfig, payload: &mut Value) {
+    let Some(api_url) = config
+        .n8n_api_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+
+    let Some(deployment) = payload
+        .get_mut("deployment")
+        .and_then(|value| value.as_object_mut())
+    else {
+        return;
+    };
+    let Some(ingress) = deployment
+        .get_mut("ingress")
+        .and_then(|value| value.as_object_mut())
+    else {
+        return;
+    };
+    let Some(path) = ingress.get("path").and_then(|value| value.as_str()) else {
+        return;
+    };
+
+    let public_base = derive_n8n_base_url(api_url);
+    ingress.insert(
+        "url".to_string(),
+        Value::String(format!(
+            "{}/webhook/{}",
+            public_base.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        )),
+    );
+}
+
 async fn provision(
+    config: &AppConfig,
     client: &N8nClient,
     payload: AgentDispatchPayload,
 ) -> Result<AgentDispatchResult, AppError> {
@@ -92,17 +138,20 @@ async fn provision(
     })?;
     let activated = client.activate_workflow(&workflow_id).await?;
 
+    let mut response_payload = json!({
+        "created": created,
+        "activated": activated,
+        "templateKey": payload.template.key,
+        "workflowTemplate": payload.template.workflow_template,
+        "deployment": built.deployment_payload,
+    });
+    attach_ingress_urls(config, &mut response_payload);
+
     Ok(AgentDispatchResult {
         workflow_id: Some(workflow_id),
         status: Some("active".to_string()),
         message: Some("Workflow provisioned and activated".to_string()),
-        payload: Some(json!({
-            "created": created,
-            "activated": activated,
-            "templateKey": payload.template.key,
-            "workflowTemplate": payload.template.workflow_template,
-            "deployment": built.deployment_payload,
-        })),
+        payload: Some(response_payload),
     })
 }
 
@@ -158,7 +207,7 @@ pub async fn execute(
     );
 
     let result = match payload.action.as_str() {
-        "provision" => provision(&client, payload).await?,
+        "provision" => provision(config, &client, payload).await?,
         "pause" => pause_or_resume(&client, payload, false).await?,
         "resume" => pause_or_resume(&client, payload, true).await?,
         other => return Err(AppError::BadRequest(format!("Unsupported action: {other}"))),

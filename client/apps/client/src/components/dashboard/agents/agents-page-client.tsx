@@ -51,7 +51,35 @@ export type AgentListItem = {
   workflowId?: string | null;
   deploymentVersion?: number | null;
   deploymentError?: string | null;
+  deploymentPayload?: {
+    deployment?: {
+      ingress?: {
+        path?: string;
+        mode?: string;
+        expects?: unknown;
+        url?: string;
+      };
+      reply?: {
+        mode?: string;
+        configured?: boolean;
+        missingRequirements?: string[] | null;
+      };
+      runtimeEvents?: string[];
+      widget?: {
+        kind?: string;
+        notes?: string;
+      };
+    };
+  } | null;
   deployedAt?: string | null;
+};
+
+export type WhatsappConnectionOption = {
+  id: string;
+  phoneNumberId: string;
+  phoneDisplayNumber?: string | null;
+  verified: boolean;
+  currentQualityRating: string;
 };
 
 type AgentTemplate = {
@@ -147,16 +175,24 @@ function statusClass(status: string) {
   }
 }
 
-export function AgentsPageClient({ initialAgents }: { initialAgents: AgentListItem[] }) {
+export function AgentsPageClient({
+  initialAgents,
+  whatsappConnections,
+}: {
+  initialAgents: AgentListItem[];
+  whatsappConnections: WhatsappConnectionOption[];
+}) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [templateKey, setTemplateKey] = useState(templates[0].value);
+  const [whatsappConnectionId, setWhatsappConnectionId] = useState("");
   const [greetingMessage, setGreetingMessage] = useState("");
   const [instructions, setInstructions] = useState("");
   const [loading, setLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const stats = useMemo(() => {
@@ -168,6 +204,7 @@ export function AgentsPageClient({ initialAgents }: { initialAgents: AgentListIt
   }, [initialAgents]);
 
   const selectedTemplate = templates.find((item) => item.value === templateKey) ?? templates[0];
+  const requiresWhatsappConnection = selectedTemplate.value === "whatsapp_agent";
 
   function openCreateModal() {
     setCreateOpen(true);
@@ -195,6 +232,7 @@ export function AgentsPageClient({ initialAgents }: { initialAgents: AgentListIt
         body: JSON.stringify({
           name,
           type: selectedTemplate.value,
+          autoProvision: true,
           greetingMessage: greetingMessage || undefined,
           personality: instructions || undefined,
           capabilities: {
@@ -211,6 +249,9 @@ export function AgentsPageClient({ initialAgents }: { initialAgents: AgentListIt
             deploymentTarget: "n8n",
             templateKey: selectedTemplate.value,
             launchMode: "managed",
+            ...(requiresWhatsappConnection && whatsappConnectionId
+              ? { whatsappConnectionId }
+              : {}),
           },
         }),
       });
@@ -221,6 +262,7 @@ export function AgentsPageClient({ initialAgents }: { initialAgents: AgentListIt
       }
 
       setName("");
+      setWhatsappConnectionId("");
       setGreetingMessage("");
       setInstructions("");
       closeCreateModal();
@@ -256,6 +298,18 @@ export function AgentsPageClient({ initialAgents }: { initialAgents: AgentListIt
       setError(err instanceof Error ? err.message : `Failed to ${action} agent`);
     } finally {
       setActionLoadingId(null);
+    }
+  }
+
+  async function copyText(key: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      window.setTimeout(() => {
+        setCopiedKey((current) => (current === key ? null : current));
+      }, 1800);
+    } catch {
+      setError("Failed to copy to clipboard");
     }
   }
 
@@ -304,8 +358,8 @@ export function AgentsPageClient({ initialAgents }: { initialAgents: AgentListIt
               <div className="max-w-2xl space-y-2">
                 <h2 className="text-xl font-semibold text-foreground">No agents yet</h2>
                 <p className="text-sm text-muted-foreground">
-                  Start with a managed WhatsApp, website, voice, or support agent. Create the
-                  control-plane record here, then provision and monitor it from KasiAgents.
+                  Start with a managed WhatsApp, website, voice, or support agent. KasiAgents
+                  creates the control-plane record and launches the underlying workflow for you.
                 </p>
               </div>
               <Button className="gap-2 sm:self-start" onClick={openCreateModal}>
@@ -383,6 +437,35 @@ export function AgentsPageClient({ initialAgents }: { initialAgents: AgentListIt
                       <span className="text-foreground">Deployment version:</span>{" "}
                       {agent.deploymentVersion ? `v${agent.deploymentVersion}` : "Not deployed"}
                     </p>
+                    {agent.deploymentPayload?.deployment?.ingress?.url ? (
+                      <p>
+                        <span className="text-foreground">Ingress URL:</span>{" "}
+                        <span className="break-all">{agent.deploymentPayload.deployment.ingress.url}</span>
+                      </p>
+                    ) : agent.deploymentPayload?.deployment?.ingress?.path ? (
+                      <p>
+                        <span className="text-foreground">Ingress path:</span>{" "}
+                        <span className="break-all">{agent.deploymentPayload.deployment.ingress.path}</span>
+                      </p>
+                    ) : null}
+                    {agent.deploymentPayload?.deployment?.reply?.mode ? (
+                      <p>
+                        <span className="text-foreground">Reply mode:</span>{" "}
+                        {agent.deploymentPayload.deployment.reply.mode}
+                      </p>
+                    ) : null}
+                    {agent.deploymentPayload?.deployment?.reply?.missingRequirements?.length ? (
+                      <p>
+                        <span className="text-foreground">Missing setup:</span>{" "}
+                        {agent.deploymentPayload.deployment.reply.missingRequirements.join(", ")}
+                      </p>
+                    ) : null}
+                    {agent.deploymentPayload?.deployment?.runtimeEvents?.length ? (
+                      <p>
+                        <span className="text-foreground">Runtime events:</span>{" "}
+                        {agent.deploymentPayload.deployment.runtimeEvents.join(", ")}
+                      </p>
+                    ) : null}
                     {agent.deploymentError ? (
                       <p>
                         <span className="text-foreground">Deployment note:</span>{" "}
@@ -390,6 +473,74 @@ export function AgentsPageClient({ initialAgents }: { initialAgents: AgentListIt
                       </p>
                     ) : null}
                   </div>
+
+                  {agent.type === "website_agent" && agent.deploymentPayload?.deployment?.ingress?.url ? (
+                    <div className="space-y-3 rounded-lg border border-border bg-secondary/40 p-4">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">Website widget webhook</p>
+                        <p className="text-xs text-muted-foreground">
+                          Point your website chat bridge or widget backend to this URL.
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-border bg-background/70 p-3">
+                        <code className="block break-all text-xs text-foreground">
+                          {agent.deploymentPayload.deployment.ingress.url}
+                        </code>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() =>
+                            copyText(
+                              `${agent.id}:webhook-url`,
+                              agent.deploymentPayload?.deployment?.ingress?.url ?? "",
+                            )
+                          }
+                        >
+                          {copiedKey === `${agent.id}:webhook-url` ? (
+                            <>
+                              <Check className="h-4 w-4" />
+                              Copied URL
+                            </>
+                          ) : (
+                            "Copy URL"
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() =>
+                            copyText(
+                              `${agent.id}:webhook-example`,
+                              `fetch("${agent.deploymentPayload?.deployment?.ingress?.url ?? ""}", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    message: "Hello",
+    visitorId: "visitor-123",
+    source: "website_widget",
+  }),
+});`,
+                            )
+                          }
+                        >
+                          {copiedKey === `${agent.id}:webhook-example` ? (
+                            <>
+                              <Check className="h-4 w-4" />
+                              Copied example
+                            </>
+                          ) : (
+                            "Copy Example"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="flex flex-wrap gap-3">
                     {!agent.deploymentStatus || agent.deploymentStatus === "error" ? (
@@ -446,6 +597,9 @@ export function AgentsPageClient({ initialAgents }: { initialAgents: AgentListIt
           setName={setName}
           templateKey={templateKey}
           setTemplateKey={setTemplateKey}
+          whatsappConnectionId={whatsappConnectionId}
+          setWhatsappConnectionId={setWhatsappConnectionId}
+          whatsappConnections={whatsappConnections}
           greetingMessage={greetingMessage}
           setGreetingMessage={setGreetingMessage}
           instructions={instructions}
@@ -467,6 +621,9 @@ function CreateAgentModal({
   setName,
   templateKey,
   setTemplateKey,
+  whatsappConnectionId,
+  setWhatsappConnectionId,
+  whatsappConnections,
   greetingMessage,
   setGreetingMessage,
   instructions,
@@ -482,6 +639,9 @@ function CreateAgentModal({
   setName: (value: string) => void;
   templateKey: string;
   setTemplateKey: (value: string) => void;
+  whatsappConnectionId: string;
+  setWhatsappConnectionId: (value: string) => void;
+  whatsappConnections: WhatsappConnectionOption[];
   greetingMessage: string;
   setGreetingMessage: (value: string) => void;
   instructions: string;
@@ -492,7 +652,14 @@ function CreateAgentModal({
   onSubmit: () => void;
 }) {
   const selectedTemplate = templates.find((item) => item.value === templateKey) ?? templates[0];
-  const canContinue = step === 1 ? name.trim().length > 0 : true;
+  const requiresWhatsappConnection = selectedTemplate.value === "whatsapp_agent";
+  const selectedWhatsappConnection = whatsappConnections.find(
+    (connection) => connection.id === whatsappConnectionId,
+  );
+  const canContinue =
+    step === 1
+      ? name.trim().length > 0 && (!requiresWhatsappConnection || whatsappConnectionId.length > 0)
+      : true;
 
   return (
     <div className="fixed inset-0 z-50">
@@ -569,6 +736,29 @@ function CreateAgentModal({
                 <div className="lg:col-span-2 rounded-xl border border-border bg-secondary/30 p-4">
                   <p className="text-sm text-muted-foreground">{selectedTemplate.description}</p>
                 </div>
+
+                {requiresWhatsappConnection ? (
+                  <div className="lg:col-span-2 space-y-2">
+                    <label className="text-sm font-medium text-foreground">WhatsApp Connection</label>
+                    <select
+                      value={whatsappConnectionId}
+                      onChange={(event) => setWhatsappConnectionId(event.target.value)}
+                      className="border-input bg-background text-foreground h-8 w-full rounded-md border px-3 text-sm outline-none"
+                    >
+                      <option value="">Select a connected WhatsApp number</option>
+                      {whatsappConnections.map((connection) => (
+                        <option key={connection.id} value={connection.id}>
+                          {(connection.phoneDisplayNumber || connection.phoneNumberId) +
+                            (connection.verified ? " · verified" : " · unverified")}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      The selected WhatsApp connection supplies the live number and token during
+                      provisioning. The token stays server-side.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -608,6 +798,15 @@ function CreateAgentModal({
                     <p>
                       <span className="text-foreground">Channel:</span> {selectedTemplate.channel}
                     </p>
+                    {requiresWhatsappConnection ? (
+                      <p>
+                        <span className="text-foreground">WhatsApp connection:</span>{" "}
+                        {selectedWhatsappConnection
+                          ? selectedWhatsappConnection.phoneDisplayNumber ||
+                            selectedWhatsappConnection.phoneNumberId
+                          : "Not selected"}
+                      </p>
+                    ) : null}
                     <p>
                       <span className="text-foreground">Greeting:</span>{" "}
                       {greetingMessage || "No greeting set"}
@@ -620,8 +819,8 @@ function CreateAgentModal({
                 </div>
 
                 <div className="rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm text-muted-foreground">
-                  This creates the managed control-plane record in KasiTek first. Provisioning into
-                  the hidden n8n layer happens after the agent exists.
+                  This creates the managed control-plane record in KasiTek and immediately starts
+                  the hidden n8n provisioning flow for this agent.
                 </div>
               </div>
             ) : null}

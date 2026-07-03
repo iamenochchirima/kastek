@@ -216,7 +216,10 @@ pub async fn accept_admin_invite(
         .await?
         .ok_or_else(|| AppError::NotFound("invite not found".to_string()))?;
 
-    if invite.accepted_at.is_some() || invite.revoked_at.is_some() || invite.expires_at <= Utc::now() {
+    if invite.accepted_at.is_some()
+        || invite.revoked_at.is_some()
+        || invite.expires_at <= Utc::now()
+    {
         return Err(AppError::BadRequest(
             "This invite is no longer valid".to_string(),
         ));

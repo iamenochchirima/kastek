@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  AtSign,
   CalendarRange,
   CheckCircle2,
   Clock3,
@@ -23,6 +24,7 @@ import {
 export type SocialPlatform =
   | "FACEBOOK"
   | "INSTAGRAM"
+  | "THREADS"
   | "LINKEDIN"
   | "X"
   | "WHATSAPP_STATUS";
@@ -37,6 +39,17 @@ export type SocialPublishJobStatus =
   | "FAILED"
   | "CANCELED";
 export type SocialVariantStatus = "DRAFT" | "APPROVED" | "NEEDS_EDITS";
+
+export type PlatformCapabilities = {
+  canPublish: boolean;
+  supportsManualPublish: boolean;
+  supportsMediaUpload: boolean;
+  supportsComments: boolean;
+  supportsDMs: boolean;
+  supportsAnalytics: boolean;
+  supportsInbox: boolean;
+  supportsVariants: boolean;
+};
 
 export type SocialChannelConnection = {
   id: string;
@@ -103,10 +116,74 @@ export type SocialPost = {
 export const SOCIAL_PLATFORM_ORDER: SocialPlatform[] = [
   "FACEBOOK",
   "INSTAGRAM",
+  "THREADS",
   "LINKEDIN",
   "X",
   "WHATSAPP_STATUS",
 ];
+
+const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
+  FACEBOOK: {
+    canPublish: true,
+    supportsManualPublish: true,
+    supportsMediaUpload: true,
+    supportsComments: true,
+    supportsDMs: true,
+    supportsAnalytics: true,
+    supportsInbox: true,
+    supportsVariants: true,
+  },
+  INSTAGRAM: {
+    canPublish: true,
+    supportsManualPublish: false,
+    supportsMediaUpload: true,
+    supportsComments: true,
+    supportsDMs: true,
+    supportsAnalytics: true,
+    supportsInbox: true,
+    supportsVariants: true,
+  },
+  THREADS: {
+    canPublish: true,
+    supportsManualPublish: false,
+    supportsMediaUpload: false,
+    supportsComments: false,
+    supportsDMs: false,
+    supportsAnalytics: false,
+    supportsInbox: false,
+    supportsVariants: true,
+  },
+  LINKEDIN: {
+    canPublish: true,
+    supportsManualPublish: true,
+    supportsMediaUpload: true,
+    supportsComments: false,
+    supportsDMs: false,
+    supportsAnalytics: true,
+    supportsInbox: false,
+    supportsVariants: true,
+  },
+  X: {
+    canPublish: true,
+    supportsManualPublish: true,
+    supportsMediaUpload: true,
+    supportsComments: true,
+    supportsDMs: false,
+    supportsAnalytics: true,
+    supportsInbox: false,
+    supportsVariants: true,
+  },
+  WHATSAPP_STATUS: {
+    canPublish: true,
+    supportsManualPublish: false,
+    supportsMediaUpload: true,
+    supportsComments: false,
+    supportsDMs: false,
+    supportsAnalytics: false,
+    supportsInbox: false,
+    supportsVariants: false,
+  },
+};
 
 export const SOCIAL_POST_STATUSES: SocialPostStatus[] = [
   "DRAFT",
@@ -119,6 +196,7 @@ export const SOCIAL_POST_STATUSES: SocialPostStatus[] = [
 export function getPlatformLabel(platform: SocialPlatform) {
   if (platform === "FACEBOOK") return "Facebook";
   if (platform === "INSTAGRAM") return "Instagram";
+  if (platform === "THREADS") return "Threads";
   if (platform === "LINKEDIN") return "LinkedIn";
   if (platform === "X") return "X";
   return "WhatsApp Status";
@@ -127,6 +205,7 @@ export function getPlatformLabel(platform: SocialPlatform) {
 export function getPlatformDescription(platform: SocialPlatform) {
   if (platform === "FACEBOOK") return "Community updates, offers, and local reach.";
   if (platform === "INSTAGRAM") return "Visual storytelling, reels, and product highlights.";
+  if (platform === "THREADS") return "Conversation-led updates, perspective posts, and brand voice.";
   if (platform === "LINKEDIN") return "Professional updates and authority content.";
   if (platform === "X") return "Fast-moving commentary, launches, and live updates.";
   return "Short-form reminders and high-visibility status content.";
@@ -135,6 +214,7 @@ export function getPlatformDescription(platform: SocialPlatform) {
 export function getPlatformIcon(platform: SocialPlatform): LucideIcon {
   if (platform === "FACEBOOK") return Facebook;
   if (platform === "INSTAGRAM") return Instagram;
+  if (platform === "THREADS") return AtSign;
   if (platform === "LINKEDIN") return Linkedin;
   if (platform === "X") return X;
   return MessageCircleMore;
@@ -143,9 +223,26 @@ export function getPlatformIcon(platform: SocialPlatform): LucideIcon {
 export function getPlatformTone(platform: SocialPlatform) {
   if (platform === "FACEBOOK") return "border-blue-500/30 bg-blue-500/10 text-blue-300";
   if (platform === "INSTAGRAM") return "border-pink-500/30 bg-pink-500/10 text-pink-300";
+  if (platform === "THREADS") return "border-zinc-400/30 bg-zinc-400/10 text-zinc-200";
   if (platform === "LINKEDIN") return "border-cyan-500/30 bg-cyan-500/10 text-cyan-300";
   if (platform === "X") return "border-slate-400/30 bg-slate-400/10 text-slate-200";
   return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+}
+
+export function getPlatformCapabilities(platform: SocialPlatform): PlatformCapabilities {
+  return PLATFORM_CAPABILITIES[platform];
+}
+
+export function getChannelCapabilities(channel: SocialChannelConnection): PlatformCapabilities {
+  const metadata = channel.metadata;
+  const raw = metadata && typeof metadata === "object" ? metadata.capabilities : null;
+  if (raw && typeof raw === "object") {
+    return {
+      ...PLATFORM_CAPABILITIES[channel.platform],
+      ...(raw as Partial<PlatformCapabilities>),
+    };
+  }
+  return PLATFORM_CAPABILITIES[channel.platform];
 }
 
 export function getChannelStatusMeta(status: SocialChannelStatus) {

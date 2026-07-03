@@ -1,8 +1,3 @@
-use chrono::{DateTime, Utc};
-use serde::Serialize;
-use serde_json::{json, Value};
-use sqlx::PgPool;
-
 use crate::config::AppConfig;
 use crate::db::models::{
     BotActionRequest, BotConfigurationRow, BotCreateRequest, BotDeploymentCallbackRequest,
@@ -14,6 +9,11 @@ use crate::services::agents::provisioning::{
     template_definition,
 };
 use crate::services::agents::types::AgentDispatchPayload;
+use crate::services::whatsapp;
+use chrono::{DateTime, Utc};
+use serde::Serialize;
+use serde_json::{json, Value};
+use sqlx::PgPool;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct BotListRow {
@@ -76,6 +76,9 @@ pub struct BotListRow {
     #[sqlx(rename = "deployment_error")]
     #[serde(rename = "deploymentError")]
     pub deployment_error: Option<String>,
+    #[sqlx(rename = "deployment_payload")]
+    #[serde(rename = "deploymentPayload")]
+    pub deployment_payload: Option<Value>,
     #[sqlx(rename = "deployed_at")]
     #[serde(rename = "deployedAt")]
     pub deployed_at: Option<DateTime<Utc>>,
@@ -166,6 +169,7 @@ pub async fn list_bots(pool: &PgPool, user_id: &str) -> Result<Vec<BotListRow>, 
             latest_deployment."workflowId" AS workflow_id,
             latest_deployment."versionNumber" AS deployment_version,
             latest_deployment."errorMessage" AS deployment_error,
+            latest_deployment."responsePayload" AS deployment_payload,
             latest_deployment."deployedAt" AS deployed_at
         FROM "BotConfiguration" b
         LEFT JOIN LATERAL (
@@ -186,6 +190,7 @@ pub async fn list_bots(pool: &PgPool, user_id: &str) -> Result<Vec<BotListRow>, 
                 d."workflowId",
                 d."versionNumber",
                 d."errorMessage",
+                d."responsePayload",
                 d."deployedAt"
             FROM "BotDeployment" d
             WHERE d."botId" = b.id
@@ -231,6 +236,64 @@ async fn latest_bot_deployment_status(
     .map_err(AppError::from)
 }
 
+async fn resolve_integration_config_for_dispatch(
+    pool: &PgPool,
+    user_id: &str,
+    bot_type: &str,
+    integration_config: Option<&Value>,
+) -> Result<Option<Value>, AppError> {
+    if bot_type != "whatsapp_agent" {
+        return Ok(integration_config.cloned());
+    }
+
+    let Some(base_config) = integration_config.cloned() else {
+        return Ok(None);
+    };
+
+    let connection_id = base_config
+        .get("whatsappConnectionId")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    let Some(connection_id) = connection_id else {
+        return Ok(Some(base_config));
+    };
+
+    let connection = whatsapp::get_connection_for_provisioning(pool, user_id, connection_id)
+        .await?
+        .ok_or_else(|| {
+            AppError::BadRequest("Selected WhatsApp connection was not found".to_string())
+        })?;
+
+    let mut object = match base_config {
+        Value::Object(map) => map,
+        _ => serde_json::Map::new(),
+    };
+
+    object.insert(
+        "whatsappConnectionId".to_string(),
+        Value::String(connection.id.clone()),
+    );
+    object.insert(
+        "phoneNumberId".to_string(),
+        Value::String(connection.phone_number_id.clone()),
+    );
+    object.insert(
+        "accessToken".to_string(),
+        Value::String(connection.access_token),
+    );
+    object.insert("wabaId".to_string(), Value::String(connection.waba_id));
+    if let Some(display_number) = connection.phone_display_number {
+        object.insert(
+            "phoneDisplayNumber".to_string(),
+            Value::String(display_number),
+        );
+    }
+
+    Ok(Some(Value::Object(object)))
+}
+
 pub async fn execute_bot_action(
     pool: &PgPool,
     config: &AppConfig,
@@ -242,6 +305,13 @@ pub async fn execute_bot_action(
     let bot = get_bot(pool, user_id, bot_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Bot not found".to_string()))?;
+    let resolved_integration_config = resolve_integration_config_for_dispatch(
+        pool,
+        user_id,
+        &bot.bot_type,
+        bot.integration_config.as_ref(),
+    )
+    .await?;
 
     let existing = latest_bot_deployment_status(pool, bot_id).await?;
 
@@ -265,7 +335,7 @@ pub async fn execute_bot_action(
                 "personality": bot.personality,
                 "capabilities": bot.capabilities,
                 "knowledgeBase": bot.knowledge_base,
-                "integrationConfig": bot.integration_config,
+                "integrationConfig": resolved_integration_config,
             });
 
             sqlx::query(
@@ -311,6 +381,7 @@ pub async fn execute_bot_action(
             .execute(pool)
             .await?;
 
+            let integration_config_for_dispatch = resolved_integration_config.clone();
             let dispatch = execute_agent_action(
                 config,
                 AgentDispatchPayload {
@@ -328,10 +399,10 @@ pub async fn execute_bot_action(
                     personality: bot.personality.clone(),
                     capabilities: bot.capabilities.clone(),
                     knowledge_base: bot.knowledge_base.clone(),
-                    integration_config: bot.integration_config.clone(),
-                    template: template_definition(&bot.bot_type, bot.integration_config.as_ref()),
+                    integration_config: integration_config_for_dispatch.clone(),
+                    template: template_definition(&bot.bot_type, integration_config_for_dispatch.as_ref()),
                     callbacks: agent_callbacks(config, &bot.id, &deployment_id),
-                    channel_config: channel_config(&bot.bot_type, bot.integration_config.as_ref()),
+                    channel_config: channel_config(&bot.bot_type, integration_config_for_dispatch.as_ref()),
                 },
             )
             .await
@@ -471,6 +542,7 @@ pub async fn execute_bot_action(
                 ));
             }
 
+            let integration_config_for_dispatch = resolved_integration_config.clone();
             let dispatch = execute_agent_action(
                 config,
                 AgentDispatchPayload {
@@ -488,10 +560,16 @@ pub async fn execute_bot_action(
                     personality: bot.personality.clone(),
                     capabilities: bot.capabilities.clone(),
                     knowledge_base: bot.knowledge_base.clone(),
-                    integration_config: bot.integration_config.clone(),
-                    template: template_definition(&bot.bot_type, bot.integration_config.as_ref()),
+                    integration_config: integration_config_for_dispatch.clone(),
+                    template: template_definition(
+                        &bot.bot_type,
+                        integration_config_for_dispatch.as_ref(),
+                    ),
                     callbacks: agent_callbacks(config, &bot.id, &deployment_id),
-                    channel_config: channel_config(&bot.bot_type, bot.integration_config.as_ref()),
+                    channel_config: channel_config(
+                        &bot.bot_type,
+                        integration_config_for_dispatch.as_ref(),
+                    ),
                 },
             )
             .await?;

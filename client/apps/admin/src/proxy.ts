@@ -5,7 +5,7 @@ const CORE_BACKEND_URL =
   process.env.CORE_BACKEND_URL ?? "http://localhost:4000";
 const ADMIN_SESSION_COOKIE = "kasitek_admin_session";
 
-const PUBLIC_PATHS = ["/login", "/api/"];
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/api/"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

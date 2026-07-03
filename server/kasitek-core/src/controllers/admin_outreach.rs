@@ -131,9 +131,15 @@ pub async fn update_campaign(
         };
     }
 
-    if body.name.is_some() { push_set!("name"); }
-    if body.category.is_some() { push_set!("category"); }
-    if body.status.is_some() { push_set!("status"); }
+    if body.name.is_some() {
+        push_set!("name");
+    }
+    if body.category.is_some() {
+        push_set!("category");
+    }
+    if body.status.is_some() {
+        push_set!("status");
+    }
 
     if sets.len() == 1 {
         return get_campaign(pool, req, web::Path::from(id)).await;
@@ -147,9 +153,15 @@ pub async fn update_campaign(
     );
 
     let mut q = sqlx::query_as::<_, CampaignRow>(&sql).bind(now);
-    if let Some(v) = &body.name { q = q.bind(v); }
-    if let Some(v) = &body.category { q = q.bind(v); }
-    if let Some(v) = &body.status { q = q.bind(v); }
+    if let Some(v) = &body.name {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.category {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.status {
+        q = q.bind(v);
+    }
     q = q.bind(&id);
 
     let campaign = q
@@ -340,7 +352,11 @@ pub async fn list_leads(
                 .map(|q| {
                     let q = q.to_lowercase();
                     l.business_name.to_lowercase().contains(&q)
-                        || l.website.as_deref().unwrap_or("").to_lowercase().contains(&q)
+                        || l.website
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&q)
                         || l.email_address
                             .as_deref()
                             .unwrap_or("")
@@ -379,14 +395,16 @@ pub async fn create_lead(
 
     let id = create_id();
 
-    sqlx::query(r#"
+    sqlx::query(
+        r#"
         INSERT INTO "OutreachLead" (
             id, "campaignId", "businessName", website, address, "bizbayUrl", category, phone,
             "emailStatus", "emailAddress", "emailTemplate", "followUpCount", notes,
             "createdAt", "updatedAt"
         )
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,0,$11,$12,$13)
-    "#)
+    "#,
+    )
     .bind(&id)
     .bind(&campaign_id)
     .bind(&body.business_name)
@@ -443,15 +461,33 @@ pub async fn update_lead(
         };
     }
 
-    if body.email_status.is_some() { push_set!(r#""emailStatus""#); }
-    if body.phone.is_some() { push_set!("phone"); }
-    if body.email_address.is_some() { push_set!(r#""emailAddress""#); }
-    if body.email_sent_at.is_some() { push_set!(r#""emailSentAt""#); }
-    if body.email_template.is_some() { push_set!(r#""emailTemplate""#); }
-    if body.follow_up_count.is_some() { push_set!(r#""followUpCount""#); }
-    if body.last_follow_up.is_some() { push_set!(r#""lastFollowUp""#); }
-    if body.next_follow_up.is_some() { push_set!(r#""nextFollowUp""#); }
-    if body.notes.is_some() { push_set!("notes"); }
+    if body.email_status.is_some() {
+        push_set!(r#""emailStatus""#);
+    }
+    if body.phone.is_some() {
+        push_set!("phone");
+    }
+    if body.email_address.is_some() {
+        push_set!(r#""emailAddress""#);
+    }
+    if body.email_sent_at.is_some() {
+        push_set!(r#""emailSentAt""#);
+    }
+    if body.email_template.is_some() {
+        push_set!(r#""emailTemplate""#);
+    }
+    if body.follow_up_count.is_some() {
+        push_set!(r#""followUpCount""#);
+    }
+    if body.last_follow_up.is_some() {
+        push_set!(r#""lastFollowUp""#);
+    }
+    if body.next_follow_up.is_some() {
+        push_set!(r#""nextFollowUp""#);
+    }
+    if body.notes.is_some() {
+        push_set!("notes");
+    }
 
     let where_idx = idx;
     let where_plus = idx + 1;
@@ -463,15 +499,25 @@ pub async fn update_lead(
     );
 
     let mut q = sqlx::query_as::<_, LeadRow>(&sql).bind(now);
-    if let Some(v) = &body.email_status { q = q.bind(v); }
-    if body.phone.is_some() { q = q.bind(body.phone.as_deref()); }
-    if body.email_address.is_some() { q = q.bind(body.email_address.as_deref()); }
+    if let Some(v) = &body.email_status {
+        q = q.bind(v);
+    }
+    if body.phone.is_some() {
+        q = q.bind(body.phone.as_deref());
+    }
+    if body.email_address.is_some() {
+        q = q.bind(body.email_address.as_deref());
+    }
     if let Some(v) = &body.email_sent_at {
         let dt: Option<DateTime<Utc>> = v.parse::<DateTime<Utc>>().ok();
         q = q.bind(dt);
     }
-    if body.email_template.is_some() { q = q.bind(body.email_template.as_deref()); }
-    if let Some(v) = body.follow_up_count { q = q.bind(v); }
+    if body.email_template.is_some() {
+        q = q.bind(body.email_template.as_deref());
+    }
+    if let Some(v) = body.follow_up_count {
+        q = q.bind(v);
+    }
     if let Some(v) = &body.last_follow_up {
         let dt: Option<DateTime<Utc>> = v.parse::<DateTime<Utc>>().ok();
         q = q.bind(dt);
@@ -485,7 +531,9 @@ pub async fn update_lead(
         };
         q = q.bind(dt);
     }
-    if body.notes.is_some() { q = q.bind(body.notes.as_deref()); }
+    if body.notes.is_some() {
+        q = q.bind(body.notes.as_deref());
+    }
     q = q.bind(&lead_id).bind(&campaign_id);
 
     let lead = q
@@ -607,13 +655,15 @@ pub async fn create_delivery_logs(
 
     for entry in &body.logs {
         let id = create_id();
-        sqlx::query(r#"
+        sqlx::query(
+            r#"
             INSERT INTO "OutreachEmailDeliveryLog" (
                 id, "campaignId", "leadId", recipient, subject, status, provider,
                 "providerMessageId", "providerResponse", "errorMessage", "attemptedAt"
             )
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-        "#)
+        "#,
+        )
         .bind(&id)
         .bind(&entry.campaign_id)
         .bind(&entry.lead_id)
@@ -678,7 +728,15 @@ pub async fn import_campaign(
         let slug = listing
             .name
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' { c } else if c == ' ' { '-' } else { '\0' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' {
+                    c
+                } else if c == ' ' {
+                    '-'
+                } else {
+                    '\0'
+                }
+            })
             .filter(|c| *c != '\0')
             .collect::<String>()
             .to_lowercase();
@@ -687,13 +745,15 @@ pub async fn import_campaign(
             .clone()
             .unwrap_or_else(|| format!("https://bizbay.co.za/Company/{slug}"));
 
-        sqlx::query(r#"
+        sqlx::query(
+            r#"
             INSERT INTO "OutreachLead" (
                 id, "campaignId", "businessName", website, address, "bizbayUrl", category, phone,
                 "emailStatus", "followUpCount", "createdAt", "updatedAt"
             )
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',0,$9,$10)
-        "#)
+        "#,
+        )
         .bind(&id)
         .bind(&campaign_id)
         .bind(&listing.name)
@@ -840,7 +900,8 @@ pub async fn list_delivery_logs(
     };
 
     let limit = query.limit.unwrap_or(20000).min(20000);
-    let sql = format!(r#"
+    let sql = format!(
+        r#"
         SELECT
             l.id, l."campaignId", l."leadId", l."isTest",
             l.recipient, l.subject, l.status, l.provider,
@@ -854,7 +915,8 @@ pub async fn list_delivery_logs(
         {where_clause}
         ORDER BY l."attemptedAt" DESC
         LIMIT {limit}
-    "#);
+    "#
+    );
 
     // Build query with positional params
     let mut q = sqlx::query_as::<_, DeliveryLogRow>(&sql);
@@ -898,7 +960,10 @@ pub async fn list_delivery_logs(
 
         return Ok(HttpResponse::Ok()
             .content_type("text/csv")
-            .append_header(("Content-Disposition", "attachment; filename=delivery-log.csv"))
+            .append_header((
+                "Content-Disposition",
+                "attachment; filename=delivery-log.csv",
+            ))
             .body(csv));
     }
 

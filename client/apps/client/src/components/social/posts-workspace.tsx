@@ -22,6 +22,7 @@ import {
   type SocialVariantStatus,
   formatDateInputValue,
   formatDateTime,
+  getPlatformCapabilities,
   getPlatformIcon,
   getPlatformLabel,
   getPlatformTone,
@@ -56,8 +57,10 @@ type GeneratedIdea = {
   suggestedChannels?: SocialPlatform[];
 };
 
-const defaultChannels: SocialPlatform[] = ["FACEBOOK", "INSTAGRAM", "LINKEDIN", "X"];
-const supportedManualPublishPlatforms: SocialPlatform[] = ["LINKEDIN", "X"];
+const defaultChannels: SocialPlatform[] = ["FACEBOOK", "INSTAGRAM", "THREADS", "LINKEDIN", "X"];
+const supportedManualPublishPlatforms: SocialPlatform[] = SOCIAL_PLATFORM_ORDER.filter((platform) =>
+  getPlatformCapabilities(platform).supportsManualPublish,
+);
 
 const emptyComposer: ComposerState = {
   id: null,

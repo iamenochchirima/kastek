@@ -5,7 +5,7 @@ use crate::error::AppError;
 
 fn parse_streamed_response(raw: &str) -> String {
     if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(raw) {
-        for key in ["output", "text", "content"] {
+        for key in ["output", "text", "content", "message"] {
             if let Some(value) = parsed.get(key).and_then(|value| value.as_str()) {
                 return value.to_string();
             }
@@ -50,20 +50,42 @@ pub async fn post(body: web::Json<ChatRequest>) -> Result<HttpResponse, AppError
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
         .unwrap_or_else(cuid2::create_id);
-    let url = std::env::var("N8N_CHAT_WEBHOOK_URL").unwrap_or_else(|_| {
-        "https://primary-production-738c.up.railway.app/webhook/a21d3f79-cfa7-44b1-b0e3-93ab1e51176d/chat"
-            .to_string()
-    });
-    let upstream = reqwest::Client::new()
-        .post(url)
-        .json(&serde_json::json!({
-            "action": "sendMessage",
-            "sessionId": session_id,
-            "chatInput": message,
-            "metadata": body.metadata.clone().unwrap_or(serde_json::json!({}))
-        }))
-        .send()
-        .await?;
+    let website_agent_webhook_url = std::env::var("WEBSITE_AGENT_WEBHOOK_URL").ok();
+    let upstream = if let Some(url) = website_agent_webhook_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        reqwest::Client::new()
+            .post(url)
+            .json(&serde_json::json!({
+                "message": message,
+                "sessionId": session_id,
+                "name": body
+                    .metadata
+                    .as_ref()
+                    .and_then(|value| value.get("name"))
+                    .and_then(|value| value.as_str()),
+                "metadata": body.metadata.clone().unwrap_or(serde_json::json!({}))
+            }))
+            .send()
+            .await?
+    } else {
+        let url = std::env::var("N8N_CHAT_WEBHOOK_URL").unwrap_or_else(|_| {
+            "https://primary-production-738c.up.railway.app/webhook/a21d3f79-cfa7-44b1-b0e3-93ab1e51176d/chat"
+                .to_string()
+        });
+        reqwest::Client::new()
+            .post(url)
+            .json(&serde_json::json!({
+                "action": "sendMessage",
+                "sessionId": session_id,
+                "chatInput": message,
+                "metadata": body.metadata.clone().unwrap_or(serde_json::json!({}))
+            }))
+            .send()
+            .await?
+    };
     let status = upstream.status();
     let raw = upstream.text().await.unwrap_or_default();
     let reply = parse_streamed_response(&raw).trim().to_string();

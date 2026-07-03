@@ -1,6 +1,6 @@
+use ::config::env_truthy;
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
-use ::config::env_truthy;
 use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use tokio::time::{sleep, Duration};

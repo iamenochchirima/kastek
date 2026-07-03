@@ -2,6 +2,7 @@ import { fetchFromCore } from "@/lib/admin-auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import InvoiceBuilder from "@/components/admin/invoice-builder";
+import InvoiceOperationsPanel from "@/components/admin/invoice-operations-panel";
 import { invoiceRecordToDraft } from "@/lib/invoice";
 
 export default async function InvoiceDetailPage({
@@ -28,11 +29,19 @@ export default async function InvoiceDetailPage({
         </Link>
         <h1 className="text-2xl font-bold text-text">Invoice: {invoice.businessName}</h1>
         <p className="text-sm text-text-muted">
-          Update this standalone invoice, change status, download PDF, or delete it.
+          Update the invoice template, track the active billing cycle, and manage send and reminder follow-up.
         </p>
       </div>
 
-      <InvoiceBuilder mode="edit" initialDraft={draft} />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px] items-start">
+        <InvoiceBuilder mode="edit" initialDraft={draft} />
+        <InvoiceOperationsPanel
+          invoiceId={invoice.id}
+          currentRun={invoice.currentRun}
+          recentRuns={invoice.recentRuns}
+          operations={invoice.operations}
+        />
+      </div>
     </div>
   );
 }

@@ -7,7 +7,10 @@ use tokio::net::lookup_host;
 
 use crate::{error::AppError, middleware};
 
-fn hosted_workspace_domain(workspace_slug: &str, platform_base_domain: Option<&str>) -> Option<String> {
+fn hosted_workspace_domain(
+    workspace_slug: &str,
+    platform_base_domain: Option<&str>,
+) -> Option<String> {
     platform_base_domain.and_then(|base| {
         let normalized_base = base.trim().trim_matches('.').to_ascii_lowercase();
         if normalized_base.is_empty() {
@@ -36,18 +39,22 @@ fn normalize_domain(value: &str) -> Result<String, AppError> {
     }
 
     if normalized.contains(' ') || !normalized.contains('.') {
-        return Err(AppError::BadRequest("domain must be a valid hostname".to_string()));
+        return Err(AppError::BadRequest(
+            "domain must be a valid hostname".to_string(),
+        ));
     }
 
     Ok(normalized)
 }
 
 async fn resolve_workspace_id(pool: &sqlx::PgPool, id_or_slug: &str) -> Result<String, AppError> {
-    sqlx::query_scalar::<_, String>(r#"SELECT id FROM workspaces WHERE id = $1 OR slug = $1 LIMIT 1"#)
-        .bind(id_or_slug)
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))
+    sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM workspaces WHERE id = $1 OR slug = $1 LIMIT 1"#,
+    )
+    .bind(id_or_slug)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))
 }
 
 async fn sync_workspace_custom_domain(
@@ -332,13 +339,11 @@ pub async fn update_workspace(
             .await?;
     }
     if let Some(name) = body.get("displayName").and_then(|v| v.as_str()) {
-        sqlx::query(
-            r#"UPDATE workspaces SET display_name = $1, updated_at = NOW() WHERE id = $2"#,
-        )
-        .bind(name)
-        .bind(&workspace_id)
-        .execute(pool)
-        .await?;
+        sqlx::query(r#"UPDATE workspaces SET display_name = $1, updated_at = NOW() WHERE id = $2"#)
+            .bind(name)
+            .bind(&workspace_id)
+            .execute(pool)
+            .await?;
         sqlx::query(
             r#"UPDATE workspace_branding SET display_name = $1, updated_at = NOW() WHERE workspace_id = $2"#,
         )
@@ -1027,12 +1032,11 @@ pub async fn create_workspace(
         ));
     }
 
-    let slug_exists = sqlx::query_scalar::<_, String>(
-        r#"SELECT id FROM workspaces WHERE slug = $1 LIMIT 1"#,
-    )
-    .bind(&slug)
-    .fetch_optional(pool)
-    .await?;
+    let slug_exists =
+        sqlx::query_scalar::<_, String>(r#"SELECT id FROM workspaces WHERE slug = $1 LIMIT 1"#)
+            .bind(&slug)
+            .fetch_optional(pool)
+            .await?;
 
     if slug_exists.is_some() {
         return Err(AppError::BadRequest(format!(

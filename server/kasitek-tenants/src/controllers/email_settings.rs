@@ -100,7 +100,9 @@ fn normalize_domain(value: &str) -> Result<String, AppError> {
     }
 
     if normalized.contains(' ') || !normalized.contains('.') {
-        return Err(AppError::BadRequest("domain must be a valid hostname".to_string()));
+        return Err(AppError::BadRequest(
+            "domain must be a valid hostname".to_string(),
+        ));
     }
 
     Ok(normalized)
@@ -110,7 +112,11 @@ fn normalize_local_part(value: Option<&str>) -> String {
     let mut normalized = String::new();
     let mut previous_was_dash = false;
 
-    for ch in value.unwrap_or("no-reply").chars().flat_map(char::to_lowercase) {
+    for ch in value
+        .unwrap_or("no-reply")
+        .chars()
+        .flat_map(char::to_lowercase)
+    {
         if ch.is_ascii_alphanumeric() {
             normalized.push(ch);
             previous_was_dash = false;
@@ -132,7 +138,9 @@ fn normalize_optional_email(value: Option<&str>) -> Result<Option<String>, AppEr
     let value = value.map(str::trim).filter(|value| !value.is_empty());
     if let Some(value) = value {
         if !value.contains('@') || value.contains(' ') {
-            return Err(AppError::BadRequest("reply-to email must be valid".to_string()));
+            return Err(AppError::BadRequest(
+                "reply-to email must be valid".to_string(),
+            ));
         }
         Ok(Some(value.to_ascii_lowercase()))
     } else {
@@ -165,14 +173,15 @@ async fn ensure_workspace_email_settings(
     Ok(())
 }
 
-async fn workspace_display_name(pool: &sqlx::PgPool, workspace_id: &str) -> Result<String, AppError> {
-    sqlx::query_scalar::<_, String>(
-        r#"SELECT display_name FROM workspaces WHERE id = $1 LIMIT 1"#,
-    )
-    .bind(workspace_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))
+async fn workspace_display_name(
+    pool: &sqlx::PgPool,
+    workspace_id: &str,
+) -> Result<String, AppError> {
+    sqlx::query_scalar::<_, String>(r#"SELECT display_name FROM workspaces WHERE id = $1 LIMIT 1"#)
+        .bind(workspace_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("workspace not found".to_string()))
 }
 
 async fn load_custom_domains(
@@ -280,7 +289,14 @@ async fn load_response(
     .fetch_one(pool)
     .await?;
 
-    let sender = mail::resolve_workspace_email_sender(pool, config, workspace_id, workspace_slug, &display_name).await?;
+    let sender = mail::resolve_workspace_email_sender(
+        pool,
+        config,
+        workspace_id,
+        workspace_slug,
+        &display_name,
+    )
+    .await?;
     let custom_domains = load_custom_domains(pool, workspace_id).await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -326,7 +342,9 @@ pub async fn update_email_settings(
 
     let sending_mode = body.sending_mode.trim().to_ascii_lowercase();
     if !matches!(sending_mode.as_str(), "shared" | "custom") {
-        return Err(AppError::BadRequest("sending mode must be shared or custom".to_string()));
+        return Err(AppError::BadRequest(
+            "sending mode must be shared or custom".to_string(),
+        ));
     }
 
     let custom_domain_id = body
@@ -384,7 +402,9 @@ pub async fn update_email_settings(
             .map(ToString::to_string),
     )
     .bind(normalize_optional_email(body.reply_to_email.as_deref())?)
-    .bind(normalize_local_part(body.shared_sender_local_part.as_deref()))
+    .bind(normalize_local_part(
+        body.shared_sender_local_part.as_deref(),
+    ))
     .bind(custom_domain_id)
     .bind(&access.workspace_id)
     .execute(pool)
@@ -411,12 +431,16 @@ pub async fn create_custom_email_domain(
     .await?;
 
     if existing.is_some() {
-        return Err(AppError::BadRequest("email domain already exists".to_string()));
+        return Err(AppError::BadRequest(
+            "email domain already exists".to_string(),
+        ));
     }
 
     let resend_domain = mail::create_resend_domain(config, &domain).await?;
     let mut tx = pool.begin().await?;
-    let _ = mail::persist_workspace_email_domain(&mut tx, &access.workspace_id, None, resend_domain).await?;
+    let _ =
+        mail::persist_workspace_email_domain(&mut tx, &access.workspace_id, None, resend_domain)
+            .await?;
     tx.commit().await?;
 
     load_response(pool, config, &access.workspace_id, &access.workspace_slug).await
@@ -566,7 +590,9 @@ pub async fn send_test_email(
 
     let to = body.to.trim().to_ascii_lowercase();
     if !to.contains('@') || to.contains(' ') {
-        return Err(AppError::BadRequest("recipient email must be valid".to_string()));
+        return Err(AppError::BadRequest(
+            "recipient email must be valid".to_string(),
+        ));
     }
 
     let subject = format!("KasiTek email sending test for {}", display_name);

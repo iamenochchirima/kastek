@@ -191,9 +191,13 @@ pub async fn issue_client_invite(
     let invite_token_hash = crypto_utils::sha256_hex(&invite_token);
     let expires_at = Utc::now() + ChronoDuration::hours(i64::from(config.invite_ttl_hours));
     let portal_url = crate::mail::workspace_portal_url(config, workspace_slug);
-    let activation_url = portal_url
-        .as_ref()
-        .map(|url| format!("{}/activate?token={}", url.trim_end_matches('/'), invite_token));
+    let activation_url = portal_url.as_ref().map(|url| {
+        format!(
+            "{}/activate?token={}",
+            url.trim_end_matches('/'),
+            invite_token
+        )
+    });
 
     sqlx::query(
         r#"

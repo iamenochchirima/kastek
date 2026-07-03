@@ -32,6 +32,7 @@ Example payload for `whatsapp_agent`:
   "botId": "bot_123",
   "userId": "user_123",
   "deploymentId": "dep_123",
+  "workflowId": null,
   "versionNumber": 1,
   "name": "Sales Assistant",
   "type": "whatsapp_agent",
@@ -134,6 +135,8 @@ Payload:
 }
 ```
 
+For `pause` and `resume`, KasiTek now also sends the current `workflowId` so the provisioner can manage the deployed workflow directly.
+
 Allowed practical statuses:
 
 - `provisioning`
@@ -166,3 +169,20 @@ Current event payload shape:
   }
 }
 ```
+
+## Internal provisioner service
+
+This repo now includes a concrete provisioner service in:
+
+`server/kasitek-provisioner`
+
+Required environment for that service:
+
+- `PORT` default `4010`
+- `N8N_PROVISIONER_TOKEN`
+- `N8N_API_URL` for the n8n public API base, for example `https://n8n.example.com/api/v1`
+- `N8N_API_KEY`
+
+Point `kasitek-core` at it with:
+
+- `N8N_PROVISIONER_URL=http://localhost:4010/dispatch`

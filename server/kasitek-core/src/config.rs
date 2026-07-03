@@ -12,6 +12,7 @@ pub struct AppConfig {
     pub database_url: String,
     pub database_max_connections: u32,
     pub frontend_url: String,
+    pub admin_frontend_url: String,
     pub public_api_url: String,
     pub auth_url: String,
     #[allow(dead_code)]
@@ -30,17 +31,26 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn from_env() -> Result<Self, env::VarError> {
+        let environment = env_string_or("ENVIRONMENT", "development");
         let frontend_url = env_string_or("FRONTEND_URL", "http://localhost:3000");
+        let admin_frontend_url = env_optional("ADMIN_FRONTEND_URL").unwrap_or_else(|| {
+            if environment.eq_ignore_ascii_case("production") {
+                "https://admin.kasitek.co.za".to_string()
+            } else {
+                "http://localhost:3001".to_string()
+            }
+        });
         let public_api_url = env_string_or("KASITEK_CORE_PUBLIC_URL", "http://localhost:4000");
 
         Ok(Self {
             port: env_u16_or("PORT", 4000),
-            environment: env_string_or("ENVIRONMENT", "development"),
+            environment,
             database_url: env_optional("KASITEK_CORE_DATABASE_URL")
                 .or_else(|| env_optional("DATABASE_URL"))
                 .ok_or(env::VarError::NotPresent)?,
             database_max_connections: env_u32_or("DATABASE_MAX_CONNECTIONS", 10),
             frontend_url: frontend_url.clone(),
+            admin_frontend_url,
             public_api_url,
             auth_url: frontend_url,
             session_secret: env_optional("SESSION_SECRET")

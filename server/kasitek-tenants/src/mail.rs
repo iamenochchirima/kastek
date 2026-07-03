@@ -177,7 +177,10 @@ pub fn workspace_portal_url(config: &AppConfig, workspace_slug: &str) -> Option<
         }
     }
 
-    config.app_base_url.as_ref().map(|url| url.trim_end_matches('/').to_string())
+    config
+        .app_base_url
+        .as_ref()
+        .map(|url| url.trim_end_matches('/').to_string())
 }
 
 async fn resend_request<T: for<'de> Deserialize<'de>>(
@@ -500,7 +503,8 @@ pub async fn resolve_workspace_email_sender(
             .fetch_optional(pool)
             .await?;
 
-            if let Some(custom_domain) = custom_domain.filter(|domain| domain.status == "verified") {
+            if let Some(custom_domain) = custom_domain.filter(|domain| domain.status == "verified")
+            {
                 let local_part = normalize_local_part(&settings.shared_sender_local_part);
                 let sender_local_part = if local_part.is_empty() {
                     "no-reply".to_string()
@@ -591,14 +595,9 @@ pub async fn send_client_invite_email(
         return Ok(false);
     }
 
-    let sender = resolve_workspace_email_sender(
-        pool,
-        config,
-        workspace_id,
-        workspace_slug,
-        workspace_name,
-    )
-    .await?;
+    let sender =
+        resolve_workspace_email_sender(pool, config, workspace_id, workspace_slug, workspace_name)
+            .await?;
 
     let expires_label = expires_at.format("%Y-%m-%d %H:%M UTC");
     let subject = format!("Verify your email for {workspace_name}");

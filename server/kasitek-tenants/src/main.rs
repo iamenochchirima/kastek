@@ -1,11 +1,5 @@
 use actix_cors::Cors;
-use actix_web::{
-    http::header::HeaderValue,
-    middleware::Logger,
-    web,
-    App,
-    HttpServer,
-};
+use actix_web::{http::header::HeaderValue, middleware::Logger, web, App, HttpServer};
 use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
 
@@ -31,7 +25,13 @@ fn origin_matches_platform_domain(origin: &HeaderValue, platform_base_domain: &s
         return false;
     }
 
-    let host = remainder.split('/').next().unwrap_or("").split(':').next().unwrap_or("");
+    let host = remainder
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .split(':')
+        .next()
+        .unwrap_or("");
     if host.is_empty() {
         return false;
     }

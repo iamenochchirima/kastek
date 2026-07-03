@@ -11,6 +11,7 @@ pub mod auth;
 pub mod bots;
 pub mod chat;
 pub mod health;
+pub mod inbox;
 pub mod notifications;
 pub mod orgs;
 pub mod profile;

@@ -83,7 +83,6 @@ pub async fn get_org(pool: &PgPool, org_id: &str) -> Result<Option<OrgRow>, AppE
     .await?)
 }
 
-
 pub async fn list_orgs_for_user(pool: &PgPool, user_id: &str) -> Result<Vec<OrgRow>, AppError> {
     Ok(sqlx::query_as::<_, OrgRow>(
         r#"SELECT o.id, o.name, o.slug, o.logo, o."ownerId",
@@ -275,21 +274,19 @@ pub async fn update_member_role(
         .execute(pool)
         .await?;
 
-        sqlx::query(r#"UPDATE "Organization" SET "ownerId" = $1, "updatedAt" = NOW() WHERE id = $2"#)
-            .bind(user_id)
-            .bind(org_id)
-            .execute(pool)
-            .await?;
+        sqlx::query(
+            r#"UPDATE "Organization" SET "ownerId" = $1, "updatedAt" = NOW() WHERE id = $2"#,
+        )
+        .bind(user_id)
+        .bind(org_id)
+        .execute(pool)
+        .await?;
     }
 
     Ok(())
 }
 
-pub async fn remove_member(
-    pool: &PgPool,
-    org_id: &str,
-    user_id: &str,
-) -> Result<(), AppError> {
+pub async fn remove_member(pool: &PgPool, org_id: &str, user_id: &str) -> Result<(), AppError> {
     // Cannot remove the owner
     let role = get_member_role(pool, org_id, user_id).await?;
     if role.as_deref() == Some("OWNER") {
@@ -298,13 +295,11 @@ pub async fn remove_member(
         ));
     }
 
-    sqlx::query(
-        r#"DELETE FROM "OrganizationMember" WHERE "orgId" = $1 AND "userId" = $2"#,
-    )
-    .bind(org_id)
-    .bind(user_id)
-    .execute(pool)
-    .await?;
+    sqlx::query(r#"DELETE FROM "OrganizationMember" WHERE "orgId" = $1 AND "userId" = $2"#)
+        .bind(org_id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
 
     Ok(())
 }

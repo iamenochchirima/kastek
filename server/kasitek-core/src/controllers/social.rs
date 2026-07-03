@@ -184,7 +184,10 @@ pub async fn publish_post(
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let requested_platform = body.platform.as_deref().unwrap_or("X");
-    if requested_platform != "X" && requested_platform != "LINKEDIN" {
+    if requested_platform != "X"
+        && requested_platform != "LINKEDIN"
+        && requested_platform != "FACEBOOK"
+    {
         return Err(AppError::BadRequest(format!(
             "Manual publishing is not available yet for {}",
             requested_platform
@@ -436,6 +439,100 @@ pub async fn start_linkedin_oauth(
                 .http_only(true)
                 .same_site(actix_web::cookie::SameSite::Lax)
                 .secure(config.is_production())
+                .finish(),
+        )
+        .finish())
+}
+
+pub async fn start_meta_oauth(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let _user = extract_user(&req, pool.get_ref()).await?;
+    let state = social::create_meta_oauth_state();
+    let authorize_url = social::build_meta_authorize_url(config.get_ref(), &state)?;
+    Ok(HttpResponse::Found()
+        .append_header(("Location", authorize_url))
+        .cookie(
+            actix_web::cookie::Cookie::build(social::META_STATE_COOKIE, state)
+                .path("/")
+                .http_only(true)
+                .same_site(actix_web::cookie::SameSite::Lax)
+                .secure(config.is_production())
+                .finish(),
+        )
+        .finish())
+}
+
+pub async fn meta_oauth_callback(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<social::OAuthCallbackQuery>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    if let Some(error) = query.error.as_ref() {
+        let message = query
+            .error_description
+            .clone()
+            .unwrap_or_else(|| error.clone());
+        let redirect = format!(
+            "{}/social/channels?error={}",
+            config.auth_url,
+            urlencoding::encode(&message)
+        );
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", redirect))
+            .finish());
+    }
+
+    let code = query
+        .code
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing OAuth code".to_string()))?;
+    let returned_state = query
+        .state
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Invalid OAuth state".to_string()))?;
+    let stored_state = req
+        .cookie(social::META_STATE_COOKIE)
+        .map(|cookie| cookie.value().to_string())
+        .ok_or_else(|| AppError::BadRequest("Invalid OAuth state".to_string()))?;
+    if stored_state != returned_state {
+        return Err(AppError::BadRequest("Invalid OAuth state".to_string()));
+    }
+
+    let short_lived_tokens = social::exchange_meta_code_for_tokens(config.get_ref(), code).await?;
+    let tokens = social::exchange_meta_for_long_lived_token(
+        short_lived_tokens
+            .access_token
+            .as_deref()
+            .ok_or_else(|| AppError::BadRequest("Missing Meta access token".to_string()))?,
+    )
+    .await
+    .unwrap_or(short_lived_tokens);
+    let pages = social::fetch_meta_pages(
+        tokens
+            .access_token
+            .as_deref()
+            .ok_or_else(|| AppError::BadRequest("Missing Meta access token".to_string()))?,
+    )
+    .await?;
+    let connected =
+        social::upsert_meta_connections_for_user(pool.get_ref(), &user.id, &tokens, &pages).await?;
+
+    let redirect = format!(
+        "{}/social/channels?connected=meta&count={}",
+        config.auth_url,
+        connected.len()
+    );
+    Ok(HttpResponse::Found()
+        .append_header(("Location", redirect))
+        .cookie(
+            actix_web::cookie::Cookie::build(social::META_STATE_COOKIE, "")
+                .path("/")
+                .max_age(actix_web::cookie::time::Duration::seconds(0))
                 .finish(),
         )
         .finish())

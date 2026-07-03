@@ -23,7 +23,10 @@ pub fn build_whatsapp_user_channel(user_id: &str) -> String {
 
 async fn publish_json(channel: &str, event: &Value) -> Result<(), AppError> {
     let Some(client) = redis_client() else {
-        log::warn!("[realtime] no redis client, skipping publish for {}", channel);
+        log::warn!(
+            "[realtime] no redis client, skipping publish for {}",
+            channel
+        );
         return Ok(());
     };
 

@@ -398,6 +398,15 @@ pub async fn list_connections(
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
+#[derive(Debug, Clone)]
+pub struct WhatsappProvisioningConnection {
+    pub id: String,
+    pub phone_number_id: String,
+    pub phone_display_number: Option<String>,
+    pub access_token: String,
+    pub waba_id: String,
+}
+
 async fn get_connection_row(
     pool: &PgPool,
     user_id: &str,
@@ -413,6 +422,24 @@ async fn get_connection_row(
         .fetch_optional(pool)
         .await
         .map_err(AppError::from)
+}
+
+pub async fn get_connection_for_provisioning(
+    pool: &PgPool,
+    user_id: &str,
+    connection_id: &str,
+) -> Result<Option<WhatsappProvisioningConnection>, AppError> {
+    let row = get_connection_row(pool, user_id, connection_id).await?;
+    row.map(|row| {
+        Ok(WhatsappProvisioningConnection {
+            id: row.id,
+            phone_number_id: row.phone_number_id,
+            phone_display_number: row.phone_display_number,
+            access_token: decrypt_social_secret(&row.access_token_encrypted)?,
+            waba_id: row.waba_id,
+        })
+    })
+    .transpose()
 }
 
 pub async fn connect_manual_connection(

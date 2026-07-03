@@ -43,7 +43,10 @@ struct WorkspaceDomainRow {
     created_at: chrono::DateTime<Utc>,
 }
 
-fn hosted_workspace_domain(workspace_slug: &str, platform_base_domain: Option<&str>) -> Option<String> {
+fn hosted_workspace_domain(
+    workspace_slug: &str,
+    platform_base_domain: Option<&str>,
+) -> Option<String> {
     platform_base_domain.and_then(|base| {
         let normalized_base = base.trim().trim_matches('.').to_ascii_lowercase();
         if normalized_base.is_empty() {
@@ -72,7 +75,9 @@ fn normalize_domain(value: &str) -> Result<String, AppError> {
     }
 
     if normalized.contains(' ') || !normalized.contains('.') {
-        return Err(AppError::BadRequest("domain must be a valid hostname".to_string()));
+        return Err(AppError::BadRequest(
+            "domain must be a valid hostname".to_string(),
+        ));
     }
 
     Ok(normalized)

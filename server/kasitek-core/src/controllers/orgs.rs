@@ -54,7 +54,9 @@ pub async fn create_org(
 
     let name = body.name.trim();
     if name.is_empty() {
-        return Err(AppError::BadRequest("Organisation name is required".to_string()));
+        return Err(AppError::BadRequest(
+            "Organisation name is required".to_string(),
+        ));
     }
     if name.len() > 80 {
         return Err(AppError::BadRequest(
@@ -62,7 +64,12 @@ pub async fn create_org(
         ));
     }
 
-    let base_slug = match body.slug.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    let base_slug = match body
+        .slug
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         Some(s) => orgs::slugify(s),
         None => orgs::slugify(name),
     };
@@ -113,7 +120,11 @@ pub async fn update_org(
 
     orgs::require_admin(pool.get_ref(), &org_id, &user.id).await?;
 
-    let name = body.name.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let name = body
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
 
     // logo: None = not in body (no change), Some(null) = clear, Some(string) = set
     let logo_update: Option<Option<&str>> = match body.logo.as_ref() {
@@ -121,7 +132,11 @@ pub async fn update_org(
         Some(serde_json::Value::Null) => Some(None),
         Some(serde_json::Value::String(s)) => {
             let trimmed = s.trim();
-            Some(if trimmed.is_empty() { None } else { Some(trimmed) })
+            Some(if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            })
         }
         _ => None,
     };

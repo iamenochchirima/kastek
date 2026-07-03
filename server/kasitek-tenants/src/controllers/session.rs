@@ -132,7 +132,12 @@ pub async fn continue_with_email(
     .await?;
 
     if let Some(user) = client_user {
-        let needs_setup = user.password_hash.as_deref().map(str::trim).unwrap_or("").is_empty()
+        let needs_setup = user
+            .password_hash
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .is_empty()
             || user.status != "active";
         if needs_setup {
             let invite = crate::controllers::client_auth::issue_client_invite(

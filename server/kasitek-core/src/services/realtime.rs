@@ -18,6 +18,10 @@ fn redis_client() -> Option<&'static redis::Client> {
 }
 
 pub fn build_whatsapp_user_channel(user_id: &str) -> String {
+    build_inbox_user_channel(user_id)
+}
+
+pub fn build_inbox_user_channel(user_id: &str) -> String {
     format!("whatsapp:user:{user_id}")
 }
 
@@ -26,6 +30,10 @@ fn whatsapp_inbox_queue_key() -> &'static str {
 }
 
 pub async fn publish_whatsapp_event(user_id: &str, event: &Value) -> Result<(), AppError> {
+    publish_inbox_event(user_id, event).await
+}
+
+pub async fn publish_inbox_event(user_id: &str, event: &Value) -> Result<(), AppError> {
     let Some(client) = redis_client() else {
         log::warn!(
             "[realtime] no redis client, skipping publish for user {}",
@@ -33,7 +41,7 @@ pub async fn publish_whatsapp_event(user_id: &str, event: &Value) -> Result<(), 
         );
         return Ok(());
     };
-    let channel = build_whatsapp_user_channel(user_id);
+    let channel = build_inbox_user_channel(user_id);
     let payload = serde_json::to_string(event)
         .map_err(|_| AppError::Internal("Failed to encode realtime event".to_string()))?;
     let mut conn = client

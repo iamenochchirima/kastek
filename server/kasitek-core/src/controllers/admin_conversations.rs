@@ -58,12 +58,24 @@ pub async fn list_conversations(
     let filtered: Vec<&ConversationRow> = conversations
         .iter()
         .filter(|c| {
-            let channel_ok = query.channel.as_deref().map(|ch| c.channel == ch).unwrap_or(true);
-            let search_ok = query.search.as_deref().map(|q| {
-                let q = q.to_lowercase();
-                c.customer_identifier.to_lowercase().contains(&q)
-                    || c.customer_name.as_deref().unwrap_or("").to_lowercase().contains(&q)
-            }).unwrap_or(true);
+            let channel_ok = query
+                .channel
+                .as_deref()
+                .map(|ch| c.channel == ch)
+                .unwrap_or(true);
+            let search_ok = query
+                .search
+                .as_deref()
+                .map(|q| {
+                    let q = q.to_lowercase();
+                    c.customer_identifier.to_lowercase().contains(&q)
+                        || c.customer_name
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&q)
+                })
+                .unwrap_or(true);
             channel_ok && search_ok
         })
         .collect();

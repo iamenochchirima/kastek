@@ -56,7 +56,13 @@ struct StatusCount {
 fn ensure_lead_write_roles(roles: &[String]) -> Result<(), AppError> {
     middleware::require_tenant_roles(
         roles,
-        &["owner", "admin", "account_manager", "sales_manager", "support"],
+        &[
+            "owner",
+            "admin",
+            "account_manager",
+            "sales_manager",
+            "support",
+        ],
     )
 }
 
@@ -100,7 +106,13 @@ pub async fn list_leads(req: HttpRequest) -> Result<HttpResponse, AppError> {
     let session = middleware::extract_tenant_user_session(&req).await?;
     middleware::require_tenant_roles(
         &session.roles,
-        &["owner", "admin", "account_manager", "sales_manager", "support"],
+        &[
+            "owner",
+            "admin",
+            "account_manager",
+            "sales_manager",
+            "support",
+        ],
     )?;
     let pool = middleware::db_pool(&req)?;
 
@@ -139,7 +151,13 @@ pub async fn get_lead_stats(req: HttpRequest) -> Result<HttpResponse, AppError> 
     let session = middleware::extract_tenant_user_session(&req).await?;
     middleware::require_tenant_roles(
         &session.roles,
-        &["owner", "admin", "account_manager", "sales_manager", "support"],
+        &[
+            "owner",
+            "admin",
+            "account_manager",
+            "sales_manager",
+            "support",
+        ],
     )?;
     let pool = middleware::db_pool(&req)?;
 

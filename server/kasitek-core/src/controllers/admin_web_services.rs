@@ -97,13 +97,29 @@ pub async fn list(
     let filtered: Vec<&WebServiceLeadRow> = leads
         .iter()
         .filter(|l| {
-            let status_ok = query.call_status.as_deref().map(|s| l.call_status == s).unwrap_or(true);
-            let cat_ok = query.category.as_deref().map(|c| l.category == c).unwrap_or(true);
-            let search_ok = query.search.as_deref().map(|q| {
-                let q = q.to_lowercase();
-                l.business_name.to_lowercase().contains(&q)
-                    || l.address.as_deref().unwrap_or("").to_lowercase().contains(&q)
-            }).unwrap_or(true);
+            let status_ok = query
+                .call_status
+                .as_deref()
+                .map(|s| l.call_status == s)
+                .unwrap_or(true);
+            let cat_ok = query
+                .category
+                .as_deref()
+                .map(|c| l.category == c)
+                .unwrap_or(true);
+            let search_ok = query
+                .search
+                .as_deref()
+                .map(|q| {
+                    let q = q.to_lowercase();
+                    l.business_name.to_lowercase().contains(&q)
+                        || l.address
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&q)
+                })
+                .unwrap_or(true);
             status_ok && cat_ok && search_ok
         })
         .collect();
@@ -194,16 +210,36 @@ pub async fn update(
         };
     }
 
-    if body.business_name.is_some() { push_set!(r#""businessName""#); }
-    if body.website.is_some() { push_set!("website"); }
-    if body.address.is_some() { push_set!("address"); }
-    if body.category.is_some() { push_set!("category"); }
-    if body.bizbay_url.is_some() { push_set!(r#""bizbayUrl""#); }
-    if body.phone.is_some() { push_set!("phone"); }
-    if body.email.is_some() { push_set!("email"); }
-    if body.call_status.is_some() { push_set!(r#""callStatus""#); }
-    if body.notes.is_some() { push_set!("notes"); }
-    if body.callback_date.is_some() { push_set!(r#""callbackDate""#); }
+    if body.business_name.is_some() {
+        push_set!(r#""businessName""#);
+    }
+    if body.website.is_some() {
+        push_set!("website");
+    }
+    if body.address.is_some() {
+        push_set!("address");
+    }
+    if body.category.is_some() {
+        push_set!("category");
+    }
+    if body.bizbay_url.is_some() {
+        push_set!(r#""bizbayUrl""#);
+    }
+    if body.phone.is_some() {
+        push_set!("phone");
+    }
+    if body.email.is_some() {
+        push_set!("email");
+    }
+    if body.call_status.is_some() {
+        push_set!(r#""callStatus""#);
+    }
+    if body.notes.is_some() {
+        push_set!("notes");
+    }
+    if body.callback_date.is_some() {
+        push_set!(r#""callbackDate""#);
+    }
 
     if sets.len() == 1 {
         return get(pool, req, web::Path::from(id)).await;
@@ -217,15 +253,33 @@ pub async fn update(
     );
 
     let mut q = sqlx::query_as::<_, WebServiceLeadRow>(&sql).bind(now);
-    if let Some(v) = &body.business_name { q = q.bind(v); }
-    if body.website.is_some() { q = q.bind(body.website.as_deref()); }
-    if body.address.is_some() { q = q.bind(body.address.as_deref()); }
-    if let Some(v) = &body.category { q = q.bind(v); }
-    if body.bizbay_url.is_some() { q = q.bind(body.bizbay_url.as_deref()); }
-    if body.phone.is_some() { q = q.bind(body.phone.as_deref()); }
-    if body.email.is_some() { q = q.bind(body.email.as_deref()); }
-    if let Some(v) = &body.call_status { q = q.bind(v); }
-    if body.notes.is_some() { q = q.bind(body.notes.as_deref()); }
+    if let Some(v) = &body.business_name {
+        q = q.bind(v);
+    }
+    if body.website.is_some() {
+        q = q.bind(body.website.as_deref());
+    }
+    if body.address.is_some() {
+        q = q.bind(body.address.as_deref());
+    }
+    if let Some(v) = &body.category {
+        q = q.bind(v);
+    }
+    if body.bizbay_url.is_some() {
+        q = q.bind(body.bizbay_url.as_deref());
+    }
+    if body.phone.is_some() {
+        q = q.bind(body.phone.as_deref());
+    }
+    if body.email.is_some() {
+        q = q.bind(body.email.as_deref());
+    }
+    if let Some(v) = &body.call_status {
+        q = q.bind(v);
+    }
+    if body.notes.is_some() {
+        q = q.bind(body.notes.as_deref());
+    }
     if let Some(v) = &body.callback_date {
         let dt: Option<DateTime<Utc>> = if v.is_empty() || v == "null" {
             None

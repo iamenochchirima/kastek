@@ -8,6 +8,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import {
   applyTemplateToDraft,
   formatInvoiceDateInput,
+  INVOICE_BILLING_MODES,
   getServiceLabel,
   INVOICE_DEFAULT_SECTION_ORDER,
   INVOICE_SERVICE_TYPES,
@@ -747,10 +748,19 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
   }
 
   function buildPayload(nextStatus?: string) {
+    const billingMode = form.billingMode === "monthly" ? "monthly" : "one_off";
     return {
       id: form.id || null,
       quoteRequestId: form.quoteRequestId || null,
       serviceType: form.serviceType,
+      billingMode,
+      recurringActive: billingMode === "monthly" ? form.recurringActive : false,
+      billingAnchorDay:
+        billingMode === "monthly" ? Number.parseInt(form.billingAnchorDay || "1", 10) || 1 : null,
+      reminderDaysAfterDue:
+        billingMode === "monthly"
+          ? Number.parseInt(form.reminderDaysAfterDue || "3", 10) || 0
+          : null,
       businessName: form.preparedFor,
       contactPerson: form.contactPerson,
       contactEmail: form.contactEmail,
@@ -866,6 +876,10 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
     form.id,
     form.quoteRequestId,
     form.serviceType,
+    form.billingMode,
+    form.recurringActive,
+    form.billingAnchorDay,
+    form.reminderDaysAfterDue,
     form.preparedFor,
     form.contactPerson,
     form.contactEmail,
@@ -1046,6 +1060,77 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
           >
             Apply Template
           </button>
+        </div>
+
+        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+          <div>
+            <h3 className="font-semibold text-text">Billing Workflow</h3>
+            <p className="text-sm text-text-muted mt-1">
+              Decide whether this record is a once-off invoice or a recurring monthly client you need to operationally track.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-muted mb-1">Billing Mode</label>
+              <select
+                value={form.billingMode}
+                onChange={(e) => {
+                  const billingMode = e.target.value === "monthly" ? "monthly" : "one_off";
+                  setForm((prev) => ({
+                    ...prev,
+                    billingMode,
+                    recurringActive: billingMode === "monthly" ? true : false,
+                  }));
+                }}
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                {INVOICE_BILLING_MODES.map((modeOption) => (
+                  <option key={modeOption.value} value={modeOption.value}>
+                    {modeOption.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 px-4 py-3">
+              <input
+                id="recurring-active"
+                type="checkbox"
+                checked={form.billingMode === "monthly" ? form.recurringActive : false}
+                disabled={form.billingMode !== "monthly"}
+                onChange={(e) => setForm((prev) => ({ ...prev, recurringActive: e.target.checked }))}
+                className="h-4 w-4 rounded border-border bg-surface"
+              />
+              <label htmlFor="recurring-active" className="text-sm text-text">
+                Track this as an active monthly client
+              </label>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-muted mb-1">Monthly Send Day</label>
+              <input
+                type="number"
+                min={1}
+                max={28}
+                value={form.billingAnchorDay}
+                disabled={form.billingMode !== "monthly"}
+                onChange={(e) => setForm((prev) => ({ ...prev, billingAnchorDay: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+              />
+              <p className="text-xs text-text-faint mt-1">Use the day of the month when the invoice should go out.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-muted mb-1">Reminder Delay After Due Date</label>
+              <input
+                type="number"
+                min={0}
+                max={60}
+                value={form.reminderDaysAfterDue}
+                disabled={form.billingMode !== "monthly"}
+                onChange={(e) => setForm((prev) => ({ ...prev, reminderDaysAfterDue: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+              />
+              <p className="text-xs text-text-faint mt-1">When overdue, surface a reminder action this many days after the due date.</p>
+            </div>
+          </div>
         </div>
 
         {mode === "edit" && (

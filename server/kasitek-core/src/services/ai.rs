@@ -4,7 +4,14 @@ use sqlx::PgPool;
 use crate::db::models::{BusinessProfileRow, SocialCaptionRequest, SocialIdeasRequest};
 use crate::error::AppError;
 
-const PLATFORM_VALUES: &[&str] = &["FACEBOOK", "INSTAGRAM", "LINKEDIN", "X", "WHATSAPP_STATUS"];
+const PLATFORM_VALUES: &[&str] = &[
+    "FACEBOOK",
+    "INSTAGRAM",
+    "THREADS",
+    "LINKEDIN",
+    "X",
+    "WHATSAPP_STATUS",
+];
 
 fn get_openrouter_api_key() -> Result<String, AppError> {
     std::env::var("OPENROUTER_API_KEY")
@@ -23,6 +30,7 @@ fn get_platform_label(platform: &str) -> &'static str {
     match platform {
         "FACEBOOK" => "Facebook",
         "INSTAGRAM" => "Instagram",
+        "THREADS" => "Threads",
         "LINKEDIN" => "LinkedIn",
         "X" => "X",
         _ => "WhatsApp Status",
@@ -115,7 +123,7 @@ pub async fn generate_social_ideas(
         "You are the strategy brain for KasiSocial.",
         "Generate practical social media post ideas for a business owner who wants usable drafts right now.",
         "Return valid JSON only.",
-        "JSON shape: {\"ideas\":[{\"title\":\"string\",\"angle\":\"string\",\"hook\":\"string\",\"draft\":\"string\",\"suggestedChannels\":[\"FACEBOOK\"|\"INSTAGRAM\"|\"LINKEDIN\"|\"X\"|\"WHATSAPP_STATUS\"]}]}",
+        "JSON shape: {\"ideas\":[{\"title\":\"string\",\"angle\":\"string\",\"hook\":\"string\",\"draft\":\"string\",\"suggestedChannels\":[\"FACEBOOK\"|\"INSTAGRAM\"|\"THREADS\"|\"LINKEDIN\"|\"X\"|\"WHATSAPP_STATUS\"]}]}",
         "Generate exactly 4 ideas.",
         "Each draft should already feel postable, not like a note.",
         "LinkedIn-friendly ideas should be more thoughtful and authority-building.",
@@ -208,7 +216,7 @@ pub async fn generate_social_caption(
     let system_prompt = [
         "You write high-performing social media copy for businesses using KasiSocial.",
         "Return valid JSON only.",
-        "JSON shape: {\"title\":\"string\",\"content\":\"string\",\"suggestedChannels\":[\"FACEBOOK\"|\"INSTAGRAM\"|\"LINKEDIN\"|\"X\"|\"WHATSAPP_STATUS\"],\"variants\":[{\"platform\":\"FACEBOOK\"|\"INSTAGRAM\"|\"LINKEDIN\"|\"X\"|\"WHATSAPP_STATUS\",\"content\":\"string\"}]}.",
+        "JSON shape: {\"title\":\"string\",\"content\":\"string\",\"suggestedChannels\":[\"FACEBOOK\"|\"INSTAGRAM\"|\"THREADS\"|\"LINKEDIN\"|\"X\"|\"WHATSAPP_STATUS\"],\"variants\":[{\"platform\":\"FACEBOOK\"|\"INSTAGRAM\"|\"THREADS\"|\"LINKEDIN\"|\"X\"|\"WHATSAPP_STATUS\",\"content\":\"string\"}]}.",
         "Keep copy aligned with the business voice and practical for real posting.",
         "Do not include markdown fences.",
         "Prefer concise, publish-ready output.",

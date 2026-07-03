@@ -116,15 +116,27 @@ pub async fn list_leads(
     let filtered: Vec<&QuoteRequestRow> = leads
         .iter()
         .filter(|l| {
-            let status_ok = query.status.as_deref().map(|s| l.status == s).unwrap_or(true);
-            let source_ok = query.source.as_deref().map(|s| l.source == s).unwrap_or(true);
-            let search_ok = query.search.as_deref().map(|q| {
-                let q = q.to_lowercase();
-                l.business_name.to_lowercase().contains(&q)
-                    || l.contact_person.to_lowercase().contains(&q)
-                    || l.email.to_lowercase().contains(&q)
-                    || l.phone.contains(&q)
-            }).unwrap_or(true);
+            let status_ok = query
+                .status
+                .as_deref()
+                .map(|s| l.status == s)
+                .unwrap_or(true);
+            let source_ok = query
+                .source
+                .as_deref()
+                .map(|s| l.source == s)
+                .unwrap_or(true);
+            let search_ok = query
+                .search
+                .as_deref()
+                .map(|q| {
+                    let q = q.to_lowercase();
+                    l.business_name.to_lowercase().contains(&q)
+                        || l.contact_person.to_lowercase().contains(&q)
+                        || l.email.to_lowercase().contains(&q)
+                        || l.phone.contains(&q)
+                })
+                .unwrap_or(true);
             status_ok && source_ok && search_ok
         })
         .collect();
@@ -220,19 +232,45 @@ pub async fn update_lead(
         };
     }
 
-    if body.business_name.is_some() { push_set!(r#""businessName""#); }
-    if body.contact_person.is_some() { push_set!(r#""contactPerson""#); }
-    if body.phone.is_some() { push_set!("phone"); }
-    if body.email.is_some() { push_set!("email"); }
-    if body.business_type.is_some() { push_set!(r#""businessType""#); }
-    if body.services.is_some() { push_set!("services"); }
-    if body.description.is_some() { push_set!("description"); }
-    if body.source.is_some() { push_set!("source"); }
-    if body.status.is_some() { push_set!("status"); }
-    if body.quote_amount.is_some() { push_set!(r#""quoteAmount""#); }
-    if body.follow_up_date.is_some() { push_set!(r#""followUpDate""#); }
-    if body.notes.is_some() { push_set!("notes"); }
-    if body.assigned_to_id.is_some() { push_set!(r#""assignedToId""#); }
+    if body.business_name.is_some() {
+        push_set!(r#""businessName""#);
+    }
+    if body.contact_person.is_some() {
+        push_set!(r#""contactPerson""#);
+    }
+    if body.phone.is_some() {
+        push_set!("phone");
+    }
+    if body.email.is_some() {
+        push_set!("email");
+    }
+    if body.business_type.is_some() {
+        push_set!(r#""businessType""#);
+    }
+    if body.services.is_some() {
+        push_set!("services");
+    }
+    if body.description.is_some() {
+        push_set!("description");
+    }
+    if body.source.is_some() {
+        push_set!("source");
+    }
+    if body.status.is_some() {
+        push_set!("status");
+    }
+    if body.quote_amount.is_some() {
+        push_set!(r#""quoteAmount""#);
+    }
+    if body.follow_up_date.is_some() {
+        push_set!(r#""followUpDate""#);
+    }
+    if body.notes.is_some() {
+        push_set!("notes");
+    }
+    if body.assigned_to_id.is_some() {
+        push_set!(r#""assignedToId""#);
+    }
 
     if sets.len() == 1 {
         // Nothing to update
@@ -247,16 +285,36 @@ pub async fn update_lead(
     );
 
     let mut q = sqlx::query_as::<_, QuoteRequestRow>(&sql).bind(now);
-    if let Some(v) = &body.business_name { q = q.bind(v); }
-    if let Some(v) = &body.contact_person { q = q.bind(v); }
-    if let Some(v) = &body.phone { q = q.bind(v); }
-    if let Some(v) = &body.email { q = q.bind(v); }
-    if let Some(v) = &body.business_type { q = q.bind(v); }
-    if let Some(v) = &body.services { q = q.bind(v); }
-    if body.description.is_some() { q = q.bind(body.description.as_deref()); }
-    if let Some(v) = &body.source { q = q.bind(v); }
-    if let Some(v) = &body.status { q = q.bind(v); }
-    if body.quote_amount.is_some() { q = q.bind(body.quote_amount); }
+    if let Some(v) = &body.business_name {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.contact_person {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.phone {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.email {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.business_type {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.services {
+        q = q.bind(v);
+    }
+    if body.description.is_some() {
+        q = q.bind(body.description.as_deref());
+    }
+    if let Some(v) = &body.source {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.status {
+        q = q.bind(v);
+    }
+    if body.quote_amount.is_some() {
+        q = q.bind(body.quote_amount);
+    }
     if let Some(v) = &body.follow_up_date {
         let dt: Option<DateTime<Utc>> = if v.is_empty() || v == "null" {
             None
@@ -265,8 +323,12 @@ pub async fn update_lead(
         };
         q = q.bind(dt);
     }
-    if let Some(v) = &body.notes { q = q.bind(v); }
-    if body.assigned_to_id.is_some() { q = q.bind(body.assigned_to_id.as_deref()); }
+    if let Some(v) = &body.notes {
+        q = q.bind(v);
+    }
+    if body.assigned_to_id.is_some() {
+        q = q.bind(body.assigned_to_id.as_deref());
+    }
     q = q.bind(&id);
 
     let lead = q
@@ -285,12 +347,11 @@ pub async fn delete_lead(
     let _admin = extract_admin(&req, pool.get_ref()).await?;
     let id = path.into_inner();
 
-    let deleted = sqlx::query_scalar::<_, String>(
-        r#"DELETE FROM "QuoteRequest" WHERE id = $1 RETURNING id"#,
-    )
-    .bind(&id)
-    .fetch_optional(pool.get_ref())
-    .await?;
+    let deleted =
+        sqlx::query_scalar::<_, String>(r#"DELETE FROM "QuoteRequest" WHERE id = $1 RETURNING id"#)
+            .bind(&id)
+            .fetch_optional(pool.get_ref())
+            .await?;
 
     if deleted.is_none() {
         return Err(AppError::NotFound("lead not found".to_string()));

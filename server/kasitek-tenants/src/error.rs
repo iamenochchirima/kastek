@@ -35,7 +35,11 @@ impl ResponseError for AppError {
     }
 
     fn error_response(&self) -> HttpResponse {
-        log::error!("tenant request failed: status={} error={:?}", self.status_code(), self);
+        log::error!(
+            "tenant request failed: status={} error={:?}",
+            self.status_code(),
+            self
+        );
         HttpResponse::build(self.status_code()).json(serde_json::json!({
             "error": self.to_string()
         }))

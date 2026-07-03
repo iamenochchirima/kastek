@@ -409,6 +409,13 @@ model Invoice {
   contactPhone          String
   date                  DateTime
   serviceType           String   @default("website_agent")
+  billingMode           String   @default("one_off")
+  recurringActive       Boolean  @default(false)
+  billingAnchorDay      Int?
+  reminderDaysAfterDue  Int      @default(3)
+  lastSentAt            DateTime?
+  lastReminderAt        DateTime?
+  lastPaidAt            DateTime?
   title                 String
   introduction          String?  @db.Text
   scopeOfWork           Json     @default("[]")
@@ -429,12 +436,44 @@ model Invoice {
 
   quoteRequestId        String?
   quoteRequest          QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+  runs                  InvoiceRun[]
 
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
   @@index([status])
   @@index([quoteRequestId])
+  @@index([billingMode, recurringActive])
+}
+
+model InvoiceRun {
+  id                    String   @id @default(cuid())
+  invoiceId             String
+  invoice               Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  cycleKey              String
+  issueDate             DateTime
+  periodStart           DateTime
+  periodEnd             DateTime
+  dueDate               DateTime
+  status                String   @default("pending") // pending | sent | reminder_due | reminder_sent | paid | overdue | cancelled
+  sendStatus            String   @default("pending") // pending | sent
+  reminderStatus        String   @default("not_needed") // not_needed | pending | sent
+  sentAt                DateTime?
+  reminderDueAt         DateTime?
+  reminderSentAt        DateTime?
+  paidAt                DateTime?
+  pricingItemsSnapshot  Json     @default("[]")
+  titleSnapshot         String
+  contactEmailSnapshot  String
+  businessNameSnapshot  String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([invoiceId, cycleKey])
+  @@index([invoiceId, issueDate])
+  @@index([status, dueDate])
+  @@index([sendStatus, issueDate])
+  @@index([reminderStatus, reminderDueAt])
 }
 
 // ─── Outreach / Cold Email Campaigns ─────────────────────────
@@ -566,6 +605,9 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         String       // customer | bot
   content        String       @db.Text
+  providerMessageId String?
+  providerStatus    String?
+  providerMetadata  Json?
   whatsappMessageId String?
   whatsappStatus    String?
   whatsappConversationId      String?
@@ -580,6 +622,8 @@ model Message {
   timestamp      DateTime     @default(now())
 
   @@index([conversationId])
+  @@index([providerMessageId])
+  @@index([providerStatus])
   @@index([whatsappMessageId])
   @@index([whatsappStatus])
 }
@@ -726,6 +770,7 @@ enum WhatsappCallStatus {
 enum SocialPlatform {
   FACEBOOK
   INSTAGRAM
+  THREADS
   LINKEDIN
   X
   WHATSAPP_STATUS

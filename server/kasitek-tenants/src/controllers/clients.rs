@@ -127,7 +127,10 @@ async fn provision_client_user_invite(
     .bind(workspace_id)
     .bind(tenant_client_id)
     .bind(&email)
-    .bind(name.map(|value| value.trim()).filter(|value| !value.is_empty()))
+    .bind(
+        name.map(|value| value.trim())
+            .filter(|value| !value.is_empty()),
+    )
     .fetch_one(pool)
     .await?;
 

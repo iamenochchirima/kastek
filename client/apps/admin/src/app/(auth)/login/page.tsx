@@ -1,16 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const passwordReset = searchParams.get("passwordReset");
+  const passwordChanged = searchParams.get("passwordChanged");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +52,18 @@ export default function LoginPage() {
           <p className="text-text-muted text-sm mt-1">Sign in to your admin account</p>
         </div>
 
+        {passwordReset === "success" ? (
+          <div className="mb-4 rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+            Your password has been reset. Sign in with the new password.
+          </div>
+        ) : null}
+
+        {passwordChanged === "success" ? (
+          <div className="mb-4 rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+            Your password has been updated.
+          </div>
+        ) : null}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="bg-danger/10 text-danger text-sm px-4 py-3 rounded-lg border border-danger/20">
@@ -70,9 +86,17 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-text-muted mb-1">
-              Password
-            </label>
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <label htmlFor="password" className="block text-sm font-medium text-text-muted">
+                Password
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-sm text-primary hover:text-primary-dark"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <div className="relative">
               <input
                 id="password"

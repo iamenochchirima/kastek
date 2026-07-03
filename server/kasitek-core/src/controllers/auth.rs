@@ -430,7 +430,8 @@ pub async fn google_oauth_callback(
                 .map(|n| format!("{}'s Workspace", n))
                 .unwrap_or_else(|| "My Workspace".to_string());
             let base_slug = orgs::slugify(&new_user_id);
-            let _ = orgs::create_org(pool.get_ref(), &new_user_id, &org_name, &base_slug, None).await;
+            let _ =
+                orgs::create_org(pool.get_ref(), &new_user_id, &org_name, &base_slug, None).await;
 
             new_user_id
         };

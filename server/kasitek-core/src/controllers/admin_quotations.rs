@@ -210,7 +210,8 @@ pub async fn create_quotation(
     let validity_days = parse_validity_days(&body.validity_days);
     let empty = serde_json::json!([]);
 
-    sqlx::query(r#"
+    sqlx::query(
+        r#"
         INSERT INTO "Quotation" (
             id, "businessName", "contactPerson", "contactEmail", "contactPhone",
             date, "serviceType", title, introduction,
@@ -225,7 +226,8 @@ pub async fn create_quotation(
             $10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
             '','',NULL,$20,$21,$22,$23,$24
         )
-    "#)
+    "#,
+    )
     .bind(&id)
     .bind(&body.business_name)
     .bind(&body.contact_person)
@@ -283,25 +285,63 @@ pub async fn update_quotation(
         };
     }
 
-    if body.business_name.is_some() { push_set!(r#""businessName""#); }
-    if body.contact_person.is_some() { push_set!(r#""contactPerson""#); }
-    if body.contact_email.is_some() { push_set!(r#""contactEmail""#); }
-    if body.contact_phone.is_some() { push_set!(r#""contactPhone""#); }
-    if body.date.is_some() { push_set!("date"); }
-    if body.service_type.is_some() { push_set!(r#""serviceType""#); }
-    if body.title.is_some() { push_set!("title"); }
-    if body.introduction.is_some() { push_set!("introduction"); }
-    if body.scope_of_work.is_some() { push_set!(r#""scopeOfWork""#); }
-    if body.deliverables.is_some() { push_set!("deliverables"); }
-    if body.implementation_steps.is_some() { push_set!(r#""implementationSteps""#); }
-    if body.pricing_items.is_some() { push_set!(r#""pricingItems""#); }
-    if body.maintenance_includes.is_some() { push_set!(r#""maintenanceIncludes""#); }
-    if body.terms_and_notes.is_some() { push_set!(r#""termsAndNotes""#); }
-    if body.section_order.is_some() { push_set!(r#""includedFunctionality""#); }
-    if body.note_sections.is_some() { push_set!(r#""importantNotes""#); }
-    if body.validity_days.is_some() { push_set!(r#""validityDays""#); }
-    if body.status.is_some() { push_set!("status"); }
-    if body.quote_request_id.is_some() { push_set!(r#""quoteRequestId""#); }
+    if body.business_name.is_some() {
+        push_set!(r#""businessName""#);
+    }
+    if body.contact_person.is_some() {
+        push_set!(r#""contactPerson""#);
+    }
+    if body.contact_email.is_some() {
+        push_set!(r#""contactEmail""#);
+    }
+    if body.contact_phone.is_some() {
+        push_set!(r#""contactPhone""#);
+    }
+    if body.date.is_some() {
+        push_set!("date");
+    }
+    if body.service_type.is_some() {
+        push_set!(r#""serviceType""#);
+    }
+    if body.title.is_some() {
+        push_set!("title");
+    }
+    if body.introduction.is_some() {
+        push_set!("introduction");
+    }
+    if body.scope_of_work.is_some() {
+        push_set!(r#""scopeOfWork""#);
+    }
+    if body.deliverables.is_some() {
+        push_set!("deliverables");
+    }
+    if body.implementation_steps.is_some() {
+        push_set!(r#""implementationSteps""#);
+    }
+    if body.pricing_items.is_some() {
+        push_set!(r#""pricingItems""#);
+    }
+    if body.maintenance_includes.is_some() {
+        push_set!(r#""maintenanceIncludes""#);
+    }
+    if body.terms_and_notes.is_some() {
+        push_set!(r#""termsAndNotes""#);
+    }
+    if body.section_order.is_some() {
+        push_set!(r#""includedFunctionality""#);
+    }
+    if body.note_sections.is_some() {
+        push_set!(r#""importantNotes""#);
+    }
+    if body.validity_days.is_some() {
+        push_set!(r#""validityDays""#);
+    }
+    if body.status.is_some() {
+        push_set!("status");
+    }
+    if body.quote_request_id.is_some() {
+        push_set!(r#""quoteRequestId""#);
+    }
 
     if sets.len() == 1 {
         return get_quotation(pool, req, web::Path::from(id)).await;
@@ -315,24 +355,60 @@ pub async fn update_quotation(
     );
 
     let mut q = sqlx::query_as::<_, QuotationRow>(&sql).bind(now);
-    if let Some(v) = &body.business_name { q = q.bind(v); }
-    if let Some(v) = &body.contact_person { q = q.bind(v); }
-    if let Some(v) = &body.contact_email { q = q.bind(v); }
-    if let Some(v) = &body.contact_phone { q = q.bind(v); }
-    if let Some(v) = &body.date { q = q.bind(parse_date(v)); }
-    if let Some(v) = &body.service_type { q = q.bind(v); }
-    if let Some(v) = &body.title { q = q.bind(v); }
-    if body.introduction.is_some() { q = q.bind(body.introduction.as_deref()); }
-    if let Some(v) = &body.scope_of_work { q = q.bind(v); }
-    if let Some(v) = &body.deliverables { q = q.bind(v); }
-    if let Some(v) = &body.implementation_steps { q = q.bind(v); }
-    if let Some(v) = &body.pricing_items { q = q.bind(v); }
-    if let Some(v) = &body.maintenance_includes { q = q.bind(v); }
-    if let Some(v) = &body.terms_and_notes { q = q.bind(v); }
-    if let Some(v) = &body.section_order { q = q.bind(v); }
-    if let Some(v) = &body.note_sections { q = q.bind(v); }
-    if body.validity_days.is_some() { q = q.bind(parse_validity_days(&body.validity_days)); }
-    if let Some(v) = &body.status { q = q.bind(v); }
+    if let Some(v) = &body.business_name {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.contact_person {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.contact_email {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.contact_phone {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.date {
+        q = q.bind(parse_date(v));
+    }
+    if let Some(v) = &body.service_type {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.title {
+        q = q.bind(v);
+    }
+    if body.introduction.is_some() {
+        q = q.bind(body.introduction.as_deref());
+    }
+    if let Some(v) = &body.scope_of_work {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.deliverables {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.implementation_steps {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.pricing_items {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.maintenance_includes {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.terms_and_notes {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.section_order {
+        q = q.bind(v);
+    }
+    if let Some(v) = &body.note_sections {
+        q = q.bind(v);
+    }
+    if body.validity_days.is_some() {
+        q = q.bind(parse_validity_days(&body.validity_days));
+    }
+    if let Some(v) = &body.status {
+        q = q.bind(v);
+    }
     if let Some(v) = &body.quote_request_id {
         let id_val: Option<String> = match v {
             Value::String(s) if !s.is_empty() => Some(s.clone()),
@@ -358,12 +434,11 @@ pub async fn delete_quotation(
     let _admin = extract_admin(&req, pool.get_ref()).await?;
     let id = path.into_inner();
 
-    let deleted = sqlx::query_scalar::<_, String>(
-        r#"DELETE FROM "Quotation" WHERE id = $1 RETURNING id"#,
-    )
-    .bind(&id)
-    .fetch_optional(pool.get_ref())
-    .await?;
+    let deleted =
+        sqlx::query_scalar::<_, String>(r#"DELETE FROM "Quotation" WHERE id = $1 RETURNING id"#)
+            .bind(&id)
+            .fetch_optional(pool.get_ref())
+            .await?;
 
     if deleted.is_none() {
         return Err(AppError::NotFound("quotation not found".to_string()));

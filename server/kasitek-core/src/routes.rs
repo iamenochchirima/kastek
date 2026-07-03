@@ -2,7 +2,7 @@ use actix_web::web;
 
 use crate::controllers::{
     admin, admin_conversations, admin_invoices, admin_leads, admin_notifications, admin_outreach,
-    admin_quotations, admin_web_services, ai, auth, bots, chat, health, notifications, orgs,
+    admin_quotations, admin_web_services, ai, auth, bots, chat, health, inbox, notifications, orgs,
     profile, public, realtime, social, whatsapp, whatsapp_calls, workspace,
 };
 
@@ -25,7 +25,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     "/{id}/deployments/{deploymentId}/callback",
                     web::post().to(bots::deployment_callback),
                 )
-                .route("/{id}/events/trusted", web::post().to(bots::create_event_trusted))
+                .route(
+                    "/{id}/events/trusted",
+                    web::post().to(bots::create_event_trusted),
+                )
                 .route("/{id}/events", web::post().to(bots::create_event)),
         )
         .route("/api/chat", web::post().to(chat::post))
@@ -150,6 +153,13 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::scope("/publish-jobs")
                         .route("/{id}", web::patch().to(social::update_publish_job)),
                 ),
+        )
+        .service(
+            web::scope("/api/inbox")
+                .route("/conversations", web::get().to(inbox::list_conversations))
+                .route("/{id}/messages", web::get().to(inbox::list_messages))
+                .route("/{id}/messages", web::post().to(inbox::send_message))
+                .route("/{id}/read", web::post().to(inbox::mark_read)),
         )
         .service(
             web::scope("/api/whatsapp")
@@ -278,6 +288,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("", web::get().to(whatsapp::verify_webhook))
                 .route("", web::post().to(whatsapp::receive_webhook)),
         )
+        .service(
+            web::scope("/api/webhooks/meta")
+                .route("", web::get().to(inbox::verify_meta_webhook))
+                .route("", web::post().to(inbox::receive_meta_webhook)),
+        )
         .route(
             "/api/quote-requests",
             web::post().to(public::create_quote_request),
@@ -291,6 +306,12 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/login", web::post().to(admin::login))
                 .route("/logout", web::post().to(admin::logout))
                 .route("/me", web::get().to(admin::me))
+                .route(
+                    "/forgot-password",
+                    web::post().to(admin::request_password_reset),
+                )
+                .route("/reset-password", web::post().to(admin::reset_password))
+                .route("/password", web::patch().to(admin::change_password))
                 .route("/stats", web::get().to(admin::stats))
                 .service(
                     web::scope("/leads")
@@ -335,6 +356,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         .route("", web::post().to(admin_invoices::create_invoice))
                         .route("/{id}", web::get().to(admin_invoices::get_invoice))
                         .route("/{id}", web::patch().to(admin_invoices::update_invoice))
+                        .route(
+                            "/{id}/runs/{run_id}/actions",
+                            web::post().to(admin_invoices::invoice_run_action),
+                        )
                         .route("/{id}", web::delete().to(admin_invoices::delete_invoice)),
                 )
                 .service(
