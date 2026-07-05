@@ -288,7 +288,7 @@ fn parse_validity_days(v: &Option<serde_json::Value>) -> i32 {
 }
 
 fn parse_anchor_day(v: &Option<serde_json::Value>, fallback: i32) -> i32 {
-    parse_i32_value(v, fallback).clamp(1, 28)
+    parse_i32_value(v, fallback).clamp(1, 31)
 }
 
 fn parse_reminder_days(v: &Option<serde_json::Value>) -> i32 {
@@ -497,7 +497,7 @@ async fn sync_current_run(
     let anchor_day = invoice
         .billing_anchor_day
         .unwrap_or(invoice.date.day() as i32)
-        .clamp(1, 28);
+        .clamp(1, 31);
     let now = Utc::now();
     let (period_start, period_end, cycle_key) = current_cycle(anchor_day, now);
     let issue_date = utc_date(period_start);

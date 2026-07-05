@@ -1,7 +1,7 @@
 # Kasitek Monorepo
 
 ## Overview
-A Next.js pnpm monorepo migrated from Vercel to Replit. The main client app is a Next.js 16 application using React 19, Tailwind CSS v4, and Prisma with a Neon PostgreSQL database.
+A Next.js pnpm monorepo migrated from Vercel to Replit. The main client app is a Next.js 16 application using React 19, Tailwind CSS v4, and Prisma with a PostgreSQL database.
 
 ## Solutions Pages Architecture
 - `/solutions` — 4-card picker (SMBs, Agencies, Software Vendors, Franchises)
@@ -35,7 +35,7 @@ server/                        # Rust backend (Cargo workspace)
 - **Package Manager**: pnpm@10.30.1
 
 ## Required Environment Variables
-- `DATABASE_URL` — Neon PostgreSQL connection string (required for Prisma)
+- `DATABASE_URL` — PostgreSQL connection string (required for Prisma)
 - `OPENROUTER_API_KEY` — OpenRouter API key for AI features
 - `OPENROUTER_MODEL` — Optional, defaults to `openai/gpt-4.1-mini`
 - `NEXT_PUBLIC_API_BASE_URL` — Base URL for the backend API
@@ -47,7 +47,7 @@ server/                        # Rust backend (Cargo workspace)
 - Next.js 16.1.6 with Turbopack
 - React 19
 - Tailwind CSS v4
-- Prisma v7 with Neon serverless PostgreSQL adapter
+- Prisma v7 with PostgreSQL
 - Auth.js v5 (session-based auth)
 - pnpm workspaces
 

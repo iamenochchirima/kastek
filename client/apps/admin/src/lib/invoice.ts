@@ -418,6 +418,30 @@ function padDatePart(value: number) {
 
 function coerceInvoiceDate(value: Date | string | number) {
   if (value instanceof Date) return value;
+  if (typeof value === "string") {
+    const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnlyMatch) {
+      const [, year, month, day] = dateOnlyMatch;
+      return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12, 0, 0));
+    }
+
+    const naiveTimestampMatch = value.match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/
+    );
+    if (naiveTimestampMatch) {
+      const [, year, month, day, hour, minute, second] = naiveTimestampMatch;
+      return new Date(
+        Date.UTC(
+          Number(year),
+          Number(month) - 1,
+          Number(day),
+          Number(hour),
+          Number(minute),
+          Number(second || 0)
+        )
+      );
+    }
+  }
   return new Date(value);
 }
 
@@ -433,6 +457,25 @@ export function parseInvoiceDateInput(value?: string | null) {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return new Date(value);
   return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+}
+
+const MONTH_NAME_PATTERN =
+  /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/gi;
+
+function getCycleMonthLabel(date: Date) {
+  return date.toLocaleDateString("en-ZA", {
+    month: "long",
+    timeZone: "UTC",
+  });
+}
+
+function rewriteRecurringCycleMonth(text: string, date: Date) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return trimmed;
+  const cycleMonthLabel = getCycleMonthLabel(date);
+  if (!MONTH_NAME_PATTERN.test(trimmed)) return trimmed;
+  MONTH_NAME_PATTERN.lastIndex = 0;
+  return trimmed.replace(MONTH_NAME_PATTERN, cycleMonthLabel);
 }
 
 export function getTemplateDraft(serviceType: string, lead?: Partial<QuoteLead>): InvoiceDraft {
@@ -717,6 +760,10 @@ export function invoiceRecordToDraft(record: {
   importantNotes: unknown;
   validityDays: number;
   status: string;
+  currentRun?: {
+    issueDate?: string | Date | null;
+    dueDate?: string | Date | null;
+  } | null;
 }): InvoiceDraft {
   const fallback = getTemplateDraft(record.serviceType, {
     businessName: record.businessName,
@@ -728,7 +775,40 @@ export function invoiceRecordToDraft(record: {
 
   const customSections = asSections(record.implementationSteps);
   const noteSections = asNoteSections(record.importantNotes);
-  const date = coerceInvoiceDate(record.date);
+  const useRecurringRunDate =
+    record.billingMode === "monthly" &&
+    Boolean(record.recurringActive) &&
+    record.currentRun?.issueDate;
+  const date = coerceInvoiceDate(useRecurringRunDate ? record.currentRun?.issueDate ?? record.date : record.date);
+  const dynamicCycleDate = useRecurringRunDate
+    ? formatInvoiceDateInput(date, true)
+    : null;
+  const dynamicDueLabel = dynamicCycleDate
+    ? new Date(`${dynamicCycleDate}T12:00:00Z`).toLocaleDateString("en-ZA", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : null;
+
+  const normalizedTerms = normalizeTermsAndNotes(
+    asStringArray(record.termsAndNotes, fallback.termsAndNotes)
+  ).map((item) => {
+    if (!dynamicDueLabel) return item;
+    if (/^Due:/i.test(item.trim())) {
+      return `Due: ${dynamicDueLabel}.`;
+    }
+    if (useRecurringRunDate) {
+      return rewriteRecurringCycleMonth(item, date);
+    }
+    return `Due: ${dynamicDueLabel}.`;
+  });
+
+  const title =
+    useRecurringRunDate
+      ? rewriteRecurringCycleMonth(record.title, date)
+      : record.title;
 
   return {
     id: record.id,
@@ -745,7 +825,7 @@ export function invoiceRecordToDraft(record: {
     date: Number.isNaN(date.getTime())
       ? fallback.date
       : formatInvoiceDateInput(date, true),
-    title: record.title,
+    title,
     introduction: record.introduction || "",
     scopeOfWork: asStringArray(record.scopeOfWork, fallback.scopeOfWork),
     deliverables: asStringArray(record.deliverables, fallback.deliverables),
@@ -755,9 +835,7 @@ export function invoiceRecordToDraft(record: {
       record.maintenanceIncludes,
       fallback.maintenanceIncludes
     ),
-    termsAndNotes: normalizeTermsAndNotes(
-      asStringArray(record.termsAndNotes, fallback.termsAndNotes)
-    ),
+    termsAndNotes: normalizedTerms,
     noteSections,
     pricingItems: asLineItems(record.pricingItems, fallback.pricingItems),
     validityDays: String(record.validityDays),
