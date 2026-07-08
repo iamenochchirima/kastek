@@ -1,0 +1,63 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/",
+          "mainDocId": "README",
+          "docs": [
+            {
+              "id": "architecture/PROJECT_PLAN",
+              "path": "/architecture/project-plan",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "contracts/n8n-provisioner-contract",
+              "path": "/contracts/n8n-provisioner-contract",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "execution/TENANT_PLATFORM_EXECUTION_PLAN",
+              "path": "/execution/tenant-platform-execution-plan",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "go-to-market/sales-and-social-plan",
+              "path": "/go-to-market/sales-and-social-plan",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "README",
+              "path": "/",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "roadmap/product-roadmap",
+              "path": "/roadmap/product-roadmap",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "strategy/company-strategy",
+              "path": "/strategy/company-strategy",
+              "sidebar": "tutorialSidebar"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "tutorialSidebar": {
+              "link": {
+                "path": "/",
+                "label": "README"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

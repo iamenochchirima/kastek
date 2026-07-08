@@ -12,6 +12,23 @@ export default {
   "organizationName": "kasitek",
   "projectName": "docs",
   "onBrokenLinks": "throw",
+  "markdown": {
+    "hooks": {
+      "onBrokenMarkdownLinks": "warn",
+      "onBrokenMarkdownImages": "throw"
+    },
+    "format": "mdx",
+    "mermaid": false,
+    "emoji": true,
+    "mdx1Compat": {
+      "comments": true,
+      "admonitions": true,
+      "headingIds": true
+    },
+    "anchors": {
+      "maintainCase": false
+    }
+  },
   "i18n": {
     "defaultLocale": "en",
     "locales": [
@@ -25,12 +42,12 @@ export default {
       "classic",
       {
         "docs": {
-          "sidebarPath": "/home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/docs/public/sidebars.js",
+          "sidebarPath": "/home/enoch/aworkspace/kasitek/docs/public/sidebars.js",
           "routeBasePath": "/"
         },
         "blog": false,
         "theme": {
-          "customCss": "/home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/docs/public/src/css/custom.css"
+          "customCss": "/home/enoch/aworkspace/kasitek/docs/public/src/css/custom.css"
         }
       }
     ]
@@ -297,22 +314,5 @@ export default {
   "stylesheets": [],
   "clientModules": [],
   "titleDelimiter": "|",
-  "noIndex": false,
-  "markdown": {
-    "format": "mdx",
-    "mermaid": false,
-    "emoji": true,
-    "mdx1Compat": {
-      "comments": true,
-      "admonitions": true,
-      "headingIds": true
-    },
-    "anchors": {
-      "maintainCase": false
-    },
-    "hooks": {
-      "onBrokenMarkdownLinks": "warn",
-      "onBrokenMarkdownImages": "throw"
-    }
-  }
+  "noIndex": false
 };

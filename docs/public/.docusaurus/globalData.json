@@ -32,7 +32,7 @@
             },
             {
               "id": "intro",
-              "path": "/intro",
+              "path": "/",
               "sidebar": "docsSidebar"
             },
             {
@@ -115,7 +115,7 @@
           "sidebars": {
             "docsSidebar": {
               "link": {
-                "path": "/intro",
+                "path": "/",
                 "label": "intro"
               }
             }

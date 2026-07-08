@@ -2,6 +2,7 @@
 id: intro
 title: KasiTek Platform Docs
 sidebar_position: 1
+slug: /
 ---
 
 # KasiTek Platform Docs

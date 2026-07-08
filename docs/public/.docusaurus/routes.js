@@ -4,15 +4,15 @@ import ComponentCreator from '@docusaurus/ComponentCreator';
 export default [
   {
     path: '/',
-    component: ComponentCreator('/', '441'),
+    component: ComponentCreator('/', '0da'),
     routes: [
       {
         path: '/',
-        component: ComponentCreator('/', '9c9'),
+        component: ComponentCreator('/', '2cf'),
         routes: [
           {
             path: '/',
-            component: ComponentCreator('/', '242'),
+            component: ComponentCreator('/', 'c83'),
             routes: [
               {
                 path: '/client-portal/client-experience',
@@ -35,12 +35,6 @@ export default [
               {
                 path: '/getting-started/roles-and-permissions',
                 component: ComponentCreator('/getting-started/roles-and-permissions', 'eaf'),
-                exact: true,
-                sidebar: "docsSidebar"
-              },
-              {
-                path: '/intro',
-                component: ComponentCreator('/intro', '4a2'),
                 exact: true,
                 sidebar: "docsSidebar"
               },
@@ -131,6 +125,12 @@ export default [
               {
                 path: '/workspace/settings',
                 component: ComponentCreator('/workspace/settings', 'aee'),
+                exact: true,
+                sidebar: "docsSidebar"
+              },
+              {
+                path: '/',
+                component: ComponentCreator('/', 'b56'),
                 exact: true,
                 sidebar: "docsSidebar"
               }

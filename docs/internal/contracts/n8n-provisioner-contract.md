@@ -186,3 +186,7 @@ Required environment for that service:
 Point `kasitek-core` at it with:
 
 - `N8N_PROVISIONER_URL=http://localhost:4010/dispatch`
+---
+title: n8n Provisioner Contract
+slug: /contracts/n8n-provisioner-contract
+---

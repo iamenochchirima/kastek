@@ -1,0 +1,26 @@
+{
+  "id": "go-to-market/sales-and-social-plan",
+  "title": "Sales And Social Plan",
+  "description": "This section covers internal go-to-market planning.",
+  "source": "@site/../internal/go-to-market/sales-and-social-plan.md",
+  "sourceDirName": "go-to-market",
+  "slug": "/go-to-market/sales-and-social-plan",
+  "permalink": "/go-to-market/sales-and-social-plan",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Sales And Social Plan",
+    "slug": "/go-to-market/sales-and-social-plan"
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Product Roadmap",
+    "permalink": "/roadmap/product-roadmap"
+  },
+  "next": {
+    "title": "n8n Provisioner Contract",
+    "permalink": "/contracts/n8n-provisioner-contract"
+  }
+}

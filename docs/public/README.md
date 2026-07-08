@@ -8,6 +8,8 @@ Public documentation site for the KasiTek platform.
 - domain: `docs.kasitek.co.za`
 - hosting: Vercel
 
+Internal documentation is now a separate standalone site under `docs/internal-site`.
+
 ## Runtime expectation
 
 Use Node `22`.
