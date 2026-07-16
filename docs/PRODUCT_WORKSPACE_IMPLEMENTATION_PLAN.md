@@ -365,8 +365,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Provider boundary
 
-- [ ] Define a `BillingProvider` interface in the server layer.
-- [ ] Keep provider identifiers, secret keys, API clients, webhook verification, and provider status mapping inside the Paystack adapter.
+- [x] Define a `BillingProvider` interface in the server layer.
+- [x] Keep provider API configuration, HTTP calls, webhook verification, and provider event mapping inside the Paystack adapter.
 - [x] Keep internal product, subscription, entitlement, invoice, and usage models provider-neutral.
 - [ ] Store Paystack customer, plan, subscription, transaction, invoice, and authorisation references as external IDs, never as the source of truth for access.
 - [x] Keep all Paystack secret-key calls on the server.
@@ -378,10 +378,10 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Attach internal organisation, plan, user, and provider metadata to the Paystack transaction reference/metadata.
 - [x] Initialise checkout from the server through Paystack’s transaction API.
 - [x] Use the client only to redirect to the returned authorisation URL or render the approved checkout flow.
-- [ ] Verify the transaction server-side after return.
+- [x] Verify the transaction server-side after return.
 - [x] Treat browser return as a status display only; grant or update access only after verified provider data and/or verified webhook processing.
-- [ ] Record all provider responses needed for reconciliation without storing card details.
-- [ ] Make checkout creation idempotent so refreshes cannot create duplicate transactions.
+- [x] Record the provider transaction references and normalized verification results needed for checkout reconciliation without storing card details.
+- [x] Make checkout creation idempotent so retries cannot create duplicate transactions.
 
 ### Recurring billing
 
@@ -405,13 +405,14 @@ Every organisation can enter the workspace. Access is controlled at feature and 
   - [x] Subscription non-renewing
   - [x] Subscription disabled/completed
   - [ ] Refund or charge reversal where applicable
-- [ ] Add a reconciliation job that periodically verifies recent unresolved transactions and subscription states with Paystack.
+- [x] Add a reconciliation job that periodically verifies recent unresolved checkout transactions with Paystack.
+- [ ] Extend reconciliation to verify active subscription states with Paystack.
 - [ ] Alert internal operators when payment state and internal entitlement state differ.
 
 ### Completion criteria
 
 - [x] A successful verified Paystack payment activates only the intended organisation product/plan entitlement.
-- [ ] Failed, cancelled, duplicate, forged, or mismatched payment events do not grant access.
+- [x] Failed, cancelled, duplicate, forged, or mismatched payment events do not grant access.
 - [ ] Test mode covers the complete checkout, webhook, entitlement, and cancellation path before live keys are used.
 
 ## Phase 10: Test, Migrate, and Roll Out
@@ -458,7 +459,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [ ] Subscription and entitlement records are organisation-owned and provider-neutral.
 - [ ] Usage is measured by server-side events and checked before restricted actions.
 - [ ] Billing and usage works before Paystack is enabled.
-- [ ] Paystack checkout, verification, signed webhooks, and reconciliation are isolated behind a provider adapter.
+- [x] Paystack checkout, verification, signed webhooks, and checkout reconciliation are isolated behind a provider adapter.
 - [ ] Direct Kasitek and white-label tenant architecture remain separate.
 - [ ] Legacy routes are removed or intentionally redirected.
 - [ ] The final Architecture document contains only durable decisions, not this delivery checklist.

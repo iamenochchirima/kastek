@@ -28,6 +28,7 @@ If you want a dedicated worker-only process, use:
 KASITEK_PROCESS=whatsapp-marketing-worker cargo run
 KASITEK_PROCESS=whatsapp-inbox-worker cargo run
 KASITEK_PROCESS=social-publishing-worker cargo run
+KASITEK_PROCESS=billing-reconciliation-worker cargo run
 KASITEK_PROCESS=all-workers cargo run
 ```
 
