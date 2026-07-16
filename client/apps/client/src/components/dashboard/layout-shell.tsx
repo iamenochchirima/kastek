@@ -91,7 +91,6 @@ const navigationGroups: NavigationGroup[] = [
     label: "Manage",
     items: [
       { name: "Connections", href: "/connections", icon: Cable },
-      { name: "Social accounts", href: "/social/channels", icon: Sparkles, productKey: "social" },
       { name: "Team", href: "/workspace/team", icon: Users },
       { name: "Billing and usage", href: "/billing", icon: CreditCard },
       { name: "Workspace settings", href: "/workspace/settings", icon: Settings },

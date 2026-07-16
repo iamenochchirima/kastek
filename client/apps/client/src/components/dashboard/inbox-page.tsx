@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import Picker from "@emoji-mart/react";
 import emojiData from "@emoji-mart/data";
 import { motion } from "framer-motion";
@@ -34,7 +35,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 import { apiUrl } from "@/lib/server-api";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -940,13 +940,7 @@ export default function InboxPageClient({
                 </div>
               ) : (
                 <div className="border-t border-border p-3">
-                  <Sheet>
-                    <SheetTrigger asChild><Button size="sm">Connect WhatsApp</Button></SheetTrigger>
-                    <SheetContent side="right" className="w-[min(720px,100vw)] overflow-y-auto p-0">
-                      <div className="border-b border-border px-5 py-4"><h3 className="text-base font-semibold text-foreground">WhatsApp connection</h3></div>
-                      <div className="p-5"><WhatsappManualConnectionCard connections={whatsappConnections} mode="setup" /></div>
-                    </SheetContent>
-                  </Sheet>
+                  <Button asChild size="sm"><Link href="/connections#whatsapp-setup">Connect WhatsApp</Link></Button>
                 </div>
               )}
             </div>

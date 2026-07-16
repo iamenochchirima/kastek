@@ -224,7 +224,7 @@ export default function WhatsappEmbeddedSignupCard({
       templates: String(body.templateSync?.synced || 0),
     });
 
-    router.push(`/reach/settings/whatsapp-onboarding?${params.toString()}`);
+    router.push(`/connections/whatsapp-onboarding?${params.toString()}`);
   }
 
   async function runHealthCheck(connectionId: string) {
@@ -335,7 +335,7 @@ export default function WhatsappEmbeddedSignupCard({
               },
             ]),
           });
-          router.push(`/reach/settings/whatsapp-onboarding?${params.toString()}`);
+          router.push(`/connections/whatsapp-onboarding?${params.toString()}`);
         } finally {
           setLoading(false);
         }

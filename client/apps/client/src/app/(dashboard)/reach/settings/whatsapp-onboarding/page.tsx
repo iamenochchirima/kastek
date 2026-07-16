@@ -1,9 +1,5 @@
-import WhatsappOnboardingResultCard from "@/components/dashboard/settings/whatsapp-onboarding-result-card";
-
-export const metadata = {
-  title: "WhatsApp Onboarding | KasiTek",
-};
+import { redirect } from "next/navigation";
 
 export default function ReachWhatsappOnboardingResultPage() {
-  return <WhatsappOnboardingResultCard />;
+  redirect("/connections/whatsapp-onboarding");
 }

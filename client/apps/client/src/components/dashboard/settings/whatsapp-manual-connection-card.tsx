@@ -87,7 +87,7 @@ export default function WhatsappManualConnectionCard({
       });
 
       setShowSetupForm(false);
-      router.push(`/reach/settings/whatsapp-onboarding?${params.toString()}`);
+      router.push(`/connections/whatsapp-onboarding?${params.toString()}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect WhatsApp");

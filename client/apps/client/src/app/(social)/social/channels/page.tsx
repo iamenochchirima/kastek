@@ -1,5 +1,5 @@
-import { ChannelsManager } from "@/components/social/channels-manager";
+import { redirect } from "next/navigation";
 
 export default function SocialChannelsPage() {
-  return <ChannelsManager />;
+  redirect("/connections");
 }
