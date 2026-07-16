@@ -738,7 +738,7 @@ pub async fn verify_checkout(
             activated: true,
         });
     }
-    if checkout_status == "FAILED" {
+    if checkout_status != "PENDING" {
         return Ok(CheckoutVerification {
             reference: reference.to_string(),
             status: "failed",
@@ -932,6 +932,20 @@ fn internal_subscription_state(state: &ProviderSubscriptionState) -> Option<(&'s
     }
 }
 
+fn subscription_grants_access(status: &str) -> bool {
+    matches!(status, "TRIAL" | "ACTIVE" | "GRACE")
+}
+
+fn merge_entitlement_value(existing: Option<&Value>, next: Value) -> Value {
+    match (existing, &next) {
+        (Some(Value::Bool(existing)), Value::Bool(next)) => Value::Bool(*existing || *next),
+        (Some(existing), next) if existing.as_i64().is_some() && next.as_i64().is_some() => {
+            Value::from(existing.as_i64().unwrap().max(next.as_i64().unwrap()))
+        }
+        _ => next,
+    }
+}
+
 pub async fn reconcile_billing(
     pool: &PgPool,
     provider: &dyn BillingProvider,
@@ -984,6 +998,17 @@ pub async fn reconcile_billing(
                 if transaction.reference == reference {
                     result.pending += 1;
                 } else {
+                    let org_id = checkout_org(pool, provider.name(), &reference).await?;
+                    upsert_reconciliation_issue(
+                        pool,
+                        org_id.as_deref(),
+                        provider.name(),
+                        "transaction",
+                        &reference,
+                        "reference_mismatch",
+                        serde_json::json!({"expected": reference, "received": transaction.reference}),
+                    )
+                    .await?;
                     result.failed += 1;
                 }
             }
@@ -1165,15 +1190,7 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
 
     let mut entitlements = HashMap::<String, Value>::new();
     for entitlement in entitlement_rows {
-        let value = match (entitlements.get(&entitlement.key), &entitlement.value) {
-            // Multiple valid grants should be additive. A stale or narrower false grant must not
-            // turn off access provided by an active plan or another grant.
-            (Some(Value::Bool(existing)), Value::Bool(next)) => Value::Bool(*existing || *next),
-            (Some(existing), next) if existing.as_i64().is_some() && next.as_i64().is_some() => {
-                Value::from(existing.as_i64().unwrap().max(next.as_i64().unwrap()))
-            }
-            _ => entitlement.value,
-        };
+        let value = merge_entitlement_value(entitlements.get(&entitlement.key), entitlement.value);
         entitlements.insert(entitlement.key, value);
     }
 
@@ -1188,7 +1205,6 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
         JOIN "ProductPlan" plan ON plan.id = subscription."planId"
         JOIN "Product" product ON product.id = plan."productId"
         WHERE subscription."orgId" = $1
-          AND subscription.status IN ('TRIAL'::"OrganizationSubscriptionStatus", 'ACTIVE'::"OrganizationSubscriptionStatus", 'GRACE'::"OrganizationSubscriptionStatus")
         ORDER BY subscription."createdAt" DESC
         "#,
     )
@@ -1241,7 +1257,10 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
                         .and_then(|metric| value.as_i64().map(|limit| (metric.to_string(), limit)))
                 })
                 .collect();
-            let has_access = grant_allows_access || subscription.is_some();
+            let has_access = grant_allows_access
+                || subscription
+                    .as_ref()
+                    .is_some_and(|item| subscription_grants_access(&item.status));
             let state = if has_access {
                 "enabled"
             } else {
@@ -1426,6 +1445,25 @@ mod tests {
         assert_eq!(
             internal_subscription_state(&ProviderSubscriptionState::Unknown("paused".to_string())),
             None
+        );
+        assert!(subscription_grants_access("TRIAL"));
+        assert!(subscription_grants_access("ACTIVE"));
+        assert!(subscription_grants_access("GRACE"));
+        assert!(!subscription_grants_access("PAST_DUE"));
+        assert!(!subscription_grants_access("CANCELLED"));
+        assert!(!subscription_grants_access("SUSPENDED"));
+
+        assert_eq!(
+            merge_entitlement_value(Some(&Value::Bool(true)), Value::Bool(false)),
+            Value::Bool(true)
+        );
+        assert_eq!(
+            merge_entitlement_value(Some(&Value::from(10)), Value::from(25)),
+            Value::from(25)
+        );
+        assert_eq!(
+            merge_entitlement_value(Some(&Value::from(50)), Value::from(25)),
+            Value::from(50)
         );
     }
 }

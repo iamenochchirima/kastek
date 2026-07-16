@@ -94,6 +94,7 @@ pub async fn reconcile_paystack(
     let result = billing::reconcile_billing(pool.get_ref(), &provider, 100).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "provider": provider.name(),
+        "mode": config.paystack_mode,
         "result": result,
     })))
 }

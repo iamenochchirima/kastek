@@ -99,6 +99,10 @@ async fn run_billing_reconciliation_worker(pool: sqlx::PgPool, config: AppConfig
         return;
     };
     let provider = services::paystack::PaystackProvider::new(secret, &config.paystack_api_base_url);
+    log::info!(
+        "billing reconciliation worker configured for Paystack {} mode",
+        config.paystack_mode
+    );
     let interval_seconds = std::env::var("PAYSTACK_RECONCILIATION_INTERVAL_SECONDS")
         .ok()
         .and_then(|value| value.parse::<u64>().ok())

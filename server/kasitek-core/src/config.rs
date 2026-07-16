@@ -28,6 +28,7 @@ pub struct AppConfig {
     pub web_push_vapid_private_key: Option<String>,
     pub web_push_subject: String,
     pub paystack_secret_key: Option<String>,
+    pub paystack_mode: String,
     pub paystack_api_base_url: String,
 }
 
@@ -43,6 +44,11 @@ impl AppConfig {
             }
         });
         let public_api_url = env_string_or("KASITEK_CORE_PUBLIC_URL", "http://localhost:4000");
+        let paystack_mode = if env_string_or("PAYSTACK_MODE", "test").eq_ignore_ascii_case("live") {
+            "live".to_string()
+        } else {
+            "test".to_string()
+        };
 
         Ok(Self {
             port: env_u16_or("PORT", 4000),
@@ -72,7 +78,15 @@ impl AppConfig {
             web_push_vapid_public_key: env_optional("WEB_PUSH_VAPID_PUBLIC_KEY"),
             web_push_vapid_private_key: env_optional("WEB_PUSH_VAPID_PRIVATE_KEY"),
             web_push_subject: env_string_or("WEB_PUSH_SUBJECT", "mailto:hello@kasitek.co.za"),
-            paystack_secret_key: env_optional("PAYSTACK_SECRET_KEY"),
+            paystack_secret_key: {
+                if paystack_mode == "live" {
+                    env_optional("PAYSTACK_LIVE_SECRET_KEY")
+                } else {
+                    env_optional("PAYSTACK_TEST_SECRET_KEY")
+                }
+                .or_else(|| env_optional("PAYSTACK_SECRET_KEY"))
+            },
+            paystack_mode,
             paystack_api_base_url: env_string_or(
                 "PAYSTACK_API_BASE_URL",
                 "https://api.paystack.co",
