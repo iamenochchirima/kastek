@@ -8,6 +8,7 @@ export type ProductAccess = {
   state: "enabled" | "upgrade_required";
   planName: string | null;
   subscriptionStatus: string | null;
+  currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   trialEndsAt: string | null;
   cancelAtPeriodEnd: boolean;
@@ -30,6 +31,18 @@ export type BillingSummary = {
   orgId: string;
   products: ProductAccess[];
   manualGrants: ManualGrant[];
+  payments: PaymentHistoryItem[];
+};
+
+export type PaymentHistoryItem = {
+  reference: string;
+  productName: string;
+  planName: string;
+  status: string;
+  currency: string;
+  amountMinor: number | null;
+  completedAt: string | null;
+  createdAt: string;
 };
 
 export type AvailablePlan = {

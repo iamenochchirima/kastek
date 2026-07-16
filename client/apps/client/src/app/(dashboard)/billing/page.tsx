@@ -21,6 +21,10 @@ function formatPrice(amountMinor: number | null, currency: string) {
   return new Intl.NumberFormat("en-ZA", { style: "currency", currency }).format(amountMinor / 100);
 }
 
+function formatDate(value: string | null) {
+  return value ? new Date(value).toLocaleDateString("en-ZA", { dateStyle: "medium" }) : null;
+}
+
 export default async function BillingPage({
   searchParams,
 }: {
@@ -86,6 +90,15 @@ export default async function BillingPage({
                   <p className="text-muted-foreground">
                     Plan: <span className="text-foreground">{product.planName ?? "Not enabled"}</span>
                   </p>
+                  {product.trialEndsAt ? (
+                    <p className="text-muted-foreground">Trial ends: <span className="text-foreground">{formatDate(product.trialEndsAt)}</span></p>
+                  ) : product.currentPeriodEnd ? (
+                    <p className="text-muted-foreground">
+                      {product.cancelAtPeriodEnd ? "Access ends" : "Current period"}: <span className="text-foreground">
+                        {formatDate(product.currentPeriodStart) ?? "Started"} to {formatDate(product.currentPeriodEnd)}
+                      </span>
+                    </p>
+                  ) : null}
                   {Object.keys(product.usage).length > 0 ? (
                     <div className="space-y-1 text-muted-foreground">
                       <p className="text-foreground">Current month usage</p>
@@ -142,6 +155,29 @@ export default async function BillingPage({
                   <span className="text-muted-foreground">
                     {grant.endsAt ? `Expires ${new Date(grant.endsAt).toLocaleDateString("en-ZA")}` : "No expiry"}
                   </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {summary?.payments.length ? (
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-lg font-semibold text-foreground">Payment history</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Checkout records confirmed by the billing server.
+            </p>
+            <div className="mt-4 divide-y divide-border">
+              {summary.payments.map((payment) => (
+                <div key={payment.reference} className="flex flex-wrap items-center justify-between gap-4 py-3 text-sm">
+                  <div>
+                    <p className="font-medium text-foreground">{payment.productName} · {payment.planName}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{payment.reference}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium text-foreground">{formatPrice(payment.amountMinor, payment.currency)}</p>
+                    <p className="text-muted-foreground">{payment.status.replaceAll("_", " ").toLowerCase()} · {formatDate(payment.completedAt ?? payment.createdAt)}</p>
+                  </div>
                 </div>
               ))}
             </div>
