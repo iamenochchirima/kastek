@@ -39,6 +39,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/plans", web::get().to(billing::plans))
                 .route("/checkout", web::post().to(billing::checkout)),
         )
+        .route(
+            "/api/webhooks/paystack",
+            web::post().to(billing::paystack_webhook),
+        )
         .service(
             web::scope("/api/orgs")
                 .route("", web::get().to(orgs::list_orgs))

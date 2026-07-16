@@ -1,7 +1,9 @@
 use crate::config::AppConfig;
 use chrono::{DateTime, Utc};
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::Sha512;
 use sqlx::{FromRow, PgPool};
 use std::collections::HashMap;
 
@@ -98,6 +100,123 @@ struct PaystackInitializeResponse {
 struct PaystackCheckoutData {
     authorization_url: String,
     reference: String,
+}
+
+type HmacSha512 = Hmac<Sha512>;
+
+pub fn verify_paystack_signature(secret: &str, payload: &[u8], signature: &str) -> bool {
+    let Ok(signature) = hex::decode(signature.trim()) else {
+        return false;
+    };
+    let Ok(mut mac) = HmacSha512::new_from_slice(secret.as_bytes()) else {
+        return false;
+    };
+    mac.update(payload);
+    mac.verify_slice(&signature).is_ok()
+}
+
+pub async fn process_paystack_webhook(pool: &PgPool, event: &Value) -> Result<bool, AppError> {
+    if event.get("event").and_then(Value::as_str) != Some("charge.success") {
+        return Ok(false);
+    }
+
+    let data = event
+        .get("data")
+        .and_then(Value::as_object)
+        .ok_or_else(|| AppError::BadRequest("Paystack webhook data is missing".to_string()))?;
+    if data.get("status").and_then(Value::as_str) != Some("success") {
+        return Ok(false);
+    }
+    let reference = data
+        .get("reference")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::BadRequest("Paystack reference is missing".to_string()))?;
+
+    let mut tx = pool.begin().await?;
+    let checkout = sqlx::query_as::<_, (String, String, String, String)>(
+        r#"
+        SELECT id, "orgId", "planId", status
+        FROM "BillingCheckout"
+        WHERE reference = $1 AND provider = 'paystack'
+        FOR UPDATE
+    "#,
+    )
+    .bind(reference)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some((checkout_id, org_id, plan_id, status)) = checkout else {
+        return Ok(false);
+    };
+    if status == "COMPLETED" {
+        tx.commit().await?;
+        return Ok(true);
+    }
+
+    let customer_code = data
+        .get("customer")
+        .and_then(Value::as_object)
+        .and_then(|customer| customer.get("customer_code"))
+        .and_then(Value::as_str);
+    let subscription_code = data
+        .get("subscription")
+        .and_then(Value::as_object)
+        .and_then(|subscription| subscription.get("subscription_code"))
+        .and_then(Value::as_str)
+        .or_else(|| data.get("subscription_code").and_then(Value::as_str));
+    let provider_subscription_id = subscription_code
+        .map(ToString::to_string)
+        .unwrap_or_else(|| format!("paystack-charge:{reference}"));
+
+    sqlx::query(r#"
+        UPDATE "OrganizationSubscription" subscription
+        SET status = 'CANCELLED'::"OrganizationSubscriptionStatus", "cancelledAt" = NOW(), "updatedAt" = NOW()
+        WHERE subscription."orgId" = $1
+          AND subscription.status IN ('TRIAL'::"OrganizationSubscriptionStatus", 'ACTIVE'::"OrganizationSubscriptionStatus", 'GRACE'::"OrganizationSubscriptionStatus")
+          AND subscription."planId" IN (
+            SELECT sibling.id FROM "ProductPlan" sibling
+            WHERE sibling."productId" = (SELECT "productId" FROM "ProductPlan" WHERE id = $2)
+          )
+    "#).bind(&org_id).bind(&plan_id).execute(&mut *tx).await?;
+
+    sqlx::query(r#"
+        INSERT INTO "OrganizationSubscription" (
+          id, "orgId", "planId", status, "startedAt", "currentPeriodStart",
+          "cancelAtPeriodEnd", provider, "providerCustomerId", "providerSubscriptionId", "createdAt", "updatedAt"
+        ) VALUES ($1, $2, $3, 'ACTIVE'::"OrganizationSubscriptionStatus", NOW(), NOW(), false, 'paystack', $4, $5, NOW(), NOW())
+        ON CONFLICT ("providerSubscriptionId") DO UPDATE SET
+          status = 'ACTIVE'::"OrganizationSubscriptionStatus", "cancelledAt" = NULL, "updatedAt" = NOW()
+    "#)
+    .bind(cuid2::create_id()).bind(&org_id).bind(&plan_id).bind(customer_code)
+    .bind(&provider_subscription_id).execute(&mut *tx).await?;
+
+    sqlx::query(r#"
+        UPDATE "BillingCheckout" SET status = 'COMPLETED', "completedAt" = NOW(), "updatedAt" = NOW()
+        WHERE id = $1
+    "#).bind(checkout_id).execute(&mut *tx).await?;
+    tx.commit().await?;
+    Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::verify_paystack_signature;
+    use hmac::{Hmac, Mac};
+    use sha2::Sha512;
+
+    #[test]
+    fn verifies_paystack_hmac_and_rejects_modified_payload() {
+        let payload = br#"{"event":"charge.success"}"#;
+        let mut mac = Hmac::<Sha512>::new_from_slice(b"secret").unwrap();
+        mac.update(payload);
+        let signature = hex::encode(mac.finalize().into_bytes());
+        assert!(verify_paystack_signature("secret", payload, &signature));
+        assert!(!verify_paystack_signature(
+            "secret",
+            b"modified",
+            &signature
+        ));
+    }
 }
 
 pub async fn list_available_plans(pool: &PgPool) -> Result<Vec<AvailablePlan>, AppError> {

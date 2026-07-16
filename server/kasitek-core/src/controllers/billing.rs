@@ -55,3 +55,28 @@ pub async fn checkout(
         .await?,
     ))
 }
+
+pub async fn paystack_webhook(
+    pool: web::Data<PgPool>,
+    config: web::Data<crate::config::AppConfig>,
+    req: HttpRequest,
+    payload: web::Bytes,
+) -> Result<HttpResponse, AppError> {
+    let secret = config
+        .paystack_secret_key
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::Internal("Paystack webhook is not configured".to_string()))?;
+    let signature = req
+        .headers()
+        .get("x-paystack-signature")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("");
+    if !billing::verify_paystack_signature(secret, &payload, signature) {
+        return Err(AppError::Unauthorized);
+    }
+    let event: serde_json::Value = serde_json::from_slice(&payload)
+        .map_err(|_| AppError::BadRequest("Invalid Paystack webhook payload".to_string()))?;
+    let processed = billing::process_paystack_webhook(pool.get_ref(), &event).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({"received": true, "processed": processed})))
+}
