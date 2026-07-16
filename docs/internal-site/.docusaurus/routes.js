@@ -39,39 +39,47 @@ export default [
   },
   {
     path: '/',
-    component: ComponentCreator('/', '3b3'),
+    component: ComponentCreator('/', 'd4c'),
     routes: [
       {
         path: '/',
-        component: ComponentCreator('/', '8cc'),
+        component: ComponentCreator('/', '0d5'),
         routes: [
           {
             path: '/',
-            component: ComponentCreator('/', 'c12'),
+            component: ComponentCreator('/', '60f'),
             routes: [
               {
-                path: '/architecture/project-plan',
-                component: ComponentCreator('/architecture/project-plan', 'edc'),
+                path: '/architecture',
+                component: ComponentCreator('/architecture', '4a4'),
                 exact: true,
                 sidebar: "tutorialSidebar"
+              },
+              {
+                path: '/architecture/project-plan',
+                component: ComponentCreator('/architecture/project-plan', 'ca3'),
+                exact: true
               },
               {
                 path: '/contracts/n8n-provisioner-contract',
-                component: ComponentCreator('/contracts/n8n-provisioner-contract', '446'),
-                exact: true,
-                sidebar: "tutorialSidebar"
+                component: ComponentCreator('/contracts/n8n-provisioner-contract', 'dfc'),
+                exact: true
               },
               {
                 path: '/execution/tenant-platform-execution-plan',
-                component: ComponentCreator('/execution/tenant-platform-execution-plan', '420'),
+                component: ComponentCreator('/execution/tenant-platform-execution-plan', '3c2'),
+                exact: true
+              },
+              {
+                path: '/features',
+                component: ComponentCreator('/features', 'bc1'),
                 exact: true,
                 sidebar: "tutorialSidebar"
               },
               {
                 path: '/go-to-market/sales-and-social-plan',
-                component: ComponentCreator('/go-to-market/sales-and-social-plan', '0dc'),
-                exact: true,
-                sidebar: "tutorialSidebar"
+                component: ComponentCreator('/go-to-market/sales-and-social-plan', '89d'),
+                exact: true
               },
               {
                 path: '/roadmap/product-roadmap',
@@ -81,7 +89,12 @@ export default [
               },
               {
                 path: '/strategy/company-strategy',
-                component: ComponentCreator('/strategy/company-strategy', 'e88'),
+                component: ComponentCreator('/strategy/company-strategy', '5b1'),
+                exact: true
+              },
+              {
+                path: '/white-paper/kasitek-white-paper',
+                component: ComponentCreator('/white-paper/kasitek-white-paper', '96d'),
                 exact: true,
                 sidebar: "tutorialSidebar"
               },

@@ -1,7 +1,7 @@
 {
   "id": "roadmap/product-roadmap",
   "title": "Product Roadmap",
-  "description": "This section tracks internal product roadmap direction.",
+  "description": "Kasitek Labs",
   "source": "@site/../internal/roadmap/product-roadmap.md",
   "sourceDirName": "roadmap",
   "slug": "/roadmap/product-roadmap",
@@ -16,11 +16,11 @@
   },
   "sidebar": "tutorialSidebar",
   "previous": {
-    "title": "Company Strategy",
-    "permalink": "/strategy/company-strategy"
+    "title": "Kasitek White Paper",
+    "permalink": "/white-paper/kasitek-white-paper"
   },
   "next": {
-    "title": "Sales And Social Plan",
-    "permalink": "/go-to-market/sales-and-social-plan"
+    "title": "Architecture",
+    "permalink": "/architecture"
   }
 }

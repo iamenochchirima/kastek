@@ -1,0 +1,26 @@
+{
+  "id": "white-paper/kasitek-white-paper",
+  "title": "Kasitek White Paper",
+  "description": "Executive Summary",
+  "source": "@site/../internal/white-paper/kasitek-white-paper.md",
+  "sourceDirName": "white-paper",
+  "slug": "/white-paper/kasitek-white-paper",
+  "permalink": "/white-paper/kasitek-white-paper",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Kasitek White Paper",
+    "slug": "/white-paper/kasitek-white-paper"
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Product Features",
+    "permalink": "/features"
+  },
+  "next": {
+    "title": "Product Roadmap",
+    "permalink": "/roadmap/product-roadmap"
+  }
+}

@@ -13,14 +13,5 @@
   "frontMatter": {
     "title": "Tenant Platform Execution Plan",
     "slug": "/execution/tenant-platform-execution-plan"
-  },
-  "sidebar": "tutorialSidebar",
-  "previous": {
-    "title": "KasiTek Project Plan",
-    "permalink": "/architecture/project-plan"
-  },
-  "next": {
-    "title": "Company Strategy",
-    "permalink": "/strategy/company-strategy"
   }
 }

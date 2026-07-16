@@ -1,0 +1,17 @@
+{
+  "id": "roadmap/product-roadmap",
+  "title": "Product Roadmap",
+  "description": "This section tracks internal product roadmap direction.",
+  "source": "@site/../internal/roadmap/product-roadmap.md",
+  "sourceDirName": "roadmap",
+  "slug": "/roadmap/product-roadmap",
+  "permalink": "/internal/roadmap/product-roadmap",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Product Roadmap",
+    "slug": "/roadmap/product-roadmap"
+  }
+}

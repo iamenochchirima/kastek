@@ -1,7 +1,7 @@
 {
   "id": "README",
-  "title": "KasiTek Internal Docs",
-  "description": "This is the canonical home for private KasiTek documentation.",
+  "title": "Kasitek Internal Docs",
+  "description": "This is the canonical home for private Kasitek documentation.",
   "source": "@site/../internal/README.md",
   "sourceDirName": ".",
   "slug": "/",
@@ -13,13 +13,13 @@
   "sidebarPosition": 1,
   "frontMatter": {
     "id": "README",
-    "title": "KasiTek Internal Docs",
+    "title": "Kasitek Internal Docs",
     "sidebar_position": 1,
     "slug": "/"
   },
   "sidebar": "tutorialSidebar",
   "next": {
-    "title": "KasiTek Project Plan",
-    "permalink": "/architecture/project-plan"
+    "title": "Product Features",
+    "permalink": "/features"
   }
 }

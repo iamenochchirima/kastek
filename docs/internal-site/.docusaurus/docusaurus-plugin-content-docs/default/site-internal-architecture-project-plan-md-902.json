@@ -1,6 +1,6 @@
 {
   "id": "architecture/PROJECT_PLAN",
-  "title": "KasiTek Project Plan",
+  "title": "Kasitek Project Plan",
   "description": "This file captures the current product and architecture direction so implementation work stays aligned with the intended system shape.",
   "source": "@site/../internal/architecture/PROJECT_PLAN.md",
   "sourceDirName": "architecture",
@@ -11,16 +11,7 @@
   "tags": [],
   "version": "current",
   "frontMatter": {
-    "title": "KasiTek Project Plan",
+    "title": "Kasitek Project Plan",
     "slug": "/architecture/project-plan"
-  },
-  "sidebar": "tutorialSidebar",
-  "previous": {
-    "title": "KasiTek Internal Docs",
-    "permalink": "/"
-  },
-  "next": {
-    "title": "Tenant Platform Execution Plan",
-    "permalink": "/execution/tenant-platform-execution-plan"
   }
 }

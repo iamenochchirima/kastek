@@ -11,24 +11,30 @@
           "mainDocId": "README",
           "docs": [
             {
-              "id": "architecture/PROJECT_PLAN",
-              "path": "/architecture/project-plan",
+              "id": "architecture/kasitek-technical-blueprint",
+              "path": "/architecture",
               "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "architecture/PROJECT_PLAN",
+              "path": "/architecture/project-plan"
             },
             {
               "id": "contracts/n8n-provisioner-contract",
-              "path": "/contracts/n8n-provisioner-contract",
-              "sidebar": "tutorialSidebar"
+              "path": "/contracts/n8n-provisioner-contract"
             },
             {
               "id": "execution/TENANT_PLATFORM_EXECUTION_PLAN",
-              "path": "/execution/tenant-platform-execution-plan",
+              "path": "/execution/tenant-platform-execution-plan"
+            },
+            {
+              "id": "features/product-features",
+              "path": "/features",
               "sidebar": "tutorialSidebar"
             },
             {
               "id": "go-to-market/sales-and-social-plan",
-              "path": "/go-to-market/sales-and-social-plan",
-              "sidebar": "tutorialSidebar"
+              "path": "/go-to-market/sales-and-social-plan"
             },
             {
               "id": "README",
@@ -42,7 +48,11 @@
             },
             {
               "id": "strategy/company-strategy",
-              "path": "/strategy/company-strategy",
+              "path": "/strategy/company-strategy"
+            },
+            {
+              "id": "white-paper/kasitek-white-paper",
+              "path": "/white-paper/kasitek-white-paper",
               "sidebar": "tutorialSidebar"
             }
           ],

@@ -89,6 +89,14 @@ Preferred working order:
 - When restoring broken work, first re-establish the correct architecture, then polish.
 - Avoid silent scope creep; reflect meaningful scope changes in the plan.
 
+## Technical Documentation Style
+
+- Write in a normal human, direct technical tone.
+- State what the system does, what a decision means, and what remains unknown without promotional framing.
+- Prefer concrete nouns, active language, and short explanations over slogans, broad claims, or "vision" language.
+- Do not use generic AI-marketing phrases such as "powerful," "seamless," "transformative," "unlock," or "the future of" unless they are technically necessary and supported by a specific explanation.
+- Treat architecture documents as engineering references, not sales material. Explain tradeoffs, ownership, constraints, and open decisions plainly.
+
 ## Verification Rule
 
 After implementation, always run the most relevant verification available:

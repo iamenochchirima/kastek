@@ -10,10 +10,5 @@
   "unlisted": false,
   "tags": [],
   "version": "current",
-  "frontMatter": {},
-  "sidebar": "tutorialSidebar",
-  "previous": {
-    "title": "Sales And Social Plan",
-    "permalink": "/go-to-market/sales-and-social-plan"
-  }
+  "frontMatter": {}
 }

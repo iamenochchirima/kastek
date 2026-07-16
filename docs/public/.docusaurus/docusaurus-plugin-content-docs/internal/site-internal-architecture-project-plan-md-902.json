@@ -1,0 +1,17 @@
+{
+  "id": "architecture/PROJECT_PLAN",
+  "title": "KasiTek Project Plan",
+  "description": "This file captures the current product and architecture direction so implementation work stays aligned with the intended system shape.",
+  "source": "@site/../internal/architecture/PROJECT_PLAN.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture/project-plan",
+  "permalink": "/internal/architecture/project-plan",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "KasiTek Project Plan",
+    "slug": "/architecture/project-plan"
+  }
+}

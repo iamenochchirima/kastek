@@ -1,0 +1,17 @@
+{
+  "id": "execution/TENANT_PLATFORM_EXECUTION_PLAN",
+  "title": "Tenant Platform Execution Plan",
+  "description": "This file tracks the active implementation plan for the white-label tenant platform.",
+  "source": "@site/../internal/execution/TENANT_PLATFORM_EXECUTION_PLAN.md",
+  "sourceDirName": "execution",
+  "slug": "/execution/tenant-platform-execution-plan",
+  "permalink": "/internal/execution/tenant-platform-execution-plan",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Tenant Platform Execution Plan",
+    "slug": "/execution/tenant-platform-execution-plan"
+  }
+}

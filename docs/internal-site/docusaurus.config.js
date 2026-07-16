@@ -3,7 +3,7 @@
 const path = require("path");
 
 const config = {
-  title: "KasiTek Internal Docs",
+  title: "Kasitek Internal Docs",
   tagline: "Private strategy, architecture, and execution documentation",
   url: "https://internal-docs.kasitek.co.za",
   baseUrl: "/",
@@ -38,34 +38,35 @@ const config = {
   ],
   themeConfig: {
     navbar: {
-      title: "KasiTek Internal",
+      title: "Kasitek Internal",
       items: [
         { to: "/", label: "Home", position: "left" },
-        { to: "/architecture/project-plan", label: "Architecture", position: "left" },
-        { to: "/execution/tenant-platform-execution-plan", label: "Execution", position: "left" },
+        { to: "/features", label: "Features", position: "left" },
+        { to: "/white-paper/kasitek-white-paper", label: "White Paper", position: "left" },
+        { to: "/roadmap/product-roadmap", label: "Roadmap", position: "left" },
+        { to: "/architecture", label: "Architecture", position: "left" },
       ],
     },
     footer: {
       style: "dark",
       links: [
         {
-          title: "Core",
+          title: "Main Docs",
           items: [
-            { label: "Internal Home", to: "/" },
-            { label: "Project Plan", to: "/architecture/project-plan" },
-            { label: "Tenant Platform Plan", to: "/execution/tenant-platform-execution-plan" },
+            { label: "Product Features", to: "/features" },
+            { label: "White Paper", to: "/white-paper/kasitek-white-paper" },
+            { label: "Product Roadmap", to: "/roadmap/product-roadmap" },
           ],
         },
         {
-          title: "Strategy",
+          title: "Architecture",
           items: [
-            { label: "Company Strategy", to: "/strategy/company-strategy" },
-            { label: "Product Roadmap", to: "/roadmap/product-roadmap" },
-            { label: "Go To Market", to: "/go-to-market/sales-and-social-plan" },
+            { label: "Internal Home", to: "/" },
+            { label: "Architecture", to: "/architecture" },
           ],
         },
       ],
-      copyright: `Internal use only. Copyright ${new Date().getFullYear()} KasiTek`,
+      copyright: `Internal use only. Copyright ${new Date().getFullYear()} Kasitek Labs`,
     },
   },
 };

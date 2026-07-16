@@ -1,28 +1,31 @@
 ---
 id: README
-title: KasiTek Internal Docs
+title: Kasitek Internal Docs
 sidebar_position: 1
 slug: /
 ---
 
-This is the canonical home for private KasiTek documentation.
+This is the canonical home for private Kasitek documentation.
 
-## Current Core Docs
+## Active Documents
 
-- [Architecture Plan](./architecture/PROJECT_PLAN.md)
-- [Tenant Platform Execution Plan](./execution/TENANT_PLATFORM_EXECUTION_PLAN.md)
-- [Company Strategy](./strategy/company-strategy.md)
-- [Product Roadmap](./roadmap/product-roadmap.md)
-- [Sales And Social Plan](./go-to-market/sales-and-social-plan.md)
+- [Kasitek White Paper](./white-paper/kasitek-white-paper.md)
+- [Product Features](./features/product-features.md)
+- [Product Roadmap](./roadmap/product-roadmap.md), including future product portfolio options
+- [Architecture](./architecture/kasitek-technical-blueprint.md)
+
+## Supporting Documents
+
 - [n8n Provisioner Contract](./contracts/n8n-provisioner-contract.md)
 
 ## Structure
 
-- `architecture/`: platform architecture direction and product model authority
-- `execution/`: active implementation trackers and delivery plans
-- `strategy/`: company strategy, product portfolio, pricing logic, and positioning
+- `white-paper/`: top-level thesis and narrative documents
+- `strategy/`: archived strategy drafts and supporting analysis
 - `roadmap/`: product roadmap documents and release planning
-- `go-to-market/`: sales planning, content planning, and commercial execution
+- `go-to-market/`: archived sales planning, content planning, and commercial execution
+- `architecture/`: active technical blueprint and supporting architecture references
+- `execution/`: implementation trackers used when their work is active
 - `collateral/`: internal-facing polished messaging and sales collateral drafts
 - `contracts/`: internal agreements, service contracts, and integration contracts
 - `operations/`: operational notes, environment procedures, and deployment references
@@ -30,6 +33,6 @@ This is the canonical home for private KasiTek documentation.
 
 ## Notes
 
-- The internal docs site now renders the Markdown documents directly under `/internal`.
-- The three legacy `.docx` files remain in this folder tree until we convert them fully to Markdown.
+- Product Features, the White Paper, Product Roadmap, and Architecture are the only active documents in the internal site navigation.
+- Supporting documents remain in the repository and are surfaced again when the relevant work begins.
 - Root `PROJECT_PLAN.md` and `TENANT_PLATFORM_EXECUTION_PLAN.md` remain available for normal repo usage.

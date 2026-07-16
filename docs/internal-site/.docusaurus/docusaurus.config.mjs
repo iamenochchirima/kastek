@@ -4,7 +4,7 @@
  * Modify the docusaurus.config.js file at your site's root instead.
  */
 export default {
-  "title": "KasiTek Internal Docs",
+  "title": "Kasitek Internal Docs",
   "tagline": "Private strategy, architecture, and execution documentation",
   "url": "https://internal-docs.kasitek.co.za",
   "baseUrl": "/",
@@ -58,7 +58,7 @@ export default {
   ],
   "themeConfig": {
     "navbar": {
-      "title": "KasiTek Internal",
+      "title": "Kasitek Internal",
       "items": [
         {
           "to": "/",
@@ -66,13 +66,23 @@ export default {
           "position": "left"
         },
         {
-          "to": "/architecture/project-plan",
-          "label": "Architecture",
+          "to": "/features",
+          "label": "Features",
           "position": "left"
         },
         {
-          "to": "/execution/tenant-platform-execution-plan",
-          "label": "Execution",
+          "to": "/white-paper/kasitek-white-paper",
+          "label": "White Paper",
+          "position": "left"
+        },
+        {
+          "to": "/roadmap/product-roadmap",
+          "label": "Roadmap",
+          "position": "left"
+        },
+        {
+          "to": "/architecture",
+          "label": "Architecture",
           "position": "left"
         }
       ],
@@ -82,41 +92,37 @@ export default {
       "style": "dark",
       "links": [
         {
-          "title": "Core",
+          "title": "Main Docs",
+          "items": [
+            {
+              "label": "Product Features",
+              "to": "/features"
+            },
+            {
+              "label": "White Paper",
+              "to": "/white-paper/kasitek-white-paper"
+            },
+            {
+              "label": "Product Roadmap",
+              "to": "/roadmap/product-roadmap"
+            }
+          ]
+        },
+        {
+          "title": "Architecture",
           "items": [
             {
               "label": "Internal Home",
               "to": "/"
             },
             {
-              "label": "Project Plan",
-              "to": "/architecture/project-plan"
-            },
-            {
-              "label": "Tenant Platform Plan",
-              "to": "/execution/tenant-platform-execution-plan"
-            }
-          ]
-        },
-        {
-          "title": "Strategy",
-          "items": [
-            {
-              "label": "Company Strategy",
-              "to": "/strategy/company-strategy"
-            },
-            {
-              "label": "Product Roadmap",
-              "to": "/roadmap/product-roadmap"
-            },
-            {
-              "label": "Go To Market",
-              "to": "/go-to-market/sales-and-social-plan"
+              "label": "Architecture",
+              "to": "/architecture"
             }
           ]
         }
       ],
-      "copyright": "Internal use only. Copyright 2026 KasiTek"
+      "copyright": "Internal use only. Copyright 2026 Kasitek Labs"
     },
     "colorMode": {
       "defaultMode": "light",

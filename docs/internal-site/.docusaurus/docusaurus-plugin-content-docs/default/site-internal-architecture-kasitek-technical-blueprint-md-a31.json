@@ -1,0 +1,24 @@
+{
+  "id": "architecture/kasitek-technical-blueprint",
+  "title": "Architecture",
+  "description": "This is the technical source of truth for how Kasitek products, services, systems, agents, and integrations fit together.",
+  "source": "@site/../internal/architecture/kasitek-technical-blueprint.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture",
+  "permalink": "/architecture",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 4,
+  "frontMatter": {
+    "title": "Architecture",
+    "slug": "/architecture",
+    "sidebar_position": 4
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Product Roadmap",
+    "permalink": "/roadmap/product-roadmap"
+  }
+}

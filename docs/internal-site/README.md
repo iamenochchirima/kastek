@@ -1,6 +1,6 @@
-# KasiTek Internal Docs Site
+# Kasitek Internal Docs Site
 
-Standalone internal documentation site for private KasiTek documentation.
+Standalone internal documentation site for private Kasitek documentation.
 
 ## Local commands
 
