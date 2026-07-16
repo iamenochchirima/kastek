@@ -122,8 +122,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
   - [ ] WhatsApp templates
   - [ ] WhatsApp campaigns and recipients
   - [ ] Conversations and message records
-  - [ ] Social channel connections
-  - [ ] Social posts, variants, and publish jobs
+  - [x] Social channel connections
+  - [x] Social posts, variants, and publish jobs
   - [x] Bot configurations, events, and deployments
   - [ ] Notifications where they represent workspace work
 - [ ] Decide which records remain user-owned:
@@ -139,7 +139,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Server changes
 
-- [ ] Replace direct-product `userId` query filters with authorised `orgId` filters. Agents are complete; Reach, Social, and Inbox remain.
+- [ ] Replace direct-product `userId` query filters with authorised `orgId` filters. Agents and Social are complete; Reach and Inbox remain.
 - [ ] Keep `userId` in create/update records as the acting user where audit history requires it.
 - [ ] Require organisation membership for every organisation-scoped endpoint.
 - [ ] Require organisation admin or owner roles for sensitive settings, connections, billing, and team actions.

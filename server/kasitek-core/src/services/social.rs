@@ -14,6 +14,7 @@ use crate::db::models::{
     SocialPostVariantInput, SocialPublishJobRow,
 };
 use crate::error::AppError;
+use crate::services::billing;
 
 const X_AUTHORIZE_URL: &str = "https://twitter.com/i/oauth2/authorize";
 const X_TOKEN_URL: &str = "https://api.x.com/2/oauth2/token";
@@ -206,6 +207,8 @@ struct PublishJobLoad {
     id: String,
     #[sqlx(rename = "user_id")]
     user_id: String,
+    #[sqlx(rename = "org_id")]
+    org_id: Option<String>,
     #[sqlx(rename = "post_id")]
     post_id: String,
     #[sqlx(rename = "variant_id")]
@@ -663,9 +666,10 @@ pub async fn fetch_page_instagram_account(
         .or(response.instagram_business_account))
 }
 
-pub async fn upsert_meta_connections_for_user(
+pub async fn upsert_meta_connections_for_org(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     user_tokens: &MetaTokenResponse,
     pages: &[MetaPageAccount],
 ) -> Result<Vec<SocialChannel>, AppError> {
@@ -699,14 +703,14 @@ pub async fn upsert_meta_connections_for_user(
         sqlx::query(
             r#"
             INSERT INTO "SocialChannelConnection" (
-                id, "userId", platform, status, "displayName", handle, "externalAccountId",
+                id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
                 "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
             )
             VALUES (
-                $1, $2, 'FACEBOOK'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $3, $4, $5,
-                $6, $7, $8, NOW(), NOW(), NOW()
+                $1, $2, $3, 'FACEBOOK'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $4, $5, $6,
+                $7, $8, $9, NOW(), NOW(), NOW()
             )
-            ON CONFLICT ("userId", platform, "externalAccountId")
+            ON CONFLICT ("orgId", platform, "externalAccountId")
             DO UPDATE SET
                 status = 'CONNECTED'::"SocialChannelStatus",
                 "displayName" = EXCLUDED."displayName",
@@ -720,6 +724,7 @@ pub async fn upsert_meta_connections_for_user(
         )
         .bind(cuid2::create_id())
         .bind(user_id)
+        .bind(org_id)
         .bind(
             page.name
                 .clone()
@@ -737,7 +742,7 @@ pub async fn upsert_meta_connections_for_user(
         .await?;
 
         if let Some(channel) =
-            get_social_channel_by_external_account(pool, user_id, "FACEBOOK", &page.id).await?
+            get_social_channel_by_external_account(pool, org_id, "FACEBOOK", &page.id).await?
         {
             saved.push(channel);
         }
@@ -766,14 +771,14 @@ pub async fn upsert_meta_connections_for_user(
             sqlx::query(
                 r#"
                 INSERT INTO "SocialChannelConnection" (
-                    id, "userId", platform, status, "displayName", handle, "externalAccountId",
+                    id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
                     "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
                 )
                 VALUES (
-                    $1, $2, 'INSTAGRAM'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $3, $4, $5,
-                    $6, $7, $8, NOW(), NOW(), NOW()
+                    $1, $2, $3, 'INSTAGRAM'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $4, $5, $6,
+                    $7, $8, $9, NOW(), NOW(), NOW()
                 )
-                ON CONFLICT ("userId", platform, "externalAccountId")
+                ON CONFLICT ("orgId", platform, "externalAccountId")
                 DO UPDATE SET
                     status = 'CONNECTED'::"SocialChannelStatus",
                     "displayName" = EXCLUDED."displayName",
@@ -787,6 +792,7 @@ pub async fn upsert_meta_connections_for_user(
             )
             .bind(cuid2::create_id())
             .bind(user_id)
+            .bind(org_id)
             .bind(
                 instagram
                     .name
@@ -811,7 +817,7 @@ pub async fn upsert_meta_connections_for_user(
             .await?;
 
             if let Some(channel) =
-                get_social_channel_by_external_account(pool, user_id, "INSTAGRAM", &instagram.id)
+                get_social_channel_by_external_account(pool, org_id, "INSTAGRAM", &instagram.id)
                     .await?
             {
                 saved.push(channel);
@@ -822,9 +828,10 @@ pub async fn upsert_meta_connections_for_user(
     Ok(saved)
 }
 
-pub async fn upsert_x_connection_for_user(
+pub async fn upsert_x_connection_for_org(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     tokens: &XTokenResponse,
     profile: &XMeData,
 ) -> Result<SocialChannel, AppError> {
@@ -845,14 +852,14 @@ pub async fn upsert_x_connection_for_user(
     sqlx::query(
         r#"
         INSERT INTO "SocialChannelConnection" (
-            id, "userId", platform, status, "displayName", handle, "externalAccountId",
+            id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
             "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
         )
         VALUES (
-            $1, $2, 'X'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $3, $4, $5,
-            $6, $7, $8, NOW(), NOW(), NOW()
+            $1, $2, $3, 'X'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $4, $5, $6,
+            $7, $8, $9, NOW(), NOW(), NOW()
         )
-        ON CONFLICT ("userId", platform, "externalAccountId")
+        ON CONFLICT ("orgId", platform, "externalAccountId")
         DO UPDATE SET
             status = 'CONNECTED'::"SocialChannelStatus",
             "displayName" = EXCLUDED."displayName",
@@ -866,6 +873,7 @@ pub async fn upsert_x_connection_for_user(
     )
     .bind(cuid2::create_id())
     .bind(user_id)
+    .bind(org_id)
     .bind(profile.name.clone().or(profile.username.clone()).unwrap_or_else(|| "X account".to_string()))
     .bind(profile.username.as_ref().map(|username| format!("@{username}")))
     .bind(&profile.id)
@@ -881,14 +889,15 @@ pub async fn upsert_x_connection_for_user(
     .execute(pool)
     .await?;
 
-    get_social_channel_by_external_account(pool, user_id, "X", &profile.id)
+    get_social_channel_by_external_account(pool, org_id, "X", &profile.id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to load saved X connection".to_string()))
 }
 
-pub async fn upsert_linkedin_connection_for_user(
+pub async fn upsert_linkedin_connection_for_org(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     tokens: &LinkedInTokenResponse,
     profile: &LinkedInProfile,
 ) -> Result<SocialChannel, AppError> {
@@ -913,14 +922,14 @@ pub async fn upsert_linkedin_connection_for_user(
     sqlx::query(
         r#"
         INSERT INTO "SocialChannelConnection" (
-            id, "userId", platform, status, "displayName", handle, "externalAccountId",
+            id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
             "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
         )
         VALUES (
-            $1, $2, 'LINKEDIN'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $3, NULL, $4,
-            $5, $6, $7, NOW(), NOW(), NOW()
+            $1, $2, $3, 'LINKEDIN'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $4, NULL, $5,
+            $6, $7, $8, NOW(), NOW(), NOW()
         )
-        ON CONFLICT ("userId", platform, "externalAccountId")
+        ON CONFLICT ("orgId", platform, "externalAccountId")
         DO UPDATE SET
             status = 'CONNECTED'::"SocialChannelStatus",
             "displayName" = EXCLUDED."displayName",
@@ -933,6 +942,7 @@ pub async fn upsert_linkedin_connection_for_user(
     )
     .bind(cuid2::create_id())
     .bind(user_id)
+    .bind(org_id)
     .bind(profile.name.clone().unwrap_or_else(|| "LinkedIn profile".to_string()))
     .bind(profile_sub)
     .bind(encrypted_access)
@@ -951,14 +961,14 @@ pub async fn upsert_linkedin_connection_for_user(
     .execute(pool)
     .await?;
 
-    get_social_channel_by_external_account(pool, user_id, "LINKEDIN", profile_sub)
+    get_social_channel_by_external_account(pool, org_id, "LINKEDIN", profile_sub)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to load saved LinkedIn connection".to_string()))
 }
 
 async fn get_social_channel_by_external_account(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     platform: &str,
     external_account_id: &str,
 ) -> Result<Option<SocialChannel>, AppError> {
@@ -968,12 +978,12 @@ async fn get_social_channel_by_external_account(
                "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
                metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
         FROM "SocialChannelConnection"
-        WHERE "userId" = $1 AND platform = '{platform}'::"SocialPlatform" AND "externalAccountId" = $2
+        WHERE "orgId" = $1 AND platform = '{platform}'::"SocialPlatform" AND "externalAccountId" = $2
         LIMIT 1
         "#
     );
     sqlx::query_as::<_, SocialChannel>(&sql)
-        .bind(user_id)
+        .bind(org_id)
         .bind(external_account_id)
         .fetch_optional(pool)
         .await
@@ -982,7 +992,7 @@ async fn get_social_channel_by_external_account(
 
 pub async fn list_social_channels(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
 ) -> Result<Vec<SocialChannel>, AppError> {
     sqlx::query_as::<_, SocialChannel>(
         r#"
@@ -990,11 +1000,11 @@ pub async fn list_social_channels(
                "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
                metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
         FROM "SocialChannelConnection"
-        WHERE "userId" = $1
+        WHERE "orgId" = $1
         ORDER BY platform ASC, "createdAt" DESC
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .fetch_all(pool)
     .await
     .map_err(AppError::from)
@@ -1002,7 +1012,7 @@ pub async fn list_social_channels(
 
 pub async fn get_social_channel(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     id: &str,
 ) -> Result<Option<SocialChannel>, AppError> {
     sqlx::query_as::<_, SocialChannel>(
@@ -1011,12 +1021,12 @@ pub async fn get_social_channel(
                "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
                metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
         FROM "SocialChannelConnection"
-        WHERE id = $1 AND "userId" = $2
+        WHERE id = $1 AND "orgId" = $2
         LIMIT 1
         "#,
     )
     .bind(id)
-    .bind(user_id)
+    .bind(org_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::from)
@@ -1025,6 +1035,7 @@ pub async fn get_social_channel(
 pub async fn create_social_channel(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     platform: &str,
     display_name: &str,
     handle: Option<String>,
@@ -1035,15 +1046,16 @@ pub async fn create_social_channel(
     sqlx::query(
         r#"
         INSERT INTO "SocialChannelConnection" (
-            id, "userId", platform, status, "displayName", handle, "externalAccountId", metadata, "createdAt", "updatedAt"
+            id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId", metadata, "createdAt", "updatedAt"
         )
         VALUES (
-            $1, $2, CAST($3 AS "SocialPlatform"), CAST($4 AS "SocialChannelStatus"), $5, $6, $7, $8, NOW(), NOW()
+            $1, $2, $3, CAST($4 AS "SocialPlatform"), CAST($5 AS "SocialChannelStatus"), $6, $7, $8, $9, NOW(), NOW()
         )
         "#,
     )
     .bind(cuid2::create_id())
     .bind(user_id)
+    .bind(org_id)
     .bind(platform)
     .bind(status)
     .bind(display_name)
@@ -1059,12 +1071,12 @@ pub async fn create_social_channel(
                "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
                metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
         FROM "SocialChannelConnection"
-        WHERE "userId" = $1
+        WHERE "orgId" = $1
         ORDER BY "createdAt" DESC
         LIMIT 1
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .fetch_one(pool)
     .await?;
 
@@ -1073,7 +1085,7 @@ pub async fn create_social_channel(
 
 pub async fn update_social_channel(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     id: &str,
     platform: &str,
     display_name: &str,
@@ -1090,7 +1102,7 @@ pub async fn update_social_channel(
             status = CAST($4 AS "SocialChannelStatus"),
             metadata = $5,
             "updatedAt" = NOW()
-        WHERE id = $6 AND "userId" = $7
+        WHERE id = $6 AND "orgId" = $7
         "#,
     )
     .bind(platform)
@@ -1099,24 +1111,24 @@ pub async fn update_social_channel(
     .bind(status)
     .bind(merge_channel_metadata_with_capabilities(platform, metadata))
     .bind(id)
-    .bind(user_id)
+    .bind(org_id)
     .execute(pool)
     .await?;
 
-    get_social_channel(pool, user_id, id)
+    get_social_channel(pool, org_id, id)
         .await?
         .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))
 }
 
 pub async fn delete_social_channel(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     id: &str,
 ) -> Result<bool, AppError> {
     let result =
-        sqlx::query(r#"DELETE FROM "SocialChannelConnection" WHERE id = $1 AND "userId" = $2"#)
+        sqlx::query(r#"DELETE FROM "SocialChannelConnection" WHERE id = $1 AND "orgId" = $2"#)
             .bind(id)
-            .bind(user_id)
+            .bind(org_id)
             .execute(pool)
             .await?;
     Ok(result.rows_affected() == 1)
@@ -1156,7 +1168,7 @@ fn normalize_variants(
 
 async fn load_posts(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     post_id: Option<&str>,
 ) -> Result<Vec<SocialPost>, AppError> {
     let rows = if let Some(post_id) = post_id {
@@ -1167,10 +1179,10 @@ async fn load_posts(
                    status::text AS status, "scheduledFor" AS scheduled_for, "publishedAt" AS published_at,
                    metadata, "createdAt" AS created_at, "updatedAt" AS updated_at
             FROM "SocialPost"
-            WHERE "userId" = $1 AND id = $2
+            WHERE "orgId" = $1 AND id = $2
             "#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .bind(post_id)
         .fetch_all(pool)
         .await?
@@ -1182,11 +1194,11 @@ async fn load_posts(
                    status::text AS status, "scheduledFor" AS scheduled_for, "publishedAt" AS published_at,
                    metadata, "createdAt" AS created_at, "updatedAt" AS updated_at
             FROM "SocialPost"
-            WHERE "userId" = $1
+            WHERE "orgId" = $1
             ORDER BY "createdAt" DESC
             "#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .fetch_all(pool)
         .await?
     };
@@ -1281,16 +1293,16 @@ async fn load_posts(
         .collect())
 }
 
-pub async fn list_social_posts(pool: &PgPool, user_id: &str) -> Result<Vec<SocialPost>, AppError> {
-    load_posts(pool, user_id, None).await
+pub async fn list_social_posts(pool: &PgPool, org_id: &str) -> Result<Vec<SocialPost>, AppError> {
+    load_posts(pool, org_id, None).await
 }
 
 pub async fn get_social_post(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     post_id: &str,
 ) -> Result<Option<SocialPost>, AppError> {
-    Ok(load_posts(pool, user_id, Some(post_id))
+    Ok(load_posts(pool, org_id, Some(post_id))
         .await?
         .into_iter()
         .next())
@@ -1298,7 +1310,7 @@ pub async fn get_social_post(
 
 async fn validate_primary_channel(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     primary_channel_id: &Option<String>,
 ) -> Result<Option<String>, AppError> {
     let Some(primary_channel_id) = primary_channel_id
@@ -1308,7 +1320,7 @@ async fn validate_primary_channel(
     else {
         return Ok(None);
     };
-    let exists = get_social_channel(pool, user_id, primary_channel_id).await?;
+    let exists = get_social_channel(pool, org_id, primary_channel_id).await?;
     if exists.is_none() {
         return Err(AppError::NotFound(
             "Primary channel was not found".to_string(),
@@ -1320,6 +1332,7 @@ async fn validate_primary_channel(
 async fn create_variants_and_jobs(
     tx: &mut Transaction<'_, Postgres>,
     user_id: &str,
+    org_id: &str,
     post_id: &str,
     variants: &[SocialPostVariantInput],
     post_status: &str,
@@ -1350,16 +1363,17 @@ async fn create_variants_and_jobs(
         sqlx::query(
             r#"
             INSERT INTO "SocialPublishJob" (
-                id, "userId", "postId", "variantId", platform, status, "scheduledFor", "createdAt", "updatedAt"
+                id, "userId", "orgId", "postId", "variantId", platform, status, "scheduledFor", "createdAt", "updatedAt"
             )
             VALUES (
-                $1, $2, $3, $4, CAST($5 AS "SocialPlatform"),
-                CAST($6 AS "SocialPublishJobStatus"), $7, NOW(), NOW()
+                $1, $2, $3, $4, $5, CAST($6 AS "SocialPlatform"),
+                CAST($7 AS "SocialPublishJobStatus"), $8, NOW(), NOW()
             )
             "#,
         )
         .bind(cuid2::create_id())
         .bind(user_id)
+        .bind(org_id)
         .bind(post_id)
         .bind(variant_id)
         .bind(&variant.platform)
@@ -1375,6 +1389,7 @@ async fn create_variants_and_jobs(
 pub async fn create_social_post(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     request: &SocialPostUpsertRequest,
 ) -> Result<SocialPost, AppError> {
     let content = request
@@ -1407,7 +1422,7 @@ pub async fn create_social_post(
 
     let scheduled_for = parse_optional_datetime(&request.scheduled_for)?;
     let primary_channel_id =
-        validate_primary_channel(pool, user_id, &request.primary_channel_id).await?;
+        validate_primary_channel(pool, org_id, &request.primary_channel_id).await?;
     let variants = normalize_variants(&request.variants, &channels, &content);
     let post_id = cuid2::create_id();
 
@@ -1416,17 +1431,18 @@ pub async fn create_social_post(
     sqlx::query(
         r#"
         INSERT INTO "SocialPost" (
-            id, "userId", "primaryChannelId", title, prompt, content, channels, status,
+            id, "userId", "orgId", "primaryChannelId", title, prompt, content, channels, status,
             "scheduledFor", metadata, "createdAt", "updatedAt"
         )
         VALUES (
-            $1, $2, $3, $4, $5, $6, ARRAY(SELECT unnest($7::text[])::"SocialPlatform"),
-            CAST($8 AS "SocialPostStatus"), $9, $10, NOW(), NOW()
+            $1, $2, $3, $4, $5, $6, $7, ARRAY(SELECT unnest($8::text[])::"SocialPlatform"),
+            CAST($9 AS "SocialPostStatus"), $10, $11, NOW(), NOW()
         )
         "#,
     )
     .bind(&post_id)
     .bind(user_id)
+    .bind(org_id)
     .bind(primary_channel_id)
     .bind(
         request
@@ -1453,6 +1469,7 @@ pub async fn create_social_post(
     create_variants_and_jobs(
         &mut tx,
         user_id,
+        org_id,
         &post_id,
         &variants,
         &status,
@@ -1461,7 +1478,7 @@ pub async fn create_social_post(
     .await?;
     tx.commit().await?;
 
-    get_social_post(pool, user_id, &post_id)
+    get_social_post(pool, org_id, &post_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to load created social post".to_string()))
 }
@@ -1469,10 +1486,11 @@ pub async fn create_social_post(
 pub async fn update_social_post(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     post_id: &str,
     request: &SocialPostUpsertRequest,
 ) -> Result<SocialPost, AppError> {
-    let existing = get_social_post(pool, user_id, post_id)
+    let existing = get_social_post(pool, org_id, post_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
 
@@ -1520,7 +1538,7 @@ pub async fn update_social_post(
         row.primary_channel_id.clone()
     };
     let primary_channel_id =
-        validate_primary_channel(pool, user_id, &primary_channel_request).await?;
+        validate_primary_channel(pool, org_id, &primary_channel_request).await?;
     let variants = normalize_variants(&request.variants, &channels, &content);
 
     let mut tx = pool.begin().await?;
@@ -1536,7 +1554,7 @@ pub async fn update_social_post(
             "scheduledFor" = $7,
             metadata = $8,
             "updatedAt" = NOW()
-        WHERE id = $9 AND "userId" = $10
+        WHERE id = $9 AND "orgId" = $10
         "#,
     )
     .bind(primary_channel_id)
@@ -1562,7 +1580,7 @@ pub async fn update_social_post(
     .bind(scheduled_for)
     .bind(request.metadata.clone().or(row.metadata.clone()))
     .bind(post_id)
-    .bind(user_id)
+    .bind(org_id)
     .execute(tx.as_mut())
     .await?;
 
@@ -1575,22 +1593,31 @@ pub async fn update_social_post(
         .execute(tx.as_mut())
         .await?;
 
-    create_variants_and_jobs(&mut tx, user_id, post_id, &variants, &status, scheduled_for).await?;
+    create_variants_and_jobs(
+        &mut tx,
+        user_id,
+        org_id,
+        post_id,
+        &variants,
+        &status,
+        scheduled_for,
+    )
+    .await?;
     tx.commit().await?;
 
-    get_social_post(pool, user_id, post_id)
+    get_social_post(pool, org_id, post_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to load updated social post".to_string()))
 }
 
 pub async fn delete_social_post(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     post_id: &str,
 ) -> Result<bool, AppError> {
-    let result = sqlx::query(r#"DELETE FROM "SocialPost" WHERE id = $1 AND "userId" = $2"#)
+    let result = sqlx::query(r#"DELETE FROM "SocialPost" WHERE id = $1 AND "orgId" = $2"#)
         .bind(post_id)
-        .bind(user_id)
+        .bind(org_id)
         .execute(pool)
         .await?;
     Ok(result.rows_affected() == 1)
@@ -1598,7 +1625,7 @@ pub async fn delete_social_post(
 
 async fn resolve_connected_channel_for_platform(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     platform: &str,
     channel_connection_id: &Option<String>,
 ) -> Result<SocialChannelPrivate, AppError> {
@@ -1610,13 +1637,13 @@ async fn resolve_connected_channel_for_platform(
                    "accessToken" AS access_token, "refreshToken" AS refresh_token,
                    metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
             FROM "SocialChannelConnection"
-            WHERE id = $1 AND "userId" = $2 AND platform = '{platform}'::"SocialPlatform" AND status = 'CONNECTED'::"SocialChannelStatus"
+            WHERE id = $1 AND "orgId" = $2 AND platform = '{platform}'::"SocialPlatform" AND status = 'CONNECTED'::"SocialChannelStatus"
             LIMIT 1
             "#
         );
         if let Some(channel) = sqlx::query_as::<_, SocialChannelPrivate>(&sql)
             .bind(channel_id)
-            .bind(user_id)
+            .bind(org_id)
             .fetch_optional(pool)
             .await?
         {
@@ -1633,13 +1660,13 @@ async fn resolve_connected_channel_for_platform(
                "accessToken" AS access_token, "refreshToken" AS refresh_token,
                metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
         FROM "SocialChannelConnection"
-        WHERE "userId" = $1 AND platform = '{platform}'::"SocialPlatform" AND status = 'CONNECTED'::"SocialChannelStatus"
+        WHERE "orgId" = $1 AND platform = '{platform}'::"SocialPlatform" AND status = 'CONNECTED'::"SocialChannelStatus"
         ORDER BY "updatedAt" DESC
         LIMIT 1
         "#
     );
     let channel = sqlx::query_as::<_, SocialChannelPrivate>(&sql)
-        .bind(user_id)
+        .bind(org_id)
         .fetch_optional(pool)
         .await?
         .ok_or_else(|| {
@@ -1816,7 +1843,7 @@ async fn mark_job_failed(
 async fn load_publish_job(pool: &PgPool, job_id: &str) -> Result<Option<PublishJobLoad>, AppError> {
     sqlx::query_as::<_, PublishJobLoad>(
         r#"
-        SELECT j.id, j."userId" AS user_id, j."postId" AS post_id, j."variantId" AS variant_id,
+        SELECT j.id, j."userId" AS user_id, j."orgId" AS org_id, j."postId" AS post_id, j."variantId" AS variant_id,
                j."channelConnectionId" AS channel_connection_id, j.platform::text AS platform,
                j.status::text AS status, j."externalPostId" AS external_post_id,
                p.content AS post_content, p."primaryChannelId" AS post_primary_channel_id,
@@ -1868,6 +1895,11 @@ pub async fn execute_social_publish_job(
     let job = load_publish_job(pool, job_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Publish job not found".to_string()))?;
+    let org_id = job.org_id.as_deref().ok_or_else(|| {
+        AppError::Internal(
+            "Social publish job does not have an organisation assignment".to_string(),
+        )
+    })?;
 
     if job.status == "CANCELED" {
         return Err(AppError::BadRequest("Publish job is canceled".to_string()));
@@ -1892,10 +1924,12 @@ pub async fn execute_social_publish_job(
         .to_string();
 
     let result = async {
+        billing::require_product_access(pool, org_id, "social").await?;
+
         if job.platform == "FACEBOOK" {
             let channel = resolve_connected_channel_for_platform(
                 pool,
-                &job.user_id,
+                org_id,
                 "FACEBOOK",
                 &job.channel_connection_id,
             )
@@ -1924,7 +1958,7 @@ pub async fn execute_social_publish_job(
             }
             let channel = resolve_connected_channel_for_platform(
                 pool,
-                &job.user_id,
+                org_id,
                 "X",
                 &job.channel_connection_id,
             )
@@ -1948,7 +1982,7 @@ pub async fn execute_social_publish_job(
             }
             let channel = resolve_connected_channel_for_platform(
                 pool,
-                &job.user_id,
+                org_id,
                 "LINKEDIN",
                 &job.channel_connection_id,
             )

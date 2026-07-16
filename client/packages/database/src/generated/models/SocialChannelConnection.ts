@@ -279,7 +279,7 @@ export type SocialChannelConnectionOrderByWithRelationInput = {
 
 export type SocialChannelConnectionWhereUniqueInput = Prisma.AtLeast<{
   id?: string
-  userId_platform_externalAccountId?: Prisma.SocialChannelConnectionUserIdPlatformExternalAccountIdCompoundUniqueInput
+  orgId_platform_externalAccountId?: Prisma.SocialChannelConnectionOrgIdPlatformExternalAccountIdCompoundUniqueInput
   AND?: Prisma.SocialChannelConnectionWhereInput | Prisma.SocialChannelConnectionWhereInput[]
   OR?: Prisma.SocialChannelConnectionWhereInput[]
   NOT?: Prisma.SocialChannelConnectionWhereInput | Prisma.SocialChannelConnectionWhereInput[]
@@ -300,7 +300,7 @@ export type SocialChannelConnectionWhereUniqueInput = Prisma.AtLeast<{
   org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
   posts?: Prisma.SocialPostListRelationFilter
   publishJobs?: Prisma.SocialPublishJobListRelationFilter
-}, "id" | "userId_platform_externalAccountId">
+}, "id" | "orgId_platform_externalAccountId">
 
 export type SocialChannelConnectionOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -477,8 +477,8 @@ export type SocialChannelConnectionOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
-export type SocialChannelConnectionUserIdPlatformExternalAccountIdCompoundUniqueInput = {
-  userId: string
+export type SocialChannelConnectionOrgIdPlatformExternalAccountIdCompoundUniqueInput = {
+  orgId: string
   platform: $Enums.SocialPlatform
   externalAccountId: string
 }

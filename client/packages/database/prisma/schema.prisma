@@ -1084,10 +1084,11 @@ model SocialChannelConnection {
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
-  @@unique([userId, platform, externalAccountId])
+  @@unique([orgId, platform, externalAccountId])
   @@index([userId, platform])
   @@index([userId, status])
   @@index([orgId, platform])
+  @@index([orgId, status])
 }
 
 model SocialPost {
