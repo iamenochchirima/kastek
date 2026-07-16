@@ -423,6 +423,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Automated verification
 
+- [x] Unit-test entitlement merge rules and the access effect of trial, active, grace, past-due, suspended, and cancelled states.
+- [x] Unit-test Paystack signature validation, transaction/subscription normalization, and refund/dispute event mapping.
 - [ ] Unit-test entitlement resolution for trial, active, grace, suspended, cancelled, overridden, and multi-product states.
 - [ ] Unit-test usage aggregation and idempotency.
 - [ ] Integration-test organisation isolation for every moved product domain.
@@ -461,10 +463,10 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [ ] Organisation switching changes the underlying data across all product areas.
 - [ ] Inbox, Contacts, and Connections are shared workspace domains.
 - [ ] Products consume shared connections through explicit capabilities.
-- [ ] Subscription and entitlement records are organisation-owned and provider-neutral.
-- [ ] Usage is measured by server-side events and checked before restricted actions.
-- [ ] Billing and usage works before Paystack is enabled.
+- [x] Subscription and entitlement records are organisation-owned and provider-neutral.
+- [x] Usage is measured by server-side events and checked before restricted actions.
+- [x] Billing and usage works before Paystack is enabled.
 - [x] Paystack checkout, verification, signed webhooks, and checkout reconciliation are isolated behind a provider adapter.
-- [ ] Direct Kasitek and white-label tenant architecture remain separate.
+- [x] Direct Kasitek and white-label tenant architecture remain separate.
 - [ ] Legacy routes are removed or intentionally redirected.
 - [ ] The final Architecture document contains only durable decisions, not this delivery checklist.
