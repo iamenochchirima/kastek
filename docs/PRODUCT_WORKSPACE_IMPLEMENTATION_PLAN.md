@@ -177,13 +177,13 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Create an organisation subscription record with status, start/end dates, trial dates, cancellation dates, and provider references.
 - [ ] Create subscription items so an organisation can hold a base plan and multiple product subscriptions.
 - [ ] Create entitlement definitions with typed values:
-  - [ ] Boolean product/capability access
-  - [ ] Integer limits
+  - [x] Boolean product/capability access
+  - [x] Integer limits
   - [ ] Metered usage allowances
   - [ ] Feature configuration values where needed
 - [x] Create entitlement grants resolved from active subscriptions, trials, manual grants, and internal overrides.
 - [x] Create a single server-side entitlement resolver used by APIs and UI data endpoints.
-- [ ] Make manual/internal grants explicit, audited, and time-bound where possible.
+- [x] Make manual/internal grants explicit, audited, and time-bound where possible.
 - [ ] Define suspension and grace-period behaviour in the resolver.
 - [ ] Ensure one expired subscription item does not accidentally remove access granted by another valid item.
 
@@ -191,17 +191,17 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 - [x] Create append-only usage events with organisation, product, metric, quantity, timestamp, source entity, and idempotency key.
 - [ ] Create usage-period summaries for fast billing and UI queries.
-- [ ] Emit usage events from the actual server-side action that consumes the resource.
-- [ ] Make repeatable jobs and webhooks idempotent so they do not double-count usage.
-- [ ] Add limit checks before actions that must be blocked.
+- [x] Emit usage events from the actual server-side action that consumes the resource.
+- [x] Make repeatable jobs and webhooks idempotent so they do not double-count usage.
+- [x] Add limit checks before actions that must be blocked.
 - [ ] Add warning thresholds for actions that remain allowed until the end of a period.
 - [ ] Add reconciliation jobs that can compare raw events with summaries.
 
 ### Completion criteria
 
-- [ ] The server can answer: which products, capabilities, limits, and current-period usage does this organisation have?
-- [ ] Product access can be granted manually without Paystack being connected.
-- [ ] Access checks are enforced by the server, not only hidden in the UI.
+- [x] The server can answer: which products, capabilities, limits, and current-period usage does this organisation have?
+- [x] Product access can be granted manually without Paystack being connected.
+- [x] Access checks are enforced by the server, not only hidden in the UI.
 
 ## Phase 4: Make Connections a Shared Workspace Domain
 
@@ -281,7 +281,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
   - [ ] `/connections`
   - [ ] `/workspace/team`
   - [ ] `/billing`
-- [x] `/workspace/settings`
+  - [x] `/workspace/settings`
 - [ ] Redirect current `/reach/*` routes to their final non-product-branded routes.
 - [ ] Redirect current `/social/*` routes to their final non-product-branded routes.
 - [ ] Remove or preserve `/dashboard/*` compatibility redirects only after usage confirms they are no longer needed.
@@ -344,22 +344,22 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Build a Billing and usage page before live payments are connected.
 - [x] Show active products by their commercial names: KasiAgents, KasiReach, and KasiSocial.
 - [ ] Show current plan, status, billing period, trial/grace status, and cancellation date.
-- [ ] Show current usage against each included limit.
+- [x] Show current usage against each included limit.
 - [ ] Show invoices and payment history from internal records.
-- [ ] Show manual/internal access grants separately from paid subscriptions.
+- [x] Show manual/internal access grants separately from paid subscriptions.
 - [x] Add server-side checkout initialisation; payment redirects do not grant access.
 - [x] Restrict billing changes to organisation owners or explicitly authorised billing admins.
 
 ### Internal admin support
 
 - [ ] Add internal admin tools to create products, plans, and entitlement definitions.
-- [ ] Add internal admin tools to grant a trial, override access, suspend access, and inspect usage.
-- [ ] Require a reason and actor audit entry for manual entitlement changes.
+- [x] Add internal admin API tools to create, inspect, and expire manual access and limit grants.
+- [x] Require a reason and actor audit entry for manual entitlement changes.
 - [ ] Add support procedures for refunds, failed payment, disputes, and incorrect usage counts.
 
 ### Completion criteria
 
-- [ ] Billing UI is driven by real internal subscription and entitlement records even before a payment provider is enabled.
+- [x] Billing UI is driven by real internal subscription and entitlement records even before a payment provider is enabled.
 
 ## Phase 9: Add the Paystack Provider Adapter
 
@@ -367,19 +367,19 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 - [ ] Define a `BillingProvider` interface in the server layer.
 - [ ] Keep provider identifiers, secret keys, API clients, webhook verification, and provider status mapping inside the Paystack adapter.
-- [ ] Keep internal product, subscription, entitlement, invoice, and usage models provider-neutral.
+- [x] Keep internal product, subscription, entitlement, invoice, and usage models provider-neutral.
 - [ ] Store Paystack customer, plan, subscription, transaction, invoice, and authorisation references as external IDs, never as the source of truth for access.
-- [ ] Keep all Paystack secret-key calls on the server.
+- [x] Keep all Paystack secret-key calls on the server.
 - [ ] Add separate test and live environment configuration.
 
 ### Checkout and verification
 
-- [ ] Create a checkout intent from an authorised organisation billing action.
-- [ ] Attach internal organisation, subscription item, plan version, and idempotency metadata to the Paystack transaction reference/metadata.
-- [ ] Initialise checkout from the server through Paystack’s transaction API.
-- [ ] Use the client only to redirect to the returned authorisation URL or render the approved checkout flow.
+- [x] Create a checkout intent from an authorised organisation billing action.
+- [x] Attach internal organisation, plan, user, and provider metadata to the Paystack transaction reference/metadata.
+- [x] Initialise checkout from the server through Paystack’s transaction API.
+- [x] Use the client only to redirect to the returned authorisation URL or render the approved checkout flow.
 - [ ] Verify the transaction server-side after return.
-- [ ] Treat browser return as a status display only; grant or update access only after verified provider data and/or verified webhook processing.
+- [x] Treat browser return as a status display only; grant or update access only after verified provider data and/or verified webhook processing.
 - [ ] Record all provider responses needed for reconciliation without storing card details.
 - [ ] Make checkout creation idempotent so refreshes cannot create duplicate transactions.
 
@@ -394,12 +394,12 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Webhooks and reconciliation
 
-- [ ] Add a public Paystack webhook endpoint.
-- [ ] Verify the `x-paystack-signature` before processing a webhook.
-- [ ] Persist raw event metadata, provider event type, received time, processing result, and idempotency key.
-- [ ] Process duplicate webhook deliveries safely.
+- [x] Add a public Paystack webhook endpoint.
+- [x] Verify the `x-paystack-signature` before processing a webhook.
+- [x] Persist raw event metadata, provider event type, received time, processing result, and idempotency key.
+- [x] Process duplicate webhook deliveries safely.
 - [ ] Handle at minimum:
-  - [ ] Successful charge
+  - [x] Successful charge
   - [ ] Failed invoice/payment
   - [ ] Subscription created
   - [ ] Subscription non-renewing
@@ -410,7 +410,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Completion criteria
 
-- [ ] A successful verified Paystack payment activates only the intended organisation product/plan entitlement.
+- [x] A successful verified Paystack payment activates only the intended organisation product/plan entitlement.
 - [ ] Failed, cancelled, duplicate, forged, or mismatched payment events do not grant access.
 - [ ] Test mode covers the complete checkout, webhook, entitlement, and cancellation path before live keys are used.
 
@@ -443,8 +443,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 - [ ] Move permanent product, connection, entitlement, and billing decisions into the Architecture document.
 - [ ] Update Product Features and Product Roadmap to match the delivered behaviour.
-- [ ] Document required Paystack environment variables without recording secret values.
-- [ ] Document local webhook testing and production webhook configuration.
+- [x] Document required Paystack environment variables without recording secret values.
+- [x] Document local webhook testing and production webhook configuration.
 - [ ] Write support runbooks for payment failure, access disputes, connection failure, and entitlement correction.
 - [ ] Remove this temporary implementation plan after completion.
 
