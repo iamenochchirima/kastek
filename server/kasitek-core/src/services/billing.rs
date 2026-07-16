@@ -268,14 +268,83 @@ pub async fn finish_paystack_event(
 }
 
 pub async fn process_paystack_webhook(pool: &PgPool, event: &Value) -> Result<bool, AppError> {
-    if event.get("event").and_then(Value::as_str) != Some("charge.success") {
-        return Ok(false);
-    }
-
+    let event_type = event.get("event").and_then(Value::as_str).unwrap_or("");
     let data = event
         .get("data")
         .and_then(Value::as_object)
         .ok_or_else(|| AppError::BadRequest("Paystack webhook data is missing".to_string()))?;
+    let subscription_code = data
+        .get("subscription_code")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            data.get("subscription")
+                .and_then(Value::as_object)
+                .and_then(|subscription| subscription.get("subscription_code"))
+                .and_then(Value::as_str)
+        });
+
+    if event_type == "subscription.create" {
+        let customer_code = data
+            .get("customer")
+            .and_then(Value::as_object)
+            .and_then(|customer| customer.get("customer_code"))
+            .and_then(Value::as_str);
+        let plan_code = data
+            .get("plan")
+            .and_then(Value::as_object)
+            .and_then(|plan| plan.get("plan_code"))
+            .and_then(Value::as_str);
+        let (Some(subscription_code), Some(customer_code), Some(plan_code)) =
+            (subscription_code, customer_code, plan_code)
+        else {
+            return Ok(false);
+        };
+        let result = sqlx::query(r#"
+            UPDATE "OrganizationSubscription" SET "providerSubscriptionId" = $1, status = 'ACTIVE'::"OrganizationSubscriptionStatus", "updatedAt" = NOW()
+            WHERE id = (
+              SELECT subscription.id FROM "OrganizationSubscription" subscription
+              JOIN "ProductPlan" plan ON plan.id = subscription."planId"
+              WHERE subscription.provider = 'paystack' AND subscription."providerCustomerId" = $2
+                AND plan."paystackPlanCode" = $3
+              ORDER BY subscription."createdAt" DESC LIMIT 1
+            )
+        "#).bind(subscription_code).bind(customer_code).bind(plan_code).execute(pool).await?;
+        return Ok(result.rows_affected() == 1);
+    }
+
+    if matches!(
+        event_type,
+        "subscription.not_renew" | "subscription.disable" | "invoice.payment_failed"
+    ) {
+        let Some(subscription_code) = subscription_code else {
+            return Ok(false);
+        };
+        let (status, cancel_at_period_end) = match event_type {
+            "subscription.not_renew" => ("ACTIVE", true),
+            "invoice.payment_failed" => ("PAST_DUE", false),
+            _ => ("CANCELLED", false),
+        };
+        let result = sqlx::query(
+            r#"
+            UPDATE "OrganizationSubscription"
+            SET status = CAST($2 AS "OrganizationSubscriptionStatus"), "cancelAtPeriodEnd" = $3,
+                "cancelledAt" = CASE WHEN $2 = 'CANCELLED' THEN NOW() ELSE "cancelledAt" END,
+                "updatedAt" = NOW()
+            WHERE provider = 'paystack' AND "providerSubscriptionId" = $1
+        "#,
+        )
+        .bind(subscription_code)
+        .bind(status)
+        .bind(cancel_at_period_end)
+        .execute(pool)
+        .await?;
+        return Ok(result.rows_affected() == 1);
+    }
+
+    if event_type != "charge.success" {
+        return Ok(false);
+    }
+
     if data.get("status").and_then(Value::as_str) != Some("success") {
         return Ok(false);
     }
