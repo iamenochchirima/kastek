@@ -331,7 +331,7 @@ export type WhatsappTemplateOrderByWithRelationInput = {
 
 export type WhatsappTemplateWhereUniqueInput = Prisma.AtLeast<{
   id?: string
-  userId_templateName_language?: Prisma.WhatsappTemplateUserIdTemplateNameLanguageCompoundUniqueInput
+  orgId_templateName_language?: Prisma.WhatsappTemplateOrgIdTemplateNameLanguageCompoundUniqueInput
   AND?: Prisma.WhatsappTemplateWhereInput | Prisma.WhatsappTemplateWhereInput[]
   OR?: Prisma.WhatsappTemplateWhereInput[]
   NOT?: Prisma.WhatsappTemplateWhereInput | Prisma.WhatsappTemplateWhereInput[]
@@ -354,7 +354,7 @@ export type WhatsappTemplateWhereUniqueInput = Prisma.AtLeast<{
   org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
   connection?: Prisma.XOR<Prisma.WhatsappConnectionNullableScalarRelationFilter, Prisma.WhatsappConnectionWhereInput> | null
   campaigns?: Prisma.WhatsappCampaignListRelationFilter
-}, "id" | "userId_templateName_language">
+}, "id" | "orgId_templateName_language">
 
 export type WhatsappTemplateOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -546,8 +546,8 @@ export type WhatsappTemplateOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
-export type WhatsappTemplateUserIdTemplateNameLanguageCompoundUniqueInput = {
-  userId: string
+export type WhatsappTemplateOrgIdTemplateNameLanguageCompoundUniqueInput = {
+  orgId: string
   templateName: string
   language: string
 }

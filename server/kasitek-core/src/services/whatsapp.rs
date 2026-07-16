@@ -385,14 +385,14 @@ fn select_connection_sql() -> &'static str {
 
 pub async fn list_connections(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
 ) -> Result<Vec<WhatsappConnectionPublic>, AppError> {
     let sql = format!(
-        "{} WHERE \"userId\" = $1 ORDER BY \"createdAt\" DESC",
+        "{} WHERE \"orgId\" = $1 ORDER BY \"createdAt\" DESC",
         select_connection_sql()
     );
     let rows = sqlx::query_as::<_, WhatsappConnectionRow>(&sql)
-        .bind(user_id)
+        .bind(org_id)
         .fetch_all(pool)
         .await?;
     Ok(rows.into_iter().map(Into::into).collect())
@@ -419,6 +419,23 @@ async fn get_connection_row(
     sqlx::query_as::<_, WhatsappConnectionRow>(&sql)
         .bind(connection_id)
         .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(AppError::from)
+}
+
+async fn get_connection_row_for_org(
+    pool: &PgPool,
+    org_id: &str,
+    connection_id: &str,
+) -> Result<Option<WhatsappConnectionRow>, AppError> {
+    let sql = format!(
+        "{} WHERE id = $1 AND \"orgId\" = $2 LIMIT 1",
+        select_connection_sql()
+    );
+    sqlx::query_as::<_, WhatsappConnectionRow>(&sql)
+        .bind(connection_id)
+        .bind(org_id)
         .fetch_optional(pool)
         .await
         .map_err(AppError::from)
@@ -453,6 +470,7 @@ pub async fn get_connection_for_provisioning(
 pub async fn connect_manual_connection(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     waba_id: &str,
     phone_number_id: &str,
     access_token: &str,
@@ -468,15 +486,16 @@ pub async fn connect_manual_connection(
     }
 
     let phone = fetch_connection_phone(access_token, phone_number_id).await?;
-    let existing_other = sqlx::query_scalar::<_, String>(
-        r#"SELECT "userId" FROM "WhatsappConnection" WHERE "phoneNumberId" = $1 LIMIT 1"#,
+    let existing_other = sqlx::query_scalar::<_, Option<String>>(
+        r#"SELECT "orgId" FROM "WhatsappConnection" WHERE "phoneNumberId" = $1 LIMIT 1"#,
     )
     .bind(phone_number_id)
     .fetch_optional(pool)
     .await?;
     if existing_other
+        .flatten()
         .as_deref()
-        .is_some_and(|owner| owner != user_id)
+        .is_some_and(|owner| owner != org_id)
     {
         return Err(AppError::Conflict(
             "This WhatsApp number is already connected to another account".to_string(),
@@ -488,15 +507,16 @@ pub async fn connect_manual_connection(
     sqlx::query(
         r#"
         INSERT INTO "WhatsappConnection" (
-            id, "userId", "phoneNumberId", "phoneDisplayNumber", "accessTokenEncrypted",
+            id, "userId", "orgId", "phoneNumberId", "phoneDisplayNumber", "accessTokenEncrypted",
             "wabaId", "currentQualityRating", "dailyLimitEstimate", verified, "createdAt", "updatedAt"
         )
         VALUES (
-            $1, $2, $3, $4, $5, $6, CAST($7 AS "WhatsappConnectionQualityRating"), $8, $9, NOW(), NOW()
+            $1, $2, $3, $4, $5, $6, $7, CAST($8 AS "WhatsappConnectionQualityRating"), $9, $10, NOW(), NOW()
         )
         ON CONFLICT ("phoneNumberId")
         DO UPDATE SET
             "userId" = EXCLUDED."userId",
+            "orgId" = EXCLUDED."orgId",
             "phoneDisplayNumber" = EXCLUDED."phoneDisplayNumber",
             "accessTokenEncrypted" = EXCLUDED."accessTokenEncrypted",
             "wabaId" = EXCLUDED."wabaId",
@@ -508,6 +528,7 @@ pub async fn connect_manual_connection(
     )
     .bind(&connection_id)
     .bind(user_id)
+    .bind(org_id)
     .bind(phone_number_id)
     .bind(connection_label(&phone, phone_display_number))
     .bind(encrypted)
@@ -522,16 +543,16 @@ pub async fn connect_manual_connection(
     .await?;
 
     let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!(
-        "{} WHERE \"userId\" = $1 AND \"phoneNumberId\" = $2 LIMIT 1",
+        "{} WHERE \"orgId\" = $1 AND \"phoneNumberId\" = $2 LIMIT 1",
         select_connection_sql()
     ))
-    .bind(user_id)
+    .bind(org_id)
     .bind(phone_number_id)
     .fetch_one(pool)
     .await?;
 
     let webhook_result = subscribe_waba_webhook(access_token, waba_id).await.err();
-    let template_sync = sync_connection_templates(pool, user_id, &connection.id)
+    let template_sync = sync_connection_templates(pool, user_id, org_id, &connection.id)
         .await
         .ok();
 
@@ -549,6 +570,7 @@ pub async fn connect_manual_connection(
 pub async fn complete_embedded_signup(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     code: &str,
     waba_id: Option<&str>,
     phone_number_id: Option<&str>,
@@ -576,6 +598,7 @@ pub async fn complete_embedded_signup(
     let result = connect_manual_connection(
         pool,
         user_id,
+        org_id,
         &resolved_waba_id,
         &phone.id,
         &access_token,
@@ -593,9 +616,10 @@ pub async fn complete_embedded_signup(
 pub async fn sync_connection_templates(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     connection_id: &str,
 ) -> Result<Value, AppError> {
-    let connection = get_connection_row(pool, user_id, connection_id)
+    let connection = get_connection_row_for_org(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
@@ -660,14 +684,14 @@ pub async fn sync_connection_templates(
         sqlx::query(
             r#"
             INSERT INTO "WhatsappTemplate" (
-                id, "userId", "connectionId", "templateName", language, category, header, body, footer,
+                id, "userId", "orgId", "connectionId", "templateName", language, category, header, body, footer,
                 buttons, "variablesCount", status, "lastSynced", "createdAt", "updatedAt"
             )
             VALUES (
-                $1, $2, $3, $4, $5, CAST($6 AS "WhatsappTemplateCategory"), $7, $8, $9,
-                $10, $11, CAST($12 AS "WhatsappTemplateStatus"), NOW(), NOW(), NOW()
+                $1, $2, $3, $4, $5, $6, CAST($7 AS "WhatsappTemplateCategory"), $8, $9, $10,
+                $11, $12, CAST($13 AS "WhatsappTemplateStatus"), NOW(), NOW(), NOW()
             )
-            ON CONFLICT ("userId", "templateName", language)
+            ON CONFLICT ("orgId", "templateName", language)
             DO UPDATE SET
                 "connectionId" = EXCLUDED."connectionId",
                 category = EXCLUDED.category,
@@ -683,6 +707,7 @@ pub async fn sync_connection_templates(
         )
         .bind(cuid2::create_id())
         .bind(user_id)
+        .bind(org_id)
         .bind(&connection.id)
         .bind(template_name)
         .bind(language)
@@ -708,10 +733,10 @@ pub async fn sync_connection_templates(
 
 pub async fn refresh_connection(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     connection_id: &str,
 ) -> Result<Value, AppError> {
-    let connection = get_connection_row(pool, user_id, connection_id)
+    let connection = get_connection_row_for_org(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
@@ -742,7 +767,7 @@ pub async fn refresh_connection(
     .execute(pool)
     .await?;
 
-    let refreshed = get_connection_row(pool, user_id, connection_id)
+    let refreshed = get_connection_row_for_org(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload connection".to_string()))?;
     Ok(json!({
@@ -753,11 +778,11 @@ pub async fn refresh_connection(
 
 pub async fn update_connection_access_token(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     connection_id: &str,
     access_token: &str,
 ) -> Result<Value, AppError> {
-    let connection = get_connection_row(pool, user_id, connection_id)
+    let connection = get_connection_row_for_org(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     if access_token.trim().is_empty() {
@@ -796,7 +821,7 @@ pub async fn update_connection_access_token(
     .execute(pool)
     .await?;
 
-    let updated = get_connection_row(pool, user_id, connection_id)
+    let updated = get_connection_row_for_org(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload connection".to_string()))?;
     let webhook_error = subscribe_waba_webhook(access_token, &updated.waba_id)
@@ -812,10 +837,10 @@ pub async fn update_connection_access_token(
 
 pub async fn connection_health(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     connection_id: &str,
 ) -> Result<Value, AppError> {
-    let connection = get_connection_row(pool, user_id, connection_id)
+    let connection = get_connection_row_for_org(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let token = decrypt_social_secret(&connection.access_token_encrypted)?;
@@ -902,6 +927,7 @@ pub async fn connection_health(
 pub async fn create_template(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     connection_id: &str,
     template_name: &str,
     language: &str,
@@ -910,7 +936,7 @@ pub async fn create_template(
     body: &str,
     footer: Option<&str>,
 ) -> Result<Value, AppError> {
-    let connection = get_connection_row(pool, user_id, connection_id)
+    let connection = get_connection_row_for_org(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("WhatsApp connection not found".to_string()))?;
     if template_name.trim().is_empty() || language.trim().is_empty() || body.trim().is_empty() {
@@ -991,14 +1017,14 @@ pub async fn create_template(
     sqlx::query(
         r#"
         INSERT INTO "WhatsappTemplate" (
-            id, "userId", "connectionId", "templateName", language, category, header, body, footer,
+            id, "userId", "orgId", "connectionId", "templateName", language, category, header, body, footer,
             "variablesCount", status, "lastSynced", "createdAt", "updatedAt"
         )
         VALUES (
-            $1, $2, $3, $4, $5, CAST($6 AS "WhatsappTemplateCategory"), $7, $8, $9,
-            $10, CAST($11 AS "WhatsappTemplateStatus"), NOW(), NOW(), NOW()
+            $1, $2, $3, $4, $5, $6, CAST($7 AS "WhatsappTemplateCategory"), $8, $9, $10,
+            $11, CAST($12 AS "WhatsappTemplateStatus"), NOW(), NOW(), NOW()
         )
-        ON CONFLICT ("userId", "templateName", language)
+        ON CONFLICT ("orgId", "templateName", language)
         DO UPDATE SET
             "connectionId" = EXCLUDED."connectionId",
             category = EXCLUDED.category,
@@ -1013,6 +1039,7 @@ pub async fn create_template(
     )
     .bind(cuid2::create_id())
     .bind(user_id)
+    .bind(org_id)
     .bind(connection_id)
     .bind(&normalized_name)
     .bind(language.trim())
@@ -1042,11 +1069,11 @@ pub async fn create_template(
                "variablesCount" AS variables_count, status::text AS status,
                "lastSynced" AT TIME ZONE 'UTC' AS last_synced, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappTemplate"
-        WHERE "userId" = $1 AND "templateName" = $2 AND language = $3
+        WHERE "orgId" = $1 AND "templateName" = $2 AND language = $3
         LIMIT 1
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .bind(&normalized_name)
     .bind(language.trim())
     .fetch_one(pool)
@@ -1061,7 +1088,7 @@ pub async fn create_template(
 
 pub async fn list_templates(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     query: WhatsappTemplateListQuery,
 ) -> Result<Value, AppError> {
     let requested_status = query
@@ -1089,12 +1116,12 @@ pub async fn list_templates(
             COALESCE(c."phoneDisplayNumber", c."phoneNumberId") AS connection_label
         FROM "WhatsappTemplate" t
         LEFT JOIN "WhatsappConnection" c ON c.id = t."connectionId"
-        WHERE t."userId" = $1
+        WHERE t."orgId" = $1
           AND ($2::text IS NULL OR t.status::text = $2)
         ORDER BY t."updatedAt" DESC
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .bind(requested_status)
     .fetch_all(pool)
     .await?;

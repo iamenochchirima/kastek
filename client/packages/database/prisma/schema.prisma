@@ -1270,7 +1270,7 @@ model WhatsappTemplate {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@unique([userId, templateName, language])
+  @@unique([orgId, templateName, language])
   @@index([userId, status, category])
   @@index([orgId, status])
 }

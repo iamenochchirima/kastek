@@ -18,9 +18,10 @@ async fn require_reach_access(
     pool: &PgPool,
     req: &HttpRequest,
     user_id: &str,
-) -> Result<(), AppError> {
+) -> Result<String, AppError> {
     let org_id = resolve_active_org_id(req, pool, user_id).await?;
-    billing::require_product_access(pool, &org_id, "reach").await
+    billing::require_product_access(pool, &org_id, "reach").await?;
+    Ok(org_id)
 }
 
 pub async fn list_connections(
@@ -28,7 +29,8 @@ pub async fn list_connections(
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let connections = whatsapp::list_connections(pool.get_ref(), &user.id).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let connections = whatsapp::list_connections(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "connections": connections })))
 }
 
@@ -38,9 +40,11 @@ pub async fn create_connection(
     body: web::Json<WhatsappConnectionCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let result = whatsapp::connect_manual_connection(
         pool.get_ref(),
         &user.id,
+        &org_id,
         body.waba_id.as_deref().unwrap_or(""),
         body.phone_number_id.as_deref().unwrap_or(""),
         body.access_token.as_deref().unwrap_or(""),
@@ -56,6 +60,7 @@ pub async fn complete_onboarding(
     body: web::Json<WhatsappEmbeddedSignupRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let code = body
         .code
         .as_deref()
@@ -65,6 +70,7 @@ pub async fn complete_onboarding(
     let result = whatsapp::complete_embedded_signup(
         pool.get_ref(),
         &user.id,
+        &org_id,
         code,
         body.waba_id.as_deref(),
         body.phone_number_id.as_deref(),
@@ -80,9 +86,10 @@ pub async fn update_connection_token(
     body: web::Json<WhatsappConnectionTokenRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let result = whatsapp::update_connection_access_token(
         pool.get_ref(),
-        &user.id,
+        &org_id,
         &path,
         body.access_token.as_deref().unwrap_or(""),
     )
@@ -96,7 +103,8 @@ pub async fn refresh_connection(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::refresh_connection(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp::refresh_connection(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -106,7 +114,8 @@ pub async fn connection_health(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::connection_health(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp::connection_health(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -116,7 +125,9 @@ pub async fn sync_connection_templates(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::sync_connection_templates(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result =
+        whatsapp::sync_connection_templates(pool.get_ref(), &user.id, &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -126,10 +137,11 @@ pub async fn create_template(
     body: web::Json<WhatsappTemplateCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    require_reach_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_reach_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::create_template(
         pool.get_ref(),
         &user.id,
+        &org_id,
         body.connection_id.as_deref().unwrap_or(""),
         body.template_name.as_deref().unwrap_or(""),
         body.language.as_deref().unwrap_or(""),
@@ -148,7 +160,8 @@ pub async fn list_templates(
     query: web::Query<WhatsappTemplateListQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::list_templates(pool.get_ref(), &user.id, query.into_inner()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp::list_templates(pool.get_ref(), &org_id, query.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
