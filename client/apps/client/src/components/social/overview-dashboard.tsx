@@ -91,7 +91,7 @@ export function OverviewDashboard() {
               Plan your month, write with AI, schedule across channels, and monitor publishing momentum from one dedicated workspace.
             </p>
             </div>
-            <Link href="/social/posts" className="no-underline">
+            <Link href="/content" className="no-underline">
               <Button className="w-full gap-2 sm:w-auto">
                 <Sparkles className="h-4 w-4" />
                 New AI Draft
@@ -101,7 +101,7 @@ export function OverviewDashboard() {
         </div>
 
         {error ? (
-          <div className="rounded-md border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <div className="rounded-md border border-destructive/30 bg-status-danger-soft px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         ) : null}
@@ -142,7 +142,7 @@ export function OverviewDashboard() {
                 <CardTitle className="text-base">This Week&apos;s Queue</CardTitle>
                 <CardDescription>The next scheduled items drawn from your real social post records.</CardDescription>
               </div>
-              <Link href="/social/calendar" className="no-underline">
+              <Link href="/calendar" className="no-underline">
                 <Button variant="link" className="p-0">Open calendar</Button>
               </Link>
             </CardHeader>

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function DashboardContactsPage() {
-  redirect("/reach/contacts");
+  redirect("/contacts");
 }

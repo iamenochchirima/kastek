@@ -166,13 +166,13 @@ function statusTone(status: string) {
     case "SENDING":
       return "border-accent/30 bg-accent/10 text-accent";
     case "SCHEDULED":
-      return "border-blue-500/30 bg-blue-500/10 text-blue-300";
+      return "border-status-info/30 bg-status-info-soft text-status-info";
     case "PAUSED":
       return "border-primary/30 bg-primary/10 text-primary";
     case "COMPLETED":
-      return "border-green-500/30 bg-green-500/10 text-green-300";
+      return "border-status-success/30 bg-status-success-soft text-status-success";
     case "FAILED":
-      return "border-red-500/30 bg-red-500/10 text-red-300";
+      return "border-destructive/30 bg-status-danger-soft text-destructive";
     default:
       return "border-border bg-secondary/60 text-foreground";
   }
@@ -183,17 +183,17 @@ function recipientTone(status: string) {
     case "PROCESSING":
       return "border-primary/30 bg-primary/10 text-primary";
     case "SENT":
-      return "border-blue-500/30 bg-blue-500/10 text-blue-300";
+      return "border-status-info/30 bg-status-info-soft text-status-info";
     case "DELIVERED":
       return "border-cyan-500/30 bg-cyan-500/10 text-cyan-300";
     case "READ":
-      return "border-green-500/30 bg-green-500/10 text-green-300";
+      return "border-status-success/30 bg-status-success-soft text-status-success";
     case "FAILED":
     case "BLOCKED":
-      return "border-red-500/30 bg-red-500/10 text-red-300";
+      return "border-destructive/30 bg-status-danger-soft text-destructive";
     case "SKIPPED":
     case "UNSUBSCRIBED":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+      return "border-status-attention/30 bg-status-attention-soft text-status-attention";
     default:
       return "border-border bg-secondary/60 text-foreground";
   }
@@ -658,7 +658,7 @@ export default function CampaignDetailPageClient({
       if (!response.ok) {
         throw new Error(body.error || "Failed to delete campaign");
       }
-      router.push("/reach/campaigns");
+      router.push("/campaigns");
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Failed to delete campaign");
     } finally {
@@ -700,7 +700,7 @@ export default function CampaignDetailPageClient({
       <div className="mx-auto max-w-[1600px] space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <Link href="/reach/campaigns" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+            <Link href="/campaigns" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
               Back to campaigns
             </Link>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{liveCampaign.name}</h1>
@@ -718,8 +718,8 @@ export default function CampaignDetailPageClient({
           <div
             className={`rounded-xl border px-4 py-3 text-sm ${
               error
-                ? "border-red-500/30 bg-red-500/10 text-red-300"
-                : "border-green-500/30 bg-green-500/10 text-green-300"
+                ? "border-destructive/30 bg-status-danger-soft text-destructive"
+                : "border-status-success/30 bg-status-success-soft text-status-success"
             }`}
           >
             {error || notice}
@@ -1054,7 +1054,7 @@ export default function CampaignDetailPageClient({
           </CardContent>
         </Card>
         {previewRecipient ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
             <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-border bg-background shadow-2xl">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
@@ -1110,7 +1110,7 @@ export default function CampaignDetailPageClient({
                                   {`{{${index + 1}}}`} · {mappingLabel}
                                 </div>
                                 <div className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-                                  {value || <span className="text-red-300">Empty value</span>}
+                                  {value || <span className="text-destructive">Empty value</span>}
                                 </div>
                               </div>
                             );
@@ -1139,7 +1139,7 @@ export default function CampaignDetailPageClient({
           </div>
         ) : null}
         {errorPreviewRecipient ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
             <div className="w-full max-w-2xl rounded-2xl border border-border bg-background shadow-2xl">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
@@ -1184,7 +1184,7 @@ export default function CampaignDetailPageClient({
           </div>
         ) : null}
         {sendMoreOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
             <div className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-border bg-background p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>

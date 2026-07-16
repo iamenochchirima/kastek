@@ -48,13 +48,13 @@ function statusTone(status: string) {
     case "SENDING":
       return "border-accent/30 bg-accent/10 text-accent";
     case "SCHEDULED":
-      return "border-blue-500/30 bg-blue-500/10 text-blue-300";
+      return "border-status-info/30 bg-status-info-soft text-status-info";
     case "PAUSED":
       return "border-primary/30 bg-primary/10 text-primary";
     case "COMPLETED":
-      return "border-green-500/30 bg-green-500/10 text-green-300";
+      return "border-status-success/30 bg-status-success-soft text-status-success";
     case "FAILED":
-      return "border-red-500/30 bg-red-500/10 text-red-300";
+      return "border-destructive/30 bg-status-danger-soft text-destructive";
     default:
       return "border-border bg-secondary/60 text-foreground";
   }
@@ -116,7 +116,7 @@ export default function CampaignsPageClient({
               Browse your WhatsApp campaigns and open one to control sends, batches, and delivery state.
             </p>
           </div>
-          <Link href="/reach/campaigns/create" className="no-underline">
+          <Link href="/campaigns/create" className="no-underline">
             <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4" />
               Create Campaign
@@ -155,7 +155,7 @@ export default function CampaignsPageClient({
                       key={campaign.id}
                       type="button"
                       onClick={() => {
-                        window.location.href = `/reach/campaigns/${campaign.id}`;
+                        window.location.href = `/campaigns/${campaign.id}`;
                       }}
                       className="w-full rounded-xl border border-border bg-secondary/30 p-4 text-left transition-colors hover:bg-secondary/45"
                     >
@@ -229,7 +229,7 @@ export default function CampaignsPageClient({
                         <tr
                           key={campaign.id}
                           onClick={() => {
-                            window.location.href = `/reach/campaigns/${campaign.id}`;
+                            window.location.href = `/campaigns/${campaign.id}`;
                           }}
                           className="cursor-pointer border-t border-border transition-colors hover:bg-secondary/40"
                         >

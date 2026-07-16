@@ -214,7 +214,7 @@ export default function ContactsManager({
   function navigate(next: Partial<ContactsManagerProps["filters"]>) {
     const params = buildSearchParams({ ...filters, ...next });
     const query = params.toString();
-    router.push(`/reach/contacts${query ? `?${query}` : ""}`);
+    router.push(`/contacts${query ? `?${query}` : ""}`);
   }
 
   async function estimateCsvRows(file: File) {
@@ -508,8 +508,8 @@ export default function ContactsManager({
           <div
             className={`rounded-xl border px-4 py-3 text-sm ${
               error
-                ? "border-red-500/30 bg-red-500/10 text-red-300"
-                : "border-green-500/30 bg-green-500/10 text-green-300"
+                ? "border-destructive/30 bg-status-danger-soft text-destructive"
+                : "border-status-success/30 bg-status-success-soft text-status-success"
             }`}
           >
             {error || notice}
@@ -810,7 +810,7 @@ export default function ContactsManager({
         ) : null}
 
         {showImportModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
             <div className="w-full max-w-2xl rounded-2xl border border-border bg-background p-4 sm:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -894,7 +894,7 @@ export default function ContactsManager({
         ) : null}
 
         {filters.q ? (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-foreground/70 px-4 py-6">
             <div className="flex h-[min(84vh,860px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
@@ -1010,7 +1010,7 @@ export default function ContactsManager({
         ) : null}
 
         {filters.listLabel && !filters.q ? (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-foreground/70 px-4 py-6">
             <div className="flex h-[min(88vh,920px)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
@@ -1176,7 +1176,7 @@ export default function ContactsManager({
         ) : null}
 
         {renamingListLabel ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
             <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6">
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Rename list</h2>
@@ -1218,7 +1218,7 @@ export default function ContactsManager({
         ) : null}
 
         {deleteTargetLabel ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
             <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6">
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Delete list</h2>
@@ -1238,7 +1238,7 @@ export default function ContactsManager({
                 <button
                   type="button"
                   onClick={() => deleteList(deleteTargetLabel)}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500"
+                  className="rounded-md bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground hover:opacity-90"
                 >
                   Delete list
                 </button>
@@ -1329,7 +1329,7 @@ function ListActionsMenu({
         <DropdownMenuItem onClick={() => onAddContacts(label)}>Add contacts</DropdownMenuItem>
         <DropdownMenuItem onClick={() => onDownload(label)}>Download CSV</DropdownMenuItem>
         <DropdownMenuItem onClick={() => onRename(label)}>Rename</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onDelete(label)} className="text-red-300 focus:text-red-200">
+        <DropdownMenuItem onClick={() => onDelete(label)} className="text-destructive focus:text-destructive">
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>

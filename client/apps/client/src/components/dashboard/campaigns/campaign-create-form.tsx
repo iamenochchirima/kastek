@@ -258,7 +258,7 @@ export default function CampaignCreateForm({
       }
 
       router.push(
-        `/reach/campaigns?notice=${encodeURIComponent(
+        `/campaigns?notice=${encodeURIComponent(
           `Campaign queued for ${body.createdRecipients || selectedBatchSize} contacts from ${listLabel}.`,
         )}`,
       );
@@ -273,7 +273,7 @@ export default function CampaignCreateForm({
   return (
     <div className="space-y-6">
       {error ? (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div className="rounded-lg border border-destructive/30 bg-status-danger-soft px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       ) : null}
@@ -479,10 +479,10 @@ export default function CampaignCreateForm({
             </div>
 
             <div className="rounded-xl border border-border p-4">
-              <div className="rounded-[1.25rem] border border-border bg-[#111513] p-4">
-                <div className="rounded-[1.25rem] border border-[#5d7e31] bg-[#22361f] px-5 py-6 text-[1.05rem] leading-9 text-[#f3f1d9] shadow-[inset_0_0_0_1px_rgba(121,159,61,0.18)]">
+              <div className="rounded-lg border border-border bg-secondary p-4">
+                <div className="rounded-lg border border-border bg-card px-5 py-6 text-[1.05rem] leading-9 text-foreground">
                   <div className="whitespace-pre-wrap">{previewBody}</div>
-                  <div className="mt-6 text-right text-xs uppercase tracking-[0.35em] text-[#d7c98f]">
+                  <div className="mt-6 text-right text-xs uppercase tracking-[0.2em] text-muted-foreground">
                     Preview
                   </div>
                 </div>
@@ -534,7 +534,7 @@ export default function CampaignCreateForm({
                       onClick={() => toggleExcluded(contact.id)}
                       className={`w-full rounded-md px-3 py-1.5 text-xs font-medium sm:w-auto ${
                         isExcluded
-                          ? "border border-red-500/30 bg-red-500/10 text-red-200"
+                          ? "border border-destructive/30 bg-status-danger-soft text-destructive"
                           : "border border-border bg-secondary/60 text-foreground"
                       }`}
                     >
@@ -580,7 +580,7 @@ export default function CampaignCreateForm({
 
       {step === "setup" ? (
         <div className="grid gap-3 sm:flex sm:justify-end">
-          <Button type="button" variant="outline" onClick={() => router.push("/reach/campaigns")}>
+          <Button type="button" variant="outline" onClick={() => router.push("/campaigns")}>
             Cancel
           </Button>
           <Button

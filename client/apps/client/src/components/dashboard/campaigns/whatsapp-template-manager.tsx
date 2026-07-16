@@ -32,10 +32,10 @@ type ConnectionView = {
 };
 
 const STATUS_STYLES: Record<TemplateView["status"], string> = {
-  APPROVED: "border-green-500/30 bg-green-500/10 text-green-300",
-  PENDING: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  REJECTED: "border-red-500/30 bg-red-500/10 text-red-300",
-  DISABLED: "border-zinc-500/30 bg-zinc-500/10 text-zinc-300",
+  APPROVED: "border-status-success/30 bg-status-success-soft text-status-success",
+  PENDING: "border-status-attention/30 bg-status-attention-soft text-status-attention",
+  REJECTED: "border-destructive/30 bg-status-danger-soft text-destructive",
+  DISABLED: "border-border bg-secondary text-muted-foreground",
 };
 
 const LANGUAGE_OPTIONS = [
@@ -230,8 +230,8 @@ export default function WhatsappTemplateManager({
         <div
           className={`rounded-lg border px-3 py-2 text-xs ${
             displayError
-              ? "border-red-500/30 bg-red-500/10 text-red-300"
-              : "border-green-500/30 bg-green-500/10 text-green-300"
+              ? "border-destructive/30 bg-status-danger-soft text-destructive"
+              : "border-status-success/30 bg-status-success-soft text-status-success"
           }`}
         >
           {displayError || notice}
@@ -333,7 +333,7 @@ export default function WhatsappTemplateManager({
       </section>
 
       {selectedTemplate ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 p-4">
           <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
@@ -404,7 +404,7 @@ export default function WhatsappTemplateManager({
       ) : null}
 
       {showCreateForm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 p-4">
           <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
@@ -530,7 +530,7 @@ export default function WhatsappTemplateManager({
                     Use placeholders like {"{{1}}"} when the template needs variables.
                   </p>
                   {hasLeadingOrTrailingVariable(body) ? (
-                    <p className="text-xs text-amber-300">
+                    <p className="text-xs text-status-attention">
                       Variables cannot appear at the start or end of the template.
                     </p>
                   ) : null}
@@ -554,7 +554,7 @@ export default function WhatsappTemplateManager({
                     type="button"
                     onClick={handleCreateTemplate}
                     disabled={submitting || !connectionId || Boolean(variablePlacementError)}
-                    className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {submitting ? "Submitting..." : "Submit template"}
                   </button>
@@ -562,47 +562,47 @@ export default function WhatsappTemplateManager({
               </div>
 
               <div className="lg:sticky lg:top-6">
-                <div className="overflow-hidden rounded-[28px] border border-border bg-[#d7e3c6] shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
-                  <div className="flex items-center justify-between border-b border-black/5 bg-[#e6efda] px-4 py-3">
+                <div className="overflow-hidden rounded-lg border border-border bg-secondary">
+                  <div className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">WhatsApp Preview</p>
-                      <p className="text-[11px] text-slate-600">
+                      <p className="text-sm font-semibold text-foreground">WhatsApp Preview</p>
+                      <p className="text-[11px] text-muted-foreground">
                         {activeConnection?.phoneDisplayNumber || activeConnection?.phoneNumberId || "Connected number"}
                       </p>
                     </div>
-                    <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">
+                    <span className="rounded-md bg-secondary px-2 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
                       {categoryLabel(category)}
                     </span>
                   </div>
 
-                  <div className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.65),_transparent_34%),linear-gradient(180deg,_#dfead0_0%,_#cadab8_100%)] p-4">
-                    <div className="ml-auto max-w-[290px] rounded-[20px] rounded-tr-md bg-[#f6f1df] px-4 py-3 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+                  <div className="p-4">
+                    <div className="ml-auto max-w-[290px] rounded-lg rounded-tr-md border border-border bg-card px-4 py-3 text-foreground">
                       {previewHeader ? (
                         <p className="mb-2 text-[13px] font-semibold tracking-[0.01em]">
                           {previewHeader}
                         </p>
                       ) : null}
 
-                      <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-800">
+                      <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground">
                         {previewBody || "Your message preview will appear here as you type."}
                       </p>
 
                       {previewFooter ? (
-                        <p className="mt-3 border-t border-black/10 pt-2 text-[11px] text-slate-500">
+                        <p className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
                           {previewFooter}
                         </p>
                       ) : null}
 
-                      <div className="mt-3 flex items-center justify-between text-[10px] text-slate-500">
+                      <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
                         <span>{templateName || "template_name"}</span>
                         <span>{language}</span>
                       </div>
                     </div>
 
-                    <div className="mt-4 rounded-2xl bg-white/60 px-4 py-3 text-[11px] text-slate-600 backdrop-blur-sm">
-                      <p className="font-medium text-slate-700">Variable preview</p>
+                    <div className="mt-4 rounded-lg border border-border bg-card px-4 py-3 text-[11px] text-muted-foreground">
+                      <p className="font-medium text-foreground">Variable preview</p>
                       <p className="mt-1">
-                        Placeholders like {"{{1}}"} render as bracket markers such as <span className="font-semibold text-slate-800">[1]</span> in the preview.
+                        Placeholders like {"{{1}}"} render as bracket markers such as <span className="font-semibold text-foreground">[1]</span> in the preview.
                       </p>
                     </div>
                   </div>

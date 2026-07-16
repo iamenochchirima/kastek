@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function DashboardTemplatesPage() {
-  redirect("/reach/templates");
+  redirect("/templates");
 }

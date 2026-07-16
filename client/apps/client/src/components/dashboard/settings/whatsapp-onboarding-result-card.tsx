@@ -57,8 +57,8 @@ export default function WhatsappOnboardingResultCard() {
       <div
         className={`rounded-xl border p-5 ${
           ok
-            ? "border-green-500/30 bg-green-500/10"
-            : "border-red-500/30 bg-red-500/10"
+            ? "border-status-success/30 bg-status-success-soft"
+            : "border-destructive/30 bg-status-danger-soft"
         }`}
       >
         <h1 className="mb-2 text-3xl font-semibold tracking-tight">
@@ -94,7 +94,7 @@ export default function WhatsappOnboardingResultCard() {
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium">{label(item.step)}</p>
                   <span
-                    className={`text-xs font-semibold ${item.ok ? "text-green-300" : "text-red-300"}`}
+                    className={`text-xs font-semibold ${item.ok ? "text-status-success" : "text-destructive"}`}
                   >
                     {item.ok ? "OK" : "FAILED"}
                   </span>
@@ -114,7 +114,7 @@ export default function WhatsappOnboardingResultCard() {
           Back to Settings
         </Link>
         <Link
-          href="/reach/campaigns"
+          href="/campaigns"
           className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground no-underline"
         >
           Go to Campaigns
