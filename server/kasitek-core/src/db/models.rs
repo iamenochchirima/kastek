@@ -464,6 +464,49 @@ pub struct SocialChannelUpdateRequest {
     pub metadata: Option<Value>,
 }
 
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct ExternalConnection {
+    pub id: String,
+    pub provider: String,
+    #[sqlx(rename = "external_account_id")]
+    #[serde(rename = "externalAccountId")]
+    pub external_account_id: Option<String>,
+    #[sqlx(rename = "display_name")]
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+    pub handle: Option<String>,
+    pub status: String,
+    #[sqlx(rename = "credential_status")]
+    #[serde(rename = "credentialStatus")]
+    pub credential_status: String,
+    #[sqlx(rename = "health_status")]
+    #[serde(rename = "healthStatus")]
+    pub health_status: String,
+    #[sqlx(rename = "webhook_status")]
+    #[serde(rename = "webhookStatus")]
+    pub webhook_status: String,
+    #[sqlx(rename = "last_checked_at")]
+    #[serde(rename = "lastCheckedAt")]
+    pub last_checked_at: Option<DateTime<Utc>>,
+    #[sqlx(rename = "last_error")]
+    #[serde(rename = "lastError")]
+    pub last_error: Option<String>,
+    pub metadata: Option<Value>,
+    pub capabilities: Value,
+    pub consumers: Value,
+    #[sqlx(rename = "created_at")]
+    #[serde(rename = "createdAt")]
+    pub created_at: DateTime<Utc>,
+    #[sqlx(rename = "updated_at")]
+    #[serde(rename = "updatedAt")]
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExternalConnectionStatusRequest {
+    pub status: Option<String>,
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct SocialPostVariantInput {
     pub platform: String,

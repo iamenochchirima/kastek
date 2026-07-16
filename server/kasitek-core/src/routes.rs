@@ -2,9 +2,9 @@ use actix_web::web;
 
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
-    admin_outreach, admin_quotations, admin_web_services, ai, auth, billing, bots, chat, health,
-    inbox, notifications, orgs, profile, public, realtime, social, whatsapp, whatsapp_calls,
-    workspace,
+    admin_outreach, admin_quotations, admin_web_services, ai, auth, billing, bots, chat,
+    connections, health, inbox, notifications, orgs, profile, public, realtime, social, whatsapp,
+    whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -129,6 +129,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 )
                 .route("/push/test", web::post().to(notifications::push_test))
                 .route("/{id}", web::patch().to(notifications::mark_read)),
+        )
+        .service(
+            web::scope("/api/connections")
+                .route("", web::get().to(connections::list))
+                .route("/{id}/status", web::patch().to(connections::update_status)),
         )
         .service(
             web::scope("/api/social")

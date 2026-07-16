@@ -33,6 +33,7 @@ model Organization {
   whatsappCampaigns        WhatsappCampaign[]
   whatsappSendEvents       WhatsappSendEvent[]
   whatsappCallSessions     WhatsappCallSession[]
+  externalConnections      ExternalConnection[]
   conversations            Conversation[]
   subscriptions            OrganizationSubscription[]
   entitlementGrants        OrganizationEntitlementGrant[]
@@ -89,6 +90,74 @@ enum OrgRole {
   OWNER
   ADMIN
   MEMBER
+}
+
+enum ExternalConnectionStatus {
+  NOT_CONNECTED
+  CONNECTING
+  CONNECTED
+  NEEDS_ATTENTION
+  DISCONNECTED
+  REVOKED
+}
+
+model ExternalConnection {
+  id                String                   @id @default(cuid())
+  orgId             String
+  org               Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  provider          String
+  sourceType        String
+  sourceId          String
+  externalAccountId String?
+  displayName       String
+  handle            String?
+  status            ExternalConnectionStatus @default(NOT_CONNECTED)
+  statusOverride    ExternalConnectionStatus?
+  credentialStatus  String                   @default("UNKNOWN")
+  healthStatus      String                   @default("UNKNOWN")
+  webhookStatus     String                   @default("UNKNOWN")
+  lastCheckedAt     DateTime?
+  lastError         String?                  @db.Text
+  metadata          Json?
+
+  capabilities      ExternalConnectionCapability[]
+  consumers         ExternalConnectionConsumer[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([orgId, sourceType, sourceId])
+  @@index([orgId, status])
+  @@index([orgId, provider])
+}
+
+model ExternalConnectionCapability {
+  id             String             @id @default(cuid())
+  connectionId   String
+  connection     ExternalConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  key            String
+  enabled        Boolean            @default(true)
+  entitlementKey String?
+  metadata       Json?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([connectionId, key])
+  @@index([key, enabled])
+}
+
+model ExternalConnectionConsumer {
+  id           String             @id @default(cuid())
+  connectionId String
+  connection   ExternalConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  productKey   String
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([connectionId, productKey])
+  @@index([productKey])
 }
 
 enum BillingInterval {

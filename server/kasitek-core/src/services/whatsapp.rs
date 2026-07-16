@@ -18,11 +18,11 @@ use crate::db::models::{
     WhatsappTemplateRow,
 };
 use crate::error::AppError;
-use crate::services::billing;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
 use crate::services::realtime;
 use crate::services::social::{decrypt_social_secret, encrypt_social_secret};
 use crate::services::whatsapp_calls;
+use crate::services::{billing, connections};
 
 const GRAPH_BASE: &str = "https://graph.facebook.com/v19.0";
 
@@ -408,7 +408,7 @@ pub struct WhatsappProvisioningConnection {
     pub waba_id: String,
 }
 
-async fn get_connection_row_for_org(
+async fn get_connection_row_for_org_including_inactive(
     pool: &PgPool,
     org_id: &str,
     connection_id: &str,
@@ -425,20 +425,30 @@ async fn get_connection_row_for_org(
         .map_err(AppError::from)
 }
 
+async fn get_connection_row_for_org(
+    pool: &PgPool,
+    org_id: &str,
+    connection_id: &str,
+) -> Result<Option<WhatsappConnectionRow>, AppError> {
+    let row = get_connection_row_for_org_including_inactive(pool, org_id, connection_id).await?;
+    if row.is_none() {
+        return Ok(None);
+    }
+    if connections::source_is_connected(pool, org_id, "WHATSAPP", connection_id).await? {
+        Ok(row)
+    } else {
+        Err(AppError::Conflict(
+            "This WhatsApp connection is not active. Reconnect it from Connections.".to_string(),
+        ))
+    }
+}
+
 pub async fn get_connection_for_provisioning(
     pool: &PgPool,
     org_id: &str,
     connection_id: &str,
 ) -> Result<Option<WhatsappProvisioningConnection>, AppError> {
-    let sql = format!(
-        "{} WHERE id = $1 AND \"orgId\" = $2 LIMIT 1",
-        select_connection_sql()
-    );
-    let row = sqlx::query_as::<_, WhatsappConnectionRow>(&sql)
-        .bind(connection_id)
-        .bind(org_id)
-        .fetch_optional(pool)
-        .await?;
+    let row = get_connection_row_for_org(pool, org_id, connection_id).await?;
     row.map(|row| {
         Ok(WhatsappProvisioningConnection {
             id: row.id,
@@ -536,6 +546,21 @@ pub async fn connect_manual_connection(
     .await?;
 
     let webhook_result = subscribe_waba_webhook(access_token, waba_id).await.err();
+    let webhook_error_message = webhook_result.as_ref().map(ToString::to_string);
+    connections::record_source_health(
+        pool,
+        org_id,
+        "WHATSAPP",
+        &connection.id,
+        webhook_result.is_none(),
+        Some(if webhook_result.is_none() {
+            "HEALTHY"
+        } else {
+            "FAILED"
+        }),
+        webhook_error_message.as_deref(),
+    )
+    .await?;
     let template_sync = sync_connection_templates(pool, user_id, org_id, &connection.id)
         .await
         .ok();
@@ -720,7 +745,7 @@ pub async fn refresh_connection(
     org_id: &str,
     connection_id: &str,
 ) -> Result<Value, AppError> {
-    let connection = get_connection_row_for_org(pool, org_id, connection_id)
+    let connection = get_connection_row_for_org_including_inactive(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
@@ -751,9 +776,11 @@ pub async fn refresh_connection(
     .execute(pool)
     .await?;
 
-    let refreshed = get_connection_row_for_org(pool, org_id, connection_id)
+    let refreshed = get_connection_row_for_org_including_inactive(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload connection".to_string()))?;
+    connections::record_source_health(pool, org_id, "WHATSAPP", connection_id, true, None, None)
+        .await?;
     Ok(json!({
         "connection": WhatsappConnectionPublic::from(refreshed),
         "messagingLimitTier": phone.messaging_limit_tier
@@ -766,7 +793,7 @@ pub async fn update_connection_access_token(
     connection_id: &str,
     access_token: &str,
 ) -> Result<Value, AppError> {
-    let connection = get_connection_row_for_org(pool, org_id, connection_id)
+    let connection = get_connection_row_for_org_including_inactive(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     if access_token.trim().is_empty() {
@@ -805,12 +832,27 @@ pub async fn update_connection_access_token(
     .execute(pool)
     .await?;
 
-    let updated = get_connection_row_for_org(pool, org_id, connection_id)
+    let updated = get_connection_row_for_org_including_inactive(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload connection".to_string()))?;
     let webhook_error = subscribe_waba_webhook(access_token, &updated.waba_id)
         .await
         .err();
+    let webhook_error_message = webhook_error.as_ref().map(ToString::to_string);
+    connections::record_source_health(
+        pool,
+        org_id,
+        "WHATSAPP",
+        connection_id,
+        webhook_error.is_none(),
+        Some(if webhook_error.is_none() {
+            "HEALTHY"
+        } else {
+            "FAILED"
+        }),
+        webhook_error_message.as_deref(),
+    )
+    .await?;
 
     Ok(json!({
         "connection": WhatsappConnectionPublic::from(updated),
@@ -824,7 +866,7 @@ pub async fn connection_health(
     org_id: &str,
     connection_id: &str,
 ) -> Result<Value, AppError> {
-    let connection = get_connection_row_for_org(pool, org_id, connection_id)
+    let connection = get_connection_row_for_org_including_inactive(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let token = decrypt_social_secret(&connection.access_token_encrypted)?;
@@ -889,6 +931,25 @@ pub async fn connection_health(
             }
         }
     }
+
+    connections::record_source_health(
+        pool,
+        org_id,
+        "WHATSAPP",
+        connection_id,
+        token_valid && webhook_subscribed,
+        Some(if webhook_subscribed {
+            "HEALTHY"
+        } else {
+            "FAILED"
+        }),
+        if token_valid && webhook_subscribed {
+            None
+        } else {
+            Some("WhatsApp token validation or webhook subscription failed")
+        },
+    )
+    .await?;
 
     Ok(json!({
         "connection": {
