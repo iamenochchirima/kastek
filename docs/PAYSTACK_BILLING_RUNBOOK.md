@@ -7,13 +7,17 @@ This document covers the direct Kasitek workspace billing integration. It does n
 Set this only on `kasitek-core`:
 
 ```text
-PAYSTACK_SECRET_KEY=<Paystack test or live secret key>
+PAYSTACK_MODE=test
+PAYSTACK_TEST_SECRET_KEY=<Paystack test secret key>
+PAYSTACK_LIVE_SECRET_KEY=<Paystack live secret key>
 PAYSTACK_API_BASE_URL=https://api.paystack.co
 FRONTEND_URL=https://app.example.com
 KASITEK_CORE_PUBLIC_URL=https://api.example.com
 ```
 
 Do not expose the secret key through Next.js public variables. Product plans must have an active internal `ProductPlan` record and a matching `paystackPlanCode`. Prices and plan codes belong in database records, not application code.
+
+`PAYSTACK_MODE` selects which key is loaded. It defaults to `test`. The legacy `PAYSTACK_SECRET_KEY` remains a fallback for local compatibility, but deployments should use the mode-specific variables so a test process cannot silently pick up the live key.
 
 ## Webhook
 
@@ -42,7 +46,7 @@ The browser callback is `${FRONTEND_URL}/billing?payment=complete`. Paystack add
 
 ## Reconciliation
 
-Pending checkout transactions older than 30 seconds are rechecked by the billing reconciliation worker. In the API process this worker starts with the other background workers. It can also run as a separate process:
+Pending checkout transactions older than 30 seconds and active provider subscriptions are rechecked by the billing reconciliation worker. In the API process this worker starts with the other background workers. It can also run as a separate process:
 
 ```text
 KASITEK_PROCESS=billing-reconciliation-worker cargo run -p kasitek-core
@@ -50,7 +54,7 @@ KASITEK_PROCESS=billing-reconciliation-worker cargo run -p kasitek-core
 
 The default interval is five minutes. Set `PAYSTACK_RECONCILIATION_INTERVAL_SECONDS` and `PAYSTACK_RECONCILIATION_BATCH_SIZE` to change it. The interval cannot be lower than 30 seconds.
 
-An authenticated Kasitek admin can trigger the same bounded check with `POST /api/admin/billing/reconcile/paystack`. A non-zero `failed` count is logged for operator review. Active subscription-state reconciliation is still pending and must be completed before live billing is enabled.
+An authenticated Kasitek admin can trigger the same bounded check with `POST /api/admin/billing/reconcile/paystack`. Provider errors, unknown states, disputes, partial refunds, and corrected state mismatches are stored in `BillingReconciliationIssue`. Admins can inspect them through `GET /api/admin/billing/reconciliation-issues?status=OPEN`. A non-zero failure or open-issue count is also logged.
 
 ## Support checks
 

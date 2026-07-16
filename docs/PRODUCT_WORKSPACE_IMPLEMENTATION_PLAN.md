@@ -343,9 +343,10 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 - [x] Build a Billing and usage page before live payments are connected.
 - [x] Show active products by their commercial names: KasiAgents, KasiReach, and KasiSocial.
-- [ ] Show current plan, status, billing period, trial/grace status, and cancellation date.
+- [x] Show current plan, status, billing period, trial/grace status, and cancellation date.
 - [x] Show current usage against each included limit.
-- [ ] Show invoices and payment history from internal records.
+- [x] Show payment history from internal checkout records.
+- [ ] Show invoices from internal invoice records when provider invoices are synchronized.
 - [x] Show manual/internal access grants separately from paid subscriptions.
 - [x] Add server-side checkout initialisation; payment redirects do not grant access.
 - [x] Restrict billing changes to organisation owners or explicitly authorised billing admins.
@@ -355,7 +356,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [ ] Add internal admin tools to create products, plans, and entitlement definitions.
 - [x] Add internal admin API tools to create, inspect, and expire manual access and limit grants.
 - [x] Require a reason and actor audit entry for manual entitlement changes.
-- [ ] Add support procedures for refunds, failed payment, disputes, and incorrect usage counts.
+- [x] Add support procedures for refunds, failed payment, disputes, and incorrect usage counts.
 
 ### Completion criteria
 
@@ -370,7 +371,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Keep internal product, subscription, entitlement, invoice, and usage models provider-neutral.
 - [ ] Store Paystack customer, plan, subscription, transaction, invoice, and authorisation references as external IDs, never as the source of truth for access.
 - [x] Keep all Paystack secret-key calls on the server.
-- [ ] Add separate test and live environment configuration.
+- [x] Add separate test and live environment configuration.
 
 ### Checkout and verification
 
@@ -398,16 +399,19 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Verify the `x-paystack-signature` before processing a webhook.
 - [x] Persist raw event metadata, provider event type, received time, processing result, and idempotency key.
 - [x] Process duplicate webhook deliveries safely.
-- [ ] Handle at minimum:
+- [x] Handle at minimum:
   - [x] Successful charge
   - [x] Failed invoice/payment
   - [x] Subscription created
   - [x] Subscription non-renewing
   - [x] Subscription disabled/completed
-  - [ ] Refund or charge reversal where applicable
+  - [x] Processed full refund
+  - [x] Partial or unverifiable refund escalation
+  - [x] Dispute escalation
 - [x] Add a reconciliation job that periodically verifies recent unresolved checkout transactions with Paystack.
-- [ ] Extend reconciliation to verify active subscription states with Paystack.
-- [ ] Alert internal operators when payment state and internal entitlement state differ.
+- [x] Extend reconciliation to verify active subscription states with Paystack.
+- [x] Record and surface provider errors and payment/entitlement state mismatches for internal operators.
+- [ ] Connect open reconciliation issues to an external operator alert channel.
 
 ### Completion criteria
 
@@ -446,7 +450,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [ ] Update Product Features and Product Roadmap to match the delivered behaviour.
 - [x] Document required Paystack environment variables without recording secret values.
 - [x] Document local webhook testing and production webhook configuration.
-- [ ] Write support runbooks for payment failure, access disputes, connection failure, and entitlement correction.
+- [x] Write the billing support runbook for payment failure, access disputes, refunds, usage corrections, and entitlement correction.
+- [ ] Write the connection failure support runbook.
 - [ ] Remove this temporary implementation plan after completion.
 
 ## Final Acceptance Checklist

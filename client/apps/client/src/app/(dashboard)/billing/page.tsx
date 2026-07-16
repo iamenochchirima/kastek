@@ -10,8 +10,12 @@ export const metadata = {
 };
 
 function productStateLabel(product: ProductAccess) {
-  if (!product.hasAccess) return "Upgrade required";
   if (product.subscriptionStatus === "TRIAL") return "Trial";
+  if (product.subscriptionStatus === "GRACE") return "Grace period";
+  if (product.subscriptionStatus === "PAST_DUE") return "Payment required";
+  if (product.subscriptionStatus === "SUSPENDED") return "Suspended";
+  if (product.subscriptionStatus === "CANCELLED") return "Cancelled";
+  if (!product.hasAccess) return "Upgrade required";
   if (product.cancelAtPeriodEnd) return "Cancels at period end";
   return "Active";
 }
