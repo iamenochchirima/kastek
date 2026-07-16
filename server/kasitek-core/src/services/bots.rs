@@ -141,7 +141,7 @@ pub fn should_auto_provision(input: &BotCreateRequest) -> bool {
     managed_launch || managed_business || managed_capabilities
 }
 
-pub async fn list_bots(pool: &PgPool, user_id: &str) -> Result<Vec<BotListRow>, AppError> {
+pub async fn list_bots(pool: &PgPool, org_id: &str) -> Result<Vec<BotListRow>, AppError> {
     sqlx::query_as::<_, BotListRow>(
         r#"
         SELECT
@@ -197,11 +197,11 @@ pub async fn list_bots(pool: &PgPool, user_id: &str) -> Result<Vec<BotListRow>, 
             ORDER BY d."createdAt" DESC
             LIMIT 1
         ) latest_deployment ON TRUE
-        WHERE b."userId" = $1
+        WHERE b."orgId" = $1
         ORDER BY COALESCE(metrics.last_active_at, b."updatedAt") DESC, b."createdAt" DESC
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .fetch_all(pool)
     .await
     .map_err(AppError::from)
@@ -238,7 +238,7 @@ async fn latest_bot_deployment_status(
 
 async fn resolve_integration_config_for_dispatch(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     bot_type: &str,
     integration_config: Option<&Value>,
 ) -> Result<Option<Value>, AppError> {
@@ -260,7 +260,7 @@ async fn resolve_integration_config_for_dispatch(
         return Ok(Some(base_config));
     };
 
-    let connection = whatsapp::get_connection_for_provisioning(pool, user_id, connection_id)
+    let connection = whatsapp::get_connection_for_provisioning(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| {
             AppError::BadRequest("Selected WhatsApp connection was not found".to_string())
@@ -298,16 +298,17 @@ pub async fn execute_bot_action(
     pool: &PgPool,
     config: &AppConfig,
     user_id: &str,
+    org_id: &str,
     bot_id: &str,
     input: BotActionRequest,
 ) -> Result<BotListRow, AppError> {
     let action = normalize_action(input.action.as_deref())?;
-    let bot = get_bot(pool, user_id, bot_id)
+    let bot = get_bot(pool, org_id, bot_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Bot not found".to_string()))?;
     let resolved_integration_config = resolve_integration_config_for_dispatch(
         pool,
-        user_id,
+        org_id,
         &bot.bot_type,
         bot.integration_config.as_ref(),
     )
@@ -341,15 +342,16 @@ pub async fn execute_bot_action(
             sqlx::query(
                 r#"
                 INSERT INTO "BotDeployment" (
-                    id, "botId", "userId", provider, target, status, "versionNumber",
+                    id, "botId", "userId", "orgId", provider, target, status, "versionNumber",
                     "templateKey", "configSnapshot", "createdAt", "updatedAt"
                 )
-                VALUES ($1, $2, $3, 'n8n', $4, 'provisioning', $5, $6, $7, NOW(), NOW())
+                VALUES ($1, $2, $3, $4, 'n8n', $5, 'provisioning', $6, $7, $8, NOW(), NOW())
                 "#,
             )
             .bind(&deployment_id)
             .bind(bot_id)
             .bind(user_id)
+            .bind(org_id)
             .bind(
                 bot.integration_config
                     .as_ref()
@@ -373,11 +375,11 @@ pub async fn execute_bot_action(
                 r#"
                 UPDATE "BotConfiguration"
                 SET status = 'provisioning', "updatedAt" = NOW()
-                WHERE id = $1 AND "userId" = $2
+                WHERE id = $1 AND "orgId" = $2
                 "#,
             )
             .bind(bot_id)
-            .bind(user_id)
+            .bind(org_id)
             .execute(pool)
             .await?;
 
@@ -439,11 +441,11 @@ pub async fn execute_bot_action(
                         r#"
                         UPDATE "BotConfiguration"
                         SET status = 'error', "updatedAt" = NOW()
-                        WHERE id = $1 AND "userId" = $2
+                        WHERE id = $1 AND "orgId" = $2
                         "#,
                     )
                     .bind(bot_id)
-                    .bind(user_id)
+                    .bind(org_id)
                     .execute(pool)
                     .await?;
 
@@ -486,12 +488,12 @@ pub async fn execute_bot_action(
                         r#"
                         UPDATE "BotConfiguration"
                         SET status = $1, "updatedAt" = NOW()
-                        WHERE id = $2 AND "userId" = $3
+                        WHERE id = $2 AND "orgId" = $3
                         "#,
                     )
                     .bind(&next_status)
                     .bind(bot_id)
-                    .bind(user_id)
+                    .bind(org_id)
                     .execute(pool)
                     .await?;
                 }
@@ -513,11 +515,11 @@ pub async fn execute_bot_action(
                         r#"
                         UPDATE "BotConfiguration"
                         SET status = 'pending_manual', "updatedAt" = NOW()
-                        WHERE id = $1 AND "userId" = $2
+                        WHERE id = $1 AND "orgId" = $2
                         "#,
                     )
                     .bind(bot_id)
-                    .bind(user_id)
+                    .bind(org_id)
                     .execute(pool)
                     .await?;
                 }
@@ -605,19 +607,19 @@ pub async fn execute_bot_action(
                 r#"
                 UPDATE "BotConfiguration"
                 SET status = $1, "updatedAt" = NOW()
-                WHERE id = $2 AND "userId" = $3
+                WHERE id = $2 AND "orgId" = $3
                 "#,
             )
             .bind(next_status)
             .bind(bot_id)
-            .bind(user_id)
+            .bind(org_id)
             .execute(pool)
             .await?;
         }
         _ => {}
     }
 
-    list_bots(pool, user_id)
+    list_bots(pool, org_id)
         .await?
         .into_iter()
         .find(|bot_row| bot_row.id == bot_id)
@@ -637,13 +639,16 @@ pub async fn apply_deployment_callback(
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("status is required".to_string()))?;
 
-    let bot_user = sqlx::query_as::<_, (String,)>(
-        r#"SELECT "userId" FROM "BotConfiguration" WHERE id = $1 LIMIT 1"#,
+    let bot_scope = sqlx::query_as::<_, (String, Option<String>)>(
+        r#"SELECT "userId", "orgId" FROM "BotConfiguration" WHERE id = $1 LIMIT 1"#,
     )
     .bind(bot_id)
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Bot not found".to_string()))?;
+    let org_id = bot_scope.1.ok_or_else(|| {
+        AppError::Internal("Bot does not have an organisation assignment".to_string())
+    })?;
 
     let updated = sqlx::query(
         r#"
@@ -675,12 +680,12 @@ pub async fn apply_deployment_callback(
         r#"
         UPDATE "BotConfiguration"
         SET status = $1, "updatedAt" = NOW()
-        WHERE id = $2 AND "userId" = $3
+        WHERE id = $2 AND "orgId" = $3
         "#,
     )
     .bind(status)
     .bind(bot_id)
-    .bind(bot_user.0)
+    .bind(org_id)
     .execute(pool)
     .await?;
 
@@ -690,6 +695,7 @@ pub async fn apply_deployment_callback(
 pub async fn create_bot(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     input: BotCreateRequest,
 ) -> Result<BotConfigurationRow, AppError> {
     let name = input
@@ -711,14 +717,15 @@ pub async fn create_bot(
     sqlx::query(
         r#"
         INSERT INTO "BotConfiguration" (
-            id, "userId", name, type, status, language, "greetingMessage", personality,
+            id, "userId", "orgId", name, type, status, language, "greetingMessage", personality,
             capabilities, "knowledgeBase", "integrationConfig", "createdAt", "updatedAt"
         )
-        VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7, $8, $9, $10, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7, $8, $9, $10, $11, NOW(), NOW())
         "#,
     )
     .bind(&id)
     .bind(user_id)
+    .bind(org_id)
     .bind(name)
     .bind(bot_type)
     .bind(input.language.as_deref().unwrap_or("en"))
@@ -742,23 +749,23 @@ pub async fn create_bot(
     .execute(pool)
     .await?;
 
-    get_bot(pool, user_id, &id)
+    get_bot(pool, org_id, &id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload bot".to_string()))
 }
 
 pub async fn get_bot(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     bot_id: &str,
 ) -> Result<Option<BotConfigurationRow>, AppError> {
     let sql = format!(
-        "{} WHERE id = $1 AND \"userId\" = $2 LIMIT 1",
+        "{} WHERE id = $1 AND \"orgId\" = $2 LIMIT 1",
         select_bot_sql()
     );
     sqlx::query_as::<_, BotConfigurationRow>(&sql)
         .bind(bot_id)
-        .bind(user_id)
+        .bind(org_id)
         .fetch_optional(pool)
         .await
         .map_err(AppError::from)
@@ -766,11 +773,11 @@ pub async fn get_bot(
 
 pub async fn update_bot(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     bot_id: &str,
     body: Value,
 ) -> Result<BotConfigurationRow, AppError> {
-    if get_bot(pool, user_id, bot_id).await?.is_none() {
+    if get_bot(pool, org_id, bot_id).await?.is_none() {
         return Err(AppError::NotFound("Bot not found".to_string()));
     }
 
@@ -798,7 +805,7 @@ pub async fn update_bot(
             "knowledgeBase" = COALESCE($8, "knowledgeBase"),
             "integrationConfig" = COALESCE($9, "integrationConfig"),
             "updatedAt" = NOW()
-        WHERE id = $10 AND "userId" = $11
+        WHERE id = $10 AND "orgId" = $11
         "#,
     )
     .bind(
@@ -841,19 +848,19 @@ pub async fn update_bot(
     .bind(body.get("knowledgeBase").cloned())
     .bind(body.get("integrationConfig").cloned())
     .bind(bot_id)
-    .bind(user_id)
+    .bind(org_id)
     .execute(pool)
     .await?;
 
-    get_bot(pool, user_id, bot_id)
+    get_bot(pool, org_id, bot_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload bot".to_string()))
 }
 
-pub async fn delete_bot(pool: &PgPool, user_id: &str, bot_id: &str) -> Result<(), AppError> {
-    let result = sqlx::query(r#"DELETE FROM "BotConfiguration" WHERE id = $1 AND "userId" = $2"#)
+pub async fn delete_bot(pool: &PgPool, org_id: &str, bot_id: &str) -> Result<(), AppError> {
+    let result = sqlx::query(r#"DELETE FROM "BotConfiguration" WHERE id = $1 AND "orgId" = $2"#)
         .bind(bot_id)
-        .bind(user_id)
+        .bind(org_id)
         .execute(pool)
         .await?;
     if result.rows_affected() == 0 {
@@ -865,19 +872,21 @@ pub async fn delete_bot(pool: &PgPool, user_id: &str, bot_id: &str) -> Result<()
 pub async fn record_bot_event(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     bot_id: &str,
     input: BotEventCreateRequest,
 ) -> Result<(), AppError> {
-    let bot = get_bot(pool, user_id, bot_id)
+    let _bot = get_bot(pool, org_id, bot_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Bot not found".to_string()))?;
-    record_bot_event_internal(pool, bot_id, &bot.user_id, input).await
+    record_bot_event_internal(pool, bot_id, user_id, org_id, input).await
 }
 
 async fn record_bot_event_internal(
     pool: &PgPool,
     bot_id: &str,
     user_id: &str,
+    org_id: &str,
     input: BotEventCreateRequest,
 ) -> Result<(), AppError> {
     let event_type = input
@@ -890,15 +899,16 @@ async fn record_bot_event_internal(
     sqlx::query(
         r#"
         INSERT INTO "BotEvent" (
-            id, "botId", "userId", "eventType", channel, status, "conversationId",
+            id, "botId", "userId", "orgId", "eventType", channel, status, "conversationId",
             "responseTimeMs", metadata, "createdAt"
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
         "#,
     )
     .bind(cuid2::create_id())
     .bind(bot_id)
     .bind(user_id)
+    .bind(org_id)
     .bind(event_type)
     .bind(
         input
@@ -934,13 +944,16 @@ pub async fn record_bot_event_trusted(
     bot_id: &str,
     input: BotEventCreateRequest,
 ) -> Result<(), AppError> {
-    let bot_user = sqlx::query_as::<_, (String,)>(
-        r#"SELECT "userId" FROM "BotConfiguration" WHERE id = $1 LIMIT 1"#,
+    let bot_scope = sqlx::query_as::<_, (String, Option<String>)>(
+        r#"SELECT "userId", "orgId" FROM "BotConfiguration" WHERE id = $1 LIMIT 1"#,
     )
     .bind(bot_id)
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Bot not found".to_string()))?;
 
-    record_bot_event_internal(pool, bot_id, &bot_user.0, input).await
+    let org_id = bot_scope.1.ok_or_else(|| {
+        AppError::Internal("Bot does not have an organisation assignment".to_string())
+    })?;
+    record_bot_event_internal(pool, bot_id, &bot_scope.0, &org_id, input).await
 }

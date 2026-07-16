@@ -14,9 +14,11 @@ async fn require_agents_access(
     pool: &PgPool,
     req: &HttpRequest,
     user_id: &str,
-) -> Result<(), AppError> {
+) -> Result<String, AppError> {
     let org_id = resolve_active_org_id(req, pool, user_id).await?;
-    billing::require_product_access(pool, &org_id, "agents").await
+    billing::require_product_access(pool, &org_id, "agents")
+        .await
+        .map(|()| org_id)
 }
 
 pub async fn create(
@@ -26,16 +28,17 @@ pub async fn create(
     body: web::Json<BotCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    require_agents_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_agents_access(pool.get_ref(), &req, &user.id).await?;
     let input = body.into_inner();
     let auto_provision = bots::should_auto_provision(&input);
-    let bot = bots::create_bot(pool.get_ref(), &user.id, input).await?;
+    let bot = bots::create_bot(pool.get_ref(), &user.id, &org_id, input).await?;
 
     if auto_provision {
         match bots::execute_bot_action(
             pool.get_ref(),
             config.get_ref(),
             &user.id,
+            &org_id,
             &bot.id,
             BotActionRequest {
                 action: Some("provision".to_string()),
@@ -67,7 +70,8 @@ pub async fn create(
 
 pub async fn list(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let bots = bots::list_bots(pool.get_ref(), &user.id).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let bots = bots::list_bots(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "bots": bots })))
 }
 
@@ -77,7 +81,8 @@ pub async fn get(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let bot = bots::get_bot(pool.get_ref(), &user.id, &path)
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let bot = bots::get_bot(pool.get_ref(), &org_id, &path)
         .await?
         .ok_or_else(|| AppError::NotFound("Bot not found".to_string()))?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "bot": bot })))
@@ -90,8 +95,8 @@ pub async fn patch(
     body: web::Json<Value>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    require_agents_access(pool.get_ref(), &req, &user.id).await?;
-    let bot = bots::update_bot(pool.get_ref(), &user.id, &path, body.into_inner()).await?;
+    let org_id = require_agents_access(pool.get_ref(), &req, &user.id).await?;
+    let bot = bots::update_bot(pool.get_ref(), &org_id, &path, body.into_inner()).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "bot": bot })))
 }
 
@@ -101,8 +106,8 @@ pub async fn delete(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    require_agents_access(pool.get_ref(), &req, &user.id).await?;
-    bots::delete_bot(pool.get_ref(), &user.id, &path).await?;
+    let org_id = require_agents_access(pool.get_ref(), &req, &user.id).await?;
+    bots::delete_bot(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
 
@@ -113,8 +118,8 @@ pub async fn create_event(
     body: web::Json<BotEventCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    require_agents_access(pool.get_ref(), &req, &user.id).await?;
-    bots::record_bot_event(pool.get_ref(), &user.id, &path, body.into_inner()).await?;
+    let org_id = require_agents_access(pool.get_ref(), &req, &user.id).await?;
+    bots::record_bot_event(pool.get_ref(), &user.id, &org_id, &path, body.into_inner()).await?;
     Ok(HttpResponse::Created().json(serde_json::json!({ "success": true })))
 }
 
@@ -126,11 +131,12 @@ pub async fn action(
     body: web::Json<BotActionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    require_agents_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_agents_access(pool.get_ref(), &req, &user.id).await?;
     let bot = bots::execute_bot_action(
         pool.get_ref(),
         config.get_ref(),
         &user.id,
+        &org_id,
         &path,
         body.into_inner(),
     )

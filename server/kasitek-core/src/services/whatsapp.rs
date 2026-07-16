@@ -426,10 +426,18 @@ async fn get_connection_row(
 
 pub async fn get_connection_for_provisioning(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     connection_id: &str,
 ) -> Result<Option<WhatsappProvisioningConnection>, AppError> {
-    let row = get_connection_row(pool, user_id, connection_id).await?;
+    let sql = format!(
+        "{} WHERE id = $1 AND \"orgId\" = $2 LIMIT 1",
+        select_connection_sql()
+    );
+    let row = sqlx::query_as::<_, WhatsappConnectionRow>(&sql)
+        .bind(connection_id)
+        .bind(org_id)
+        .fetch_optional(pool)
+        .await?;
     row.map(|row| {
         Ok(WhatsappProvisioningConnection {
             id: row.id,
