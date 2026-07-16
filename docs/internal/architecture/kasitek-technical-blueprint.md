@@ -124,6 +124,39 @@ Meta / WhatsApp / Email / Web / CRM / Automation platforms
 
 Provider credentials, tokens, webhooks, and raw API details remain owned by their relevant integration service. Agents receive only the safe business action required to complete a task.
 
+### Shared Connections
+
+An external account belongs to an organisation, not to Inbox, Campaigns, Content, or Agents. Those areas use the account through explicit capabilities.
+
+```text
+Organisation
+    |
+ExternalConnection
+    |-- provider identity and lifecycle status
+    |-- capabilities and required entitlements
+    |-- consuming products
+    `-- health and webhook status
+              |
+       provider-specific record
+       encrypted token | scopes | provider metadata
+```
+
+`ExternalConnection` is the common inventory record. `WhatsappConnection` and `SocialChannelConnection` remain the provider-specific records and continue to hold encrypted credentials. The common record does not copy provider tokens.
+
+The supported lifecycle states are `NOT_CONNECTED`, `CONNECTING`, `CONNECTED`, `NEEDS_ATTENTION`, `DISCONNECTED`, and `REVOKED`. A provider health check can move a connection to `NEEDS_ATTENTION`. An administrator can disconnect or revoke it. Reconnecting through OAuth or replacing a WhatsApp token clears the operational failure after the provider check succeeds.
+
+Capabilities use business-level names such as `MESSAGING_INBOUND`, `CAMPAIGNS_SEND`, `SOCIAL_PUBLISH`, and `AGENT_CHANNEL`. A capability can name the product entitlement required to use it. Product consumers are recorded separately so one connection can serve Inbox, Campaigns, Content, and Agents without being owned by any of them.
+
+Provider write paths follow these rules:
+
+- WhatsApp and social access tokens are encrypted with `SOCIAL_TOKEN_ENCRYPTION_KEY`, falling back to `WHATSAPP_TOKEN_ENCRYPTION_KEY` for compatibility.
+- Token rotation replaces the encrypted provider token and runs a provider health check before the connection is treated as healthy.
+- Revocation blocks use in the shared lifecycle. Provider-side token revocation is still required where the provider supports it.
+- WhatsApp health checks validate the token and WABA webhook subscription. Meta message webhooks use the configured verify token and request validation. Other providers remain `UNKNOWN` until a provider-specific health check is implemented.
+- All connection listing and mutation is scoped to the active organisation. Disconnect and revoke actions require an organisation owner or administrator.
+
+Operational recovery steps are in [Connection Failure Runbook](../runbooks/connection-failures.md).
+
 ## 6. Delivery Sequence
 
 1. Define and implement the shared capability registry and its typed contracts.

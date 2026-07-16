@@ -207,28 +207,28 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Connection model
 
-- [ ] Define a common connection record for organisation-owned external accounts.
-- [ ] Define provider-specific records for credentials, account metadata, scopes, health, and webhook status.
-- [ ] Model a connection’s capabilities separately from the product that uses it.
-- [ ] Record which products currently consume each connection.
-- [ ] Support connection states: not connected, connecting, connected, needs attention, disconnected, and revoked.
-- [ ] Encrypt provider access tokens and secrets at rest.
-- [ ] Define credential rotation and revocation behaviour.
-- [ ] Define webhook verification and health checks for each provider.
+- [x] Define a common connection record for organisation-owned external accounts.
+- [x] Define provider-specific records for credentials, account metadata, scopes, health, and webhook status.
+- [x] Model a connection’s capabilities separately from the product that uses it.
+- [x] Record which products currently consume each connection.
+- [x] Support connection states: not connected, connecting, connected, needs attention, disconnected, and revoked.
+- [x] Encrypt provider access tokens and secrets at rest.
+- [x] Define credential rotation and revocation behaviour.
+- [x] Define webhook verification and health checks for each provider.
 
 ### Initial connections screen
 
-- [ ] Move WhatsApp setup out of `KasiReach` settings.
+- [x] Move WhatsApp setup out of `KasiReach` settings.
 - [x] Add an organisation-level Connections screen.
-- [ ] Show each connection’s provider account, status, permissions, webhook health, and products using it.
-- [ ] Show the product entitlement required before a user can connect or use a provider capability.
+- [x] Show each connection’s provider account, status, permissions, webhook health, and products using it.
+- [x] Show the product entitlement required before a user can connect or use a provider capability.
 - [ ] Support WhatsApp first, then Facebook, Instagram, Threads, LinkedIn, X, email, and website chat as each integration becomes real.
-- [ ] Keep manual connection and OAuth connection flows behind the same connection lifecycle.
+- [x] Keep manual connection and OAuth connection flows behind the same connection lifecycle.
 
 ### Completion criteria
 
-- [ ] A WhatsApp or Meta connection is owned by the organisation and can be used by Inbox, Agents, Reach, and Social according to granted capabilities.
-- [ ] No product settings page is the hidden owner of a shared provider connection.
+- [x] A WhatsApp or Meta connection is owned by the organisation and can be used by Inbox, Agents, Reach, and Social according to granted capabilities.
+- [x] No product settings page is the hidden owner of a shared provider connection.
 
 ## Phase 5: Unify the Inbox and Customer Work
 
@@ -450,12 +450,12 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Documentation and handoff
 
-- [ ] Move permanent product, connection, entitlement, and billing decisions into the Architecture document.
+- [x] Move permanent product, connection, entitlement, and billing decisions into the Architecture document.
 - [ ] Update Product Features and Product Roadmap to match the delivered behaviour.
 - [x] Document required Paystack environment variables without recording secret values.
 - [x] Document local webhook testing and production webhook configuration.
 - [x] Write the billing support runbook for payment failure, access disputes, refunds, usage corrections, and entitlement correction.
-- [ ] Write the connection failure support runbook.
+- [x] Write the connection failure support runbook.
 - [ ] Remove this temporary implementation plan after completion.
 
 ## Final Acceptance Checklist
@@ -463,8 +463,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [ ] The app is organised by customer work, growth work, automation work, and management work.
 - [ ] Product names remain visible only where commercial context is useful.
 - [ ] Organisation switching changes the underlying data across all product areas.
-- [ ] Inbox, Contacts, and Connections are shared workspace domains.
-- [ ] Products consume shared connections through explicit capabilities.
+- [x] Inbox, Contacts, and Connections are shared workspace domains.
+- [x] Products consume shared connections through explicit capabilities.
 - [x] Subscription and entitlement records are organisation-owned and provider-neutral.
 - [x] Usage is measured by server-side events and checked before restricted actions.
 - [x] Billing and usage works before Paystack is enabled.
