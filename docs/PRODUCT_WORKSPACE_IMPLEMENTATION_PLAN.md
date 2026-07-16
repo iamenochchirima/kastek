@@ -46,8 +46,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ## Delivery Rules
 
-- [ ] Treat an organisation as the owner of product data, subscriptions, connections, usage, and entitlements.
-- [ ] Keep `userId` as the actor, creator, or audit identity where needed; do not use it as the main workspace data boundary.
+- [x] Treat an organisation as the owner of product data, subscriptions, connections, usage, and entitlements.
+- [x] Keep `userId` as the actor, creator, or audit identity where needed; do not use it as the main workspace data boundary.
 - [ ] Do not enable a feature based only on a client-side check or successful payment redirect.
 - [ ] Do not make an external connection belong to one product when several products can use it.
 - [ ] Preserve existing production data through explicit migrations and backfills.
@@ -117,11 +117,11 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [ ] Add required `orgId` ownership to direct-product records that belong to a workspace.
 - [ ] Start with the active product records:
   - [ ] Business profile
-  - [ ] WhatsApp connections
-  - [ ] WhatsApp contacts and list memberships
-  - [ ] WhatsApp templates
-  - [ ] WhatsApp campaigns and recipients
-  - [ ] Conversations and message records
+- [x] WhatsApp connections
+- [x] WhatsApp contacts and list memberships
+- [x] WhatsApp templates
+- [x] WhatsApp campaigns and recipients
+- [x] Conversations and message records
   - [x] Social channel connections
   - [x] Social posts, variants, and publish jobs
   - [x] Bot configurations, events, and deployments
@@ -141,9 +141,9 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 - [x] Replace direct-product `userId` query filters with authorised `orgId` filters across Agents, Social, Connections, Reach, and Inbox.
 - [ ] Keep `userId` in create/update records as the acting user where audit history requires it.
-- [ ] Require organisation membership for every organisation-scoped endpoint.
-- [ ] Require organisation admin or owner roles for sensitive settings, connections, billing, and team actions.
-- [ ] Update realtime channel naming from user-scoped channels to organisation-scoped channels where events are shared by a team.
+- [x] Require organisation membership for every organisation-scoped endpoint.
+- [x] Require organisation admin or owner roles for sensitive settings, connections, billing, and team actions.
+- [x] Update realtime channel naming from user-scoped channels to organisation-scoped channels where events are shared by a team.
 - [ ] Preserve personal notifications separately from shared workspace activity.
 - [ ] Update workspace summary queries to aggregate active-organisation data only.
 - [ ] Add tests proving one organisation cannot read or modify another organisation’s records.
@@ -151,7 +151,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 ### Client changes
 
 - [ ] Pass or resolve the active organisation consistently for all dashboard reads and writes.
-- [ ] Refresh active data when the organisation switcher changes organisation.
+- [x] Refresh active data when the organisation switcher changes organisation.
 - [ ] Handle the case where a user has no organisation or no selected organisation.
 - [ ] Show the active organisation name consistently in page headers and settings.
 - [ ] Verify that team members see shared records according to their role.
@@ -219,7 +219,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 ### Initial connections screen
 
 - [ ] Move WhatsApp setup out of `KasiReach` settings.
-- [ ] Add an organisation-level Connections screen.
+- [x] Add an organisation-level Connections screen.
 - [ ] Show each connection’s provider account, status, permissions, webhook health, and products using it.
 - [ ] Show the product entitlement required before a user can connect or use a provider capability.
 - [ ] Support WhatsApp first, then Facebook, Instagram, Threads, LinkedIn, X, email, and website chat as each integration becomes real.
@@ -281,7 +281,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
   - [ ] `/connections`
   - [ ] `/workspace/team`
   - [ ] `/billing`
-  - [ ] `/workspace/settings`
+- [x] `/workspace/settings`
 - [ ] Redirect current `/reach/*` routes to their final non-product-branded routes.
 - [ ] Redirect current `/social/*` routes to their final non-product-branded routes.
 - [ ] Remove or preserve `/dashboard/*` compatibility redirects only after usage confirms they are no longer needed.
@@ -347,8 +347,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [ ] Show current usage against each included limit.
 - [ ] Show invoices and payment history from internal records.
 - [ ] Show manual/internal access grants separately from paid subscriptions.
-- [ ] Show upgrade and product-enable actions that create an internal checkout intent, not an immediate client-side entitlement.
-- [ ] Restrict billing changes to organisation owners or explicitly authorised billing admins.
+- [x] Add server-side checkout initialisation; payment redirects do not grant access.
+- [x] Restrict billing changes to organisation owners or explicitly authorised billing admins.
 
 ### Internal admin support
 
