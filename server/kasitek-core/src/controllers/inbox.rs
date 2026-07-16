@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use crate::config::AppConfig;
 use crate::db::models::WhatsappSendMessageRequest;
 use crate::error::AppError;
-use crate::middleware::extract_user;
+use crate::middleware::{extract_user, resolve_active_org_id};
 use crate::services::inbox;
 
 pub async fn list_conversations(
@@ -13,7 +13,8 @@ pub async fn list_conversations(
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = inbox::list_inbox_conversations(pool.get_ref(), &user.id).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = inbox::list_inbox_conversations(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -23,7 +24,8 @@ pub async fn list_messages(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = inbox::list_conversation_messages(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = inbox::list_conversation_messages(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -34,9 +36,15 @@ pub async fn send_message(
     body: web::Json<WhatsappSendMessageRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result =
-        inbox::send_conversation_message(pool.get_ref(), &user.id, &path, body.into_inner())
-            .await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = inbox::send_conversation_message(
+        pool.get_ref(),
+        &user.id,
+        &org_id,
+        &path,
+        body.into_inner(),
+    )
+    .await?;
     Ok(HttpResponse::Accepted().json(result))
 }
 
@@ -46,7 +54,8 @@ pub async fn mark_read(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = inbox::mark_conversation_read(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = inbox::mark_conversation_read(pool.get_ref(), &user.id, &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 

@@ -389,7 +389,8 @@ pub async fn list_inbox_conversations(
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::list_inbox_conversations(pool.get_ref(), &user.id).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp::list_inbox_conversations(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -399,7 +400,9 @@ pub async fn start_inbox_conversation(
     body: web::Json<WhatsappStartConversationRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::start_inbox_conversation(pool.get_ref(), &user.id, &body).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result =
+        whatsapp::start_inbox_conversation(pool.get_ref(), &user.id, &org_id, &body).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -408,7 +411,8 @@ pub async fn inbox_unread_count(
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::inbox_unread_count(pool.get_ref(), &user.id).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp::inbox_unread_count(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -418,7 +422,8 @@ pub async fn list_conversation_messages(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::list_conversation_messages(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp::list_conversation_messages(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -429,9 +434,15 @@ pub async fn send_conversation_message(
     body: web::Json<WhatsappSendMessageRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result =
-        whatsapp::send_conversation_message(pool.get_ref(), &user.id, &path, body.into_inner())
-            .await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp::send_conversation_message(
+        pool.get_ref(),
+        &user.id,
+        &org_id,
+        &path,
+        body.into_inner(),
+    )
+    .await?;
     Ok(HttpResponse::Accepted().json(result))
 }
 
@@ -442,8 +453,10 @@ pub async fn send_conversation_media(
     payload: Multipart,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let result =
-        whatsapp::send_conversation_media(pool.get_ref(), &user.id, &path, payload).await?;
+        whatsapp::send_conversation_media(pool.get_ref(), &user.id, &org_id, &path, payload)
+            .await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -454,8 +467,10 @@ pub async fn update_conversation(
     body: web::Json<ConversationUpdateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let result =
-        whatsapp::update_conversation(pool.get_ref(), &user.id, &path, body.into_inner()).await?;
+        whatsapp::update_conversation(pool.get_ref(), &user.id, &org_id, &path, body.into_inner())
+            .await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -465,7 +480,8 @@ pub async fn delete_conversation(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::delete_conversation(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp::delete_conversation(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -475,7 +491,8 @@ pub async fn mark_conversation_read(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp::mark_conversation_read(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp::mark_conversation_read(pool.get_ref(), &user.id, &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -486,10 +503,11 @@ pub async fn send_message_reaction(
     body: web::Json<WhatsappReactionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let (conversation_id, message_id) = path.into_inner();
     let result = whatsapp::send_message_reaction(
         pool.get_ref(),
-        &user.id,
+        &org_id,
         &conversation_id,
         &message_id,
         body.into_inner(),
@@ -504,10 +522,11 @@ pub async fn delete_conversation_message(
     path: web::Path<(String, String)>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let (conversation_id, message_id) = path.into_inner();
     let result = whatsapp::delete_conversation_message(
         pool.get_ref(),
-        &user.id,
+        &org_id,
         &conversation_id,
         &message_id,
     )
@@ -521,5 +540,6 @@ pub async fn download_message_media(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    whatsapp::download_message_media(pool.get_ref(), &user.id, &path).await
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    whatsapp::download_message_media(pool.get_ref(), &org_id, &path).await
 }

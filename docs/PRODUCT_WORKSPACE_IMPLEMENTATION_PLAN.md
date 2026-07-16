@@ -139,7 +139,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Server changes
 
-- [ ] Replace direct-product `userId` query filters with authorised `orgId` filters. Agents, Social, Connections, and Reach are complete; Inbox remains.
+- [x] Replace direct-product `userId` query filters with authorised `orgId` filters across Agents, Social, Connections, Reach, and Inbox.
 - [ ] Keep `userId` in create/update records as the acting user where audit history requires it.
 - [ ] Require organisation membership for every organisation-scoped endpoint.
 - [ ] Require organisation admin or owner roles for sensitive settings, connections, billing, and team actions.

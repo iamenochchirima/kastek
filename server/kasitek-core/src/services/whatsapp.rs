@@ -374,7 +374,7 @@ async fn resolve_phone_number(
 
 fn select_connection_sql() -> &'static str {
     r#"
-    SELECT id, "userId" AS user_id, "phoneNumberId" AS phone_number_id,
+    SELECT id, "userId" AS user_id, "orgId" AS org_id, "phoneNumberId" AS phone_number_id,
            "phoneDisplayNumber" AS phone_display_number, "accessTokenEncrypted" AS access_token_encrypted,
            "wabaId" AS waba_id, "currentQualityRating"::text AS current_quality_rating,
            "dailyLimitEstimate" AS daily_limit_estimate, verified,
@@ -406,23 +406,6 @@ pub struct WhatsappProvisioningConnection {
     pub phone_display_number: Option<String>,
     pub access_token: String,
     pub waba_id: String,
-}
-
-async fn get_connection_row(
-    pool: &PgPool,
-    user_id: &str,
-    connection_id: &str,
-) -> Result<Option<WhatsappConnectionRow>, AppError> {
-    let sql = format!(
-        "{} WHERE id = $1 AND \"userId\" = $2 LIMIT 1",
-        select_connection_sql()
-    );
-    sqlx::query_as::<_, WhatsappConnectionRow>(&sql)
-        .bind(connection_id)
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(AppError::from)
 }
 
 async fn get_connection_row_for_org(
@@ -3986,6 +3969,7 @@ fn parse_conversation_identifier(identifier: &str) -> Option<(String, String)> {
 
 async fn find_or_create_conversation(
     pool: &PgPool,
+    org_id: &str,
     connection_id: &str,
     phone: &str,
     customer_name: Option<&str>,
@@ -3998,20 +3982,24 @@ async fn find_or_create_conversation(
             "unreadCount",
             "lastMessageAt" AT TIME ZONE 'UTC'
         FROM "Conversation"
-        WHERE channel = 'whatsapp' AND "customerIdentifier" = $1
+        WHERE "orgId" = $1 AND channel = 'whatsapp' AND "customerIdentifier" = $2
         LIMIT 1
         "#,
     )
+    .bind(org_id)
     .bind(&identifier)
     .fetch_optional(pool)
     .await?;
     if let Some((id, unread_count, last_message_at)) = existing {
         if let Some(name) = customer_name {
-            sqlx::query(r#"UPDATE "Conversation" SET "customerName" = $1 WHERE id = $2"#)
-                .bind(name)
-                .bind(&id)
-                .execute(pool)
-                .await?;
+            sqlx::query(
+                r#"UPDATE "Conversation" SET "customerName" = $1, "orgId" = $2 WHERE id = $3"#,
+            )
+            .bind(name)
+            .bind(org_id)
+            .bind(&id)
+            .execute(pool)
+            .await?;
         }
         return Ok((id, unread_count, last_message_at));
     }
@@ -4019,11 +4007,12 @@ async fn find_or_create_conversation(
     let now = Utc::now();
     sqlx::query(
         r#"
-        INSERT INTO "Conversation" (id, channel, "customerIdentifier", "customerName", status, "lastMessageAt", "unreadCount", "createdAt", "updatedAt")
-        VALUES ($1, 'whatsapp', $2, $3, 'active', $4, 0, NOW(), NOW())
+        INSERT INTO "Conversation" (id, "orgId", channel, "customerIdentifier", "customerName", status, "lastMessageAt", "unreadCount", "createdAt", "updatedAt")
+        VALUES ($1, $2, 'whatsapp', $3, $4, 'active', $5, 0, NOW(), NOW())
         "#,
     )
     .bind(&id)
+    .bind(org_id)
     .bind(&identifier)
     .bind(customer_name)
     .bind(now)
@@ -4526,6 +4515,13 @@ async fn handle_incoming_messages(
     let Some(connection) = connection else {
         return Ok(());
     };
+    let Some(org_id) = connection.org_id.as_deref() else {
+        log::warn!(
+            "ignoring WhatsApp webhook for connection without organisation: {}",
+            connection.id
+        );
+        return Ok(());
+    };
     let contacts = value
         .get("contacts")
         .and_then(|v| v.as_array())
@@ -4564,14 +4560,19 @@ async fn handle_incoming_messages(
             .and_then(|contact| contact.get("profile"))
             .and_then(|profile| profile.get("name"))
             .and_then(|v| v.as_str());
-        let (conversation_id, unread_count, _last) =
-            find_or_create_conversation(pool, &connection.id, &normalized_phone, profile_name)
-                .await?;
+        let (conversation_id, unread_count, _last) = find_or_create_conversation(
+            pool,
+            org_id,
+            &connection.id,
+            &normalized_phone,
+            profile_name,
+        )
+        .await?;
         let contact_id = {
             let existing = sqlx::query_scalar::<_, String>(
-                r#"SELECT id FROM "WhatsappContact" WHERE "userId" = $1 AND phone = $2 LIMIT 1"#,
+                r#"SELECT id FROM "WhatsappContact" WHERE "orgId" = $1 AND phone = $2 LIMIT 1"#,
             )
-            .bind(&connection.user_id)
+            .bind(org_id)
             .bind(&normalized_phone)
             .fetch_optional(pool)
             .await?;
@@ -4588,12 +4589,13 @@ async fn handle_incoming_messages(
                     let id = cuid2::create_id();
                     sqlx::query(
                         r#"
-                        INSERT INTO "WhatsappContact" (id, "userId", phone, "fullName", tags, "optIn", excluded, "createdAt", "updatedAt")
-                        VALUES ($1, $2, $3, $4, ARRAY[]::text[], false, false, NOW(), NOW())
+                        INSERT INTO "WhatsappContact" (id, "userId", "orgId", phone, "fullName", tags, "optIn", excluded, "createdAt", "updatedAt")
+                        VALUES ($1, $2, $3, $4, $5, ARRAY[]::text[], false, false, NOW(), NOW())
                         "#,
                     )
                     .bind(&id)
                     .bind(&connection.user_id)
+                    .bind(org_id)
                     .bind(&normalized_phone)
                     .bind(profile_name)
                     .execute(pool)
@@ -4742,9 +4744,9 @@ pub async fn process_webhook_payload(
     Ok(())
 }
 
-async fn user_connection_ids(pool: &PgPool, user_id: &str) -> Result<Vec<String>, AppError> {
-    sqlx::query_scalar::<_, String>(r#"SELECT id FROM "WhatsappConnection" WHERE "userId" = $1"#)
-        .bind(user_id)
+async fn org_connection_ids(pool: &PgPool, org_id: &str) -> Result<Vec<String>, AppError> {
+    sqlx::query_scalar::<_, String>(r#"SELECT id FROM "WhatsappConnection" WHERE "orgId" = $1"#)
+        .bind(org_id)
         .fetch_all(pool)
         .await
         .map_err(AppError::from)
@@ -4752,7 +4754,7 @@ async fn user_connection_ids(pool: &PgPool, user_id: &str) -> Result<Vec<String>
 
 async fn scoped_conversation(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     conversation_id: &str,
 ) -> Result<Option<ConversationRow>, AppError> {
     sqlx::query_as::<_, ConversationRow>(
@@ -4766,17 +4768,15 @@ async fn scoped_conversation(
                c."createdAt" AT TIME ZONE 'UTC' AS created_at,
                c."updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "Conversation" c
-        JOIN "WhatsappConnection" wc
-          ON wc.id = split_part(c."customerIdentifier", ':', 2)
-         AND wc."userId" = $2
         WHERE c.id = $1
+          AND c."orgId" = $2
           AND c.channel = 'whatsapp'
           AND c."customerIdentifier" LIKE 'wa:%'
         LIMIT 1
         "#,
     )
     .bind(conversation_id)
-    .bind(user_id)
+    .bind(org_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::from)
@@ -5690,7 +5690,7 @@ async fn download_media_bytes(
     Ok((bytes, content_type))
 }
 
-pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Value, AppError> {
+pub async fn list_inbox_conversations(pool: &PgPool, org_id: &str) -> Result<Value, AppError> {
     let conversations = sqlx::query_as::<_, InboxConversationListRow>(
         r#"
         SELECT
@@ -5712,7 +5712,6 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
         FROM "Conversation" c
         JOIN "WhatsappConnection" wc
           ON wc.id = split_part(c."customerIdentifier", ':', 2)
-         AND wc."userId" = $1
         LEFT JOIN LATERAL (
             SELECT m.content
             FROM "Message" m
@@ -5721,11 +5720,12 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
             LIMIT 1
         ) last_message ON true
         WHERE c.channel = 'whatsapp'
+          AND c."orgId" = $1
           AND c."customerIdentifier" LIKE 'wa:%'
         ORDER BY c."lastMessageAt" DESC
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .fetch_all(pool)
     .await?;
     let mut result = Vec::with_capacity(conversations.len());
@@ -5749,19 +5749,19 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
     Ok(json!({ "conversations": result }))
 }
 
-pub async fn inbox_unread_count(pool: &PgPool, user_id: &str) -> Result<Value, AppError> {
+pub async fn inbox_unread_count(pool: &PgPool, org_id: &str) -> Result<Value, AppError> {
     let count = sqlx::query_scalar::<_, Option<i64>>(
         r#"
         SELECT COALESCE(SUM(c."unreadCount")::bigint, 0)
         FROM "Conversation" c
         JOIN "WhatsappConnection" wc
           ON wc.id = split_part(c."customerIdentifier", ':', 2)
-         AND wc."userId" = $1
         WHERE c.channel = 'whatsapp'
+          AND c."orgId" = $1
           AND c."customerIdentifier" LIKE 'wa:%'
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .fetch_one(pool)
     .await?
     .unwrap_or(0);
@@ -5771,6 +5771,7 @@ pub async fn inbox_unread_count(pool: &PgPool, user_id: &str) -> Result<Value, A
 pub async fn start_inbox_conversation(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     input: &WhatsappStartConversationRequest,
 ) -> Result<Value, AppError> {
     let connection_id = input.connection_id.as_deref().unwrap_or("");
@@ -5781,7 +5782,7 @@ pub async fn start_inbox_conversation(
             "Connection, template, and recipient phone are required".to_string(),
         ));
     }
-    let connection = get_connection_row(pool, user_id, connection_id)
+    let connection = get_connection_row_for_org(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("WhatsApp connection not found".to_string()))?;
     let template = sqlx::query_as::<_, WhatsappTemplateRow>(
@@ -5791,12 +5792,12 @@ pub async fn start_inbox_conversation(
                "variablesCount" AS variables_count, status::text AS status,
                "lastSynced" AT TIME ZONE 'UTC' AS last_synced, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappTemplate"
-        WHERE id = $1 AND "userId" = $2 AND status = 'APPROVED'::"WhatsappTemplateStatus"
+        WHERE id = $1 AND "orgId" = $2 AND status = 'APPROVED'::"WhatsappTemplateStatus"
         LIMIT 1
         "#
     )
     .bind(template_id)
-    .bind(user_id)
+    .bind(org_id)
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Approved template not found".to_string()))?;
@@ -5833,15 +5834,16 @@ pub async fn start_inbox_conversation(
     .await?;
     let (conversation_id, _, _) = find_or_create_conversation(
         pool,
+        org_id,
         &connection.id,
         &normalized_phone,
         input.customer_name.as_deref(),
     )
     .await?;
     let contact_id = if let Some(id) = sqlx::query_scalar::<_, String>(
-        r#"SELECT id FROM "WhatsappContact" WHERE "userId" = $1 AND phone = $2 LIMIT 1"#,
+        r#"SELECT id FROM "WhatsappContact" WHERE "orgId" = $1 AND phone = $2 LIMIT 1"#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .bind(&normalized_phone)
     .fetch_optional(pool)
     .await?
@@ -5850,11 +5852,12 @@ pub async fn start_inbox_conversation(
     } else {
         let id = cuid2::create_id();
         sqlx::query(
-            r#"INSERT INTO "WhatsappContact" (id, "userId", phone, "fullName", tags, "optIn", excluded, "createdAt", "updatedAt")
-               VALUES ($1, $2, $3, $4, ARRAY[]::text[], false, false, NOW(), NOW())"#,
+            r#"INSERT INTO "WhatsappContact" (id, "userId", "orgId", phone, "fullName", tags, "optIn", excluded, "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, ARRAY[]::text[], false, false, NOW(), NOW())"#,
         )
         .bind(&id)
         .bind(user_id)
+        .bind(org_id)
         .bind(&normalized_phone)
         .bind(input.customer_name.as_deref())
         .execute(pool)
@@ -5895,10 +5898,10 @@ pub async fn start_inbox_conversation(
 
 pub async fn list_conversation_messages(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     conversation_id: &str,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
     let messages = sqlx::query_as::<_, MessageRow>(
@@ -5936,10 +5939,11 @@ pub async fn list_conversation_messages(
 pub async fn send_conversation_message(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     conversation_id: &str,
     input: WhatsappSendMessageRequest,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
     let text = input
@@ -6026,16 +6030,17 @@ pub async fn send_conversation_message(
 pub async fn send_conversation_media(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     conversation_id: &str,
     mut payload: Multipart,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
     let (connection_id, phone) =
         parse_conversation_identifier(&conversation.customer_identifier)
             .ok_or_else(|| AppError::BadRequest("Invalid conversation".to_string()))?;
-    let connection = get_connection_row(pool, user_id, &connection_id)
+    let connection = get_connection_row_for_org(pool, org_id, &connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
@@ -6228,10 +6233,11 @@ pub async fn send_conversation_media(
 pub async fn update_conversation(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     conversation_id: &str,
     input: ConversationUpdateRequest,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
 
@@ -6258,10 +6264,10 @@ pub async fn update_conversation(
 
 pub async fn delete_conversation(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     conversation_id: &str,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
 
@@ -6284,9 +6290,10 @@ pub async fn delete_conversation(
 pub async fn mark_conversation_read(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     conversation_id: &str,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
     sqlx::query(r#"UPDATE "Conversation" SET "unreadCount" = 0, "lastReadAt" = NOW(), "updatedAt" = NOW() WHERE id = $1"#)
@@ -6295,7 +6302,7 @@ pub async fn mark_conversation_read(
         .await?;
     let (connection_id, _) = parse_conversation_identifier(&conversation.customer_identifier)
         .ok_or_else(|| AppError::BadRequest("Invalid conversation".to_string()))?;
-    let connection = get_connection_row(pool, user_id, &connection_id).await?;
+    let connection = get_connection_row_for_org(pool, org_id, &connection_id).await?;
     let unread_messages = sqlx::query_as::<_, MessageRow>(
         r#"
         SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
@@ -6349,12 +6356,12 @@ pub async fn mark_conversation_read(
 
 pub async fn send_message_reaction(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     conversation_id: &str,
     message_id: &str,
     input: WhatsappReactionRequest,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
     let remove = input.remove.unwrap_or(false);
@@ -6383,7 +6390,7 @@ pub async fn send_message_reaction(
     let (connection_id, phone) =
         parse_conversation_identifier(&conversation.customer_identifier)
             .ok_or_else(|| AppError::BadRequest("Invalid conversation identifier".to_string()))?;
-    let connection = get_connection_row(pool, user_id, &connection_id)
+    let connection = get_connection_row_for_org(pool, org_id, &connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
@@ -6420,11 +6427,11 @@ pub async fn send_message_reaction(
 
 pub async fn delete_conversation_message(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     conversation_id: &str,
     message_id: &str,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
     let result = sqlx::query(r#"DELETE FROM "Message" WHERE id = $1 AND "conversationId" = $2"#)
@@ -6452,10 +6459,10 @@ pub async fn delete_conversation_message(
 
 pub async fn download_message_media(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     message_id: &str,
 ) -> Result<actix_web::HttpResponse, AppError> {
-    let connection_ids = user_connection_ids(pool, user_id).await?;
+    let connection_ids = org_connection_ids(pool, org_id).await?;
     if connection_ids.is_empty() {
         return Err(AppError::NotFound("Media message not found".to_string()));
     }
@@ -6494,7 +6501,7 @@ pub async fn download_message_media(
     .await?;
     let (connection_id, _) = parse_conversation_identifier(&conversation_identifier)
         .ok_or_else(|| AppError::BadRequest("Invalid conversation".to_string()))?;
-    let connection = get_connection_row(pool, user_id, &connection_id)
+    let connection = get_connection_row_for_org(pool, org_id, &connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;

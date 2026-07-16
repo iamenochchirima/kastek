@@ -504,6 +504,9 @@ pub struct WhatsappConnectionRow {
     pub id: String,
     #[sqlx(rename = "user_id")]
     pub user_id: String,
+    #[serde(rename = "orgId")]
+    #[sqlx(rename = "org_id")]
+    pub org_id: Option<String>,
     #[sqlx(rename = "phone_number_id")]
     pub phone_number_id: String,
     #[sqlx(rename = "phone_display_number")]

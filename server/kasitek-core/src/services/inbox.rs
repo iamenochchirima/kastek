@@ -139,8 +139,8 @@ pub fn verify_meta_webhook_signature(
     Ok(())
 }
 
-pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Value, AppError> {
-    let mut conversations = whatsapp::list_inbox_conversations(pool, user_id)
+pub async fn list_inbox_conversations(pool: &PgPool, org_id: &str) -> Result<Value, AppError> {
+    let mut conversations = whatsapp::list_inbox_conversations(pool, org_id)
         .await?
         .get("conversations")
         .and_then(|value| value.as_array())
@@ -164,7 +164,6 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
         FROM "Conversation" c
         JOIN "SocialChannelConnection" scc
           ON scc.id = split_part(c."customerIdentifier", ':', 2)
-         AND scc."userId" = $1
         LEFT JOIN LATERAL (
             SELECT m.content
             FROM "Message" m
@@ -173,11 +172,13 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
             LIMIT 1
         ) last_message ON true
         WHERE c.channel IN ('facebook', 'instagram')
+          AND c."orgId" = $1
+          AND scc."orgId" = $1
           AND c."customerIdentifier" LIKE 'meta:%'
         ORDER BY c."lastMessageAt" DESC
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .fetch_all(pool)
     .await?;
 
@@ -218,15 +219,15 @@ pub async fn list_inbox_conversations(pool: &PgPool, user_id: &str) -> Result<Va
 
 pub async fn list_conversation_messages(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     conversation_id: &str,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
 
     if conversation.channel == "whatsapp" {
-        return whatsapp::list_conversation_messages(pool, user_id, conversation_id).await;
+        return whatsapp::list_conversation_messages(pool, org_id, conversation_id).await;
     }
 
     let messages = sqlx::query_as::<_, InboxMessageRow>(
@@ -279,15 +280,17 @@ pub async fn list_conversation_messages(
 pub async fn send_conversation_message(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     conversation_id: &str,
     input: WhatsappSendMessageRequest,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
 
     if conversation.channel == "whatsapp" {
-        return whatsapp::send_conversation_message(pool, user_id, conversation_id, input).await;
+        return whatsapp::send_conversation_message(pool, user_id, org_id, conversation_id, input)
+            .await;
     }
 
     let text = input
@@ -297,7 +300,7 @@ pub async fn send_conversation_message(
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("Reply text is required".to_string()))?;
 
-    let meta_scope = scoped_meta_conversation(pool, user_id, conversation_id)
+    let meta_scope = scoped_meta_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
     let (_, customer_id) = parse_meta_conversation_identifier(&meta_scope.customer_identifier)
@@ -372,14 +375,15 @@ pub async fn send_conversation_message(
 pub async fn mark_conversation_read(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     conversation_id: &str,
 ) -> Result<Value, AppError> {
-    let conversation = scoped_conversation(pool, user_id, conversation_id)
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
 
     if conversation.channel == "whatsapp" {
-        return whatsapp::mark_conversation_read(pool, user_id, conversation_id).await;
+        return whatsapp::mark_conversation_read(pool, user_id, org_id, conversation_id).await;
     }
 
     sqlx::query(
@@ -546,7 +550,7 @@ pub async fn process_meta_webhook_payload(
 
 async fn scoped_conversation(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     conversation_id: &str,
 ) -> Result<Option<ConversationRow>, AppError> {
     sqlx::query_as::<_, ConversationRow>(
@@ -564,23 +568,13 @@ async fn scoped_conversation(
             c."createdAt" AT TIME ZONE 'UTC' AS created_at,
             c."updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "Conversation" c
-        LEFT JOIN "WhatsappConnection" wc
-          ON c.channel = 'whatsapp'
-         AND wc.id = split_part(c."customerIdentifier", ':', 2)
-        LEFT JOIN "SocialChannelConnection" scc
-          ON c.channel IN ('facebook', 'instagram')
-         AND scc.id = split_part(c."customerIdentifier", ':', 2)
         WHERE c.id = $1
-          AND (
-            (c.channel = 'whatsapp' AND wc."userId" = $2)
-            OR
-            (c.channel IN ('facebook', 'instagram') AND scc."userId" = $2)
-          )
+          AND c."orgId" = $2
         LIMIT 1
         "#,
     )
     .bind(conversation_id)
-    .bind(user_id)
+    .bind(org_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::from)
@@ -588,7 +582,7 @@ async fn scoped_conversation(
 
 async fn scoped_meta_conversation(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     conversation_id: &str,
 ) -> Result<Option<MetaConversationScopeRow>, AppError> {
     sqlx::query_as::<_, MetaConversationScopeRow>(
@@ -611,15 +605,16 @@ async fn scoped_meta_conversation(
         FROM "Conversation" c
         JOIN "SocialChannelConnection" scc
           ON scc.id = split_part(c."customerIdentifier", ':', 2)
-         AND scc."userId" = $2
+         AND scc."orgId" = $2
         WHERE c.id = $1
+          AND c."orgId" = $2
           AND c.channel IN ('facebook', 'instagram')
           AND c."customerIdentifier" LIKE 'meta:%'
         LIMIT 1
         "#,
     )
     .bind(conversation_id)
-    .bind(user_id)
+    .bind(org_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::from)
