@@ -1,5 +1,6 @@
+use crate::config::AppConfig;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{FromRow, PgPool};
 use std::collections::HashMap;
@@ -69,6 +70,96 @@ pub struct BillingSummary {
     #[serde(rename = "orgId")]
     pub org_id: String,
     pub products: Vec<ProductAccess>,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct AvailablePlan {
+    pub key: String,
+    #[serde(rename = "productKey")]
+    #[sqlx(rename = "product_key")]
+    pub product_key: String,
+    pub name: String,
+    pub interval: String,
+    pub currency: String,
+    #[serde(rename = "amountMinor")]
+    #[sqlx(rename = "amount_minor")]
+    pub amount_minor: Option<i32>,
+    #[serde(rename = "checkoutReady")]
+    pub checkout_ready: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct PaystackInitializeResponse {
+    status: bool,
+    message: String,
+    data: Option<PaystackCheckoutData>,
+}
+#[derive(Debug, Deserialize)]
+struct PaystackCheckoutData {
+    authorization_url: String,
+    reference: String,
+}
+
+pub async fn list_available_plans(pool: &PgPool) -> Result<Vec<AvailablePlan>, AppError> {
+    sqlx::query_as::<_, AvailablePlan>(
+        r#"
+        SELECT plan.key, product.key AS product_key, plan.name, plan.interval::text AS interval,
+               plan.currency, plan."amountMinor" AS amount_minor,
+               (plan."paystackPlanCode" IS NOT NULL) AS checkout_ready
+        FROM "ProductPlan" plan JOIN "Product" product ON product.id = plan."productId"
+        WHERE plan.active = true AND product.active = true
+        ORDER BY product.name, plan.name
+    "#,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+pub async fn create_paystack_checkout(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    email: &str,
+    plan_key: &str,
+) -> Result<Value, AppError> {
+    let secret = config
+        .paystack_secret_key
+        .as_deref()
+        .filter(|key| !key.trim().is_empty())
+        .ok_or_else(|| AppError::BadRequest("Paystack checkout is not configured".to_string()))?;
+    let plan = sqlx::query_as::<_, (String, String, String)>(
+        r#"
+        SELECT plan."paystackPlanCode", product.key, plan.name
+        FROM "ProductPlan" plan JOIN "Product" product ON product.id = plan."productId"
+        WHERE plan.key = $1 AND plan.active = true AND product.active = true
+    "#,
+    )
+    .bind(plan_key)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Active plan not found".to_string()))?;
+    let (paystack_plan_code, product_key, plan_name) = plan;
+    if paystack_plan_code.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "This plan is not connected to Paystack yet".to_string(),
+        ));
+    }
+    let reference = format!("ks_{}", cuid2::create_id());
+    let callback_url = format!(
+        "{}/billing?payment=complete",
+        config.frontend_url.trim_end_matches('/')
+    );
+    let response = reqwest::Client::new().post("https://api.paystack.co/transaction/initialize")
+        .bearer_auth(secret).json(&serde_json::json!({"email": email, "plan": paystack_plan_code, "reference": reference, "callback_url": callback_url, "metadata": {"orgId": org_id, "planKey": plan_key, "productKey": product_key}})).send().await?;
+    let body: PaystackInitializeResponse = response.json().await?;
+    let data = body
+        .data
+        .filter(|_| body.status)
+        .ok_or_else(|| AppError::BadRequest(body.message))?;
+    Ok(
+        serde_json::json!({"authorizationUrl": data.authorization_url, "reference": data.reference, "planName": plan_name}),
+    )
 }
 
 pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingSummary, AppError> {

@@ -33,7 +33,12 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         )
         .route("/api/chat", web::post().to(chat::post))
         .route("/api/workspace/summary", web::get().to(workspace::summary))
-        .service(web::scope("/api/billing").route("/summary", web::get().to(billing::summary)))
+        .service(
+            web::scope("/api/billing")
+                .route("/summary", web::get().to(billing::summary))
+                .route("/plans", web::get().to(billing::plans))
+                .route("/checkout", web::post().to(billing::checkout)),
+        )
         .service(
             web::scope("/api/orgs")
                 .route("", web::get().to(orgs::list_orgs))

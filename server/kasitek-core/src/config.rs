@@ -27,6 +27,7 @@ pub struct AppConfig {
     pub web_push_vapid_public_key: Option<String>,
     pub web_push_vapid_private_key: Option<String>,
     pub web_push_subject: String,
+    pub paystack_secret_key: Option<String>,
 }
 
 impl AppConfig {
@@ -70,6 +71,7 @@ impl AppConfig {
             web_push_vapid_public_key: env_optional("WEB_PUSH_VAPID_PUBLIC_KEY"),
             web_push_vapid_private_key: env_optional("WEB_PUSH_VAPID_PRIVATE_KEY"),
             web_push_subject: env_string_or("WEB_PUSH_SUBJECT", "mailto:hello@kasitek.co.za"),
+            paystack_secret_key: env_optional("PAYSTACK_SECRET_KEY"),
         })
     }
 
