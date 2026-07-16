@@ -77,6 +77,33 @@ pub async fn paystack_webhook(
     }
     let event: serde_json::Value = serde_json::from_slice(&payload)
         .map_err(|_| AppError::BadRequest("Invalid Paystack webhook payload".to_string()))?;
-    let processed = billing::process_paystack_webhook(pool.get_ref(), &event).await?;
+    let event_key = billing::paystack_event_key(&event)?;
+    if !billing::record_paystack_event(pool.get_ref(), &event_key, &event).await? {
+        return Ok(
+            HttpResponse::Ok().json(serde_json::json!({"received": true, "duplicate": true}))
+        );
+    }
+    let processed = match billing::process_paystack_webhook(pool.get_ref(), &event).await {
+        Ok(processed) => {
+            billing::finish_paystack_event(
+                pool.get_ref(),
+                &event_key,
+                if processed { "PROCESSED" } else { "IGNORED" },
+                None,
+            )
+            .await?;
+            processed
+        }
+        Err(error) => {
+            billing::finish_paystack_event(
+                pool.get_ref(),
+                &event_key,
+                "FAILED",
+                Some(&error.to_string()),
+            )
+            .await?;
+            return Err(error);
+        }
+    };
     Ok(HttpResponse::Ok().json(serde_json::json!({"received": true, "processed": processed})))
 }

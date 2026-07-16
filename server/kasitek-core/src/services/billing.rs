@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha2::Sha512;
+use sha2::{Digest, Sha512};
 use sqlx::{FromRow, PgPool};
 use std::collections::HashMap;
 
@@ -206,6 +206,65 @@ pub fn verify_paystack_signature(secret: &str, payload: &[u8], signature: &str) 
     };
     mac.update(payload);
     mac.verify_slice(&signature).is_ok()
+}
+
+pub fn paystack_event_key(event: &Value) -> Result<String, AppError> {
+    let event_type = event
+        .get("event")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::BadRequest("Paystack event type is missing".to_string()))?;
+    let data = event.get("data").unwrap_or(&Value::Null);
+    let identity = data
+        .get("id")
+        .map(Value::to_string)
+        .or_else(|| {
+            data.get("reference")
+                .and_then(Value::as_str)
+                .map(ToString::to_string)
+        })
+        .or_else(|| {
+            data.get("subscription_code")
+                .and_then(Value::as_str)
+                .map(ToString::to_string)
+        })
+        .unwrap_or_else(|| hex::encode(sha2::Sha512::digest(event.to_string().as_bytes())));
+    Ok(format!("{event_type}:{identity}"))
+}
+
+pub async fn record_paystack_event(
+    pool: &PgPool,
+    event_key: &str,
+    event: &Value,
+) -> Result<bool, AppError> {
+    let event_type = event
+        .get("event")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let result = sqlx::query(r#"
+        INSERT INTO "PaystackWebhookEvent" (id, "eventKey", "eventType", payload, status, "receivedAt")
+        VALUES ($1, $2, $3, $4, 'RECEIVED', NOW()) ON CONFLICT ("eventKey") DO NOTHING
+    "#).bind(cuid2::create_id()).bind(event_key).bind(event_type).bind(event).execute(pool).await?;
+    Ok(result.rows_affected() == 1)
+}
+
+pub async fn finish_paystack_event(
+    pool: &PgPool,
+    event_key: &str,
+    status: &str,
+    error: Option<&str>,
+) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        UPDATE "PaystackWebhookEvent" SET status = $2, "errorMessage" = $3, "processedAt" = NOW()
+        WHERE "eventKey" = $1
+    "#,
+    )
+    .bind(event_key)
+    .bind(status)
+    .bind(error)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 pub async fn process_paystack_webhook(pool: &PgPool, event: &Value) -> Result<bool, AppError> {

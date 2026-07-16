@@ -244,6 +244,19 @@ model BillingCheckout {
   @@index([orgId, status])
 }
 
+model PaystackWebhookEvent {
+  id           String    @id @default(cuid())
+  eventKey     String    @unique
+  eventType    String
+  payload      Json
+  status       String    @default("RECEIVED")
+  errorMessage String?
+  receivedAt   DateTime  @default(now())
+  processedAt  DateTime?
+
+  @@index([status, receivedAt])
+}
+
 // ─── Auth.js Required Tables (Client App) ─────────────────
 
 model User {
