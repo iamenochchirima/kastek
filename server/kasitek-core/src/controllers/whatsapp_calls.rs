@@ -6,7 +6,7 @@ use sqlx::PgPool;
 
 use crate::db::models::{WhatsappCallActionRequest, WhatsappCallSignalRequest};
 use crate::error::AppError;
-use crate::middleware::extract_user;
+use crate::middleware::{extract_user, resolve_active_org_id};
 use crate::services::whatsapp_calls;
 
 #[derive(Deserialize)]
@@ -75,7 +75,8 @@ pub async fn list_calls(
         return proxy_to_calls_service(config.get_ref(), &req, None).await;
     }
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp_calls::list_calls(pool.get_ref(), &user.id).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp_calls::list_calls(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -89,7 +90,8 @@ pub async fn get_call(
         return proxy_to_calls_service(config.get_ref(), &req, None).await;
     }
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp_calls::get_call(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp_calls::get_call(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -103,7 +105,8 @@ pub async fn get_call_media_session(
         return proxy_to_calls_service(config.get_ref(), &req, None).await;
     }
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp_calls::get_call_media_session(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp_calls::get_call_media_session(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -117,7 +120,8 @@ pub async fn list_call_signals(
         return proxy_to_calls_service(config.get_ref(), &req, None).await;
     }
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp_calls::list_call_signals(pool.get_ref(), &user.id, &path).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp_calls::list_call_signals(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -131,8 +135,9 @@ pub async fn call_summary(
         return proxy_to_calls_service(config.get_ref(), &req, None).await;
     }
     let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let result =
-        whatsapp_calls::call_summary(pool.get_ref(), &user.id, query.days.unwrap_or(7)).await?;
+        whatsapp_calls::call_summary(pool.get_ref(), &org_id, query.days.unwrap_or(7)).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -152,7 +157,8 @@ pub async fn apply_call_action(
         .await;
     }
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp_calls::apply_call_action(pool.get_ref(), &user.id, &path, &body).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp_calls::apply_call_action(pool.get_ref(), &org_id, &path, &body).await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -172,6 +178,7 @@ pub async fn post_call_signal(
         .await;
     }
     let user = extract_user(&req, pool.get_ref()).await?;
-    let result = whatsapp_calls::post_call_signal(pool.get_ref(), &user.id, &path, &body).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let result = whatsapp_calls::post_call_signal(pool.get_ref(), &org_id, &path, &body).await?;
     Ok(HttpResponse::Ok().json(result))
 }

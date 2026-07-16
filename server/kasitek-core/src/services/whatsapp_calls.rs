@@ -24,7 +24,7 @@ struct CallConnectionAuthRow {
 
 async fn list_call_rows(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
 ) -> Result<Vec<WhatsappCallSessionRow>, AppError> {
     sqlx::query_as::<_, WhatsappCallSessionRow>(
         r#"
@@ -52,11 +52,11 @@ async fn list_call_rows(
         FROM "WhatsappCallSession" s
         INNER JOIN "WhatsappConnection" wc ON wc.id = s."connectionId"
         LEFT JOIN "Conversation" c ON c.id = s."conversationId"
-        WHERE s."userId" = $1
+        WHERE wc."orgId" = $1
         ORDER BY COALESCE(s."startedAt", s."createdAt") DESC
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .fetch_all(pool)
     .await
     .map_err(AppError::from)
@@ -64,7 +64,7 @@ async fn list_call_rows(
 
 async fn scoped_call_row(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     call_id: &str,
 ) -> Result<Option<WhatsappCallSessionRow>, AppError> {
     sqlx::query_as::<_, WhatsappCallSessionRow>(
@@ -93,12 +93,12 @@ async fn scoped_call_row(
         FROM "WhatsappCallSession" s
         INNER JOIN "WhatsappConnection" wc ON wc.id = s."connectionId"
         LEFT JOIN "Conversation" c ON c.id = s."conversationId"
-        WHERE s.id = $1 AND s."userId" = $2
+        WHERE s.id = $1 AND wc."orgId" = $2
         LIMIT 1
         "#,
     )
     .bind(call_id)
-    .bind(user_id)
+    .bind(org_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::from)
@@ -191,8 +191,8 @@ async fn call_signal_rows(
     .map_err(AppError::from)
 }
 
-async fn publish_call_event(user_id: &str, event: Value) {
-    if let Err(error) = realtime::publish_whatsapp_event(user_id, &event).await {
+async fn publish_call_event(org_id: &str, event: Value) {
+    if let Err(error) = realtime::publish_whatsapp_event(org_id, &event).await {
         log::warn!("failed to publish whatsapp call realtime event: {}", error);
     }
 }
@@ -551,10 +551,11 @@ pub async fn ingest_webhook_calls(
         return Ok(());
     };
 
-    let connection = sqlx::query_as::<_, (String, String, String, Option<String>)>(
+    let connection = sqlx::query_as::<_, (String, String, String, String, Option<String>)>(
         r#"
         SELECT id,
                "userId",
+               "orgId",
                "phoneNumberId",
                "phoneDisplayNumber"
         FROM "WhatsappConnection"
@@ -566,8 +567,13 @@ pub async fn ingest_webhook_calls(
     .fetch_optional(pool)
     .await?;
 
-    let Some((connection_id, user_id, connection_phone_number_id, connection_display_number)) =
-        connection
+    let Some((
+        connection_id,
+        user_id,
+        org_id,
+        connection_phone_number_id,
+        connection_display_number,
+    )) = connection
     else {
         log::warn!(
             "whatsapp call webhook received for unknown phone_number_id={}",
@@ -801,7 +807,7 @@ pub async fn ingest_webhook_calls(
 
         append_call_event(pool, &session_id, &event_type, Some(&status), call.clone()).await?;
 
-        let call_row = scoped_call_row(pool, &user_id, &session_id)
+        let call_row = scoped_call_row(pool, &org_id, &session_id)
             .await?
             .ok_or_else(|| {
                 AppError::Internal("Updated call session could not be loaded".to_string())
@@ -813,7 +819,7 @@ pub async fn ingest_webhook_calls(
         };
 
         publish_call_event(
-            &user_id,
+            &org_id,
             json!({
                 "type": event_name,
                 "callId": call_row.id,
@@ -860,12 +866,12 @@ pub async fn ingest_webhook_calls(
     Ok(())
 }
 
-pub async fn list_calls(pool: &PgPool, user_id: &str) -> Result<Value, AppError> {
-    let calls = list_call_rows(pool, user_id).await?;
+pub async fn list_calls(pool: &PgPool, org_id: &str) -> Result<Value, AppError> {
+    let calls = list_call_rows(pool, org_id).await?;
     Ok(json!({ "calls": calls }))
 }
 
-pub async fn call_summary(pool: &PgPool, user_id: &str, days: i64) -> Result<Value, AppError> {
+pub async fn call_summary(pool: &PgPool, org_id: &str, days: i64) -> Result<Value, AppError> {
     let days = days.clamp(1, 90);
     let interval_expression = format!("{} days", days);
     let totals = sqlx::query(
@@ -880,11 +886,12 @@ pub async fn call_summary(pool: &PgPool, user_id: &str, days: i64) -> Result<Val
                COUNT(*) FILTER (WHERE status = 'FAILED'::"WhatsappCallStatus")::bigint AS failed_calls,
                COUNT(*) FILTER (WHERE status = 'REJECTED'::"WhatsappCallStatus")::bigint AS rejected_calls,
                COUNT(*) FILTER (WHERE "createdAt" >= NOW() - CAST($2 AS interval))::bigint AS recent_calls
-        FROM "WhatsappCallSession"
-        WHERE "userId" = $1
+        FROM "WhatsappCallSession" s
+        INNER JOIN "WhatsappConnection" wc ON wc.id = s."connectionId"
+        WHERE wc."orgId" = $1
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .bind(&interval_expression)
     .fetch_one(pool)
     .await?;
@@ -896,14 +903,15 @@ pub async fn call_summary(pool: &PgPool, user_id: &str, days: i64) -> Result<Val
                COUNT(*) FILTER (WHERE direction = 'INBOUND'::"WhatsappCallDirection")::bigint AS inbound,
                COUNT(*) FILTER (WHERE status = 'MISSED'::"WhatsappCallStatus")::bigint AS missed,
                COUNT(*) FILTER (WHERE status = 'COMPLETED'::"WhatsappCallStatus")::bigint AS completed
-        FROM "WhatsappCallSession"
-        WHERE "userId" = $1
+        FROM "WhatsappCallSession" s
+        INNER JOIN "WhatsappConnection" wc ON wc.id = s."connectionId"
+        WHERE wc."orgId" = $1
           AND "createdAt" >= NOW() - CAST($2 AS interval)
         GROUP BY 1
         ORDER BY 1 DESC
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .bind(&interval_expression)
     .fetch_all(pool)
     .await?;
@@ -939,8 +947,8 @@ pub async fn call_summary(pool: &PgPool, user_id: &str, days: i64) -> Result<Val
     }))
 }
 
-pub async fn get_call(pool: &PgPool, user_id: &str, call_id: &str) -> Result<Value, AppError> {
-    let call = scoped_call_row(pool, user_id, call_id)
+pub async fn get_call(pool: &PgPool, org_id: &str, call_id: &str) -> Result<Value, AppError> {
+    let call = scoped_call_row(pool, org_id, call_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Call session not found".to_string()))?;
     let events = call_event_rows(pool, &call.id).await?;
@@ -949,10 +957,10 @@ pub async fn get_call(pool: &PgPool, user_id: &str, call_id: &str) -> Result<Val
 
 pub async fn get_call_media_session(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     call_id: &str,
 ) -> Result<Value, AppError> {
-    let call = scoped_call_row(pool, user_id, call_id)
+    let call = scoped_call_row(pool, org_id, call_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Call session not found".to_string()))?;
     let session = load_meta_offer_session(pool, &call).await?.ok_or_else(|| {
@@ -967,10 +975,10 @@ pub async fn get_call_media_session(
 
 pub async fn list_call_signals(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     call_id: &str,
 ) -> Result<Value, AppError> {
-    let call = scoped_call_row(pool, user_id, call_id)
+    let call = scoped_call_row(pool, org_id, call_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Call session not found".to_string()))?;
     let signals = call_signal_rows(pool, &call.id).await?;
@@ -982,7 +990,7 @@ pub async fn list_call_signals(
 
 pub async fn post_call_signal(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     call_id: &str,
     input: &WhatsappCallSignalRequest,
 ) -> Result<Value, AppError> {
@@ -993,7 +1001,7 @@ pub async fn post_call_signal(
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("Signal kind is required".to_string()))?
         .to_lowercase();
-    let existing = scoped_call_row(pool, user_id, call_id)
+    let existing = scoped_call_row(pool, org_id, call_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Call session not found".to_string()))?;
     let source = input
@@ -1019,7 +1027,7 @@ pub async fn post_call_signal(
     .await?;
 
     publish_call_event(
-        user_id,
+        org_id,
         json!({
             "type": "call.signal",
             "callId": existing.id,
@@ -1088,7 +1096,7 @@ pub async fn post_call_signal(
 
 pub async fn apply_call_action(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     call_id: &str,
     input: &WhatsappCallActionRequest,
 ) -> Result<Value, AppError> {
@@ -1099,7 +1107,7 @@ pub async fn apply_call_action(
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("Call action is required".to_string()))?;
 
-    let existing = scoped_call_row(pool, user_id, call_id)
+    let existing = scoped_call_row(pool, org_id, call_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Call session not found".to_string()))?;
     let meta_offer_session = load_meta_offer_session(pool, &existing)
@@ -1178,7 +1186,10 @@ pub async fn apply_call_action(
             "endedAt" = $3,
             "durationSeconds" = COALESCE($4, "durationSeconds"),
             "updatedAt" = NOW()
-        WHERE id = $5 AND "userId" = $6
+        FROM "WhatsappConnection" wc
+        WHERE "WhatsappCallSession".id = $5
+          AND wc.id = "WhatsappCallSession"."connectionId"
+          AND wc."orgId" = $6
         "#,
     )
     .bind(next_status)
@@ -1186,7 +1197,7 @@ pub async fn apply_call_action(
     .bind(ended_at)
     .bind(duration_seconds)
     .bind(call_id)
-    .bind(user_id)
+    .bind(org_id)
     .execute(pool)
     .await?;
 
@@ -1202,7 +1213,7 @@ pub async fn apply_call_action(
     )
     .await?;
 
-    let call = scoped_call_row(pool, user_id, call_id)
+    let call = scoped_call_row(pool, org_id, call_id)
         .await?
         .ok_or_else(|| {
             AppError::Internal("Updated call session could not be loaded".to_string())
@@ -1232,7 +1243,7 @@ pub async fn apply_call_action(
     };
 
     publish_call_event(
-        user_id,
+        org_id,
         json!({
             "type": "call.updated",
             "callId": call.id,
