@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { CheckoutButton } from "@/components/dashboard/billing/checkout-button";
 import { PaymentReturnStatus } from "@/components/dashboard/billing/payment-return-status";
+import { SubscriptionActionButton } from "@/components/dashboard/billing/subscription-action-button";
 import { fetchBillingPlans, fetchBillingSummary, type ProductAccess } from "@/lib/billing";
 import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
@@ -136,6 +137,9 @@ export default async function BillingPage({
                       </p>
                     )}
                   </div>
+                ) : null}
+                {product.subscriptionId && ["ACTIVE", "GRACE"].includes(product.subscriptionStatus ?? "") ? (
+                  <SubscriptionActionButton subscriptionId={product.subscriptionId} cancelAtPeriodEnd={product.cancelAtPeriodEnd} />
                 ) : null}
               </article>
               );

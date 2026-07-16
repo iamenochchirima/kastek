@@ -9,6 +9,7 @@ const navItems = [
   { href: "/leads", label: "Leads", icon: "👥" },
   { href: "/quotations", label: "Quotations", icon: "📄" },
   { href: "/invoices", label: "Invoices", icon: "🧾" },
+  { href: "/billing", label: "Product Billing", icon: "💳" },
   { href: "/outreach", label: "AI Services", icon: "📧" },
   { href: "/outreach/drafts", label: "Email Drafts", icon: "📝" },
   { href: "/outreach/delivery", label: "Delivery Log", icon: "📬" },

@@ -8,6 +8,7 @@ export type ProductAccess = {
   state: "enabled" | "upgrade_required";
   planName: string | null;
   subscriptionStatus: string | null;
+  subscriptionId: string | null;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   trialEndsAt: string | null;
