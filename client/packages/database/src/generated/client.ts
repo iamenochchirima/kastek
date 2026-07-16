@@ -29,8 +29,8 @@ export * from "./enums"
  * @example
  * ```
  * const prisma = new PrismaClient()
- * // Fetch zero or more Users
- * const users = await prisma.user.findMany()
+ * // Fetch zero or more Organizations
+ * const organizations = await prisma.organization.findMany()
  * ```
  * 
  * Read more in our [docs](https://pris.ly/d/client).
@@ -39,6 +39,51 @@ export const PrismaClient = $Class.getPrismaClientClass()
 export type PrismaClient<LogOpts extends Prisma.LogLevel = never, OmitOpts extends Prisma.PrismaClientOptions["omit"] = Prisma.PrismaClientOptions["omit"], ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = $Class.PrismaClient<LogOpts, OmitOpts, ExtArgs>
 export { Prisma }
 
+/**
+ * Model Organization
+ * 
+ */
+export type Organization = Prisma.OrganizationModel
+/**
+ * Model OrganizationMember
+ * 
+ */
+export type OrganizationMember = Prisma.OrganizationMemberModel
+/**
+ * Model OrganizationInvitation
+ * 
+ */
+export type OrganizationInvitation = Prisma.OrganizationInvitationModel
+/**
+ * Model Product
+ * 
+ */
+export type Product = Prisma.ProductModel
+/**
+ * Model ProductPlan
+ * 
+ */
+export type ProductPlan = Prisma.ProductPlanModel
+/**
+ * Model PlanEntitlement
+ * 
+ */
+export type PlanEntitlement = Prisma.PlanEntitlementModel
+/**
+ * Model OrganizationSubscription
+ * 
+ */
+export type OrganizationSubscription = Prisma.OrganizationSubscriptionModel
+/**
+ * Model OrganizationEntitlementGrant
+ * 
+ */
+export type OrganizationEntitlementGrant = Prisma.OrganizationEntitlementGrantModel
+/**
+ * Model UsageEvent
+ * 
+ */
+export type UsageEvent = Prisma.UsageEventModel
 /**
  * Model User
  * 
@@ -80,6 +125,16 @@ export type BusinessProfile = Prisma.BusinessProfileModel
  */
 export type BotConfiguration = Prisma.BotConfigurationModel
 /**
+ * Model BotEvent
+ * 
+ */
+export type BotEvent = Prisma.BotEventModel
+/**
+ * Model BotDeployment
+ * 
+ */
+export type BotDeployment = Prisma.BotDeploymentModel
+/**
  * Model OnboardingConversation
  * 
  */
@@ -104,6 +159,11 @@ export type Quotation = Prisma.QuotationModel
  * 
  */
 export type Invoice = Prisma.InvoiceModel
+/**
+ * Model InvoiceRun
+ * 
+ */
+export type InvoiceRun = Prisma.InvoiceRunModel
 /**
  * Model OutreachCampaign
  * 

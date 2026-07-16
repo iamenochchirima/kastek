@@ -1,0 +1,464 @@
+# Product Workspace Implementation Plan
+
+Temporary implementation tracker for reorganising the direct Kasitek product workspace. Delete this file after the refactor is complete and the relevant permanent decisions are reflected in Architecture.
+
+## Scope
+
+This work changes the direct Kasitek app from a set of product-branded navigation areas into one organisation workspace.
+
+The visible app navigation will use work-oriented labels:
+
+```text
+Home
+  Overview
+
+Customer
+  Inbox
+  Contacts
+
+Growth
+  Campaigns
+  Templates
+  Content
+  Calendar
+  Analytics
+
+Automation
+  Agents
+  Workflows
+  Activity
+
+Manage
+  Connections
+  Team
+  Billing and usage
+  Workspace settings
+```
+
+`KasiAgents`, `KasiReach`, and `KasiSocial` remain product and billing names. They are not the primary navigation labels. `KasiInbox` becomes the shared Inbox workspace area rather than a separately billed product for the first release.
+
+Every organisation can enter the workspace. Access is controlled at feature and usage level:
+
+- Features remain discoverable in navigation and relevant workflows.
+- Unavailable features show the product or plan that enables them and link to Billing and usage.
+- The server enforces entitlements for restricted actions; the client only explains the state.
+- Product names bundle commercial capability sets, while the entitlement resolver controls the individual actions a workspace can take.
+
+## Delivery Rules
+
+- [ ] Treat an organisation as the owner of product data, subscriptions, connections, usage, and entitlements.
+- [ ] Keep `userId` as the actor, creator, or audit identity where needed; do not use it as the main workspace data boundary.
+- [ ] Do not enable a feature based only on a client-side check or successful payment redirect.
+- [ ] Do not make an external connection belong to one product when several products can use it.
+- [ ] Preserve existing production data through explicit migrations and backfills.
+- [ ] Keep the direct Kasitek system separate from `kasitek-tenants` and the tenant database.
+- [ ] Keep the work in reviewable phases. Do not combine schema migration, billing integration, and broad UI redesign in one change set.
+
+## Phase 0: Confirm the Product Model
+
+### Product catalogue
+
+- [x] Confirm the initial sellable products:
+  - [x] `KasiAgents`
+  - [x] `KasiReach`
+  - [x] `KasiSocial`
+- [x] Confirm that `Inbox`, `Contacts`, `Connections`, `Team`, and workspace settings are shared workspace capabilities rather than initial standalone products.
+- [x] Organisations can start with a workspace without a paid base subscription. Plans and products unlock additional features and limits.
+- [ ] Define whether products can be purchased individually, only in bundles, or both.
+- [ ] Define the first plan names and currencies without putting amounts into application code.
+- [ ] Define which product includes each capability:
+  - [ ] Agent creation and managed deployments
+  - [ ] Campaign sending
+  - [ ] Contact and audience management
+  - [ ] Social publishing
+  - [ ] Social analytics
+  - [ ] Inbox access for connected channels
+  - [ ] Team seats
+  - [ ] External-agent access
+- [ ] Define which capabilities are available during trial, grace period, suspension, and cancellation.
+
+### Usage model
+
+- [ ] Define the unit that is measured for each product before building meters:
+  - [ ] KasiAgents: active agents, agent conversations, or successful resolutions
+  - [ ] KasiReach: opted-in contacts, sends, or campaign recipients
+  - [ ] KasiSocial: connected accounts, scheduled posts, or publishing actions
+  - [ ] Shared workspace: seats and connected channels
+- [ ] Decide which limits are hard blocks and which are warnings.
+- [ ] Decide whether overage is charged, requires an upgrade, or pauses the feature.
+- [ ] Define the retention period for usage events and billing/audit records.
+
+### Completion criteria
+
+- [ ] Product names, included capabilities, limits, and trial rules are written down and approved before schema work starts.
+
+## Phase 1: Audit and Stabilise the Current Workspace
+
+- [ ] Inventory every direct-app route under `client/apps/client/src/app`.
+- [ ] Mark each route as retained, renamed, redirected temporarily, or removed.
+- [ ] Inventory every client data model that is currently scoped by `userId`.
+- [ ] Inventory every Rust service/controller query that filters by `userId`.
+- [ ] Inventory all existing organisation-aware models and determine whether their `orgId` is optional or required.
+- [ ] Identify all real data that needs a default organisation backfill.
+- [ ] Document the existing `/dashboard/*` compatibility routes and their final destination routes.
+- [ ] Add route-level tests for current redirects before changing them.
+- [ ] Confirm the organisation switcher only exposes organisations to which the user belongs.
+- [x] Add an explicit active-organisation resolver on the server; do not trust only the browser cookie value.
+
+### Completion criteria
+
+- [ ] There is a written migration inventory for user-scoped records and legacy routes.
+- [ ] Every request can resolve an authenticated user and an authorised active organisation.
+
+## Phase 2: Make the Direct Product Organisation-Scoped
+
+### Data migration
+
+- [ ] Add required `orgId` ownership to direct-product records that belong to a workspace.
+- [ ] Start with the active product records:
+  - [ ] Business profile
+  - [ ] WhatsApp connections
+  - [ ] WhatsApp contacts and list memberships
+  - [ ] WhatsApp templates
+  - [ ] WhatsApp campaigns and recipients
+  - [ ] Conversations and message records
+  - [ ] Social channel connections
+  - [ ] Social posts, variants, and publish jobs
+  - [ ] Bot configurations, events, and deployments
+  - [ ] Notifications where they represent workspace work
+- [ ] Decide which records remain user-owned:
+  - [ ] Personal sessions
+  - [ ] Personal notification delivery preferences
+  - [ ] User profile and authentication providers
+  - [ ] Personal device push subscriptions
+- [ ] Add database indexes for each common organisation query.
+- [ ] Add uniqueness constraints that include `orgId` where a value only needs to be unique inside a workspace.
+- [ ] Create a safe backfill that assigns each existing user-owned record to the user’s original organisation.
+- [ ] Verify backfill counts before making `orgId` non-null.
+- [ ] Keep a rollback procedure for the migration.
+
+### Server changes
+
+- [ ] Replace direct-product `userId` query filters with authorised `orgId` filters.
+- [ ] Keep `userId` in create/update records as the acting user where audit history requires it.
+- [ ] Require organisation membership for every organisation-scoped endpoint.
+- [ ] Require organisation admin or owner roles for sensitive settings, connections, billing, and team actions.
+- [ ] Update realtime channel naming from user-scoped channels to organisation-scoped channels where events are shared by a team.
+- [ ] Preserve personal notifications separately from shared workspace activity.
+- [ ] Update workspace summary queries to aggregate active-organisation data only.
+- [ ] Add tests proving one organisation cannot read or modify another organisation’s records.
+
+### Client changes
+
+- [ ] Pass or resolve the active organisation consistently for all dashboard reads and writes.
+- [ ] Refresh active data when the organisation switcher changes organisation.
+- [ ] Handle the case where a user has no organisation or no selected organisation.
+- [ ] Show the active organisation name consistently in page headers and settings.
+- [ ] Verify that team members see shared records according to their role.
+
+### Completion criteria
+
+- [ ] Switching organisation changes all workspace data, not only the organisation label.
+- [ ] A team member can work in shared Inbox, Campaigns, Social, and Agents data without seeing another organisation’s data.
+
+## Phase 3: Create the Product, Entitlement, and Usage Foundation
+
+### Product catalogue and plans
+
+- [x] Create a server-owned product catalogue with stable keys, display names, and lifecycle status.
+- [x] Create plan definitions with product membership, currency, billing interval, and versioned pricing references.
+- [x] Keep plan definitions separate from payment-provider plan codes.
+- [ ] Add product availability states: active, hidden, retired, and internal-only.
+- [ ] Add plan availability states: draft, active, retired.
+- [ ] Add a plan change policy for upgrades, downgrades, cancellation, and grandfathered plans.
+
+### Subscriptions and entitlements
+
+- [x] Create an organisation subscription record with status, start/end dates, trial dates, cancellation dates, and provider references.
+- [ ] Create subscription items so an organisation can hold a base plan and multiple product subscriptions.
+- [ ] Create entitlement definitions with typed values:
+  - [ ] Boolean product/capability access
+  - [ ] Integer limits
+  - [ ] Metered usage allowances
+  - [ ] Feature configuration values where needed
+- [x] Create entitlement grants resolved from active subscriptions, trials, manual grants, and internal overrides.
+- [x] Create a single server-side entitlement resolver used by APIs and UI data endpoints.
+- [ ] Make manual/internal grants explicit, audited, and time-bound where possible.
+- [ ] Define suspension and grace-period behaviour in the resolver.
+- [ ] Ensure one expired subscription item does not accidentally remove access granted by another valid item.
+
+### Usage metering
+
+- [x] Create append-only usage events with organisation, product, metric, quantity, timestamp, source entity, and idempotency key.
+- [ ] Create usage-period summaries for fast billing and UI queries.
+- [ ] Emit usage events from the actual server-side action that consumes the resource.
+- [ ] Make repeatable jobs and webhooks idempotent so they do not double-count usage.
+- [ ] Add limit checks before actions that must be blocked.
+- [ ] Add warning thresholds for actions that remain allowed until the end of a period.
+- [ ] Add reconciliation jobs that can compare raw events with summaries.
+
+### Completion criteria
+
+- [ ] The server can answer: which products, capabilities, limits, and current-period usage does this organisation have?
+- [ ] Product access can be granted manually without Paystack being connected.
+- [ ] Access checks are enforced by the server, not only hidden in the UI.
+
+## Phase 4: Make Connections a Shared Workspace Domain
+
+### Connection model
+
+- [ ] Define a common connection record for organisation-owned external accounts.
+- [ ] Define provider-specific records for credentials, account metadata, scopes, health, and webhook status.
+- [ ] Model a connection’s capabilities separately from the product that uses it.
+- [ ] Record which products currently consume each connection.
+- [ ] Support connection states: not connected, connecting, connected, needs attention, disconnected, and revoked.
+- [ ] Encrypt provider access tokens and secrets at rest.
+- [ ] Define credential rotation and revocation behaviour.
+- [ ] Define webhook verification and health checks for each provider.
+
+### Initial connections screen
+
+- [ ] Move WhatsApp setup out of `KasiReach` settings.
+- [ ] Add an organisation-level Connections screen.
+- [ ] Show each connection’s provider account, status, permissions, webhook health, and products using it.
+- [ ] Show the product entitlement required before a user can connect or use a provider capability.
+- [ ] Support WhatsApp first, then Facebook, Instagram, Threads, LinkedIn, X, email, and website chat as each integration becomes real.
+- [ ] Keep manual connection and OAuth connection flows behind the same connection lifecycle.
+
+### Completion criteria
+
+- [ ] A WhatsApp or Meta connection is owned by the organisation and can be used by Inbox, Agents, Reach, and Social according to granted capabilities.
+- [ ] No product settings page is the hidden owner of a shared provider connection.
+
+## Phase 5: Unify the Inbox and Customer Work
+
+- [ ] Define the canonical customer/contact record for an organisation.
+- [ ] Map WhatsApp contacts, social identities, email addresses, and website-chat identities to the customer model without assuming they are always the same person.
+- [ ] Define the canonical conversation record with channel, connection, participants, assignee, status, source, and linked campaign/agent context.
+- [ ] Move Inbox ownership from a WhatsApp-only user-scoped surface to an organisation-scoped multi-channel surface.
+- [ ] Keep the first release limited to channels that are actually connected; do not show fake empty channels as functional.
+- [ ] Show the source of each conversation: agent, campaign reply, direct inbound, social, web, or manual.
+- [ ] Add assignment, handoff, notes, and status controls before adding complex automation.
+- [ ] Make campaign replies and agent handoffs open the same conversation record.
+- [ ] Add per-user unread state separately from organisation-level conversation state.
+- [ ] Update realtime events to refresh the correct organisation inbox.
+- [ ] Add audit records for human and agent actions taken in a conversation.
+
+### Completion criteria
+
+- [ ] Inbox is the single place for active customer conversation work.
+- [ ] The same customer history is available to the relevant agent, campaign, and social workflows within the authorised organisation.
+
+## Phase 6: Replace Product-Branded Navigation and Routes
+
+### Navigation
+
+- [x] Replace the current product list in the sidebar with the work-oriented navigation defined in Scope.
+- [x] Keep product names out of daily navigation labels.
+- [ ] Preserve product names in billing, plan comparison, feature enablement, and locked-state explanations.
+- [x] Add a stable Home/Overview route.
+- [x] Group navigation by Customer, Growth, Automation, and Manage.
+- [x] Show a deliberate locked state for purchasable features instead of hiding a product that users may need to discover.
+- [ ] Show navigation badges only for meaningful attention states, such as unread conversations or failed connections.
+- [x] Keep the organisation switcher at the top of the sidebar.
+- [x] Add a direct Billing and usage entry under Manage.
+
+### Route migration
+
+- [ ] Define the final route map before changing links.
+- [ ] Suggested final routes:
+  - [ ] `/workspace` or `/home` for Overview
+  - [ ] `/inbox`
+  - [ ] `/contacts`
+  - [ ] `/campaigns`
+  - [ ] `/templates`
+  - [ ] `/content`
+  - [ ] `/calendar`
+  - [ ] `/analytics`
+  - [ ] `/agents`
+  - [ ] `/workflows`
+  - [ ] `/activity`
+  - [ ] `/connections`
+  - [ ] `/workspace/team`
+  - [ ] `/billing`
+  - [ ] `/workspace/settings`
+- [ ] Redirect current `/reach/*` routes to their final non-product-branded routes.
+- [ ] Redirect current `/social/*` routes to their final non-product-branded routes.
+- [ ] Remove or preserve `/dashboard/*` compatibility redirects only after usage confirms they are no longer needed.
+- [ ] Update all links, page titles, breadcrumbs, metadata, and tests.
+- [ ] Verify direct links, browser history, and bookmarks after redirects.
+
+### Overview page
+
+- [ ] Replace the current mixed Workspace Pulse page with an action-oriented overview.
+- [ ] Show only items that need attention:
+  - [ ] Unassigned or unread conversations
+  - [ ] Failed or paused agents
+  - [ ] Campaigns requiring review or with failures
+  - [ ] Social posts awaiting approval or failed publishing
+  - [ ] Connections requiring reconnection
+  - [ ] Usage approaching a limit
+  - [ ] Billing action required
+- [ ] Keep performance reporting in Analytics instead of turning Home into a reporting dashboard.
+
+### Completion criteria
+
+- [ ] A user can find a task without knowing Kasitek product names.
+- [ ] Every existing useful route has a working final route or redirect.
+
+## Phase 7: Reorganise Product Screens Around Work
+
+### Customer
+
+- [ ] Make Contacts a shared organisation record list, not a Reach-only list.
+- [ ] Add customer detail pages that link conversations, campaign participation, social identity, and agent activity.
+- [ ] Define contact import, merge, consent, and deletion behaviour.
+
+### Growth
+
+- [ ] Move campaign pages from `/reach/campaigns` to `/campaigns`.
+- [ ] Move templates from `/reach/templates` to `/templates`.
+- [ ] Keep WhatsApp-specific configuration inside the connection or campaign flow, not in a broad Reach settings area.
+- [ ] Move social planning, posts, calendar, and analytics to the final Growth routes.
+- [ ] Define whether content analytics and campaign analytics share an Analytics landing page with separate views.
+
+### Automation
+
+- [ ] Keep agent creation and management under `/agents`.
+- [ ] Define a separate workflow model before creating `/workflows`; do not label n8n deployment records as a complete workflow product by default.
+- [ ] Add an Activity view that combines agent execution, deployment, errors, and manual intervention records.
+- [ ] Link agents to their permitted connection capabilities and organisation entitlements.
+- [ ] Block agent deployment when the relevant product, connection, or limit is unavailable.
+
+### Manage
+
+- [ ] Move business profile and organisation settings into Workspace settings.
+- [ ] Keep user profile settings separate from workspace settings.
+- [ ] Move team management and invitations under Team.
+- [ ] Create Billing and usage as the only place for plan, product, invoice, payment method, usage, and upgrade actions.
+
+## Phase 8: Build the Billing and Usage Area
+
+### Read-only first release
+
+- [x] Build a Billing and usage page before live payments are connected.
+- [x] Show active products by their commercial names: KasiAgents, KasiReach, and KasiSocial.
+- [ ] Show current plan, status, billing period, trial/grace status, and cancellation date.
+- [ ] Show current usage against each included limit.
+- [ ] Show invoices and payment history from internal records.
+- [ ] Show manual/internal access grants separately from paid subscriptions.
+- [ ] Show upgrade and product-enable actions that create an internal checkout intent, not an immediate client-side entitlement.
+- [ ] Restrict billing changes to organisation owners or explicitly authorised billing admins.
+
+### Internal admin support
+
+- [ ] Add internal admin tools to create products, plans, and entitlement definitions.
+- [ ] Add internal admin tools to grant a trial, override access, suspend access, and inspect usage.
+- [ ] Require a reason and actor audit entry for manual entitlement changes.
+- [ ] Add support procedures for refunds, failed payment, disputes, and incorrect usage counts.
+
+### Completion criteria
+
+- [ ] Billing UI is driven by real internal subscription and entitlement records even before a payment provider is enabled.
+
+## Phase 9: Add the Paystack Provider Adapter
+
+### Provider boundary
+
+- [ ] Define a `BillingProvider` interface in the server layer.
+- [ ] Keep provider identifiers, secret keys, API clients, webhook verification, and provider status mapping inside the Paystack adapter.
+- [ ] Keep internal product, subscription, entitlement, invoice, and usage models provider-neutral.
+- [ ] Store Paystack customer, plan, subscription, transaction, invoice, and authorisation references as external IDs, never as the source of truth for access.
+- [ ] Keep all Paystack secret-key calls on the server.
+- [ ] Add separate test and live environment configuration.
+
+### Checkout and verification
+
+- [ ] Create a checkout intent from an authorised organisation billing action.
+- [ ] Attach internal organisation, subscription item, plan version, and idempotency metadata to the Paystack transaction reference/metadata.
+- [ ] Initialise checkout from the server through Paystack’s transaction API.
+- [ ] Use the client only to redirect to the returned authorisation URL or render the approved checkout flow.
+- [ ] Verify the transaction server-side after return.
+- [ ] Treat browser return as a status display only; grant or update access only after verified provider data and/or verified webhook processing.
+- [ ] Record all provider responses needed for reconciliation without storing card details.
+- [ ] Make checkout creation idempotent so refreshes cannot create duplicate transactions.
+
+### Recurring billing
+
+- [ ] Confirm Paystack recurring capability for the Kasitek merchant account and target markets before committing to a provider plan design.
+- [ ] Map internal plan versions to Paystack plan codes only after prices and intervals are approved.
+- [ ] Decide whether Kasitek uses Paystack subscriptions, recurring authorisations, or invoice/checkout renewal flows for each market.
+- [ ] Do not assume one Paystack recurring mechanism works in every target country. Paystack documents subscriptions and recurring authorisations separately, with market/payment-method constraints.
+- [ ] Support plan upgrades, downgrades, cancellation at period end, and reactivation through internal state transitions.
+- [ ] Keep entitlement changes tied to verified paid status and explicitly defined grace rules.
+
+### Webhooks and reconciliation
+
+- [ ] Add a public Paystack webhook endpoint.
+- [ ] Verify the `x-paystack-signature` before processing a webhook.
+- [ ] Persist raw event metadata, provider event type, received time, processing result, and idempotency key.
+- [ ] Process duplicate webhook deliveries safely.
+- [ ] Handle at minimum:
+  - [ ] Successful charge
+  - [ ] Failed invoice/payment
+  - [ ] Subscription created
+  - [ ] Subscription non-renewing
+  - [ ] Subscription disabled/completed
+  - [ ] Refund or charge reversal where applicable
+- [ ] Add a reconciliation job that periodically verifies recent unresolved transactions and subscription states with Paystack.
+- [ ] Alert internal operators when payment state and internal entitlement state differ.
+
+### Completion criteria
+
+- [ ] A successful verified Paystack payment activates only the intended organisation product/plan entitlement.
+- [ ] Failed, cancelled, duplicate, forged, or mismatched payment events do not grant access.
+- [ ] Test mode covers the complete checkout, webhook, entitlement, and cancellation path before live keys are used.
+
+## Phase 10: Test, Migrate, and Roll Out
+
+### Automated verification
+
+- [ ] Unit-test entitlement resolution for trial, active, grace, suspended, cancelled, overridden, and multi-product states.
+- [ ] Unit-test usage aggregation and idempotency.
+- [ ] Integration-test organisation isolation for every moved product domain.
+- [ ] Integration-test active organisation switching.
+- [ ] Integration-test role restrictions for connections, team, and billing.
+- [ ] Integration-test the final route map and legacy redirects.
+- [ ] Integration-test payment verification and signed webhook processing with Paystack test data.
+- [ ] Add end-to-end tests for: connect a channel, create an agent, receive a conversation, send a campaign, schedule content, hit a limit, and upgrade a product.
+
+### Migration and release
+
+- [ ] Run the organisation backfill in a staging copy of real-shaped data.
+- [ ] Compare row counts and organisation ownership before and after migration.
+- [ ] Release schema changes before code that requires non-null organisation ownership.
+- [ ] Put new navigation behind a rollout flag until route and entitlement tests pass.
+- [ ] Release read-only Billing and usage before live checkout.
+- [ ] Enable Paystack test mode for internal organisations first.
+- [ ] Run an internal test subscription through payment, webhook, usage, cancellation, and restoration.
+- [ ] Enable live Paystack only after reconciliation and support procedures are tested.
+- [ ] Monitor errors, failed webhooks, permission denials, and organisation-switch inconsistencies after each release.
+
+### Documentation and handoff
+
+- [ ] Move permanent product, connection, entitlement, and billing decisions into the Architecture document.
+- [ ] Update Product Features and Product Roadmap to match the delivered behaviour.
+- [ ] Document required Paystack environment variables without recording secret values.
+- [ ] Document local webhook testing and production webhook configuration.
+- [ ] Write support runbooks for payment failure, access disputes, connection failure, and entitlement correction.
+- [ ] Remove this temporary implementation plan after completion.
+
+## Final Acceptance Checklist
+
+- [ ] The app is organised by customer work, growth work, automation work, and management work.
+- [ ] Product names remain visible only where commercial context is useful.
+- [ ] Organisation switching changes the underlying data across all product areas.
+- [ ] Inbox, Contacts, and Connections are shared workspace domains.
+- [ ] Products consume shared connections through explicit capabilities.
+- [ ] Subscription and entitlement records are organisation-owned and provider-neutral.
+- [ ] Usage is measured by server-side events and checked before restricted actions.
+- [ ] Billing and usage works before Paystack is enabled.
+- [ ] Paystack checkout, verification, signed webhooks, and reconciliation are isolated behind a provider adapter.
+- [ ] Direct Kasitek and white-label tenant architecture remain separate.
+- [ ] Legacy routes are removed or intentionally redirected.
+- [ ] The final Architecture document contains only durable decisions, not this delivery checklist.

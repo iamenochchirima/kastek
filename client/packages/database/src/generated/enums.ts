@@ -9,6 +9,46 @@
 * 🟢 You can import this file directly.
 */
 
+export const OrgRole = {
+  OWNER: 'OWNER',
+  ADMIN: 'ADMIN',
+  MEMBER: 'MEMBER'
+} as const
+
+export type OrgRole = (typeof OrgRole)[keyof typeof OrgRole]
+
+
+export const BillingInterval = {
+  MONTHLY: 'MONTHLY',
+  YEARLY: 'YEARLY'
+} as const
+
+export type BillingInterval = (typeof BillingInterval)[keyof typeof BillingInterval]
+
+
+export const OrganizationSubscriptionStatus = {
+  TRIAL: 'TRIAL',
+  ACTIVE: 'ACTIVE',
+  PAST_DUE: 'PAST_DUE',
+  GRACE: 'GRACE',
+  SUSPENDED: 'SUSPENDED',
+  CANCELLED: 'CANCELLED',
+  EXPIRED: 'EXPIRED'
+} as const
+
+export type OrganizationSubscriptionStatus = (typeof OrganizationSubscriptionStatus)[keyof typeof OrganizationSubscriptionStatus]
+
+
+export const EntitlementSource = {
+  PLAN: 'PLAN',
+  TRIAL: 'TRIAL',
+  MANUAL: 'MANUAL',
+  MIGRATION: 'MIGRATION'
+} as const
+
+export type EntitlementSource = (typeof EntitlementSource)[keyof typeof EntitlementSource]
+
+
 export const NotificationScopeType = {
   USER: 'USER',
   ADMIN: 'ADMIN',
@@ -99,6 +139,7 @@ export type WhatsappCallStatus = (typeof WhatsappCallStatus)[keyof typeof Whatsa
 export const SocialPlatform = {
   FACEBOOK: 'FACEBOOK',
   INSTAGRAM: 'INSTAGRAM',
+  THREADS: 'THREADS',
   LINKEDIN: 'LINKEDIN',
   X: 'X',
   WHATSAPP_STATUS: 'WHATSAPP_STATUS'

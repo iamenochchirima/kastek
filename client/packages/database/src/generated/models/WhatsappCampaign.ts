@@ -51,6 +51,7 @@ export type WhatsappCampaignSumAggregateOutputType = {
 export type WhatsappCampaignMinAggregateOutputType = {
   id: string | null
   userId: string | null
+  orgId: string | null
   connectionId: string | null
   templateId: string | null
   name: string | null
@@ -77,6 +78,7 @@ export type WhatsappCampaignMinAggregateOutputType = {
 export type WhatsappCampaignMaxAggregateOutputType = {
   id: string | null
   userId: string | null
+  orgId: string | null
   connectionId: string | null
   templateId: string | null
   name: string | null
@@ -103,6 +105,7 @@ export type WhatsappCampaignMaxAggregateOutputType = {
 export type WhatsappCampaignCountAggregateOutputType = {
   id: number
   userId: number
+  orgId: number
   connectionId: number
   templateId: number
   name: number
@@ -154,6 +157,7 @@ export type WhatsappCampaignSumAggregateInputType = {
 export type WhatsappCampaignMinAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   connectionId?: true
   templateId?: true
   name?: true
@@ -180,6 +184,7 @@ export type WhatsappCampaignMinAggregateInputType = {
 export type WhatsappCampaignMaxAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   connectionId?: true
   templateId?: true
   name?: true
@@ -206,6 +211,7 @@ export type WhatsappCampaignMaxAggregateInputType = {
 export type WhatsappCampaignCountAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   connectionId?: true
   templateId?: true
   name?: true
@@ -320,6 +326,7 @@ export type WhatsappCampaignGroupByArgs<ExtArgs extends runtime.Types.Extensions
 export type WhatsappCampaignGroupByOutputType = {
   id: string
   userId: string
+  orgId: string | null
   connectionId: string
   templateId: string | null
   name: string
@@ -370,6 +377,7 @@ export type WhatsappCampaignWhereInput = {
   NOT?: Prisma.WhatsappCampaignWhereInput | Prisma.WhatsappCampaignWhereInput[]
   id?: Prisma.StringFilter<"WhatsappCampaign"> | string
   userId?: Prisma.StringFilter<"WhatsappCampaign"> | string
+  orgId?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
   connectionId?: Prisma.StringFilter<"WhatsappCampaign"> | string
   templateId?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
   name?: Prisma.StringFilter<"WhatsappCampaign"> | string
@@ -393,6 +401,7 @@ export type WhatsappCampaignWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"WhatsappCampaign"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"WhatsappCampaign"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
   connection?: Prisma.XOR<Prisma.WhatsappConnectionScalarRelationFilter, Prisma.WhatsappConnectionWhereInput>
   template?: Prisma.XOR<Prisma.WhatsappTemplateNullableScalarRelationFilter, Prisma.WhatsappTemplateWhereInput> | null
   recipients?: Prisma.WhatsappCampaignRecipientListRelationFilter
@@ -402,6 +411,7 @@ export type WhatsappCampaignWhereInput = {
 export type WhatsappCampaignOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrderInput | Prisma.SortOrder
   connectionId?: Prisma.SortOrder
   templateId?: Prisma.SortOrderInput | Prisma.SortOrder
   name?: Prisma.SortOrder
@@ -425,6 +435,7 @@ export type WhatsappCampaignOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
+  org?: Prisma.OrganizationOrderByWithRelationInput
   connection?: Prisma.WhatsappConnectionOrderByWithRelationInput
   template?: Prisma.WhatsappTemplateOrderByWithRelationInput
   recipients?: Prisma.WhatsappCampaignRecipientOrderByRelationAggregateInput
@@ -437,6 +448,7 @@ export type WhatsappCampaignWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.WhatsappCampaignWhereInput[]
   NOT?: Prisma.WhatsappCampaignWhereInput | Prisma.WhatsappCampaignWhereInput[]
   userId?: Prisma.StringFilter<"WhatsappCampaign"> | string
+  orgId?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
   connectionId?: Prisma.StringFilter<"WhatsappCampaign"> | string
   templateId?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
   name?: Prisma.StringFilter<"WhatsappCampaign"> | string
@@ -460,6 +472,7 @@ export type WhatsappCampaignWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"WhatsappCampaign"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"WhatsappCampaign"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
   connection?: Prisma.XOR<Prisma.WhatsappConnectionScalarRelationFilter, Prisma.WhatsappConnectionWhereInput>
   template?: Prisma.XOR<Prisma.WhatsappTemplateNullableScalarRelationFilter, Prisma.WhatsappTemplateWhereInput> | null
   recipients?: Prisma.WhatsappCampaignRecipientListRelationFilter
@@ -469,6 +482,7 @@ export type WhatsappCampaignWhereUniqueInput = Prisma.AtLeast<{
 export type WhatsappCampaignOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrderInput | Prisma.SortOrder
   connectionId?: Prisma.SortOrder
   templateId?: Prisma.SortOrderInput | Prisma.SortOrder
   name?: Prisma.SortOrder
@@ -504,6 +518,7 @@ export type WhatsappCampaignScalarWhereWithAggregatesInput = {
   NOT?: Prisma.WhatsappCampaignScalarWhereWithAggregatesInput | Prisma.WhatsappCampaignScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"WhatsappCampaign"> | string
   userId?: Prisma.StringWithAggregatesFilter<"WhatsappCampaign"> | string
+  orgId?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCampaign"> | string | null
   connectionId?: Prisma.StringWithAggregatesFilter<"WhatsappCampaign"> | string
   templateId?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCampaign"> | string | null
   name?: Prisma.StringWithAggregatesFilter<"WhatsappCampaign"> | string
@@ -551,6 +566,7 @@ export type WhatsappCampaignCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappCampaignsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCampaignsInput
   connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCampaignsInput
   template?: Prisma.WhatsappTemplateCreateNestedOneWithoutCampaignsInput
   recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutCampaignInput
@@ -560,6 +576,7 @@ export type WhatsappCampaignCreateInput = {
 export type WhatsappCampaignUncheckedCreateInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   templateId?: string | null
   name: string
@@ -609,6 +626,7 @@ export type WhatsappCampaignUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCampaignsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCampaignsNestedInput
   connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCampaignsNestedInput
   template?: Prisma.WhatsappTemplateUpdateOneWithoutCampaignsNestedInput
   recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutCampaignNestedInput
@@ -618,6 +636,7 @@ export type WhatsappCampaignUpdateInput = {
 export type WhatsappCampaignUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
@@ -647,6 +666,7 @@ export type WhatsappCampaignUncheckedUpdateInput = {
 export type WhatsappCampaignCreateManyInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   templateId?: string | null
   name: string
@@ -698,6 +718,7 @@ export type WhatsappCampaignUpdateManyMutationInput = {
 export type WhatsappCampaignUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
@@ -735,6 +756,7 @@ export type WhatsappCampaignOrderByRelationAggregateInput = {
 export type WhatsappCampaignCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   connectionId?: Prisma.SortOrder
   templateId?: Prisma.SortOrder
   name?: Prisma.SortOrder
@@ -773,6 +795,7 @@ export type WhatsappCampaignAvgOrderByAggregateInput = {
 export type WhatsappCampaignMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   connectionId?: Prisma.SortOrder
   templateId?: Prisma.SortOrder
   name?: Prisma.SortOrder
@@ -799,6 +822,7 @@ export type WhatsappCampaignMaxOrderByAggregateInput = {
 export type WhatsappCampaignMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   connectionId?: Prisma.SortOrder
   templateId?: Prisma.SortOrder
   name?: Prisma.SortOrder
@@ -841,6 +865,48 @@ export type WhatsappCampaignScalarRelationFilter = {
 export type WhatsappCampaignNullableScalarRelationFilter = {
   is?: Prisma.WhatsappCampaignWhereInput | null
   isNot?: Prisma.WhatsappCampaignWhereInput | null
+}
+
+export type WhatsappCampaignCreateNestedManyWithoutOrgInput = {
+  create?: Prisma.XOR<Prisma.WhatsappCampaignCreateWithoutOrgInput, Prisma.WhatsappCampaignUncheckedCreateWithoutOrgInput> | Prisma.WhatsappCampaignCreateWithoutOrgInput[] | Prisma.WhatsappCampaignUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappCampaignCreateOrConnectWithoutOrgInput | Prisma.WhatsappCampaignCreateOrConnectWithoutOrgInput[]
+  createMany?: Prisma.WhatsappCampaignCreateManyOrgInputEnvelope
+  connect?: Prisma.WhatsappCampaignWhereUniqueInput | Prisma.WhatsappCampaignWhereUniqueInput[]
+}
+
+export type WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput = {
+  create?: Prisma.XOR<Prisma.WhatsappCampaignCreateWithoutOrgInput, Prisma.WhatsappCampaignUncheckedCreateWithoutOrgInput> | Prisma.WhatsappCampaignCreateWithoutOrgInput[] | Prisma.WhatsappCampaignUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappCampaignCreateOrConnectWithoutOrgInput | Prisma.WhatsappCampaignCreateOrConnectWithoutOrgInput[]
+  createMany?: Prisma.WhatsappCampaignCreateManyOrgInputEnvelope
+  connect?: Prisma.WhatsappCampaignWhereUniqueInput | Prisma.WhatsappCampaignWhereUniqueInput[]
+}
+
+export type WhatsappCampaignUpdateManyWithoutOrgNestedInput = {
+  create?: Prisma.XOR<Prisma.WhatsappCampaignCreateWithoutOrgInput, Prisma.WhatsappCampaignUncheckedCreateWithoutOrgInput> | Prisma.WhatsappCampaignCreateWithoutOrgInput[] | Prisma.WhatsappCampaignUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappCampaignCreateOrConnectWithoutOrgInput | Prisma.WhatsappCampaignCreateOrConnectWithoutOrgInput[]
+  upsert?: Prisma.WhatsappCampaignUpsertWithWhereUniqueWithoutOrgInput | Prisma.WhatsappCampaignUpsertWithWhereUniqueWithoutOrgInput[]
+  createMany?: Prisma.WhatsappCampaignCreateManyOrgInputEnvelope
+  set?: Prisma.WhatsappCampaignWhereUniqueInput | Prisma.WhatsappCampaignWhereUniqueInput[]
+  disconnect?: Prisma.WhatsappCampaignWhereUniqueInput | Prisma.WhatsappCampaignWhereUniqueInput[]
+  delete?: Prisma.WhatsappCampaignWhereUniqueInput | Prisma.WhatsappCampaignWhereUniqueInput[]
+  connect?: Prisma.WhatsappCampaignWhereUniqueInput | Prisma.WhatsappCampaignWhereUniqueInput[]
+  update?: Prisma.WhatsappCampaignUpdateWithWhereUniqueWithoutOrgInput | Prisma.WhatsappCampaignUpdateWithWhereUniqueWithoutOrgInput[]
+  updateMany?: Prisma.WhatsappCampaignUpdateManyWithWhereWithoutOrgInput | Prisma.WhatsappCampaignUpdateManyWithWhereWithoutOrgInput[]
+  deleteMany?: Prisma.WhatsappCampaignScalarWhereInput | Prisma.WhatsappCampaignScalarWhereInput[]
+}
+
+export type WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput = {
+  create?: Prisma.XOR<Prisma.WhatsappCampaignCreateWithoutOrgInput, Prisma.WhatsappCampaignUncheckedCreateWithoutOrgInput> | Prisma.WhatsappCampaignCreateWithoutOrgInput[] | Prisma.WhatsappCampaignUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappCampaignCreateOrConnectWithoutOrgInput | Prisma.WhatsappCampaignCreateOrConnectWithoutOrgInput[]
+  upsert?: Prisma.WhatsappCampaignUpsertWithWhereUniqueWithoutOrgInput | Prisma.WhatsappCampaignUpsertWithWhereUniqueWithoutOrgInput[]
+  createMany?: Prisma.WhatsappCampaignCreateManyOrgInputEnvelope
+  set?: Prisma.WhatsappCampaignWhereUniqueInput | Prisma.WhatsappCampaignWhereUniqueInput[]
+  disconnect?: Prisma.WhatsappCampaignWhereUniqueInput | Prisma.WhatsappCampaignWhereUniqueInput[]
+  delete?: Prisma.WhatsappCampaignWhereUniqueInput | Prisma.WhatsappCampaignWhereUniqueInput[]
+  connect?: Prisma.WhatsappCampaignWhereUniqueInput | Prisma.WhatsappCampaignWhereUniqueInput[]
+  update?: Prisma.WhatsappCampaignUpdateWithWhereUniqueWithoutOrgInput | Prisma.WhatsappCampaignUpdateWithWhereUniqueWithoutOrgInput[]
+  updateMany?: Prisma.WhatsappCampaignUpdateManyWithWhereWithoutOrgInput | Prisma.WhatsappCampaignUpdateManyWithWhereWithoutOrgInput[]
+  deleteMany?: Prisma.WhatsappCampaignScalarWhereInput | Prisma.WhatsappCampaignScalarWhereInput[]
 }
 
 export type WhatsappCampaignCreateNestedManyWithoutUserInput = {
@@ -1003,6 +1069,121 @@ export type WhatsappCampaignUpdateOneWithoutSendEventsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.WhatsappCampaignUpdateToOneWithWhereWithoutSendEventsInput, Prisma.WhatsappCampaignUpdateWithoutSendEventsInput>, Prisma.WhatsappCampaignUncheckedUpdateWithoutSendEventsInput>
 }
 
+export type WhatsappCampaignCreateWithoutOrgInput = {
+  id?: string
+  name: string
+  description?: string | null
+  templateName: string
+  templateLanguage: string
+  variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
+  status?: $Enums.WhatsappCampaignStatus
+  scheduledAt?: Date | string | null
+  launchedAt?: Date | string | null
+  completedAt?: Date | string | null
+  totalRecipients?: number
+  sentCount?: number
+  deliveredCount?: number
+  readCount?: number
+  failedCount?: number
+  blockedCount?: number
+  unsubscribedCount?: number
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutWhatsappCampaignsInput
+  connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCampaignsInput
+  template?: Prisma.WhatsappTemplateCreateNestedOneWithoutCampaignsInput
+  recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutCampaignInput
+  sendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutCampaignInput
+}
+
+export type WhatsappCampaignUncheckedCreateWithoutOrgInput = {
+  id?: string
+  userId: string
+  connectionId: string
+  templateId?: string | null
+  name: string
+  description?: string | null
+  templateName: string
+  templateLanguage: string
+  variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
+  status?: $Enums.WhatsappCampaignStatus
+  scheduledAt?: Date | string | null
+  launchedAt?: Date | string | null
+  completedAt?: Date | string | null
+  totalRecipients?: number
+  sentCount?: number
+  deliveredCount?: number
+  readCount?: number
+  failedCount?: number
+  blockedCount?: number
+  unsubscribedCount?: number
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  recipients?: Prisma.WhatsappCampaignRecipientUncheckedCreateNestedManyWithoutCampaignInput
+  sendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutCampaignInput
+}
+
+export type WhatsappCampaignCreateOrConnectWithoutOrgInput = {
+  where: Prisma.WhatsappCampaignWhereUniqueInput
+  create: Prisma.XOR<Prisma.WhatsappCampaignCreateWithoutOrgInput, Prisma.WhatsappCampaignUncheckedCreateWithoutOrgInput>
+}
+
+export type WhatsappCampaignCreateManyOrgInputEnvelope = {
+  data: Prisma.WhatsappCampaignCreateManyOrgInput | Prisma.WhatsappCampaignCreateManyOrgInput[]
+  skipDuplicates?: boolean
+}
+
+export type WhatsappCampaignUpsertWithWhereUniqueWithoutOrgInput = {
+  where: Prisma.WhatsappCampaignWhereUniqueInput
+  update: Prisma.XOR<Prisma.WhatsappCampaignUpdateWithoutOrgInput, Prisma.WhatsappCampaignUncheckedUpdateWithoutOrgInput>
+  create: Prisma.XOR<Prisma.WhatsappCampaignCreateWithoutOrgInput, Prisma.WhatsappCampaignUncheckedCreateWithoutOrgInput>
+}
+
+export type WhatsappCampaignUpdateWithWhereUniqueWithoutOrgInput = {
+  where: Prisma.WhatsappCampaignWhereUniqueInput
+  data: Prisma.XOR<Prisma.WhatsappCampaignUpdateWithoutOrgInput, Prisma.WhatsappCampaignUncheckedUpdateWithoutOrgInput>
+}
+
+export type WhatsappCampaignUpdateManyWithWhereWithoutOrgInput = {
+  where: Prisma.WhatsappCampaignScalarWhereInput
+  data: Prisma.XOR<Prisma.WhatsappCampaignUpdateManyMutationInput, Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgInput>
+}
+
+export type WhatsappCampaignScalarWhereInput = {
+  AND?: Prisma.WhatsappCampaignScalarWhereInput | Prisma.WhatsappCampaignScalarWhereInput[]
+  OR?: Prisma.WhatsappCampaignScalarWhereInput[]
+  NOT?: Prisma.WhatsappCampaignScalarWhereInput | Prisma.WhatsappCampaignScalarWhereInput[]
+  id?: Prisma.StringFilter<"WhatsappCampaign"> | string
+  userId?: Prisma.StringFilter<"WhatsappCampaign"> | string
+  orgId?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
+  connectionId?: Prisma.StringFilter<"WhatsappCampaign"> | string
+  templateId?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
+  name?: Prisma.StringFilter<"WhatsappCampaign"> | string
+  description?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
+  templateName?: Prisma.StringFilter<"WhatsappCampaign"> | string
+  templateLanguage?: Prisma.StringFilter<"WhatsappCampaign"> | string
+  variableMappings?: Prisma.JsonNullableFilter<"WhatsappCampaign">
+  listLabel?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
+  defaultBatchSize?: Prisma.IntNullableFilter<"WhatsappCampaign"> | number | null
+  status?: Prisma.EnumWhatsappCampaignStatusFilter<"WhatsappCampaign"> | $Enums.WhatsappCampaignStatus
+  scheduledAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
+  launchedAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
+  completedAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
+  totalRecipients?: Prisma.IntFilter<"WhatsappCampaign"> | number
+  sentCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
+  deliveredCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
+  readCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
+  failedCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
+  blockedCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
+  unsubscribedCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
+  createdAt?: Prisma.DateTimeFilter<"WhatsappCampaign"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"WhatsappCampaign"> | Date | string
+}
+
 export type WhatsappCampaignCreateWithoutUserInput = {
   id?: string
   name: string
@@ -1025,6 +1206,7 @@ export type WhatsappCampaignCreateWithoutUserInput = {
   unsubscribedCount?: number
   createdAt?: Date | string
   updatedAt?: Date | string
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCampaignsInput
   connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCampaignsInput
   template?: Prisma.WhatsappTemplateCreateNestedOneWithoutCampaignsInput
   recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutCampaignInput
@@ -1033,6 +1215,7 @@ export type WhatsappCampaignCreateWithoutUserInput = {
 
 export type WhatsappCampaignUncheckedCreateWithoutUserInput = {
   id?: string
+  orgId?: string | null
   connectionId: string
   templateId?: string | null
   name: string
@@ -1085,36 +1268,6 @@ export type WhatsappCampaignUpdateManyWithWhereWithoutUserInput = {
   data: Prisma.XOR<Prisma.WhatsappCampaignUpdateManyMutationInput, Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserInput>
 }
 
-export type WhatsappCampaignScalarWhereInput = {
-  AND?: Prisma.WhatsappCampaignScalarWhereInput | Prisma.WhatsappCampaignScalarWhereInput[]
-  OR?: Prisma.WhatsappCampaignScalarWhereInput[]
-  NOT?: Prisma.WhatsappCampaignScalarWhereInput | Prisma.WhatsappCampaignScalarWhereInput[]
-  id?: Prisma.StringFilter<"WhatsappCampaign"> | string
-  userId?: Prisma.StringFilter<"WhatsappCampaign"> | string
-  connectionId?: Prisma.StringFilter<"WhatsappCampaign"> | string
-  templateId?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
-  name?: Prisma.StringFilter<"WhatsappCampaign"> | string
-  description?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
-  templateName?: Prisma.StringFilter<"WhatsappCampaign"> | string
-  templateLanguage?: Prisma.StringFilter<"WhatsappCampaign"> | string
-  variableMappings?: Prisma.JsonNullableFilter<"WhatsappCampaign">
-  listLabel?: Prisma.StringNullableFilter<"WhatsappCampaign"> | string | null
-  defaultBatchSize?: Prisma.IntNullableFilter<"WhatsappCampaign"> | number | null
-  status?: Prisma.EnumWhatsappCampaignStatusFilter<"WhatsappCampaign"> | $Enums.WhatsappCampaignStatus
-  scheduledAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
-  launchedAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
-  completedAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaign"> | Date | string | null
-  totalRecipients?: Prisma.IntFilter<"WhatsappCampaign"> | number
-  sentCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
-  deliveredCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
-  readCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
-  failedCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
-  blockedCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
-  unsubscribedCount?: Prisma.IntFilter<"WhatsappCampaign"> | number
-  createdAt?: Prisma.DateTimeFilter<"WhatsappCampaign"> | Date | string
-  updatedAt?: Prisma.DateTimeFilter<"WhatsappCampaign"> | Date | string
-}
-
 export type WhatsappCampaignCreateWithoutConnectionInput = {
   id?: string
   name: string
@@ -1138,6 +1291,7 @@ export type WhatsappCampaignCreateWithoutConnectionInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappCampaignsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCampaignsInput
   template?: Prisma.WhatsappTemplateCreateNestedOneWithoutCampaignsInput
   recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutCampaignInput
   sendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutCampaignInput
@@ -1146,6 +1300,7 @@ export type WhatsappCampaignCreateWithoutConnectionInput = {
 export type WhatsappCampaignUncheckedCreateWithoutConnectionInput = {
   id?: string
   userId: string
+  orgId?: string | null
   templateId?: string | null
   name: string
   description?: string | null
@@ -1220,6 +1375,7 @@ export type WhatsappCampaignCreateWithoutTemplateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappCampaignsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCampaignsInput
   connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCampaignsInput
   recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutCampaignInput
   sendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutCampaignInput
@@ -1228,6 +1384,7 @@ export type WhatsappCampaignCreateWithoutTemplateInput = {
 export type WhatsappCampaignUncheckedCreateWithoutTemplateInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   name: string
   description?: string | null
@@ -1302,6 +1459,7 @@ export type WhatsappCampaignCreateWithoutRecipientsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappCampaignsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCampaignsInput
   connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCampaignsInput
   template?: Prisma.WhatsappTemplateCreateNestedOneWithoutCampaignsInput
   sendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutCampaignInput
@@ -1310,6 +1468,7 @@ export type WhatsappCampaignCreateWithoutRecipientsInput = {
 export type WhatsappCampaignUncheckedCreateWithoutRecipientsInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   templateId?: string | null
   name: string
@@ -1374,6 +1533,7 @@ export type WhatsappCampaignUpdateWithoutRecipientsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCampaignsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCampaignsNestedInput
   connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCampaignsNestedInput
   template?: Prisma.WhatsappTemplateUpdateOneWithoutCampaignsNestedInput
   sendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutCampaignNestedInput
@@ -1382,6 +1542,7 @@ export type WhatsappCampaignUpdateWithoutRecipientsInput = {
 export type WhatsappCampaignUncheckedUpdateWithoutRecipientsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1430,6 +1591,7 @@ export type WhatsappCampaignCreateWithoutSendEventsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappCampaignsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCampaignsInput
   connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCampaignsInput
   template?: Prisma.WhatsappTemplateCreateNestedOneWithoutCampaignsInput
   recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutCampaignInput
@@ -1438,6 +1600,7 @@ export type WhatsappCampaignCreateWithoutSendEventsInput = {
 export type WhatsappCampaignUncheckedCreateWithoutSendEventsInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   templateId?: string | null
   name: string
@@ -1502,6 +1665,7 @@ export type WhatsappCampaignUpdateWithoutSendEventsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCampaignsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCampaignsNestedInput
   connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCampaignsNestedInput
   template?: Prisma.WhatsappTemplateUpdateOneWithoutCampaignsNestedInput
   recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutCampaignNestedInput
@@ -1510,6 +1674,7 @@ export type WhatsappCampaignUpdateWithoutSendEventsInput = {
 export type WhatsappCampaignUncheckedUpdateWithoutSendEventsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1535,8 +1700,121 @@ export type WhatsappCampaignUncheckedUpdateWithoutSendEventsInput = {
   recipients?: Prisma.WhatsappCampaignRecipientUncheckedUpdateManyWithoutCampaignNestedInput
 }
 
+export type WhatsappCampaignCreateManyOrgInput = {
+  id?: string
+  userId: string
+  connectionId: string
+  templateId?: string | null
+  name: string
+  description?: string | null
+  templateName: string
+  templateLanguage: string
+  variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: string | null
+  defaultBatchSize?: number | null
+  status?: $Enums.WhatsappCampaignStatus
+  scheduledAt?: Date | string | null
+  launchedAt?: Date | string | null
+  completedAt?: Date | string | null
+  totalRecipients?: number
+  sentCount?: number
+  deliveredCount?: number
+  readCount?: number
+  failedCount?: number
+  blockedCount?: number
+  unsubscribedCount?: number
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type WhatsappCampaignUpdateWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  templateName?: Prisma.StringFieldUpdateOperationsInput | string
+  templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
+  variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
+  scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  totalRecipients?: Prisma.IntFieldUpdateOperationsInput | number
+  sentCount?: Prisma.IntFieldUpdateOperationsInput | number
+  deliveredCount?: Prisma.IntFieldUpdateOperationsInput | number
+  readCount?: Prisma.IntFieldUpdateOperationsInput | number
+  failedCount?: Prisma.IntFieldUpdateOperationsInput | number
+  blockedCount?: Prisma.IntFieldUpdateOperationsInput | number
+  unsubscribedCount?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCampaignsNestedInput
+  connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCampaignsNestedInput
+  template?: Prisma.WhatsappTemplateUpdateOneWithoutCampaignsNestedInput
+  recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutCampaignNestedInput
+  sendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutCampaignNestedInput
+}
+
+export type WhatsappCampaignUncheckedUpdateWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  connectionId?: Prisma.StringFieldUpdateOperationsInput | string
+  templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  templateName?: Prisma.StringFieldUpdateOperationsInput | string
+  templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
+  variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
+  scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  totalRecipients?: Prisma.IntFieldUpdateOperationsInput | number
+  sentCount?: Prisma.IntFieldUpdateOperationsInput | number
+  deliveredCount?: Prisma.IntFieldUpdateOperationsInput | number
+  readCount?: Prisma.IntFieldUpdateOperationsInput | number
+  failedCount?: Prisma.IntFieldUpdateOperationsInput | number
+  blockedCount?: Prisma.IntFieldUpdateOperationsInput | number
+  unsubscribedCount?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  recipients?: Prisma.WhatsappCampaignRecipientUncheckedUpdateManyWithoutCampaignNestedInput
+  sendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutCampaignNestedInput
+}
+
+export type WhatsappCampaignUncheckedUpdateManyWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  connectionId?: Prisma.StringFieldUpdateOperationsInput | string
+  templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  templateName?: Prisma.StringFieldUpdateOperationsInput | string
+  templateLanguage?: Prisma.StringFieldUpdateOperationsInput | string
+  variableMappings?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  listLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  defaultBatchSize?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.EnumWhatsappCampaignStatusFieldUpdateOperationsInput | $Enums.WhatsappCampaignStatus
+  scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  launchedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  totalRecipients?: Prisma.IntFieldUpdateOperationsInput | number
+  sentCount?: Prisma.IntFieldUpdateOperationsInput | number
+  deliveredCount?: Prisma.IntFieldUpdateOperationsInput | number
+  readCount?: Prisma.IntFieldUpdateOperationsInput | number
+  failedCount?: Prisma.IntFieldUpdateOperationsInput | number
+  blockedCount?: Prisma.IntFieldUpdateOperationsInput | number
+  unsubscribedCount?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
 export type WhatsappCampaignCreateManyUserInput = {
   id?: string
+  orgId?: string | null
   connectionId: string
   templateId?: string | null
   name: string
@@ -1583,6 +1861,7 @@ export type WhatsappCampaignUpdateWithoutUserInput = {
   unsubscribedCount?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCampaignsNestedInput
   connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCampaignsNestedInput
   template?: Prisma.WhatsappTemplateUpdateOneWithoutCampaignsNestedInput
   recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutCampaignNestedInput
@@ -1591,6 +1870,7 @@ export type WhatsappCampaignUpdateWithoutUserInput = {
 
 export type WhatsappCampaignUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1619,6 +1899,7 @@ export type WhatsappCampaignUncheckedUpdateWithoutUserInput = {
 
 export type WhatsappCampaignUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1646,6 +1927,7 @@ export type WhatsappCampaignUncheckedUpdateManyWithoutUserInput = {
 export type WhatsappCampaignCreateManyConnectionInput = {
   id?: string
   userId: string
+  orgId?: string | null
   templateId?: string | null
   name: string
   description?: string | null
@@ -1692,6 +1974,7 @@ export type WhatsappCampaignUpdateWithoutConnectionInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCampaignsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCampaignsNestedInput
   template?: Prisma.WhatsappTemplateUpdateOneWithoutCampaignsNestedInput
   recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutCampaignNestedInput
   sendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutCampaignNestedInput
@@ -1700,6 +1983,7 @@ export type WhatsappCampaignUpdateWithoutConnectionInput = {
 export type WhatsappCampaignUncheckedUpdateWithoutConnectionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1728,6 +2012,7 @@ export type WhatsappCampaignUncheckedUpdateWithoutConnectionInput = {
 export type WhatsappCampaignUncheckedUpdateManyWithoutConnectionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1754,6 +2039,7 @@ export type WhatsappCampaignUncheckedUpdateManyWithoutConnectionInput = {
 export type WhatsappCampaignCreateManyTemplateInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   name: string
   description?: string | null
@@ -1800,6 +2086,7 @@ export type WhatsappCampaignUpdateWithoutTemplateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCampaignsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCampaignsNestedInput
   connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCampaignsNestedInput
   recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutCampaignNestedInput
   sendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutCampaignNestedInput
@@ -1808,6 +2095,7 @@ export type WhatsappCampaignUpdateWithoutTemplateInput = {
 export type WhatsappCampaignUncheckedUpdateWithoutTemplateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1836,6 +2124,7 @@ export type WhatsappCampaignUncheckedUpdateWithoutTemplateInput = {
 export type WhatsappCampaignUncheckedUpdateManyWithoutTemplateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1902,6 +2191,7 @@ export type WhatsappCampaignCountOutputTypeCountSendEventsArgs<ExtArgs extends r
 export type WhatsappCampaignSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   connectionId?: boolean
   templateId?: boolean
   name?: boolean
@@ -1925,6 +2215,7 @@ export type WhatsappCampaignSelect<ExtArgs extends runtime.Types.Extensions.Inte
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCampaign$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   template?: boolean | Prisma.WhatsappCampaign$templateArgs<ExtArgs>
   recipients?: boolean | Prisma.WhatsappCampaign$recipientsArgs<ExtArgs>
@@ -1935,6 +2226,7 @@ export type WhatsappCampaignSelect<ExtArgs extends runtime.Types.Extensions.Inte
 export type WhatsappCampaignSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   connectionId?: boolean
   templateId?: boolean
   name?: boolean
@@ -1958,6 +2250,7 @@ export type WhatsappCampaignSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCampaign$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   template?: boolean | Prisma.WhatsappCampaign$templateArgs<ExtArgs>
 }, ExtArgs["result"]["whatsappCampaign"]>
@@ -1965,6 +2258,7 @@ export type WhatsappCampaignSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
 export type WhatsappCampaignSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   connectionId?: boolean
   templateId?: boolean
   name?: boolean
@@ -1988,6 +2282,7 @@ export type WhatsappCampaignSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCampaign$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   template?: boolean | Prisma.WhatsappCampaign$templateArgs<ExtArgs>
 }, ExtArgs["result"]["whatsappCampaign"]>
@@ -1995,6 +2290,7 @@ export type WhatsappCampaignSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
 export type WhatsappCampaignSelectScalar = {
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   connectionId?: boolean
   templateId?: boolean
   name?: boolean
@@ -2019,9 +2315,10 @@ export type WhatsappCampaignSelectScalar = {
   updatedAt?: boolean
 }
 
-export type WhatsappCampaignOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "connectionId" | "templateId" | "name" | "description" | "templateName" | "templateLanguage" | "variableMappings" | "listLabel" | "defaultBatchSize" | "status" | "scheduledAt" | "launchedAt" | "completedAt" | "totalRecipients" | "sentCount" | "deliveredCount" | "readCount" | "failedCount" | "blockedCount" | "unsubscribedCount" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappCampaign"]>
+export type WhatsappCampaignOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "orgId" | "connectionId" | "templateId" | "name" | "description" | "templateName" | "templateLanguage" | "variableMappings" | "listLabel" | "defaultBatchSize" | "status" | "scheduledAt" | "launchedAt" | "completedAt" | "totalRecipients" | "sentCount" | "deliveredCount" | "readCount" | "failedCount" | "blockedCount" | "unsubscribedCount" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappCampaign"]>
 export type WhatsappCampaignInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCampaign$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   template?: boolean | Prisma.WhatsappCampaign$templateArgs<ExtArgs>
   recipients?: boolean | Prisma.WhatsappCampaign$recipientsArgs<ExtArgs>
@@ -2030,11 +2327,13 @@ export type WhatsappCampaignInclude<ExtArgs extends runtime.Types.Extensions.Int
 }
 export type WhatsappCampaignIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCampaign$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   template?: boolean | Prisma.WhatsappCampaign$templateArgs<ExtArgs>
 }
 export type WhatsappCampaignIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCampaign$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   template?: boolean | Prisma.WhatsappCampaign$templateArgs<ExtArgs>
 }
@@ -2043,6 +2342,7 @@ export type $WhatsappCampaignPayload<ExtArgs extends runtime.Types.Extensions.In
   name: "WhatsappCampaign"
   objects: {
     user: Prisma.$UserPayload<ExtArgs>
+    org: Prisma.$OrganizationPayload<ExtArgs> | null
     connection: Prisma.$WhatsappConnectionPayload<ExtArgs>
     template: Prisma.$WhatsappTemplatePayload<ExtArgs> | null
     recipients: Prisma.$WhatsappCampaignRecipientPayload<ExtArgs>[]
@@ -2051,6 +2351,7 @@ export type $WhatsappCampaignPayload<ExtArgs extends runtime.Types.Extensions.In
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     userId: string
+    orgId: string | null
     connectionId: string
     templateId: string | null
     name: string
@@ -2468,6 +2769,7 @@ readonly fields: WhatsappCampaignFieldRefs;
 export interface Prisma__WhatsappCampaignClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  org<T extends Prisma.WhatsappCampaign$orgArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappCampaign$orgArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   connection<T extends Prisma.WhatsappConnectionDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappConnectionDefaultArgs<ExtArgs>>): Prisma.Prisma__WhatsappConnectionClient<runtime.Types.Result.GetResult<Prisma.$WhatsappConnectionPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   template<T extends Prisma.WhatsappCampaign$templateArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappCampaign$templateArgs<ExtArgs>>): Prisma.Prisma__WhatsappTemplateClient<runtime.Types.Result.GetResult<Prisma.$WhatsappTemplatePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   recipients<T extends Prisma.WhatsappCampaign$recipientsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappCampaign$recipientsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappCampaignRecipientPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -2503,6 +2805,7 @@ export interface Prisma__WhatsappCampaignClient<T, Null = never, ExtArgs extends
 export interface WhatsappCampaignFieldRefs {
   readonly id: Prisma.FieldRef<"WhatsappCampaign", 'String'>
   readonly userId: Prisma.FieldRef<"WhatsappCampaign", 'String'>
+  readonly orgId: Prisma.FieldRef<"WhatsappCampaign", 'String'>
   readonly connectionId: Prisma.FieldRef<"WhatsappCampaign", 'String'>
   readonly templateId: Prisma.FieldRef<"WhatsappCampaign", 'String'>
   readonly name: Prisma.FieldRef<"WhatsappCampaign", 'String'>
@@ -2918,6 +3221,25 @@ export type WhatsappCampaignDeleteManyArgs<ExtArgs extends runtime.Types.Extensi
    * Limit how many WhatsappCampaigns to delete.
    */
   limit?: number
+}
+
+/**
+ * WhatsappCampaign.org
+ */
+export type WhatsappCampaign$orgArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Organization
+   */
+  select?: Prisma.OrganizationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Organization
+   */
+  omit?: Prisma.OrganizationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OrganizationInclude<ExtArgs> | null
+  where?: Prisma.OrganizationWhereInput
 }
 
 /**

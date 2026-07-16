@@ -37,6 +37,7 @@ export type WhatsappCallSessionSumAggregateOutputType = {
 export type WhatsappCallSessionMinAggregateOutputType = {
   id: string | null
   userId: string | null
+  orgId: string | null
   connectionId: string | null
   conversationId: string | null
   direction: $Enums.WhatsappCallDirection | null
@@ -58,6 +59,7 @@ export type WhatsappCallSessionMinAggregateOutputType = {
 export type WhatsappCallSessionMaxAggregateOutputType = {
   id: string | null
   userId: string | null
+  orgId: string | null
   connectionId: string | null
   conversationId: string | null
   direction: $Enums.WhatsappCallDirection | null
@@ -79,6 +81,7 @@ export type WhatsappCallSessionMaxAggregateOutputType = {
 export type WhatsappCallSessionCountAggregateOutputType = {
   id: number
   userId: number
+  orgId: number
   connectionId: number
   conversationId: number
   direction: number
@@ -111,6 +114,7 @@ export type WhatsappCallSessionSumAggregateInputType = {
 export type WhatsappCallSessionMinAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   connectionId?: true
   conversationId?: true
   direction?: true
@@ -132,6 +136,7 @@ export type WhatsappCallSessionMinAggregateInputType = {
 export type WhatsappCallSessionMaxAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   connectionId?: true
   conversationId?: true
   direction?: true
@@ -153,6 +158,7 @@ export type WhatsappCallSessionMaxAggregateInputType = {
 export type WhatsappCallSessionCountAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   connectionId?: true
   conversationId?: true
   direction?: true
@@ -262,6 +268,7 @@ export type WhatsappCallSessionGroupByArgs<ExtArgs extends runtime.Types.Extensi
 export type WhatsappCallSessionGroupByOutputType = {
   id: string
   userId: string
+  orgId: string | null
   connectionId: string
   conversationId: string | null
   direction: $Enums.WhatsappCallDirection
@@ -307,6 +314,7 @@ export type WhatsappCallSessionWhereInput = {
   NOT?: Prisma.WhatsappCallSessionWhereInput | Prisma.WhatsappCallSessionWhereInput[]
   id?: Prisma.StringFilter<"WhatsappCallSession"> | string
   userId?: Prisma.StringFilter<"WhatsappCallSession"> | string
+  orgId?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
   connectionId?: Prisma.StringFilter<"WhatsappCallSession"> | string
   conversationId?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
   direction?: Prisma.EnumWhatsappCallDirectionFilter<"WhatsappCallSession"> | $Enums.WhatsappCallDirection
@@ -325,6 +333,7 @@ export type WhatsappCallSessionWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"WhatsappCallSession"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"WhatsappCallSession"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
   connection?: Prisma.XOR<Prisma.WhatsappConnectionScalarRelationFilter, Prisma.WhatsappConnectionWhereInput>
   conversation?: Prisma.XOR<Prisma.ConversationNullableScalarRelationFilter, Prisma.ConversationWhereInput> | null
   events?: Prisma.WhatsappCallEventListRelationFilter
@@ -333,6 +342,7 @@ export type WhatsappCallSessionWhereInput = {
 export type WhatsappCallSessionOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrderInput | Prisma.SortOrder
   connectionId?: Prisma.SortOrder
   conversationId?: Prisma.SortOrderInput | Prisma.SortOrder
   direction?: Prisma.SortOrder
@@ -351,6 +361,7 @@ export type WhatsappCallSessionOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
+  org?: Prisma.OrganizationOrderByWithRelationInput
   connection?: Prisma.WhatsappConnectionOrderByWithRelationInput
   conversation?: Prisma.ConversationOrderByWithRelationInput
   events?: Prisma.WhatsappCallEventOrderByRelationAggregateInput
@@ -363,6 +374,7 @@ export type WhatsappCallSessionWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.WhatsappCallSessionWhereInput[]
   NOT?: Prisma.WhatsappCallSessionWhereInput | Prisma.WhatsappCallSessionWhereInput[]
   userId?: Prisma.StringFilter<"WhatsappCallSession"> | string
+  orgId?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
   connectionId?: Prisma.StringFilter<"WhatsappCallSession"> | string
   conversationId?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
   direction?: Prisma.EnumWhatsappCallDirectionFilter<"WhatsappCallSession"> | $Enums.WhatsappCallDirection
@@ -380,6 +392,7 @@ export type WhatsappCallSessionWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"WhatsappCallSession"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"WhatsappCallSession"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
   connection?: Prisma.XOR<Prisma.WhatsappConnectionScalarRelationFilter, Prisma.WhatsappConnectionWhereInput>
   conversation?: Prisma.XOR<Prisma.ConversationNullableScalarRelationFilter, Prisma.ConversationWhereInput> | null
   events?: Prisma.WhatsappCallEventListRelationFilter
@@ -388,6 +401,7 @@ export type WhatsappCallSessionWhereUniqueInput = Prisma.AtLeast<{
 export type WhatsappCallSessionOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrderInput | Prisma.SortOrder
   connectionId?: Prisma.SortOrder
   conversationId?: Prisma.SortOrderInput | Prisma.SortOrder
   direction?: Prisma.SortOrder
@@ -418,6 +432,7 @@ export type WhatsappCallSessionScalarWhereWithAggregatesInput = {
   NOT?: Prisma.WhatsappCallSessionScalarWhereWithAggregatesInput | Prisma.WhatsappCallSessionScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"WhatsappCallSession"> | string
   userId?: Prisma.StringWithAggregatesFilter<"WhatsappCallSession"> | string
+  orgId?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCallSession"> | string | null
   connectionId?: Prisma.StringWithAggregatesFilter<"WhatsappCallSession"> | string
   conversationId?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCallSession"> | string | null
   direction?: Prisma.EnumWhatsappCallDirectionWithAggregatesFilter<"WhatsappCallSession"> | $Enums.WhatsappCallDirection
@@ -455,6 +470,7 @@ export type WhatsappCallSessionCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappCallSessionsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCallSessionsInput
   connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCallSessionsInput
   conversation?: Prisma.ConversationCreateNestedOneWithoutCallSessionsInput
   events?: Prisma.WhatsappCallEventCreateNestedManyWithoutSessionInput
@@ -463,6 +479,7 @@ export type WhatsappCallSessionCreateInput = {
 export type WhatsappCallSessionUncheckedCreateInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   conversationId?: string | null
   direction: $Enums.WhatsappCallDirection
@@ -501,6 +518,7 @@ export type WhatsappCallSessionUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCallSessionsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCallSessionsNestedInput
   connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCallSessionsNestedInput
   conversation?: Prisma.ConversationUpdateOneWithoutCallSessionsNestedInput
   events?: Prisma.WhatsappCallEventUpdateManyWithoutSessionNestedInput
@@ -509,6 +527,7 @@ export type WhatsappCallSessionUpdateInput = {
 export type WhatsappCallSessionUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
@@ -532,6 +551,7 @@ export type WhatsappCallSessionUncheckedUpdateInput = {
 export type WhatsappCallSessionCreateManyInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   conversationId?: string | null
   direction: $Enums.WhatsappCallDirection
@@ -573,6 +593,7 @@ export type WhatsappCallSessionUpdateManyMutationInput = {
 export type WhatsappCallSessionUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
@@ -605,6 +626,7 @@ export type WhatsappCallSessionOrderByRelationAggregateInput = {
 export type WhatsappCallSessionCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   connectionId?: Prisma.SortOrder
   conversationId?: Prisma.SortOrder
   direction?: Prisma.SortOrder
@@ -631,6 +653,7 @@ export type WhatsappCallSessionAvgOrderByAggregateInput = {
 export type WhatsappCallSessionMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   connectionId?: Prisma.SortOrder
   conversationId?: Prisma.SortOrder
   direction?: Prisma.SortOrder
@@ -652,6 +675,7 @@ export type WhatsappCallSessionMaxOrderByAggregateInput = {
 export type WhatsappCallSessionMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   connectionId?: Prisma.SortOrder
   conversationId?: Prisma.SortOrder
   direction?: Prisma.SortOrder
@@ -677,6 +701,48 @@ export type WhatsappCallSessionSumOrderByAggregateInput = {
 export type WhatsappCallSessionScalarRelationFilter = {
   is?: Prisma.WhatsappCallSessionWhereInput
   isNot?: Prisma.WhatsappCallSessionWhereInput
+}
+
+export type WhatsappCallSessionCreateNestedManyWithoutOrgInput = {
+  create?: Prisma.XOR<Prisma.WhatsappCallSessionCreateWithoutOrgInput, Prisma.WhatsappCallSessionUncheckedCreateWithoutOrgInput> | Prisma.WhatsappCallSessionCreateWithoutOrgInput[] | Prisma.WhatsappCallSessionUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappCallSessionCreateOrConnectWithoutOrgInput | Prisma.WhatsappCallSessionCreateOrConnectWithoutOrgInput[]
+  createMany?: Prisma.WhatsappCallSessionCreateManyOrgInputEnvelope
+  connect?: Prisma.WhatsappCallSessionWhereUniqueInput | Prisma.WhatsappCallSessionWhereUniqueInput[]
+}
+
+export type WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput = {
+  create?: Prisma.XOR<Prisma.WhatsappCallSessionCreateWithoutOrgInput, Prisma.WhatsappCallSessionUncheckedCreateWithoutOrgInput> | Prisma.WhatsappCallSessionCreateWithoutOrgInput[] | Prisma.WhatsappCallSessionUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappCallSessionCreateOrConnectWithoutOrgInput | Prisma.WhatsappCallSessionCreateOrConnectWithoutOrgInput[]
+  createMany?: Prisma.WhatsappCallSessionCreateManyOrgInputEnvelope
+  connect?: Prisma.WhatsappCallSessionWhereUniqueInput | Prisma.WhatsappCallSessionWhereUniqueInput[]
+}
+
+export type WhatsappCallSessionUpdateManyWithoutOrgNestedInput = {
+  create?: Prisma.XOR<Prisma.WhatsappCallSessionCreateWithoutOrgInput, Prisma.WhatsappCallSessionUncheckedCreateWithoutOrgInput> | Prisma.WhatsappCallSessionCreateWithoutOrgInput[] | Prisma.WhatsappCallSessionUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappCallSessionCreateOrConnectWithoutOrgInput | Prisma.WhatsappCallSessionCreateOrConnectWithoutOrgInput[]
+  upsert?: Prisma.WhatsappCallSessionUpsertWithWhereUniqueWithoutOrgInput | Prisma.WhatsappCallSessionUpsertWithWhereUniqueWithoutOrgInput[]
+  createMany?: Prisma.WhatsappCallSessionCreateManyOrgInputEnvelope
+  set?: Prisma.WhatsappCallSessionWhereUniqueInput | Prisma.WhatsappCallSessionWhereUniqueInput[]
+  disconnect?: Prisma.WhatsappCallSessionWhereUniqueInput | Prisma.WhatsappCallSessionWhereUniqueInput[]
+  delete?: Prisma.WhatsappCallSessionWhereUniqueInput | Prisma.WhatsappCallSessionWhereUniqueInput[]
+  connect?: Prisma.WhatsappCallSessionWhereUniqueInput | Prisma.WhatsappCallSessionWhereUniqueInput[]
+  update?: Prisma.WhatsappCallSessionUpdateWithWhereUniqueWithoutOrgInput | Prisma.WhatsappCallSessionUpdateWithWhereUniqueWithoutOrgInput[]
+  updateMany?: Prisma.WhatsappCallSessionUpdateManyWithWhereWithoutOrgInput | Prisma.WhatsappCallSessionUpdateManyWithWhereWithoutOrgInput[]
+  deleteMany?: Prisma.WhatsappCallSessionScalarWhereInput | Prisma.WhatsappCallSessionScalarWhereInput[]
+}
+
+export type WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput = {
+  create?: Prisma.XOR<Prisma.WhatsappCallSessionCreateWithoutOrgInput, Prisma.WhatsappCallSessionUncheckedCreateWithoutOrgInput> | Prisma.WhatsappCallSessionCreateWithoutOrgInput[] | Prisma.WhatsappCallSessionUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappCallSessionCreateOrConnectWithoutOrgInput | Prisma.WhatsappCallSessionCreateOrConnectWithoutOrgInput[]
+  upsert?: Prisma.WhatsappCallSessionUpsertWithWhereUniqueWithoutOrgInput | Prisma.WhatsappCallSessionUpsertWithWhereUniqueWithoutOrgInput[]
+  createMany?: Prisma.WhatsappCallSessionCreateManyOrgInputEnvelope
+  set?: Prisma.WhatsappCallSessionWhereUniqueInput | Prisma.WhatsappCallSessionWhereUniqueInput[]
+  disconnect?: Prisma.WhatsappCallSessionWhereUniqueInput | Prisma.WhatsappCallSessionWhereUniqueInput[]
+  delete?: Prisma.WhatsappCallSessionWhereUniqueInput | Prisma.WhatsappCallSessionWhereUniqueInput[]
+  connect?: Prisma.WhatsappCallSessionWhereUniqueInput | Prisma.WhatsappCallSessionWhereUniqueInput[]
+  update?: Prisma.WhatsappCallSessionUpdateWithWhereUniqueWithoutOrgInput | Prisma.WhatsappCallSessionUpdateWithWhereUniqueWithoutOrgInput[]
+  updateMany?: Prisma.WhatsappCallSessionUpdateManyWithWhereWithoutOrgInput | Prisma.WhatsappCallSessionUpdateManyWithWhereWithoutOrgInput[]
+  deleteMany?: Prisma.WhatsappCallSessionScalarWhereInput | Prisma.WhatsappCallSessionScalarWhereInput[]
 }
 
 export type WhatsappCallSessionCreateNestedManyWithoutUserInput = {
@@ -827,6 +893,104 @@ export type WhatsappCallSessionUpdateOneRequiredWithoutEventsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.WhatsappCallSessionUpdateToOneWithWhereWithoutEventsInput, Prisma.WhatsappCallSessionUpdateWithoutEventsInput>, Prisma.WhatsappCallSessionUncheckedUpdateWithoutEventsInput>
 }
 
+export type WhatsappCallSessionCreateWithoutOrgInput = {
+  id?: string
+  direction: $Enums.WhatsappCallDirection
+  status?: $Enums.WhatsappCallStatus
+  waCallId?: string | null
+  fromPhone: string
+  toPhone: string
+  agentLabel?: string | null
+  startedAt?: Date | string | null
+  answeredAt?: Date | string | null
+  endedAt?: Date | string | null
+  durationSeconds?: number | null
+  errorCode?: string | null
+  errorMessage?: string | null
+  rawPayload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutWhatsappCallSessionsInput
+  connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCallSessionsInput
+  conversation?: Prisma.ConversationCreateNestedOneWithoutCallSessionsInput
+  events?: Prisma.WhatsappCallEventCreateNestedManyWithoutSessionInput
+}
+
+export type WhatsappCallSessionUncheckedCreateWithoutOrgInput = {
+  id?: string
+  userId: string
+  connectionId: string
+  conversationId?: string | null
+  direction: $Enums.WhatsappCallDirection
+  status?: $Enums.WhatsappCallStatus
+  waCallId?: string | null
+  fromPhone: string
+  toPhone: string
+  agentLabel?: string | null
+  startedAt?: Date | string | null
+  answeredAt?: Date | string | null
+  endedAt?: Date | string | null
+  durationSeconds?: number | null
+  errorCode?: string | null
+  errorMessage?: string | null
+  rawPayload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  events?: Prisma.WhatsappCallEventUncheckedCreateNestedManyWithoutSessionInput
+}
+
+export type WhatsappCallSessionCreateOrConnectWithoutOrgInput = {
+  where: Prisma.WhatsappCallSessionWhereUniqueInput
+  create: Prisma.XOR<Prisma.WhatsappCallSessionCreateWithoutOrgInput, Prisma.WhatsappCallSessionUncheckedCreateWithoutOrgInput>
+}
+
+export type WhatsappCallSessionCreateManyOrgInputEnvelope = {
+  data: Prisma.WhatsappCallSessionCreateManyOrgInput | Prisma.WhatsappCallSessionCreateManyOrgInput[]
+  skipDuplicates?: boolean
+}
+
+export type WhatsappCallSessionUpsertWithWhereUniqueWithoutOrgInput = {
+  where: Prisma.WhatsappCallSessionWhereUniqueInput
+  update: Prisma.XOR<Prisma.WhatsappCallSessionUpdateWithoutOrgInput, Prisma.WhatsappCallSessionUncheckedUpdateWithoutOrgInput>
+  create: Prisma.XOR<Prisma.WhatsappCallSessionCreateWithoutOrgInput, Prisma.WhatsappCallSessionUncheckedCreateWithoutOrgInput>
+}
+
+export type WhatsappCallSessionUpdateWithWhereUniqueWithoutOrgInput = {
+  where: Prisma.WhatsappCallSessionWhereUniqueInput
+  data: Prisma.XOR<Prisma.WhatsappCallSessionUpdateWithoutOrgInput, Prisma.WhatsappCallSessionUncheckedUpdateWithoutOrgInput>
+}
+
+export type WhatsappCallSessionUpdateManyWithWhereWithoutOrgInput = {
+  where: Prisma.WhatsappCallSessionScalarWhereInput
+  data: Prisma.XOR<Prisma.WhatsappCallSessionUpdateManyMutationInput, Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgInput>
+}
+
+export type WhatsappCallSessionScalarWhereInput = {
+  AND?: Prisma.WhatsappCallSessionScalarWhereInput | Prisma.WhatsappCallSessionScalarWhereInput[]
+  OR?: Prisma.WhatsappCallSessionScalarWhereInput[]
+  NOT?: Prisma.WhatsappCallSessionScalarWhereInput | Prisma.WhatsappCallSessionScalarWhereInput[]
+  id?: Prisma.StringFilter<"WhatsappCallSession"> | string
+  userId?: Prisma.StringFilter<"WhatsappCallSession"> | string
+  orgId?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
+  connectionId?: Prisma.StringFilter<"WhatsappCallSession"> | string
+  conversationId?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
+  direction?: Prisma.EnumWhatsappCallDirectionFilter<"WhatsappCallSession"> | $Enums.WhatsappCallDirection
+  status?: Prisma.EnumWhatsappCallStatusFilter<"WhatsappCallSession"> | $Enums.WhatsappCallStatus
+  waCallId?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
+  fromPhone?: Prisma.StringFilter<"WhatsappCallSession"> | string
+  toPhone?: Prisma.StringFilter<"WhatsappCallSession"> | string
+  agentLabel?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
+  startedAt?: Prisma.DateTimeNullableFilter<"WhatsappCallSession"> | Date | string | null
+  answeredAt?: Prisma.DateTimeNullableFilter<"WhatsappCallSession"> | Date | string | null
+  endedAt?: Prisma.DateTimeNullableFilter<"WhatsappCallSession"> | Date | string | null
+  durationSeconds?: Prisma.IntNullableFilter<"WhatsappCallSession"> | number | null
+  errorCode?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
+  errorMessage?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
+  rawPayload?: Prisma.JsonNullableFilter<"WhatsappCallSession">
+  createdAt?: Prisma.DateTimeFilter<"WhatsappCallSession"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"WhatsappCallSession"> | Date | string
+}
+
 export type WhatsappCallSessionCreateWithoutUserInput = {
   id?: string
   direction: $Enums.WhatsappCallDirection
@@ -844,6 +1008,7 @@ export type WhatsappCallSessionCreateWithoutUserInput = {
   rawPayload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCallSessionsInput
   connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCallSessionsInput
   conversation?: Prisma.ConversationCreateNestedOneWithoutCallSessionsInput
   events?: Prisma.WhatsappCallEventCreateNestedManyWithoutSessionInput
@@ -851,6 +1016,7 @@ export type WhatsappCallSessionCreateWithoutUserInput = {
 
 export type WhatsappCallSessionUncheckedCreateWithoutUserInput = {
   id?: string
+  orgId?: string | null
   connectionId: string
   conversationId?: string | null
   direction: $Enums.WhatsappCallDirection
@@ -897,31 +1063,6 @@ export type WhatsappCallSessionUpdateManyWithWhereWithoutUserInput = {
   data: Prisma.XOR<Prisma.WhatsappCallSessionUpdateManyMutationInput, Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserInput>
 }
 
-export type WhatsappCallSessionScalarWhereInput = {
-  AND?: Prisma.WhatsappCallSessionScalarWhereInput | Prisma.WhatsappCallSessionScalarWhereInput[]
-  OR?: Prisma.WhatsappCallSessionScalarWhereInput[]
-  NOT?: Prisma.WhatsappCallSessionScalarWhereInput | Prisma.WhatsappCallSessionScalarWhereInput[]
-  id?: Prisma.StringFilter<"WhatsappCallSession"> | string
-  userId?: Prisma.StringFilter<"WhatsappCallSession"> | string
-  connectionId?: Prisma.StringFilter<"WhatsappCallSession"> | string
-  conversationId?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
-  direction?: Prisma.EnumWhatsappCallDirectionFilter<"WhatsappCallSession"> | $Enums.WhatsappCallDirection
-  status?: Prisma.EnumWhatsappCallStatusFilter<"WhatsappCallSession"> | $Enums.WhatsappCallStatus
-  waCallId?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
-  fromPhone?: Prisma.StringFilter<"WhatsappCallSession"> | string
-  toPhone?: Prisma.StringFilter<"WhatsappCallSession"> | string
-  agentLabel?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
-  startedAt?: Prisma.DateTimeNullableFilter<"WhatsappCallSession"> | Date | string | null
-  answeredAt?: Prisma.DateTimeNullableFilter<"WhatsappCallSession"> | Date | string | null
-  endedAt?: Prisma.DateTimeNullableFilter<"WhatsappCallSession"> | Date | string | null
-  durationSeconds?: Prisma.IntNullableFilter<"WhatsappCallSession"> | number | null
-  errorCode?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
-  errorMessage?: Prisma.StringNullableFilter<"WhatsappCallSession"> | string | null
-  rawPayload?: Prisma.JsonNullableFilter<"WhatsappCallSession">
-  createdAt?: Prisma.DateTimeFilter<"WhatsappCallSession"> | Date | string
-  updatedAt?: Prisma.DateTimeFilter<"WhatsappCallSession"> | Date | string
-}
-
 export type WhatsappCallSessionCreateWithoutConversationInput = {
   id?: string
   direction: $Enums.WhatsappCallDirection
@@ -940,6 +1081,7 @@ export type WhatsappCallSessionCreateWithoutConversationInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappCallSessionsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCallSessionsInput
   connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCallSessionsInput
   events?: Prisma.WhatsappCallEventCreateNestedManyWithoutSessionInput
 }
@@ -947,6 +1089,7 @@ export type WhatsappCallSessionCreateWithoutConversationInput = {
 export type WhatsappCallSessionUncheckedCreateWithoutConversationInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   direction: $Enums.WhatsappCallDirection
   status?: $Enums.WhatsappCallStatus
@@ -1010,6 +1153,7 @@ export type WhatsappCallSessionCreateWithoutConnectionInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappCallSessionsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCallSessionsInput
   conversation?: Prisma.ConversationCreateNestedOneWithoutCallSessionsInput
   events?: Prisma.WhatsappCallEventCreateNestedManyWithoutSessionInput
 }
@@ -1017,6 +1161,7 @@ export type WhatsappCallSessionCreateWithoutConnectionInput = {
 export type WhatsappCallSessionUncheckedCreateWithoutConnectionInput = {
   id?: string
   userId: string
+  orgId?: string | null
   conversationId?: string | null
   direction: $Enums.WhatsappCallDirection
   status?: $Enums.WhatsappCallStatus
@@ -1080,6 +1225,7 @@ export type WhatsappCallSessionCreateWithoutEventsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappCallSessionsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappCallSessionsInput
   connection: Prisma.WhatsappConnectionCreateNestedOneWithoutCallSessionsInput
   conversation?: Prisma.ConversationCreateNestedOneWithoutCallSessionsInput
 }
@@ -1087,6 +1233,7 @@ export type WhatsappCallSessionCreateWithoutEventsInput = {
 export type WhatsappCallSessionUncheckedCreateWithoutEventsInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   conversationId?: string | null
   direction: $Enums.WhatsappCallDirection
@@ -1140,11 +1287,103 @@ export type WhatsappCallSessionUpdateWithoutEventsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCallSessionsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCallSessionsNestedInput
   connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCallSessionsNestedInput
   conversation?: Prisma.ConversationUpdateOneWithoutCallSessionsNestedInput
 }
 
 export type WhatsappCallSessionUncheckedUpdateWithoutEventsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  connectionId?: Prisma.StringFieldUpdateOperationsInput | string
+  conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
+  status?: Prisma.EnumWhatsappCallStatusFieldUpdateOperationsInput | $Enums.WhatsappCallStatus
+  waCallId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fromPhone?: Prisma.StringFieldUpdateOperationsInput | string
+  toPhone?: Prisma.StringFieldUpdateOperationsInput | string
+  agentLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  answeredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  durationSeconds?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawPayload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type WhatsappCallSessionCreateManyOrgInput = {
+  id?: string
+  userId: string
+  connectionId: string
+  conversationId?: string | null
+  direction: $Enums.WhatsappCallDirection
+  status?: $Enums.WhatsappCallStatus
+  waCallId?: string | null
+  fromPhone: string
+  toPhone: string
+  agentLabel?: string | null
+  startedAt?: Date | string | null
+  answeredAt?: Date | string | null
+  endedAt?: Date | string | null
+  durationSeconds?: number | null
+  errorCode?: string | null
+  errorMessage?: string | null
+  rawPayload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type WhatsappCallSessionUpdateWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
+  status?: Prisma.EnumWhatsappCallStatusFieldUpdateOperationsInput | $Enums.WhatsappCallStatus
+  waCallId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fromPhone?: Prisma.StringFieldUpdateOperationsInput | string
+  toPhone?: Prisma.StringFieldUpdateOperationsInput | string
+  agentLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  answeredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  durationSeconds?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawPayload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCallSessionsNestedInput
+  connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCallSessionsNestedInput
+  conversation?: Prisma.ConversationUpdateOneWithoutCallSessionsNestedInput
+  events?: Prisma.WhatsappCallEventUpdateManyWithoutSessionNestedInput
+}
+
+export type WhatsappCallSessionUncheckedUpdateWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  connectionId?: Prisma.StringFieldUpdateOperationsInput | string
+  conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
+  status?: Prisma.EnumWhatsappCallStatusFieldUpdateOperationsInput | $Enums.WhatsappCallStatus
+  waCallId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fromPhone?: Prisma.StringFieldUpdateOperationsInput | string
+  toPhone?: Prisma.StringFieldUpdateOperationsInput | string
+  agentLabel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  answeredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  endedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  durationSeconds?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawPayload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  events?: Prisma.WhatsappCallEventUncheckedUpdateManyWithoutSessionNestedInput
+}
+
+export type WhatsappCallSessionUncheckedUpdateManyWithoutOrgInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1168,6 +1407,7 @@ export type WhatsappCallSessionUncheckedUpdateWithoutEventsInput = {
 
 export type WhatsappCallSessionCreateManyUserInput = {
   id?: string
+  orgId?: string | null
   connectionId: string
   conversationId?: string | null
   direction: $Enums.WhatsappCallDirection
@@ -1204,6 +1444,7 @@ export type WhatsappCallSessionUpdateWithoutUserInput = {
   rawPayload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCallSessionsNestedInput
   connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCallSessionsNestedInput
   conversation?: Prisma.ConversationUpdateOneWithoutCallSessionsNestedInput
   events?: Prisma.WhatsappCallEventUpdateManyWithoutSessionNestedInput
@@ -1211,6 +1452,7 @@ export type WhatsappCallSessionUpdateWithoutUserInput = {
 
 export type WhatsappCallSessionUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
@@ -1233,6 +1475,7 @@ export type WhatsappCallSessionUncheckedUpdateWithoutUserInput = {
 
 export type WhatsappCallSessionUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
@@ -1255,6 +1498,7 @@ export type WhatsappCallSessionUncheckedUpdateManyWithoutUserInput = {
 export type WhatsappCallSessionCreateManyConversationInput = {
   id?: string
   userId: string
+  orgId?: string | null
   connectionId: string
   direction: $Enums.WhatsappCallDirection
   status?: $Enums.WhatsappCallStatus
@@ -1291,6 +1535,7 @@ export type WhatsappCallSessionUpdateWithoutConversationInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCallSessionsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCallSessionsNestedInput
   connection?: Prisma.WhatsappConnectionUpdateOneRequiredWithoutCallSessionsNestedInput
   events?: Prisma.WhatsappCallEventUpdateManyWithoutSessionNestedInput
 }
@@ -1298,6 +1543,7 @@ export type WhatsappCallSessionUpdateWithoutConversationInput = {
 export type WhatsappCallSessionUncheckedUpdateWithoutConversationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
   status?: Prisma.EnumWhatsappCallStatusFieldUpdateOperationsInput | $Enums.WhatsappCallStatus
@@ -1320,6 +1566,7 @@ export type WhatsappCallSessionUncheckedUpdateWithoutConversationInput = {
 export type WhatsappCallSessionUncheckedUpdateManyWithoutConversationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   connectionId?: Prisma.StringFieldUpdateOperationsInput | string
   direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
   status?: Prisma.EnumWhatsappCallStatusFieldUpdateOperationsInput | $Enums.WhatsappCallStatus
@@ -1341,6 +1588,7 @@ export type WhatsappCallSessionUncheckedUpdateManyWithoutConversationInput = {
 export type WhatsappCallSessionCreateManyConnectionInput = {
   id?: string
   userId: string
+  orgId?: string | null
   conversationId?: string | null
   direction: $Enums.WhatsappCallDirection
   status?: $Enums.WhatsappCallStatus
@@ -1377,6 +1625,7 @@ export type WhatsappCallSessionUpdateWithoutConnectionInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappCallSessionsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappCallSessionsNestedInput
   conversation?: Prisma.ConversationUpdateOneWithoutCallSessionsNestedInput
   events?: Prisma.WhatsappCallEventUpdateManyWithoutSessionNestedInput
 }
@@ -1384,6 +1633,7 @@ export type WhatsappCallSessionUpdateWithoutConnectionInput = {
 export type WhatsappCallSessionUncheckedUpdateWithoutConnectionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
   status?: Prisma.EnumWhatsappCallStatusFieldUpdateOperationsInput | $Enums.WhatsappCallStatus
@@ -1406,6 +1656,7 @@ export type WhatsappCallSessionUncheckedUpdateWithoutConnectionInput = {
 export type WhatsappCallSessionUncheckedUpdateManyWithoutConnectionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   direction?: Prisma.EnumWhatsappCallDirectionFieldUpdateOperationsInput | $Enums.WhatsappCallDirection
   status?: Prisma.EnumWhatsappCallStatusFieldUpdateOperationsInput | $Enums.WhatsappCallStatus
@@ -1458,6 +1709,7 @@ export type WhatsappCallSessionCountOutputTypeCountEventsArgs<ExtArgs extends ru
 export type WhatsappCallSessionSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   connectionId?: boolean
   conversationId?: boolean
   direction?: boolean
@@ -1476,6 +1728,7 @@ export type WhatsappCallSessionSelect<ExtArgs extends runtime.Types.Extensions.I
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCallSession$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   conversation?: boolean | Prisma.WhatsappCallSession$conversationArgs<ExtArgs>
   events?: boolean | Prisma.WhatsappCallSession$eventsArgs<ExtArgs>
@@ -1485,6 +1738,7 @@ export type WhatsappCallSessionSelect<ExtArgs extends runtime.Types.Extensions.I
 export type WhatsappCallSessionSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   connectionId?: boolean
   conversationId?: boolean
   direction?: boolean
@@ -1503,6 +1757,7 @@ export type WhatsappCallSessionSelectCreateManyAndReturn<ExtArgs extends runtime
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCallSession$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   conversation?: boolean | Prisma.WhatsappCallSession$conversationArgs<ExtArgs>
 }, ExtArgs["result"]["whatsappCallSession"]>
@@ -1510,6 +1765,7 @@ export type WhatsappCallSessionSelectCreateManyAndReturn<ExtArgs extends runtime
 export type WhatsappCallSessionSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   connectionId?: boolean
   conversationId?: boolean
   direction?: boolean
@@ -1528,6 +1784,7 @@ export type WhatsappCallSessionSelectUpdateManyAndReturn<ExtArgs extends runtime
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCallSession$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   conversation?: boolean | Prisma.WhatsappCallSession$conversationArgs<ExtArgs>
 }, ExtArgs["result"]["whatsappCallSession"]>
@@ -1535,6 +1792,7 @@ export type WhatsappCallSessionSelectUpdateManyAndReturn<ExtArgs extends runtime
 export type WhatsappCallSessionSelectScalar = {
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   connectionId?: boolean
   conversationId?: boolean
   direction?: boolean
@@ -1554,9 +1812,10 @@ export type WhatsappCallSessionSelectScalar = {
   updatedAt?: boolean
 }
 
-export type WhatsappCallSessionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "connectionId" | "conversationId" | "direction" | "status" | "waCallId" | "fromPhone" | "toPhone" | "agentLabel" | "startedAt" | "answeredAt" | "endedAt" | "durationSeconds" | "errorCode" | "errorMessage" | "rawPayload" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappCallSession"]>
+export type WhatsappCallSessionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "orgId" | "connectionId" | "conversationId" | "direction" | "status" | "waCallId" | "fromPhone" | "toPhone" | "agentLabel" | "startedAt" | "answeredAt" | "endedAt" | "durationSeconds" | "errorCode" | "errorMessage" | "rawPayload" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappCallSession"]>
 export type WhatsappCallSessionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCallSession$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   conversation?: boolean | Prisma.WhatsappCallSession$conversationArgs<ExtArgs>
   events?: boolean | Prisma.WhatsappCallSession$eventsArgs<ExtArgs>
@@ -1564,11 +1823,13 @@ export type WhatsappCallSessionInclude<ExtArgs extends runtime.Types.Extensions.
 }
 export type WhatsappCallSessionIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCallSession$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   conversation?: boolean | Prisma.WhatsappCallSession$conversationArgs<ExtArgs>
 }
 export type WhatsappCallSessionIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappCallSession$orgArgs<ExtArgs>
   connection?: boolean | Prisma.WhatsappConnectionDefaultArgs<ExtArgs>
   conversation?: boolean | Prisma.WhatsappCallSession$conversationArgs<ExtArgs>
 }
@@ -1577,6 +1838,7 @@ export type $WhatsappCallSessionPayload<ExtArgs extends runtime.Types.Extensions
   name: "WhatsappCallSession"
   objects: {
     user: Prisma.$UserPayload<ExtArgs>
+    org: Prisma.$OrganizationPayload<ExtArgs> | null
     connection: Prisma.$WhatsappConnectionPayload<ExtArgs>
     conversation: Prisma.$ConversationPayload<ExtArgs> | null
     events: Prisma.$WhatsappCallEventPayload<ExtArgs>[]
@@ -1584,6 +1846,7 @@ export type $WhatsappCallSessionPayload<ExtArgs extends runtime.Types.Extensions
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     userId: string
+    orgId: string | null
     connectionId: string
     conversationId: string | null
     direction: $Enums.WhatsappCallDirection
@@ -1996,6 +2259,7 @@ readonly fields: WhatsappCallSessionFieldRefs;
 export interface Prisma__WhatsappCallSessionClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  org<T extends Prisma.WhatsappCallSession$orgArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappCallSession$orgArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   connection<T extends Prisma.WhatsappConnectionDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappConnectionDefaultArgs<ExtArgs>>): Prisma.Prisma__WhatsappConnectionClient<runtime.Types.Result.GetResult<Prisma.$WhatsappConnectionPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   conversation<T extends Prisma.WhatsappCallSession$conversationArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappCallSession$conversationArgs<ExtArgs>>): Prisma.Prisma__ConversationClient<runtime.Types.Result.GetResult<Prisma.$ConversationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   events<T extends Prisma.WhatsappCallSession$eventsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappCallSession$eventsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappCallEventPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -2030,6 +2294,7 @@ export interface Prisma__WhatsappCallSessionClient<T, Null = never, ExtArgs exte
 export interface WhatsappCallSessionFieldRefs {
   readonly id: Prisma.FieldRef<"WhatsappCallSession", 'String'>
   readonly userId: Prisma.FieldRef<"WhatsappCallSession", 'String'>
+  readonly orgId: Prisma.FieldRef<"WhatsappCallSession", 'String'>
   readonly connectionId: Prisma.FieldRef<"WhatsappCallSession", 'String'>
   readonly conversationId: Prisma.FieldRef<"WhatsappCallSession", 'String'>
   readonly direction: Prisma.FieldRef<"WhatsappCallSession", 'WhatsappCallDirection'>
@@ -2440,6 +2705,25 @@ export type WhatsappCallSessionDeleteManyArgs<ExtArgs extends runtime.Types.Exte
    * Limit how many WhatsappCallSessions to delete.
    */
   limit?: number
+}
+
+/**
+ * WhatsappCallSession.org
+ */
+export type WhatsappCallSession$orgArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Organization
+   */
+  select?: Prisma.OrganizationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Organization
+   */
+  omit?: Prisma.OrganizationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OrganizationInclude<ExtArgs> | null
+  where?: Prisma.OrganizationWhereInput
 }
 
 /**

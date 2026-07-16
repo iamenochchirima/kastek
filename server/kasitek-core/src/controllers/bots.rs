@@ -7,8 +7,17 @@ use crate::db::models::{
     BotActionRequest, BotCreateRequest, BotDeploymentCallbackRequest, BotEventCreateRequest,
 };
 use crate::error::AppError;
-use crate::middleware::extract_user;
-use crate::services::bots;
+use crate::middleware::{extract_user, resolve_active_org_id};
+use crate::services::{billing, bots};
+
+async fn require_agents_access(
+    pool: &PgPool,
+    req: &HttpRequest,
+    user_id: &str,
+) -> Result<(), AppError> {
+    let org_id = resolve_active_org_id(req, pool, user_id).await?;
+    billing::require_product_access(pool, &org_id, "agents").await
+}
 
 pub async fn create(
     pool: web::Data<PgPool>,
@@ -17,6 +26,7 @@ pub async fn create(
     body: web::Json<BotCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    require_agents_access(pool.get_ref(), &req, &user.id).await?;
     let input = body.into_inner();
     let auto_provision = bots::should_auto_provision(&input);
     let bot = bots::create_bot(pool.get_ref(), &user.id, input).await?;
@@ -80,6 +90,7 @@ pub async fn patch(
     body: web::Json<Value>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    require_agents_access(pool.get_ref(), &req, &user.id).await?;
     let bot = bots::update_bot(pool.get_ref(), &user.id, &path, body.into_inner()).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "bot": bot })))
 }
@@ -90,6 +101,7 @@ pub async fn delete(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    require_agents_access(pool.get_ref(), &req, &user.id).await?;
     bots::delete_bot(pool.get_ref(), &user.id, &path).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
@@ -101,6 +113,7 @@ pub async fn create_event(
     body: web::Json<BotEventCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    require_agents_access(pool.get_ref(), &req, &user.id).await?;
     bots::record_bot_event(pool.get_ref(), &user.id, &path, body.into_inner()).await?;
     Ok(HttpResponse::Created().json(serde_json::json!({ "success": true })))
 }
@@ -113,6 +126,7 @@ pub async fn action(
     body: web::Json<BotActionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    require_agents_access(pool.get_ref(), &req, &user.id).await?;
     let bot = bots::execute_bot_action(
         pool.get_ref(),
         config.get_ref(),

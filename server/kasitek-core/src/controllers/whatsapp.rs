@@ -11,8 +11,17 @@ use crate::db::models::{
     WhatsappTemplateCreateRequest, WhatsappTemplateListQuery,
 };
 use crate::error::AppError;
-use crate::middleware::extract_user;
-use crate::services::whatsapp;
+use crate::middleware::{extract_user, resolve_active_org_id};
+use crate::services::{billing, whatsapp};
+
+async fn require_reach_access(
+    pool: &PgPool,
+    req: &HttpRequest,
+    user_id: &str,
+) -> Result<(), AppError> {
+    let org_id = resolve_active_org_id(req, pool, user_id).await?;
+    billing::require_product_access(pool, &org_id, "reach").await
+}
 
 pub async fn list_connections(
     pool: web::Data<PgPool>,
@@ -117,6 +126,7 @@ pub async fn create_template(
     body: web::Json<WhatsappTemplateCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    require_reach_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::create_template(
         pool.get_ref(),
         &user.id,
@@ -219,6 +229,7 @@ pub async fn create_campaign(
     body: web::Json<WhatsappCampaignCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    require_reach_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::create_campaign(pool.get_ref(), &user.id, &body).await?;
     Ok(HttpResponse::Created().json(result))
 }
@@ -250,6 +261,7 @@ pub async fn launch_campaign(
     body: web::Json<WhatsappCampaignActionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    require_reach_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::launch_campaign(
         pool.get_ref(),
         &user.id,
@@ -268,6 +280,7 @@ pub async fn update_campaign(
     body: web::Json<WhatsappCampaignActionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    require_reach_access(pool.get_ref(), &req, &user.id).await?;
     let action = body
         .action
         .as_deref()
@@ -304,6 +317,7 @@ pub async fn delete_campaign(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
+    require_reach_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::delete_campaign(pool.get_ref(), &user.id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }

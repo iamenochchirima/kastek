@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod ai;
 pub mod auth;
+pub mod billing;
 pub mod bots;
 pub mod inbox;
 pub mod notifications;

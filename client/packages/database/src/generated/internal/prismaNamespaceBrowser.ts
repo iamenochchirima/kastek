@@ -51,6 +51,15 @@ export const AnyNull = runtime.AnyNull
 
 
 export const ModelName = {
+  Organization: 'Organization',
+  OrganizationMember: 'OrganizationMember',
+  OrganizationInvitation: 'OrganizationInvitation',
+  Product: 'Product',
+  ProductPlan: 'ProductPlan',
+  PlanEntitlement: 'PlanEntitlement',
+  OrganizationSubscription: 'OrganizationSubscription',
+  OrganizationEntitlementGrant: 'OrganizationEntitlementGrant',
+  UsageEvent: 'UsageEvent',
   User: 'User',
   PushSubscription: 'PushSubscription',
   Account: 'Account',
@@ -59,11 +68,14 @@ export const ModelName = {
   AdminUser: 'AdminUser',
   BusinessProfile: 'BusinessProfile',
   BotConfiguration: 'BotConfiguration',
+  BotEvent: 'BotEvent',
+  BotDeployment: 'BotDeployment',
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
   ProductWaitlistEntry: 'ProductWaitlistEntry',
   Quotation: 'Quotation',
   Invoice: 'Invoice',
+  InvoiceRun: 'InvoiceRun',
   OutreachCampaign: 'OutreachCampaign',
   OutreachLead: 'OutreachLead',
   OutreachEmailDeliveryLog: 'OutreachEmailDeliveryLog',
@@ -103,6 +115,145 @@ export const TransactionIsolationLevel = runtime.makeStrictEnum({
 } as const)
 
 export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof typeof TransactionIsolationLevel]
+
+
+export const OrganizationScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  slug: 'slug',
+  logo: 'logo',
+  ownerId: 'ownerId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OrganizationScalarFieldEnum = (typeof OrganizationScalarFieldEnum)[keyof typeof OrganizationScalarFieldEnum]
+
+
+export const OrganizationMemberScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  userId: 'userId',
+  role: 'role',
+  joinedAt: 'joinedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OrganizationMemberScalarFieldEnum = (typeof OrganizationMemberScalarFieldEnum)[keyof typeof OrganizationMemberScalarFieldEnum]
+
+
+export const OrganizationInvitationScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  email: 'email',
+  role: 'role',
+  token: 'token',
+  invitedById: 'invitedById',
+  expiresAt: 'expiresAt',
+  acceptedAt: 'acceptedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OrganizationInvitationScalarFieldEnum = (typeof OrganizationInvitationScalarFieldEnum)[keyof typeof OrganizationInvitationScalarFieldEnum]
+
+
+export const ProductScalarFieldEnum = {
+  id: 'id',
+  key: 'key',
+  name: 'name',
+  description: 'description',
+  active: 'active',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ProductScalarFieldEnum = (typeof ProductScalarFieldEnum)[keyof typeof ProductScalarFieldEnum]
+
+
+export const ProductPlanScalarFieldEnum = {
+  id: 'id',
+  productId: 'productId',
+  key: 'key',
+  name: 'name',
+  interval: 'interval',
+  currency: 'currency',
+  amountMinor: 'amountMinor',
+  active: 'active',
+  paystackPlanCode: 'paystackPlanCode',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ProductPlanScalarFieldEnum = (typeof ProductPlanScalarFieldEnum)[keyof typeof ProductPlanScalarFieldEnum]
+
+
+export const PlanEntitlementScalarFieldEnum = {
+  id: 'id',
+  planId: 'planId',
+  key: 'key',
+  value: 'value',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PlanEntitlementScalarFieldEnum = (typeof PlanEntitlementScalarFieldEnum)[keyof typeof PlanEntitlementScalarFieldEnum]
+
+
+export const OrganizationSubscriptionScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  planId: 'planId',
+  status: 'status',
+  startedAt: 'startedAt',
+  currentPeriodStart: 'currentPeriodStart',
+  currentPeriodEnd: 'currentPeriodEnd',
+  trialEndsAt: 'trialEndsAt',
+  cancelAtPeriodEnd: 'cancelAtPeriodEnd',
+  cancelledAt: 'cancelledAt',
+  provider: 'provider',
+  providerCustomerId: 'providerCustomerId',
+  providerSubscriptionId: 'providerSubscriptionId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OrganizationSubscriptionScalarFieldEnum = (typeof OrganizationSubscriptionScalarFieldEnum)[keyof typeof OrganizationSubscriptionScalarFieldEnum]
+
+
+export const OrganizationEntitlementGrantScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  key: 'key',
+  value: 'value',
+  source: 'source',
+  startsAt: 'startsAt',
+  endsAt: 'endsAt',
+  reason: 'reason',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OrganizationEntitlementGrantScalarFieldEnum = (typeof OrganizationEntitlementGrantScalarFieldEnum)[keyof typeof OrganizationEntitlementGrantScalarFieldEnum]
+
+
+export const UsageEventScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  productKey: 'productKey',
+  metricKey: 'metricKey',
+  quantity: 'quantity',
+  sourceType: 'sourceType',
+  sourceId: 'sourceId',
+  idempotencyKey: 'idempotencyKey',
+  occurredAt: 'occurredAt',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type UsageEventScalarFieldEnum = (typeof UsageEventScalarFieldEnum)[keyof typeof UsageEventScalarFieldEnum]
 
 
 export const UserScalarFieldEnum = {
@@ -213,6 +364,7 @@ export type BusinessProfileScalarFieldEnum = (typeof BusinessProfileScalarFieldE
 export const BotConfigurationScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   name: 'name',
   type: 'type',
   status: 'status',
@@ -227,6 +379,46 @@ export const BotConfigurationScalarFieldEnum = {
 } as const
 
 export type BotConfigurationScalarFieldEnum = (typeof BotConfigurationScalarFieldEnum)[keyof typeof BotConfigurationScalarFieldEnum]
+
+
+export const BotEventScalarFieldEnum = {
+  id: 'id',
+  botId: 'botId',
+  userId: 'userId',
+  orgId: 'orgId',
+  eventType: 'eventType',
+  channel: 'channel',
+  status: 'status',
+  conversationId: 'conversationId',
+  responseTimeMs: 'responseTimeMs',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type BotEventScalarFieldEnum = (typeof BotEventScalarFieldEnum)[keyof typeof BotEventScalarFieldEnum]
+
+
+export const BotDeploymentScalarFieldEnum = {
+  id: 'id',
+  botId: 'botId',
+  userId: 'userId',
+  orgId: 'orgId',
+  provider: 'provider',
+  target: 'target',
+  status: 'status',
+  versionNumber: 'versionNumber',
+  workflowId: 'workflowId',
+  templateKey: 'templateKey',
+  configSnapshot: 'configSnapshot',
+  responsePayload: 'responsePayload',
+  errorMessage: 'errorMessage',
+  deployedAt: 'deployedAt',
+  pausedAt: 'pausedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type BotDeploymentScalarFieldEnum = (typeof BotDeploymentScalarFieldEnum)[keyof typeof BotDeploymentScalarFieldEnum]
 
 
 export const OnboardingConversationScalarFieldEnum = {
@@ -324,6 +516,13 @@ export const InvoiceScalarFieldEnum = {
   contactPhone: 'contactPhone',
   date: 'date',
   serviceType: 'serviceType',
+  billingMode: 'billingMode',
+  recurringActive: 'recurringActive',
+  billingAnchorDay: 'billingAnchorDay',
+  reminderDaysAfterDue: 'reminderDaysAfterDue',
+  lastSentAt: 'lastSentAt',
+  lastReminderAt: 'lastReminderAt',
+  lastPaidAt: 'lastPaidAt',
   title: 'title',
   introduction: 'introduction',
   scopeOfWork: 'scopeOfWork',
@@ -347,6 +546,32 @@ export const InvoiceScalarFieldEnum = {
 } as const
 
 export type InvoiceScalarFieldEnum = (typeof InvoiceScalarFieldEnum)[keyof typeof InvoiceScalarFieldEnum]
+
+
+export const InvoiceRunScalarFieldEnum = {
+  id: 'id',
+  invoiceId: 'invoiceId',
+  cycleKey: 'cycleKey',
+  issueDate: 'issueDate',
+  periodStart: 'periodStart',
+  periodEnd: 'periodEnd',
+  dueDate: 'dueDate',
+  status: 'status',
+  sendStatus: 'sendStatus',
+  reminderStatus: 'reminderStatus',
+  sentAt: 'sentAt',
+  reminderDueAt: 'reminderDueAt',
+  reminderSentAt: 'reminderSentAt',
+  paidAt: 'paidAt',
+  pricingItemsSnapshot: 'pricingItemsSnapshot',
+  titleSnapshot: 'titleSnapshot',
+  contactEmailSnapshot: 'contactEmailSnapshot',
+  businessNameSnapshot: 'businessNameSnapshot',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type InvoiceRunScalarFieldEnum = (typeof InvoiceRunScalarFieldEnum)[keyof typeof InvoiceRunScalarFieldEnum]
 
 
 export const OutreachCampaignScalarFieldEnum = {
@@ -434,6 +659,7 @@ export const ConversationScalarFieldEnum = {
   lastMessageAt: 'lastMessageAt',
   lastReadAt: 'lastReadAt',
   unreadCount: 'unreadCount',
+  orgId: 'orgId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -446,6 +672,9 @@ export const MessageScalarFieldEnum = {
   conversationId: 'conversationId',
   sender: 'sender',
   content: 'content',
+  providerMessageId: 'providerMessageId',
+  providerStatus: 'providerStatus',
+  providerMetadata: 'providerMetadata',
   whatsappMessageId: 'whatsappMessageId',
   whatsappStatus: 'whatsappStatus',
   whatsappConversationId: 'whatsappConversationId',
@@ -534,6 +763,7 @@ export type NotificationDeliveryLogScalarFieldEnum = (typeof NotificationDeliver
 export const WhatsappConnectionScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   phoneNumberId: 'phoneNumberId',
   phoneDisplayNumber: 'phoneDisplayNumber',
   accessTokenEncrypted: 'accessTokenEncrypted',
@@ -551,6 +781,7 @@ export type WhatsappConnectionScalarFieldEnum = (typeof WhatsappConnectionScalar
 export const WhatsappCallSessionScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   connectionId: 'connectionId',
   conversationId: 'conversationId',
   direction: 'direction',
@@ -588,6 +819,7 @@ export type WhatsappCallEventScalarFieldEnum = (typeof WhatsappCallEventScalarFi
 export const SocialChannelConnectionScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   platform: 'platform',
   status: 'status',
   displayName: 'displayName',
@@ -607,6 +839,7 @@ export type SocialChannelConnectionScalarFieldEnum = (typeof SocialChannelConnec
 export const SocialPostScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   primaryChannelId: 'primaryChannelId',
   title: 'title',
   prompt: 'prompt',
@@ -641,6 +874,7 @@ export type SocialPostVariantScalarFieldEnum = (typeof SocialPostVariantScalarFi
 export const SocialPublishJobScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   postId: 'postId',
   variantId: 'variantId',
   channelConnectionId: 'channelConnectionId',
@@ -661,6 +895,7 @@ export type SocialPublishJobScalarFieldEnum = (typeof SocialPublishJobScalarFiel
 export const WhatsappContactScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   phone: 'phone',
   fullName: 'fullName',
   tags: 'tags',
@@ -683,6 +918,7 @@ export type WhatsappContactScalarFieldEnum = (typeof WhatsappContactScalarFieldE
 export const WhatsappContactListMembershipScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   contactId: 'contactId',
   listLabel: 'listLabel',
   fullName: 'fullName',
@@ -704,6 +940,7 @@ export type WhatsappContactListMembershipScalarFieldEnum = (typeof WhatsappConta
 export const WhatsappTemplateScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   connectionId: 'connectionId',
   templateName: 'templateName',
   language: 'language',
@@ -725,6 +962,7 @@ export type WhatsappTemplateScalarFieldEnum = (typeof WhatsappTemplateScalarFiel
 export const WhatsappCampaignScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   connectionId: 'connectionId',
   templateId: 'templateId',
   name: 'name',
@@ -779,6 +1017,7 @@ export type WhatsappCampaignRecipientScalarFieldEnum = (typeof WhatsappCampaignR
 export const WhatsappSendEventScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  orgId: 'orgId',
   connectionId: 'connectionId',
   campaignId: 'campaignId',
   recipientId: 'recipientId',
@@ -812,19 +1051,19 @@ export const SortOrder = {
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
 
 
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
+
+
 export const NullableJsonNullValueInput = {
   DbNull: DbNull,
   JsonNull: JsonNull
 } as const
 
 export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
-
-
-export const JsonNullValueInput = {
-  JsonNull: JsonNull
-} as const
-
-export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {

@@ -27,10 +27,14 @@ export type AggregateInvoice = {
 }
 
 export type InvoiceAvgAggregateOutputType = {
+  billingAnchorDay: number | null
+  reminderDaysAfterDue: number | null
   validityDays: number | null
 }
 
 export type InvoiceSumAggregateOutputType = {
+  billingAnchorDay: number | null
+  reminderDaysAfterDue: number | null
   validityDays: number | null
 }
 
@@ -42,6 +46,13 @@ export type InvoiceMinAggregateOutputType = {
   contactPhone: string | null
   date: Date | null
   serviceType: string | null
+  billingMode: string | null
+  recurringActive: boolean | null
+  billingAnchorDay: number | null
+  reminderDaysAfterDue: number | null
+  lastSentAt: Date | null
+  lastReminderAt: Date | null
+  lastPaidAt: Date | null
   title: string | null
   introduction: string | null
   setupFee: string | null
@@ -62,6 +73,13 @@ export type InvoiceMaxAggregateOutputType = {
   contactPhone: string | null
   date: Date | null
   serviceType: string | null
+  billingMode: string | null
+  recurringActive: boolean | null
+  billingAnchorDay: number | null
+  reminderDaysAfterDue: number | null
+  lastSentAt: Date | null
+  lastReminderAt: Date | null
+  lastPaidAt: Date | null
   title: string | null
   introduction: string | null
   setupFee: string | null
@@ -82,6 +100,13 @@ export type InvoiceCountAggregateOutputType = {
   contactPhone: number
   date: number
   serviceType: number
+  billingMode: number
+  recurringActive: number
+  billingAnchorDay: number
+  reminderDaysAfterDue: number
+  lastSentAt: number
+  lastReminderAt: number
+  lastPaidAt: number
   title: number
   introduction: number
   scopeOfWork: number
@@ -107,10 +132,14 @@ export type InvoiceCountAggregateOutputType = {
 
 
 export type InvoiceAvgAggregateInputType = {
+  billingAnchorDay?: true
+  reminderDaysAfterDue?: true
   validityDays?: true
 }
 
 export type InvoiceSumAggregateInputType = {
+  billingAnchorDay?: true
+  reminderDaysAfterDue?: true
   validityDays?: true
 }
 
@@ -122,6 +151,13 @@ export type InvoiceMinAggregateInputType = {
   contactPhone?: true
   date?: true
   serviceType?: true
+  billingMode?: true
+  recurringActive?: true
+  billingAnchorDay?: true
+  reminderDaysAfterDue?: true
+  lastSentAt?: true
+  lastReminderAt?: true
+  lastPaidAt?: true
   title?: true
   introduction?: true
   setupFee?: true
@@ -142,6 +178,13 @@ export type InvoiceMaxAggregateInputType = {
   contactPhone?: true
   date?: true
   serviceType?: true
+  billingMode?: true
+  recurringActive?: true
+  billingAnchorDay?: true
+  reminderDaysAfterDue?: true
+  lastSentAt?: true
+  lastReminderAt?: true
+  lastPaidAt?: true
   title?: true
   introduction?: true
   setupFee?: true
@@ -162,6 +205,13 @@ export type InvoiceCountAggregateInputType = {
   contactPhone?: true
   date?: true
   serviceType?: true
+  billingMode?: true
+  recurringActive?: true
+  billingAnchorDay?: true
+  reminderDaysAfterDue?: true
+  lastSentAt?: true
+  lastReminderAt?: true
+  lastPaidAt?: true
   title?: true
   introduction?: true
   scopeOfWork?: true
@@ -279,6 +329,13 @@ export type InvoiceGroupByOutputType = {
   contactPhone: string
   date: Date
   serviceType: string
+  billingMode: string
+  recurringActive: boolean
+  billingAnchorDay: number | null
+  reminderDaysAfterDue: number
+  lastSentAt: Date | null
+  lastReminderAt: Date | null
+  lastPaidAt: Date | null
   title: string
   introduction: string | null
   scopeOfWork: runtime.JsonValue
@@ -332,6 +389,13 @@ export type InvoiceWhereInput = {
   contactPhone?: Prisma.StringFilter<"Invoice"> | string
   date?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   serviceType?: Prisma.StringFilter<"Invoice"> | string
+  billingMode?: Prisma.StringFilter<"Invoice"> | string
+  recurringActive?: Prisma.BoolFilter<"Invoice"> | boolean
+  billingAnchorDay?: Prisma.IntNullableFilter<"Invoice"> | number | null
+  reminderDaysAfterDue?: Prisma.IntFilter<"Invoice"> | number
+  lastSentAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
+  lastReminderAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
+  lastPaidAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
   title?: Prisma.StringFilter<"Invoice"> | string
   introduction?: Prisma.StringNullableFilter<"Invoice"> | string | null
   scopeOfWork?: Prisma.JsonFilter<"Invoice">
@@ -353,6 +417,7 @@ export type InvoiceWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   quoteRequest?: Prisma.XOR<Prisma.QuoteRequestNullableScalarRelationFilter, Prisma.QuoteRequestWhereInput> | null
+  runs?: Prisma.InvoiceRunListRelationFilter
 }
 
 export type InvoiceOrderByWithRelationInput = {
@@ -363,6 +428,13 @@ export type InvoiceOrderByWithRelationInput = {
   contactPhone?: Prisma.SortOrder
   date?: Prisma.SortOrder
   serviceType?: Prisma.SortOrder
+  billingMode?: Prisma.SortOrder
+  recurringActive?: Prisma.SortOrder
+  billingAnchorDay?: Prisma.SortOrderInput | Prisma.SortOrder
+  reminderDaysAfterDue?: Prisma.SortOrder
+  lastSentAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastReminderAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastPaidAt?: Prisma.SortOrderInput | Prisma.SortOrder
   title?: Prisma.SortOrder
   introduction?: Prisma.SortOrderInput | Prisma.SortOrder
   scopeOfWork?: Prisma.SortOrder
@@ -384,6 +456,7 @@ export type InvoiceOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   quoteRequest?: Prisma.QuoteRequestOrderByWithRelationInput
+  runs?: Prisma.InvoiceRunOrderByRelationAggregateInput
 }
 
 export type InvoiceWhereUniqueInput = Prisma.AtLeast<{
@@ -397,6 +470,13 @@ export type InvoiceWhereUniqueInput = Prisma.AtLeast<{
   contactPhone?: Prisma.StringFilter<"Invoice"> | string
   date?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   serviceType?: Prisma.StringFilter<"Invoice"> | string
+  billingMode?: Prisma.StringFilter<"Invoice"> | string
+  recurringActive?: Prisma.BoolFilter<"Invoice"> | boolean
+  billingAnchorDay?: Prisma.IntNullableFilter<"Invoice"> | number | null
+  reminderDaysAfterDue?: Prisma.IntFilter<"Invoice"> | number
+  lastSentAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
+  lastReminderAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
+  lastPaidAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
   title?: Prisma.StringFilter<"Invoice"> | string
   introduction?: Prisma.StringNullableFilter<"Invoice"> | string | null
   scopeOfWork?: Prisma.JsonFilter<"Invoice">
@@ -418,6 +498,7 @@ export type InvoiceWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   quoteRequest?: Prisma.XOR<Prisma.QuoteRequestNullableScalarRelationFilter, Prisma.QuoteRequestWhereInput> | null
+  runs?: Prisma.InvoiceRunListRelationFilter
 }, "id">
 
 export type InvoiceOrderByWithAggregationInput = {
@@ -428,6 +509,13 @@ export type InvoiceOrderByWithAggregationInput = {
   contactPhone?: Prisma.SortOrder
   date?: Prisma.SortOrder
   serviceType?: Prisma.SortOrder
+  billingMode?: Prisma.SortOrder
+  recurringActive?: Prisma.SortOrder
+  billingAnchorDay?: Prisma.SortOrderInput | Prisma.SortOrder
+  reminderDaysAfterDue?: Prisma.SortOrder
+  lastSentAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastReminderAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastPaidAt?: Prisma.SortOrderInput | Prisma.SortOrder
   title?: Prisma.SortOrder
   introduction?: Prisma.SortOrderInput | Prisma.SortOrder
   scopeOfWork?: Prisma.SortOrder
@@ -466,6 +554,13 @@ export type InvoiceScalarWhereWithAggregatesInput = {
   contactPhone?: Prisma.StringWithAggregatesFilter<"Invoice"> | string
   date?: Prisma.DateTimeWithAggregatesFilter<"Invoice"> | Date | string
   serviceType?: Prisma.StringWithAggregatesFilter<"Invoice"> | string
+  billingMode?: Prisma.StringWithAggregatesFilter<"Invoice"> | string
+  recurringActive?: Prisma.BoolWithAggregatesFilter<"Invoice"> | boolean
+  billingAnchorDay?: Prisma.IntNullableWithAggregatesFilter<"Invoice"> | number | null
+  reminderDaysAfterDue?: Prisma.IntWithAggregatesFilter<"Invoice"> | number
+  lastSentAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Invoice"> | Date | string | null
+  lastReminderAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Invoice"> | Date | string | null
+  lastPaidAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Invoice"> | Date | string | null
   title?: Prisma.StringWithAggregatesFilter<"Invoice"> | string
   introduction?: Prisma.StringNullableWithAggregatesFilter<"Invoice"> | string | null
   scopeOfWork?: Prisma.JsonWithAggregatesFilter<"Invoice">
@@ -496,6 +591,13 @@ export type InvoiceCreateInput = {
   contactPhone: string
   date: Date | string
   serviceType?: string
+  billingMode?: string
+  recurringActive?: boolean
+  billingAnchorDay?: number | null
+  reminderDaysAfterDue?: number
+  lastSentAt?: Date | string | null
+  lastReminderAt?: Date | string | null
+  lastPaidAt?: Date | string | null
   title: string
   introduction?: string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -516,6 +618,7 @@ export type InvoiceCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   quoteRequest?: Prisma.QuoteRequestCreateNestedOneWithoutInvoicesInput
+  runs?: Prisma.InvoiceRunCreateNestedManyWithoutInvoiceInput
 }
 
 export type InvoiceUncheckedCreateInput = {
@@ -526,6 +629,13 @@ export type InvoiceUncheckedCreateInput = {
   contactPhone: string
   date: Date | string
   serviceType?: string
+  billingMode?: string
+  recurringActive?: boolean
+  billingAnchorDay?: number | null
+  reminderDaysAfterDue?: number
+  lastSentAt?: Date | string | null
+  lastReminderAt?: Date | string | null
+  lastPaidAt?: Date | string | null
   title: string
   introduction?: string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -546,6 +656,7 @@ export type InvoiceUncheckedCreateInput = {
   quoteRequestId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  runs?: Prisma.InvoiceRunUncheckedCreateNestedManyWithoutInvoiceInput
 }
 
 export type InvoiceUpdateInput = {
@@ -556,6 +667,13 @@ export type InvoiceUpdateInput = {
   contactPhone?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   serviceType?: Prisma.StringFieldUpdateOperationsInput | string
+  billingMode?: Prisma.StringFieldUpdateOperationsInput | string
+  recurringActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  billingAnchorDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reminderDaysAfterDue?: Prisma.IntFieldUpdateOperationsInput | number
+  lastSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastReminderAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastPaidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   introduction?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -576,6 +694,7 @@ export type InvoiceUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quoteRequest?: Prisma.QuoteRequestUpdateOneWithoutInvoicesNestedInput
+  runs?: Prisma.InvoiceRunUpdateManyWithoutInvoiceNestedInput
 }
 
 export type InvoiceUncheckedUpdateInput = {
@@ -586,6 +705,13 @@ export type InvoiceUncheckedUpdateInput = {
   contactPhone?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   serviceType?: Prisma.StringFieldUpdateOperationsInput | string
+  billingMode?: Prisma.StringFieldUpdateOperationsInput | string
+  recurringActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  billingAnchorDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reminderDaysAfterDue?: Prisma.IntFieldUpdateOperationsInput | number
+  lastSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastReminderAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastPaidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   introduction?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -606,6 +732,7 @@ export type InvoiceUncheckedUpdateInput = {
   quoteRequestId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  runs?: Prisma.InvoiceRunUncheckedUpdateManyWithoutInvoiceNestedInput
 }
 
 export type InvoiceCreateManyInput = {
@@ -616,6 +743,13 @@ export type InvoiceCreateManyInput = {
   contactPhone: string
   date: Date | string
   serviceType?: string
+  billingMode?: string
+  recurringActive?: boolean
+  billingAnchorDay?: number | null
+  reminderDaysAfterDue?: number
+  lastSentAt?: Date | string | null
+  lastReminderAt?: Date | string | null
+  lastPaidAt?: Date | string | null
   title: string
   introduction?: string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -646,6 +780,13 @@ export type InvoiceUpdateManyMutationInput = {
   contactPhone?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   serviceType?: Prisma.StringFieldUpdateOperationsInput | string
+  billingMode?: Prisma.StringFieldUpdateOperationsInput | string
+  recurringActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  billingAnchorDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reminderDaysAfterDue?: Prisma.IntFieldUpdateOperationsInput | number
+  lastSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastReminderAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastPaidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   introduction?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -675,6 +816,13 @@ export type InvoiceUncheckedUpdateManyInput = {
   contactPhone?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   serviceType?: Prisma.StringFieldUpdateOperationsInput | string
+  billingMode?: Prisma.StringFieldUpdateOperationsInput | string
+  recurringActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  billingAnchorDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reminderDaysAfterDue?: Prisma.IntFieldUpdateOperationsInput | number
+  lastSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastReminderAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastPaidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   introduction?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -715,6 +863,13 @@ export type InvoiceCountOrderByAggregateInput = {
   contactPhone?: Prisma.SortOrder
   date?: Prisma.SortOrder
   serviceType?: Prisma.SortOrder
+  billingMode?: Prisma.SortOrder
+  recurringActive?: Prisma.SortOrder
+  billingAnchorDay?: Prisma.SortOrder
+  reminderDaysAfterDue?: Prisma.SortOrder
+  lastSentAt?: Prisma.SortOrder
+  lastReminderAt?: Prisma.SortOrder
+  lastPaidAt?: Prisma.SortOrder
   title?: Prisma.SortOrder
   introduction?: Prisma.SortOrder
   scopeOfWork?: Prisma.SortOrder
@@ -738,6 +893,8 @@ export type InvoiceCountOrderByAggregateInput = {
 }
 
 export type InvoiceAvgOrderByAggregateInput = {
+  billingAnchorDay?: Prisma.SortOrder
+  reminderDaysAfterDue?: Prisma.SortOrder
   validityDays?: Prisma.SortOrder
 }
 
@@ -749,6 +906,13 @@ export type InvoiceMaxOrderByAggregateInput = {
   contactPhone?: Prisma.SortOrder
   date?: Prisma.SortOrder
   serviceType?: Prisma.SortOrder
+  billingMode?: Prisma.SortOrder
+  recurringActive?: Prisma.SortOrder
+  billingAnchorDay?: Prisma.SortOrder
+  reminderDaysAfterDue?: Prisma.SortOrder
+  lastSentAt?: Prisma.SortOrder
+  lastReminderAt?: Prisma.SortOrder
+  lastPaidAt?: Prisma.SortOrder
   title?: Prisma.SortOrder
   introduction?: Prisma.SortOrder
   setupFee?: Prisma.SortOrder
@@ -769,6 +933,13 @@ export type InvoiceMinOrderByAggregateInput = {
   contactPhone?: Prisma.SortOrder
   date?: Prisma.SortOrder
   serviceType?: Prisma.SortOrder
+  billingMode?: Prisma.SortOrder
+  recurringActive?: Prisma.SortOrder
+  billingAnchorDay?: Prisma.SortOrder
+  reminderDaysAfterDue?: Prisma.SortOrder
+  lastSentAt?: Prisma.SortOrder
+  lastReminderAt?: Prisma.SortOrder
+  lastPaidAt?: Prisma.SortOrder
   title?: Prisma.SortOrder
   introduction?: Prisma.SortOrder
   setupFee?: Prisma.SortOrder
@@ -782,7 +953,14 @@ export type InvoiceMinOrderByAggregateInput = {
 }
 
 export type InvoiceSumOrderByAggregateInput = {
+  billingAnchorDay?: Prisma.SortOrder
+  reminderDaysAfterDue?: Prisma.SortOrder
   validityDays?: Prisma.SortOrder
+}
+
+export type InvoiceScalarRelationFilter = {
+  is?: Prisma.InvoiceWhereInput
+  isNot?: Prisma.InvoiceWhereInput
 }
 
 export type InvoiceCreateNestedManyWithoutQuoteRequestInput = {
@@ -827,6 +1005,20 @@ export type InvoiceUncheckedUpdateManyWithoutQuoteRequestNestedInput = {
   deleteMany?: Prisma.InvoiceScalarWhereInput | Prisma.InvoiceScalarWhereInput[]
 }
 
+export type InvoiceCreateNestedOneWithoutRunsInput = {
+  create?: Prisma.XOR<Prisma.InvoiceCreateWithoutRunsInput, Prisma.InvoiceUncheckedCreateWithoutRunsInput>
+  connectOrCreate?: Prisma.InvoiceCreateOrConnectWithoutRunsInput
+  connect?: Prisma.InvoiceWhereUniqueInput
+}
+
+export type InvoiceUpdateOneRequiredWithoutRunsNestedInput = {
+  create?: Prisma.XOR<Prisma.InvoiceCreateWithoutRunsInput, Prisma.InvoiceUncheckedCreateWithoutRunsInput>
+  connectOrCreate?: Prisma.InvoiceCreateOrConnectWithoutRunsInput
+  upsert?: Prisma.InvoiceUpsertWithoutRunsInput
+  connect?: Prisma.InvoiceWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.InvoiceUpdateToOneWithWhereWithoutRunsInput, Prisma.InvoiceUpdateWithoutRunsInput>, Prisma.InvoiceUncheckedUpdateWithoutRunsInput>
+}
+
 export type InvoiceCreateWithoutQuoteRequestInput = {
   id?: string
   businessName: string
@@ -835,6 +1027,13 @@ export type InvoiceCreateWithoutQuoteRequestInput = {
   contactPhone: string
   date: Date | string
   serviceType?: string
+  billingMode?: string
+  recurringActive?: boolean
+  billingAnchorDay?: number | null
+  reminderDaysAfterDue?: number
+  lastSentAt?: Date | string | null
+  lastReminderAt?: Date | string | null
+  lastPaidAt?: Date | string | null
   title: string
   introduction?: string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -854,6 +1053,7 @@ export type InvoiceCreateWithoutQuoteRequestInput = {
   status?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  runs?: Prisma.InvoiceRunCreateNestedManyWithoutInvoiceInput
 }
 
 export type InvoiceUncheckedCreateWithoutQuoteRequestInput = {
@@ -864,6 +1064,13 @@ export type InvoiceUncheckedCreateWithoutQuoteRequestInput = {
   contactPhone: string
   date: Date | string
   serviceType?: string
+  billingMode?: string
+  recurringActive?: boolean
+  billingAnchorDay?: number | null
+  reminderDaysAfterDue?: number
+  lastSentAt?: Date | string | null
+  lastReminderAt?: Date | string | null
+  lastPaidAt?: Date | string | null
   title: string
   introduction?: string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -883,6 +1090,7 @@ export type InvoiceUncheckedCreateWithoutQuoteRequestInput = {
   status?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  runs?: Prisma.InvoiceRunUncheckedCreateNestedManyWithoutInvoiceInput
 }
 
 export type InvoiceCreateOrConnectWithoutQuoteRequestInput = {
@@ -922,6 +1130,13 @@ export type InvoiceScalarWhereInput = {
   contactPhone?: Prisma.StringFilter<"Invoice"> | string
   date?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   serviceType?: Prisma.StringFilter<"Invoice"> | string
+  billingMode?: Prisma.StringFilter<"Invoice"> | string
+  recurringActive?: Prisma.BoolFilter<"Invoice"> | boolean
+  billingAnchorDay?: Prisma.IntNullableFilter<"Invoice"> | number | null
+  reminderDaysAfterDue?: Prisma.IntFilter<"Invoice"> | number
+  lastSentAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
+  lastReminderAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
+  lastPaidAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
   title?: Prisma.StringFilter<"Invoice"> | string
   introduction?: Prisma.StringNullableFilter<"Invoice"> | string | null
   scopeOfWork?: Prisma.JsonFilter<"Invoice">
@@ -944,6 +1159,170 @@ export type InvoiceScalarWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
 }
 
+export type InvoiceCreateWithoutRunsInput = {
+  id?: string
+  businessName: string
+  contactPerson: string
+  contactEmail: string
+  contactPhone: string
+  date: Date | string
+  serviceType?: string
+  billingMode?: string
+  recurringActive?: boolean
+  billingAnchorDay?: number | null
+  reminderDaysAfterDue?: number
+  lastSentAt?: Date | string | null
+  lastReminderAt?: Date | string | null
+  lastPaidAt?: Date | string | null
+  title: string
+  introduction?: string | null
+  scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  deliverables?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  implementationSteps?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  pricingItems?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  maintenanceIncludes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  termsAndNotes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  includedFunctionality?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  knowledgeBaseScope?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  importantNotes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  supportIncludes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  setupFee: string
+  monthlyFee: string
+  deliveryTimeline?: string | null
+  validityDays?: number
+  status?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  quoteRequest?: Prisma.QuoteRequestCreateNestedOneWithoutInvoicesInput
+}
+
+export type InvoiceUncheckedCreateWithoutRunsInput = {
+  id?: string
+  businessName: string
+  contactPerson: string
+  contactEmail: string
+  contactPhone: string
+  date: Date | string
+  serviceType?: string
+  billingMode?: string
+  recurringActive?: boolean
+  billingAnchorDay?: number | null
+  reminderDaysAfterDue?: number
+  lastSentAt?: Date | string | null
+  lastReminderAt?: Date | string | null
+  lastPaidAt?: Date | string | null
+  title: string
+  introduction?: string | null
+  scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  deliverables?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  implementationSteps?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  pricingItems?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  maintenanceIncludes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  termsAndNotes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  includedFunctionality?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  knowledgeBaseScope?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  importantNotes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  supportIncludes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  setupFee: string
+  monthlyFee: string
+  deliveryTimeline?: string | null
+  validityDays?: number
+  status?: string
+  quoteRequestId?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type InvoiceCreateOrConnectWithoutRunsInput = {
+  where: Prisma.InvoiceWhereUniqueInput
+  create: Prisma.XOR<Prisma.InvoiceCreateWithoutRunsInput, Prisma.InvoiceUncheckedCreateWithoutRunsInput>
+}
+
+export type InvoiceUpsertWithoutRunsInput = {
+  update: Prisma.XOR<Prisma.InvoiceUpdateWithoutRunsInput, Prisma.InvoiceUncheckedUpdateWithoutRunsInput>
+  create: Prisma.XOR<Prisma.InvoiceCreateWithoutRunsInput, Prisma.InvoiceUncheckedCreateWithoutRunsInput>
+  where?: Prisma.InvoiceWhereInput
+}
+
+export type InvoiceUpdateToOneWithWhereWithoutRunsInput = {
+  where?: Prisma.InvoiceWhereInput
+  data: Prisma.XOR<Prisma.InvoiceUpdateWithoutRunsInput, Prisma.InvoiceUncheckedUpdateWithoutRunsInput>
+}
+
+export type InvoiceUpdateWithoutRunsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
+  contactEmail?: Prisma.StringFieldUpdateOperationsInput | string
+  contactPhone?: Prisma.StringFieldUpdateOperationsInput | string
+  date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  serviceType?: Prisma.StringFieldUpdateOperationsInput | string
+  billingMode?: Prisma.StringFieldUpdateOperationsInput | string
+  recurringActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  billingAnchorDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reminderDaysAfterDue?: Prisma.IntFieldUpdateOperationsInput | number
+  lastSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastReminderAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastPaidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  title?: Prisma.StringFieldUpdateOperationsInput | string
+  introduction?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  deliverables?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  implementationSteps?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  pricingItems?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  maintenanceIncludes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  termsAndNotes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  includedFunctionality?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  knowledgeBaseScope?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  importantNotes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  supportIncludes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  setupFee?: Prisma.StringFieldUpdateOperationsInput | string
+  monthlyFee?: Prisma.StringFieldUpdateOperationsInput | string
+  deliveryTimeline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  validityDays?: Prisma.IntFieldUpdateOperationsInput | number
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  quoteRequest?: Prisma.QuoteRequestUpdateOneWithoutInvoicesNestedInput
+}
+
+export type InvoiceUncheckedUpdateWithoutRunsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
+  contactEmail?: Prisma.StringFieldUpdateOperationsInput | string
+  contactPhone?: Prisma.StringFieldUpdateOperationsInput | string
+  date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  serviceType?: Prisma.StringFieldUpdateOperationsInput | string
+  billingMode?: Prisma.StringFieldUpdateOperationsInput | string
+  recurringActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  billingAnchorDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reminderDaysAfterDue?: Prisma.IntFieldUpdateOperationsInput | number
+  lastSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastReminderAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastPaidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  title?: Prisma.StringFieldUpdateOperationsInput | string
+  introduction?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  deliverables?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  implementationSteps?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  pricingItems?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  maintenanceIncludes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  termsAndNotes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  includedFunctionality?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  knowledgeBaseScope?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  importantNotes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  supportIncludes?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  setupFee?: Prisma.StringFieldUpdateOperationsInput | string
+  monthlyFee?: Prisma.StringFieldUpdateOperationsInput | string
+  deliveryTimeline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  validityDays?: Prisma.IntFieldUpdateOperationsInput | number
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  quoteRequestId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
 export type InvoiceCreateManyQuoteRequestInput = {
   id?: string
   businessName: string
@@ -952,6 +1331,13 @@ export type InvoiceCreateManyQuoteRequestInput = {
   contactPhone: string
   date: Date | string
   serviceType?: string
+  billingMode?: string
+  recurringActive?: boolean
+  billingAnchorDay?: number | null
+  reminderDaysAfterDue?: number
+  lastSentAt?: Date | string | null
+  lastReminderAt?: Date | string | null
+  lastPaidAt?: Date | string | null
   title: string
   introduction?: string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -981,6 +1367,13 @@ export type InvoiceUpdateWithoutQuoteRequestInput = {
   contactPhone?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   serviceType?: Prisma.StringFieldUpdateOperationsInput | string
+  billingMode?: Prisma.StringFieldUpdateOperationsInput | string
+  recurringActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  billingAnchorDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reminderDaysAfterDue?: Prisma.IntFieldUpdateOperationsInput | number
+  lastSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastReminderAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastPaidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   introduction?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -1000,6 +1393,7 @@ export type InvoiceUpdateWithoutQuoteRequestInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  runs?: Prisma.InvoiceRunUpdateManyWithoutInvoiceNestedInput
 }
 
 export type InvoiceUncheckedUpdateWithoutQuoteRequestInput = {
@@ -1010,6 +1404,13 @@ export type InvoiceUncheckedUpdateWithoutQuoteRequestInput = {
   contactPhone?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   serviceType?: Prisma.StringFieldUpdateOperationsInput | string
+  billingMode?: Prisma.StringFieldUpdateOperationsInput | string
+  recurringActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  billingAnchorDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reminderDaysAfterDue?: Prisma.IntFieldUpdateOperationsInput | number
+  lastSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastReminderAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastPaidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   introduction?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -1029,6 +1430,7 @@ export type InvoiceUncheckedUpdateWithoutQuoteRequestInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  runs?: Prisma.InvoiceRunUncheckedUpdateManyWithoutInvoiceNestedInput
 }
 
 export type InvoiceUncheckedUpdateManyWithoutQuoteRequestInput = {
@@ -1039,6 +1441,13 @@ export type InvoiceUncheckedUpdateManyWithoutQuoteRequestInput = {
   contactPhone?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   serviceType?: Prisma.StringFieldUpdateOperationsInput | string
+  billingMode?: Prisma.StringFieldUpdateOperationsInput | string
+  recurringActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  billingAnchorDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reminderDaysAfterDue?: Prisma.IntFieldUpdateOperationsInput | number
+  lastSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastReminderAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastPaidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   introduction?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   scopeOfWork?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -1061,6 +1470,35 @@ export type InvoiceUncheckedUpdateManyWithoutQuoteRequestInput = {
 }
 
 
+/**
+ * Count Type InvoiceCountOutputType
+ */
+
+export type InvoiceCountOutputType = {
+  runs: number
+}
+
+export type InvoiceCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  runs?: boolean | InvoiceCountOutputTypeCountRunsArgs
+}
+
+/**
+ * InvoiceCountOutputType without action
+ */
+export type InvoiceCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the InvoiceCountOutputType
+   */
+  select?: Prisma.InvoiceCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * InvoiceCountOutputType without action
+ */
+export type InvoiceCountOutputTypeCountRunsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.InvoiceRunWhereInput
+}
+
 
 export type InvoiceSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1070,6 +1508,13 @@ export type InvoiceSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   contactPhone?: boolean
   date?: boolean
   serviceType?: boolean
+  billingMode?: boolean
+  recurringActive?: boolean
+  billingAnchorDay?: boolean
+  reminderDaysAfterDue?: boolean
+  lastSentAt?: boolean
+  lastReminderAt?: boolean
+  lastPaidAt?: boolean
   title?: boolean
   introduction?: boolean
   scopeOfWork?: boolean
@@ -1091,6 +1536,8 @@ export type InvoiceSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   createdAt?: boolean
   updatedAt?: boolean
   quoteRequest?: boolean | Prisma.Invoice$quoteRequestArgs<ExtArgs>
+  runs?: boolean | Prisma.Invoice$runsArgs<ExtArgs>
+  _count?: boolean | Prisma.InvoiceCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["invoice"]>
 
 export type InvoiceSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -1101,6 +1548,13 @@ export type InvoiceSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   contactPhone?: boolean
   date?: boolean
   serviceType?: boolean
+  billingMode?: boolean
+  recurringActive?: boolean
+  billingAnchorDay?: boolean
+  reminderDaysAfterDue?: boolean
+  lastSentAt?: boolean
+  lastReminderAt?: boolean
+  lastPaidAt?: boolean
   title?: boolean
   introduction?: boolean
   scopeOfWork?: boolean
@@ -1132,6 +1586,13 @@ export type InvoiceSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   contactPhone?: boolean
   date?: boolean
   serviceType?: boolean
+  billingMode?: boolean
+  recurringActive?: boolean
+  billingAnchorDay?: boolean
+  reminderDaysAfterDue?: boolean
+  lastSentAt?: boolean
+  lastReminderAt?: boolean
+  lastPaidAt?: boolean
   title?: boolean
   introduction?: boolean
   scopeOfWork?: boolean
@@ -1163,6 +1624,13 @@ export type InvoiceSelectScalar = {
   contactPhone?: boolean
   date?: boolean
   serviceType?: boolean
+  billingMode?: boolean
+  recurringActive?: boolean
+  billingAnchorDay?: boolean
+  reminderDaysAfterDue?: boolean
+  lastSentAt?: boolean
+  lastReminderAt?: boolean
+  lastPaidAt?: boolean
   title?: boolean
   introduction?: boolean
   scopeOfWork?: boolean
@@ -1185,9 +1653,11 @@ export type InvoiceSelectScalar = {
   updatedAt?: boolean
 }
 
-export type InvoiceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "businessName" | "contactPerson" | "contactEmail" | "contactPhone" | "date" | "serviceType" | "title" | "introduction" | "scopeOfWork" | "deliverables" | "implementationSteps" | "pricingItems" | "maintenanceIncludes" | "termsAndNotes" | "includedFunctionality" | "knowledgeBaseScope" | "importantNotes" | "supportIncludes" | "setupFee" | "monthlyFee" | "deliveryTimeline" | "validityDays" | "status" | "quoteRequestId" | "createdAt" | "updatedAt", ExtArgs["result"]["invoice"]>
+export type InvoiceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "businessName" | "contactPerson" | "contactEmail" | "contactPhone" | "date" | "serviceType" | "billingMode" | "recurringActive" | "billingAnchorDay" | "reminderDaysAfterDue" | "lastSentAt" | "lastReminderAt" | "lastPaidAt" | "title" | "introduction" | "scopeOfWork" | "deliverables" | "implementationSteps" | "pricingItems" | "maintenanceIncludes" | "termsAndNotes" | "includedFunctionality" | "knowledgeBaseScope" | "importantNotes" | "supportIncludes" | "setupFee" | "monthlyFee" | "deliveryTimeline" | "validityDays" | "status" | "quoteRequestId" | "createdAt" | "updatedAt", ExtArgs["result"]["invoice"]>
 export type InvoiceInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   quoteRequest?: boolean | Prisma.Invoice$quoteRequestArgs<ExtArgs>
+  runs?: boolean | Prisma.Invoice$runsArgs<ExtArgs>
+  _count?: boolean | Prisma.InvoiceCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type InvoiceIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   quoteRequest?: boolean | Prisma.Invoice$quoteRequestArgs<ExtArgs>
@@ -1200,6 +1670,7 @@ export type $InvoicePayload<ExtArgs extends runtime.Types.Extensions.InternalArg
   name: "Invoice"
   objects: {
     quoteRequest: Prisma.$QuoteRequestPayload<ExtArgs> | null
+    runs: Prisma.$InvoiceRunPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1209,6 +1680,13 @@ export type $InvoicePayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     contactPhone: string
     date: Date
     serviceType: string
+    billingMode: string
+    recurringActive: boolean
+    billingAnchorDay: number | null
+    reminderDaysAfterDue: number
+    lastSentAt: Date | null
+    lastReminderAt: Date | null
+    lastPaidAt: Date | null
     title: string
     introduction: string | null
     scopeOfWork: runtime.JsonValue
@@ -1624,6 +2102,7 @@ readonly fields: InvoiceFieldRefs;
 export interface Prisma__InvoiceClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   quoteRequest<T extends Prisma.Invoice$quoteRequestArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Invoice$quoteRequestArgs<ExtArgs>>): Prisma.Prisma__QuoteRequestClient<runtime.Types.Result.GetResult<Prisma.$QuoteRequestPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  runs<T extends Prisma.Invoice$runsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Invoice$runsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$InvoiceRunPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1660,6 +2139,13 @@ export interface InvoiceFieldRefs {
   readonly contactPhone: Prisma.FieldRef<"Invoice", 'String'>
   readonly date: Prisma.FieldRef<"Invoice", 'DateTime'>
   readonly serviceType: Prisma.FieldRef<"Invoice", 'String'>
+  readonly billingMode: Prisma.FieldRef<"Invoice", 'String'>
+  readonly recurringActive: Prisma.FieldRef<"Invoice", 'Boolean'>
+  readonly billingAnchorDay: Prisma.FieldRef<"Invoice", 'Int'>
+  readonly reminderDaysAfterDue: Prisma.FieldRef<"Invoice", 'Int'>
+  readonly lastSentAt: Prisma.FieldRef<"Invoice", 'DateTime'>
+  readonly lastReminderAt: Prisma.FieldRef<"Invoice", 'DateTime'>
+  readonly lastPaidAt: Prisma.FieldRef<"Invoice", 'DateTime'>
   readonly title: Prisma.FieldRef<"Invoice", 'String'>
   readonly introduction: Prisma.FieldRef<"Invoice", 'String'>
   readonly scopeOfWork: Prisma.FieldRef<"Invoice", 'Json'>
@@ -2092,6 +2578,30 @@ export type Invoice$quoteRequestArgs<ExtArgs extends runtime.Types.Extensions.In
    */
   include?: Prisma.QuoteRequestInclude<ExtArgs> | null
   where?: Prisma.QuoteRequestWhereInput
+}
+
+/**
+ * Invoice.runs
+ */
+export type Invoice$runsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the InvoiceRun
+   */
+  select?: Prisma.InvoiceRunSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the InvoiceRun
+   */
+  omit?: Prisma.InvoiceRunOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.InvoiceRunInclude<ExtArgs> | null
+  where?: Prisma.InvoiceRunWhereInput
+  orderBy?: Prisma.InvoiceRunOrderByWithRelationInput | Prisma.InvoiceRunOrderByWithRelationInput[]
+  cursor?: Prisma.InvoiceRunWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.InvoiceRunScalarFieldEnum | Prisma.InvoiceRunScalarFieldEnum[]
 }
 
 /**

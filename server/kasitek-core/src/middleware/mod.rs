@@ -4,6 +4,9 @@ use sqlx::PgPool;
 use crate::config::{ADMIN_SESSION_COOKIE, USER_SESSION_COOKIE};
 use crate::db::models::{AdminUser, SessionRecord, User};
 use crate::error::AppError;
+use crate::services::orgs;
+
+pub const ACTIVE_ORG_COOKIE: &str = "kasitek_active_org";
 
 fn extract_bearer_token(req: &HttpRequest) -> Option<String> {
     req.headers()
@@ -56,6 +59,32 @@ pub async fn extract_user(req: &HttpRequest, pool: &PgPool) -> Result<User, AppE
     .fetch_optional(pool)
     .await?
     .ok_or(AppError::Unauthorized)
+}
+
+/// Resolve the active workspace and verify the authenticated user belongs to it.
+/// The cookie is a workspace preference only; membership is always checked against the database.
+pub async fn resolve_active_org_id(
+    req: &HttpRequest,
+    pool: &PgPool,
+    user_id: &str,
+) -> Result<String, AppError> {
+    if let Some(org_id) = req
+        .cookie(ACTIVE_ORG_COOKIE)
+        .map(|cookie| cookie.value().trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        orgs::require_member(pool, &org_id, user_id).await?;
+        return Ok(org_id);
+    }
+
+    orgs::list_orgs_for_user(pool, user_id)
+        .await?
+        .into_iter()
+        .next()
+        .map(|org| org.id)
+        .ok_or_else(|| {
+            AppError::Forbidden("No organisation is available for this user".to_string())
+        })
 }
 
 pub async fn extract_admin(req: &HttpRequest, pool: &PgPool) -> Result<AdminUser, AppError> {

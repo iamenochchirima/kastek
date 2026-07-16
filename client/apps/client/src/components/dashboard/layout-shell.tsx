@@ -13,13 +13,15 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
   Bell,
+  Cable,
+  CalendarDays,
+  CreditCard,
   Download,
   Bot,
-  ChevronDown,
-  ChevronRight,
   FileText,
   Grid2x2,
   LayoutGrid,
+  LockKeyhole,
   LogOut,
   Menu,
   Moon,
@@ -42,76 +44,54 @@ import {
 } from "@/components/dashboard/whatsapp-realtime-provider";
 import PushNotificationReminder from "@/components/dashboard/notifications/push-notification-reminder";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
+import type { BillingSummary } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
 
 type NavItem = {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  productKey?: "agents" | "reach" | "social";
 };
 
-type ProductKey = "agents" | "reach" | "inbox" | "social";
-
-type ProductDefinition = {
-  key: ProductKey;
-  name: string;
-  shortName: string;
-  description: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  nav: NavItem[];
-  settingsHref?: string;
+type NavigationGroup = {
+  label: string;
+  items: NavItem[];
 };
 
-const products: ProductDefinition[] = [
+const navigationGroups: NavigationGroup[] = [
   {
-    key: "agents",
-    name: "KasiAgents",
-    shortName: "Agents",
-    description: "AI agents, workflows, and automation logic.",
-    href: "/agents",
-    icon: Bot,
-    nav: [{ name: "Overview", href: "/agents", icon: Bot }],
+    label: "Home",
+    items: [{ name: "Overview", href: "/workspace", icon: LayoutGrid }],
   },
   {
-    key: "reach",
-    name: "KasiReach",
-    shortName: "Reach",
-    description: "Contacts, templates, campaigns, and outbound growth.",
-    href: "/reach",
-    icon: Send,
-    settingsHref: "/reach/settings",
-    nav: [
-      { name: "Overview", href: "/reach", icon: LayoutGrid },
+    label: "Customer",
+    items: [
+      { name: "Inbox", href: "/inbox", icon: Bell },
       { name: "Contacts", href: "/reach/contacts", icon: Users },
-      { name: "Templates", href: "/reach/templates", icon: FileText },
-      { name: "Campaigns", href: "/reach/campaigns", icon: Send },
-      { name: "Settings", href: "/reach/settings", icon: Settings },
     ],
   },
   {
-    key: "inbox",
-    name: "KasiInbox",
-    shortName: "Inbox",
-    description: "Live conversations, human replies, and team response workflows.",
-    href: "/inbox",
-    icon: Bell,
-    nav: [{ name: "Overview", href: "/inbox", icon: Bell }],
+    label: "Growth",
+    items: [
+      { name: "Campaigns", href: "/reach/campaigns", icon: Send, productKey: "reach" },
+      { name: "Templates", href: "/reach/templates", icon: FileText, productKey: "reach" },
+      { name: "Content", href: "/social/posts", icon: Sparkles, productKey: "social" },
+      { name: "Calendar", href: "/social/calendar", icon: CalendarDays, productKey: "social" },
+      { name: "Analytics", href: "/social/analytics", icon: Grid2x2, productKey: "social" },
+    ],
   },
   {
-    key: "social",
-    name: "KasiSocial",
-    shortName: "Social",
-    description: "Social planning, publishing, channels, and analytics.",
-    href: "/social",
-    icon: Sparkles,
-    nav: [
-      { name: "Overview", href: "/social", icon: LayoutGrid },
-      { name: "Planner", href: "/social/planner", icon: Sparkles },
-      { name: "Calendar", href: "/social/calendar", icon: Bell },
-      { name: "Posts", href: "/social/posts", icon: FileText },
-      { name: "Channels", href: "/social/channels", icon: Users },
-      { name: "Analytics", href: "/social/analytics", icon: Grid2x2 },
+    label: "Automation",
+    items: [{ name: "Agents", href: "/agents", icon: Bot, productKey: "agents" }],
+  },
+  {
+    label: "Manage",
+    items: [
+      { name: "Connections", href: "/connections", icon: Cable },
+      { name: "Team", href: "/workspace/team", icon: Users },
+      { name: "Billing and usage", href: "/billing", icon: CreditCard },
+      { name: "Workspace settings", href: "/workspace/team", icon: Settings },
     ],
   },
 ];
@@ -154,100 +134,80 @@ function isItemActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function getActiveProduct(pathname: string): ProductDefinition | null {
-  return products.find((product) => isItemActive(pathname, product.href)) ?? null;
+function getSectionLabel(pathname: string) {
+  return (
+    navigationGroups.find((group) =>
+      group.items.some((item) => isItemActive(pathname, item.href)),
+    )?.label ?? "Home"
+  );
 }
 
-function getSectionLabel(pathname: string, activeProduct: ProductDefinition | null) {
-  if (activeProduct) return activeProduct.shortName;
-  if (pathname.startsWith("/workspace/team")) return "Team";
-  if (pathname.startsWith("/workspace/notifications")) return "Notifications";
-  if (pathname.startsWith("/workspace/profile")) return "Profile";
-  return "Overview";
-}
-
-function ProductSection({
-  product,
+function NavigationSection({
+  group,
   pathname,
   collapsed,
   onNavigate,
   inboxUnreadCount,
+  billingSummary,
 }: {
-  product: ProductDefinition;
+  group: NavigationGroup;
   pathname: string;
   collapsed: boolean;
   onNavigate?: () => void;
   inboxUnreadCount: number;
+  billingSummary: BillingSummary | null;
 }) {
-  const active = isItemActive(pathname, product.href);
-  const showBadge = product.key === "inbox" && inboxUnreadCount > 0;
-
   return (
-    <div className="space-y-1">
-      <Link
-        href={product.href}
-        onClick={onNavigate}
-        className={cn(
-          "group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200 no-underline",
-          collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2.5",
-          active
-            ? "bg-[linear-gradient(135deg,rgba(232,160,32,0.18),rgba(232,160,32,0.04))] text-primary shadow-[inset_0_0_0_1px_rgba(232,160,32,0.16)]"
-            : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
-        )}
-      >
-        <product.icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-primary")} />
-        {!collapsed ? (
-          <>
-            <div className="min-w-0 flex-1">
-              <span className="block">{product.name}</span>
-              <span className="block truncate text-[11px] font-normal text-muted-foreground">
-                {product.description}
-              </span>
-            </div>
-            {active ? (
-              <ChevronDown className="h-4 w-4 shrink-0 text-primary" />
-            ) : (
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            )}
-          </>
-        ) : null}
-        {showBadge ? (
-          <span
+    <section className="space-y-1">
+      {!collapsed ? (
+        <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          {group.label}
+        </p>
+      ) : null}
+      {group.items.map((item) => {
+        const active = isItemActive(pathname, item.href);
+        const showBadge = item.href === "/inbox" && inboxUnreadCount > 0;
+        const product = item.productKey
+          ? billingSummary?.products.find((candidate) => candidate.key === item.productKey)
+          : null;
+        const locked = Boolean(item.productKey && product && !product.hasAccess);
+        const href = locked ? "/billing" : item.href;
+
+        return (
+          <Link
+            key={item.href}
+            href={href}
+            onClick={onNavigate}
             className={cn(
-              "shrink-0 rounded-full bg-primary text-[11px] font-semibold text-primary-foreground",
-              collapsed ? "absolute right-1 top-1 min-w-[18px] px-1.5 py-0.5 text-center" : "px-2 py-0.5",
+              "relative flex items-center rounded-lg text-sm font-medium no-underline transition-all duration-200",
+              collapsed ? "justify-center px-2 py-2.5" : "gap-2.5 px-3 py-2.5",
+              active
+                ? "bg-[linear-gradient(135deg,rgba(232,160,32,0.18),rgba(232,160,32,0.04))] text-primary shadow-[inset_0_0_0_1px_rgba(232,160,32,0.16)]"
+                : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
             )}
-          >
-            {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
-          </span>
-        ) : null}
-      </Link>
-
-      {active && !collapsed ? (
-        <div className="ml-4 space-y-1 border-l border-border/70 pl-3">
-          {product.nav.map((item) => {
-            const itemActive = isItemActive(pathname, item.href);
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onNavigate}
+            >
+              <item.icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-primary")} />
+            {!collapsed ? <span>{item.name}</span> : null}
+            {locked ? (
+              <LockKeyhole
+                className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground", !collapsed && "ml-auto")}
+                aria-label={`${item.name} requires an upgrade`}
+              />
+            ) : null}
+            {showBadge ? (
+              <span
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm no-underline transition-colors",
-                  itemActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
+                  "ml-auto shrink-0 rounded-full bg-primary text-[11px] font-semibold text-primary-foreground",
+                  collapsed ? "absolute right-1 top-1 min-w-[18px] px-1.5 py-0.5 text-center" : "px-2 py-0.5",
                 )}
               >
-                <item.icon className={cn("h-4 w-4 shrink-0", itemActive && "text-primary")} />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
+                {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
+              </span>
+            ) : null}
+          </Link>
+        );
+      })}
+    </section>
   );
 }
 
@@ -259,6 +219,7 @@ function SidebarContent({
   onNavigate,
   orgs = [],
   activeOrgId = null,
+  billingSummary = null,
 }: {
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
@@ -267,9 +228,9 @@ function SidebarContent({
   onNavigate?: () => void;
   orgs?: Org[];
   activeOrgId?: string | null;
+  billingSummary?: BillingSummary | null;
 }) {
   const pathname = usePathname();
-  const activeProduct = getActiveProduct(pathname);
   const liveInboxUnreadCount = useWhatsappInboxUnreadCount();
   const accountName = user?.name ?? "Admin";
   const accountEmail = user?.email ?? "admin@kasitek.com";
@@ -277,7 +238,7 @@ function SidebarContent({
     ? accountName.split(" ").filter(Boolean).slice(0, 2)
     : (accountEmail.split("@")[0] || accountName).split(/[\s._-]+/).filter(Boolean).slice(0, 2);
   const initials = initialsSource.map((part) => part.slice(0, 1).toUpperCase()).join("") || "AD";
-  const sectionLabel = getSectionLabel(pathname, activeProduct);
+  const sectionLabel = getSectionLabel(pathname);
   const hasOrgs = orgs.length > 0;
 
   return (
@@ -330,26 +291,15 @@ function SidebarContent({
       </div>
 
       <nav className={cn("flex-1 space-y-1 overflow-x-hidden overflow-y-auto p-2.5", collapsed && "px-2")}>
-        {!collapsed ? (
-          <div className="px-3 pb-1">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Products
-              </p>
-              <span className="truncate text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                {sectionLabel}
-              </span>
-            </div>
-          </div>
-        ) : null}
-        {products.map((product) => (
-          <ProductSection
-            key={product.key}
-            product={product}
+        {navigationGroups.map((group) => (
+          <NavigationSection
+            key={group.label}
+            group={group}
             pathname={pathname}
             collapsed={collapsed}
             onNavigate={onNavigate}
             inboxUnreadCount={liveInboxUnreadCount}
+            billingSummary={billingSummary}
           />
         ))}
       </nav>
@@ -406,14 +356,6 @@ function SidebarContent({
                 Profile
               </Link>
             </DropdownMenuItem>
-            {activeProduct?.settingsHref ? (
-              <DropdownMenuItem asChild>
-                <Link href={activeProduct.settingsHref} onClick={onNavigate}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Product Settings
-                </Link>
-              </DropdownMenuItem>
-            ) : null}
             <DropdownMenuItem asChild>
               <Link href="/workspace/team" onClick={onNavigate}>
                 <Users className="mr-2 h-4 w-4" />
@@ -494,19 +436,20 @@ export function LayoutShell({
   inboxUnreadCount = 0,
   orgs = [],
   activeOrgId = null,
+  billingSummary = null,
 }: {
   children: React.ReactNode;
   user?: { name?: string | null; email?: string | null; image?: string | null };
   inboxUnreadCount?: number;
   orgs?: Org[];
   activeOrgId?: string | null;
+  billingSummary?: BillingSummary | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const pathname = usePathname();
-  const activeProduct = getActiveProduct(pathname);
-  const sectionLabel = getSectionLabel(pathname, activeProduct);
+  const sectionLabel = getSectionLabel(pathname);
 
   useEffect(() => {
     const onPwaUpdate = (event: Event) => {
@@ -533,6 +476,7 @@ export function LayoutShell({
                 hasPwaUpdate={hasPwaUpdate}
                 orgs={orgs}
                 activeOrgId={activeOrgId}
+                billingSummary={billingSummary}
               />
             </aside>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
@@ -547,7 +491,7 @@ export function LayoutShell({
                   <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-foreground">
-                      {activeProduct?.name ?? "KasiTek"}
+                      KasiTek
                     </p>
                     <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                       {sectionLabel}
@@ -564,6 +508,7 @@ export function LayoutShell({
                 hasPwaUpdate={hasPwaUpdate}
                 orgs={orgs}
                 activeOrgId={activeOrgId}
+                billingSummary={billingSummary}
                 onNavigate={() => setMobileSheetOpen(false)}
               />
             </SheetContent>

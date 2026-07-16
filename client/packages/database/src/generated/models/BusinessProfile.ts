@@ -624,10 +624,6 @@ export type BusinessProfileUncheckedUpdateOneWithoutUserNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.BusinessProfileUpdateToOneWithWhereWithoutUserInput, Prisma.BusinessProfileUpdateWithoutUserInput>, Prisma.BusinessProfileUncheckedUpdateWithoutUserInput>
 }
 
-export type BoolFieldUpdateOperationsInput = {
-  set?: boolean
-}
-
 export type BusinessProfileCreateWithoutUserInput = {
   id?: string
   businessName: string

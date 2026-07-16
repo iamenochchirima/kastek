@@ -21,6 +21,8 @@ model Organization {
   invitations OrganizationInvitation[]
 
   botConfigurations        BotConfiguration[]
+  botEvents                BotEvent[]
+  botDeployments           BotDeployment[]
   socialChannelConnections SocialChannelConnection[]
   socialPosts              SocialPost[]
   socialPublishJobs        SocialPublishJob[]
@@ -32,6 +34,9 @@ model Organization {
   whatsappSendEvents       WhatsappSendEvent[]
   whatsappCallSessions     WhatsappCallSession[]
   conversations            Conversation[]
+  subscriptions            OrganizationSubscription[]
+  entitlementGrants        OrganizationEntitlementGrant[]
+  usageEvents              UsageEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -84,6 +89,138 @@ enum OrgRole {
   MEMBER
 }
 
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum OrganizationSubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  GRACE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+enum EntitlementSource {
+  PLAN
+  TRIAL
+  MANUAL
+  MIGRATION
+}
+
+// ─── Product Access and Billing ────────────────────────────
+
+model Product {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  active      Boolean  @default(true)
+
+  plans       ProductPlan[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ProductPlan {
+  id                  String          @id @default(cuid())
+  productId           String
+  product             Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  key                 String          @unique
+  name                String
+  interval            BillingInterval @default(MONTHLY)
+  currency            String          @default("ZAR")
+  amountMinor         Int?
+  active              Boolean         @default(false)
+  paystackPlanCode    String?         @unique
+
+  entitlements        PlanEntitlement[]
+  subscriptions       OrganizationSubscription[]
+
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([productId, active])
+}
+
+model PlanEntitlement {
+  id          String      @id @default(cuid())
+  planId      String
+  plan        ProductPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  key         String
+  value       Json
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([planId, key])
+  @@index([key])
+}
+
+model OrganizationSubscription {
+  id                    String                         @id @default(cuid())
+  orgId                 String
+  org                   Organization                   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  planId                String
+  plan                  ProductPlan                    @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status                OrganizationSubscriptionStatus @default(TRIAL)
+  startedAt             DateTime                       @default(now())
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  trialEndsAt           DateTime?
+  cancelAtPeriodEnd     Boolean                        @default(false)
+  cancelledAt           DateTime?
+  provider              String?
+  providerCustomerId    String?
+  providerSubscriptionId String?                       @unique
+
+  createdAt             DateTime                       @default(now())
+  updatedAt             DateTime                       @updatedAt
+
+  @@index([orgId, status])
+  @@index([planId, status])
+}
+
+model OrganizationEntitlementGrant {
+  id          String             @id @default(cuid())
+  orgId       String
+  org         Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  key         String
+  value       Json
+  source      EntitlementSource  @default(MANUAL)
+  startsAt    DateTime           @default(now())
+  endsAt      DateTime?
+  reason      String?
+  createdById String?
+
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([orgId, key, startsAt, endsAt])
+}
+
+model UsageEvent {
+  id             String       @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  productKey     String
+  metricKey      String
+  quantity       Int          @default(1)
+  sourceType     String?
+  sourceId       String?
+  idempotencyKey String?      @unique
+  occurredAt     DateTime     @default(now())
+  metadata       Json?
+
+  createdAt      DateTime     @default(now())
+
+  @@index([orgId, productKey, metricKey, occurredAt])
+}
+
 // ─── Auth.js Required Tables (Client App) ─────────────────
 
 model User {
@@ -104,6 +241,8 @@ model User {
 
   businessProfile   BusinessProfile?
   botConfigurations BotConfiguration[]
+  botEvents         BotEvent[]
+  botDeployments    BotDeployment[]
   conversations     OnboardingConversation[]
   socialChannelConnections SocialChannelConnection[]
   socialPosts              SocialPost[]

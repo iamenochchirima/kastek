@@ -27,6 +27,7 @@ export type AggregateBotConfiguration = {
 export type BotConfigurationMinAggregateOutputType = {
   id: string | null
   userId: string | null
+  orgId: string | null
   name: string | null
   type: string | null
   status: string | null
@@ -40,6 +41,7 @@ export type BotConfigurationMinAggregateOutputType = {
 export type BotConfigurationMaxAggregateOutputType = {
   id: string | null
   userId: string | null
+  orgId: string | null
   name: string | null
   type: string | null
   status: string | null
@@ -53,6 +55,7 @@ export type BotConfigurationMaxAggregateOutputType = {
 export type BotConfigurationCountAggregateOutputType = {
   id: number
   userId: number
+  orgId: number
   name: number
   type: number
   status: number
@@ -71,6 +74,7 @@ export type BotConfigurationCountAggregateOutputType = {
 export type BotConfigurationMinAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   name?: true
   type?: true
   status?: true
@@ -84,6 +88,7 @@ export type BotConfigurationMinAggregateInputType = {
 export type BotConfigurationMaxAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   name?: true
   type?: true
   status?: true
@@ -97,6 +102,7 @@ export type BotConfigurationMaxAggregateInputType = {
 export type BotConfigurationCountAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   name?: true
   type?: true
   status?: true
@@ -186,6 +192,7 @@ export type BotConfigurationGroupByArgs<ExtArgs extends runtime.Types.Extensions
 export type BotConfigurationGroupByOutputType = {
   id: string
   userId: string
+  orgId: string | null
   name: string
   type: string
   status: string
@@ -223,6 +230,7 @@ export type BotConfigurationWhereInput = {
   NOT?: Prisma.BotConfigurationWhereInput | Prisma.BotConfigurationWhereInput[]
   id?: Prisma.StringFilter<"BotConfiguration"> | string
   userId?: Prisma.StringFilter<"BotConfiguration"> | string
+  orgId?: Prisma.StringNullableFilter<"BotConfiguration"> | string | null
   name?: Prisma.StringFilter<"BotConfiguration"> | string
   type?: Prisma.StringFilter<"BotConfiguration"> | string
   status?: Prisma.StringFilter<"BotConfiguration"> | string
@@ -235,11 +243,15 @@ export type BotConfigurationWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"BotConfiguration"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"BotConfiguration"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
+  events?: Prisma.BotEventListRelationFilter
+  deployments?: Prisma.BotDeploymentListRelationFilter
 }
 
 export type BotConfigurationOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrderInput | Prisma.SortOrder
   name?: Prisma.SortOrder
   type?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -252,6 +264,9 @@ export type BotConfigurationOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
+  org?: Prisma.OrganizationOrderByWithRelationInput
+  events?: Prisma.BotEventOrderByRelationAggregateInput
+  deployments?: Prisma.BotDeploymentOrderByRelationAggregateInput
 }
 
 export type BotConfigurationWhereUniqueInput = Prisma.AtLeast<{
@@ -260,6 +275,7 @@ export type BotConfigurationWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.BotConfigurationWhereInput[]
   NOT?: Prisma.BotConfigurationWhereInput | Prisma.BotConfigurationWhereInput[]
   userId?: Prisma.StringFilter<"BotConfiguration"> | string
+  orgId?: Prisma.StringNullableFilter<"BotConfiguration"> | string | null
   name?: Prisma.StringFilter<"BotConfiguration"> | string
   type?: Prisma.StringFilter<"BotConfiguration"> | string
   status?: Prisma.StringFilter<"BotConfiguration"> | string
@@ -272,11 +288,15 @@ export type BotConfigurationWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"BotConfiguration"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"BotConfiguration"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
+  events?: Prisma.BotEventListRelationFilter
+  deployments?: Prisma.BotDeploymentListRelationFilter
 }, "id">
 
 export type BotConfigurationOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrderInput | Prisma.SortOrder
   name?: Prisma.SortOrder
   type?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -299,6 +319,7 @@ export type BotConfigurationScalarWhereWithAggregatesInput = {
   NOT?: Prisma.BotConfigurationScalarWhereWithAggregatesInput | Prisma.BotConfigurationScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"BotConfiguration"> | string
   userId?: Prisma.StringWithAggregatesFilter<"BotConfiguration"> | string
+  orgId?: Prisma.StringNullableWithAggregatesFilter<"BotConfiguration"> | string | null
   name?: Prisma.StringWithAggregatesFilter<"BotConfiguration"> | string
   type?: Prisma.StringWithAggregatesFilter<"BotConfiguration"> | string
   status?: Prisma.StringWithAggregatesFilter<"BotConfiguration"> | string
@@ -326,11 +347,15 @@ export type BotConfigurationCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutBotConfigurationsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutBotConfigurationsInput
+  events?: Prisma.BotEventCreateNestedManyWithoutBotInput
+  deployments?: Prisma.BotDeploymentCreateNestedManyWithoutBotInput
 }
 
 export type BotConfigurationUncheckedCreateInput = {
   id?: string
   userId: string
+  orgId?: string | null
   name: string
   type: string
   status?: string
@@ -342,6 +367,8 @@ export type BotConfigurationUncheckedCreateInput = {
   integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
+  events?: Prisma.BotEventUncheckedCreateNestedManyWithoutBotInput
+  deployments?: Prisma.BotDeploymentUncheckedCreateNestedManyWithoutBotInput
 }
 
 export type BotConfigurationUpdateInput = {
@@ -358,11 +385,15 @@ export type BotConfigurationUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutBotConfigurationsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutBotConfigurationsNestedInput
+  events?: Prisma.BotEventUpdateManyWithoutBotNestedInput
+  deployments?: Prisma.BotDeploymentUpdateManyWithoutBotNestedInput
 }
 
 export type BotConfigurationUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
   type?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -374,11 +405,14 @@ export type BotConfigurationUncheckedUpdateInput = {
   integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  events?: Prisma.BotEventUncheckedUpdateManyWithoutBotNestedInput
+  deployments?: Prisma.BotDeploymentUncheckedUpdateManyWithoutBotNestedInput
 }
 
 export type BotConfigurationCreateManyInput = {
   id?: string
   userId: string
+  orgId?: string | null
   name: string
   type: string
   status?: string
@@ -410,6 +444,7 @@ export type BotConfigurationUpdateManyMutationInput = {
 export type BotConfigurationUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
   type?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -436,6 +471,7 @@ export type BotConfigurationOrderByRelationAggregateInput = {
 export type BotConfigurationCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   name?: Prisma.SortOrder
   type?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -452,6 +488,7 @@ export type BotConfigurationCountOrderByAggregateInput = {
 export type BotConfigurationMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   name?: Prisma.SortOrder
   type?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -465,6 +502,7 @@ export type BotConfigurationMaxOrderByAggregateInput = {
 export type BotConfigurationMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   name?: Prisma.SortOrder
   type?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -473,6 +511,53 @@ export type BotConfigurationMinOrderByAggregateInput = {
   language?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type BotConfigurationScalarRelationFilter = {
+  is?: Prisma.BotConfigurationWhereInput
+  isNot?: Prisma.BotConfigurationWhereInput
+}
+
+export type BotConfigurationCreateNestedManyWithoutOrgInput = {
+  create?: Prisma.XOR<Prisma.BotConfigurationCreateWithoutOrgInput, Prisma.BotConfigurationUncheckedCreateWithoutOrgInput> | Prisma.BotConfigurationCreateWithoutOrgInput[] | Prisma.BotConfigurationUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.BotConfigurationCreateOrConnectWithoutOrgInput | Prisma.BotConfigurationCreateOrConnectWithoutOrgInput[]
+  createMany?: Prisma.BotConfigurationCreateManyOrgInputEnvelope
+  connect?: Prisma.BotConfigurationWhereUniqueInput | Prisma.BotConfigurationWhereUniqueInput[]
+}
+
+export type BotConfigurationUncheckedCreateNestedManyWithoutOrgInput = {
+  create?: Prisma.XOR<Prisma.BotConfigurationCreateWithoutOrgInput, Prisma.BotConfigurationUncheckedCreateWithoutOrgInput> | Prisma.BotConfigurationCreateWithoutOrgInput[] | Prisma.BotConfigurationUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.BotConfigurationCreateOrConnectWithoutOrgInput | Prisma.BotConfigurationCreateOrConnectWithoutOrgInput[]
+  createMany?: Prisma.BotConfigurationCreateManyOrgInputEnvelope
+  connect?: Prisma.BotConfigurationWhereUniqueInput | Prisma.BotConfigurationWhereUniqueInput[]
+}
+
+export type BotConfigurationUpdateManyWithoutOrgNestedInput = {
+  create?: Prisma.XOR<Prisma.BotConfigurationCreateWithoutOrgInput, Prisma.BotConfigurationUncheckedCreateWithoutOrgInput> | Prisma.BotConfigurationCreateWithoutOrgInput[] | Prisma.BotConfigurationUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.BotConfigurationCreateOrConnectWithoutOrgInput | Prisma.BotConfigurationCreateOrConnectWithoutOrgInput[]
+  upsert?: Prisma.BotConfigurationUpsertWithWhereUniqueWithoutOrgInput | Prisma.BotConfigurationUpsertWithWhereUniqueWithoutOrgInput[]
+  createMany?: Prisma.BotConfigurationCreateManyOrgInputEnvelope
+  set?: Prisma.BotConfigurationWhereUniqueInput | Prisma.BotConfigurationWhereUniqueInput[]
+  disconnect?: Prisma.BotConfigurationWhereUniqueInput | Prisma.BotConfigurationWhereUniqueInput[]
+  delete?: Prisma.BotConfigurationWhereUniqueInput | Prisma.BotConfigurationWhereUniqueInput[]
+  connect?: Prisma.BotConfigurationWhereUniqueInput | Prisma.BotConfigurationWhereUniqueInput[]
+  update?: Prisma.BotConfigurationUpdateWithWhereUniqueWithoutOrgInput | Prisma.BotConfigurationUpdateWithWhereUniqueWithoutOrgInput[]
+  updateMany?: Prisma.BotConfigurationUpdateManyWithWhereWithoutOrgInput | Prisma.BotConfigurationUpdateManyWithWhereWithoutOrgInput[]
+  deleteMany?: Prisma.BotConfigurationScalarWhereInput | Prisma.BotConfigurationScalarWhereInput[]
+}
+
+export type BotConfigurationUncheckedUpdateManyWithoutOrgNestedInput = {
+  create?: Prisma.XOR<Prisma.BotConfigurationCreateWithoutOrgInput, Prisma.BotConfigurationUncheckedCreateWithoutOrgInput> | Prisma.BotConfigurationCreateWithoutOrgInput[] | Prisma.BotConfigurationUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.BotConfigurationCreateOrConnectWithoutOrgInput | Prisma.BotConfigurationCreateOrConnectWithoutOrgInput[]
+  upsert?: Prisma.BotConfigurationUpsertWithWhereUniqueWithoutOrgInput | Prisma.BotConfigurationUpsertWithWhereUniqueWithoutOrgInput[]
+  createMany?: Prisma.BotConfigurationCreateManyOrgInputEnvelope
+  set?: Prisma.BotConfigurationWhereUniqueInput | Prisma.BotConfigurationWhereUniqueInput[]
+  disconnect?: Prisma.BotConfigurationWhereUniqueInput | Prisma.BotConfigurationWhereUniqueInput[]
+  delete?: Prisma.BotConfigurationWhereUniqueInput | Prisma.BotConfigurationWhereUniqueInput[]
+  connect?: Prisma.BotConfigurationWhereUniqueInput | Prisma.BotConfigurationWhereUniqueInput[]
+  update?: Prisma.BotConfigurationUpdateWithWhereUniqueWithoutOrgInput | Prisma.BotConfigurationUpdateWithWhereUniqueWithoutOrgInput[]
+  updateMany?: Prisma.BotConfigurationUpdateManyWithWhereWithoutOrgInput | Prisma.BotConfigurationUpdateManyWithWhereWithoutOrgInput[]
+  deleteMany?: Prisma.BotConfigurationScalarWhereInput | Prisma.BotConfigurationScalarWhereInput[]
 }
 
 export type BotConfigurationCreateNestedManyWithoutUserInput = {
@@ -517,6 +602,116 @@ export type BotConfigurationUncheckedUpdateManyWithoutUserNestedInput = {
   deleteMany?: Prisma.BotConfigurationScalarWhereInput | Prisma.BotConfigurationScalarWhereInput[]
 }
 
+export type BotConfigurationCreateNestedOneWithoutEventsInput = {
+  create?: Prisma.XOR<Prisma.BotConfigurationCreateWithoutEventsInput, Prisma.BotConfigurationUncheckedCreateWithoutEventsInput>
+  connectOrCreate?: Prisma.BotConfigurationCreateOrConnectWithoutEventsInput
+  connect?: Prisma.BotConfigurationWhereUniqueInput
+}
+
+export type BotConfigurationUpdateOneRequiredWithoutEventsNestedInput = {
+  create?: Prisma.XOR<Prisma.BotConfigurationCreateWithoutEventsInput, Prisma.BotConfigurationUncheckedCreateWithoutEventsInput>
+  connectOrCreate?: Prisma.BotConfigurationCreateOrConnectWithoutEventsInput
+  upsert?: Prisma.BotConfigurationUpsertWithoutEventsInput
+  connect?: Prisma.BotConfigurationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.BotConfigurationUpdateToOneWithWhereWithoutEventsInput, Prisma.BotConfigurationUpdateWithoutEventsInput>, Prisma.BotConfigurationUncheckedUpdateWithoutEventsInput>
+}
+
+export type BotConfigurationCreateNestedOneWithoutDeploymentsInput = {
+  create?: Prisma.XOR<Prisma.BotConfigurationCreateWithoutDeploymentsInput, Prisma.BotConfigurationUncheckedCreateWithoutDeploymentsInput>
+  connectOrCreate?: Prisma.BotConfigurationCreateOrConnectWithoutDeploymentsInput
+  connect?: Prisma.BotConfigurationWhereUniqueInput
+}
+
+export type BotConfigurationUpdateOneRequiredWithoutDeploymentsNestedInput = {
+  create?: Prisma.XOR<Prisma.BotConfigurationCreateWithoutDeploymentsInput, Prisma.BotConfigurationUncheckedCreateWithoutDeploymentsInput>
+  connectOrCreate?: Prisma.BotConfigurationCreateOrConnectWithoutDeploymentsInput
+  upsert?: Prisma.BotConfigurationUpsertWithoutDeploymentsInput
+  connect?: Prisma.BotConfigurationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.BotConfigurationUpdateToOneWithWhereWithoutDeploymentsInput, Prisma.BotConfigurationUpdateWithoutDeploymentsInput>, Prisma.BotConfigurationUncheckedUpdateWithoutDeploymentsInput>
+}
+
+export type BotConfigurationCreateWithoutOrgInput = {
+  id?: string
+  name: string
+  type: string
+  status?: string
+  greetingMessage?: string | null
+  personality?: string | null
+  language?: string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutBotConfigurationsInput
+  events?: Prisma.BotEventCreateNestedManyWithoutBotInput
+  deployments?: Prisma.BotDeploymentCreateNestedManyWithoutBotInput
+}
+
+export type BotConfigurationUncheckedCreateWithoutOrgInput = {
+  id?: string
+  userId: string
+  name: string
+  type: string
+  status?: string
+  greetingMessage?: string | null
+  personality?: string | null
+  language?: string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  events?: Prisma.BotEventUncheckedCreateNestedManyWithoutBotInput
+  deployments?: Prisma.BotDeploymentUncheckedCreateNestedManyWithoutBotInput
+}
+
+export type BotConfigurationCreateOrConnectWithoutOrgInput = {
+  where: Prisma.BotConfigurationWhereUniqueInput
+  create: Prisma.XOR<Prisma.BotConfigurationCreateWithoutOrgInput, Prisma.BotConfigurationUncheckedCreateWithoutOrgInput>
+}
+
+export type BotConfigurationCreateManyOrgInputEnvelope = {
+  data: Prisma.BotConfigurationCreateManyOrgInput | Prisma.BotConfigurationCreateManyOrgInput[]
+  skipDuplicates?: boolean
+}
+
+export type BotConfigurationUpsertWithWhereUniqueWithoutOrgInput = {
+  where: Prisma.BotConfigurationWhereUniqueInput
+  update: Prisma.XOR<Prisma.BotConfigurationUpdateWithoutOrgInput, Prisma.BotConfigurationUncheckedUpdateWithoutOrgInput>
+  create: Prisma.XOR<Prisma.BotConfigurationCreateWithoutOrgInput, Prisma.BotConfigurationUncheckedCreateWithoutOrgInput>
+}
+
+export type BotConfigurationUpdateWithWhereUniqueWithoutOrgInput = {
+  where: Prisma.BotConfigurationWhereUniqueInput
+  data: Prisma.XOR<Prisma.BotConfigurationUpdateWithoutOrgInput, Prisma.BotConfigurationUncheckedUpdateWithoutOrgInput>
+}
+
+export type BotConfigurationUpdateManyWithWhereWithoutOrgInput = {
+  where: Prisma.BotConfigurationScalarWhereInput
+  data: Prisma.XOR<Prisma.BotConfigurationUpdateManyMutationInput, Prisma.BotConfigurationUncheckedUpdateManyWithoutOrgInput>
+}
+
+export type BotConfigurationScalarWhereInput = {
+  AND?: Prisma.BotConfigurationScalarWhereInput | Prisma.BotConfigurationScalarWhereInput[]
+  OR?: Prisma.BotConfigurationScalarWhereInput[]
+  NOT?: Prisma.BotConfigurationScalarWhereInput | Prisma.BotConfigurationScalarWhereInput[]
+  id?: Prisma.StringFilter<"BotConfiguration"> | string
+  userId?: Prisma.StringFilter<"BotConfiguration"> | string
+  orgId?: Prisma.StringNullableFilter<"BotConfiguration"> | string | null
+  name?: Prisma.StringFilter<"BotConfiguration"> | string
+  type?: Prisma.StringFilter<"BotConfiguration"> | string
+  status?: Prisma.StringFilter<"BotConfiguration"> | string
+  greetingMessage?: Prisma.StringNullableFilter<"BotConfiguration"> | string | null
+  personality?: Prisma.StringNullableFilter<"BotConfiguration"> | string | null
+  language?: Prisma.StringFilter<"BotConfiguration"> | string
+  capabilities?: Prisma.JsonNullableFilter<"BotConfiguration">
+  knowledgeBase?: Prisma.JsonNullableFilter<"BotConfiguration">
+  integrationConfig?: Prisma.JsonNullableFilter<"BotConfiguration">
+  createdAt?: Prisma.DateTimeFilter<"BotConfiguration"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"BotConfiguration"> | Date | string
+}
+
 export type BotConfigurationCreateWithoutUserInput = {
   id?: string
   name: string
@@ -530,10 +725,14 @@ export type BotConfigurationCreateWithoutUserInput = {
   integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
+  org?: Prisma.OrganizationCreateNestedOneWithoutBotConfigurationsInput
+  events?: Prisma.BotEventCreateNestedManyWithoutBotInput
+  deployments?: Prisma.BotDeploymentCreateNestedManyWithoutBotInput
 }
 
 export type BotConfigurationUncheckedCreateWithoutUserInput = {
   id?: string
+  orgId?: string | null
   name: string
   type: string
   status?: string
@@ -545,6 +744,8 @@ export type BotConfigurationUncheckedCreateWithoutUserInput = {
   integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
+  events?: Prisma.BotEventUncheckedCreateNestedManyWithoutBotInput
+  deployments?: Prisma.BotDeploymentUncheckedCreateNestedManyWithoutBotInput
 }
 
 export type BotConfigurationCreateOrConnectWithoutUserInput = {
@@ -573,27 +774,253 @@ export type BotConfigurationUpdateManyWithWhereWithoutUserInput = {
   data: Prisma.XOR<Prisma.BotConfigurationUpdateManyMutationInput, Prisma.BotConfigurationUncheckedUpdateManyWithoutUserInput>
 }
 
-export type BotConfigurationScalarWhereInput = {
-  AND?: Prisma.BotConfigurationScalarWhereInput | Prisma.BotConfigurationScalarWhereInput[]
-  OR?: Prisma.BotConfigurationScalarWhereInput[]
-  NOT?: Prisma.BotConfigurationScalarWhereInput | Prisma.BotConfigurationScalarWhereInput[]
-  id?: Prisma.StringFilter<"BotConfiguration"> | string
-  userId?: Prisma.StringFilter<"BotConfiguration"> | string
-  name?: Prisma.StringFilter<"BotConfiguration"> | string
-  type?: Prisma.StringFilter<"BotConfiguration"> | string
-  status?: Prisma.StringFilter<"BotConfiguration"> | string
-  greetingMessage?: Prisma.StringNullableFilter<"BotConfiguration"> | string | null
-  personality?: Prisma.StringNullableFilter<"BotConfiguration"> | string | null
-  language?: Prisma.StringFilter<"BotConfiguration"> | string
-  capabilities?: Prisma.JsonNullableFilter<"BotConfiguration">
-  knowledgeBase?: Prisma.JsonNullableFilter<"BotConfiguration">
-  integrationConfig?: Prisma.JsonNullableFilter<"BotConfiguration">
-  createdAt?: Prisma.DateTimeFilter<"BotConfiguration"> | Date | string
-  updatedAt?: Prisma.DateTimeFilter<"BotConfiguration"> | Date | string
+export type BotConfigurationCreateWithoutEventsInput = {
+  id?: string
+  name: string
+  type: string
+  status?: string
+  greetingMessage?: string | null
+  personality?: string | null
+  language?: string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutBotConfigurationsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutBotConfigurationsInput
+  deployments?: Prisma.BotDeploymentCreateNestedManyWithoutBotInput
+}
+
+export type BotConfigurationUncheckedCreateWithoutEventsInput = {
+  id?: string
+  userId: string
+  orgId?: string | null
+  name: string
+  type: string
+  status?: string
+  greetingMessage?: string | null
+  personality?: string | null
+  language?: string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  deployments?: Prisma.BotDeploymentUncheckedCreateNestedManyWithoutBotInput
+}
+
+export type BotConfigurationCreateOrConnectWithoutEventsInput = {
+  where: Prisma.BotConfigurationWhereUniqueInput
+  create: Prisma.XOR<Prisma.BotConfigurationCreateWithoutEventsInput, Prisma.BotConfigurationUncheckedCreateWithoutEventsInput>
+}
+
+export type BotConfigurationUpsertWithoutEventsInput = {
+  update: Prisma.XOR<Prisma.BotConfigurationUpdateWithoutEventsInput, Prisma.BotConfigurationUncheckedUpdateWithoutEventsInput>
+  create: Prisma.XOR<Prisma.BotConfigurationCreateWithoutEventsInput, Prisma.BotConfigurationUncheckedCreateWithoutEventsInput>
+  where?: Prisma.BotConfigurationWhereInput
+}
+
+export type BotConfigurationUpdateToOneWithWhereWithoutEventsInput = {
+  where?: Prisma.BotConfigurationWhereInput
+  data: Prisma.XOR<Prisma.BotConfigurationUpdateWithoutEventsInput, Prisma.BotConfigurationUncheckedUpdateWithoutEventsInput>
+}
+
+export type BotConfigurationUpdateWithoutEventsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  type?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  greetingMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  personality?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  language?: Prisma.StringFieldUpdateOperationsInput | string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutBotConfigurationsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutBotConfigurationsNestedInput
+  deployments?: Prisma.BotDeploymentUpdateManyWithoutBotNestedInput
+}
+
+export type BotConfigurationUncheckedUpdateWithoutEventsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  type?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  greetingMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  personality?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  language?: Prisma.StringFieldUpdateOperationsInput | string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deployments?: Prisma.BotDeploymentUncheckedUpdateManyWithoutBotNestedInput
+}
+
+export type BotConfigurationCreateWithoutDeploymentsInput = {
+  id?: string
+  name: string
+  type: string
+  status?: string
+  greetingMessage?: string | null
+  personality?: string | null
+  language?: string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutBotConfigurationsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutBotConfigurationsInput
+  events?: Prisma.BotEventCreateNestedManyWithoutBotInput
+}
+
+export type BotConfigurationUncheckedCreateWithoutDeploymentsInput = {
+  id?: string
+  userId: string
+  orgId?: string | null
+  name: string
+  type: string
+  status?: string
+  greetingMessage?: string | null
+  personality?: string | null
+  language?: string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  events?: Prisma.BotEventUncheckedCreateNestedManyWithoutBotInput
+}
+
+export type BotConfigurationCreateOrConnectWithoutDeploymentsInput = {
+  where: Prisma.BotConfigurationWhereUniqueInput
+  create: Prisma.XOR<Prisma.BotConfigurationCreateWithoutDeploymentsInput, Prisma.BotConfigurationUncheckedCreateWithoutDeploymentsInput>
+}
+
+export type BotConfigurationUpsertWithoutDeploymentsInput = {
+  update: Prisma.XOR<Prisma.BotConfigurationUpdateWithoutDeploymentsInput, Prisma.BotConfigurationUncheckedUpdateWithoutDeploymentsInput>
+  create: Prisma.XOR<Prisma.BotConfigurationCreateWithoutDeploymentsInput, Prisma.BotConfigurationUncheckedCreateWithoutDeploymentsInput>
+  where?: Prisma.BotConfigurationWhereInput
+}
+
+export type BotConfigurationUpdateToOneWithWhereWithoutDeploymentsInput = {
+  where?: Prisma.BotConfigurationWhereInput
+  data: Prisma.XOR<Prisma.BotConfigurationUpdateWithoutDeploymentsInput, Prisma.BotConfigurationUncheckedUpdateWithoutDeploymentsInput>
+}
+
+export type BotConfigurationUpdateWithoutDeploymentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  type?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  greetingMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  personality?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  language?: Prisma.StringFieldUpdateOperationsInput | string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutBotConfigurationsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutBotConfigurationsNestedInput
+  events?: Prisma.BotEventUpdateManyWithoutBotNestedInput
+}
+
+export type BotConfigurationUncheckedUpdateWithoutDeploymentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  type?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  greetingMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  personality?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  language?: Prisma.StringFieldUpdateOperationsInput | string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  events?: Prisma.BotEventUncheckedUpdateManyWithoutBotNestedInput
+}
+
+export type BotConfigurationCreateManyOrgInput = {
+  id?: string
+  userId: string
+  name: string
+  type: string
+  status?: string
+  greetingMessage?: string | null
+  personality?: string | null
+  language?: string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type BotConfigurationUpdateWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  type?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  greetingMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  personality?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  language?: Prisma.StringFieldUpdateOperationsInput | string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutBotConfigurationsNestedInput
+  events?: Prisma.BotEventUpdateManyWithoutBotNestedInput
+  deployments?: Prisma.BotDeploymentUpdateManyWithoutBotNestedInput
+}
+
+export type BotConfigurationUncheckedUpdateWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  type?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  greetingMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  personality?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  language?: Prisma.StringFieldUpdateOperationsInput | string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  events?: Prisma.BotEventUncheckedUpdateManyWithoutBotNestedInput
+  deployments?: Prisma.BotDeploymentUncheckedUpdateManyWithoutBotNestedInput
+}
+
+export type BotConfigurationUncheckedUpdateManyWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  type?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  greetingMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  personality?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  language?: Prisma.StringFieldUpdateOperationsInput | string
+  capabilities?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  knowledgeBase?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type BotConfigurationCreateManyUserInput = {
   id?: string
+  orgId?: string | null
   name: string
   type: string
   status?: string
@@ -620,10 +1047,14 @@ export type BotConfigurationUpdateWithoutUserInput = {
   integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  org?: Prisma.OrganizationUpdateOneWithoutBotConfigurationsNestedInput
+  events?: Prisma.BotEventUpdateManyWithoutBotNestedInput
+  deployments?: Prisma.BotDeploymentUpdateManyWithoutBotNestedInput
 }
 
 export type BotConfigurationUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
   type?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -635,10 +1066,13 @@ export type BotConfigurationUncheckedUpdateWithoutUserInput = {
   integrationConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  events?: Prisma.BotEventUncheckedUpdateManyWithoutBotNestedInput
+  deployments?: Prisma.BotDeploymentUncheckedUpdateManyWithoutBotNestedInput
 }
 
 export type BotConfigurationUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   name?: Prisma.StringFieldUpdateOperationsInput | string
   type?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -652,11 +1086,50 @@ export type BotConfigurationUncheckedUpdateManyWithoutUserInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
+
+/**
+ * Count Type BotConfigurationCountOutputType
+ */
+
+export type BotConfigurationCountOutputType = {
+  events: number
+  deployments: number
+}
+
+export type BotConfigurationCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  events?: boolean | BotConfigurationCountOutputTypeCountEventsArgs
+  deployments?: boolean | BotConfigurationCountOutputTypeCountDeploymentsArgs
+}
+
+/**
+ * BotConfigurationCountOutputType without action
+ */
+export type BotConfigurationCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the BotConfigurationCountOutputType
+   */
+  select?: Prisma.BotConfigurationCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * BotConfigurationCountOutputType without action
+ */
+export type BotConfigurationCountOutputTypeCountEventsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.BotEventWhereInput
+}
+
+/**
+ * BotConfigurationCountOutputType without action
+ */
+export type BotConfigurationCountOutputTypeCountDeploymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.BotDeploymentWhereInput
+}
 
 
 export type BotConfigurationSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   name?: boolean
   type?: boolean
   status?: boolean
@@ -669,11 +1142,16 @@ export type BotConfigurationSelect<ExtArgs extends runtime.Types.Extensions.Inte
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.BotConfiguration$orgArgs<ExtArgs>
+  events?: boolean | Prisma.BotConfiguration$eventsArgs<ExtArgs>
+  deployments?: boolean | Prisma.BotConfiguration$deploymentsArgs<ExtArgs>
+  _count?: boolean | Prisma.BotConfigurationCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["botConfiguration"]>
 
 export type BotConfigurationSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   name?: boolean
   type?: boolean
   status?: boolean
@@ -686,11 +1164,13 @@ export type BotConfigurationSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.BotConfiguration$orgArgs<ExtArgs>
 }, ExtArgs["result"]["botConfiguration"]>
 
 export type BotConfigurationSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   name?: boolean
   type?: boolean
   status?: boolean
@@ -703,11 +1183,13 @@ export type BotConfigurationSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.BotConfiguration$orgArgs<ExtArgs>
 }, ExtArgs["result"]["botConfiguration"]>
 
 export type BotConfigurationSelectScalar = {
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   name?: boolean
   type?: boolean
   status?: boolean
@@ -721,25 +1203,35 @@ export type BotConfigurationSelectScalar = {
   updatedAt?: boolean
 }
 
-export type BotConfigurationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "name" | "type" | "status" | "greetingMessage" | "personality" | "language" | "capabilities" | "knowledgeBase" | "integrationConfig" | "createdAt" | "updatedAt", ExtArgs["result"]["botConfiguration"]>
+export type BotConfigurationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "orgId" | "name" | "type" | "status" | "greetingMessage" | "personality" | "language" | "capabilities" | "knowledgeBase" | "integrationConfig" | "createdAt" | "updatedAt", ExtArgs["result"]["botConfiguration"]>
 export type BotConfigurationInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.BotConfiguration$orgArgs<ExtArgs>
+  events?: boolean | Prisma.BotConfiguration$eventsArgs<ExtArgs>
+  deployments?: boolean | Prisma.BotConfiguration$deploymentsArgs<ExtArgs>
+  _count?: boolean | Prisma.BotConfigurationCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type BotConfigurationIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.BotConfiguration$orgArgs<ExtArgs>
 }
 export type BotConfigurationIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.BotConfiguration$orgArgs<ExtArgs>
 }
 
 export type $BotConfigurationPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "BotConfiguration"
   objects: {
     user: Prisma.$UserPayload<ExtArgs>
+    org: Prisma.$OrganizationPayload<ExtArgs> | null
+    events: Prisma.$BotEventPayload<ExtArgs>[]
+    deployments: Prisma.$BotDeploymentPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     userId: string
+    orgId: string | null
     name: string
     type: string
     status: string
@@ -1146,6 +1638,9 @@ readonly fields: BotConfigurationFieldRefs;
 export interface Prisma__BotConfigurationClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  org<T extends Prisma.BotConfiguration$orgArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.BotConfiguration$orgArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  events<T extends Prisma.BotConfiguration$eventsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.BotConfiguration$eventsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BotEventPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  deployments<T extends Prisma.BotConfiguration$deploymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.BotConfiguration$deploymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BotDeploymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1177,6 +1672,7 @@ export interface Prisma__BotConfigurationClient<T, Null = never, ExtArgs extends
 export interface BotConfigurationFieldRefs {
   readonly id: Prisma.FieldRef<"BotConfiguration", 'String'>
   readonly userId: Prisma.FieldRef<"BotConfiguration", 'String'>
+  readonly orgId: Prisma.FieldRef<"BotConfiguration", 'String'>
   readonly name: Prisma.FieldRef<"BotConfiguration", 'String'>
   readonly type: Prisma.FieldRef<"BotConfiguration", 'String'>
   readonly status: Prisma.FieldRef<"BotConfiguration", 'String'>
@@ -1581,6 +2077,73 @@ export type BotConfigurationDeleteManyArgs<ExtArgs extends runtime.Types.Extensi
    * Limit how many BotConfigurations to delete.
    */
   limit?: number
+}
+
+/**
+ * BotConfiguration.org
+ */
+export type BotConfiguration$orgArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Organization
+   */
+  select?: Prisma.OrganizationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Organization
+   */
+  omit?: Prisma.OrganizationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OrganizationInclude<ExtArgs> | null
+  where?: Prisma.OrganizationWhereInput
+}
+
+/**
+ * BotConfiguration.events
+ */
+export type BotConfiguration$eventsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the BotEvent
+   */
+  select?: Prisma.BotEventSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the BotEvent
+   */
+  omit?: Prisma.BotEventOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.BotEventInclude<ExtArgs> | null
+  where?: Prisma.BotEventWhereInput
+  orderBy?: Prisma.BotEventOrderByWithRelationInput | Prisma.BotEventOrderByWithRelationInput[]
+  cursor?: Prisma.BotEventWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.BotEventScalarFieldEnum | Prisma.BotEventScalarFieldEnum[]
+}
+
+/**
+ * BotConfiguration.deployments
+ */
+export type BotConfiguration$deploymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the BotDeployment
+   */
+  select?: Prisma.BotDeploymentSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the BotDeployment
+   */
+  omit?: Prisma.BotDeploymentOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.BotDeploymentInclude<ExtArgs> | null
+  where?: Prisma.BotDeploymentWhereInput
+  orderBy?: Prisma.BotDeploymentOrderByWithRelationInput | Prisma.BotDeploymentOrderByWithRelationInput[]
+  cursor?: Prisma.BotDeploymentWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.BotDeploymentScalarFieldEnum | Prisma.BotDeploymentScalarFieldEnum[]
 }
 
 /**

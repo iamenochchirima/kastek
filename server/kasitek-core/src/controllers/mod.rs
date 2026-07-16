@@ -8,6 +8,7 @@ pub mod admin_quotations;
 pub mod admin_web_services;
 pub mod ai;
 pub mod auth;
+pub mod billing;
 pub mod bots;
 pub mod chat;
 pub mod health;

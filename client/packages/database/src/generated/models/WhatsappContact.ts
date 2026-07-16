@@ -27,6 +27,7 @@ export type AggregateWhatsappContact = {
 export type WhatsappContactMinAggregateOutputType = {
   id: string | null
   userId: string | null
+  orgId: string | null
   phone: string | null
   fullName: string | null
   location: string | null
@@ -44,6 +45,7 @@ export type WhatsappContactMinAggregateOutputType = {
 export type WhatsappContactMaxAggregateOutputType = {
   id: string | null
   userId: string | null
+  orgId: string | null
   phone: string | null
   fullName: string | null
   location: string | null
@@ -61,6 +63,7 @@ export type WhatsappContactMaxAggregateOutputType = {
 export type WhatsappContactCountAggregateOutputType = {
   id: number
   userId: number
+  orgId: number
   phone: number
   fullName: number
   tags: number
@@ -82,6 +85,7 @@ export type WhatsappContactCountAggregateOutputType = {
 export type WhatsappContactMinAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   phone?: true
   fullName?: true
   location?: true
@@ -99,6 +103,7 @@ export type WhatsappContactMinAggregateInputType = {
 export type WhatsappContactMaxAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   phone?: true
   fullName?: true
   location?: true
@@ -116,6 +121,7 @@ export type WhatsappContactMaxAggregateInputType = {
 export type WhatsappContactCountAggregateInputType = {
   id?: true
   userId?: true
+  orgId?: true
   phone?: true
   fullName?: true
   tags?: true
@@ -208,6 +214,7 @@ export type WhatsappContactGroupByArgs<ExtArgs extends runtime.Types.Extensions.
 export type WhatsappContactGroupByOutputType = {
   id: string
   userId: string
+  orgId: string | null
   phone: string
   fullName: string | null
   tags: string[]
@@ -248,6 +255,7 @@ export type WhatsappContactWhereInput = {
   NOT?: Prisma.WhatsappContactWhereInput | Prisma.WhatsappContactWhereInput[]
   id?: Prisma.StringFilter<"WhatsappContact"> | string
   userId?: Prisma.StringFilter<"WhatsappContact"> | string
+  orgId?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
   phone?: Prisma.StringFilter<"WhatsappContact"> | string
   fullName?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
   tags?: Prisma.StringNullableListFilter<"WhatsappContact">
@@ -263,6 +271,7 @@ export type WhatsappContactWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"WhatsappContact"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"WhatsappContact"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
   listMemberships?: Prisma.WhatsappContactListMembershipListRelationFilter
   recipients?: Prisma.WhatsappCampaignRecipientListRelationFilter
   sendEvents?: Prisma.WhatsappSendEventListRelationFilter
@@ -271,6 +280,7 @@ export type WhatsappContactWhereInput = {
 export type WhatsappContactOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrderInput | Prisma.SortOrder
   phone?: Prisma.SortOrder
   fullName?: Prisma.SortOrderInput | Prisma.SortOrder
   tags?: Prisma.SortOrder
@@ -286,6 +296,7 @@ export type WhatsappContactOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
+  org?: Prisma.OrganizationOrderByWithRelationInput
   listMemberships?: Prisma.WhatsappContactListMembershipOrderByRelationAggregateInput
   recipients?: Prisma.WhatsappCampaignRecipientOrderByRelationAggregateInput
   sendEvents?: Prisma.WhatsappSendEventOrderByRelationAggregateInput
@@ -298,6 +309,7 @@ export type WhatsappContactWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.WhatsappContactWhereInput[]
   NOT?: Prisma.WhatsappContactWhereInput | Prisma.WhatsappContactWhereInput[]
   userId?: Prisma.StringFilter<"WhatsappContact"> | string
+  orgId?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
   phone?: Prisma.StringFilter<"WhatsappContact"> | string
   fullName?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
   tags?: Prisma.StringNullableListFilter<"WhatsappContact">
@@ -313,6 +325,7 @@ export type WhatsappContactWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"WhatsappContact"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"WhatsappContact"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
   listMemberships?: Prisma.WhatsappContactListMembershipListRelationFilter
   recipients?: Prisma.WhatsappCampaignRecipientListRelationFilter
   sendEvents?: Prisma.WhatsappSendEventListRelationFilter
@@ -321,6 +334,7 @@ export type WhatsappContactWhereUniqueInput = Prisma.AtLeast<{
 export type WhatsappContactOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrderInput | Prisma.SortOrder
   phone?: Prisma.SortOrder
   fullName?: Prisma.SortOrderInput | Prisma.SortOrder
   tags?: Prisma.SortOrder
@@ -346,6 +360,7 @@ export type WhatsappContactScalarWhereWithAggregatesInput = {
   NOT?: Prisma.WhatsappContactScalarWhereWithAggregatesInput | Prisma.WhatsappContactScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"WhatsappContact"> | string
   userId?: Prisma.StringWithAggregatesFilter<"WhatsappContact"> | string
+  orgId?: Prisma.StringNullableWithAggregatesFilter<"WhatsappContact"> | string | null
   phone?: Prisma.StringWithAggregatesFilter<"WhatsappContact"> | string
   fullName?: Prisma.StringNullableWithAggregatesFilter<"WhatsappContact"> | string | null
   tags?: Prisma.StringNullableListFilter<"WhatsappContact">
@@ -379,6 +394,7 @@ export type WhatsappContactCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappContactsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappContactsInput
   listMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutContactInput
   recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutContactInput
   sendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutContactInput
@@ -387,6 +403,7 @@ export type WhatsappContactCreateInput = {
 export type WhatsappContactUncheckedCreateInput = {
   id?: string
   userId: string
+  orgId?: string | null
   phone: string
   fullName?: string | null
   tags?: Prisma.WhatsappContactCreatetagsInput | string[]
@@ -423,6 +440,7 @@ export type WhatsappContactUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappContactsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappContactsNestedInput
   listMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutContactNestedInput
   recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutContactNestedInput
   sendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutContactNestedInput
@@ -431,6 +449,7 @@ export type WhatsappContactUpdateInput = {
 export type WhatsappContactUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tags?: Prisma.WhatsappContactUpdatetagsInput | string[]
@@ -453,6 +472,7 @@ export type WhatsappContactUncheckedUpdateInput = {
 export type WhatsappContactCreateManyInput = {
   id?: string
   userId: string
+  orgId?: string | null
   phone: string
   fullName?: string | null
   tags?: Prisma.WhatsappContactCreatetagsInput | string[]
@@ -490,6 +510,7 @@ export type WhatsappContactUpdateManyMutationInput = {
 export type WhatsappContactUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tags?: Prisma.WhatsappContactUpdatetagsInput | string[]
@@ -524,6 +545,7 @@ export type WhatsappContactUserIdPhoneCompoundUniqueInput = {
 export type WhatsappContactCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   phone?: Prisma.SortOrder
   fullName?: Prisma.SortOrder
   tags?: Prisma.SortOrder
@@ -543,6 +565,7 @@ export type WhatsappContactCountOrderByAggregateInput = {
 export type WhatsappContactMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   phone?: Prisma.SortOrder
   fullName?: Prisma.SortOrder
   location?: Prisma.SortOrder
@@ -560,6 +583,7 @@ export type WhatsappContactMaxOrderByAggregateInput = {
 export type WhatsappContactMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  orgId?: Prisma.SortOrder
   phone?: Prisma.SortOrder
   fullName?: Prisma.SortOrder
   location?: Prisma.SortOrder
@@ -582,6 +606,48 @@ export type WhatsappContactScalarRelationFilter = {
 export type WhatsappContactNullableScalarRelationFilter = {
   is?: Prisma.WhatsappContactWhereInput | null
   isNot?: Prisma.WhatsappContactWhereInput | null
+}
+
+export type WhatsappContactCreateNestedManyWithoutOrgInput = {
+  create?: Prisma.XOR<Prisma.WhatsappContactCreateWithoutOrgInput, Prisma.WhatsappContactUncheckedCreateWithoutOrgInput> | Prisma.WhatsappContactCreateWithoutOrgInput[] | Prisma.WhatsappContactUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappContactCreateOrConnectWithoutOrgInput | Prisma.WhatsappContactCreateOrConnectWithoutOrgInput[]
+  createMany?: Prisma.WhatsappContactCreateManyOrgInputEnvelope
+  connect?: Prisma.WhatsappContactWhereUniqueInput | Prisma.WhatsappContactWhereUniqueInput[]
+}
+
+export type WhatsappContactUncheckedCreateNestedManyWithoutOrgInput = {
+  create?: Prisma.XOR<Prisma.WhatsappContactCreateWithoutOrgInput, Prisma.WhatsappContactUncheckedCreateWithoutOrgInput> | Prisma.WhatsappContactCreateWithoutOrgInput[] | Prisma.WhatsappContactUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappContactCreateOrConnectWithoutOrgInput | Prisma.WhatsappContactCreateOrConnectWithoutOrgInput[]
+  createMany?: Prisma.WhatsappContactCreateManyOrgInputEnvelope
+  connect?: Prisma.WhatsappContactWhereUniqueInput | Prisma.WhatsappContactWhereUniqueInput[]
+}
+
+export type WhatsappContactUpdateManyWithoutOrgNestedInput = {
+  create?: Prisma.XOR<Prisma.WhatsappContactCreateWithoutOrgInput, Prisma.WhatsappContactUncheckedCreateWithoutOrgInput> | Prisma.WhatsappContactCreateWithoutOrgInput[] | Prisma.WhatsappContactUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappContactCreateOrConnectWithoutOrgInput | Prisma.WhatsappContactCreateOrConnectWithoutOrgInput[]
+  upsert?: Prisma.WhatsappContactUpsertWithWhereUniqueWithoutOrgInput | Prisma.WhatsappContactUpsertWithWhereUniqueWithoutOrgInput[]
+  createMany?: Prisma.WhatsappContactCreateManyOrgInputEnvelope
+  set?: Prisma.WhatsappContactWhereUniqueInput | Prisma.WhatsappContactWhereUniqueInput[]
+  disconnect?: Prisma.WhatsappContactWhereUniqueInput | Prisma.WhatsappContactWhereUniqueInput[]
+  delete?: Prisma.WhatsappContactWhereUniqueInput | Prisma.WhatsappContactWhereUniqueInput[]
+  connect?: Prisma.WhatsappContactWhereUniqueInput | Prisma.WhatsappContactWhereUniqueInput[]
+  update?: Prisma.WhatsappContactUpdateWithWhereUniqueWithoutOrgInput | Prisma.WhatsappContactUpdateWithWhereUniqueWithoutOrgInput[]
+  updateMany?: Prisma.WhatsappContactUpdateManyWithWhereWithoutOrgInput | Prisma.WhatsappContactUpdateManyWithWhereWithoutOrgInput[]
+  deleteMany?: Prisma.WhatsappContactScalarWhereInput | Prisma.WhatsappContactScalarWhereInput[]
+}
+
+export type WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput = {
+  create?: Prisma.XOR<Prisma.WhatsappContactCreateWithoutOrgInput, Prisma.WhatsappContactUncheckedCreateWithoutOrgInput> | Prisma.WhatsappContactCreateWithoutOrgInput[] | Prisma.WhatsappContactUncheckedCreateWithoutOrgInput[]
+  connectOrCreate?: Prisma.WhatsappContactCreateOrConnectWithoutOrgInput | Prisma.WhatsappContactCreateOrConnectWithoutOrgInput[]
+  upsert?: Prisma.WhatsappContactUpsertWithWhereUniqueWithoutOrgInput | Prisma.WhatsappContactUpsertWithWhereUniqueWithoutOrgInput[]
+  createMany?: Prisma.WhatsappContactCreateManyOrgInputEnvelope
+  set?: Prisma.WhatsappContactWhereUniqueInput | Prisma.WhatsappContactWhereUniqueInput[]
+  disconnect?: Prisma.WhatsappContactWhereUniqueInput | Prisma.WhatsappContactWhereUniqueInput[]
+  delete?: Prisma.WhatsappContactWhereUniqueInput | Prisma.WhatsappContactWhereUniqueInput[]
+  connect?: Prisma.WhatsappContactWhereUniqueInput | Prisma.WhatsappContactWhereUniqueInput[]
+  update?: Prisma.WhatsappContactUpdateWithWhereUniqueWithoutOrgInput | Prisma.WhatsappContactUpdateWithWhereUniqueWithoutOrgInput[]
+  updateMany?: Prisma.WhatsappContactUpdateManyWithWhereWithoutOrgInput | Prisma.WhatsappContactUpdateManyWithWhereWithoutOrgInput[]
+  deleteMany?: Prisma.WhatsappContactScalarWhereInput | Prisma.WhatsappContactScalarWhereInput[]
 }
 
 export type WhatsappContactCreateNestedManyWithoutUserInput = {
@@ -679,6 +745,99 @@ export type WhatsappContactUpdateOneWithoutSendEventsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.WhatsappContactUpdateToOneWithWhereWithoutSendEventsInput, Prisma.WhatsappContactUpdateWithoutSendEventsInput>, Prisma.WhatsappContactUncheckedUpdateWithoutSendEventsInput>
 }
 
+export type WhatsappContactCreateWithoutOrgInput = {
+  id?: string
+  phone: string
+  fullName?: string | null
+  tags?: Prisma.WhatsappContactCreatetagsInput | string[]
+  location?: string | null
+  listLabel?: string
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  optIn?: boolean
+  optInSource?: string | null
+  optInDate?: Date | string | null
+  lastMarketingSent?: Date | string | null
+  excluded?: boolean
+  notes?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutWhatsappContactsInput
+  listMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutContactInput
+  recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutContactInput
+  sendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutContactInput
+}
+
+export type WhatsappContactUncheckedCreateWithoutOrgInput = {
+  id?: string
+  userId: string
+  phone: string
+  fullName?: string | null
+  tags?: Prisma.WhatsappContactCreatetagsInput | string[]
+  location?: string | null
+  listLabel?: string
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  optIn?: boolean
+  optInSource?: string | null
+  optInDate?: Date | string | null
+  lastMarketingSent?: Date | string | null
+  excluded?: boolean
+  notes?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  listMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutContactInput
+  recipients?: Prisma.WhatsappCampaignRecipientUncheckedCreateNestedManyWithoutContactInput
+  sendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutContactInput
+}
+
+export type WhatsappContactCreateOrConnectWithoutOrgInput = {
+  where: Prisma.WhatsappContactWhereUniqueInput
+  create: Prisma.XOR<Prisma.WhatsappContactCreateWithoutOrgInput, Prisma.WhatsappContactUncheckedCreateWithoutOrgInput>
+}
+
+export type WhatsappContactCreateManyOrgInputEnvelope = {
+  data: Prisma.WhatsappContactCreateManyOrgInput | Prisma.WhatsappContactCreateManyOrgInput[]
+  skipDuplicates?: boolean
+}
+
+export type WhatsappContactUpsertWithWhereUniqueWithoutOrgInput = {
+  where: Prisma.WhatsappContactWhereUniqueInput
+  update: Prisma.XOR<Prisma.WhatsappContactUpdateWithoutOrgInput, Prisma.WhatsappContactUncheckedUpdateWithoutOrgInput>
+  create: Prisma.XOR<Prisma.WhatsappContactCreateWithoutOrgInput, Prisma.WhatsappContactUncheckedCreateWithoutOrgInput>
+}
+
+export type WhatsappContactUpdateWithWhereUniqueWithoutOrgInput = {
+  where: Prisma.WhatsappContactWhereUniqueInput
+  data: Prisma.XOR<Prisma.WhatsappContactUpdateWithoutOrgInput, Prisma.WhatsappContactUncheckedUpdateWithoutOrgInput>
+}
+
+export type WhatsappContactUpdateManyWithWhereWithoutOrgInput = {
+  where: Prisma.WhatsappContactScalarWhereInput
+  data: Prisma.XOR<Prisma.WhatsappContactUpdateManyMutationInput, Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgInput>
+}
+
+export type WhatsappContactScalarWhereInput = {
+  AND?: Prisma.WhatsappContactScalarWhereInput | Prisma.WhatsappContactScalarWhereInput[]
+  OR?: Prisma.WhatsappContactScalarWhereInput[]
+  NOT?: Prisma.WhatsappContactScalarWhereInput | Prisma.WhatsappContactScalarWhereInput[]
+  id?: Prisma.StringFilter<"WhatsappContact"> | string
+  userId?: Prisma.StringFilter<"WhatsappContact"> | string
+  orgId?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
+  phone?: Prisma.StringFilter<"WhatsappContact"> | string
+  fullName?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
+  tags?: Prisma.StringNullableListFilter<"WhatsappContact">
+  location?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
+  listLabel?: Prisma.StringFilter<"WhatsappContact"> | string
+  metadata?: Prisma.JsonNullableFilter<"WhatsappContact">
+  optIn?: Prisma.BoolFilter<"WhatsappContact"> | boolean
+  optInSource?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
+  optInDate?: Prisma.DateTimeNullableFilter<"WhatsappContact"> | Date | string | null
+  lastMarketingSent?: Prisma.DateTimeNullableFilter<"WhatsappContact"> | Date | string | null
+  excluded?: Prisma.BoolFilter<"WhatsappContact"> | boolean
+  notes?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
+  createdAt?: Prisma.DateTimeFilter<"WhatsappContact"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"WhatsappContact"> | Date | string
+}
+
 export type WhatsappContactCreateWithoutUserInput = {
   id?: string
   phone: string
@@ -695,6 +854,7 @@ export type WhatsappContactCreateWithoutUserInput = {
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappContactsInput
   listMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutContactInput
   recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutContactInput
   sendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutContactInput
@@ -702,6 +862,7 @@ export type WhatsappContactCreateWithoutUserInput = {
 
 export type WhatsappContactUncheckedCreateWithoutUserInput = {
   id?: string
+  orgId?: string | null
   phone: string
   fullName?: string | null
   tags?: Prisma.WhatsappContactCreatetagsInput | string[]
@@ -747,28 +908,6 @@ export type WhatsappContactUpdateManyWithWhereWithoutUserInput = {
   data: Prisma.XOR<Prisma.WhatsappContactUpdateManyMutationInput, Prisma.WhatsappContactUncheckedUpdateManyWithoutUserInput>
 }
 
-export type WhatsappContactScalarWhereInput = {
-  AND?: Prisma.WhatsappContactScalarWhereInput | Prisma.WhatsappContactScalarWhereInput[]
-  OR?: Prisma.WhatsappContactScalarWhereInput[]
-  NOT?: Prisma.WhatsappContactScalarWhereInput | Prisma.WhatsappContactScalarWhereInput[]
-  id?: Prisma.StringFilter<"WhatsappContact"> | string
-  userId?: Prisma.StringFilter<"WhatsappContact"> | string
-  phone?: Prisma.StringFilter<"WhatsappContact"> | string
-  fullName?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
-  tags?: Prisma.StringNullableListFilter<"WhatsappContact">
-  location?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
-  listLabel?: Prisma.StringFilter<"WhatsappContact"> | string
-  metadata?: Prisma.JsonNullableFilter<"WhatsappContact">
-  optIn?: Prisma.BoolFilter<"WhatsappContact"> | boolean
-  optInSource?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
-  optInDate?: Prisma.DateTimeNullableFilter<"WhatsappContact"> | Date | string | null
-  lastMarketingSent?: Prisma.DateTimeNullableFilter<"WhatsappContact"> | Date | string | null
-  excluded?: Prisma.BoolFilter<"WhatsappContact"> | boolean
-  notes?: Prisma.StringNullableFilter<"WhatsappContact"> | string | null
-  createdAt?: Prisma.DateTimeFilter<"WhatsappContact"> | Date | string
-  updatedAt?: Prisma.DateTimeFilter<"WhatsappContact"> | Date | string
-}
-
 export type WhatsappContactCreateWithoutListMembershipsInput = {
   id?: string
   phone: string
@@ -786,6 +925,7 @@ export type WhatsappContactCreateWithoutListMembershipsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappContactsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappContactsInput
   recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutContactInput
   sendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutContactInput
 }
@@ -793,6 +933,7 @@ export type WhatsappContactCreateWithoutListMembershipsInput = {
 export type WhatsappContactUncheckedCreateWithoutListMembershipsInput = {
   id?: string
   userId: string
+  orgId?: string | null
   phone: string
   fullName?: string | null
   tags?: Prisma.WhatsappContactCreatetagsInput | string[]
@@ -844,6 +985,7 @@ export type WhatsappContactUpdateWithoutListMembershipsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappContactsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappContactsNestedInput
   recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutContactNestedInput
   sendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutContactNestedInput
 }
@@ -851,6 +993,7 @@ export type WhatsappContactUpdateWithoutListMembershipsInput = {
 export type WhatsappContactUncheckedUpdateWithoutListMembershipsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tags?: Prisma.WhatsappContactUpdatetagsInput | string[]
@@ -886,6 +1029,7 @@ export type WhatsappContactCreateWithoutRecipientsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappContactsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappContactsInput
   listMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutContactInput
   sendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutContactInput
 }
@@ -893,6 +1037,7 @@ export type WhatsappContactCreateWithoutRecipientsInput = {
 export type WhatsappContactUncheckedCreateWithoutRecipientsInput = {
   id?: string
   userId: string
+  orgId?: string | null
   phone: string
   fullName?: string | null
   tags?: Prisma.WhatsappContactCreatetagsInput | string[]
@@ -944,6 +1089,7 @@ export type WhatsappContactUpdateWithoutRecipientsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappContactsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappContactsNestedInput
   listMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutContactNestedInput
   sendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutContactNestedInput
 }
@@ -951,6 +1097,7 @@ export type WhatsappContactUpdateWithoutRecipientsInput = {
 export type WhatsappContactUncheckedUpdateWithoutRecipientsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tags?: Prisma.WhatsappContactUpdatetagsInput | string[]
@@ -986,6 +1133,7 @@ export type WhatsappContactCreateWithoutSendEventsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWhatsappContactsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutWhatsappContactsInput
   listMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutContactInput
   recipients?: Prisma.WhatsappCampaignRecipientCreateNestedManyWithoutContactInput
 }
@@ -993,6 +1141,7 @@ export type WhatsappContactCreateWithoutSendEventsInput = {
 export type WhatsappContactUncheckedCreateWithoutSendEventsInput = {
   id?: string
   userId: string
+  orgId?: string | null
   phone: string
   fullName?: string | null
   tags?: Prisma.WhatsappContactCreatetagsInput | string[]
@@ -1044,6 +1193,7 @@ export type WhatsappContactUpdateWithoutSendEventsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWhatsappContactsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappContactsNestedInput
   listMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutContactNestedInput
   recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutContactNestedInput
 }
@@ -1051,6 +1201,7 @@ export type WhatsappContactUpdateWithoutSendEventsInput = {
 export type WhatsappContactUncheckedUpdateWithoutSendEventsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tags?: Prisma.WhatsappContactUpdatetagsInput | string[]
@@ -1069,8 +1220,91 @@ export type WhatsappContactUncheckedUpdateWithoutSendEventsInput = {
   recipients?: Prisma.WhatsappCampaignRecipientUncheckedUpdateManyWithoutContactNestedInput
 }
 
+export type WhatsappContactCreateManyOrgInput = {
+  id?: string
+  userId: string
+  phone: string
+  fullName?: string | null
+  tags?: Prisma.WhatsappContactCreatetagsInput | string[]
+  location?: string | null
+  listLabel?: string
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  optIn?: boolean
+  optInSource?: string | null
+  optInDate?: Date | string | null
+  lastMarketingSent?: Date | string | null
+  excluded?: boolean
+  notes?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type WhatsappContactUpdateWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.WhatsappContactUpdatetagsInput | string[]
+  location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  listLabel?: Prisma.StringFieldUpdateOperationsInput | string
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  optIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  optInSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  optInDate?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastMarketingSent?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  excluded?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutWhatsappContactsNestedInput
+  listMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutContactNestedInput
+  recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutContactNestedInput
+  sendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutContactNestedInput
+}
+
+export type WhatsappContactUncheckedUpdateWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.WhatsappContactUpdatetagsInput | string[]
+  location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  listLabel?: Prisma.StringFieldUpdateOperationsInput | string
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  optIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  optInSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  optInDate?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastMarketingSent?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  excluded?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  listMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutContactNestedInput
+  recipients?: Prisma.WhatsappCampaignRecipientUncheckedUpdateManyWithoutContactNestedInput
+  sendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutContactNestedInput
+}
+
+export type WhatsappContactUncheckedUpdateManyWithoutOrgInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.WhatsappContactUpdatetagsInput | string[]
+  location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  listLabel?: Prisma.StringFieldUpdateOperationsInput | string
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  optIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  optInSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  optInDate?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastMarketingSent?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  excluded?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
 export type WhatsappContactCreateManyUserInput = {
   id?: string
+  orgId?: string | null
   phone: string
   fullName?: string | null
   tags?: Prisma.WhatsappContactCreatetagsInput | string[]
@@ -1103,6 +1337,7 @@ export type WhatsappContactUpdateWithoutUserInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  org?: Prisma.OrganizationUpdateOneWithoutWhatsappContactsNestedInput
   listMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutContactNestedInput
   recipients?: Prisma.WhatsappCampaignRecipientUpdateManyWithoutContactNestedInput
   sendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutContactNestedInput
@@ -1110,6 +1345,7 @@ export type WhatsappContactUpdateWithoutUserInput = {
 
 export type WhatsappContactUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tags?: Prisma.WhatsappContactUpdatetagsInput | string[]
@@ -1131,6 +1367,7 @@ export type WhatsappContactUncheckedUpdateWithoutUserInput = {
 
 export type WhatsappContactUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   phone?: Prisma.StringFieldUpdateOperationsInput | string
   fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tags?: Prisma.WhatsappContactUpdatetagsInput | string[]
@@ -1199,6 +1436,7 @@ export type WhatsappContactCountOutputTypeCountSendEventsArgs<ExtArgs extends ru
 export type WhatsappContactSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   phone?: boolean
   fullName?: boolean
   tags?: boolean
@@ -1214,6 +1452,7 @@ export type WhatsappContactSelect<ExtArgs extends runtime.Types.Extensions.Inter
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappContact$orgArgs<ExtArgs>
   listMemberships?: boolean | Prisma.WhatsappContact$listMembershipsArgs<ExtArgs>
   recipients?: boolean | Prisma.WhatsappContact$recipientsArgs<ExtArgs>
   sendEvents?: boolean | Prisma.WhatsappContact$sendEventsArgs<ExtArgs>
@@ -1223,6 +1462,7 @@ export type WhatsappContactSelect<ExtArgs extends runtime.Types.Extensions.Inter
 export type WhatsappContactSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   phone?: boolean
   fullName?: boolean
   tags?: boolean
@@ -1238,11 +1478,13 @@ export type WhatsappContactSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappContact$orgArgs<ExtArgs>
 }, ExtArgs["result"]["whatsappContact"]>
 
 export type WhatsappContactSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   phone?: boolean
   fullName?: boolean
   tags?: boolean
@@ -1258,11 +1500,13 @@ export type WhatsappContactSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappContact$orgArgs<ExtArgs>
 }, ExtArgs["result"]["whatsappContact"]>
 
 export type WhatsappContactSelectScalar = {
   id?: boolean
   userId?: boolean
+  orgId?: boolean
   phone?: boolean
   fullName?: boolean
   tags?: boolean
@@ -1279,9 +1523,10 @@ export type WhatsappContactSelectScalar = {
   updatedAt?: boolean
 }
 
-export type WhatsappContactOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "phone" | "fullName" | "tags" | "location" | "listLabel" | "metadata" | "optIn" | "optInSource" | "optInDate" | "lastMarketingSent" | "excluded" | "notes" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappContact"]>
+export type WhatsappContactOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "orgId" | "phone" | "fullName" | "tags" | "location" | "listLabel" | "metadata" | "optIn" | "optInSource" | "optInDate" | "lastMarketingSent" | "excluded" | "notes" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappContact"]>
 export type WhatsappContactInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappContact$orgArgs<ExtArgs>
   listMemberships?: boolean | Prisma.WhatsappContact$listMembershipsArgs<ExtArgs>
   recipients?: boolean | Prisma.WhatsappContact$recipientsArgs<ExtArgs>
   sendEvents?: boolean | Prisma.WhatsappContact$sendEventsArgs<ExtArgs>
@@ -1289,15 +1534,18 @@ export type WhatsappContactInclude<ExtArgs extends runtime.Types.Extensions.Inte
 }
 export type WhatsappContactIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappContact$orgArgs<ExtArgs>
 }
 export type WhatsappContactIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  org?: boolean | Prisma.WhatsappContact$orgArgs<ExtArgs>
 }
 
 export type $WhatsappContactPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "WhatsappContact"
   objects: {
     user: Prisma.$UserPayload<ExtArgs>
+    org: Prisma.$OrganizationPayload<ExtArgs> | null
     listMemberships: Prisma.$WhatsappContactListMembershipPayload<ExtArgs>[]
     recipients: Prisma.$WhatsappCampaignRecipientPayload<ExtArgs>[]
     sendEvents: Prisma.$WhatsappSendEventPayload<ExtArgs>[]
@@ -1305,6 +1553,7 @@ export type $WhatsappContactPayload<ExtArgs extends runtime.Types.Extensions.Int
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     userId: string
+    orgId: string | null
     phone: string
     fullName: string | null
     tags: string[]
@@ -1714,6 +1963,7 @@ readonly fields: WhatsappContactFieldRefs;
 export interface Prisma__WhatsappContactClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  org<T extends Prisma.WhatsappContact$orgArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappContact$orgArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   listMemberships<T extends Prisma.WhatsappContact$listMembershipsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappContact$listMembershipsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappContactListMembershipPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   recipients<T extends Prisma.WhatsappContact$recipientsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappContact$recipientsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappCampaignRecipientPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   sendEvents<T extends Prisma.WhatsappContact$sendEventsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.WhatsappContact$sendEventsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappSendEventPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -1748,6 +1998,7 @@ export interface Prisma__WhatsappContactClient<T, Null = never, ExtArgs extends 
 export interface WhatsappContactFieldRefs {
   readonly id: Prisma.FieldRef<"WhatsappContact", 'String'>
   readonly userId: Prisma.FieldRef<"WhatsappContact", 'String'>
+  readonly orgId: Prisma.FieldRef<"WhatsappContact", 'String'>
   readonly phone: Prisma.FieldRef<"WhatsappContact", 'String'>
   readonly fullName: Prisma.FieldRef<"WhatsappContact", 'String'>
   readonly tags: Prisma.FieldRef<"WhatsappContact", 'String[]'>
@@ -2155,6 +2406,25 @@ export type WhatsappContactDeleteManyArgs<ExtArgs extends runtime.Types.Extensio
    * Limit how many WhatsappContacts to delete.
    */
   limit?: number
+}
+
+/**
+ * WhatsappContact.org
+ */
+export type WhatsappContact$orgArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Organization
+   */
+  select?: Prisma.OrganizationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Organization
+   */
+  omit?: Prisma.OrganizationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OrganizationInclude<ExtArgs> | null
+  where?: Prisma.OrganizationWhereInput
 }
 
 /**
