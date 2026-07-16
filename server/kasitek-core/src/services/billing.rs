@@ -120,6 +120,7 @@ pub async fn create_paystack_checkout(
     pool: &PgPool,
     config: &AppConfig,
     org_id: &str,
+    user_id: &str,
     email: &str,
     plan_key: &str,
 ) -> Result<Value, AppError> {
@@ -128,9 +129,9 @@ pub async fn create_paystack_checkout(
         .as_deref()
         .filter(|key| !key.trim().is_empty())
         .ok_or_else(|| AppError::BadRequest("Paystack checkout is not configured".to_string()))?;
-    let plan = sqlx::query_as::<_, (String, String, String)>(
+    let plan = sqlx::query_as::<_, (String, String, String, String)>(
         r#"
-        SELECT plan."paystackPlanCode", product.key, plan.name
+        SELECT plan.id, plan."paystackPlanCode", product.key, plan.name
         FROM "ProductPlan" plan JOIN "Product" product ON product.id = plan."productId"
         WHERE plan.key = $1 AND plan.active = true AND product.active = true
     "#,
@@ -139,13 +140,19 @@ pub async fn create_paystack_checkout(
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Active plan not found".to_string()))?;
-    let (paystack_plan_code, product_key, plan_name) = plan;
+    let (plan_id, paystack_plan_code, product_key, plan_name) = plan;
     if paystack_plan_code.trim().is_empty() {
         return Err(AppError::BadRequest(
             "This plan is not connected to Paystack yet".to_string(),
         ));
     }
     let reference = format!("ks_{}", cuid2::create_id());
+    sqlx::query(r#"
+        INSERT INTO "BillingCheckout" (id, reference, "orgId", "planId", "userId", email, provider, status, "createdAt", "updatedAt")
+        VALUES ($1, $2, $3, $4, $5, $6, 'paystack', 'PENDING', NOW(), NOW())
+    "#)
+    .bind(cuid2::create_id()).bind(&reference).bind(org_id).bind(&plan_id).bind(user_id).bind(email)
+    .execute(pool).await?;
     let callback_url = format!(
         "{}/billing?payment=complete",
         config.frontend_url.trim_end_matches('/')
@@ -153,6 +160,10 @@ pub async fn create_paystack_checkout(
     let response = reqwest::Client::new().post("https://api.paystack.co/transaction/initialize")
         .bearer_auth(secret).json(&serde_json::json!({"email": email, "plan": paystack_plan_code, "reference": reference, "callback_url": callback_url, "metadata": {"orgId": org_id, "planKey": plan_key, "productKey": product_key}})).send().await?;
     let body: PaystackInitializeResponse = response.json().await?;
+    if !body.status {
+        sqlx::query(r#"UPDATE "BillingCheckout" SET status = 'FAILED', "updatedAt" = NOW() WHERE reference = $1"#)
+            .bind(&reference).execute(pool).await?;
+    }
     let data = body
         .data
         .filter(|_| body.status)

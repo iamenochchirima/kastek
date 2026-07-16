@@ -37,6 +37,7 @@ model Organization {
   subscriptions            OrganizationSubscription[]
   entitlementGrants        OrganizationEntitlementGrant[]
   usageEvents              UsageEvent[]
+  billingCheckouts         BillingCheckout[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -140,6 +141,7 @@ model ProductPlan {
 
   entitlements        PlanEntitlement[]
   subscriptions       OrganizationSubscription[]
+  billingCheckouts    BillingCheckout[]
 
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
@@ -221,6 +223,27 @@ model UsageEvent {
   @@index([orgId, productKey, metricKey, occurredAt])
 }
 
+model BillingCheckout {
+  id          String       @id @default(cuid())
+  reference   String       @unique
+  orgId       String
+  planId      String
+  userId      String
+  email       String
+  provider    String
+  status      String       @default("PENDING")
+  completedAt DateTime?
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  plan ProductPlan  @relation(fields: [planId], references: [id], onDelete: Restrict)
+  user User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, status])
+}
+
 // ─── Auth.js Required Tables (Client App) ─────────────────
 
 model User {
@@ -255,6 +278,7 @@ model User {
   whatsappSendEvents  WhatsappSendEvent[]
   whatsappCallSessions WhatsappCallSession[]
   pushSubscriptions   PushSubscription[]
+  billingCheckouts    BillingCheckout[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

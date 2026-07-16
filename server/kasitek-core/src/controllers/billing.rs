@@ -48,6 +48,7 @@ pub async fn checkout(
             pool.get_ref(),
             config.get_ref(),
             &org_id,
+            &user.id,
             email,
             &body.plan_key,
         )
