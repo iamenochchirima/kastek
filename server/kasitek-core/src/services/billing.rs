@@ -65,6 +65,7 @@ pub struct ProductAccess {
     #[serde(rename = "cancelAtPeriodEnd")]
     pub cancel_at_period_end: bool,
     pub usage: HashMap<String, i64>,
+    pub limits: HashMap<String, i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -72,6 +73,8 @@ pub struct BillingSummary {
     #[serde(rename = "orgId")]
     pub org_id: String,
     pub products: Vec<ProductAccess>,
+    #[serde(rename = "manualGrants")]
+    pub manual_grants: Vec<ManualGrant>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -420,6 +423,9 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
             // Multiple valid grants should be additive. A stale or narrower false grant must not
             // turn off access provided by an active plan or another grant.
             (Some(Value::Bool(existing)), Value::Bool(next)) => Value::Bool(*existing || *next),
+            (Some(existing), next) if existing.as_i64().is_some() && next.as_i64().is_some() => {
+                Value::from(existing.as_i64().unwrap().max(next.as_i64().unwrap()))
+            }
             _ => entitlement.value,
         };
         entitlements.insert(entitlement.key, value);
@@ -480,6 +486,14 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
                 .and_then(Value::as_bool)
                 .unwrap_or(false);
             let subscription = subscriptions.remove(&product.key);
+            let limit_prefix = format!("limit.{}.", product.key);
+            let limits = entitlements
+                .iter()
+                .filter_map(|(key, value)| {
+                    key.strip_prefix(&limit_prefix)
+                        .and_then(|metric| value.as_i64().map(|limit| (metric.to_string(), limit)))
+                })
+                .collect();
             let has_access = grant_allows_access || subscription.is_some();
             let state = if has_access {
                 "enabled"
@@ -507,13 +521,20 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
                     .map(|item| item.cancel_at_period_end)
                     .unwrap_or(false),
                 usage: usage_by_product.remove(&product.key).unwrap_or_default(),
+                limits,
             }
         })
         .collect();
 
+    let manual_grants = list_manual_grants(pool, org_id)
+        .await?
+        .into_iter()
+        .filter(|grant| grant.ends_at.is_none_or(|ends_at| ends_at > Utc::now()))
+        .collect();
     Ok(BillingSummary {
         org_id: org_id.to_string(),
         products,
+        manual_grants,
     })
 }
 

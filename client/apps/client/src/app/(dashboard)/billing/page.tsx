@@ -85,6 +85,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                       {Object.entries(product.usage).map(([metric, quantity]) => (
                         <p key={metric}>
                           {metric}: {quantity}
+                          {product.limits[metric] !== undefined ? ` / ${product.limits[metric]}` : ""}
                         </p>
                       ))}
                     </div>
@@ -117,6 +118,28 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             })}
           </section>
         )}
+
+        {summary?.manualGrants.length ? (
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-lg font-semibold text-foreground">Manual access</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Temporary or internal access granted outside a paid subscription.
+            </p>
+            <div className="mt-4 divide-y divide-border">
+              {summary.manualGrants.map((grant) => (
+                <div key={grant.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                  <div>
+                    <p className="font-medium text-foreground">{grant.key}</p>
+                    <p className="text-muted-foreground">{grant.reason ?? "No reason recorded"}</p>
+                  </div>
+                  <span className="text-muted-foreground">
+                    {grant.endsAt ? `Expires ${new Date(grant.endsAt).toLocaleDateString("en-ZA")}` : "No expiry"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );

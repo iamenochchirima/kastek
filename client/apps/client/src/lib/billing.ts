@@ -12,11 +12,24 @@ export type ProductAccess = {
   trialEndsAt: string | null;
   cancelAtPeriodEnd: boolean;
   usage: Record<string, number>;
+  limits: Record<string, number>;
+};
+
+export type ManualGrant = {
+  id: string;
+  orgId: string;
+  key: string;
+  value: unknown;
+  startsAt: string;
+  endsAt: string | null;
+  reason: string | null;
+  createdById: string | null;
 };
 
 export type BillingSummary = {
   orgId: string;
   products: ProductAccess[];
+  manualGrants: ManualGrant[];
 };
 
 export type AvailablePlan = {
