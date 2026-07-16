@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
-import { fetchBillingSummary, type ProductAccess } from "@/lib/billing";
+import { CheckoutButton } from "@/components/dashboard/billing/checkout-button";
+import { fetchBillingPlans, fetchBillingSummary, type ProductAccess } from "@/lib/billing";
 import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
 
@@ -14,11 +15,20 @@ function productStateLabel(product: ProductAccess) {
   return "Active";
 }
 
-export default async function BillingPage() {
+function formatPrice(amountMinor: number | null, currency: string) {
+  if (amountMinor === null) return "Contact sales";
+  return new Intl.NumberFormat("en-ZA", { style: "currency", currency }).format(amountMinor / 100);
+}
+
+export default async function BillingPage({ searchParams }: { searchParams: Promise<{ payment?: string }> }) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
-  const summary = await fetchBillingSummary().catch(() => null);
+  const [summary, planResponse, query] = await Promise.all([
+    fetchBillingSummary().catch(() => null),
+    fetchBillingPlans().catch(() => ({ plans: [] })),
+    searchParams,
+  ]);
 
   return (
     <div className="min-h-screen p-6 lg:p-8">
@@ -31,13 +41,21 @@ export default async function BillingPage() {
           </p>
         </div>
 
+        {query.payment === "complete" ? (
+          <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm text-foreground">
+            Payment received. Access updates after Paystack confirms the transaction; refresh this page if the status is still pending.
+          </div>
+        ) : null}
+
         {!summary ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-5 text-sm text-destructive">
             Billing information is unavailable right now. No product access has been changed.
           </div>
         ) : (
           <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {summary.products.map((product) => (
+            {summary.products.map((product) => {
+              const plans = planResponse.plans.filter((plan) => plan.productKey === product.key);
+              return (
               <article key={product.key} className="rounded-xl border border-border bg-card p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -76,12 +94,27 @@ export default async function BillingPage() {
                 </div>
 
                 {!product.hasAccess ? (
-                  <p className="mt-5 rounded-lg border border-border bg-secondary/50 px-3 py-2 text-sm text-muted-foreground">
-                    Plans and checkout will appear here when billing is enabled for this workspace.
-                  </p>
+                  <div className="mt-5 space-y-3">
+                    {plans.length ? plans.map((plan) => (
+                      <div key={plan.key} className="rounded-lg border border-border bg-secondary/40 p-3">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="font-medium text-foreground">{plan.name}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {formatPrice(plan.amountMinor, plan.currency)} / {plan.interval === "YEARLY" ? "year" : "month"}
+                          </span>
+                        </div>
+                        <CheckoutButton planKey={plan.key} disabled={!plan.checkoutReady} />
+                      </div>
+                    )) : (
+                      <p className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-sm text-muted-foreground">
+                        No active plans are available for this product yet.
+                      </p>
+                    )}
+                  </div>
                 ) : null}
               </article>
-            ))}
+              );
+            })}
           </section>
         )}
       </div>

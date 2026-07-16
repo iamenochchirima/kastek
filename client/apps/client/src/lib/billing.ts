@@ -19,6 +19,20 @@ export type BillingSummary = {
   products: ProductAccess[];
 };
 
+export type AvailablePlan = {
+  key: string;
+  productKey: string;
+  name: string;
+  interval: "MONTHLY" | "YEARLY";
+  currency: string;
+  amountMinor: number | null;
+  checkoutReady: boolean;
+};
+
 export function fetchBillingSummary() {
   return fetchRustJson<BillingSummary>("/api/billing/summary");
+}
+
+export function fetchBillingPlans() {
+  return fetchRustJson<{ plans: AvailablePlan[] }>("/api/billing/plans");
 }
