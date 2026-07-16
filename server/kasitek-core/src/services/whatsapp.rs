@@ -18,6 +18,7 @@ use crate::db::models::{
     WhatsappTemplateRow,
 };
 use crate::error::AppError;
+use crate::services::billing;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
 use crate::services::realtime;
 use crate::services::social::{decrypt_social_secret, encrypt_social_secret};
@@ -1152,7 +1153,7 @@ pub async fn list_templates(
 
 pub async fn list_contacts(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     query: WhatsappContactListQuery,
 ) -> Result<Value, AppError> {
     let requested_limit = query.limit.unwrap_or(500);
@@ -1180,7 +1181,7 @@ pub async fn list_contacts(
             m."updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappContactListMembership" m
         JOIN "WhatsappContact" c ON c.id = m."contactId"
-        WHERE m."userId" = $1
+        WHERE m."orgId" = $1
           AND (
             COALESCE($2, '') = ''
             OR COALESCE(m."fullName", c."fullName", '') ILIKE ('%' || $2 || '%')
@@ -1227,7 +1228,7 @@ pub async fn list_contacts(
         LIMIT $8
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .bind(
         query
             .q
@@ -1263,21 +1264,21 @@ pub async fn list_contacts(
     .await?;
 
     let (total_contacts, opted_in_contacts, excluded_contacts, tag_rows, list_rows) = tokio::try_join!(
-        sqlx::query_scalar::<_, i64>(r#"SELECT COUNT(*) FROM "WhatsappContact" WHERE "userId" = $1"#)
-            .bind(user_id)
+        sqlx::query_scalar::<_, i64>(r#"SELECT COUNT(*) FROM "WhatsappContact" WHERE "orgId" = $1"#)
+            .bind(org_id)
             .fetch_one(pool),
         sqlx::query_scalar::<_, i64>(
-            r#"SELECT COUNT(DISTINCT "contactId") FROM "WhatsappContactListMembership" WHERE "userId" = $1 AND "optIn" = true"#,
+            r#"SELECT COUNT(DISTINCT "contactId") FROM "WhatsappContactListMembership" WHERE "orgId" = $1 AND "optIn" = true"#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .fetch_one(pool),
         sqlx::query_scalar::<_, i64>(
-            r#"SELECT COUNT(DISTINCT "contactId") FROM "WhatsappContactListMembership" WHERE "userId" = $1 AND excluded = true"#,
+            r#"SELECT COUNT(DISTINCT "contactId") FROM "WhatsappContactListMembership" WHERE "orgId" = $1 AND excluded = true"#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .fetch_one(pool),
-        sqlx::query_scalar::<_, Vec<String>>(r#"SELECT COALESCE(tags, ARRAY[]::text[]) FROM "WhatsappContactListMembership" WHERE "userId" = $1"#)
-            .bind(user_id)
+        sqlx::query_scalar::<_, Vec<String>>(r#"SELECT COALESCE(tags, ARRAY[]::text[]) FROM "WhatsappContactListMembership" WHERE "orgId" = $1"#)
+            .bind(org_id)
             .fetch_all(pool),
         sqlx::query(
             r#"
@@ -1288,12 +1289,12 @@ pub async fn list_contacts(
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT metadata_key), NULL) AS metadata_keys
             FROM "WhatsappContactListMembership"
             LEFT JOIN LATERAL jsonb_object_keys(COALESCE(metadata, '{}'::jsonb)) AS metadata_key ON TRUE
-            WHERE "userId" = $1
+            WHERE "orgId" = $1
             GROUP BY "listLabel"
             ORDER BY "listLabel" ASC
             "#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .fetch_all(pool),
     )?;
 
@@ -1337,7 +1338,7 @@ pub async fn list_contacts(
 
 pub async fn export_contact_list(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     label: &str,
 ) -> Result<actix_web::HttpResponse, AppError> {
     let list_label = sanitize_list_label(Some(label));
@@ -1363,12 +1364,12 @@ pub async fn export_contact_list(
             m."updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappContactListMembership" m
         JOIN "WhatsappContact" c ON c.id = m."contactId"
-        WHERE m."userId" = $1
+        WHERE m."orgId" = $1
           AND m."listLabel" = $2
         ORDER BY m."createdAt" ASC
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .bind(&list_label)
     .fetch_all(pool)
     .await?;
@@ -1448,11 +1449,11 @@ pub async fn export_contact_list(
 
 pub async fn update_contact(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     contact_id: &str,
     input: WhatsappContactUpdateRequest,
 ) -> Result<Value, AppError> {
-    let existing = select_list_contact_row(pool, user_id, contact_id)
+    let existing = select_list_contact_row(pool, org_id, contact_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Contact not found".to_string()))?;
 
@@ -1474,11 +1475,11 @@ pub async fn update_contact(
             r#"
             SELECT id
             FROM "WhatsappContact"
-            WHERE "userId" = $1 AND phone = $2 AND id <> $3
+            WHERE "orgId" = $1 AND phone = $2 AND id <> $3
             LIMIT 1
             "#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .bind(phone)
         .bind(&existing.contact_id)
         .fetch_optional(pool)
@@ -1512,12 +1513,12 @@ pub async fn update_contact(
             r#"
             UPDATE "WhatsappContact"
             SET phone = $1, "updatedAt" = NOW()
-            WHERE id = $2 AND "userId" = $3
+            WHERE id = $2 AND "orgId" = $3
             "#,
         )
         .bind(phone)
         .bind(&existing.contact_id)
-        .bind(user_id)
+        .bind(org_id)
         .execute(pool)
         .await?;
     }
@@ -1527,14 +1528,14 @@ pub async fn update_contact(
             r#"
             SELECT id
             FROM "WhatsappContactListMembership"
-            WHERE "userId" = $1
+            WHERE "orgId" = $1
               AND "contactId" = $2
               AND "listLabel" = $3
               AND id <> $4
             LIMIT 1
             "#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .bind(&existing.contact_id)
         .bind(next_label)
         .bind(contact_id)
@@ -1561,7 +1562,7 @@ pub async fn update_contact(
             "optInDate" = $9,
             excluded = COALESCE($10, excluded),
             "updatedAt" = NOW()
-        WHERE id = $11 AND "userId" = $12
+        WHERE id = $11 AND "orgId" = $12
         "#,
     )
     .bind(
@@ -1593,11 +1594,11 @@ pub async fn update_contact(
     .bind(opt_in_date)
     .bind(input.excluded)
     .bind(contact_id)
-    .bind(user_id)
+    .bind(org_id)
     .execute(pool)
     .await?;
 
-    let contact = select_list_contact_row(pool, user_id, contact_id)
+    let contact = select_list_contact_row(pool, org_id, contact_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload contact".to_string()))?;
 
@@ -1607,6 +1608,7 @@ pub async fn update_contact(
 pub async fn import_contacts(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     mut payload: Multipart,
 ) -> Result<Value, AppError> {
     let mut csv_bytes = Vec::new();
@@ -1772,10 +1774,10 @@ pub async fn import_contacts(
                    "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
                    "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "WhatsappContact"
-            WHERE "userId" = $1 AND phone = ANY($2)
+            WHERE "orgId" = $1 AND phone = ANY($2)
             "#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .bind(&phones)
         .fetch_all(pool)
         .await?
@@ -1796,10 +1798,10 @@ pub async fn import_contacts(
             r#"
             SELECT id, "contactId" AS contact_id, "listLabel" AS list_label
             FROM "WhatsappContactListMembership"
-            WHERE "userId" = $1 AND "contactId" = ANY($2)
+            WHERE "orgId" = $1 AND "contactId" = ANY($2)
             "#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .bind(&existing_contact_ids)
         .fetch_all(pool)
         .await?
@@ -1835,10 +1837,11 @@ pub async fn import_contacts(
         ),
     ) in deduped
     {
-        let (contact_id, existing_opt_in_date) =
-            if let Some(existing) = existing_by_phone.get(&phone) {
-                sqlx::query(
-                    r#"
+        let (contact_id, existing_opt_in_date) = if let Some(existing) =
+            existing_by_phone.get(&phone)
+        {
+            sqlx::query(
+                r#"
                 UPDATE "WhatsappContact"
                 SET "fullName" = COALESCE("fullName", $1),
                     location = COALESCE(location, $2),
@@ -1854,29 +1857,30 @@ pub async fn import_contacts(
                     "updatedAt" = NOW()
                 WHERE id = $6
                 "#,
-                )
-                .bind(full_name.as_deref())
-                .bind(location.as_deref())
-                .bind(opt_in)
-                .bind(opt_in_source.as_deref())
-                .bind(opt_in_date)
-                .bind(&existing.id)
-                .execute(pool)
-                .await?;
-                (existing.id.clone(), existing.opt_in_date)
-            } else {
-                let contact_id = cuid2::create_id();
-                sqlx::query(
+            )
+            .bind(full_name.as_deref())
+            .bind(location.as_deref())
+            .bind(opt_in)
+            .bind(opt_in_source.as_deref())
+            .bind(opt_in_date)
+            .bind(&existing.id)
+            .execute(pool)
+            .await?;
+            (existing.id.clone(), existing.opt_in_date)
+        } else {
+            let contact_id = cuid2::create_id();
+            sqlx::query(
                     r#"
                 INSERT INTO "WhatsappContact" (
-                    id, "userId", phone, "fullName", tags, location, notes, "listLabel", metadata,
+                    id, "userId", "orgId", phone, "fullName", tags, location, notes, "listLabel", metadata,
                     "optIn", "optInSource", "optInDate", excluded, "createdAt", "updatedAt"
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, false, NOW(), NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, false, NOW(), NOW())
                 "#,
                 )
                 .bind(&contact_id)
                 .bind(user_id)
+                .bind(org_id)
                 .bind(&phone)
                 .bind(full_name.as_deref())
                 .bind(Vec::<String>::new())
@@ -1889,8 +1893,8 @@ pub async fn import_contacts(
                 .bind(opt_in_date)
                 .execute(pool)
                 .await?;
-                (contact_id, None)
-            };
+            (contact_id, None)
+        };
 
         if let Some(existing_membership_id) =
             existing_membership_by_contact_and_label.get(&(contact_id.clone(), list_label.clone()))
@@ -1931,14 +1935,15 @@ pub async fn import_contacts(
             sqlx::query(
                 r#"
                 INSERT INTO "WhatsappContactListMembership" (
-                    id, "userId", "contactId", "listLabel", "fullName", tags, location, metadata,
+                    id, "userId", "orgId", "contactId", "listLabel", "fullName", tags, location, metadata,
                     "optIn", "optInSource", "optInDate", excluded, notes, "createdAt", "updatedAt"
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, $12, NOW(), NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, false, $13, NOW(), NOW())
                 "#,
             )
             .bind(cuid2::create_id())
             .bind(user_id)
+            .bind(org_id)
             .bind(&contact_id)
             .bind(&list_label)
             .bind(full_name.as_deref())
@@ -1969,7 +1974,7 @@ pub async fn import_contacts(
 
 pub async fn rename_contact_list(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     label: &str,
     input: &WhatsappContactListRenameRequest,
 ) -> Result<Value, AppError> {
@@ -1983,11 +1988,11 @@ pub async fn rename_contact_list(
         r#"
         UPDATE "WhatsappContactListMembership"
         SET "listLabel" = $1, "updatedAt" = NOW()
-        WHERE "userId" = $2 AND "listLabel" = $3
+        WHERE "orgId" = $2 AND "listLabel" = $3
         "#,
     )
     .bind(&next_label)
-    .bind(user_id)
+    .bind(org_id)
     .bind(&current_label)
     .execute(pool)
     .await?;
@@ -1996,11 +2001,11 @@ pub async fn rename_contact_list(
         r#"
         UPDATE "WhatsappContact"
         SET "listLabel" = $1, "updatedAt" = NOW()
-        WHERE "userId" = $2 AND COALESCE("listLabel", 'default') = $3
+        WHERE "orgId" = $2 AND COALESCE("listLabel", 'default') = $3
         "#,
     )
     .bind(&next_label)
-    .bind(user_id)
+    .bind(org_id)
     .bind(&current_label)
     .execute(pool)
     .await?;
@@ -2009,11 +2014,11 @@ pub async fn rename_contact_list(
         r#"
         UPDATE "WhatsappCampaign"
         SET "listLabel" = $1, "updatedAt" = NOW()
-        WHERE "userId" = $2 AND COALESCE("listLabel", 'default') = $3
+        WHERE "orgId" = $2 AND COALESCE("listLabel", 'default') = $3
         "#,
     )
     .bind(&next_label)
-    .bind(user_id)
+    .bind(org_id)
     .bind(&current_label)
     .execute(pool)
     .await?;
@@ -2027,7 +2032,7 @@ pub async fn rename_contact_list(
 
 pub async fn delete_contact_list(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     label: &str,
 ) -> Result<Value, AppError> {
     let list_label = sanitize_list_label(Some(label));
@@ -2035,7 +2040,7 @@ pub async fn delete_contact_list(
         r#"
         SELECT COUNT(*)
         FROM "WhatsappCampaign"
-        WHERE "userId" = $1
+        WHERE "orgId" = $1
           AND COALESCE("listLabel", 'default') = $2
           AND status IN (
             'DRAFT'::"WhatsappCampaignStatus",
@@ -2045,7 +2050,7 @@ pub async fn delete_contact_list(
           )
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .bind(&list_label)
     .fetch_one(pool)
     .await?;
@@ -2060,10 +2065,10 @@ pub async fn delete_contact_list(
         r#"
         SELECT "contactId"
         FROM "WhatsappContactListMembership"
-        WHERE "userId" = $1 AND "listLabel" = $2
+        WHERE "orgId" = $1 AND "listLabel" = $2
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .bind(&list_label)
     .fetch_all(pool)
     .await?;
@@ -2071,10 +2076,10 @@ pub async fn delete_contact_list(
     let deleted_contacts = sqlx::query(
         r#"
         DELETE FROM "WhatsappContactListMembership"
-        WHERE "userId" = $1 AND "listLabel" = $2
+        WHERE "orgId" = $1 AND "listLabel" = $2
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .bind(&list_label)
     .execute(pool)
     .await?;
@@ -2088,19 +2093,19 @@ pub async fn delete_contact_list(
                         SELECT m."listLabel"
                         FROM "WhatsappContactListMembership" m
                         WHERE m."contactId" = c.id
-                          AND m."userId" = $1
+                          AND m."orgId" = $1
                         ORDER BY m."createdAt" ASC
                         LIMIT 1
                     ),
                     'default'
                 ),
                 "updatedAt" = NOW()
-            WHERE c."userId" = $1
+            WHERE c."orgId" = $1
               AND c.id = ANY($2)
               AND COALESCE(c."listLabel", 'default') = $3
             "#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .bind(&contact_ids)
         .bind(&list_label)
         .execute(pool)
@@ -2358,12 +2363,12 @@ fn contact_matches_audience(
 
 async fn get_campaign_row(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     campaign_id: &str,
 ) -> Result<Option<WhatsappCampaignRow>, AppError> {
     sqlx::query_as::<_, WhatsappCampaignRow>(
         r#"
-        SELECT c.id, c."userId" AS user_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
+        SELECT c.id, c."userId" AS user_id, c."orgId" AS org_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
                c.name, c.description, c."templateName" AS template_name, c."templateLanguage" AS template_language,
                c."variableMappings" AS variable_mappings,
                wt.header AS template_header, wt.body AS template_body, wt.footer AS template_footer, wt.buttons AS template_buttons,
@@ -2380,18 +2385,18 @@ async fn get_campaign_row(
         FROM "WhatsappCampaign" c
         LEFT JOIN "WhatsappConnection" wc ON wc.id = c."connectionId"
         LEFT JOIN "WhatsappTemplate" wt ON wt.id = c."templateId"
-        WHERE c.id = $1 AND c."userId" = $2
+        WHERE c.id = $1 AND c."orgId" = $2
         LIMIT 1
         "#,
     )
     .bind(campaign_id)
-    .bind(user_id)
+    .bind(org_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::from)
 }
 
-pub async fn list_campaigns(pool: &PgPool, user_id: &str) -> Result<Value, AppError> {
+pub async fn list_campaigns(pool: &PgPool, org_id: &str) -> Result<Value, AppError> {
     let campaigns = sqlx::query(
         r#"
         SELECT
@@ -2424,11 +2429,11 @@ pub async fn list_campaigns(pool: &PgPool, user_id: &str) -> Result<Value, AppEr
         FROM "WhatsappCampaign" c
         LEFT JOIN "WhatsappConnection" wc ON wc.id = c."connectionId"
         LEFT JOIN "WhatsappTemplate" wt ON wt.id = c."templateId"
-        WHERE c."userId" = $1
+        WHERE c."orgId" = $1
         ORDER BY c."createdAt" DESC
         "#,
     )
-    .bind(user_id)
+    .bind(org_id)
     .fetch_all(pool)
     .await?;
     let campaigns = campaigns
@@ -2470,6 +2475,7 @@ pub async fn list_campaigns(pool: &PgPool, user_id: &str) -> Result<Value, AppEr
 pub async fn create_campaign(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     input: &WhatsappCampaignCreateRequest,
 ) -> Result<Value, AppError> {
     let name = input
@@ -2488,7 +2494,7 @@ pub async fn create_campaign(
     let default_batch_size = input.batch_size.filter(|value| *value > 0);
     let scheduled_at = parse_scheduled_at(input.scheduled_at.clone())?;
 
-    let connection = get_connection_row(pool, user_id, connection_id)
+    let connection = get_connection_row_for_org(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| AppError::NotFound("WhatsApp connection not found".to_string()))?;
     let template = sqlx::query_as::<_, WhatsappTemplateRow>(
@@ -2498,12 +2504,12 @@ pub async fn create_campaign(
                "variablesCount" AS variables_count, status::text AS status,
                "lastSynced" AT TIME ZONE 'UTC' AS last_synced, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappTemplate"
-        WHERE id = $1 AND "userId" = $2
+        WHERE id = $1 AND "orgId" = $2
         LIMIT 1
         "#,
     )
     .bind(template_id)
-    .bind(user_id)
+    .bind(org_id)
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Template not found".to_string()))?;
@@ -2540,13 +2546,13 @@ pub async fn create_campaign(
                 FROM "WhatsappContact" c
                 JOIN "WhatsappContactListMembership" m
                   ON m."contactId" = c.id
-                 AND m."userId" = c."userId"
-                WHERE c."userId" = $1
+                 AND m."orgId" = c."orgId"
+                WHERE c."orgId" = $1
                   AND c.id = ANY($2)
                   AND m."listLabel" = $3
                 "#,
             )
-            .bind(user_id)
+            .bind(org_id)
             .bind(recipient_ids)
             .bind(list_label)
             .fetch_all(pool)
@@ -2560,10 +2566,10 @@ pub async fn create_campaign(
                        "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
                        "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
                 FROM "WhatsappContact"
-                WHERE "userId" = $1 AND id = ANY($2)
+                WHERE "orgId" = $1 AND id = ANY($2)
                 "#,
             )
-            .bind(user_id)
+            .bind(org_id)
             .bind(recipient_ids)
             .fetch_all(pool)
             .await?
@@ -2588,12 +2594,12 @@ pub async fn create_campaign(
             FROM "WhatsappContact" c
             JOIN "WhatsappContactListMembership" m
               ON m."contactId" = c.id
-             AND m."userId" = c."userId"
-            WHERE c."userId" = $1
+             AND m."orgId" = c."orgId"
+            WHERE c."orgId" = $1
               AND m."listLabel" = $2
             "#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .bind(list_label)
         .fetch_all(pool)
         .await?
@@ -2606,10 +2612,10 @@ pub async fn create_campaign(
                    "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent, excluded, notes,
                    "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "WhatsappContact"
-            WHERE "userId" = $1
+            WHERE "orgId" = $1
             "#,
         )
-        .bind(user_id)
+        .bind(org_id)
         .fetch_all(pool)
         .await?
     };
@@ -2665,17 +2671,18 @@ pub async fn create_campaign(
     sqlx::query(
         r#"
         INSERT INTO "WhatsappCampaign" (
-            id, "userId", "connectionId", "templateId", name, description, "templateName", "templateLanguage",
+            id, "userId", "orgId", "connectionId", "templateId", name, description, "templateName", "templateLanguage",
             "variableMappings", "listLabel", "defaultBatchSize", status, "scheduledAt", "totalRecipients", "createdAt", "updatedAt"
         )
         VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9,
-            $10, $11, CAST($12 AS "WhatsappCampaignStatus"), $13, $14, NOW(), NOW()
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+            $11, $12, CAST($13 AS "WhatsappCampaignStatus"), $14, $15, NOW(), NOW()
         )
         "#,
     )
     .bind(&campaign_id)
     .bind(user_id)
+    .bind(org_id)
     .bind(&connection.id)
     .bind(&template.id)
     .bind(name)
@@ -2743,7 +2750,7 @@ pub async fn create_campaign(
         .await?;
     }
 
-    let campaign = get_campaign_row(pool, user_id, &campaign_id)
+    let campaign = get_campaign_row(pool, org_id, &campaign_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload campaign".to_string()))?;
 
@@ -2756,10 +2763,10 @@ pub async fn create_campaign(
 
 pub async fn get_campaign(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     campaign_id: &str,
 ) -> Result<Value, AppError> {
-    let campaign = get_campaign_row(pool, user_id, campaign_id)
+    let campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
     let recipients = sqlx::query_as::<_, WhatsappCampaignRecipientDetailRow>(
@@ -2797,10 +2804,10 @@ pub async fn get_campaign(
 
 pub async fn get_campaign_summary(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     campaign_id: &str,
 ) -> Result<Value, AppError> {
-    let campaign = get_campaign_row(pool, user_id, campaign_id)
+    let campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
 
@@ -2810,14 +2817,15 @@ pub async fn get_campaign_summary(
 pub async fn launch_campaign(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     campaign_id: &str,
     scheduled_at: Option<String>,
     batch_size: Option<i32>,
 ) -> Result<Value, AppError> {
-    let campaign = get_campaign_row(pool, user_id, campaign_id)
+    let campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
-    let connection_limit = get_connection_row(pool, user_id, &campaign.connection_id)
+    let connection_limit = get_connection_row_for_org(pool, org_id, &campaign.connection_id)
         .await?
         .and_then(|c| c.daily_limit_estimate)
         .unwrap_or(i32::MAX);
@@ -2910,9 +2918,10 @@ pub async fn launch_campaign(
 pub async fn pause_campaign(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     campaign_id: &str,
 ) -> Result<Value, AppError> {
-    let campaign = get_campaign_row(pool, user_id, campaign_id)
+    let campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
     if campaign.status != "SENDING" && campaign.status != "SCHEDULED" {
@@ -2944,10 +2953,11 @@ pub async fn pause_campaign(
 pub async fn resume_campaign(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     campaign_id: &str,
     scheduled_at: Option<String>,
 ) -> Result<Value, AppError> {
-    let campaign = get_campaign_row(pool, user_id, campaign_id)
+    let campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
     if campaign.status != "PAUSED" {
@@ -2994,9 +3004,10 @@ pub async fn resume_campaign(
 pub async fn cancel_campaign(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     campaign_id: &str,
 ) -> Result<Value, AppError> {
-    let _campaign = get_campaign_row(pool, user_id, campaign_id)
+    let _campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
     let result = sqlx::query(
@@ -3031,10 +3042,10 @@ pub async fn cancel_campaign(
 
 pub async fn retry_failed_campaign(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     campaign_id: &str,
 ) -> Result<Value, AppError> {
-    let _campaign = get_campaign_row(pool, user_id, campaign_id)
+    let _campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
     Err(AppError::BadRequest(
@@ -3046,15 +3057,16 @@ pub async fn retry_failed_campaign(
 pub async fn repair_campaign_status(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     campaign_id: &str,
 ) -> Result<Value, AppError> {
-    let campaign = get_campaign_row(pool, user_id, campaign_id)
+    let campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
 
     recompute_campaign_stats(pool, campaign_id).await?;
 
-    let refreshed = get_campaign_row(pool, user_id, campaign_id)
+    let refreshed = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
     publish_campaign_updated(pool, user_id, campaign_id).await?;
@@ -3077,10 +3089,10 @@ pub async fn repair_campaign_status(
 
 pub async fn delete_campaign(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     campaign_id: &str,
 ) -> Result<Value, AppError> {
-    let campaign = get_campaign_row(pool, user_id, campaign_id)
+    let campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
     if campaign.status == "SENDING" || campaign.status == "SCHEDULED" {
@@ -3089,9 +3101,9 @@ pub async fn delete_campaign(
         ));
     }
     // WhatsappCampaignRecipient has onDelete: Cascade, WhatsappSendEvent has onDelete: SetNull
-    sqlx::query(r#"DELETE FROM "WhatsappCampaign" WHERE id = $1 AND "userId" = $2"#)
+    sqlx::query(r#"DELETE FROM "WhatsappCampaign" WHERE id = $1 AND "orgId" = $2"#)
         .bind(campaign_id)
-        .bind(user_id)
+        .bind(org_id)
         .execute(pool)
         .await?;
     Ok(json!({ "deleted": true, "campaignId": campaign_id }))
@@ -3100,11 +3112,12 @@ pub async fn delete_campaign(
 pub async fn send_more_campaign(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     campaign_id: &str,
     batch_size: Option<i32>,
     excluded_contact_ids: Vec<String>,
 ) -> Result<Value, AppError> {
-    let campaign = get_campaign_row(pool, user_id, campaign_id)
+    let campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
     let queued_count = sqlx::query_scalar::<_, i64>(
@@ -3575,7 +3588,7 @@ async fn process_claimed_campaign_recipient(
 
     let campaign = sqlx::query_as::<_, WhatsappCampaignRow>(
         r#"
-        SELECT c.id, c."userId" AS user_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
+        SELECT c.id, c."userId" AS user_id, c."orgId" AS org_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
                c.name, c.description, c."templateName" AS template_name, c."templateLanguage" AS template_language,
                c."variableMappings" AS variable_mappings,
                wt.header AS template_header, wt.body AS template_body, wt.footer AS template_footer, wt.buttons AS template_buttons,
@@ -3597,7 +3610,11 @@ async fn process_claimed_campaign_recipient(
     .fetch_one(pool)
     .await?;
 
-    let contact = select_campaign_contact_row(pool, &campaign.user_id, &recipient.id)
+    let org_id = campaign
+        .org_id
+        .as_deref()
+        .ok_or_else(|| AppError::Internal("Campaign is not assigned to a workspace".to_string()))?;
+    let contact = select_campaign_contact_row(pool, org_id, &recipient.id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign contact not found".to_string()))?;
 
@@ -3673,11 +3690,35 @@ async fn process_claimed_campaign_recipient(
         )));
     }
 
+    if let Err(error) = billing::require_product_access(pool, org_id, "reach").await {
+        sqlx::query(
+            r#"
+            UPDATE "WhatsappCampaignRecipient"
+            SET status = 'FAILED'::"WhatsappRecipientStatus",
+                "failedAt" = NOW(),
+                "errorCode" = 'entitlement_required',
+                "errorMessage" = $1,
+                "updatedAt" = NOW()
+            WHERE id = $2
+            "#,
+        )
+        .bind(error.to_string())
+        .bind(recipient_id)
+        .execute(pool)
+        .await?;
+        recompute_campaign_stats(pool, &recipient.campaign_id).await?;
+        return Ok(Some((
+            campaign.user_id.clone(),
+            recipient.campaign_id.clone(),
+        )));
+    }
+
     let connection = sqlx::query_as::<_, WhatsappConnectionRow>(&format!(
-        "{} WHERE id = $1",
+        "{} WHERE id = $1 AND \"orgId\" = $2",
         select_connection_sql()
     ))
     .bind(&campaign.connection_id)
+    .bind(org_id)
     .fetch_one(pool)
     .await?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
@@ -3734,15 +3775,16 @@ async fn process_claimed_campaign_recipient(
             sqlx::query(
                 r#"
                 INSERT INTO "WhatsappSendEvent" (
-                    id, "userId", "connectionId", "campaignId", "recipientId", "contactId", phone, "templateName",
+                    id, "userId", "orgId", "connectionId", "campaignId", "recipientId", "contactId", phone, "templateName",
                     status, "whatsappMessageId", "requestPayload", "responsePayload", "createdAt"
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-                        'SENT'::"WhatsappRecipientStatus", $9, $10, $11, NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+                        'SENT'::"WhatsappRecipientStatus", $10, $11, $12, NOW())
                 "#,
             )
             .bind(cuid2::create_id())
             .bind(&campaign.user_id)
+            .bind(org_id)
             .bind(&campaign.connection_id)
             .bind(&campaign.id)
             .bind(recipient_id)
@@ -3800,15 +3842,16 @@ async fn process_claimed_campaign_recipient(
             sqlx::query(
                 r#"
                 INSERT INTO "WhatsappSendEvent" (
-                    id, "userId", "connectionId", "campaignId", "recipientId", "contactId", phone, "templateName",
+                    id, "userId", "orgId", "connectionId", "campaignId", "recipientId", "contactId", phone, "templateName",
                     status, "requestPayload", "responsePayload", "errorCode", "errorMessage", "createdAt"
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-                        CAST($9 AS "WhatsappRecipientStatus"), $10, $11, $12, $13, NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+                        CAST($10 AS "WhatsappRecipientStatus"), $11, $12, $13, $14, NOW())
                 "#,
             )
             .bind(cuid2::create_id())
             .bind(&campaign.user_id)
+            .bind(org_id)
             .bind(&campaign.connection_id)
             .bind(&campaign.id)
             .bind(recipient_id)
@@ -4084,7 +4127,7 @@ fn parse_csv_tags(raw: Option<&str>) -> Vec<String> {
 
 async fn select_list_contact_row(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     membership_id: &str,
 ) -> Result<Option<WhatsappListContactRow>, AppError> {
     sqlx::query_as::<_, WhatsappListContactRow>(
@@ -4109,12 +4152,12 @@ async fn select_list_contact_row(
             m."updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappContactListMembership" m
         JOIN "WhatsappContact" c ON c.id = m."contactId"
-        WHERE m.id = $1 AND m."userId" = $2
+        WHERE m.id = $1 AND m."orgId" = $2
         LIMIT 1
         "#,
     )
     .bind(membership_id)
-    .bind(user_id)
+    .bind(org_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::from)
@@ -4122,7 +4165,7 @@ async fn select_list_contact_row(
 
 async fn select_campaign_contact_row(
     pool: &PgPool,
-    user_id: &str,
+    org_id: &str,
     recipient_id: &str,
 ) -> Result<Option<WhatsappContactRow>, AppError> {
     sqlx::query_as::<_, WhatsappContactRow>(
@@ -4146,14 +4189,14 @@ async fn select_campaign_contact_row(
         JOIN "WhatsappContact" c ON c.id = r."contactId"
         LEFT JOIN "WhatsappContactListMembership" m
           ON m."contactId" = c.id
-         AND m."userId" = c."userId"
+         AND m."orgId" = c."orgId"
          AND m."listLabel" = COALESCE(r."snapshotListLabel", c."listLabel", 'default')
-        WHERE r.id = $1 AND c."userId" = $2
+        WHERE r.id = $1 AND c."orgId" = $2
         LIMIT 1
         "#,
     )
     .bind(recipient_id)
-    .bind(user_id)
+    .bind(org_id)
     .fetch_optional(pool)
     .await
     .map_err(AppError::from)
@@ -4317,7 +4360,7 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
             if next_status == "FAILED" {
                 let campaign = sqlx::query_as::<_, WhatsappCampaignRow>(
                     r#"
-                    SELECT c.id, c."userId" AS user_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
+                    SELECT c.id, c."userId" AS user_id, c."orgId" AS org_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
                            c.name, c.description, c."templateName" AS template_name, c."templateLanguage" AS template_language,
                            c."variableMappings" AS variable_mappings,
                            wt.header AS template_header, wt.body AS template_body, wt.footer AS template_footer, wt.buttons AS template_buttons,
@@ -4795,7 +4838,17 @@ async fn publish_campaign_updated(
     user_id: &str,
     campaign_id: &str,
 ) -> Result<(), AppError> {
-    let Some(campaign) = get_campaign_row(pool, user_id, campaign_id).await? else {
+    let org_id = sqlx::query_scalar::<_, Option<String>>(
+        r#"SELECT "orgId" FROM "WhatsappCampaign" WHERE id = $1 LIMIT 1"#,
+    )
+    .bind(campaign_id)
+    .fetch_optional(pool)
+    .await?
+    .flatten();
+    let Some(org_id) = org_id else {
+        return Ok(());
+    };
+    let Some(campaign) = get_campaign_row(pool, &org_id, campaign_id).await? else {
         return Ok(());
     };
 

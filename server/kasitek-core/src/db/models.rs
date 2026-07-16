@@ -624,6 +624,9 @@ pub struct WhatsappCampaignRow {
     pub id: String,
     #[sqlx(rename = "user_id")]
     pub user_id: String,
+    #[serde(rename = "orgId")]
+    #[sqlx(rename = "org_id")]
+    pub org_id: Option<String>,
     #[sqlx(rename = "connection_id")]
     pub connection_id: String,
     #[sqlx(rename = "template_id")]

@@ -291,7 +291,7 @@ export type WhatsappContactListMembershipOrderByWithRelationInput = {
 
 export type WhatsappContactListMembershipWhereUniqueInput = Prisma.AtLeast<{
   id?: string
-  userId_contactId_listLabel?: Prisma.WhatsappContactListMembershipUserIdContactIdListLabelCompoundUniqueInput
+  orgId_contactId_listLabel?: Prisma.WhatsappContactListMembershipOrgIdContactIdListLabelCompoundUniqueInput
   AND?: Prisma.WhatsappContactListMembershipWhereInput | Prisma.WhatsappContactListMembershipWhereInput[]
   OR?: Prisma.WhatsappContactListMembershipWhereInput[]
   NOT?: Prisma.WhatsappContactListMembershipWhereInput | Prisma.WhatsappContactListMembershipWhereInput[]
@@ -313,7 +313,7 @@ export type WhatsappContactListMembershipWhereUniqueInput = Prisma.AtLeast<{
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
   contact?: Prisma.XOR<Prisma.WhatsappContactScalarRelationFilter, Prisma.WhatsappContactWhereInput>
-}, "id" | "userId_contactId_listLabel">
+}, "id" | "orgId_contactId_listLabel">
 
 export type WhatsappContactListMembershipOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -499,8 +499,8 @@ export type WhatsappContactListMembershipOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
-export type WhatsappContactListMembershipUserIdContactIdListLabelCompoundUniqueInput = {
-  userId: string
+export type WhatsappContactListMembershipOrgIdContactIdListLabelCompoundUniqueInput = {
+  orgId: string
   contactId: string
   listLabel: string
 }

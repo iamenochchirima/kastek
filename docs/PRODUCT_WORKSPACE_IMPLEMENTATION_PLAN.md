@@ -139,7 +139,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Server changes
 
-- [ ] Replace direct-product `userId` query filters with authorised `orgId` filters. Agents and Social are complete; Reach and Inbox remain.
+- [ ] Replace direct-product `userId` query filters with authorised `orgId` filters. Agents, Social, Connections, and Reach are complete; Inbox remains.
 - [ ] Keep `userId` in create/update records as the acting user where audit history requires it.
 - [ ] Require organisation membership for every organisation-scoped endpoint.
 - [ ] Require organisation admin or owner roles for sensitive settings, connections, billing, and team actions.
@@ -310,7 +310,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Customer
 
-- [ ] Make Contacts a shared organisation record list, not a Reach-only list.
+- [x] Make Contacts a shared organisation record list, not a Reach-only list.
 - [ ] Add customer detail pages that link conversations, campaign participation, social identity, and agent activity.
 - [ ] Define contact import, merge, consent, and deletion behaviour.
 
