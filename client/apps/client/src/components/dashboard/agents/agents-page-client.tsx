@@ -665,7 +665,7 @@ function CreateAgentModal({
     <div className="fixed inset-0 z-50">
       <button
         type="button"
-        className="absolute inset-0 bg-foreground/65"
+        className="absolute inset-0 bg-overlay"
         onClick={onClose}
         aria-label="Close create agent modal"
       />

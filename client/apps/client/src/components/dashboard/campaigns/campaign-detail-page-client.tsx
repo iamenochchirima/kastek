@@ -1054,7 +1054,7 @@ export default function CampaignDetailPageClient({
           </CardContent>
         </Card>
         {previewRecipient ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
             <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-border bg-background shadow-2xl">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
@@ -1139,7 +1139,7 @@ export default function CampaignDetailPageClient({
           </div>
         ) : null}
         {errorPreviewRecipient ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
             <div className="w-full max-w-2xl rounded-2xl border border-border bg-background shadow-2xl">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
@@ -1184,7 +1184,7 @@ export default function CampaignDetailPageClient({
           </div>
         ) : null}
         {sendMoreOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
             <div className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-border bg-background p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>

@@ -333,7 +333,7 @@ export default function WhatsappTemplateManager({
       </section>
 
       {selectedTemplate ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4">
           <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
@@ -404,7 +404,7 @@ export default function WhatsappTemplateManager({
       ) : null}
 
       {showCreateForm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4">
           <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>

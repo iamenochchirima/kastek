@@ -56,6 +56,7 @@
   --sidebar-ring: #596675;
   --shadow-panel: none;
   --shadow-floating: 0 16px 32px rgba(27, 36, 46, 0.12);
+  --overlay: rgba(10, 12, 15, 0.68);
 
   /* Temporary compatibility aliases. New application code must use semantic tokens above. */
   --theme-bg: var(--background);
@@ -124,6 +125,7 @@
   --sidebar-ring: #c2cad4;
   --shadow-panel: none;
   --shadow-floating: 0 18px 36px rgba(0, 0, 0, 0.26);
+  --overlay: rgba(0, 0, 0, 0.72);
   color-scheme: dark;
 }
 
@@ -152,6 +154,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);

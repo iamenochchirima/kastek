@@ -810,7 +810,7 @@ export default function ContactsManager({
         ) : null}
 
         {showImportModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
             <div className="w-full max-w-2xl rounded-2xl border border-border bg-background p-4 sm:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -894,7 +894,7 @@ export default function ContactsManager({
         ) : null}
 
         {filters.q ? (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-foreground/70 px-4 py-6">
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay px-4 py-6">
             <div className="flex h-[min(84vh,860px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
@@ -1010,7 +1010,7 @@ export default function ContactsManager({
         ) : null}
 
         {filters.listLabel && !filters.q ? (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-foreground/70 px-4 py-6">
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay px-4 py-6">
             <div className="flex h-[min(88vh,920px)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
@@ -1176,7 +1176,7 @@ export default function ContactsManager({
         ) : null}
 
         {renamingListLabel ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
             <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6">
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Rename list</h2>
@@ -1218,7 +1218,7 @@ export default function ContactsManager({
         ) : null}
 
         {deleteTargetLabel ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/70 px-4 py-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
             <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6">
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Delete list</h2>
