@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/server-api";
 import type { InvitationPreview } from "@/lib/orgs";
@@ -50,7 +50,7 @@ export function AcceptInviteClient({
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
-          <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
+          <CheckCircle className="mx-auto h-12 w-12 text-status-success" />
           <h1 className="text-xl font-semibold text-foreground">Already accepted</h1>
           <p className="text-sm text-muted-foreground">
             This invitation has already been accepted.
@@ -116,7 +116,7 @@ export function AcceptInviteClient({
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
-          <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
+          <CheckCircle className="mx-auto h-12 w-12 text-status-success" />
           <h1 className="text-xl font-semibold text-foreground">Welcome to {invitation.orgName}!</h1>
           <p className="text-sm text-muted-foreground">Redirecting to workspace…</p>
         </div>
@@ -171,7 +171,7 @@ export function AcceptInviteClient({
         </div>
 
         {!isLoggedIn && currentUserEmail !== invitation.email ? (
-          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+          <p className="rounded-lg border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-sm text-status-attention">
             You need to be logged in to accept this invitation.
             {invitation.email ? (
               <> Sign in with <strong>{invitation.email}</strong> to continue.</>
@@ -195,7 +195,7 @@ export function AcceptInviteClient({
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
-          By joining, you agree to work within this organisation's workspace on KasiTek.
+          By joining, you agree to work within this organisation&apos;s workspace on KasiTek.
         </p>
       </div>
     </div>

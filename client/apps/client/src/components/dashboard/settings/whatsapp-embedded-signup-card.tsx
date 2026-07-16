@@ -372,19 +372,19 @@ export default function WhatsappEmbeddedSignupCard({
       </div>
 
       {error && (
-        <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+        <div className="mb-3 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-xs text-destructive">
           {error}
         </div>
       )}
 
       {notice && (
-        <div className="mb-3 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-300">
+        <div className="mb-3 rounded-lg border border-status-success/30 bg-status-success-soft px-3 py-2 text-xs text-status-success">
           {notice}
         </div>
       )}
 
       {envMissing.length > 0 && (
-        <p className="mb-3 text-xs text-amber-300">
+        <p className="mb-3 text-xs text-status-attention">
           Configure: {envMissing.join(", ")} in your env file.
         </p>
       )}
@@ -440,7 +440,7 @@ export default function WhatsappEmbeddedSignupCard({
                       Overall:{" "}
                       <span
                         className={
-                          healthByConnectionId[connection.id].healthy ? "text-green-300" : "text-red-300"
+                          healthByConnectionId[connection.id].healthy ? "text-status-success" : "text-destructive"
                         }
                       >
                         {healthByConnectionId[connection.id].healthy ? "Healthy" : "Needs attention"}
@@ -449,7 +449,7 @@ export default function WhatsappEmbeddedSignupCard({
                     {healthByConnectionId[connection.id].steps.map((step) => (
                       <p key={step.step}>
                         {step.step}:{" "}
-                        <span className={step.ok ? "text-green-300" : "text-red-300"}>
+                        <span className={step.ok ? "text-status-success" : "text-destructive"}>
                           {step.ok ? "ok" : "failed"}
                         </span>{" "}
                         · {step.detail}
@@ -528,8 +528,8 @@ export default function WhatsappEmbeddedSignupCard({
                           <span
                             className={
                               healthByConnectionId[connection.id].healthy
-                                ? "text-green-300"
-                                : "text-red-300"
+                                ? "text-status-success"
+                                : "text-destructive"
                             }
                           >
                             {healthByConnectionId[connection.id].healthy ? "Healthy" : "Needs attention"}
@@ -539,7 +539,7 @@ export default function WhatsappEmbeddedSignupCard({
                           {healthByConnectionId[connection.id].steps.map((step) => (
                             <p key={step.step}>
                               {step.step}:{" "}
-                              <span className={step.ok ? "text-green-300" : "text-red-300"}>
+                              <span className={step.ok ? "text-status-success" : "text-destructive"}>
                                 {step.ok ? "ok" : "failed"}
                               </span>{" "}
                               · {step.detail}

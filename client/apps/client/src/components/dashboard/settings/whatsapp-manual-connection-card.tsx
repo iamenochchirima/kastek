@@ -205,8 +205,8 @@ export default function WhatsappManualConnectionCard({
         <div
           className={`rounded-lg border px-3 py-2 text-xs ${
             error
-              ? "border-red-500/30 bg-red-500/10 text-red-300"
-              : "border-green-500/30 bg-green-500/10 text-green-300"
+              ? "border-destructive/30 bg-status-danger-soft text-destructive"
+              : "border-status-success/30 bg-status-success-soft text-status-success"
           }`}
         >
           {error || notice}
@@ -424,8 +424,8 @@ export default function WhatsappManualConnectionCard({
                         <span
                           className={
                             healthByConnectionId[connection.id].healthy
-                              ? "text-green-300"
-                              : "text-red-300"
+                              ? "text-status-success"
+                              : "text-destructive"
                           }
                         >
                           {healthByConnectionId[connection.id].healthy ? "Healthy" : "Needs attention"}
@@ -434,7 +434,7 @@ export default function WhatsappManualConnectionCard({
                       {healthByConnectionId[connection.id].steps.map((step) => (
                         <p key={step.step}>
                           {step.step}:{" "}
-                          <span className={step.ok ? "text-green-300" : "text-red-300"}>
+                          <span className={step.ok ? "text-status-success" : "text-destructive"}>
                             {step.ok ? "ok" : "failed"}
                           </span>{" "}
                           · {step.detail}
@@ -565,8 +565,8 @@ export default function WhatsappManualConnectionCard({
                             <span
                               className={
                                 healthByConnectionId[connection.id].healthy
-                                  ? "text-green-300"
-                                  : "text-red-300"
+                                  ? "text-status-success"
+                                  : "text-destructive"
                               }
                             >
                               {healthByConnectionId[connection.id].healthy
@@ -578,7 +578,7 @@ export default function WhatsappManualConnectionCard({
                             {healthByConnectionId[connection.id].steps.map((step) => (
                               <p key={step.step}>
                                 {step.step}:{" "}
-                                <span className={step.ok ? "text-green-300" : "text-red-300"}>
+                                <span className={step.ok ? "text-status-success" : "text-destructive"}>
                                   {step.ok ? "ok" : "failed"}
                                 </span>{" "}
                                 · {step.detail}

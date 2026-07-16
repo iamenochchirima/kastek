@@ -1,475 +1,186 @@
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
-import { Bell, Bot, Send, Sparkles } from "lucide-react";
+import { Bot, FileText, MessageCircle, PlugZap, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Workspace | KasiTek",
-};
+export const metadata = { title: "Overview | KasiTek" };
 
-const products = [
-  {
-    name: "KasiAgents",
-    href: "/agents",
-    description: "Build AI agents, workflows, handoffs, and automation logic.",
-    icon: Bot,
-  },
-  {
-    name: "KasiReach",
-    href: "/reach",
-    description: "Manage contacts, templates, campaigns, and outbound growth systems.",
-    icon: Send,
-  },
-  {
-    name: "KasiInbox",
-    href: "/inbox",
-    description: "Handle live conversations, human replies, and operational follow-up.",
-    icon: Bell,
-  },
-  {
-    name: "KasiSocial",
-    href: "/social",
-    description: "Plan, publish, and analyze social content across channels.",
-    icon: Sparkles,
-  },
-];
+type WorkspaceSummary = {
+  botCount: number;
+  socialPostCount: number;
+  connections: Array<{
+    id: string;
+    phoneDisplayNumber: string | null;
+    phoneNumberId: string;
+    currentQualityRating: string;
+    stats: { sentLast24h: number; estimatedRemainingToday: number | null };
+  }>;
+  templateStatusMap: Record<string, number>;
+  campaignsAggregate: {
+    totalCampaigns: number;
+    totalRecipients: number;
+    deliveredCount: number;
+    readCount: number;
+    failedCount: number;
+    blockedCount: number;
+  };
+  activeCampaigns: number;
+  recentCampaigns: Array<{
+    id: string;
+    name: string;
+    status: string;
+    totalRecipients: number;
+    deliveredCount: number;
+    readCount: number;
+    templateName: string;
+    connectionLabel: string | null;
+  }>;
+  contactsAggregate: { total: number; optedIn: number; excluded: number };
+  sendStatusMap: Record<string, number>;
+  reviewQueue: Array<{
+    id: string;
+    templateName: string;
+    status: string;
+    body: string | null;
+    connectionLabel: string | null;
+  }>;
+};
 
 export default async function WorkspacePage() {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
-  const workspaceResponse = await fetchRustJson<{
-    summary: {
-      botCount: number;
-      socialPostCount: number;
-      connections: Array<{
-        id: string;
-        phoneDisplayNumber: string | null;
-        phoneNumberId: string;
-        currentQualityRating: string;
-        dailyLimitEstimate: number | null;
-        verified: boolean;
-        createdAt: string;
-        stats: {
-          sentLast24h: number;
-          estimatedRemainingToday: number | null;
-        };
-      }>;
-      templateStatusMap: Record<string, number>;
-      campaignsAggregate: {
-        totalCampaigns: number;
-        totalRecipients: number;
-        deliveredCount: number;
-        readCount: number;
-        failedCount: number;
-        blockedCount: number;
-      };
-      activeCampaigns: number;
-      recentCampaigns: Array<{
-        id: string;
-        name: string;
-        status: string;
-        totalRecipients: number;
-        deliveredCount: number;
-        readCount: number;
-        templateName: string;
-        connectionLabel: string | null;
-      }>;
-      contactsAggregate: {
-        total: number;
-        optedIn: number;
-        excluded: number;
-      };
-      sendStatusMap: Record<string, number>;
-      reviewQueue: Array<{
-        id: string;
-        templateName: string;
-        status: string;
-        body: string | null;
-        connectionLabel: string | null;
-      }>;
-    };
-  }>("/api/workspace/summary");
-
-  const {
-    botCount,
-    socialPostCount,
-    connections,
-    templateStatusMap,
-    campaignsAggregate,
-    activeCampaigns,
-    recentCampaigns,
-    contactsAggregate,
-    sendStatusMap,
-    reviewQueue,
-  } = workspaceResponse.summary;
-
-  const totalDelivered = campaignsAggregate.deliveredCount || 0;
-  const totalRead = campaignsAggregate.readCount || 0;
-  const totalFailures =
-    (campaignsAggregate.failedCount || 0) + (campaignsAggregate.blockedCount || 0);
-  const totalRecipients = campaignsAggregate.totalRecipients || 0;
-  const deliveryRate = totalRecipients ? Math.round((totalDelivered / totalRecipients) * 100) : 0;
-  const readRate = totalDelivered ? Math.round((totalRead / totalDelivered) * 100) : 0;
-  const averageRemainingToday =
-    connections.length > 0
-      ? Math.round(
-          connections.reduce((sum, connection) => {
-            const remaining = connection.stats.estimatedRemainingToday;
-            return sum + (remaining || 0);
-          }, 0) / connections.length,
-        )
-      : 0;
+  const response = await fetchRustJson<{ summary: WorkspaceSummary }>("/api/workspace/summary");
+  const summary = response.summary;
+  const recipients = summary.campaignsAggregate.totalRecipients || 0;
+  const delivered = summary.campaignsAggregate.deliveredCount || 0;
+  const deliveryRate = recipients ? Math.round((delivered / recipients) * 100) : 0;
+  const remainingToday = summary.connections.reduce(
+    (total, connection) => total + (connection.stats.estimatedRemainingToday || 0),
+    0,
+  );
 
   return (
-    <div className="space-y-6 p-4 sm:space-y-8 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-[1600px] space-y-8">
-        <section className="rounded-2xl border border-border bg-card p-5 sm:p-7">
-          <div className="flex flex-wrap items-start justify-between gap-5">
-            <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-                Workspace Pulse
-              </div>
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                Welcome back, {session.user.name ?? "there"}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                Keep an eye on connected numbers, template approvals, campaign performance, and how
-                your products are performing across the workspace.
-              </p>
-            </div>
-
-            <Link
-              href="/reach/campaigns/create"
-              className="w-full rounded-full bg-primary px-5 py-2.5 text-center text-sm font-semibold text-primary-foreground no-underline transition-all hover:-translate-y-0.5 hover:bg-primary/90 sm:w-auto"
-            >
-              Launch Campaign
-            </Link>
+    <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <div className="mx-auto max-w-[1280px]">
+        <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Workspace</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Overview</h1>
           </div>
+          <Link
+            href="/reach/campaigns/create"
+            className="inline-flex h-9 items-center rounded-md bg-primary px-3.5 text-sm font-semibold text-primary-foreground no-underline transition-opacity hover:opacity-90"
+          >
+            New campaign
+          </Link>
+        </header>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <HeroMetric
-              label="Active Agents"
-              value={botCount.toString()}
-              helper="Automations currently configured"
-            />
-            <HeroMetric
-              label="Reach Contacts"
-              value={contactsAggregate.total.toLocaleString("en-ZA")}
-              helper={`${contactsAggregate.optedIn.toLocaleString("en-ZA")} opted in`}
-            />
-            <HeroMetric
-              label="Templates Ready"
-              value={(templateStatusMap.APPROVED || 0).toString()}
-              helper={`${templateStatusMap.PENDING || 0} pending review`}
-            />
-            <HeroMetric
-              label="Active Campaigns"
-              value={activeCampaigns.toString()}
-              helper={`${campaignsAggregate.totalCampaigns} total campaigns`}
-            />
-            <HeroMetric
-              label="Scheduled Social"
-              value={socialPostCount.toString()}
-              helper="Posts queued across social workspaces"
-            />
-          </div>
+        <SectionHeading title="At a glance" actionHref="/billing" actionLabel="View usage" />
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard
+            label="Contacts"
+            value={summary.contactsAggregate.total.toLocaleString("en-ZA")}
+            detail={`${summary.contactsAggregate.optedIn.toLocaleString("en-ZA")} opted in`}
+          />
+          <SummaryCard label="Campaign delivery" value={`${deliveryRate}%`} detail="This month" />
+          <SummaryCard
+            label="Templates ready"
+            value={(summary.templateStatusMap.APPROVED || 0).toLocaleString("en-ZA")}
+            detail={`${summary.templateStatusMap.PENDING || 0} awaiting review`}
+            attention={summary.templateStatusMap.PENDING || 0}
+          />
+          <SummaryCard label="Active agents" value={summary.botCount.toLocaleString("en-ZA")} detail={summary.botCount ? "Automations running" : "No automations running"} />
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_360px]">
-          <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-3">
-              <MetricCard
-                label="Delivery Rate"
-                value={`${deliveryRate}%`}
-                helper={`${totalDelivered.toLocaleString("en-ZA")} delivered from ${totalRecipients.toLocaleString("en-ZA")} recipients`}
-              />
-              <MetricCard
-                label="Read Rate"
-                value={`${readRate}%`}
-                helper={`${totalRead.toLocaleString("en-ZA")} reads across all campaigns`}
-              />
-              <MetricCard
-                label="Avg Remaining Today"
-                value={averageRemainingToday.toLocaleString("en-ZA")}
-                helper="Estimated remaining sends per connected number"
-              />
+        <SectionHeading title="Work that needs attention" actionHref="/reach/templates" actionLabel="See all activity" />
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.85fr)]">
+          <section className="overflow-hidden rounded-lg border border-border bg-card">
+            <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Recent campaigns</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Latest activity across your outbound work.</p>
+              </div>
+              <Link href="/reach/campaigns" className="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground no-underline hover:bg-secondary">Open campaigns</Link>
             </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <section className="rounded-2xl border border-border bg-card p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">Recent Campaigns</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Latest updates across your outbound WhatsApp work.
-                    </p>
-                  </div>
-                  <Link
-                    href="/reach/campaigns"
-                    className="text-sm font-medium text-primary no-underline hover:underline"
-                  >
-                    Open campaigns
+            {summary.recentCampaigns.length ? (
+              <div>
+                {summary.recentCampaigns.slice(0, 4).map((campaign) => (
+                  <Link key={campaign.id} href={`/reach/campaigns/${campaign.id}`} className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-3.5 no-underline last:border-b-0 hover:bg-secondary/60">
+                    <span className="grid size-8 place-items-center rounded-md bg-secondary text-muted-foreground"><MessageCircle className="size-4" /></span>
+                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground">{campaign.name}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{campaign.templateName || "No template"} · {campaign.connectionLabel || "No connection"}</span></span>
+                    <Status label={campaign.status} />
                   </Link>
-                </div>
-
-                {recentCampaigns.length === 0 ? (
-                  <EmptyState text="No campaigns yet. Launch your first outbound send from Reach." />
-                ) : (
-                  <div className="space-y-3">
-                    {recentCampaigns.map((campaign) => (
-                      <div key={campaign.id} className="rounded-2xl border border-border bg-secondary/40 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="font-medium text-foreground">{campaign.name}</h3>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                              {campaign.templateName || "No template"} ·{" "}
-                              {campaign.connectionLabel || "No connection"}
-                            </p>
-                          </div>
-                          <span className="rounded-full border border-border px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                            {campaign.status}
-                          </span>
-                        </div>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                          <MiniMetric label="Recipients" value={campaign.totalRecipients || 0} />
-                          <MiniMetric label="Delivered" value={campaign.deliveredCount || 0} />
-                          <MiniMetric label="Read" value={campaign.readCount || 0} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className="rounded-2xl border border-border bg-card p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">Review Queue</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Templates that still need attention from Meta or from you.
-                    </p>
-                  </div>
-                  <Link
-                    href="/reach/templates"
-                    className="text-sm font-medium text-primary no-underline hover:underline"
-                  >
-                    Open templates
-                  </Link>
-                </div>
-
-                {reviewQueue.length === 0 ? (
-                  <EmptyState text="No pending or rejected templates right now." />
-                ) : (
-                  <div className="space-y-3">
-                    {reviewQueue.map((template) => (
-                      <div key={template.id} className="rounded-2xl border border-border bg-secondary/40 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="font-medium text-foreground">{template.templateName}</h3>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {template.connectionLabel || "No connection"}
-                            </p>
-                          </div>
-                          <span
-                            className={`rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] ${
-                              template.status === "REJECTED"
-                                ? "border-red-500/30 bg-red-500/10 text-red-300"
-                                : "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                            }`}
-                          >
-                            {template.status}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-sm text-muted-foreground">
-                          {template.body?.slice(0, 120) || "No body saved."}
-                          {template.body && template.body.length > 120 ? "..." : ""}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <section className="rounded-2xl border border-border bg-card p-5">
-              <h2 className="text-lg font-semibold text-foreground">30-Day Send Breakdown</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Status activity pulled from send events in the last 30 days.
-              </p>
-              <div className="mt-5 space-y-3">
-                {([
-                  ["DELIVERED", sendStatusMap.DELIVERED || 0],
-                  ["READ", sendStatusMap.READ || 0],
-                  ["FAILED", sendStatusMap.FAILED || 0],
-                  ["BLOCKED", sendStatusMap.BLOCKED || 0],
-                  ["SENT", sendStatusMap.SENT || 0],
-                ] as Array<[string, number]>).map(([label, count]) => (
-                  <StatusRow
-                    key={label}
-                    label={label}
-                    value={count}
-                    total={Math.max(Object.values(sendStatusMap).reduce((sum, value) => sum + value, 0), 1)}
-                  />
                 ))}
               </div>
-            </section>
+            ) : <EmptyState message="No campaigns yet. Create a campaign when you are ready to send." />}
+          </section>
 
-            <section className="rounded-2xl border border-border bg-card p-5">
-              <h2 className="text-lg font-semibold text-foreground">Connection Health</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Quality rating and throughput headroom for each number.
-              </p>
-              <div className="mt-5 space-y-3">
-                {connections.length === 0 ? (
-                  <EmptyState text="No WhatsApp numbers connected yet." compact />
-                ) : (
-                  connections.map((connection) => {
-                    return (
-                      <div key={connection.id} className="rounded-2xl border border-border bg-secondary/40 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="font-medium text-foreground">
-                              {connection.phoneDisplayNumber || connection.phoneNumberId}
-                            </h3>
-                            <p className="mt-1 text-xs text-muted-foreground">{connection.phoneNumberId}</p>
-                          </div>
-                          <span className="rounded-full border border-border px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                            {connection.currentQualityRating}
-                          </span>
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-3">
-                          <MiniMetric label="Sent 24h" value={connection.stats.sentLast24h || 0} />
-                          <MiniMetric label="Remaining" value={connection.stats.estimatedRemainingToday || 0} />
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </section>
-          </div>
+          <section className="rounded-lg border border-border bg-card">
+            <div className="px-5 py-4"><h2 className="text-base font-semibold text-foreground">Review queue</h2><p className="mt-1 text-sm text-muted-foreground">Items that need a decision.</p></div>
+            <div className="px-5 pb-2">
+              {summary.reviewQueue.length ? summary.reviewQueue.slice(0, 4).map((template) => (
+                <Link key={template.id} href="/reach/templates" className="flex gap-3 border-t border-border py-3.5 no-underline first:border-t-0">
+                  <span className={template.status === "REJECTED" ? "mt-1.5 size-2 shrink-0 rounded-full bg-destructive" : "mt-1.5 size-2 shrink-0 rounded-full bg-status-attention"} />
+                  <span><span className="block text-sm font-semibold text-foreground">{template.templateName}</span><span className="mt-0.5 block text-xs text-muted-foreground">{template.status} · {template.connectionLabel || "No connection"}</span></span>
+                </Link>
+              )) : <EmptyState compact message="Nothing is waiting for review." />}
+            </div>
+          </section>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-2 2xl:grid-cols-4">
-          {products.map((product) => (
-            <Link
-              key={product.name}
-              href={product.href}
-              className="rounded-xl border border-border bg-card p-5 no-underline transition-all duration-200 hover:border-primary/20 hover:bg-secondary/40"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-secondary/40">
-                <product.icon className="h-5 w-5 text-primary" />
-              </div>
-              <h2 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">{product.name}</h2>
-              <p className="mt-3 text-sm leading-7 text-muted-foreground">{product.description}</p>
-              <div className="mt-6 text-sm font-semibold text-primary">Open product</div>
-            </Link>
-          ))}
+        <SectionHeading title="Campaign performance" actionHref="/reach/campaigns" actionLabel="View campaigns" />
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.85fr)]">
+          <section className="overflow-hidden rounded-lg border border-border bg-card">
+            {summary.recentCampaigns.length ? (
+              <table className="w-full text-left text-sm">
+                <thead className="bg-secondary/60 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"><tr><th className="px-5 py-3">Campaign</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Recipients</th><th className="px-5 py-3 text-right">Delivery</th></tr></thead>
+                <tbody>{summary.recentCampaigns.slice(0, 4).map((campaign) => {
+                  const campaignRate = campaign.totalRecipients ? Math.round((campaign.deliveredCount / campaign.totalRecipients) * 100) : 0;
+                  return <tr key={campaign.id} className="border-t border-border"><td className="px-5 py-3 font-semibold text-foreground">{campaign.name}</td><td className="px-3 py-3"><Status label={campaign.status} /></td><td className="px-3 py-3 text-muted-foreground">{campaign.totalRecipients.toLocaleString("en-ZA")}</td><td className="px-5 py-3 text-right text-muted-foreground">{campaignRate}%</td></tr>;
+                })}</tbody>
+              </table>
+            ) : <EmptyState message="Campaign performance will appear here after your first send." />}
+          </section>
+          <section className="rounded-lg border border-border bg-card p-5">
+            <p className="text-sm font-medium text-muted-foreground">Monthly send capacity</p>
+            <p className="mt-3 text-4xl font-semibold tracking-tight text-foreground">{remainingToday.toLocaleString("en-ZA")}<span className="ml-2 text-base font-medium text-muted-foreground">remaining</span></p>
+            <p className="mt-2 text-sm text-muted-foreground">Estimated sends across connected numbers</p>
+            <div className="mt-5 h-1 rounded-full bg-secondary"><div className="h-full w-[38%] rounded-full bg-muted-foreground" /></div>
+            <div className="mt-2 flex justify-between text-xs text-muted-foreground"><span>{summary.campaignsAggregate.totalRecipients.toLocaleString("en-ZA")} sent</span><span>{summary.connections.length.toLocaleString("en-ZA")} connections</span></div>
+          </section>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <MetricCard
-            label="All Contacts"
-            value={contactsAggregate.total.toLocaleString("en-ZA")}
-            helper="Total contact records available to segment and target"
-          />
-          <MetricCard
-            label="Excluded Contacts"
-            value={contactsAggregate.excluded.toLocaleString("en-ZA")}
-            helper="Contacts currently excluded from marketing sends"
-          />
-          <MetricCard
-            label="Failures Recorded"
-            value={totalFailures.toLocaleString("en-ZA")}
-            helper="Combined failed and blocked outcomes across all campaigns"
-          />
+        <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <OperationalLink href="/inbox" icon={MessageCircle} label="Inbox" detail="Open conversations and customer replies" />
+          <OperationalLink href="/reach/templates" icon={FileText} label="Templates" detail={`${summary.templateStatusMap.APPROVED || 0} approved templates`} />
+          <OperationalLink href="/agents" icon={Bot} label="Agents" detail={`${summary.botCount} configured automations`} />
+          <OperationalLink href="/connections" icon={PlugZap} label="Connections" detail={`${summary.connections.length} connected numbers`} />
         </section>
       </div>
     </div>
   );
 }
 
-function HeroMetric({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-secondary/35 p-4">
-      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-foreground">{value}</p>
-      <p className="mt-2 text-sm text-muted-foreground">{helper}</p>
-    </div>
-  );
+function SectionHeading({ title, actionHref, actionLabel }: { title: string; actionHref: string; actionLabel: string }) {
+  return <div className="mb-3 mt-8 flex items-baseline justify-between gap-4"><h2 className="text-base font-semibold text-foreground">{title}</h2><Link href={actionHref} className="text-xs font-medium text-muted-foreground no-underline hover:text-foreground">{actionLabel} →</Link></div>;
 }
 
-function MetricCard({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-foreground">{value}</p>
-      <p className="mt-2 text-sm text-muted-foreground">{helper}</p>
-    </div>
-  );
+function SummaryCard({ label, value, detail, attention }: { label: string; value: string; detail: string; attention?: number }) {
+  return <section className="min-h-28 rounded-lg border border-border bg-card p-4"><div className="flex items-start justify-between gap-2"><p className="text-sm font-medium text-muted-foreground">{label}</p>{attention ? <span className="text-xs font-medium text-status-attention">{attention} review</span> : null}</div><p className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{value}</p><p className="mt-1 text-sm text-muted-foreground">{detail}</p></section>;
 }
 
-function MiniMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-border bg-background/40 p-3">
-      <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-foreground">{value.toLocaleString("en-ZA")}</p>
-    </div>
-  );
+function Status({ label }: { label: string }) {
+  const normalized = label.toLowerCase();
+  const tone = normalized.includes("reject") || normalized.includes("fail") ? "bg-destructive" : normalized.includes("pending") || normalized.includes("draft") ? "bg-status-attention" : "bg-muted-foreground";
+  return <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><i className={`size-1.5 rounded-full ${tone}`} />{label}</span>;
 }
 
-function StatusRow({
-  label,
-  value,
-  total,
-}: {
-  label: string;
-  value: number;
-  total: number;
-}) {
-  const width = `${Math.max((value / total) * 100, value > 0 ? 8 : 0)}%`;
-
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium text-foreground">{value.toLocaleString("en-ZA")}</span>
-      </div>
-      <div className="h-2 rounded-full bg-secondary">
-        <div className="h-full rounded-full bg-primary" style={{ width }} />
-      </div>
-    </div>
-  );
+function EmptyState({ message, compact = false }: { message: string; compact?: boolean }) {
+  return <div className={compact ? "border-t border-border py-5 text-sm text-muted-foreground" : "p-8 text-center text-sm text-muted-foreground"}>{message}</div>;
 }
 
-function EmptyState({ text, compact = false }: { text: string; compact?: boolean }) {
-  return (
-    <div
-      className={`rounded-2xl border border-dashed border-border bg-secondary/35 text-center text-muted-foreground ${
-        compact ? "px-4 py-6 text-sm" : "px-6 py-12 text-sm"
-      }`}
-    >
-      {text}
-    </div>
-  );
+function OperationalLink({ href, icon: Icon, label, detail }: { href: string; icon: LucideIcon; label: string; detail: string }) {
+  return <Link href={href} className="rounded-lg border border-border bg-card p-4 no-underline transition-colors hover:bg-secondary"><Icon className="size-4 text-muted-foreground" /><p className="mt-4 text-sm font-semibold text-foreground">{label}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></Link>;
 }

@@ -7,10 +7,10 @@ export const metadata = {
 export default function AuthErrorPage() {
   return (
     <div className="space-y-4 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-red-500/15 bg-red-500/10 text-2xl">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-destructive/20 bg-status-danger-soft text-2xl text-destructive">
         ✕
       </div>
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-400">Authentication error</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-destructive">Authentication error</p>
       <h1 className="text-2xl font-semibold tracking-tight text-foreground">Something went wrong</h1>
       <p className="text-muted-foreground">
         There was a problem signing you in. Please try again.

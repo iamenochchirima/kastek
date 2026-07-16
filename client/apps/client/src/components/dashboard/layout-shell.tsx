@@ -15,6 +15,7 @@ import {
   Bell,
   Cable,
   CalendarDays,
+  ChevronDown,
   CreditCard,
   Download,
   Bot,
@@ -46,6 +47,7 @@ import PushNotificationReminder from "@/components/dashboard/notifications/push-
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import type { BillingSummary } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
+import { applyTheme, resolveStoredTheme, type AppTheme } from "@/lib/theme";
 
 type NavItem = {
   name: string;
@@ -97,36 +99,25 @@ const navigationGroups: NavigationGroup[] = [
   },
 ];
 
-type Theme = "light" | "dark";
-const storageKey = "kasiai-theme";
-
-function getTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
-  const stored = window.localStorage.getItem(storageKey);
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
 function ThemeToggleSimple({ className }: { className?: string }) {
-  const [theme, setTheme] = useState<Theme>(getTheme);
+  const [theme, setTheme] = useState<AppTheme>(resolveStoredTheme);
 
   return (
     <button
       type="button"
       onClick={() => {
         const nextTheme = theme === "dark" ? "light" : "dark";
-        document.documentElement.dataset.theme = nextTheme;
-        document.documentElement.classList.toggle("dark", nextTheme === "dark");
-        window.localStorage.setItem(storageKey, nextTheme);
+        applyTheme(nextTheme);
         setTheme(nextTheme);
       }}
       className={cn(
-        "inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+        "inline-flex h-9 items-center justify-center gap-2 rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
         className,
       )}
       aria-label="Toggle theme"
     >
       {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      <span>{theme === "dark" ? "Light" : "Dark"}</span>
     </button>
   );
 }
@@ -158,14 +149,23 @@ function NavigationSection({
   inboxUnreadCount: number;
   billingSummary: BillingSummary | null;
 }) {
+  const [isOpen, setIsOpen] = useState(true);
+
   return (
-    <section className="space-y-1">
+    <section className="space-y-0.5">
       {!collapsed ? (
-        <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          {group.label}
-        </p>
+        <button
+          type="button"
+          onClick={() => setIsOpen((open) => !open)}
+          className="flex w-full items-center justify-between px-2.5 pb-1 pt-2.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+          aria-expanded={isOpen}
+          aria-controls={`sidebar-section-${group.label.toLowerCase()}`}
+        >
+          <span>{group.label}</span>
+          <ChevronDown className={cn("h-3 w-3 transition-transform duration-150", !isOpen && "-rotate-90")} />
+        </button>
       ) : null}
-      {group.items.map((item) => {
+      {(collapsed || isOpen) ? <div id={`sidebar-section-${group.label.toLowerCase()}`} className="space-y-0.5">{group.items.map((item) => {
         const active = isItemActive(pathname, item.href);
         const showBadge = item.href === "/inbox" && inboxUnreadCount > 0;
         const product = item.productKey
@@ -180,14 +180,14 @@ function NavigationSection({
             href={href}
             onClick={onNavigate}
             className={cn(
-              "relative flex items-center rounded-lg text-sm font-medium no-underline transition-all duration-200",
-              collapsed ? "justify-center px-2 py-2.5" : "gap-2.5 px-3 py-2.5",
+              "relative flex min-h-9 items-center rounded-md text-[13px] font-medium leading-5 no-underline transition-colors",
+              collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
               active
-                ? "bg-[linear-gradient(135deg,rgba(232,160,32,0.18),rgba(232,160,32,0.04))] text-primary shadow-[inset_0_0_0_1px_rgba(232,160,32,0.16)]"
-                : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
             )}
             >
-              <item.icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-primary")} />
+              <item.icon className="h-4 w-4 shrink-0" />
             {!collapsed ? <span>{item.name}</span> : null}
             {locked ? (
               <LockKeyhole
@@ -198,7 +198,7 @@ function NavigationSection({
             {showBadge ? (
               <span
                 className={cn(
-                  "ml-auto shrink-0 rounded-full bg-primary text-[11px] font-semibold text-primary-foreground",
+                  "ml-auto shrink-0 rounded-full bg-status-attention text-[11px] font-semibold text-primary-foreground",
                   collapsed ? "absolute right-1 top-1 min-w-[18px] px-1.5 py-0.5 text-center" : "px-2 py-0.5",
                 )}
               >
@@ -207,7 +207,7 @@ function NavigationSection({
             ) : null}
           </Link>
         );
-      })}
+      })}</div> : null}
     </section>
   );
 }
@@ -216,7 +216,6 @@ function SidebarContent({
   collapsed,
   setCollapsed,
   user,
-  hasPwaUpdate = false,
   onNavigate,
   orgs = [],
   activeOrgId = null,
@@ -225,7 +224,6 @@ function SidebarContent({
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
   user?: { name?: string | null; email?: string | null; image?: string | null };
-  hasPwaUpdate?: boolean;
   onNavigate?: () => void;
   orgs?: Org[];
   activeOrgId?: string | null;
@@ -239,43 +237,24 @@ function SidebarContent({
     ? accountName.split(" ").filter(Boolean).slice(0, 2)
     : (accountEmail.split("@")[0] || accountName).split(/[\s._-]+/).filter(Boolean).slice(0, 2);
   const initials = initialsSource.map((part) => part.slice(0, 1).toUpperCase()).join("") || "AD";
-  const sectionLabel = getSectionLabel(pathname);
   const hasOrgs = orgs.length > 0;
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-border bg-card">
+    <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div
         className={cn(
-          "flex h-14 items-center border-b border-border",
+          "flex h-[58px] items-center border-b border-border",
           collapsed ? "justify-center px-3" : "justify-between gap-2 px-3",
         )}
       >
-        {hasOrgs ? (
-          <div className={cn("min-w-0 flex-1", collapsed && "flex justify-center")}>
-            <OrgSwitcher
-              orgs={orgs}
-              activeOrgId={activeOrgId}
-              collapsed={collapsed}
-              variant="header"
-            />
-          </div>
-        ) : (
-          <Link
-            href="/workspace"
-            onClick={onNavigate}
-            className={cn("flex min-w-0 items-center gap-2 text-left no-underline transition-opacity hover:opacity-90", collapsed && "justify-center")}
-          >
-            <Image src="/logo.png" alt="KasiTek" width={32} height={32} className="h-8 w-8 rounded-sm" />
-            {!collapsed ? (
-              <div className="flex flex-col">
-                <span className="font-display text-lg tracking-wide text-foreground">KasiTek</span>
-                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                  {sectionLabel}
-                </span>
-              </div>
-            ) : null}
-          </Link>
-        )}
+        <Link
+          href="/workspace"
+          onClick={onNavigate}
+          className={cn("flex min-w-0 items-center gap-2 text-left no-underline transition-opacity hover:opacity-90", collapsed && "justify-center")}
+        >
+          <Image src="/logo.png" alt="KasiTek" width={32} height={32} className="h-8 w-8 rounded-md" />
+          {!collapsed ? <span className="text-[13px] font-semibold text-foreground">KasiTek</span> : null}
+        </Link>
 
         {setCollapsed && !collapsed ? (
           <div className="flex items-center gap-1">
@@ -291,7 +270,12 @@ function SidebarContent({
         ) : null}
       </div>
 
-      <nav className={cn("flex-1 space-y-1 overflow-x-hidden overflow-y-auto p-2.5", collapsed && "px-2")}>
+      <nav className={cn("sidebar-nav-scroll flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-3 py-2.5", collapsed && "px-2")}>
+        {hasOrgs ? (
+          <div className="mb-3.5">
+            <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={collapsed} variant="panel" />
+          </div>
+        ) : null}
         {navigationGroups.map((group) => (
           <NavigationSection
             key={group.label}
@@ -314,16 +298,15 @@ function SidebarContent({
           </div>
         ) : null}
         <div className={cn("flex items-center gap-2.5 rounded-md px-3 py-1", collapsed && "justify-center px-2")}>
-          <ThemeToggleSimple />
-          {!collapsed ? <span className="text-sm text-muted-foreground">Theme</span> : null}
+          <ThemeToggleSimple className={collapsed ? "w-9 px-0 [&_span]:hidden" : undefined} />
         </div>
 
         <Link
           href="/workspace/notifications"
           onClick={onNavigate}
           className={cn(
-            "flex items-center rounded-lg text-sm font-medium text-muted-foreground no-underline transition-all duration-200 hover:bg-secondary/80 hover:text-foreground",
-            collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2.5",
+            "flex min-h-9 items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground no-underline transition-colors hover:bg-secondary hover:text-foreground",
+            collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
           )}
         >
           <Bell className="h-[18px] w-[18px] shrink-0" />
@@ -334,8 +317,8 @@ function SidebarContent({
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "flex w-full items-center rounded-lg text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-secondary/80 hover:text-foreground",
-                collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2.5",
+                "flex min-h-9 w-full items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+                collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
               )}
             >
               <Avatar className="h-7 w-7 border border-border">
@@ -409,10 +392,10 @@ function PwaUpdateBanner({
 
   return (
     <div className="mx-auto max-w-[1600px] px-5 pt-5 lg:px-6 lg:pt-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-primary/20 bg-[linear-gradient(135deg,rgba(8,8,8,0.96),rgba(24,24,24,0.94))] p-3.5 text-white shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border bg-card p-3.5 text-foreground">
         <div className="min-w-0">
           <p className="text-sm font-semibold">Update available</p>
-          <p className="mt-1 text-sm text-white/70">
+          <p className="mt-1 text-sm text-muted-foreground">
             A newer version of the app is ready. Refresh now to load the latest changes.
           </p>
         </div>
@@ -421,7 +404,7 @@ function PwaUpdateBanner({
           onClick={() => {
             window.dispatchEvent(new CustomEvent("kasitek:apply-pwa-update"));
           }}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-[13px] font-semibold text-primary-foreground transition hover:bg-primary/90"
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
         >
           <Download className="h-4 w-4" />
           Update now
@@ -469,12 +452,11 @@ export function LayoutShell({
     <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
       <>
         <div className="dashboard-theme flex h-screen bg-background">
-          <aside className={cn("hidden lg:flex lg:flex-col", collapsed ? "w-[72px]" : "w-64")}>
+          <aside className={cn("hidden lg:flex lg:flex-col", collapsed ? "w-[72px]" : "w-[252px]")}>
               <SidebarContent
                 collapsed={collapsed}
                 setCollapsed={setCollapsed}
                 user={user}
-                hasPwaUpdate={hasPwaUpdate}
                 orgs={orgs}
                 activeOrgId={activeOrgId}
                 billingSummary={billingSummary}
@@ -506,7 +488,6 @@ export function LayoutShell({
               <SidebarContent
                 collapsed={false}
                 user={user}
-                hasPwaUpdate={hasPwaUpdate}
                 orgs={orgs}
                 activeOrgId={activeOrgId}
                 billingSummary={billingSummary}

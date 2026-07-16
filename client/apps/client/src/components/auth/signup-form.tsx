@@ -158,7 +158,7 @@ export default function SignupForm() {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-center text-sm text-red-400">
+        <div className="rounded-lg border border-destructive/30 bg-status-danger-soft px-4 py-3 text-center text-sm text-destructive">
           {error}
         </div>
       )}

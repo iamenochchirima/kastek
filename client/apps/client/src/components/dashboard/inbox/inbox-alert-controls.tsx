@@ -100,7 +100,7 @@ export default function InboxAlertControls({
             onClick={enableDesktopAlerts}
             className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
               preferences.desktopAlertsEnabled
-                ? "border-green-500/30 bg-green-500/10 text-green-300"
+                ? "border-status-success/30 bg-status-success-soft text-status-success"
                 : "border-border bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >

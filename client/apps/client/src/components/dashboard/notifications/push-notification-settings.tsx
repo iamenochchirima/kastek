@@ -218,8 +218,8 @@ export default function PushNotificationSettings() {
           </button>
         </div>
 
-        {message ? <p className="mt-4 text-sm text-green-600">{message}</p> : null}
-        {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+        {message ? <p className="mt-4 text-sm text-status-success">{message}</p> : null}
+        {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-5">

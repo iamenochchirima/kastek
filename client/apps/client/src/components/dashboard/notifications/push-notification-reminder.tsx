@@ -57,9 +57,9 @@ export default function PushNotificationReminder() {
 
   return (
     <div className="mx-auto mb-6 max-w-[1600px] px-6 pt-6 lg:px-8 lg:pt-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,rgba(232,160,32,0.14),rgba(232,160,32,0.05))] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-border bg-card p-4">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
             <BellRing className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -74,7 +74,7 @@ export default function PushNotificationReminder() {
         <div className="flex flex-wrap gap-2">
           <Link
             href="/workspace/notifications"
-            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground no-underline transition hover:bg-primary/90"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground no-underline transition-opacity hover:opacity-90"
           >
             Enable now
           </Link>
@@ -86,7 +86,7 @@ export default function PushNotificationReminder() {
                 window.localStorage.setItem(REMINDER_DISMISS_KEY, "true");
               }
             }}
-            className="rounded-full border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-secondary"
+            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
           >
             Not now
           </button>

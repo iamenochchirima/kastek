@@ -152,11 +152,11 @@ function deploymentStatusClass(status?: string | null) {
     case "provisioning":
       return "border-primary/30 bg-primary/10 text-primary";
     case "paused":
-      return "border-yellow-500/30 bg-yellow-500/10 text-yellow-300";
+      return "border-status-attention/30 bg-status-attention-soft text-status-attention";
     case "pending_manual":
-      return "border-white/15 bg-white/5 text-muted-foreground";
+      return "border-border bg-secondary text-muted-foreground";
     case "error":
-      return "border-red-500/30 bg-red-500/10 text-red-300";
+      return "border-destructive/30 bg-status-danger-soft text-destructive";
     default:
       return "border-border bg-secondary text-muted-foreground";
   }
@@ -169,7 +169,7 @@ function statusClass(status: string) {
     case "provisioning":
       return "border-primary/30 bg-primary/10 text-primary";
     case "error":
-      return "border-red-500/30 bg-red-500/10 text-red-300";
+      return "border-destructive/30 bg-status-danger-soft text-destructive";
     default:
       return "border-border bg-secondary text-muted-foreground";
   }
@@ -330,7 +330,7 @@ export function AgentsPageClient({
         </div>
 
         {error ? (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <div className="rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive">
             {error}
           </div>
         ) : null}
@@ -665,7 +665,7 @@ function CreateAgentModal({
     <div className="fixed inset-0 z-50">
       <button
         type="button"
-        className="absolute inset-0 bg-black/65"
+        className="absolute inset-0 bg-foreground/65"
         onClick={onClose}
         aria-label="Close create agent modal"
       />
@@ -702,7 +702,7 @@ function CreateAgentModal({
 
           <div className="space-y-5 px-6 py-6">
             {error ? (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+              <div className="rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive">
                 {error}
               </div>
             ) : null}

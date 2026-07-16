@@ -1,5 +1,6 @@
 import "./marketing-prototype.css";
 import ThemeScope from "@/components/theme-scope";
+import ChatWidget from "@/components/chat-widget";
 
 export default function MarketingLayout({
   children,
@@ -9,7 +10,10 @@ export default function MarketingLayout({
   return (
     <>
       <ThemeScope mode="dark" />
-      <div className="landing-shell min-h-screen">{children}</div>
+      <div className="landing-shell min-h-screen">
+        {children}
+        <ChatWidget />
+      </div>
     </>
   );
 }

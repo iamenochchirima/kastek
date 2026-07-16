@@ -1,5 +1,4 @@
 import { getRustSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
 import { fetchOrgs, fetchOrgMembers, fetchOrgInvitations, getActiveOrgId } from "@/lib/orgs";
 import { redirect } from "next/navigation";
 import { TeamPageClient } from "./team-page-client";

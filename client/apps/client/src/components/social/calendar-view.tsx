@@ -124,7 +124,7 @@ export function CalendarView() {
         </div>
 
         {error ? (
-          <div className="rounded-md border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <div className="rounded-md border border-destructive/30 bg-status-danger-soft px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         ) : null}

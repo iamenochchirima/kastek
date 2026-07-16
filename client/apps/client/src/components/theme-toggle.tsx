@@ -1,17 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
-type Theme = "light" | "dark";
-
-const storageKey = "kasiai-theme";
-
-function getTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-  const stored = window.localStorage.getItem(storageKey);
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
+import { applyTheme, resolveStoredTheme, type AppTheme } from "@/lib/theme";
 
 function SunIcon() {
   return (
@@ -31,12 +21,11 @@ function MoonIcon() {
 }
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(getTheme);
+  const [theme, setTheme] = useState<AppTheme>(resolveStoredTheme);
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = nextTheme;
-    window.localStorage.setItem(storageKey, nextTheme);
+    applyTheme(nextTheme);
     setTheme(nextTheme);
   }
 

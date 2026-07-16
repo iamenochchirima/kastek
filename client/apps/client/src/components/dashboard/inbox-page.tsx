@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Picker from "@emoji-mart/react";
 import emojiData from "@emoji-mart/data";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Archive,
   Check,
+  ChevronDown,
   Clock,
   Copy,
   Facebook,
@@ -363,7 +364,9 @@ export default function InboxPageClient({
 }) {
   const searchParams = useSearchParams();
   const [liveConversations, setLiveConversations] = useState(conversations);
-  const [selectedChannel, setSelectedChannel] = useState<"all" | "whatsapp" | "instagram" | "facebook">("all");
+  const [selectedChannel, setSelectedChannel] = useState<
+    "all" | "whatsapp" | "email" | "sms" | "instagram" | "facebook"
+  >("all");
   const [selectedWhatsappConnectionId, setSelectedWhatsappConnectionId] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     conversations[0]?.id ?? null,
@@ -381,8 +384,7 @@ export default function InboxPageClient({
   const [openActionsMessageId, setOpenActionsMessageId] = useState<string | null>(null);
   const [reactionPicker, setReactionPicker] = useState<ReactionPickerState | null>(null);
   const [selfReactionOverridesByMessageId, setSelfReactionOverridesByMessageId] = useState<Record<string, string>>({});
-  const [showChannelPanel, setShowChannelPanel] = useState(true);
-  const [mobileChannelPanelOpen, setMobileChannelPanelOpen] = useState(false);
+  const [showChannelPanel, setShowChannelPanel] = useState(false);
   const [mobileConversationOpen, setMobileConversationOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [lightbox, setLightbox] = useState<MediaLightboxState | null>(null);
@@ -440,19 +442,41 @@ export default function InboxPageClient({
         id: "whatsapp" as const,
         name: "WhatsApp",
         icon: MessageCircle,
-        color: "text-green-500",
-        bgColor: "bg-green-500/10",
+        color: "text-status-success",
+        bgColor: "bg-status-success-soft",
         count: liveConversations.length,
         unreadCount: whatsappUnreadCount,
         disabled: false,
         connected: channelCounts.whatsapp.connected,
       },
       {
+        id: "email" as const,
+        name: "Email",
+        icon: Mail,
+        color: "text-muted-foreground",
+        bgColor: "bg-secondary",
+        count: 0,
+        unreadCount: 0,
+        disabled: true,
+        connected: false,
+      },
+      {
+        id: "sms" as const,
+        name: "SMS",
+        icon: MessageCircle,
+        color: "text-muted-foreground",
+        bgColor: "bg-secondary",
+        count: 0,
+        unreadCount: 0,
+        disabled: true,
+        connected: false,
+      },
+      {
         id: "instagram" as const,
         name: "Instagram",
         icon: Instagram,
-        color: "text-pink-500",
-        bgColor: "bg-pink-500/10",
+        color: "text-muted-foreground",
+        bgColor: "bg-secondary",
         count: 0,
         unreadCount: 0,
         disabled: true,
@@ -460,10 +484,10 @@ export default function InboxPageClient({
       },
       {
         id: "facebook" as const,
-        name: "Facebook Messenger",
+        name: "Messenger",
         icon: Facebook,
-        color: "text-blue-500",
-        bgColor: "bg-blue-500/10",
+        color: "text-muted-foreground",
+        bgColor: "bg-secondary",
         count: 0,
         unreadCount: 0,
         disabled: true,
@@ -507,6 +531,9 @@ export default function InboxPageClient({
       (filter === "starred" && conversation.starred);
     return channelMatch && connectionMatch && filterMatch;
   });
+  const selectedWhatsappConnectionFilter =
+    whatsappConnectionFilters.find((connection) => connection.id === selectedWhatsappConnectionId) ??
+    whatsappConnectionFilters[0];
 
   const selectedConversation =
     filteredConversations.find((conversation) => conversation.id === selectedConversationId) ??
@@ -543,7 +570,6 @@ export default function InboxPageClient({
     channels.find((channel) => channel.id === (selectedConversation?.channel ?? selectedChannel)) ??
     channels[0];
   const ChannelIcon = currentChannel.icon;
-  const selectedChannelMeta = channels.find((channel) => channel.id === selectedChannel) ?? channels[0];
   const selectedMessages = useMemo(
     () => (selectedConversationId ? messagesByConversationId[selectedConversationId] || [] : []),
     [messagesByConversationId, selectedConversationId],
@@ -857,192 +883,89 @@ export default function InboxPageClient({
 
   const renderChannelPanelContent = () => (
     <>
-      <div className="border-b border-border p-4">
-        <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-foreground">Channels</h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground"
-            onClick={() => {
-              setShowChannelPanel(false);
-              setMobileChannelPanelOpen(false);
-            }}
-          >
+      <div className="border-b border-border px-5 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Manage channels</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Choose which connected channels appear in Inbox.</p>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => setShowChannelPanel(false)}>
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Manage all your conversations</p>
       </div>
 
-      <ScrollArea className="flex-1 p-2">
-        <div className="space-y-2">
-          {channels.map((channel) => {
-            const Icon = channel.icon;
-            const isActive = selectedChannel === channel.id;
-
-            return (
-              <div
-                key={channel.id}
-                className={cn(
-                  "rounded-lg border p-3 transition-all duration-200",
-                  isActive ? "border-primary/20 bg-primary/10" : "border-transparent",
-                  channel.disabled && "opacity-70",
-                )}
-              >
-                <button
-                  onClick={() => {
-                    if (!channel.disabled) setSelectedChannel(channel.id);
-                    setShowChannelPanel(false);
-                    setMobileChannelPanelOpen(false);
-                    setMobileConversationOpen(false);
-                  }}
-                  disabled={channel.disabled}
-                  className="flex w-full items-center gap-3 text-left"
-                >
-                  <div className={cn("rounded-md p-1.5", channel.bgColor)}>
-                    <Icon className={cn("h-4 w-4", channel.color)} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p
+      <ScrollArea className="flex-1">
+        <div className="space-y-6 p-5">
+          <section>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Connected</p>
+            <div className="rounded-lg border border-border bg-card">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-status-success-soft text-status-success">
+                  <MessageCircle className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">WhatsApp</p>
+                  <p className="text-xs text-muted-foreground">
+                    {channelCounts.whatsapp.connected
+                      ? `${channelCounts.whatsapp.connectionCount} connected number${channelCounts.whatsapp.connectionCount === 1 ? "" : "s"}`
+                      : "Not connected"}
+                  </p>
+                </div>
+                {channelCounts.whatsapp.connected ? <Badge variant="outline">Connected</Badge> : null}
+              </div>
+              {channelCounts.whatsapp.connected ? (
+                <div className="border-t border-border p-2">
+                  {whatsappConnectionFilters.map((connectionFilter) => (
+                    <button
+                      key={connectionFilter.id || "all"}
+                      type="button"
+                      onClick={() => {
+                        setSelectedChannel("whatsapp");
+                        setSelectedWhatsappConnectionId(connectionFilter.id);
+                        setShowChannelPanel(false);
+                        setMobileConversationOpen(false);
+                      }}
                       className={cn(
-                        "text-sm",
-                        isActive ? "font-medium text-foreground" : "text-muted-foreground",
+                        "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary",
+                        selectedWhatsappConnectionId === connectionFilter.id && "bg-secondary text-foreground",
                       )}
                     >
-                      {channel.name}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {channel.unreadCount > 0 ? (
-                      <Badge className="h-5 min-w-[20px] border-0 bg-primary px-1.5 text-xs text-primary-foreground">
-                        {channel.unreadCount}
-                      </Badge>
-                    ) : null}
-                    <span className="text-xs text-muted-foreground">{channel.count}</span>
-                  </div>
-                </button>
+                      <span className="truncate">{connectionFilter.label}</span>
+                      <span className="ml-3 shrink-0 text-xs tabular-nums text-muted-foreground">
+                        {connectionFilter.conversationCount}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="border-t border-border p-3">
+                  <Sheet>
+                    <SheetTrigger asChild><Button size="sm">Connect WhatsApp</Button></SheetTrigger>
+                    <SheetContent side="right" className="w-[min(720px,100vw)] overflow-y-auto p-0">
+                      <div className="border-b border-border px-5 py-4"><h3 className="text-base font-semibold text-foreground">WhatsApp connection</h3></div>
+                      <div className="p-5"><WhatsappManualConnectionCard connections={whatsappConnections} mode="setup" /></div>
+                    </SheetContent>
+                  </Sheet>
+                </div>
+              )}
+            </div>
+          </section>
 
-                {channel.id !== "all" ? (
-                  <div className="mt-3">
-                    {channel.id === "whatsapp" ? (
-                      channel.connected ? (
-                        <div className="space-y-2">
-                          {whatsappConnectionFilters.map((connectionFilter) => {
-                            const isActiveConnection =
-                              selectedWhatsappConnectionId === connectionFilter.id;
-
-                            return (
-                              <button
-                                key={connectionFilter.id || "all"}
-                                onClick={() => {
-                                  setSelectedWhatsappConnectionId(connectionFilter.id);
-                                  setShowChannelPanel(false);
-                                  setMobileChannelPanelOpen(false);
-                                  setMobileConversationOpen(false);
-                                }}
-                                className={cn(
-                                  "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors",
-                                  isActiveConnection
-                                    ? "border-primary/20 bg-primary/10 text-foreground"
-                                    : "border-border bg-secondary/30 text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
-                                )}
-                              >
-                                <div className="min-w-0">
-                                  <p className="truncate text-xs font-medium">
-                                    {connectionFilter.label}
-                                  </p>
-                                </div>
-                                <div className="ml-3 flex items-center gap-2">
-                                  {connectionFilter.unreadCount > 0 ? (
-                                    <Badge className="h-5 min-w-[20px] border-0 bg-primary px-1.5 text-[10px] text-primary-foreground">
-                                      {connectionFilter.unreadCount}
-                                    </Badge>
-                                  ) : null}
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {connectionFilter.conversationCount}
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <Sheet>
-                          <SheetTrigger asChild>
-                            <Button
-                              variant="secondary"
-                              className="h-8 w-full justify-center text-xs"
-                            >
-                              Connect WhatsApp
-                            </Button>
-                          </SheetTrigger>
-                          <SheetContent side="right" className="w-[min(720px,100vw)] overflow-y-auto p-0">
-                            <div className="border-b border-border px-5 py-4">
-                              <h3 className="text-base font-semibold text-foreground">
-                                WhatsApp Connection
-                              </h3>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                Reuse the current working Cloud API connection flow here.
-                              </p>
-                            </div>
-                            <div className="p-5">
-                              <WhatsappManualConnectionCard
-                                connections={whatsappConnections}
-                                mode="setup"
-                              />
-                            </div>
-                          </SheetContent>
-                        </Sheet>
-                      )
-                    ) : (
-                      <Button
-                        variant="outline"
-                        className="h-8 w-full justify-center text-xs opacity-50"
-                        disabled
-                      >
-                        Connect {channel.name}
-                      </Button>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="mt-6 border-t border-border pt-4">
-          <p className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Quick Filters
-          </p>
-          <div className="space-y-1">
-            {[
-              { id: "all", label: "All Messages", icon: MessageCircle },
-              { id: "unread", label: "Unread", icon: Mail },
-              { id: "starred", label: "Starred", icon: Star },
-            ].map((filterItem) => {
-              const Icon = filterItem.icon;
-              const isActive = filter === filterItem.id;
-              return (
-                <button
-                  key={filterItem.id}
-                  onClick={() => {
-                    setFilter(filterItem.id);
-                    setMobileConversationOpen(false);
-                  }}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
-                    isActive
-                      ? "bg-secondary text-foreground"
-                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{filterItem.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <section>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Available next</p>
+            <div className="divide-y divide-border rounded-lg border border-border bg-card">
+              {[
+                { label: "Email", description: "Bring shared inboxes into the same conversation view", icon: Mail },
+                { label: "SMS", description: "Manage text-message conversations alongside WhatsApp", icon: MessageCircle },
+                { label: "Instagram", description: "Direct messages and comments", icon: Instagram },
+                { label: "Facebook Messenger", description: "Page conversations", icon: Facebook },
+              ].map((channel) => {
+                const Icon = channel.icon;
+                return <div key={channel.label} className="flex items-start gap-3 px-4 py-3 opacity-70"><Icon className="mt-0.5 h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">{channel.label}</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{channel.description}</p></div></div>;
+              })}
+            </div>
+          </section>
         </div>
       </ScrollArea>
     </>
@@ -1896,64 +1819,113 @@ export default function InboxPageClient({
 
   return (
     <TooltipProvider>
-      <div className="relative flex h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden lg:h-[100dvh]">
-        <Sheet open={mobileChannelPanelOpen} onOpenChange={setMobileChannelPanelOpen}>
-          <SheetContent side="left" className="flex w-[min(320px,100vw)] flex-col p-0 lg:hidden">
+      <div className="relative flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col overflow-hidden bg-background lg:h-[100dvh]">
+        <Sheet open={showChannelPanel} onOpenChange={setShowChannelPanel}>
+          <SheetContent side="left" className="flex w-[min(360px,100vw)] flex-col p-0">
             {renderChannelPanelContent()}
           </SheetContent>
         </Sheet>
-        <AnimatePresence>
-          {showChannelPanel ? (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 260, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="hidden flex-col overflow-hidden border-r border-border bg-card lg:flex"
-            >
-              {renderChannelPanelContent()}
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+
+        <header className="shrink-0 border-b border-border bg-card px-4 pt-4 sm:px-6 sm:pt-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Customer workspace
+              </p>
+              <h1 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-foreground">Inbox</h1>
+            </div>
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowChannelPanel(true)}>
+              <Filter className="h-4 w-4" />
+              Manage channels
+            </Button>
+          </div>
+
+          <div className="mt-4 flex gap-1 overflow-x-auto pb-0" role="tablist" aria-label="Inbox channels">
+            {channels.map((channel) => {
+              const Icon = channel.icon;
+              const isActive = selectedChannel === channel.id;
+              return (
+                <button
+                  key={channel.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-disabled={channel.disabled}
+                  onClick={() => {
+                    if (channel.disabled) return;
+                    setSelectedChannel(channel.id);
+                    setSelectedWhatsappConnectionId(null);
+                    setMobileConversationOpen(false);
+                  }}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
+                    isActive
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
+                    channel.disabled && "cursor-not-allowed opacity-45 hover:border-transparent hover:text-muted-foreground",
+                  )}
+                >
+                  <Icon className={cn("h-4 w-4", channel.id === "whatsapp" && "text-status-success")} />
+                  {channel.id === "all" ? "All conversations" : channel.name}
+                  {channel.unreadCount > 0 ? (
+                    <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[11px] tabular-nums text-foreground">
+                      {channel.unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </header>
+
+        <div className="min-h-0 flex flex-1 overflow-hidden">
 
         <div
           className={cn(
             "min-h-0 shrink-0 flex-col border-r border-border bg-card",
             mobileConversationOpen ? "hidden md:flex" : "flex w-full",
-            "md:w-[360px] lg:w-96",
+            "md:w-[340px] lg:w-[380px]",
           )}
         >
           <div className="border-b border-border p-3 sm:p-4">
-            <div className="mb-4 flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-muted-foreground md:hidden"
-                  onClick={() => setMobileChannelPanelOpen(true)}
-                >
-                  <Filter className="h-4 w-4" />
-              </Button>
-              {!showChannelPanel ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden h-8 w-8 shrink-0 text-muted-foreground lg:inline-flex"
-                  onClick={() => setShowChannelPanel(true)}
-                >
-                  <Filter className="h-4 w-4" />
-                </Button>
-              ) : null}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h1 className="truncate text-lg font-semibold text-foreground sm:text-xl">
-                    {selectedChannelMeta.name}
-                  </h1>
-                </div>
-              </div>
-              <Badge className="hidden border-0 bg-primary/10 text-primary sm:inline-flex">
-                {filteredConversations.filter((conversation) => conversation.unread).length} new
-              </Badge>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-foreground">Conversations</p>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {filteredConversations.length} total
+              </span>
             </div>
+
+            {selectedChannel === "whatsapp" && channelCounts.whatsapp.connected ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="mb-3 h-8 max-w-full gap-2 text-xs">
+                    <MessageCircle className="h-3.5 w-3.5 text-status-success" />
+                    <span className="truncate">{selectedWhatsappConnectionFilter?.label || "All numbers"}</span>
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  {whatsappConnectionFilters.map((connectionFilter) => (
+                    <DropdownMenuItem
+                      key={connectionFilter.id || "all"}
+                      onClick={() => {
+                        setSelectedWhatsappConnectionId(connectionFilter.id);
+                        setMobileConversationOpen(false);
+                      }}
+                      className={cn(
+                        "flex items-center justify-between gap-4",
+                        selectedWhatsappConnectionId === connectionFilter.id && "bg-secondary",
+                      )}
+                    >
+                      <span className="truncate">{connectionFilter.label}</span>
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                        {connectionFilter.conversationCount}
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
 
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1962,18 +1934,36 @@ export default function InboxPageClient({
                 className="border-border bg-secondary pl-9"
               />
             </div>
+
+            <div className="mt-3 flex items-center gap-1 overflow-x-auto" aria-label="Conversation filters">
+              {[
+                { id: "all", label: "All" },
+                { id: "unread", label: "Unread" },
+                { id: "starred", label: "Starred" },
+              ].map((filterItem) => (
+                <button
+                  key={filterItem.id}
+                  type="button"
+                  onClick={() => {
+                    setFilter(filterItem.id);
+                    setMobileConversationOpen(false);
+                  }}
+                  className={cn(
+                    "shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                    filter === filterItem.id
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  )}
+                >
+                  {filterItem.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <ScrollArea className="min-h-0 flex-1">
             <div className="p-2">
-              {selectedChannel !== "all" && selectedChannelMeta.disabled ? (
-                <div className="flex flex-col items-center justify-center py-14 text-center">
-                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
-                    <selectedChannelMeta.icon className={cn("h-6 w-6", selectedChannelMeta.color)} />
-                  </div>
-                  <p className="text-sm text-foreground">{selectedChannelMeta.name} is not wired yet</p>
-                </div>
-              ) : !channelCounts.whatsapp.connected && (selectedChannel === "all" || selectedChannel === "whatsapp") ? (
+              {!channelCounts.whatsapp.connected && (selectedChannel === "all" || selectedChannel === "whatsapp") ? (
                 <div className="flex flex-col items-center justify-center py-14 text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
                     <MessageCircle className="h-6 w-6 text-muted-foreground" />
@@ -2051,7 +2041,7 @@ export default function InboxPageClient({
                                     </Badge>
                                   ) : null}
                                   {conversation.starred ? (
-                                    <Badge className="border-0 bg-amber-500/10 text-[10px] text-amber-500">
+                                    <Badge className="border-0 bg-status-attention-soft text-[10px] text-status-attention">
                                       Starred
                                     </Badge>
                                   ) : null}
@@ -2408,7 +2398,7 @@ export default function InboxPageClient({
                     </div>
                   ) : null}
                   {callMediaError ? (
-                    <div className="mt-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                    <div className="mt-2 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-xs text-destructive">
                       {callMediaError}
                     </div>
                   ) : null}
@@ -2416,25 +2406,23 @@ export default function InboxPageClient({
               ) : null}
 
               {callError ? (
-                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                <div className="rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-xs text-destructive">
                   {callError}
                 </div>
               ) : null}
 
               {conversationCallHistory.length > 0 ? (
-                <div className="rounded-2xl border border-border/70 bg-card/80 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
+                <details className="rounded-lg border border-border bg-card [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
                     <div>
                       <p className="text-sm font-semibold text-foreground">Recent calls</p>
-                      <p className="text-xs text-muted-foreground">
-                        Latest WhatsApp call activity for this conversation
-                      </p>
+                      <p className="text-xs text-muted-foreground">WhatsApp call activity for this conversation</p>
                     </div>
                     <Badge variant="outline" className="text-[10px]">
                       {conversationCallHistory.length} recent
                     </Badge>
-                  </div>
-                  <div className="space-y-2">
+                  </summary>
+                  <div className="space-y-2 border-t border-border px-4 py-3">
                     {conversationCallHistory.map((call) => {
                       const duration = formatCallDuration(call.answeredAt, call.endedAt);
                       return (
@@ -2462,7 +2450,7 @@ export default function InboxPageClient({
                       );
                     })}
                   </div>
-                </div>
+                </details>
               ) : null}
 
               <div className="flex items-center gap-4 py-2">
@@ -2557,7 +2545,7 @@ export default function InboxPageClient({
                     />
                     <div className="mt-1.5 space-y-1">
                       {message.status === "failed" && message.errorMessage ? (
-                        <p className="max-w-[220px] text-right text-[10px] leading-snug text-red-300">
+                        <p className="max-w-[220px] text-right text-[10px] leading-snug text-destructive">
                           {message.errorMessage}
                         </p>
                       ) : null}
@@ -2639,7 +2627,7 @@ export default function InboxPageClient({
           <div className="border-t border-border bg-card p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
             <div className="mx-auto max-w-3xl">
               {composerError ? (
-                <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                <div className="mb-3 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-xs text-destructive">
                   {composerError}
                 </div>
               ) : null}
@@ -2747,6 +2735,7 @@ export default function InboxPageClient({
               </div>
             </div>
           </div>
+        </div>
         </div>
         <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       </div>
@@ -2947,7 +2936,7 @@ function ReplyPreviewCard({
   const mediaUrl = message && media ? apiUrl(`/api/whatsapp/inbox/media/${message.id}`) : null;
 
   return (
-    <div className="flex overflow-hidden rounded-md bg-black/20">
+    <div className="flex overflow-hidden rounded-md bg-secondary">
       <div className="w-1 shrink-0 bg-primary" />
       <div className="min-w-0 flex-1 px-3 py-2">
         <p className="truncate text-[11px] font-medium text-primary">{label}</p>
@@ -2986,7 +2975,7 @@ function renderOutgoingMessageState(status?: ConversationMessage["status"]) {
   }
 
   if (status === "failed" || status === "BLOCKED") {
-    return <span className="text-[10px] text-red-300">Failed</span>;
+    return <span className="text-[10px] text-destructive">Failed</span>;
   }
 
   if (status === "SENT") {
@@ -3153,7 +3142,7 @@ function MediaLightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/80 p-4"
       onClick={onClose}
       role="presentation"
     >

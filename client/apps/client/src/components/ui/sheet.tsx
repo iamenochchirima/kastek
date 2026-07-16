@@ -44,7 +44,7 @@ export function SheetContent({ children, className, side = "left" }: { children:
   if (!ctx?.open) return null;
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" className="absolute inset-0 bg-black/40" onClick={() => ctx.setOpen(false)} aria-label="Close sheet" />
+      <button type="button" className="absolute inset-0 bg-foreground/40" onClick={() => ctx.setOpen(false)} aria-label="Close sheet" />
       <div className={cn("absolute inset-y-0 w-64 bg-card shadow-xl", side === "left" ? "left-0" : "right-0", className)}>
         {children}
       </div>

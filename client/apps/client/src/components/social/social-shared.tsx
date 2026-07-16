@@ -221,12 +221,9 @@ export function getPlatformIcon(platform: SocialPlatform): LucideIcon {
 }
 
 export function getPlatformTone(platform: SocialPlatform) {
-  if (platform === "FACEBOOK") return "border-blue-500/30 bg-blue-500/10 text-blue-300";
-  if (platform === "INSTAGRAM") return "border-pink-500/30 bg-pink-500/10 text-pink-300";
-  if (platform === "THREADS") return "border-zinc-400/30 bg-zinc-400/10 text-zinc-200";
-  if (platform === "LINKEDIN") return "border-cyan-500/30 bg-cyan-500/10 text-cyan-300";
-  if (platform === "X") return "border-slate-400/30 bg-slate-400/10 text-slate-200";
-  return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+  if (platform === "FACEBOOK" || platform === "LINKEDIN") return "border-status-info/30 bg-status-info-soft text-status-info";
+  if (platform === "INSTAGRAM" || platform === "THREADS" || platform === "X") return "border-border bg-secondary text-muted-foreground";
+  return "border-status-success/30 bg-status-success-soft text-status-success";
 }
 
 export function getPlatformCapabilities(platform: SocialPlatform): PlatformCapabilities {
@@ -249,7 +246,7 @@ export function getChannelStatusMeta(status: SocialChannelStatus) {
   if (status === "CONNECTED") {
     return {
       label: "Connected",
-      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+      className: "border-status-success/30 bg-status-success-soft text-status-success",
       actionLabel: "Reconnect",
     };
   }
@@ -257,7 +254,7 @@ export function getChannelStatusMeta(status: SocialChannelStatus) {
   if (status === "NEEDS_REAUTH") {
     return {
       label: "Needs Reauth",
-      className: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+      className: "border-status-attention/30 bg-status-attention-soft text-status-attention",
       actionLabel: "Reconnect",
     };
   }
@@ -289,7 +286,7 @@ export function getPostStatusMeta(status: SocialPostStatus) {
   if (status === "PROCESSING") {
     return {
       label: "Processing",
-      className: "border-sky-500/30 bg-sky-500/10 text-sky-300",
+      className: "border-status-info/30 bg-status-info-soft text-status-info",
       icon: Sparkles,
     };
   }
@@ -297,14 +294,14 @@ export function getPostStatusMeta(status: SocialPostStatus) {
   if (status === "PUBLISHED") {
     return {
       label: "Published",
-      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+      className: "border-status-success/30 bg-status-success-soft text-status-success",
       icon: Send,
     };
   }
 
   return {
     label: "Failed",
-    className: "border-red-500/30 bg-red-500/10 text-red-300",
+    className: "border-destructive/30 bg-status-danger-soft text-destructive",
     icon: Clock3,
   };
 }
@@ -329,7 +326,7 @@ export function getPublishJobStatusMeta(status: SocialPublishJobStatus) {
   if (status === "PROCESSING") {
     return {
       label: "Processing",
-      className: "border-sky-500/30 bg-sky-500/10 text-sky-300",
+      className: "border-status-info/30 bg-status-info-soft text-status-info",
       icon: Sparkles,
     };
   }
@@ -337,7 +334,7 @@ export function getPublishJobStatusMeta(status: SocialPublishJobStatus) {
   if (status === "PUBLISHED") {
     return {
       label: "Published",
-      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+      className: "border-status-success/30 bg-status-success-soft text-status-success",
       icon: Send,
     };
   }
@@ -345,7 +342,7 @@ export function getPublishJobStatusMeta(status: SocialPublishJobStatus) {
   if (status === "FAILED") {
     return {
       label: "Failed",
-      className: "border-red-500/30 bg-red-500/10 text-red-300",
+      className: "border-destructive/30 bg-status-danger-soft text-destructive",
       icon: AlertTriangle,
     };
   }

@@ -151,7 +151,7 @@ export function TeamPageClient({
           <section className="rounded-2xl border border-border bg-card p-5">
             <h2 className="mb-1 text-base font-semibold text-foreground">Invite a team member</h2>
             <p className="mb-5 text-sm text-muted-foreground">
-              They'll receive an email with a link to join this organisation.
+              They&apos;ll receive an email with a link to join this organisation.
             </p>
             <form onSubmit={handleInvite} className="flex flex-col gap-3 sm:flex-row">
               <Input
@@ -179,7 +179,7 @@ export function TeamPageClient({
               <p className="mt-3 text-sm text-destructive">{inviteError}</p>
             ) : null}
             {inviteSuccess ? (
-              <p className="mt-3 text-sm text-green-500">{inviteSuccess}</p>
+              <p className="mt-3 text-sm text-status-success">{inviteSuccess}</p>
             ) : null}
           </section>
         ) : null}

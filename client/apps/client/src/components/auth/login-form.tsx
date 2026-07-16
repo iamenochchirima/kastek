@@ -73,7 +73,7 @@ export default function LoginForm({
       )}
 
       {error && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-center text-sm text-red-400">
+        <div className="rounded-lg border border-destructive/30 bg-status-danger-soft px-4 py-3 text-center text-sm text-destructive">
           {error}
           {isGoogleOnly && (
             <p className="mt-2 text-xs text-muted-foreground">

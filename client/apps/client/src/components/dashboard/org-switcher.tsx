@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Check, ChevronDown, Plus, Settings } from "lucide-react";
+import { Check, ChevronDown, Plus, Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,19 +55,19 @@ export function OrgSwitcher({
           className={cn(
             "flex w-full items-center gap-2 text-left transition-colors",
             variant === "header"
-              ? "rounded-xl bg-transparent hover:bg-secondary/70"
-              : "rounded-xl border border-border bg-secondary/40 hover:border-primary/20 hover:bg-secondary/70",
+              ? "rounded-md bg-transparent hover:bg-secondary"
+              : "min-h-10 rounded-md border border-sidebar-border bg-sidebar hover:bg-secondary",
             collapsed
               ? "justify-center px-2 py-2"
               : variant === "header"
                 ? "px-2 py-1.5"
-                : "px-3 py-2",
+                : "px-2.5 py-2",
           )}
         >
           <Avatar
             className={cn(
               "shrink-0 border border-border",
-              variant === "header" ? "h-7 w-7 rounded-full" : "h-7 w-7 rounded-lg",
+              variant === "header" ? "h-6 w-6 rounded-full" : "h-6 w-6 rounded-md",
             )}
           >
             {activeOrg.logo ? (
@@ -75,8 +75,8 @@ export function OrgSwitcher({
             ) : null}
             <AvatarFallback
               className={cn(
-                "bg-primary/20 text-[11px] font-semibold text-primary",
-                variant === "header" ? "rounded-full" : "rounded-lg",
+                "bg-secondary text-[9px] font-semibold text-muted-foreground",
+                variant === "header" ? "rounded-full" : "rounded-md",
               )}
             >
               {initials}
@@ -85,14 +85,7 @@ export function OrgSwitcher({
           {!collapsed ? (
             <>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">{activeOrg.name}</p>
-                {variant === "header" ? (
-                  null
-                ) : (
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Organisation
-                  </p>
-                )}
+                <p className="truncate text-[13px] font-medium text-foreground">{activeOrg.name}</p>
               </div>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </>
@@ -109,7 +102,7 @@ export function OrgSwitcher({
           >
             <Avatar className="h-6 w-6 shrink-0 rounded-md border border-border">
               {org.logo ? <AvatarImage src={org.logo} alt={org.name} /> : null}
-              <AvatarFallback className="rounded-md bg-primary/20 text-[10px] font-semibold text-primary">
+              <AvatarFallback className="rounded-md bg-secondary text-[10px] font-semibold text-muted-foreground">
                 {org.name
                   .split(/\s+/)
                   .slice(0, 2)
@@ -119,7 +112,7 @@ export function OrgSwitcher({
             </Avatar>
             <span className="flex-1 truncate text-sm">{org.name}</span>
             {org.id === activeOrg.id ? (
-              <Check className="h-3.5 w-3.5 text-primary" />
+              <Check className="h-3.5 w-3.5 text-foreground" />
             ) : null}
           </DropdownMenuItem>
         ))}

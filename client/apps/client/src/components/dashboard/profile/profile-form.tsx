@@ -24,9 +24,9 @@ function Notice({
 }) {
   const classes =
     tone === "error"
-      ? "border-red-500/30 bg-red-500/10 text-red-300"
+      ? "border-destructive/30 bg-status-danger-soft text-destructive"
       : tone === "success"
-        ? "border-green-500/30 bg-green-500/10 text-green-300"
+        ? "border-status-success/30 bg-status-success-soft text-status-success"
         : "border-border bg-secondary text-muted-foreground";
 
   return <div className={`rounded-xl border px-4 py-3 text-sm ${classes}`}>{message}</div>;

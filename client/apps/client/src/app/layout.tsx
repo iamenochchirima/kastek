@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import ChatWidget from "@/components/chat-widget";
 import PwaRegister from "@/components/pwa-register";
 import ThemeScript from "@/components/theme-script";
 import "./globals.css";
@@ -27,7 +26,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#080808",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbfbfc" },
+    { media: "(prefers-color-scheme: dark)", color: "#17191c" },
+  ],
 };
 
 export default async function RootLayout({
@@ -43,7 +45,6 @@ export default async function RootLayout({
       <body className="font-sans antialiased">
         {children}
         <PwaRegister />
-        <ChatWidget />
       </body>
     </html>
   );

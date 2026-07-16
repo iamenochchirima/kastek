@@ -551,7 +551,7 @@ export function PostsWorkspace() {
         </div>
 
         {error ? (
-          <div className="rounded-md border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <div className="rounded-md border border-destructive/30 bg-status-danger-soft px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         ) : null}
@@ -801,7 +801,7 @@ export function PostsWorkspace() {
                                     ) : null}
                                   </div>
                                   {job.errorMessage ? (
-                                    <p className="mt-2 text-xs text-red-200">{job.errorMessage}</p>
+                                    <p className="mt-2 text-xs text-destructive">{job.errorMessage}</p>
                                   ) : null}
                                 </div>
                               );
@@ -889,7 +889,7 @@ export function PostsWorkspace() {
 
       {isComposerOpen ? (
         <div className="fixed inset-0 z-50">
-          <button type="button" className="absolute inset-0 bg-black/55" onClick={() => setIsComposerOpen(false)} aria-label="Close composer" />
+          <button type="button" className="absolute inset-0 bg-foreground/55" onClick={() => setIsComposerOpen(false)} aria-label="Close composer" />
           <div className="absolute inset-y-0 right-0 w-full max-w-[760px] overflow-y-auto border-l border-border bg-card shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
               <div>
