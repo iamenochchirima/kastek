@@ -2837,6 +2837,14 @@ pub async fn launch_campaign(
             "Campaign has no recipients to launch".to_string(),
         ));
     }
+    billing::require_usage_available(
+        pool,
+        org_id,
+        "reach",
+        "campaign_recipients",
+        recipient_ids.len() as i64,
+    )
+    .await?;
     if (recipient_ids.len() as i32) > connection_limit {
         return Err(AppError::Conflict(format!(
             "Launch batch size ({}) exceeds estimated daily portfolio limit ({})",
@@ -3782,6 +3790,18 @@ async fn process_claimed_campaign_recipient(
             }))
             .bind(raw)
             .execute(pool)
+            .await?;
+
+            billing::record_usage(
+                pool,
+                org_id,
+                "reach",
+                "campaign_recipients",
+                1,
+                "campaign_recipient",
+                recipient_id,
+                &format!("reach-campaign-recipient:{recipient_id}"),
+            )
             .await?;
 
             log::info!(

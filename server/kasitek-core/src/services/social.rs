@@ -1925,6 +1925,7 @@ pub async fn execute_social_publish_job(
 
     let result = async {
         billing::require_product_access(pool, org_id, "social").await?;
+        billing::require_usage_available(pool, org_id, "social", "publishes", 1).await?;
 
         if job.platform == "FACEBOOK" {
             let channel = resolve_connected_channel_for_platform(
@@ -2060,6 +2061,18 @@ pub async fn execute_social_publish_job(
             .execute(tx.as_mut())
             .await?;
             tx.commit().await?;
+
+            billing::record_usage(
+                pool,
+                org_id,
+                "social",
+                "publishes",
+                1,
+                "social_publish_job",
+                &job.id,
+                &format!("social-publish:{}", job.id),
+            )
+            .await?;
 
             Ok(PublishExecutionResult {
                 job_id: job.id,

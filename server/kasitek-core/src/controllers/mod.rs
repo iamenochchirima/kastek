@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod admin_billing;
 pub mod admin_conversations;
 pub mod admin_invoices;
 pub mod admin_leads;

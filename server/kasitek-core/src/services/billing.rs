@@ -75,6 +75,96 @@ pub struct BillingSummary {
 }
 
 #[derive(Debug, Serialize, FromRow)]
+pub struct ManualGrant {
+    pub id: String,
+    #[serde(rename = "orgId")]
+    #[sqlx(rename = "org_id")]
+    pub org_id: String,
+    pub key: String,
+    pub value: Value,
+    #[serde(rename = "startsAt")]
+    #[sqlx(rename = "starts_at")]
+    pub starts_at: DateTime<Utc>,
+    #[serde(rename = "endsAt")]
+    #[sqlx(rename = "ends_at")]
+    pub ends_at: Option<DateTime<Utc>>,
+    pub reason: Option<String>,
+    #[serde(rename = "createdById")]
+    #[sqlx(rename = "created_by_id")]
+    pub created_by_id: Option<String>,
+}
+
+pub async fn list_manual_grants(pool: &PgPool, org_id: &str) -> Result<Vec<ManualGrant>, AppError> {
+    sqlx::query_as::<_, ManualGrant>(
+        r#"
+        SELECT id, "orgId" AS org_id, key, value,
+               "startsAt" AT TIME ZONE 'UTC' AS starts_at,
+               "endsAt" AT TIME ZONE 'UTC' AS ends_at,
+               reason, "createdById" AS created_by_id
+        FROM "OrganizationEntitlementGrant"
+        WHERE "orgId" = $1 AND source = 'MANUAL'::"EntitlementSource"
+        ORDER BY "createdAt" DESC
+    "#,
+    )
+    .bind(org_id)
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+pub async fn create_manual_grant(
+    pool: &PgPool,
+    org_id: &str,
+    key: &str,
+    value: Value,
+    ends_at: Option<DateTime<Utc>>,
+    reason: &str,
+    actor_id: &str,
+) -> Result<ManualGrant, AppError> {
+    let key = key.trim();
+    let reason = reason.trim();
+    if key.is_empty() || reason.is_empty() {
+        return Err(AppError::BadRequest(
+            "Grant key and reason are required".to_string(),
+        ));
+    }
+    if ends_at.is_some_and(|date| date <= Utc::now()) {
+        return Err(AppError::BadRequest(
+            "Grant expiry must be in the future".to_string(),
+        ));
+    }
+    sqlx::query_as::<_, ManualGrant>(r#"
+        INSERT INTO "OrganizationEntitlementGrant" (id, "orgId", key, value, source, "startsAt", "endsAt", reason, "createdById", "createdAt", "updatedAt")
+        VALUES ($1, $2, $3, $4, 'MANUAL'::"EntitlementSource", NOW(), $5, $6, $7, NOW(), NOW())
+        RETURNING id, "orgId" AS org_id, key, value,
+                  "startsAt" AT TIME ZONE 'UTC' AS starts_at,
+                  "endsAt" AT TIME ZONE 'UTC' AS ends_at,
+                  reason, "createdById" AS created_by_id
+    "#)
+    .bind(cuid2::create_id()).bind(org_id).bind(key).bind(value).bind(ends_at).bind(reason).bind(actor_id)
+    .fetch_one(pool).await.map_err(AppError::from)
+}
+
+pub async fn expire_manual_grant(
+    pool: &PgPool,
+    org_id: &str,
+    grant_id: &str,
+) -> Result<bool, AppError> {
+    let result = sqlx::query(
+        r#"
+        UPDATE "OrganizationEntitlementGrant" SET "endsAt" = NOW(), "updatedAt" = NOW()
+        WHERE id = $1 AND "orgId" = $2 AND source = 'MANUAL'::"EntitlementSource"
+          AND ("endsAt" IS NULL OR "endsAt" > NOW())
+    "#,
+    )
+    .bind(grant_id)
+    .bind(org_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+#[derive(Debug, Serialize, FromRow)]
 pub struct AvailablePlan {
     pub key: String,
     #[serde(rename = "productKey")]
@@ -447,4 +537,78 @@ pub async fn require_product_access(
             product.name
         )))
     }
+}
+
+pub async fn usage_limit(
+    pool: &PgPool,
+    org_id: &str,
+    product_key: &str,
+    metric_key: &str,
+) -> Result<Option<i64>, AppError> {
+    let entitlement_key = format!("limit.{product_key}.{metric_key}");
+    sqlx::query_scalar::<_, Option<i64>>(r#"
+        SELECT MAX((candidate.value #>> '{}')::bigint)
+        FROM (
+          SELECT value FROM "OrganizationEntitlementGrant"
+          WHERE "orgId" = $1 AND key = $2 AND "startsAt" <= NOW()
+            AND ("endsAt" IS NULL OR "endsAt" > NOW()) AND jsonb_typeof(value) = 'number'
+          UNION ALL
+          SELECT entitlement.value
+          FROM "OrganizationSubscription" subscription
+          JOIN "PlanEntitlement" entitlement ON entitlement."planId" = subscription."planId"
+          WHERE subscription."orgId" = $1 AND entitlement.key = $2
+            AND subscription.status IN ('TRIAL'::"OrganizationSubscriptionStatus", 'ACTIVE'::"OrganizationSubscriptionStatus", 'GRACE'::"OrganizationSubscriptionStatus")
+            AND jsonb_typeof(entitlement.value) = 'number'
+        ) candidate
+    "#).bind(org_id).bind(entitlement_key).fetch_one(pool).await.map_err(AppError::from)
+}
+
+pub async fn require_usage_available(
+    pool: &PgPool,
+    org_id: &str,
+    product_key: &str,
+    metric_key: &str,
+    quantity: i64,
+) -> Result<(), AppError> {
+    let Some(limit) = usage_limit(pool, org_id, product_key, metric_key).await? else {
+        return Ok(());
+    };
+    let used = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COALESCE(SUM(quantity), 0)::bigint FROM "UsageEvent"
+        WHERE "orgId" = $1 AND "productKey" = $2 AND "metricKey" = $3
+          AND "occurredAt" >= date_trunc('month', NOW())
+    "#,
+    )
+    .bind(org_id)
+    .bind(product_key)
+    .bind(metric_key)
+    .fetch_one(pool)
+    .await?;
+    if used.saturating_add(quantity) > limit {
+        return Err(AppError::Forbidden(format!(
+            "The {product_key} {metric_key} monthly limit has been reached"
+        )));
+    }
+    Ok(())
+}
+
+pub async fn record_usage(
+    pool: &PgPool,
+    org_id: &str,
+    product_key: &str,
+    metric_key: &str,
+    quantity: i32,
+    source_type: &str,
+    source_id: &str,
+    idempotency_key: &str,
+) -> Result<bool, AppError> {
+    let result = sqlx::query(r#"
+        INSERT INTO "UsageEvent" (id, "orgId", "productKey", "metricKey", quantity, "sourceType", "sourceId", "idempotencyKey", "occurredAt", "createdAt")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+        ON CONFLICT ("idempotencyKey") DO NOTHING
+    "#)
+    .bind(cuid2::create_id()).bind(org_id).bind(product_key).bind(metric_key).bind(quantity)
+    .bind(source_type).bind(source_id).bind(idempotency_key).execute(pool).await?;
+    Ok(result.rows_affected() == 1)
 }

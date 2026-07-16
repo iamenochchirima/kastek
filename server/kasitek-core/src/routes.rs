@@ -1,9 +1,10 @@
 use actix_web::web;
 
 use crate::controllers::{
-    admin, admin_conversations, admin_invoices, admin_leads, admin_notifications, admin_outreach,
-    admin_quotations, admin_web_services, ai, auth, billing, bots, chat, health, inbox,
-    notifications, orgs, profile, public, realtime, social, whatsapp, whatsapp_calls, workspace,
+    admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
+    admin_outreach, admin_quotations, admin_web_services, ai, auth, billing, bots, chat, health,
+    inbox, notifications, orgs, profile, public, realtime, social, whatsapp, whatsapp_calls,
+    workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -323,6 +324,15 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/reset-password", web::post().to(admin::reset_password))
                 .route("/password", web::patch().to(admin::change_password))
                 .route("/stats", web::get().to(admin::stats))
+                .service(
+                    web::scope("/billing/orgs/{orgId}/grants")
+                        .route("", web::get().to(admin_billing::list_grants))
+                        .route("", web::post().to(admin_billing::create_grant))
+                        .route(
+                            "/{grantId}/expire",
+                            web::post().to(admin_billing::expire_grant),
+                        ),
+                )
                 .service(
                     web::scope("/leads")
                         .route("", web::get().to(admin_leads::list_leads))
