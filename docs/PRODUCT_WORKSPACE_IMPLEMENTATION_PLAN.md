@@ -255,7 +255,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 - [x] Replace the current product list in the sidebar with the work-oriented navigation defined in Scope.
 - [x] Keep product names out of daily navigation labels.
-- [ ] Preserve product names in billing, plan comparison, feature enablement, and locked-state explanations.
+- [x] Preserve product names in billing, plan comparison, feature enablement, and locked-state explanations.
 - [x] Add a stable Home/Overview route.
 - [x] Group navigation by Customer, Growth, Automation, and Manage.
 - [x] Show a deliberate locked state for purchasable features instead of hiding a product that users may need to discover.
@@ -265,22 +265,22 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Route migration
 
-- [ ] Define the final route map before changing links.
+- [x] Define the final route map before changing links.
 - [ ] Suggested final routes:
-  - [ ] `/workspace` or `/home` for Overview
-  - [ ] `/inbox`
-  - [ ] `/contacts`
-  - [ ] `/campaigns`
-  - [ ] `/templates`
-  - [ ] `/content`
-  - [ ] `/calendar`
-  - [ ] `/analytics`
-  - [ ] `/agents`
+  - [x] `/workspace` for Overview
+  - [x] `/inbox`
+  - [x] `/contacts`
+  - [x] `/campaigns`
+  - [x] `/templates`
+  - [x] `/content`
+  - [x] `/calendar`
+  - [x] `/analytics`
+  - [x] `/agents`
   - [ ] `/workflows`
   - [ ] `/activity`
-  - [ ] `/connections`
-  - [ ] `/workspace/team`
-  - [ ] `/billing`
+  - [x] `/connections`
+  - [x] `/workspace/team`
+  - [x] `/billing`
   - [x] `/workspace/settings`
 - [ ] Redirect current `/reach/*` routes to their final non-product-branded routes.
 - [ ] Redirect current `/social/*` routes to their final non-product-branded routes.
@@ -400,10 +400,10 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Process duplicate webhook deliveries safely.
 - [ ] Handle at minimum:
   - [x] Successful charge
-  - [ ] Failed invoice/payment
-  - [ ] Subscription created
-  - [ ] Subscription non-renewing
-  - [ ] Subscription disabled/completed
+  - [x] Failed invoice/payment
+  - [x] Subscription created
+  - [x] Subscription non-renewing
+  - [x] Subscription disabled/completed
   - [ ] Refund or charge reversal where applicable
 - [ ] Add a reconciliation job that periodically verifies recent unresolved transactions and subscription states with Paystack.
 - [ ] Alert internal operators when payment state and internal entitlement state differ.
