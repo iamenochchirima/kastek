@@ -19,6 +19,11 @@ pub struct CreateGrantRequest {
     pub reason: String,
 }
 
+#[derive(Deserialize)]
+pub struct IssueQuery {
+    pub status: Option<String>,
+}
+
 async fn require_billing_admin(
     req: &HttpRequest,
     pool: &PgPool,
@@ -86,9 +91,25 @@ pub async fn reconcile_paystack(
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| AppError::Internal("Paystack is not configured".to_string()))?;
     let provider = PaystackProvider::new(secret, &config.paystack_api_base_url);
-    let result = billing::reconcile_pending_checkouts(pool.get_ref(), &provider, 100).await?;
+    let result = billing::reconcile_billing(pool.get_ref(), &provider, 100).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "provider": provider.name(),
         "result": result,
+    })))
+}
+
+pub async fn list_reconciliation_issues(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<IssueQuery>,
+) -> Result<HttpResponse, AppError> {
+    require_billing_admin(&req, pool.get_ref()).await?;
+    let status = query
+        .status
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "issues": billing::list_reconciliation_issues(pool.get_ref(), status).await?,
     })))
 }

@@ -110,11 +110,13 @@ async fn run_billing_reconciliation_worker(pool: sqlx::PgPool, config: AppConfig
         .unwrap_or(100);
 
     loop {
-        match services::billing::reconcile_pending_checkouts(&pool, &provider, batch_size).await {
-            Ok(result) if result.checked > 0 => {
+        match services::billing::reconcile_billing(&pool, &provider, batch_size).await {
+            Ok(result) if result.checked > 0 || result.subscriptions_checked > 0 => {
                 log::info!(
-                    "[billing-reconciliation-worker] provider={} checked={} completed={} pending={} failed={}",
-                    provider.name(), result.checked, result.completed, result.pending, result.failed
+                    "[billing-reconciliation-worker] provider={} checkouts={} completed={} pending={} subscriptions={} updated={} failed={} open_issues={}",
+                    provider.name(), result.checked, result.completed, result.pending,
+                    result.subscriptions_checked, result.subscriptions_updated, result.failed,
+                    result.open_issues
                 );
                 if result.failed > 0 {
                     log::warn!(

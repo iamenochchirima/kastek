@@ -6,7 +6,9 @@ use sqlx::{FromRow, PgPool};
 use std::collections::HashMap;
 
 use crate::error::AppError;
-use crate::services::billing_provider::{BillingProvider, CheckoutRequest, ProviderEvent};
+use crate::services::billing_provider::{
+    BillingProvider, CheckoutRequest, ProviderEvent, ProviderSubscriptionState,
+};
 
 #[derive(Debug, FromRow)]
 struct ProductRow {
@@ -28,6 +30,8 @@ struct SubscriptionRow {
     #[sqlx(rename = "planName")]
     plan_name: String,
     status: String,
+    #[sqlx(rename = "currentPeriodStart")]
+    current_period_start: Option<DateTime<Utc>>,
     #[sqlx(rename = "currentPeriodEnd")]
     current_period_end: Option<DateTime<Utc>>,
     #[sqlx(rename = "trialEndsAt")]
@@ -57,6 +61,8 @@ pub struct ProductAccess {
     pub plan_name: Option<String>,
     #[serde(rename = "subscriptionStatus")]
     pub subscription_status: Option<String>,
+    #[serde(rename = "currentPeriodStart")]
+    pub current_period_start: Option<DateTime<Utc>>,
     #[serde(rename = "currentPeriodEnd")]
     pub current_period_end: Option<DateTime<Utc>>,
     #[serde(rename = "trialEndsAt")]
@@ -74,6 +80,29 @@ pub struct BillingSummary {
     pub products: Vec<ProductAccess>,
     #[serde(rename = "manualGrants")]
     pub manual_grants: Vec<ManualGrant>,
+    pub payments: Vec<PaymentHistoryItem>,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct PaymentHistoryItem {
+    pub reference: String,
+    #[serde(rename = "productName")]
+    #[sqlx(rename = "product_name")]
+    pub product_name: String,
+    #[serde(rename = "planName")]
+    #[sqlx(rename = "plan_name")]
+    pub plan_name: String,
+    pub status: String,
+    pub currency: String,
+    #[serde(rename = "amountMinor")]
+    #[sqlx(rename = "amount_minor")]
+    pub amount_minor: Option<i32>,
+    #[serde(rename = "completedAt")]
+    #[sqlx(rename = "completed_at")]
+    pub completed_at: Option<DateTime<Utc>>,
+    #[serde(rename = "createdAt")]
+    #[sqlx(rename = "created_at")]
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -275,6 +304,26 @@ pub async fn process_provider_event(
             update_subscription_status(pool, provider_name, &subscription_id, "PAST_DUE", false)
                 .await
         }
+        ProviderEvent::RefundProcessed {
+            transaction_reference,
+            amount_minor,
+        } => process_refund(pool, provider_name, &transaction_reference, amount_minor).await,
+        ProviderEvent::DisputeOpened {
+            transaction_reference,
+        } => {
+            let checkout = checkout_org(pool, provider_name, &transaction_reference).await?;
+            upsert_reconciliation_issue(
+                pool,
+                checkout.as_deref(),
+                provider_name,
+                "transaction",
+                &transaction_reference,
+                "dispute_opened",
+                serde_json::json!({"reference": transaction_reference}),
+            )
+            .await?;
+            Ok(true)
+        }
         ProviderEvent::ChargeSucceeded {
             reference,
             customer_id,
@@ -291,6 +340,122 @@ pub async fn process_provider_event(
         }
         ProviderEvent::Ignored => Ok(false),
     }
+}
+
+async fn checkout_org(
+    pool: &PgPool,
+    provider_name: &str,
+    reference: &str,
+) -> Result<Option<String>, AppError> {
+    sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT "orgId" FROM "BillingCheckout" WHERE provider = $1 AND reference = $2
+    "#,
+    )
+    .bind(provider_name)
+    .bind(reference)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn process_refund(
+    pool: &PgPool,
+    provider_name: &str,
+    reference: &str,
+    amount_minor: Option<i64>,
+) -> Result<bool, AppError> {
+    let mut tx = pool.begin().await?;
+    let checkout = sqlx::query_as::<_, (String, String, String, Option<i64>, Option<String>)>(
+        r#"
+        SELECT checkout.id, checkout."orgId", checkout."planId",
+               COALESCE((checkout."providerResponse"->>'amountMinor')::bigint, plan."amountMinor"::bigint),
+               checkout."providerResponse"->>'subscriptionId'
+        FROM "BillingCheckout" checkout
+        JOIN "ProductPlan" plan ON plan.id = checkout."planId"
+        WHERE checkout.provider = $1 AND checkout.reference = $2
+        FOR UPDATE
+    "#,
+    )
+    .bind(provider_name)
+    .bind(reference)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some((checkout_id, org_id, plan_id, plan_amount, provider_subscription_id)) = checkout
+    else {
+        return Ok(false);
+    };
+
+    let Some(refund_amount) = amount_minor else {
+        tx.commit().await?;
+        upsert_reconciliation_issue(
+            pool,
+            Some(&org_id),
+            provider_name,
+            "transaction",
+            reference,
+            "refund_amount_unverified",
+            serde_json::json!({"refundAmountMinor": amount_minor, "transactionAmountMinor": plan_amount}),
+        )
+        .await?;
+        return Ok(true);
+    };
+    let Some(transaction_amount) = plan_amount else {
+        tx.commit().await?;
+        upsert_reconciliation_issue(
+            pool,
+            Some(&org_id),
+            provider_name,
+            "transaction",
+            reference,
+            "refund_amount_unverified",
+            serde_json::json!({"refundAmountMinor": refund_amount, "transactionAmountMinor": plan_amount}),
+        )
+        .await?;
+        return Ok(true);
+    };
+    if refund_amount < transaction_amount {
+        tx.commit().await?;
+        upsert_reconciliation_issue(
+            pool,
+            Some(&org_id),
+            provider_name,
+            "transaction",
+            reference,
+            "partial_refund_processed",
+            serde_json::json!({"refundAmountMinor": refund_amount, "transactionAmountMinor": transaction_amount}),
+        )
+        .await?;
+        return Ok(true);
+    }
+
+    let provider_subscription_id =
+        provider_subscription_id.unwrap_or_else(|| format!("{provider_name}-charge:{reference}"));
+    sqlx::query(
+        r#"
+        UPDATE "OrganizationSubscription"
+        SET status = 'CANCELLED'::"OrganizationSubscriptionStatus", "cancelledAt" = NOW(),
+            "cancelAtPeriodEnd" = false, "updatedAt" = NOW()
+        WHERE "orgId" = $1 AND "planId" = $2 AND provider = $3
+          AND "providerSubscriptionId" = $4
+    "#,
+    )
+    .bind(&org_id)
+    .bind(&plan_id)
+    .bind(provider_name)
+    .bind(&provider_subscription_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        r#"
+        UPDATE "BillingCheckout" SET status = 'REVERSED', "updatedAt" = NOW() WHERE id = $1
+    "#,
+    )
+    .bind(checkout_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(true)
 }
 
 async fn update_subscription_status(
@@ -372,10 +537,24 @@ pub async fn activate_checkout(
     "#).bind(cuid2::create_id()).bind(&org_id).bind(&plan_id).bind(provider_name).bind(customer_id)
     .bind(&provider_subscription_id).execute(&mut *tx).await?;
 
-    sqlx::query(r#"
-        UPDATE "BillingCheckout" SET status = 'COMPLETED', "completedAt" = NOW(), "updatedAt" = NOW()
+    sqlx::query(
+        r#"
+        UPDATE "BillingCheckout"
+        SET status = 'COMPLETED', "completedAt" = NOW(),
+            "providerResponse" = COALESCE("providerResponse", '{}'::jsonb) ||
+              jsonb_strip_nulls(jsonb_build_object(
+                'customerId', $2::text,
+                'subscriptionId', $3::text
+              )),
+            "updatedAt" = NOW()
         WHERE id = $1
-    "#).bind(checkout_id).execute(&mut *tx).await?;
+    "#,
+    )
+    .bind(checkout_id)
+    .bind(customer_id)
+    .bind(&provider_subscription_id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(true)
 }
@@ -613,6 +792,8 @@ async fn record_verification_response(
     .bind(serde_json::json!({
         "reference": transaction.reference,
         "successful": transaction.successful,
+        "amountMinor": transaction.amount_minor,
+        "currency": transaction.currency,
         "customerId": transaction.customer_id,
         "subscriptionId": transaction.subscription_id,
     }))
@@ -627,9 +808,131 @@ pub struct ReconciliationResult {
     pub completed: usize,
     pub pending: usize,
     pub failed: usize,
+    #[serde(rename = "subscriptionsChecked")]
+    pub subscriptions_checked: usize,
+    #[serde(rename = "subscriptionsUpdated")]
+    pub subscriptions_updated: usize,
+    #[serde(rename = "openIssues")]
+    pub open_issues: i64,
 }
 
-pub async fn reconcile_pending_checkouts(
+#[derive(Debug, Serialize, FromRow)]
+pub struct ReconciliationIssue {
+    pub id: String,
+    pub fingerprint: String,
+    #[serde(rename = "orgId")]
+    #[sqlx(rename = "org_id")]
+    pub org_id: Option<String>,
+    pub provider: String,
+    #[serde(rename = "resourceType")]
+    #[sqlx(rename = "resource_type")]
+    pub resource_type: String,
+    #[serde(rename = "resourceId")]
+    #[sqlx(rename = "resource_id")]
+    pub resource_id: String,
+    #[serde(rename = "issueType")]
+    #[sqlx(rename = "issue_type")]
+    pub issue_type: String,
+    pub status: String,
+    pub details: Value,
+    #[serde(rename = "detectedAt")]
+    #[sqlx(rename = "detected_at")]
+    pub detected_at: DateTime<Utc>,
+    #[serde(rename = "resolvedAt")]
+    #[sqlx(rename = "resolved_at")]
+    pub resolved_at: Option<DateTime<Utc>>,
+}
+
+pub async fn list_reconciliation_issues(
+    pool: &PgPool,
+    status: Option<&str>,
+) -> Result<Vec<ReconciliationIssue>, AppError> {
+    sqlx::query_as::<_, ReconciliationIssue>(
+        r#"
+        SELECT id, fingerprint, "orgId" AS org_id, provider,
+               "resourceType" AS resource_type, "resourceId" AS resource_id,
+               "issueType" AS issue_type, status, details,
+               "detectedAt" AT TIME ZONE 'UTC' AS detected_at,
+               "resolvedAt" AT TIME ZONE 'UTC' AS resolved_at
+        FROM "BillingReconciliationIssue"
+        WHERE $1::text IS NULL OR status = $1
+        ORDER BY "detectedAt" DESC LIMIT 200
+    "#,
+    )
+    .bind(status)
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn upsert_reconciliation_issue(
+    pool: &PgPool,
+    org_id: Option<&str>,
+    provider: &str,
+    resource_type: &str,
+    resource_id: &str,
+    issue_type: &str,
+    details: Value,
+) -> Result<(), AppError> {
+    let fingerprint = format!("{provider}:{resource_type}:{resource_id}:{issue_type}");
+    sqlx::query(
+        r#"
+        INSERT INTO "BillingReconciliationIssue" (
+          id, fingerprint, "orgId", provider, "resourceType", "resourceId", "issueType",
+          status, details, "detectedAt", "createdAt", "updatedAt"
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN', $8, NOW(), NOW(), NOW())
+        ON CONFLICT (fingerprint) DO UPDATE SET
+          status = 'OPEN', details = EXCLUDED.details, "detectedAt" = NOW(),
+          "resolvedAt" = NULL, "updatedAt" = NOW()
+    "#,
+    )
+    .bind(cuid2::create_id())
+    .bind(fingerprint)
+    .bind(org_id)
+    .bind(provider)
+    .bind(resource_type)
+    .bind(resource_id)
+    .bind(issue_type)
+    .bind(details)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn resolve_reconciliation_issue(
+    pool: &PgPool,
+    provider: &str,
+    resource_type: &str,
+    resource_id: &str,
+    issue_type: &str,
+) -> Result<(), AppError> {
+    let fingerprint = format!("{provider}:{resource_type}:{resource_id}:{issue_type}");
+    sqlx::query(
+        r#"
+        UPDATE "BillingReconciliationIssue"
+        SET status = 'RESOLVED', "resolvedAt" = NOW(), "updatedAt" = NOW()
+        WHERE fingerprint = $1 AND status = 'OPEN'
+    "#,
+    )
+    .bind(fingerprint)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+fn internal_subscription_state(state: &ProviderSubscriptionState) -> Option<(&'static str, bool)> {
+    match state {
+        ProviderSubscriptionState::Active => Some(("ACTIVE", false)),
+        ProviderSubscriptionState::NonRenewing => Some(("ACTIVE", true)),
+        ProviderSubscriptionState::Attention => Some(("PAST_DUE", false)),
+        ProviderSubscriptionState::Completed | ProviderSubscriptionState::Cancelled => {
+            Some(("CANCELLED", false))
+        }
+        ProviderSubscriptionState::Unknown(_) => None,
+    }
+}
+
+pub async fn reconcile_billing(
     pool: &PgPool,
     provider: &dyn BillingProvider,
     limit: i64,
@@ -652,6 +955,9 @@ pub async fn reconcile_pending_checkouts(
         completed: 0,
         pending: 0,
         failed: 0,
+        subscriptions_checked: 0,
+        subscriptions_updated: 0,
+        open_issues: 0,
     };
     for reference in references {
         match provider.verify_transaction(&reference).await {
@@ -681,9 +987,147 @@ pub async fn reconcile_pending_checkouts(
                     result.failed += 1;
                 }
             }
-            Err(_) => result.failed += 1,
+            Err(error) => {
+                let org_id = checkout_org(pool, provider.name(), &reference).await?;
+                upsert_reconciliation_issue(
+                    pool,
+                    org_id.as_deref(),
+                    provider.name(),
+                    "transaction",
+                    &reference,
+                    "verification_failed",
+                    serde_json::json!({"error": error.to_string()}),
+                )
+                .await?;
+                result.failed += 1;
+            }
         }
     }
+
+    let subscriptions = sqlx::query_as::<_, (String, String, String, bool)>(
+        r#"
+        SELECT id, "orgId", "providerSubscriptionId", "cancelAtPeriodEnd"
+        FROM "OrganizationSubscription"
+        WHERE provider = $1 AND "providerSubscriptionId" IS NOT NULL
+          AND status IN (
+            'ACTIVE'::"OrganizationSubscriptionStatus",
+            'PAST_DUE'::"OrganizationSubscriptionStatus",
+            'GRACE'::"OrganizationSubscriptionStatus"
+          )
+        ORDER BY "updatedAt" ASC LIMIT $2
+    "#,
+    )
+    .bind(provider.name())
+    .bind(limit.clamp(1, 200))
+    .fetch_all(pool)
+    .await?;
+    result.subscriptions_checked = subscriptions.len();
+
+    for (subscription_row_id, org_id, subscription_id, cancel_at_period_end) in subscriptions {
+        match provider.verify_subscription(&subscription_id).await {
+            Ok(verified) => {
+                let Some((status, provider_cancel_at_period_end)) =
+                    internal_subscription_state(&verified.state)
+                else {
+                    upsert_reconciliation_issue(
+                        pool,
+                        Some(&org_id),
+                        provider.name(),
+                        "subscription",
+                        &subscription_id,
+                        "unknown_provider_status",
+                        serde_json::json!({"state": format!("{:?}", verified.state)}),
+                    )
+                    .await?;
+                    result.failed += 1;
+                    continue;
+                };
+
+                let current_status = sqlx::query_scalar::<_, String>(
+                    r#"
+                    SELECT status::text FROM "OrganizationSubscription" WHERE id = $1
+                "#,
+                )
+                .bind(&subscription_row_id)
+                .fetch_one(pool)
+                .await?;
+                if current_status != status || cancel_at_period_end != provider_cancel_at_period_end
+                {
+                    upsert_reconciliation_issue(
+                        pool,
+                        Some(&org_id),
+                        provider.name(),
+                        "subscription",
+                        &subscription_id,
+                        "state_mismatch",
+                        serde_json::json!({
+                            "internalStatus": current_status,
+                            "providerState": format!("{:?}", verified.state),
+                            "correctedStatus": status,
+                        }),
+                    )
+                    .await?;
+                    sqlx::query(r#"
+                        UPDATE "OrganizationSubscription"
+                        SET status = CAST($2 AS "OrganizationSubscriptionStatus"),
+                            "cancelAtPeriodEnd" = $3,
+                            "currentPeriodStart" = COALESCE($4, "currentPeriodStart"),
+                            "currentPeriodEnd" = COALESCE($5, "currentPeriodEnd"),
+                            "cancelledAt" = CASE WHEN $2 = 'CANCELLED' THEN NOW() ELSE "cancelledAt" END,
+                            "updatedAt" = NOW()
+                        WHERE id = $1
+                    "#)
+                    .bind(&subscription_row_id)
+                    .bind(status)
+                    .bind(provider_cancel_at_period_end)
+                    .bind(verified.current_period_start)
+                    .bind(verified.current_period_end)
+                    .execute(pool)
+                    .await?;
+                    result.subscriptions_updated += 1;
+                } else {
+                    resolve_reconciliation_issue(
+                        pool,
+                        provider.name(),
+                        "subscription",
+                        &subscription_id,
+                        "state_mismatch",
+                    )
+                    .await?;
+                }
+                resolve_reconciliation_issue(
+                    pool,
+                    provider.name(),
+                    "subscription",
+                    &subscription_id,
+                    "verification_failed",
+                )
+                .await?;
+            }
+            Err(error) => {
+                upsert_reconciliation_issue(
+                    pool,
+                    Some(&org_id),
+                    provider.name(),
+                    "subscription",
+                    &subscription_id,
+                    "verification_failed",
+                    serde_json::json!({"error": error.to_string()}),
+                )
+                .await?;
+                result.failed += 1;
+            }
+        }
+    }
+    result.open_issues = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(*)::bigint FROM "BillingReconciliationIssue"
+        WHERE provider = $1 AND status = 'OPEN'
+    "#,
+    )
+    .bind(provider.name())
+    .fetch_one(pool)
+    .await?;
     Ok(result)
 }
 
@@ -736,6 +1180,7 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
     let subscription_rows = sqlx::query_as::<_, SubscriptionRow>(
         r#"
         SELECT product.key AS "productKey", plan.name AS "planName", subscription.status::text AS status,
+               subscription."currentPeriodStart" AT TIME ZONE 'UTC' AS "currentPeriodStart",
                subscription."currentPeriodEnd" AT TIME ZONE 'UTC' AS "currentPeriodEnd",
                subscription."trialEndsAt" AT TIME ZONE 'UTC' AS "trialEndsAt",
                subscription."cancelAtPeriodEnd" AS "cancelAtPeriodEnd"
@@ -812,6 +1257,9 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
                 state,
                 plan_name: subscription.as_ref().map(|item| item.plan_name.clone()),
                 subscription_status: subscription.as_ref().map(|item| item.status.clone()),
+                current_period_start: subscription
+                    .as_ref()
+                    .and_then(|item| item.current_period_start),
                 current_period_end: subscription
                     .as_ref()
                     .and_then(|item| item.current_period_end.clone()),
@@ -833,10 +1281,27 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
         .into_iter()
         .filter(|grant| grant.ends_at.is_none_or(|ends_at| ends_at > Utc::now()))
         .collect();
+    let payments = sqlx::query_as::<_, PaymentHistoryItem>(
+        r#"
+        SELECT checkout.reference, product.name AS product_name, plan.name AS plan_name,
+               checkout.status, plan.currency, plan."amountMinor" AS amount_minor,
+               checkout."completedAt" AT TIME ZONE 'UTC' AS completed_at,
+               checkout."createdAt" AT TIME ZONE 'UTC' AS created_at
+        FROM "BillingCheckout" checkout
+        JOIN "ProductPlan" plan ON plan.id = checkout."planId"
+        JOIN "Product" product ON product.id = plan."productId"
+        WHERE checkout."orgId" = $1
+        ORDER BY checkout."createdAt" DESC LIMIT 25
+    "#,
+    )
+    .bind(org_id)
+    .fetch_all(pool)
+    .await?;
     Ok(BillingSummary {
         org_id: org_id.to_string(),
         products,
         manual_grants,
+        payments,
     })
 }
 
@@ -934,4 +1399,33 @@ pub async fn record_usage(
     .bind(cuid2::create_id()).bind(org_id).bind(product_key).bind(metric_key).bind(quantity)
     .bind(source_type).bind(source_id).bind(idempotency_key).execute(pool).await?;
     Ok(result.rows_affected() == 1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_provider_subscription_states_without_granting_unknown_states() {
+        assert_eq!(
+            internal_subscription_state(&ProviderSubscriptionState::Active),
+            Some(("ACTIVE", false))
+        );
+        assert_eq!(
+            internal_subscription_state(&ProviderSubscriptionState::NonRenewing),
+            Some(("ACTIVE", true))
+        );
+        assert_eq!(
+            internal_subscription_state(&ProviderSubscriptionState::Attention),
+            Some(("PAST_DUE", false))
+        );
+        assert_eq!(
+            internal_subscription_state(&ProviderSubscriptionState::Completed),
+            Some(("CANCELLED", false))
+        );
+        assert_eq!(
+            internal_subscription_state(&ProviderSubscriptionState::Unknown("paused".to_string())),
+            None
+        );
+    }
 }

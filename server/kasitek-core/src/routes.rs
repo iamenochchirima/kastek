@@ -332,6 +332,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     "/billing/reconcile/paystack",
                     web::post().to(admin_billing::reconcile_paystack),
                 )
+                .route(
+                    "/billing/reconciliation-issues",
+                    web::get().to(admin_billing::list_reconciliation_issues),
+                )
                 .service(
                     web::scope("/billing/orgs/{orgId}/grants")
                         .route("", web::get().to(admin_billing::list_grants))
