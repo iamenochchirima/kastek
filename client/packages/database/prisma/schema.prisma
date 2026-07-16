@@ -224,15 +224,18 @@ model UsageEvent {
 }
 
 model BillingCheckout {
-  id          String       @id @default(cuid())
-  reference   String       @unique
-  orgId       String
-  planId      String
-  userId      String
-  email       String
-  provider    String
-  status      String       @default("PENDING")
-  completedAt DateTime?
+  id               String       @id @default(cuid())
+  reference        String       @unique
+  idempotencyKey   String?
+  orgId            String
+  planId           String
+  userId           String
+  email             String
+  provider          String
+  status            String       @default("PENDING")
+  authorizationUrl String?
+  providerResponse Json?
+  completedAt      DateTime?
 
   org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   plan ProductPlan  @relation(fields: [planId], references: [id], onDelete: Restrict)
@@ -242,6 +245,7 @@ model BillingCheckout {
   updatedAt DateTime @updatedAt
 
   @@index([orgId, status])
+  @@unique([orgId, provider, idempotencyKey])
 }
 
 model PaystackWebhookEvent {

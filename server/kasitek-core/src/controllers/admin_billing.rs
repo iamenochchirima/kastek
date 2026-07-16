@@ -7,6 +7,8 @@ use sqlx::PgPool;
 use crate::error::AppError;
 use crate::middleware::{extract_admin, require_admin_role};
 use crate::services::billing;
+use crate::services::billing_provider::BillingProvider;
+use crate::services::paystack::PaystackProvider;
 
 #[derive(Deserialize)]
 pub struct CreateGrantRequest {
@@ -70,4 +72,23 @@ pub async fn expire_grant(
         ));
     }
     Ok(HttpResponse::Ok().json(serde_json::json!({"expired": true})))
+}
+
+pub async fn reconcile_paystack(
+    pool: web::Data<PgPool>,
+    config: web::Data<crate::config::AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    require_billing_admin(&req, pool.get_ref()).await?;
+    let secret = config
+        .paystack_secret_key
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::Internal("Paystack is not configured".to_string()))?;
+    let provider = PaystackProvider::new(secret, &config.paystack_api_base_url);
+    let result = billing::reconcile_pending_checkouts(pool.get_ref(), &provider, 100).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "provider": provider.name(),
+        "result": result,
+    })))
 }

@@ -17,6 +17,7 @@ version = "0.1.0"
 [workspace.dependencies]
 actix-cors = "0.7"
 actix-web = "4"
+async-trait = "0.1"
 aes-gcm = "0.10"
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }

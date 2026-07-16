@@ -87,6 +87,54 @@ async fn run_whatsapp_inbox_worker(pool: sqlx::PgPool) {
     }
 }
 
+async fn run_billing_reconciliation_worker(pool: sqlx::PgPool, config: AppConfig) {
+    use services::billing_provider::BillingProvider;
+
+    let Some(secret) = config
+        .paystack_secret_key
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    else {
+        log::info!("billing reconciliation worker disabled: Paystack is not configured");
+        return;
+    };
+    let provider = services::paystack::PaystackProvider::new(secret, &config.paystack_api_base_url);
+    let interval_seconds = std::env::var("PAYSTACK_RECONCILIATION_INTERVAL_SECONDS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(300)
+        .max(30);
+    let batch_size = std::env::var("PAYSTACK_RECONCILIATION_BATCH_SIZE")
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(100);
+
+    loop {
+        match services::billing::reconcile_pending_checkouts(&pool, &provider, batch_size).await {
+            Ok(result) if result.checked > 0 => {
+                log::info!(
+                    "[billing-reconciliation-worker] provider={} checked={} completed={} pending={} failed={}",
+                    provider.name(), result.checked, result.completed, result.pending, result.failed
+                );
+                if result.failed > 0 {
+                    log::warn!(
+                        "[billing-reconciliation-worker] {} checkout(s) require operator review",
+                        result.failed
+                    );
+                }
+            }
+            Ok(_) => {}
+            Err(error) => {
+                log::error!(
+                    "[billing-reconciliation-worker] iteration failed: {}",
+                    error
+                );
+            }
+        }
+        sleep(Duration::from_secs(interval_seconds)).await;
+    }
+}
+
 fn env_flag(name: &str) -> bool {
     env_truthy(name)
 }
@@ -95,12 +143,13 @@ fn background_workers_enabled_for_api() -> bool {
     !env_flag("KASITEK_DISABLE_BACKGROUND_WORKERS")
 }
 
-fn spawn_background_workers(pool: sqlx::PgPool) {
+fn spawn_background_workers(pool: sqlx::PgPool, config: AppConfig) {
     log::info!("starting background workers in api server process");
 
     tokio::spawn(run_whatsapp_inbox_worker(pool.clone()));
     tokio::spawn(run_social_worker(pool.clone()));
-    tokio::spawn(run_whatsapp_marketing_worker(pool));
+    tokio::spawn(run_whatsapp_marketing_worker(pool.clone()));
+    tokio::spawn(run_billing_reconciliation_worker(pool, config));
 }
 
 #[actix_web::main]
@@ -132,12 +181,18 @@ async fn main() -> std::io::Result<()> {
             run_whatsapp_inbox_worker(db_pool).await;
             return Ok(());
         }
+        Some("billing-reconciliation-worker") => {
+            log::info!("starting billing reconciliation worker");
+            run_billing_reconciliation_worker(db_pool, config).await;
+            return Ok(());
+        }
         Some("all-workers") => {
             log::info!("starting all workers");
             tokio::join!(
                 run_whatsapp_inbox_worker(db_pool.clone()),
                 run_social_worker(db_pool.clone()),
-                run_whatsapp_marketing_worker(db_pool.clone())
+                run_whatsapp_marketing_worker(db_pool.clone()),
+                run_billing_reconciliation_worker(db_pool.clone(), config.clone())
             );
             return Ok(());
         }
@@ -148,7 +203,7 @@ async fn main() -> std::io::Result<()> {
     let frontend_origin = config.frontend_url.clone();
 
     if background_workers_enabled_for_api() {
-        spawn_background_workers(db_pool.clone());
+        spawn_background_workers(db_pool.clone(), config.clone());
     } else {
         log::info!(
             "background workers disabled for api server process; queued jobs require a separate worker deployment"

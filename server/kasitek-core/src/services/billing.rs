@@ -1,13 +1,12 @@
-use crate::config::AppConfig;
 use chrono::{DateTime, Utc};
-use hmac::{Hmac, Mac};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
-use sha2::{Digest, Sha512};
+use sha2::Digest;
 use sqlx::{FromRow, PgPool};
 use std::collections::HashMap;
 
 use crate::error::AppError;
+use crate::services::billing_provider::{BillingProvider, CheckoutRequest, ProviderEvent};
 
 #[derive(Debug, FromRow)]
 struct ProductRow {
@@ -183,31 +182,6 @@ pub struct AvailablePlan {
     pub checkout_ready: bool,
 }
 
-#[derive(Debug, Deserialize)]
-struct PaystackInitializeResponse {
-    status: bool,
-    message: String,
-    data: Option<PaystackCheckoutData>,
-}
-#[derive(Debug, Deserialize)]
-struct PaystackCheckoutData {
-    authorization_url: String,
-    reference: String,
-}
-
-type HmacSha512 = Hmac<Sha512>;
-
-pub fn verify_paystack_signature(secret: &str, payload: &[u8], signature: &str) -> bool {
-    let Ok(signature) = hex::decode(signature.trim()) else {
-        return false;
-    };
-    let Ok(mut mac) = HmacSha512::new_from_slice(secret.as_bytes()) else {
-        return false;
-    };
-    mac.update(payload);
-    mac.verify_slice(&signature).is_ok()
-}
-
 pub fn paystack_event_key(event: &Value) -> Result<String, AppError> {
     let event_type = event
         .get("event")
@@ -267,103 +241,99 @@ pub async fn finish_paystack_event(
     Ok(())
 }
 
-pub async fn process_paystack_webhook(pool: &PgPool, event: &Value) -> Result<bool, AppError> {
-    let event_type = event.get("event").and_then(Value::as_str).unwrap_or("");
-    let data = event
-        .get("data")
-        .and_then(Value::as_object)
-        .ok_or_else(|| AppError::BadRequest("Paystack webhook data is missing".to_string()))?;
-    let subscription_code = data
-        .get("subscription_code")
-        .and_then(Value::as_str)
-        .or_else(|| {
-            data.get("subscription")
-                .and_then(Value::as_object)
-                .and_then(|subscription| subscription.get("subscription_code"))
-                .and_then(Value::as_str)
-        });
-
-    if event_type == "subscription.create" {
-        let customer_code = data
-            .get("customer")
-            .and_then(Value::as_object)
-            .and_then(|customer| customer.get("customer_code"))
-            .and_then(Value::as_str);
-        let plan_code = data
-            .get("plan")
-            .and_then(Value::as_object)
-            .and_then(|plan| plan.get("plan_code"))
-            .and_then(Value::as_str);
-        let (Some(subscription_code), Some(customer_code), Some(plan_code)) =
-            (subscription_code, customer_code, plan_code)
-        else {
-            return Ok(false);
-        };
-        let result = sqlx::query(r#"
-            UPDATE "OrganizationSubscription" SET "providerSubscriptionId" = $1, status = 'ACTIVE'::"OrganizationSubscriptionStatus", "updatedAt" = NOW()
-            WHERE id = (
-              SELECT subscription.id FROM "OrganizationSubscription" subscription
-              JOIN "ProductPlan" plan ON plan.id = subscription."planId"
-              WHERE subscription.provider = 'paystack' AND subscription."providerCustomerId" = $2
-                AND plan."paystackPlanCode" = $3
-              ORDER BY subscription."createdAt" DESC LIMIT 1
+pub async fn process_provider_event(
+    pool: &PgPool,
+    provider_name: &str,
+    event: ProviderEvent,
+) -> Result<bool, AppError> {
+    match event {
+        ProviderEvent::SubscriptionCreated {
+            subscription_id,
+            customer_id,
+            plan_code,
+        } => {
+            let result = sqlx::query(r#"
+                UPDATE "OrganizationSubscription" SET "providerSubscriptionId" = $1, status = 'ACTIVE'::"OrganizationSubscriptionStatus", "updatedAt" = NOW()
+                WHERE id = (
+                  SELECT subscription.id FROM "OrganizationSubscription" subscription
+                  JOIN "ProductPlan" plan ON plan.id = subscription."planId"
+                  WHERE subscription.provider = $2 AND subscription."providerCustomerId" = $3
+                    AND plan."paystackPlanCode" = $4
+                  ORDER BY subscription."createdAt" DESC LIMIT 1
+                )
+            "#).bind(subscription_id).bind(provider_name).bind(customer_id).bind(plan_code).execute(pool).await?;
+            Ok(result.rows_affected() == 1)
+        }
+        ProviderEvent::SubscriptionNotRenewing { subscription_id } => {
+            update_subscription_status(pool, provider_name, &subscription_id, "ACTIVE", true).await
+        }
+        ProviderEvent::SubscriptionDisabled { subscription_id } => {
+            update_subscription_status(pool, provider_name, &subscription_id, "CANCELLED", false)
+                .await
+        }
+        ProviderEvent::InvoicePaymentFailed { subscription_id } => {
+            update_subscription_status(pool, provider_name, &subscription_id, "PAST_DUE", false)
+                .await
+        }
+        ProviderEvent::ChargeSucceeded {
+            reference,
+            customer_id,
+            subscription_id,
+        } => {
+            activate_checkout(
+                pool,
+                provider_name,
+                &reference,
+                customer_id.as_deref(),
+                subscription_id.as_deref(),
             )
-        "#).bind(subscription_code).bind(customer_code).bind(plan_code).execute(pool).await?;
-        return Ok(result.rows_affected() == 1);
+            .await
+        }
+        ProviderEvent::Ignored => Ok(false),
     }
+}
 
-    if matches!(
-        event_type,
-        "subscription.not_renew" | "subscription.disable" | "invoice.payment_failed"
-    ) {
-        let Some(subscription_code) = subscription_code else {
-            return Ok(false);
-        };
-        let (status, cancel_at_period_end) = match event_type {
-            "subscription.not_renew" => ("ACTIVE", true),
-            "invoice.payment_failed" => ("PAST_DUE", false),
-            _ => ("CANCELLED", false),
-        };
-        let result = sqlx::query(
-            r#"
-            UPDATE "OrganizationSubscription"
-            SET status = CAST($2 AS "OrganizationSubscriptionStatus"), "cancelAtPeriodEnd" = $3,
-                "cancelledAt" = CASE WHEN $2 = 'CANCELLED' THEN NOW() ELSE "cancelledAt" END,
-                "updatedAt" = NOW()
-            WHERE provider = 'paystack' AND "providerSubscriptionId" = $1
-        "#,
-        )
-        .bind(subscription_code)
-        .bind(status)
-        .bind(cancel_at_period_end)
-        .execute(pool)
-        .await?;
-        return Ok(result.rows_affected() == 1);
-    }
+async fn update_subscription_status(
+    pool: &PgPool,
+    provider_name: &str,
+    subscription_id: &str,
+    status: &str,
+    cancel_at_period_end: bool,
+) -> Result<bool, AppError> {
+    let result = sqlx::query(
+        r#"
+        UPDATE "OrganizationSubscription"
+        SET status = CAST($3 AS "OrganizationSubscriptionStatus"), "cancelAtPeriodEnd" = $4,
+            "cancelledAt" = CASE WHEN $3 = 'CANCELLED' THEN NOW() ELSE "cancelledAt" END,
+            "updatedAt" = NOW()
+        WHERE provider = $1 AND "providerSubscriptionId" = $2
+    "#,
+    )
+    .bind(provider_name)
+    .bind(subscription_id)
+    .bind(status)
+    .bind(cancel_at_period_end)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
 
-    if event_type != "charge.success" {
-        return Ok(false);
-    }
-
-    if data.get("status").and_then(Value::as_str) != Some("success") {
-        return Ok(false);
-    }
-    let reference = data
-        .get("reference")
-        .and_then(Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| AppError::BadRequest("Paystack reference is missing".to_string()))?;
-
+pub async fn activate_checkout(
+    pool: &PgPool,
+    provider_name: &str,
+    reference: &str,
+    customer_id: Option<&str>,
+    subscription_id: Option<&str>,
+) -> Result<bool, AppError> {
     let mut tx = pool.begin().await?;
     let checkout = sqlx::query_as::<_, (String, String, String, String)>(
         r#"
-        SELECT id, "orgId", "planId", status
-        FROM "BillingCheckout"
-        WHERE reference = $1 AND provider = 'paystack'
-        FOR UPDATE
+        SELECT id, "orgId", "planId", status FROM "BillingCheckout"
+        WHERE reference = $1 AND provider = $2 FOR UPDATE
     "#,
     )
     .bind(reference)
+    .bind(provider_name)
     .fetch_optional(&mut *tx)
     .await?;
     let Some((checkout_id, org_id, plan_id, status)) = checkout else {
@@ -373,21 +343,13 @@ pub async fn process_paystack_webhook(pool: &PgPool, event: &Value) -> Result<bo
         tx.commit().await?;
         return Ok(true);
     }
-
-    let customer_code = data
-        .get("customer")
-        .and_then(Value::as_object)
-        .and_then(|customer| customer.get("customer_code"))
-        .and_then(Value::as_str);
-    let subscription_code = data
-        .get("subscription")
-        .and_then(Value::as_object)
-        .and_then(|subscription| subscription.get("subscription_code"))
-        .and_then(Value::as_str)
-        .or_else(|| data.get("subscription_code").and_then(Value::as_str));
-    let provider_subscription_id = subscription_code
+    if status != "PENDING" {
+        tx.commit().await?;
+        return Ok(false);
+    }
+    let provider_subscription_id = subscription_id
         .map(ToString::to_string)
-        .unwrap_or_else(|| format!("paystack-charge:{reference}"));
+        .unwrap_or_else(|| format!("{provider_name}-charge:{reference}"));
 
     sqlx::query(r#"
         UPDATE "OrganizationSubscription" subscription
@@ -404,11 +366,10 @@ pub async fn process_paystack_webhook(pool: &PgPool, event: &Value) -> Result<bo
         INSERT INTO "OrganizationSubscription" (
           id, "orgId", "planId", status, "startedAt", "currentPeriodStart",
           "cancelAtPeriodEnd", provider, "providerCustomerId", "providerSubscriptionId", "createdAt", "updatedAt"
-        ) VALUES ($1, $2, $3, 'ACTIVE'::"OrganizationSubscriptionStatus", NOW(), NOW(), false, 'paystack', $4, $5, NOW(), NOW())
+        ) VALUES ($1, $2, $3, 'ACTIVE'::"OrganizationSubscriptionStatus", NOW(), NOW(), false, $4, $5, $6, NOW(), NOW())
         ON CONFLICT ("providerSubscriptionId") DO UPDATE SET
           status = 'ACTIVE'::"OrganizationSubscriptionStatus", "cancelledAt" = NULL, "updatedAt" = NOW()
-    "#)
-    .bind(cuid2::create_id()).bind(&org_id).bind(&plan_id).bind(customer_code)
+    "#).bind(cuid2::create_id()).bind(&org_id).bind(&plan_id).bind(provider_name).bind(customer_id)
     .bind(&provider_subscription_id).execute(&mut *tx).await?;
 
     sqlx::query(r#"
@@ -417,27 +378,6 @@ pub async fn process_paystack_webhook(pool: &PgPool, event: &Value) -> Result<bo
     "#).bind(checkout_id).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(true)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::verify_paystack_signature;
-    use hmac::{Hmac, Mac};
-    use sha2::Sha512;
-
-    #[test]
-    fn verifies_paystack_hmac_and_rejects_modified_payload() {
-        let payload = br#"{"event":"charge.success"}"#;
-        let mut mac = Hmac::<Sha512>::new_from_slice(b"secret").unwrap();
-        mac.update(payload);
-        let signature = hex::encode(mac.finalize().into_bytes());
-        assert!(verify_paystack_signature("secret", payload, &signature));
-        assert!(!verify_paystack_signature(
-            "secret",
-            b"modified",
-            &signature
-        ));
-    }
 }
 
 pub async fn list_available_plans(pool: &PgPool) -> Result<Vec<AvailablePlan>, AppError> {
@@ -456,19 +396,22 @@ pub async fn list_available_plans(pool: &PgPool) -> Result<Vec<AvailablePlan>, A
     .map_err(AppError::from)
 }
 
-pub async fn create_paystack_checkout(
+pub async fn create_checkout(
     pool: &PgPool,
-    config: &AppConfig,
+    provider: &dyn BillingProvider,
+    frontend_url: &str,
     org_id: &str,
     user_id: &str,
     email: &str,
     plan_key: &str,
+    idempotency_key: &str,
 ) -> Result<Value, AppError> {
-    let secret = config
-        .paystack_secret_key
-        .as_deref()
-        .filter(|key| !key.trim().is_empty())
-        .ok_or_else(|| AppError::BadRequest("Paystack checkout is not configured".to_string()))?;
+    let idempotency_key = idempotency_key.trim();
+    if idempotency_key.is_empty() || idempotency_key.len() > 128 {
+        return Err(AppError::BadRequest(
+            "A valid checkout idempotency key is required".to_string(),
+        ));
+    }
     let plan = sqlx::query_as::<_, (String, String, String, String)>(
         r#"
         SELECT plan.id, plan."paystackPlanCode", product.key, plan.name
@@ -486,31 +429,262 @@ pub async fn create_paystack_checkout(
             "This plan is not connected to Paystack yet".to_string(),
         ));
     }
+    if let Some((authorization_url, reference)) = sqlx::query_as::<_, (String, String)>(
+        r#"
+            SELECT "authorizationUrl", reference FROM "BillingCheckout"
+            WHERE "orgId" = $1 AND provider = $2 AND "idempotencyKey" = $3
+              AND status = 'PENDING' AND "planId" = $4 AND "authorizationUrl" IS NOT NULL
+        "#,
+    )
+    .bind(org_id)
+    .bind(provider.name())
+    .bind(idempotency_key)
+    .bind(&plan_id)
+    .fetch_optional(pool)
+    .await?
+    {
+        return Ok(serde_json::json!({
+            "authorizationUrl": authorization_url,
+            "reference": reference,
+            "planName": plan_name,
+            "reused": true,
+        }));
+    }
     let reference = format!("ks_{}", cuid2::create_id());
-    sqlx::query(r#"
-        INSERT INTO "BillingCheckout" (id, reference, "orgId", "planId", "userId", email, provider, status, "createdAt", "updatedAt")
-        VALUES ($1, $2, $3, $4, $5, $6, 'paystack', 'PENDING', NOW(), NOW())
+    let inserted = sqlx::query(r#"
+        INSERT INTO "BillingCheckout" (id, reference, "idempotencyKey", "orgId", "planId", "userId", email, provider, status, "createdAt", "updatedAt")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING', NOW(), NOW())
+        ON CONFLICT ("orgId", provider, "idempotencyKey") DO NOTHING
     "#)
-    .bind(cuid2::create_id()).bind(&reference).bind(org_id).bind(&plan_id).bind(user_id).bind(email)
+    .bind(cuid2::create_id()).bind(&reference).bind(idempotency_key).bind(org_id).bind(&plan_id).bind(user_id).bind(email).bind(provider.name())
     .execute(pool).await?;
+    if inserted.rows_affected() == 0 {
+        let existing = sqlx::query_as::<_, (String, String, Option<String>, String)>(
+            r#"
+            SELECT reference, "planId", "authorizationUrl", status FROM "BillingCheckout"
+            WHERE "orgId" = $1 AND provider = $2 AND "idempotencyKey" = $3
+        "#,
+        )
+        .bind(org_id)
+        .bind(provider.name())
+        .bind(idempotency_key)
+        .fetch_one(pool)
+        .await?;
+        if existing.1 != plan_id {
+            return Err(AppError::BadRequest(
+                "The checkout idempotency key is already used for another plan".to_string(),
+            ));
+        }
+        if let Some(authorization_url) = existing.2 {
+            return Ok(serde_json::json!({
+                "authorizationUrl": authorization_url,
+                "reference": existing.0,
+                "planName": plan_name,
+                "reused": true,
+            }));
+        }
+        return Err(AppError::BadRequest(format!(
+            "Checkout {} is already being initialised ({})",
+            existing.0, existing.3
+        )));
+    }
     let callback_url = format!(
         "{}/billing?payment=complete",
-        config.frontend_url.trim_end_matches('/')
+        frontend_url.trim_end_matches('/')
     );
-    let response = reqwest::Client::new().post("https://api.paystack.co/transaction/initialize")
-        .bearer_auth(secret).json(&serde_json::json!({"email": email, "plan": paystack_plan_code, "reference": reference, "callback_url": callback_url, "metadata": {"orgId": org_id, "planKey": plan_key, "productKey": product_key}})).send().await?;
-    let body: PaystackInitializeResponse = response.json().await?;
-    if !body.status {
-        sqlx::query(r#"UPDATE "BillingCheckout" SET status = 'FAILED', "updatedAt" = NOW() WHERE reference = $1"#)
-            .bind(&reference).execute(pool).await?;
-    }
-    let data = body
-        .data
-        .filter(|_| body.status)
-        .ok_or_else(|| AppError::BadRequest(body.message))?;
+    let result = provider.initialize_checkout(CheckoutRequest {
+        email: email.to_string(),
+        plan_code: paystack_plan_code,
+        reference: reference.clone(),
+        callback_url,
+        metadata: serde_json::json!({"orgId": org_id, "planKey": plan_key, "productKey": product_key}),
+    }).await;
+    let data = match result {
+        Ok(data) => data,
+        Err(error) => {
+            sqlx::query(r#"UPDATE "BillingCheckout" SET status = 'FAILED', "updatedAt" = NOW() WHERE reference = $1"#)
+                .bind(&reference).execute(pool).await?;
+            return Err(error);
+        }
+    };
+    sqlx::query(
+        r#"
+        UPDATE "BillingCheckout"
+        SET "authorizationUrl" = $2,
+            "providerResponse" = jsonb_build_object('reference', $3::text),
+            "updatedAt" = NOW()
+        WHERE reference = $1
+    "#,
+    )
+    .bind(&reference)
+    .bind(&data.authorization_url)
+    .bind(&data.reference)
+    .execute(pool)
+    .await?;
     Ok(
         serde_json::json!({"authorizationUrl": data.authorization_url, "reference": data.reference, "planName": plan_name}),
     )
+}
+
+#[derive(Debug, Serialize)]
+pub struct CheckoutVerification {
+    pub reference: String,
+    pub status: &'static str,
+    pub activated: bool,
+}
+
+pub async fn verify_checkout(
+    pool: &PgPool,
+    provider: &dyn BillingProvider,
+    org_id: &str,
+    reference: &str,
+) -> Result<CheckoutVerification, AppError> {
+    let checkout_status = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT status FROM "BillingCheckout"
+        WHERE reference = $1 AND "orgId" = $2 AND provider = $3
+    "#,
+    )
+    .bind(reference)
+    .bind(org_id)
+    .bind(provider.name())
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Checkout not found".to_string()))?;
+
+    if checkout_status == "COMPLETED" {
+        return Ok(CheckoutVerification {
+            reference: reference.to_string(),
+            status: "completed",
+            activated: true,
+        });
+    }
+    if checkout_status == "FAILED" {
+        return Ok(CheckoutVerification {
+            reference: reference.to_string(),
+            status: "failed",
+            activated: false,
+        });
+    }
+
+    let transaction = provider.verify_transaction(reference).await?;
+    record_verification_response(pool, provider.name(), reference, &transaction).await?;
+    if transaction.reference != reference {
+        return Err(AppError::BadRequest(
+            "Payment reference did not match the checkout".to_string(),
+        ));
+    }
+    if !transaction.successful {
+        return Ok(CheckoutVerification {
+            reference: reference.to_string(),
+            status: "pending",
+            activated: false,
+        });
+    }
+    let activated = activate_checkout(
+        pool,
+        provider.name(),
+        reference,
+        transaction.customer_id.as_deref(),
+        transaction.subscription_id.as_deref(),
+    )
+    .await?;
+    Ok(CheckoutVerification {
+        reference: reference.to_string(),
+        status: "completed",
+        activated,
+    })
+}
+
+async fn record_verification_response(
+    pool: &PgPool,
+    provider_name: &str,
+    expected_reference: &str,
+    transaction: &crate::services::billing_provider::VerifiedTransaction,
+) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        UPDATE "BillingCheckout" SET "providerResponse" = $3, "updatedAt" = NOW()
+        WHERE reference = $1 AND provider = $2
+    "#,
+    )
+    .bind(expected_reference)
+    .bind(provider_name)
+    .bind(serde_json::json!({
+        "reference": transaction.reference,
+        "successful": transaction.successful,
+        "customerId": transaction.customer_id,
+        "subscriptionId": transaction.subscription_id,
+    }))
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReconciliationResult {
+    pub checked: usize,
+    pub completed: usize,
+    pub pending: usize,
+    pub failed: usize,
+}
+
+pub async fn reconcile_pending_checkouts(
+    pool: &PgPool,
+    provider: &dyn BillingProvider,
+    limit: i64,
+) -> Result<ReconciliationResult, AppError> {
+    let references = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT reference FROM "BillingCheckout"
+        WHERE provider = $1 AND status = 'PENDING'
+          AND "createdAt" < NOW() - INTERVAL '30 seconds'
+        ORDER BY "createdAt" ASC LIMIT $2
+    "#,
+    )
+    .bind(provider.name())
+    .bind(limit.clamp(1, 200))
+    .fetch_all(pool)
+    .await?;
+
+    let mut result = ReconciliationResult {
+        checked: references.len(),
+        completed: 0,
+        pending: 0,
+        failed: 0,
+    };
+    for reference in references {
+        match provider.verify_transaction(&reference).await {
+            Ok(transaction) if transaction.reference == reference && transaction.successful => {
+                record_verification_response(pool, provider.name(), &reference, &transaction)
+                    .await?;
+                if activate_checkout(
+                    pool,
+                    provider.name(),
+                    &reference,
+                    transaction.customer_id.as_deref(),
+                    transaction.subscription_id.as_deref(),
+                )
+                .await?
+                {
+                    result.completed += 1;
+                } else {
+                    result.failed += 1;
+                }
+            }
+            Ok(transaction) => {
+                record_verification_response(pool, provider.name(), &reference, &transaction)
+                    .await?;
+                if transaction.reference == reference {
+                    result.pending += 1;
+                } else {
+                    result.failed += 1;
+                }
+            }
+            Err(_) => result.failed += 1,
+        }
+    }
+    Ok(result)
 }
 
 pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingSummary, AppError> {

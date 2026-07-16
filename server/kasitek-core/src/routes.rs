@@ -38,7 +38,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             web::scope("/api/billing")
                 .route("/summary", web::get().to(billing::summary))
                 .route("/plans", web::get().to(billing::plans))
-                .route("/checkout", web::post().to(billing::checkout)),
+                .route("/checkout", web::post().to(billing::checkout))
+                .route(
+                    "/checkout/{reference}/verify",
+                    web::post().to(billing::verify_checkout),
+                ),
         )
         .route(
             "/api/webhooks/paystack",
@@ -324,6 +328,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/reset-password", web::post().to(admin::reset_password))
                 .route("/password", web::patch().to(admin::change_password))
                 .route("/stats", web::get().to(admin::stats))
+                .route(
+                    "/billing/reconcile/paystack",
+                    web::post().to(admin_billing::reconcile_paystack),
+                )
                 .service(
                     web::scope("/billing/orgs/{orgId}/grants")
                         .route("", web::get().to(admin_billing::list_grants))
