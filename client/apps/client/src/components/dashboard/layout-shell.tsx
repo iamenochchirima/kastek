@@ -89,9 +89,10 @@ const navigationGroups: NavigationGroup[] = [
     label: "Manage",
     items: [
       { name: "Connections", href: "/connections", icon: Cable },
+      { name: "Social accounts", href: "/social/channels", icon: Sparkles, productKey: "social" },
       { name: "Team", href: "/workspace/team", icon: Users },
       { name: "Billing and usage", href: "/billing", icon: CreditCard },
-      { name: "Workspace settings", href: "/workspace/team", icon: Settings },
+      { name: "Workspace settings", href: "/workspace/settings", icon: Settings },
     ],
   },
 ];
@@ -465,7 +466,7 @@ export function LayoutShell({
   }, []);
 
   return (
-    <WhatsappRealtimeProvider initialInboxUnreadCount={inboxUnreadCount}>
+    <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
       <>
         <div className="dashboard-theme flex h-screen bg-background">
           <aside className={cn("hidden lg:flex lg:flex-col", collapsed ? "w-[72px]" : "w-64")}>
