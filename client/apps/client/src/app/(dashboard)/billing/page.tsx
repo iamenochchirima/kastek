@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { CheckoutButton } from "@/components/dashboard/billing/checkout-button";
+import { PaymentReturnStatus } from "@/components/dashboard/billing/payment-return-status";
 import { fetchBillingPlans, fetchBillingSummary, type ProductAccess } from "@/lib/billing";
 import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
@@ -20,7 +21,11 @@ function formatPrice(amountMinor: number | null, currency: string) {
   return new Intl.NumberFormat("en-ZA", { style: "currency", currency }).format(amountMinor / 100);
 }
 
-export default async function BillingPage({ searchParams }: { searchParams: Promise<{ payment?: string }> }) {
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ payment?: string; reference?: string; trxref?: string }>;
+}) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
@@ -41,9 +46,11 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
           </p>
         </div>
 
-        {query.payment === "complete" ? (
-          <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm text-foreground">
-            Payment received. Access updates after Paystack confirms the transaction; refresh this page if the status is still pending.
+        {query.payment === "complete" && (query.reference || query.trxref) ? (
+          <PaymentReturnStatus reference={query.reference || query.trxref || ""} />
+        ) : query.payment === "complete" ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            Paystack returned without a transaction reference. No product access was changed.
           </div>
         ) : null}
 

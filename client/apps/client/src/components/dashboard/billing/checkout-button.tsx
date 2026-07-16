@@ -6,6 +6,7 @@ import { useState } from "react";
 export function CheckoutButton({ planKey, disabled = false }: { planKey: string; disabled?: boolean }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   async function startCheckout() {
     setLoading(true);
@@ -15,7 +16,7 @@ export function CheckoutButton({ planKey, disabled = false }: { planKey: string;
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planKey }),
+        body: JSON.stringify({ planKey, idempotencyKey }),
       });
       const body = await response.json();
       if (!response.ok || !body.authorizationUrl) {
