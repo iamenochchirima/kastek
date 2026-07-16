@@ -353,7 +353,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Internal admin support
 
-- [ ] Add internal admin tools to create products, plans, and entitlement definitions.
+- [x] Add internal admin tools to create and update products, plans, provider plan codes, prices, and entitlement definitions.
 - [x] Add internal admin API tools to create, inspect, and expire manual access and limit grants.
 - [x] Require a reason and actor audit entry for manual entitlement changes.
 - [x] Add support procedures for refunds, failed payment, disputes, and incorrect usage counts.
@@ -390,7 +390,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [ ] Map internal plan versions to Paystack plan codes only after prices and intervals are approved.
 - [ ] Decide whether Kasitek uses Paystack subscriptions, recurring authorisations, or invoice/checkout renewal flows for each market.
 - [ ] Do not assume one Paystack recurring mechanism works in every target country. Paystack documents subscriptions and recurring authorisations separately, with market/payment-method constraints.
-- [ ] Support plan upgrades, downgrades, cancellation at period end, and reactivation through internal state transitions.
+- [x] Support provider-backed cancellation at period end and reactivation through authorised workspace billing actions.
+- [ ] Enable plan upgrades and downgrades after the replacement-subscription billing policy is approved.
 - [ ] Keep entitlement changes tied to verified paid status and explicitly defined grace rules.
 
 ### Webhooks and reconciliation
@@ -426,7 +427,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Unit-test entitlement merge rules and the access effect of trial, active, grace, past-due, suspended, and cancelled states.
 - [x] Unit-test Paystack signature validation, transaction/subscription normalization, and refund/dispute event mapping.
 - [ ] Unit-test entitlement resolution for trial, active, grace, suspended, cancelled, overridden, and multi-product states.
-- [ ] Unit-test usage aggregation and idempotency.
+- [x] Database-test usage aggregation and idempotency against the final Prisma schema.
+- [x] Database-test billing organisation isolation, checkout idempotency, and reconciliation issue lifecycle.
 - [ ] Integration-test organisation isolation for every moved product domain.
 - [ ] Integration-test active organisation switching.
 - [ ] Integration-test role restrictions for connections, team, and billing.

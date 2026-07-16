@@ -56,6 +56,24 @@ The default interval is five minutes. Set `PAYSTACK_RECONCILIATION_INTERVAL_SECO
 
 An authenticated Kasitek admin can trigger the same bounded check with `POST /api/admin/billing/reconcile/paystack`. Provider errors, unknown states, disputes, partial refunds, and corrected state mismatches are stored in `BillingReconciliationIssue`. Admins can inspect them through `GET /api/admin/billing/reconciliation-issues?status=OPEN`. A non-zero failure or open-issue count is also logged.
 
+## Catalogue administration
+
+The internal admin application exposes Product Billing at `/billing`. It manages products, plan intervals and prices, Paystack plan codes, active/draft state, and typed plan entitlements. New plans should remain draft until their provider code and entitlements have been reviewed.
+
+Workspace owners and admins can cancel or reactivate an active Paystack subscription from the workspace Billing page. These actions call Paystack using the subscription code and provider email token; the client does not toggle internal access directly.
+
+## Local database verification
+
+Run billing schema checks only against a disposable local database:
+
+```text
+BILLING_TEST_DATABASE_URL=postgresql://.../disposable_db server/kasitek-core/scripts/test-billing-db.sh
+```
+
+The script refuses non-local database URLs. It checks organisation isolation, usage and checkout idempotency, plan entitlements, and reconciliation issue lifecycle inside a rolled-back transaction.
+
+The repository migration directory does not contain the historical baseline that originally created core tables such as `User`. A fresh empty database must currently be initialized with `prisma db push` before running the integration SQL. Existing deployed databases already contain that baseline. Do not run `prisma migrate deploy` against a remote database until its migration status and backup have been reviewed.
+
 ## Support checks
 
 When payment appears successful but access is missing:
