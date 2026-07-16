@@ -12,7 +12,7 @@ use crate::db::models::{
 };
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{billing, whatsapp};
+use crate::services::{billing, orgs, whatsapp};
 
 async fn require_reach_access(
     pool: &PgPool,
@@ -21,6 +21,16 @@ async fn require_reach_access(
 ) -> Result<String, AppError> {
     let org_id = resolve_active_org_id(req, pool, user_id).await?;
     billing::require_product_access(pool, &org_id, "reach").await?;
+    Ok(org_id)
+}
+
+async fn require_connection_admin(
+    pool: &PgPool,
+    req: &HttpRequest,
+    user_id: &str,
+) -> Result<String, AppError> {
+    let org_id = resolve_active_org_id(req, pool, user_id).await?;
+    orgs::require_admin(pool, &org_id, user_id).await?;
     Ok(org_id)
 }
 
@@ -40,7 +50,7 @@ pub async fn create_connection(
     body: web::Json<WhatsappConnectionCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::connect_manual_connection(
         pool.get_ref(),
         &user.id,
@@ -60,7 +70,7 @@ pub async fn complete_onboarding(
     body: web::Json<WhatsappEmbeddedSignupRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let code = body
         .code
         .as_deref()
@@ -86,7 +96,7 @@ pub async fn update_connection_token(
     body: web::Json<WhatsappConnectionTokenRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::update_connection_access_token(
         pool.get_ref(),
         &org_id,
@@ -103,7 +113,7 @@ pub async fn refresh_connection(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::refresh_connection(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
@@ -114,7 +124,7 @@ pub async fn connection_health(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::connection_health(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
@@ -125,7 +135,7 @@ pub async fn sync_connection_templates(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let result =
         whatsapp::sync_connection_templates(pool.get_ref(), &user.id, &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))

@@ -739,17 +739,20 @@ async fn find_or_create_meta_conversation(
 
 async fn publish_conversation_updated(
     pool: &PgPool,
-    user_id: &str,
+    _user_id: &str,
     conversation_id: &str,
 ) -> Result<(), AppError> {
-    let Some(conversation) = scoped_conversation(pool, user_id, conversation_id).await? else {
+    let Some(conversation) = load_conversation_by_id(pool, conversation_id).await? else {
+        return Ok(());
+    };
+    let Some(org_id) = conversation_org_id(pool, &conversation.id).await? else {
         return Ok(());
     };
     let (connection_id, connection_label, handle) =
         conversation_channel_context(pool, &conversation).await?;
 
     publish_event_best_effort(
-        user_id,
+        &org_id,
         json!({
             "type": "conversation.updated",
             "conversationId": conversation.id,
@@ -773,7 +776,7 @@ async fn publish_conversation_updated(
 
 async fn publish_message_created(
     pool: &PgPool,
-    user_id: &str,
+    _user_id: &str,
     message_id: &str,
 ) -> Result<(), AppError> {
     let Some(message) = sqlx::query_as::<_, InboxMessageRow>(
@@ -802,15 +805,17 @@ async fn publish_message_created(
         return Ok(());
     };
 
-    let Some(conversation) = scoped_conversation(pool, user_id, &message.conversation_id).await?
-    else {
+    let Some(conversation) = load_conversation_by_id(pool, &message.conversation_id).await? else {
+        return Ok(());
+    };
+    let Some(org_id) = conversation_org_id(pool, &conversation.id).await? else {
         return Ok(());
     };
     let (connection_id, connection_label, handle) =
         conversation_channel_context(pool, &conversation).await?;
 
     publish_event_best_effort(
-        user_id,
+        &org_id,
         json!({
             "type": "message.created",
             "conversationId": conversation.id,
@@ -885,8 +890,46 @@ async fn conversation_channel_context(
     }
 }
 
-async fn publish_event_best_effort(user_id: &str, event: Value) {
-    if let Err(error) = realtime::publish_inbox_event(user_id, &event).await {
+async fn conversation_org_id(
+    pool: &PgPool,
+    conversation_id: &str,
+) -> Result<Option<String>, AppError> {
+    sqlx::query_scalar::<_, String>(
+        r#"SELECT "orgId" FROM "Conversation" WHERE id = $1 AND "orgId" IS NOT NULL"#,
+    )
+    .bind(conversation_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn load_conversation_by_id(
+    pool: &PgPool,
+    conversation_id: &str,
+) -> Result<Option<ConversationRow>, AppError> {
+    sqlx::query_as::<_, ConversationRow>(
+        r#"
+        SELECT id, channel, "customerIdentifier" AS customer_identifier, "customerName" AS customer_name,
+               status,
+               "lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
+               "lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
+               starred,
+               "unreadCount" AS unread_count,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at,
+               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "Conversation"
+        WHERE id = $1
+        LIMIT 1
+        "#,
+    )
+    .bind(conversation_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn publish_event_best_effort(org_id: &str, event: Value) {
+    if let Err(error) = realtime::publish_inbox_event(org_id, &event).await {
         log::warn!("failed to publish inbox realtime event: {}", error);
     }
 }

@@ -4478,6 +4478,7 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
                 .await?;
                 if let Some(user_id) = user_id {
                     publish_message_updated(
+                        pool,
                         &user_id,
                         &row.conversation_id,
                         &row.id,
@@ -4827,15 +4828,28 @@ async fn load_message_by_id(
     .map_err(AppError::from)
 }
 
-async fn publish_event_best_effort(user_id: &str, event: Value) {
-    if let Err(error) = realtime::publish_whatsapp_event(user_id, &event).await {
+async fn publish_event_best_effort(org_id: &str, event: Value) {
+    if let Err(error) = realtime::publish_whatsapp_event(org_id, &event).await {
         log::warn!("failed to publish whatsapp realtime event: {}", error);
     }
 }
 
+async fn conversation_org_id(
+    pool: &PgPool,
+    conversation_id: &str,
+) -> Result<Option<String>, AppError> {
+    sqlx::query_scalar::<_, String>(
+        r#"SELECT "orgId" FROM "Conversation" WHERE id = $1 AND "orgId" IS NOT NULL"#,
+    )
+    .bind(conversation_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
 async fn publish_campaign_updated(
     pool: &PgPool,
-    user_id: &str,
+    _user_id: &str,
     campaign_id: &str,
 ) -> Result<(), AppError> {
     let org_id = sqlx::query_scalar::<_, Option<String>>(
@@ -4853,7 +4867,7 @@ async fn publish_campaign_updated(
     };
 
     publish_event_best_effort(
-        user_id,
+        &org_id,
         json!({
             "type": "campaign.updated",
             "campaignId": campaign.id,
@@ -4878,10 +4892,13 @@ async fn publish_campaign_updated(
 
 async fn publish_conversation_updated(
     pool: &PgPool,
-    user_id: &str,
+    _user_id: &str,
     conversation_id: &str,
 ) -> Result<(), AppError> {
     let Some(conversation) = load_conversation_by_id(pool, conversation_id).await? else {
+        return Ok(());
+    };
+    let Some(org_id) = conversation_org_id(pool, &conversation.id).await? else {
         return Ok(());
     };
     let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
@@ -4898,7 +4915,7 @@ async fn publish_conversation_updated(
         .flatten()
     };
     publish_event_best_effort(
-        user_id,
+        &org_id,
         json!({
             "type": "conversation.updated",
             "conversationId": conversation.id,
@@ -4920,7 +4937,7 @@ async fn publish_conversation_updated(
 
 async fn publish_message_created(
     pool: &PgPool,
-    user_id: &str,
+    _user_id: &str,
     message_id: &str,
 ) -> Result<(), AppError> {
     let Some(message) = load_message_by_id(pool, message_id).await? else {
@@ -4929,6 +4946,9 @@ async fn publish_message_created(
     let conversation = load_conversation_by_id(pool, &message.conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
+    let Some(org_id) = conversation_org_id(pool, &conversation.id).await? else {
+        return Ok(());
+    };
     let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
         .unwrap_or_else(|| ("".to_string(), conversation.customer_identifier.clone()));
     let connection_label = if connection_id.is_empty() {
@@ -4943,7 +4963,7 @@ async fn publish_message_created(
         .flatten()
     };
     publish_event_best_effort(
-        user_id,
+        &org_id,
         json!({
             "type": "message.created",
             "conversationId": conversation.id,
@@ -4969,15 +4989,23 @@ async fn publish_message_created(
 }
 
 async fn publish_message_updated(
-    user_id: &str,
+    pool: &PgPool,
+    _user_id: &str,
     conversation_id: &str,
     message_id: &str,
     whatsapp_status: &str,
     error_code: Option<&str>,
     error_message: Option<&str>,
 ) {
+    let Some(org_id) = conversation_org_id(pool, conversation_id)
+        .await
+        .ok()
+        .flatten()
+    else {
+        return;
+    };
     publish_event_best_effort(
-        user_id,
+        &org_id,
         json!({
             "type": "message.updated",
             "conversationId": conversation_id,
@@ -4993,13 +5021,21 @@ async fn publish_message_updated(
 }
 
 async fn publish_message_send_failed(
-    user_id: &str,
+    pool: &PgPool,
+    _user_id: &str,
     conversation_id: &str,
     error: &str,
     text: Option<&str>,
 ) {
+    let Some(org_id) = conversation_org_id(pool, conversation_id)
+        .await
+        .ok()
+        .flatten()
+    else {
+        return;
+    };
     publish_event_best_effort(
-        user_id,
+        &org_id,
         json!({
             "type": "message.send_failed",
             "conversationId": conversation_id,
@@ -5489,8 +5525,16 @@ async fn process_single_queued_inbox_message(
                 message_id,
                 conversation_id
             );
-            publish_message_updated(&user_id, &conversation_id, &message_id, "SENT", None, None)
-                .await;
+            publish_message_updated(
+                pool,
+                &user_id,
+                &conversation_id,
+                &message_id,
+                "SENT",
+                None,
+                None,
+            )
+            .await;
             publish_conversation_updated(pool, &user_id, &conversation_id).await?;
             Ok(true)
         }
@@ -5504,6 +5548,7 @@ async fn process_single_queued_inbox_message(
                 error
             );
             publish_message_updated(
+                pool,
                 &user_id,
                 &conversation_id,
                 &message_id,
@@ -5513,6 +5558,7 @@ async fn process_single_queued_inbox_message(
             )
             .await;
             publish_message_send_failed(
+                pool,
                 &user_id,
                 &conversation_id,
                 &error.to_string(),

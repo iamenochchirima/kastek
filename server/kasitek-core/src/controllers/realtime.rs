@@ -4,7 +4,7 @@ use bytes::Bytes;
 use futures_util::StreamExt;
 use sqlx::PgPool;
 
-use crate::middleware::extract_user;
+use crate::middleware::{extract_user, resolve_active_org_id};
 use crate::services::realtime;
 
 pub async fn whatsapp_stream(
@@ -12,7 +12,8 @@ pub async fn whatsapp_stream(
     req: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let channel = realtime::build_whatsapp_user_channel(&user.id);
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let channel = realtime::build_whatsapp_org_channel(&org_id);
     let pubsub = realtime::create_pubsub().await?;
 
     let response_stream = stream! {

@@ -8,7 +8,7 @@ use crate::db::models::{
 };
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{billing, social};
+use crate::services::{billing, orgs, social};
 
 async fn require_social_access(
     pool: &PgPool,
@@ -17,6 +17,16 @@ async fn require_social_access(
 ) -> Result<String, AppError> {
     let org_id = resolve_active_org_id(req, pool, user_id).await?;
     billing::require_product_access(pool, &org_id, "social").await?;
+    Ok(org_id)
+}
+
+async fn require_social_connection_admin(
+    pool: &PgPool,
+    req: &HttpRequest,
+    user_id: &str,
+) -> Result<String, AppError> {
+    let org_id = require_social_access(pool, req, user_id).await?;
+    orgs::require_admin(pool, &org_id, user_id).await?;
     Ok(org_id)
 }
 
@@ -36,7 +46,7 @@ pub async fn create_channel(
     body: web::Json<SocialChannelCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let platform = body
         .platform
         .as_deref()
@@ -84,7 +94,7 @@ pub async fn update_channel(
     body: web::Json<SocialChannelUpdateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let existing = social::get_social_channel(pool.get_ref(), &org_id, &path).await?;
     let existing = existing.ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
     let platform = body
@@ -128,7 +138,7 @@ pub async fn delete_channel(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let deleted = social::delete_social_channel(pool.get_ref(), &org_id, &path).await?;
     if !deleted {
         return Err(AppError::NotFound("Channel not found".to_string()));
@@ -350,7 +360,7 @@ pub async fn start_x_oauth(
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let _org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let _org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let state = social::create_x_oauth_state();
     let authorize_url =
         social::build_x_authorize_url(config.get_ref(), &state.state, &state.challenge)?;
@@ -382,7 +392,7 @@ pub async fn x_oauth_callback(
     query: web::Query<social::OAuthCallbackQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
         let message = query
             .error_description
@@ -454,7 +464,7 @@ pub async fn start_linkedin_oauth(
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let _org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let _org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let state = social::create_linkedin_oauth_state();
     let authorize_url = social::build_linkedin_authorize_url(config.get_ref(), &state)?;
     Ok(HttpResponse::Found()
@@ -476,7 +486,7 @@ pub async fn start_meta_oauth(
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let _org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let _org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let state = social::create_meta_oauth_state();
     let authorize_url = social::build_meta_authorize_url(config.get_ref(), &state)?;
     Ok(HttpResponse::Found()
@@ -499,7 +509,7 @@ pub async fn meta_oauth_callback(
     query: web::Query<social::OAuthCallbackQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
         let message = query
             .error_description
@@ -574,7 +584,7 @@ pub async fn linkedin_oauth_callback(
     query: web::Query<social::OAuthCallbackQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
         let message = query
             .error_description

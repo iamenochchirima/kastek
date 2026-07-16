@@ -17,31 +17,31 @@ fn redis_client() -> Option<&'static redis::Client> {
         .as_ref()
 }
 
-pub fn build_whatsapp_user_channel(user_id: &str) -> String {
-    build_inbox_user_channel(user_id)
+pub fn build_whatsapp_org_channel(org_id: &str) -> String {
+    build_inbox_org_channel(org_id)
 }
 
-pub fn build_inbox_user_channel(user_id: &str) -> String {
-    format!("whatsapp:user:{user_id}")
+pub fn build_inbox_org_channel(org_id: &str) -> String {
+    format!("whatsapp:org:{org_id}")
 }
 
 fn whatsapp_inbox_queue_key() -> &'static str {
     "whatsapp:inbox:outbound"
 }
 
-pub async fn publish_whatsapp_event(user_id: &str, event: &Value) -> Result<(), AppError> {
-    publish_inbox_event(user_id, event).await
+pub async fn publish_whatsapp_event(org_id: &str, event: &Value) -> Result<(), AppError> {
+    publish_inbox_event(org_id, event).await
 }
 
-pub async fn publish_inbox_event(user_id: &str, event: &Value) -> Result<(), AppError> {
+pub async fn publish_inbox_event(org_id: &str, event: &Value) -> Result<(), AppError> {
     let Some(client) = redis_client() else {
         log::warn!(
-            "[realtime] no redis client, skipping publish for user {}",
-            user_id
+            "[realtime] no redis client, skipping publish for organisation {}",
+            org_id
         );
         return Ok(());
     };
-    let channel = build_inbox_user_channel(user_id);
+    let channel = build_inbox_org_channel(org_id);
     let payload = serde_json::to_string(event)
         .map_err(|_| AppError::Internal("Failed to encode realtime event".to_string()))?;
     let mut conn = client
