@@ -117,11 +117,11 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [ ] Add required `orgId` ownership to direct-product records that belong to a workspace.
 - [ ] Start with the active product records:
   - [ ] Business profile
-- [x] WhatsApp connections
-- [x] WhatsApp contacts and list memberships
-- [x] WhatsApp templates
-- [x] WhatsApp campaigns and recipients
-- [x] Conversations and message records
+  - [x] WhatsApp connections
+  - [x] WhatsApp contacts and list memberships
+  - [x] WhatsApp templates
+  - [x] WhatsApp campaigns and recipients
+  - [x] Conversations and message records
   - [x] Social channel connections
   - [x] Social posts, variants, and publish jobs
   - [x] Bot configurations, events, and deployments
