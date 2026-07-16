@@ -86,6 +86,40 @@ pub async fn verify_checkout(
     Ok(HttpResponse::Ok().json(result))
 }
 
+pub async fn set_subscription_enabled(
+    pool: web::Data<PgPool>,
+    config: web::Data<crate::config::AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    orgs::require_admin(pool.get_ref(), &org_id, &user.id).await?;
+    let (subscription_id, action) = path.into_inner();
+    let enabled = match action.as_str() {
+        "reactivate" => true,
+        "cancel" => false,
+        _ => {
+            return Err(AppError::BadRequest(
+                "Unsupported subscription action".to_string(),
+            ))
+        }
+    };
+    let provider = paystack_provider(config.get_ref())?;
+    billing::set_subscription_enabled(
+        pool.get_ref(),
+        &provider,
+        &org_id,
+        &subscription_id,
+        enabled,
+    )
+    .await?;
+    Ok(
+        HttpResponse::Ok()
+            .json(serde_json::json!({"updated": true, "cancelAtPeriodEnd": !enabled})),
+    )
+}
+
 pub async fn paystack_webhook(
     pool: web::Data<PgPool>,
     config: web::Data<crate::config::AppConfig>,

@@ -90,6 +90,11 @@ pub trait BillingProvider: Send + Sync {
         &self,
         subscription_id: &str,
     ) -> Result<VerifiedSubscription, AppError>;
+    async fn set_subscription_enabled(
+        &self,
+        subscription_id: &str,
+        enabled: bool,
+    ) -> Result<(), AppError>;
     fn verify_webhook(&self, payload: &[u8], signature: &str) -> bool;
     fn parse_webhook(&self, event: &Value) -> Result<ProviderEvent, AppError>;
 }

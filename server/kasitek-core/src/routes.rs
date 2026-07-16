@@ -42,6 +42,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route(
                     "/checkout/{reference}/verify",
                     web::post().to(billing::verify_checkout),
+                )
+                .route(
+                    "/subscriptions/{id}/{action}",
+                    web::post().to(billing::set_subscription_enabled),
                 ),
         )
         .route(
@@ -335,6 +339,16 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route(
                     "/billing/reconciliation-issues",
                     web::get().to(admin_billing::list_reconciliation_issues),
+                )
+                .route("/billing/catalog", web::get().to(admin_billing::catalog))
+                .route(
+                    "/billing/products",
+                    web::post().to(admin_billing::upsert_product),
+                )
+                .route("/billing/plans", web::post().to(admin_billing::upsert_plan))
+                .route(
+                    "/billing/entitlements",
+                    web::post().to(admin_billing::upsert_entitlement),
                 )
                 .service(
                     web::scope("/billing/orgs/{orgId}/grants")

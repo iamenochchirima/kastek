@@ -25,6 +25,7 @@ struct EntitlementRow {
 
 #[derive(Debug, FromRow)]
 struct SubscriptionRow {
+    id: String,
     #[sqlx(rename = "productKey")]
     product_key: String,
     #[sqlx(rename = "planName")]
@@ -61,6 +62,8 @@ pub struct ProductAccess {
     pub plan_name: Option<String>,
     #[serde(rename = "subscriptionStatus")]
     pub subscription_status: Option<String>,
+    #[serde(rename = "subscriptionId")]
+    pub subscription_id: Option<String>,
     #[serde(rename = "currentPeriodStart")]
     pub current_period_start: Option<DateTime<Utc>>,
     #[serde(rename = "currentPeriodEnd")]
@@ -573,6 +576,209 @@ pub async fn list_available_plans(pool: &PgPool) -> Result<Vec<AvailablePlan>, A
     .fetch_all(pool)
     .await
     .map_err(AppError::from)
+}
+
+fn validate_catalog_key(key: &str) -> Result<&str, AppError> {
+    let key = key.trim();
+    if key.is_empty()
+        || key.len() > 80
+        || !key.chars().all(|character| {
+            character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || matches!(character, '.' | '-' | '_')
+        })
+    {
+        return Err(AppError::BadRequest(
+            "Keys must use lowercase letters, numbers, dots, hyphens, or underscores".to_string(),
+        ));
+    }
+    Ok(key)
+}
+
+pub async fn admin_catalog(pool: &PgPool) -> Result<Value, AppError> {
+    let products = sqlx::query_as::<_, (String, String, Option<String>, bool)>(
+        r#"
+        SELECT key, name, description, active FROM "Product" ORDER BY name
+    "#,
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|(key, name, description, active)| {
+        serde_json::json!({
+            "key": key, "name": name, "description": description, "active": active,
+        })
+    })
+    .collect::<Vec<_>>();
+    let plans = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            String,
+            String,
+            String,
+            Option<i32>,
+            bool,
+            Option<String>,
+        ),
+    >(
+        r#"
+        SELECT plan.key, product.key, plan.name, plan.interval::text, plan.currency,
+               plan."amountMinor", plan.active, plan."paystackPlanCode"
+        FROM "ProductPlan" plan JOIN "Product" product ON product.id = plan."productId"
+        ORDER BY product.name, plan.name
+    "#,
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(
+        |(key, product_key, name, interval, currency, amount_minor, active, paystack_plan_code)| {
+            serde_json::json!({
+                "key": key, "productKey": product_key, "name": name, "interval": interval,
+                "currency": currency, "amountMinor": amount_minor, "active": active,
+                "paystackPlanCode": paystack_plan_code,
+            })
+        },
+    )
+    .collect::<Vec<_>>();
+    let entitlements = sqlx::query_as::<_, (String, String, Value)>(
+        r#"
+        SELECT plan.key, entitlement.key, entitlement.value
+        FROM "PlanEntitlement" entitlement
+        JOIN "ProductPlan" plan ON plan.id = entitlement."planId"
+        ORDER BY plan.key, entitlement.key
+    "#,
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|(plan_key, key, value)| {
+        serde_json::json!({
+            "planKey": plan_key, "key": key, "value": value,
+        })
+    })
+    .collect::<Vec<_>>();
+    Ok(serde_json::json!({"products": products, "plans": plans, "entitlements": entitlements}))
+}
+
+pub async fn upsert_product(
+    pool: &PgPool,
+    key: &str,
+    name: &str,
+    description: Option<&str>,
+    active: bool,
+) -> Result<Value, AppError> {
+    let key = validate_catalog_key(key)?;
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("Product name is required".to_string()));
+    }
+    let row = sqlx::query_as::<_, (String, String, Option<String>, bool)>(
+        r#"
+        INSERT INTO "Product" (id, key, name, description, active, "createdAt", "updatedAt")
+        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+        ON CONFLICT (key) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description,
+          active = EXCLUDED.active, "updatedAt" = NOW()
+        RETURNING key, name, description, active
+    "#,
+    )
+    .bind(cuid2::create_id())
+    .bind(key)
+    .bind(name)
+    .bind(description)
+    .bind(active)
+    .fetch_one(pool)
+    .await?;
+    Ok(serde_json::json!({"key": row.0, "name": row.1, "description": row.2, "active": row.3}))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn upsert_plan(
+    pool: &PgPool,
+    product_key: &str,
+    key: &str,
+    name: &str,
+    interval: &str,
+    currency: &str,
+    amount_minor: Option<i32>,
+    active: bool,
+    paystack_plan_code: Option<&str>,
+) -> Result<Value, AppError> {
+    let key = validate_catalog_key(key)?;
+    let product_key = validate_catalog_key(product_key)?;
+    let interval = interval.trim().to_uppercase();
+    if !matches!(interval.as_str(), "MONTHLY" | "YEARLY") {
+        return Err(AppError::BadRequest(
+            "Plan interval must be MONTHLY or YEARLY".to_string(),
+        ));
+    }
+    let currency = currency.trim().to_uppercase();
+    if currency.len() != 3
+        || !currency
+            .chars()
+            .all(|character| character.is_ascii_uppercase())
+    {
+        return Err(AppError::BadRequest(
+            "Currency must be a three-letter code".to_string(),
+        ));
+    }
+    if amount_minor.is_some_and(|amount| amount < 0) || name.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "Plan name and a non-negative amount are required".to_string(),
+        ));
+    }
+    let plan_code = paystack_plan_code
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let row = sqlx::query_as::<_, (String, String, String, String, Option<i32>, bool, Option<String>)>(r#"
+        INSERT INTO "ProductPlan" (id, "productId", key, name, interval, currency, "amountMinor", active, "paystackPlanCode", "createdAt", "updatedAt")
+        SELECT $1, product.id, $3, $4, CAST($5 AS "BillingInterval"), $6, $7, $8, $9, NOW(), NOW()
+        FROM "Product" product WHERE product.key = $2
+        ON CONFLICT (key) DO UPDATE SET "productId" = EXCLUDED."productId", name = EXCLUDED.name,
+          interval = EXCLUDED.interval, currency = EXCLUDED.currency, "amountMinor" = EXCLUDED."amountMinor",
+          active = EXCLUDED.active, "paystackPlanCode" = EXCLUDED."paystackPlanCode", "updatedAt" = NOW()
+        RETURNING key, name, interval::text, currency, "amountMinor", active, "paystackPlanCode"
+    "#)
+    .bind(cuid2::create_id()).bind(product_key).bind(key).bind(name.trim()).bind(&interval)
+    .bind(&currency).bind(amount_minor).bind(active).bind(plan_code).fetch_optional(pool).await?
+    .ok_or_else(|| AppError::NotFound("Product not found".to_string()))?;
+    Ok(
+        serde_json::json!({"key": row.0, "name": row.1, "interval": row.2, "currency": row.3,
+        "amountMinor": row.4, "active": row.5, "paystackPlanCode": row.6}),
+    )
+}
+
+pub async fn upsert_plan_entitlement(
+    pool: &PgPool,
+    plan_key: &str,
+    key: &str,
+    value: Value,
+) -> Result<Value, AppError> {
+    let plan_key = validate_catalog_key(plan_key)?;
+    let key = validate_catalog_key(key)?;
+    if !value.is_boolean() && !value.is_number() && !value.is_string() {
+        return Err(AppError::BadRequest(
+            "Entitlement values must be boolean, number, or string".to_string(),
+        ));
+    }
+    let row = sqlx::query_as::<_, (String, Value)>(
+        r#"
+        INSERT INTO "PlanEntitlement" (id, "planId", key, value, "createdAt", "updatedAt")
+        SELECT $1, plan.id, $3, $4, NOW(), NOW() FROM "ProductPlan" plan WHERE plan.key = $2
+        ON CONFLICT ("planId", key) DO UPDATE SET value = EXCLUDED.value, "updatedAt" = NOW()
+        RETURNING key, value
+    "#,
+    )
+    .bind(cuid2::create_id())
+    .bind(plan_key)
+    .bind(key)
+    .bind(value)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Plan not found".to_string()))?;
+    Ok(serde_json::json!({"planKey": plan_key, "key": row.0, "value": row.1}))
 }
 
 pub async fn create_checkout(
@@ -1196,7 +1402,7 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
 
     let subscription_rows = sqlx::query_as::<_, SubscriptionRow>(
         r#"
-        SELECT product.key AS "productKey", plan.name AS "planName", subscription.status::text AS status,
+        SELECT subscription.id, product.key AS "productKey", plan.name AS "planName", subscription.status::text AS status,
                subscription."currentPeriodStart" AT TIME ZONE 'UTC' AS "currentPeriodStart",
                subscription."currentPeriodEnd" AT TIME ZONE 'UTC' AS "currentPeriodEnd",
                subscription."trialEndsAt" AT TIME ZONE 'UTC' AS "trialEndsAt",
@@ -1276,6 +1482,7 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
                 state,
                 plan_name: subscription.as_ref().map(|item| item.plan_name.clone()),
                 subscription_status: subscription.as_ref().map(|item| item.status.clone()),
+                subscription_id: subscription.as_ref().map(|item| item.id.clone()),
                 current_period_start: subscription
                     .as_ref()
                     .and_then(|item| item.current_period_start),
@@ -1322,6 +1529,46 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
         manual_grants,
         payments,
     })
+}
+
+pub async fn set_subscription_enabled(
+    pool: &PgPool,
+    provider: &dyn BillingProvider,
+    org_id: &str,
+    subscription_id: &str,
+    enabled: bool,
+) -> Result<(), AppError> {
+    let provider_subscription_id = sqlx::query_scalar::<_, Option<String>>(
+        r#"
+        SELECT "providerSubscriptionId" FROM "OrganizationSubscription"
+        WHERE id = $1 AND "orgId" = $2 AND provider = $3
+    "#,
+    )
+    .bind(subscription_id)
+    .bind(org_id)
+    .bind(provider.name())
+    .fetch_optional(pool)
+    .await?
+    .flatten()
+    .ok_or_else(|| AppError::NotFound("Provider subscription not found".to_string()))?;
+    provider
+        .set_subscription_enabled(&provider_subscription_id, enabled)
+        .await?;
+    sqlx::query(
+        r#"
+        UPDATE "OrganizationSubscription" SET "cancelAtPeriodEnd" = $2,
+          status = CASE WHEN $3 THEN 'ACTIVE'::"OrganizationSubscriptionStatus" ELSE status END,
+          "cancelledAt" = CASE WHEN $3 THEN NULL ELSE "cancelledAt" END, "updatedAt" = NOW()
+        WHERE id = $1 AND "orgId" = $4
+    "#,
+    )
+    .bind(subscription_id)
+    .bind(!enabled)
+    .bind(enabled)
+    .bind(org_id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 pub async fn require_product_access(

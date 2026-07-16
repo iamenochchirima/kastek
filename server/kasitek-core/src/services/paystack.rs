@@ -125,6 +125,24 @@ impl PaystackProvider {
             })
             .map(ToString::to_string)
     }
+
+    async fn fetch_subscription_data(&self, subscription_id: &str) -> Result<Value, AppError> {
+        let response = self
+            .client
+            .get(format!(
+                "{}/subscription/{}",
+                self.api_base_url,
+                urlencoding::encode(subscription_id)
+            ))
+            .bearer_auth(&self.secret_key)
+            .send()
+            .await?;
+        let status = response.status();
+        let body: ApiResponse<Value> = response.json().await?;
+        body.data
+            .filter(|_| status.is_success() && body.status)
+            .ok_or_else(|| AppError::BadRequest(body.message))
+    }
 }
 
 #[async_trait]
@@ -186,23 +204,39 @@ impl BillingProvider for PaystackProvider {
         &self,
         subscription_id: &str,
     ) -> Result<VerifiedSubscription, AppError> {
+        let data = self.fetch_subscription_data(subscription_id).await?;
+        Self::parse_verified_subscription(&data)
+    }
+
+    async fn set_subscription_enabled(
+        &self,
+        subscription_id: &str,
+        enabled: bool,
+    ) -> Result<(), AppError> {
+        let data = self.fetch_subscription_data(subscription_id).await?;
+        let token = data
+            .get("email_token")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                AppError::BadRequest(
+                    "Paystack subscription management token is missing".to_string(),
+                )
+            })?;
+        let action = if enabled { "enable" } else { "disable" };
         let response = self
             .client
-            .get(format!(
-                "{}/subscription/{}",
-                self.api_base_url,
-                urlencoding::encode(subscription_id)
-            ))
+            .post(format!("{}/subscription/{action}", self.api_base_url))
             .bearer_auth(&self.secret_key)
+            .json(&json!({"code": subscription_id, "token": token}))
             .send()
             .await?;
         let status = response.status();
         let body: ApiResponse<Value> = response.json().await?;
-        let data = body
-            .data
-            .filter(|_| status.is_success() && body.status)
-            .ok_or_else(|| AppError::BadRequest(body.message))?;
-        Self::parse_verified_subscription(&data)
+        if !status.is_success() || !body.status {
+            return Err(AppError::BadRequest(body.message));
+        }
+        Ok(())
     }
 
     fn verify_webhook(&self, payload: &[u8], signature: &str) -> bool {

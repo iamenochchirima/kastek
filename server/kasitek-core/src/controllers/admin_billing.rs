@@ -24,6 +24,37 @@ pub struct IssueQuery {
     pub status: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct UpsertProductRequest {
+    pub key: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub active: bool,
+}
+
+#[derive(Deserialize)]
+pub struct UpsertPlanRequest {
+    #[serde(rename = "productKey")]
+    pub product_key: String,
+    pub key: String,
+    pub name: String,
+    pub interval: String,
+    pub currency: String,
+    #[serde(rename = "amountMinor")]
+    pub amount_minor: Option<i32>,
+    pub active: bool,
+    #[serde(rename = "paystackPlanCode")]
+    pub paystack_plan_code: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct UpsertEntitlementRequest {
+    #[serde(rename = "planKey")]
+    pub plan_key: String,
+    pub key: String,
+    pub value: Value,
+}
+
 async fn require_billing_admin(
     req: &HttpRequest,
     pool: &PgPool,
@@ -113,4 +144,66 @@ pub async fn list_reconciliation_issues(
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "issues": billing::list_reconciliation_issues(pool.get_ref(), status).await?,
     })))
+}
+
+pub async fn catalog(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
+    require_billing_admin(&req, pool.get_ref()).await?;
+    Ok(HttpResponse::Ok().json(billing::admin_catalog(pool.get_ref()).await?))
+}
+
+pub async fn upsert_product(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    body: web::Json<UpsertProductRequest>,
+) -> Result<HttpResponse, AppError> {
+    require_billing_admin(&req, pool.get_ref()).await?;
+    Ok(HttpResponse::Ok().json(
+        billing::upsert_product(
+            pool.get_ref(),
+            &body.key,
+            &body.name,
+            body.description.as_deref(),
+            body.active,
+        )
+        .await?,
+    ))
+}
+
+pub async fn upsert_plan(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    body: web::Json<UpsertPlanRequest>,
+) -> Result<HttpResponse, AppError> {
+    require_billing_admin(&req, pool.get_ref()).await?;
+    Ok(HttpResponse::Ok().json(
+        billing::upsert_plan(
+            pool.get_ref(),
+            &body.product_key,
+            &body.key,
+            &body.name,
+            &body.interval,
+            &body.currency,
+            body.amount_minor,
+            body.active,
+            body.paystack_plan_code.as_deref(),
+        )
+        .await?,
+    ))
+}
+
+pub async fn upsert_entitlement(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    body: web::Json<UpsertEntitlementRequest>,
+) -> Result<HttpResponse, AppError> {
+    require_billing_admin(&req, pool.get_ref()).await?;
+    Ok(HttpResponse::Ok().json(
+        billing::upsert_plan_entitlement(
+            pool.get_ref(),
+            &body.plan_key,
+            &body.key,
+            body.value.clone(),
+        )
+        .await?,
+    ))
 }
