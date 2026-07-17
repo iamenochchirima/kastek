@@ -145,6 +145,7 @@ export type WhatsappRealtimeEvent =
       type: "message.created";
       conversationId: string;
       conversation?: {
+        channel?: "whatsapp" | "facebook" | "instagram";
         customerName: string | null;
         phone?: string;
         connectionId?: string | null;
@@ -158,6 +159,7 @@ export type WhatsappRealtimeEvent =
         content: string;
         timestamp: string;
         whatsappStatus?: "SENT" | "DELIVERED" | "READ" | "FAILED" | "BLOCKED";
+        providerStatus?: "PROCESSING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
       };
     }
   | {
@@ -165,7 +167,8 @@ export type WhatsappRealtimeEvent =
       conversationId: string;
       message: {
         id: string;
-        whatsappStatus: "SENT" | "DELIVERED" | "READ" | "FAILED" | "BLOCKED";
+        whatsappStatus?: "SENT" | "DELIVERED" | "READ" | "FAILED" | "BLOCKED";
+        providerStatus?: "PROCESSING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
         errorCode?: string | null;
         errorMessage?: string | null;
       };
@@ -175,6 +178,7 @@ export type WhatsappRealtimeEvent =
       conversationId: string;
       conversation: {
         id: string;
+        channel?: "whatsapp" | "facebook" | "instagram";
         customerName: string | null;
         phone: string;
         connectionId?: string | null;

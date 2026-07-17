@@ -8,7 +8,7 @@ use crate::db::models::{
 };
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{billing, orgs, social};
+use crate::services::{billing, connections, orgs, social};
 
 async fn require_social_access(
     pool: &PgPool,
@@ -560,6 +560,47 @@ pub async fn meta_oauth_callback(
     let connected =
         social::upsert_meta_connections_for_org(pool.get_ref(), &user.id, &org_id, &tokens, &pages)
             .await?;
+
+    connections::sync_org_connections(pool.get_ref(), &org_id).await?;
+    for page in &pages {
+        let Some(page_access_token) = page.access_token.as_deref() else {
+            continue;
+        };
+        let subscription_result =
+            social::subscribe_meta_page_webhooks(page_access_token, &page.id).await;
+        let error_message = subscription_result.as_ref().err().map(ToString::to_string);
+        for channel in connected.iter().filter(|channel| {
+            channel.external_account_id.as_deref() == Some(page.id.as_str())
+                || channel
+                    .metadata
+                    .as_ref()
+                    .and_then(|metadata| metadata.get("pageId"))
+                    .and_then(|value| value.as_str())
+                    == Some(page.id.as_str())
+        }) {
+            connections::record_synced_source_health(
+                pool.get_ref(),
+                &org_id,
+                "SOCIAL",
+                &channel.id,
+                subscription_result.is_ok(),
+                Some(if subscription_result.is_ok() {
+                    "ACTIVE"
+                } else {
+                    "FAILED"
+                }),
+                error_message.as_deref(),
+            )
+            .await?;
+        }
+        if let Err(error) = subscription_result {
+            log::warn!(
+                "failed to subscribe Meta Page {} to webhooks: {}",
+                page.id,
+                error
+            );
+        }
+    }
 
     let redirect = format!(
         "{}/social/channels?connected=meta&count={}",

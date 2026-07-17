@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
@@ -76,7 +76,7 @@ type InboxConversation = {
   time: string;
   unread: boolean;
   starred: boolean;
-  channel: "whatsapp";
+  channel: "whatsapp" | "facebook" | "instagram";
   connectionId: string | null;
   connectionLabel: string;
   avatar: string;
@@ -415,7 +415,10 @@ export default function InboxPageClient({
   }, [conversations]);
 
   const whatsappUnreadCount = useMemo(
-    () => liveConversations.filter((conversation) => conversation.unread).length,
+    () =>
+      liveConversations.filter(
+        (conversation) => conversation.channel === "whatsapp" && conversation.unread,
+      ).length,
     [liveConversations],
   );
 
@@ -427,14 +430,8 @@ export default function InboxPageClient({
         icon: MessageCircle,
         color: "text-foreground",
         bgColor: "bg-foreground/10",
-        count:
-          liveConversations.length +
-          channelCounts.instagram.conversationCount +
-          channelCounts.facebook.conversationCount,
-        unreadCount:
-          whatsappUnreadCount +
-          channelCounts.instagram.unreadCount +
-          channelCounts.facebook.unreadCount,
+        count: liveConversations.length,
+        unreadCount: liveConversations.filter((conversation) => conversation.unread).length,
         disabled: false,
         connected: true,
       },
@@ -444,7 +441,7 @@ export default function InboxPageClient({
         icon: MessageCircle,
         color: "text-status-success",
         bgColor: "bg-status-success-soft",
-        count: liveConversations.length,
+        count: liveConversations.filter((conversation) => conversation.channel === "whatsapp").length,
         unreadCount: whatsappUnreadCount,
         disabled: false,
         connected: channelCounts.whatsapp.connected,
@@ -475,26 +472,34 @@ export default function InboxPageClient({
         id: "instagram" as const,
         name: "Instagram",
         icon: Instagram,
-        color: "text-muted-foreground",
-        bgColor: "bg-secondary",
-        count: 0,
-        unreadCount: 0,
-        disabled: true,
-        connected: false,
+        color: "text-fuchsia-400",
+        bgColor: "bg-fuchsia-500/10",
+        count: liveConversations.filter((conversation) => conversation.channel === "instagram").length,
+        unreadCount: liveConversations.filter(
+          (conversation) => conversation.channel === "instagram" && conversation.unread,
+        ).length,
+        disabled:
+          !channelCounts.instagram.connected &&
+          !liveConversations.some((conversation) => conversation.channel === "instagram"),
+        connected: channelCounts.instagram.connected,
       },
       {
         id: "facebook" as const,
         name: "Messenger",
         icon: Facebook,
-        color: "text-muted-foreground",
-        bgColor: "bg-secondary",
-        count: 0,
-        unreadCount: 0,
-        disabled: true,
-        connected: false,
+        color: "text-blue-400",
+        bgColor: "bg-blue-500/10",
+        count: liveConversations.filter((conversation) => conversation.channel === "facebook").length,
+        unreadCount: liveConversations.filter(
+          (conversation) => conversation.channel === "facebook" && conversation.unread,
+        ).length,
+        disabled:
+          !channelCounts.facebook.connected &&
+          !liveConversations.some((conversation) => conversation.channel === "facebook"),
+        connected: channelCounts.facebook.connected,
       },
     ],
-    [channelCounts, liveConversations.length, whatsappUnreadCount],
+    [channelCounts, liveConversations, whatsappUnreadCount],
   );
 
   const whatsappConnectionFilters = useMemo(
@@ -502,12 +507,17 @@ export default function InboxPageClient({
       {
         id: null as string | null,
         label: "All numbers",
-        conversationCount: liveConversations.length,
-        unreadCount: liveConversations.filter((conversation) => conversation.unread).length,
+        conversationCount: liveConversations.filter(
+          (conversation) => conversation.channel === "whatsapp",
+        ).length,
+        unreadCount: liveConversations.filter(
+          (conversation) => conversation.channel === "whatsapp" && conversation.unread,
+        ).length,
       },
       ...whatsappConnections.map((connection) => {
         const connectionConversations = liveConversations.filter(
-          (conversation) => conversation.connectionId === connection.id,
+          (conversation) =>
+            conversation.channel === "whatsapp" && conversation.connectionId === connection.id,
         );
 
         return {
@@ -524,7 +534,9 @@ export default function InboxPageClient({
   const filteredConversations = liveConversations.filter((conversation) => {
     const channelMatch = selectedChannel === "all" || conversation.channel === selectedChannel;
     const connectionMatch =
-      !selectedWhatsappConnectionId || conversation.connectionId === selectedWhatsappConnectionId;
+      selectedChannel !== "whatsapp" ||
+      !selectedWhatsappConnectionId ||
+      conversation.connectionId === selectedWhatsappConnectionId;
     const filterMatch =
       filter === "all" ||
       (filter === "unread" && conversation.unread) ||
@@ -539,6 +551,12 @@ export default function InboxPageClient({
     filteredConversations.find((conversation) => conversation.id === selectedConversationId) ??
     filteredConversations[0] ??
     null;
+
+  useEffect(() => {
+    if (selectedConversation?.channel === "whatsapp") return;
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [selectedConversation?.channel]);
   const preferredConversationId = searchParams.get("conversation")?.trim() || null;
 
   useEffect(() => {
@@ -947,13 +965,41 @@ export default function InboxPageClient({
           </section>
 
           <section>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Meta messaging</p>
+            <div className="divide-y divide-border rounded-lg border border-border bg-card">
+              {[
+                { key: "instagram" as const, label: "Instagram", icon: Instagram },
+                { key: "facebook" as const, label: "Facebook Messenger", icon: Facebook },
+              ].map((channel) => {
+                const Icon = channel.icon;
+                const state = channelCounts[channel.key];
+                return (
+                  <div key={channel.key} className="flex items-center gap-3 px-4 py-3">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground">{channel.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {state.connected
+                          ? `${state.connectionCount} connected account${state.connectionCount === 1 ? "" : "s"}`
+                          : "Not connected"}
+                      </p>
+                    </div>
+                    {state.connected ? <Badge variant="outline">Connected</Badge> : null}
+                  </div>
+                );
+              })}
+              <div className="p-3">
+                <Button asChild size="sm" variant="outline"><Link href="/connections">Manage Meta connections</Link></Button>
+              </div>
+            </div>
+          </section>
+
+          <section>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Available next</p>
             <div className="divide-y divide-border rounded-lg border border-border bg-card">
               {[
                 { label: "Email", description: "Bring shared inboxes into the same conversation view", icon: Mail },
                 { label: "SMS", description: "Manage text-message conversations alongside WhatsApp", icon: MessageCircle },
-                { label: "Instagram", description: "Direct messages and comments", icon: Instagram },
-                { label: "Facebook Messenger", description: "Page conversations", icon: Facebook },
               ].map((channel) => {
                 const Icon = channel.icon;
                 return <div key={channel.label} className="flex items-start gap-3 px-4 py-3 opacity-70"><Icon className="mt-0.5 h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">{channel.label}</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{channel.description}</p></div></div>;
@@ -977,7 +1023,7 @@ export default function InboxPageClient({
       setMessagesLoading(true);
 
       try {
-        const response = await fetch(apiUrl(`/api/whatsapp/inbox/${conversationId}/messages`), {
+        const response = await fetch(apiUrl(`/api/inbox/${conversationId}/messages`), {
           cache: "no-store",
           credentials: "include",
         });
@@ -1074,7 +1120,7 @@ export default function InboxPageClient({
       ),
     );
 
-    void fetch(apiUrl(`/api/whatsapp/inbox/${selectedConversationId}/read`), {
+    void fetch(apiUrl(`/api/inbox/${selectedConversationId}/read`), {
       method: "POST",
       credentials: "include",
     });
@@ -1171,7 +1217,7 @@ export default function InboxPageClient({
             time: payload.message.timestamp,
             unread: payload.message.sender === "customer" && conversationId !== selectedConversationId,
             starred: false,
-            channel: "whatsapp" as const,
+            channel: payload.conversation?.channel || "whatsapp",
             connectionId: payload.conversation?.connectionId || null,
             connectionLabel:
               payload.conversation?.connectionLabel || payload.conversation?.phone || "Unknown number",
@@ -1218,7 +1264,9 @@ export default function InboxPageClient({
             minute: "2-digit",
           }),
           timestamp: payload.message.timestamp,
-          status: normalizeRealtimeStatus(payload.message.whatsappStatus),
+          status: normalizeRealtimeStatus(
+            payload.message.providerStatus || payload.message.whatsappStatus,
+          ),
         };
 
         if (optimisticIndex !== -1) {
@@ -1275,7 +1323,7 @@ export default function InboxPageClient({
               time: payload.conversation.lastMessageAt,
               unread: payload.conversation.unreadCount > 0,
               starred: payload.conversation.starred ?? false,
-              channel: "whatsapp" as const,
+              channel: payload.conversation.channel || "whatsapp",
               connectionId: payload.conversation.connectionId || null,
               connectionLabel:
                 payload.conversation.connectionLabel || payload.conversation.phone || "Unknown number",
@@ -1303,8 +1351,10 @@ export default function InboxPageClient({
             message.id === payload.message.id
               ? {
                   ...message,
-                  status: normalizeRealtimeStatus(payload.message.whatsappStatus),
-                  errorMessage: null,
+                  status: normalizeRealtimeStatus(
+                    payload.message.providerStatus || payload.message.whatsappStatus,
+                  ),
+                  errorMessage: payload.message.errorMessage || null,
                 }
               : message,
           ),
@@ -1684,7 +1734,7 @@ export default function InboxPageClient({
     const optimisticId = `optimistic:${Date.now()}`;
     if (trimmed && !selectedFile) {
       const optimisticContent =
-        replyDraft?.messageId && replyDraft.text
+        selectedConversation?.channel === "whatsapp" && replyDraft?.messageId && replyDraft.text
           ? encodeStoredWhatsappReplyEnvelope({
               version: 1,
               replyToMessageId: replyDraft.messageId,
@@ -1713,7 +1763,7 @@ export default function InboxPageClient({
       }));
     }
 
-    const response = selectedFile
+    const response = selectedFile && selectedConversation?.channel === "whatsapp"
       ? await (async () => {
           const formData = new FormData();
           formData.append("file", selectedFile);
@@ -1729,7 +1779,7 @@ export default function InboxPageClient({
             body: formData,
           });
         })()
-      : await fetch(apiUrl(`/api/whatsapp/inbox/${conversationId}/messages`), {
+      : await fetch(apiUrl(`/api/inbox/${conversationId}/messages`), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -1957,7 +2007,7 @@ export default function InboxPageClient({
 
           <ScrollArea className="min-h-0 flex-1">
             <div className="p-2">
-              {!channelCounts.whatsapp.connected && (selectedChannel === "all" || selectedChannel === "whatsapp") ? (
+              {!channelCounts.whatsapp.connected && selectedChannel === "whatsapp" ? (
                 <div className="flex flex-col items-center justify-center py-14 text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
                     <MessageCircle className="h-6 w-6 text-muted-foreground" />
@@ -2040,7 +2090,7 @@ export default function InboxPageClient({
                                     </Badge>
                                   ) : null}
                                   <Badge className="border-0 bg-secondary text-[10px] text-muted-foreground">
-                                    WhatsApp
+                                    {channelInfo.name}
                                   </Badge>
                                 </div>
                               </div>
@@ -2050,7 +2100,7 @@ export default function InboxPageClient({
                           <div className="space-y-3 px-4 py-3">
                             <div>
                               <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                                Phone
+                                {conversation.channel === "whatsapp" ? "Phone" : "Customer ID"}
                               </p>
                               <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
                                 <Phone className="h-4 w-4 text-muted-foreground" />
@@ -2079,7 +2129,7 @@ export default function InboxPageClient({
 
                             <div>
                               <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                                Inbox number
+                                Connected account
                               </p>
                               <p className="truncate text-sm text-foreground">
                                 {conversation.connectionLabel}
@@ -2682,6 +2732,12 @@ export default function InboxPageClient({
                   size="icon"
                   className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={selectedConversation?.channel !== "whatsapp"}
+                  title={
+                    selectedConversation?.channel === "whatsapp"
+                      ? "Attach a file"
+                      : "Media replies are not available for this channel yet"
+                  }
                 >
                   <Paperclip className="h-4 w-4" />
                 </Button>
@@ -3000,9 +3056,10 @@ function renderOutgoingMessageState(status?: ConversationMessage["status"]) {
 }
 
 function normalizeRealtimeStatus(
-  status?: "SENT" | "DELIVERED" | "READ" | "FAILED" | "BLOCKED",
+  status?: "PROCESSING" | "SENT" | "DELIVERED" | "READ" | "FAILED" | "BLOCKED",
 ): ConversationMessage["status"] {
   if (!status) return undefined;
+  if (status === "PROCESSING") return "pending";
   return status === "FAILED" ? "failed" : status;
 }
 

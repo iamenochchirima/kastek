@@ -4072,24 +4072,43 @@ async fn find_or_create_conversation(
     .fetch_optional(pool)
     .await?;
     if let Some((id, unread_count, last_message_at)) = existing {
-        if let Some(name) = customer_name {
-            sqlx::query(
-                r#"UPDATE "Conversation" SET "customerName" = $1, "orgId" = $2 WHERE id = $3"#,
-            )
-            .bind(name)
-            .bind(org_id)
-            .bind(&id)
-            .execute(pool)
-            .await?;
-        }
+        sqlx::query(
+            r#"
+            UPDATE "Conversation"
+            SET "customerName" = COALESCE($1, "customerName"),
+                "orgId" = $2,
+                "externalConnectionId" = COALESCE(
+                    "externalConnectionId",
+                    (SELECT id FROM "ExternalConnection"
+                     WHERE "orgId" = $2 AND "sourceType" = 'WHATSAPP' AND "sourceId" = $4
+                     LIMIT 1)
+                )
+            WHERE id = $3
+            "#,
+        )
+        .bind(customer_name)
+        .bind(org_id)
+        .bind(&id)
+        .bind(connection_id)
+        .execute(pool)
+        .await?;
         return Ok((id, unread_count, last_message_at));
     }
     let id = cuid2::create_id();
     let now = Utc::now();
     sqlx::query(
         r#"
-        INSERT INTO "Conversation" (id, "orgId", channel, "customerIdentifier", "customerName", status, "lastMessageAt", "unreadCount", "createdAt", "updatedAt")
-        VALUES ($1, $2, 'whatsapp', $3, $4, 'active', $5, 0, NOW(), NOW())
+        INSERT INTO "Conversation" (
+            id, "orgId", channel, "customerIdentifier", "customerName", status,
+            "lastMessageAt", "unreadCount", "externalConnectionId", "createdAt", "updatedAt"
+        )
+        VALUES (
+            $1, $2, 'whatsapp', $3, $4, 'active', $5, 0,
+            (SELECT id FROM "ExternalConnection"
+             WHERE "orgId" = $2 AND "sourceType" = 'WHATSAPP' AND "sourceId" = $6
+             LIMIT 1),
+            NOW(), NOW()
+        )
         "#,
     )
     .bind(&id)
@@ -4097,6 +4116,7 @@ async fn find_or_create_conversation(
     .bind(&identifier)
     .bind(customer_name)
     .bind(now)
+    .bind(connection_id)
     .execute(pool)
     .await?;
     Ok((id, 0, now))

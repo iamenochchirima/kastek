@@ -348,8 +348,10 @@ pub fn build_meta_authorize_url(config: &AppConfig, state: &str) -> Result<Strin
             "pages_manage_metadata",
             "pages_read_engagement",
             "pages_manage_posts",
+            "pages_messaging",
             "instagram_basic",
             "instagram_content_publish",
+            "instagram_manage_messages",
         ]
         .join(",")
     });
@@ -560,10 +562,10 @@ pub struct MetaInstagramAccount {
 
 #[derive(Clone, serde::Deserialize)]
 pub struct MetaPageAccount {
-    id: String,
+    pub id: String,
     name: Option<String>,
     username: Option<String>,
-    access_token: Option<String>,
+    pub access_token: Option<String>,
     tasks: Option<Vec<String>>,
     picture: Option<MetaPicture>,
     connected_instagram_account: Option<MetaInstagramAccount>,
@@ -664,6 +666,24 @@ pub async fn fetch_page_instagram_account(
     Ok(response
         .connected_instagram_account
         .or(response.instagram_business_account))
+}
+
+pub async fn subscribe_meta_page_webhooks(
+    page_access_token: &str,
+    page_id: &str,
+) -> Result<(), AppError> {
+    let _: Value = fetch_json(
+        reqwest::Client::new()
+            .post(format!("{META_GRAPH_BASE}/{page_id}/subscribed_apps"))
+            .bearer_auth(page_access_token)
+            .form(&[(
+                "subscribed_fields",
+                "messages,messaging_postbacks,message_deliveries,message_reads",
+            )]),
+        "Failed to subscribe the Meta Page to messaging webhooks",
+    )
+    .await?;
+    Ok(())
 }
 
 pub async fn upsert_meta_connections_for_org(

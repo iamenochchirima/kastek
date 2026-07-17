@@ -1,8 +1,10 @@
 import InboxPageClient from "@/components/dashboard/inbox-page";
+import type { WorkspaceConnection } from "@/lib/connections";
 import { fetchRustJson } from "@/lib/rust-server-api";
 
 type RustInboxConversation = {
   id: string;
+  channel: "whatsapp" | "facebook" | "instagram";
   customerName: string | null;
   phone: string;
   status: string;
@@ -26,14 +28,30 @@ type RustConnection = {
 };
 
 export default async function InboxPage() {
-  const [connectionsPayload, conversationsPayload] = await Promise.all([
+  const [connectionsPayload, sharedConnectionsPayload, conversationsPayload] = await Promise.all([
     fetchRustJson<{ connections: RustConnection[] }>("/api/whatsapp/connections"),
-    fetchRustJson<{ conversations: RustInboxConversation[] }>("/api/whatsapp/inbox/conversations"),
+    fetchRustJson<{ connections: WorkspaceConnection[] }>("/api/connections"),
+    fetchRustJson<{ conversations: RustInboxConversation[] }>("/api/inbox/conversations"),
   ]);
 
   const connections = connectionsPayload.connections || [];
   const conversations = conversationsPayload.conversations || [];
-  const unreadCount = conversations.reduce((sum, conversation) => sum + Math.max(conversation.unreadCount, 0), 0);
+  const providerCounts = (provider: "WHATSAPP" | "FACEBOOK" | "INSTAGRAM") => {
+    const providerConnections = sharedConnectionsPayload.connections.filter(
+      (connection) => connection.provider === provider && connection.consumers.includes("inbox"),
+    );
+    const channel = provider.toLowerCase();
+    const channelConversations = conversations.filter((conversation) => conversation.channel === channel);
+    return {
+      connected: providerConnections.some((connection) => connection.status === "CONNECTED"),
+      connectionCount: providerConnections.filter((connection) => connection.status === "CONNECTED").length,
+      unreadCount: channelConversations.reduce(
+        (sum, conversation) => sum + Math.max(conversation.unreadCount, 0),
+        0,
+      ),
+      conversationCount: channelConversations.length,
+    };
+  };
 
   return (
     <InboxPageClient
@@ -46,7 +64,7 @@ export default async function InboxPage() {
         time: conversation.lastMessageAt,
         unread: conversation.unreadCount > 0,
         starred: conversation.starred,
-        channel: "whatsapp" as const,
+        channel: conversation.channel,
         connectionId: conversation.connectionId,
         connectionLabel: conversation.connectionLabel || conversation.phone || "Unknown number",
         avatar:
@@ -61,24 +79,9 @@ export default async function InboxPage() {
         tags: [],
       }))}
       channelCounts={{
-        whatsapp: {
-          connected: connections.length > 0,
-          connectionCount: connections.length,
-          unreadCount,
-          conversationCount: conversations.length,
-        },
-        instagram: {
-          connected: false,
-          connectionCount: 0,
-          unreadCount: 0,
-          conversationCount: 0,
-        },
-        facebook: {
-          connected: false,
-          connectionCount: 0,
-          unreadCount: 0,
-          conversationCount: 0,
-        },
+        whatsapp: providerCounts("WHATSAPP"),
+        instagram: providerCounts("INSTAGRAM"),
+        facebook: providerCounts("FACEBOOK"),
       }}
     />
   );

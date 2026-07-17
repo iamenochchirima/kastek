@@ -120,6 +120,14 @@ pub fn verify_meta_webhook_signature(
 ) -> Result<(), AppError> {
     let app_secret = std::env::var("AUTH_META_APP_SECRET")
         .map_err(|_| AppError::Forbidden("Meta webhook secret is not configured".to_string()))?;
+    verify_meta_signature(&app_secret, signature_header, body)
+}
+
+fn verify_meta_signature(
+    app_secret: &str,
+    signature_header: Option<&str>,
+    body: &[u8],
+) -> Result<(), AppError> {
     let signature = signature_header
         .and_then(|value| value.strip_prefix("sha256="))
         .filter(|value| !value.trim().is_empty())
@@ -128,15 +136,10 @@ pub fn verify_meta_webhook_signature(
     let mut mac = HmacSha256::new_from_slice(app_secret.as_bytes())
         .map_err(|_| AppError::Internal("Failed to initialize webhook signature".to_string()))?;
     mac.update(body);
-    let expected = hex::encode(mac.finalize().into_bytes());
-
-    if expected != signature {
-        return Err(AppError::Forbidden(
-            "Invalid Meta webhook signature".to_string(),
-        ));
-    }
-
-    Ok(())
+    let signature_bytes = hex::decode(signature)
+        .map_err(|_| AppError::Forbidden("Invalid Meta webhook signature".to_string()))?;
+    mac.verify_slice(&signature_bytes)
+        .map_err(|_| AppError::Forbidden("Invalid Meta webhook signature".to_string()))
 }
 
 pub async fn list_inbox_conversations(pool: &PgPool, org_id: &str) -> Result<Value, AppError> {
@@ -315,7 +318,29 @@ pub async fn send_conversation_message(
         AppError::BadRequest("Connected Meta channel is missing a target asset".to_string())
     })?;
 
-    let response: MetaSendMessageResponse = fetch_meta_json(
+    let message_id = cuid2::create_id();
+    sqlx::query(
+        r#"
+        INSERT INTO "Message" (
+            id, "conversationId", sender, content,
+            "providerStatus", "providerMetadata", timestamp
+        )
+        VALUES ($1, $2, 'bot', $3, 'PROCESSING', $4, NOW())
+        "#,
+    )
+    .bind(&message_id)
+    .bind(&meta_scope.id)
+    .bind(text)
+    .bind(json!({
+        "provider": meta_scope.channel,
+        "channelConnectionId": meta_scope.channel_connection_id,
+        "replyToMessageId": input.reply_to_message_id,
+    }))
+    .execute(pool)
+    .await?;
+    publish_message_created(pool, user_id, &message_id).await?;
+
+    let response: MetaSendMessageResponse = match fetch_meta_json(
         reqwest::Client::new()
             .post(format!("{META_GRAPH_BASE}/{asset_id}/messages"))
             .bearer_auth(access_token)
@@ -326,27 +351,41 @@ pub async fn send_conversation_message(
             })),
         "Failed to send Meta message",
     )
-    .await?;
+    .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            let error_message = error.to_string();
+            sqlx::query(
+                r#"
+                UPDATE "Message"
+                SET "providerStatus" = 'FAILED',
+                    "errorCode" = 'META_SEND_FAILED',
+                    "errorMessage" = $1
+                WHERE id = $2
+                "#,
+            )
+            .bind(&error_message)
+            .bind(&message_id)
+            .execute(pool)
+            .await?;
+            publish_message_updated(pool, &message_id).await?;
+            return Err(error);
+        }
+    };
 
-    let message_id = cuid2::create_id();
     sqlx::query(
         r#"
-        INSERT INTO "Message" (
-            id, "conversationId", sender, content,
-            "providerMessageId", "providerStatus", "providerMetadata", timestamp
-        )
-        VALUES ($1, $2, 'bot', $3, $4, 'SENT', $5, NOW())
+        UPDATE "Message"
+        SET "providerMessageId" = $1,
+            "providerStatus" = 'SENT',
+            "errorCode" = NULL,
+            "errorMessage" = NULL
+        WHERE id = $2
         "#,
     )
-    .bind(&message_id)
-    .bind(&meta_scope.id)
-    .bind(text)
     .bind(response.message_id.as_deref())
-    .bind(json!({
-        "provider": meta_scope.channel,
-        "channelConnectionId": meta_scope.channel_connection_id,
-        "replyToMessageId": input.reply_to_message_id,
-    }))
+    .bind(&message_id)
     .execute(pool)
     .await?;
 
@@ -361,7 +400,6 @@ pub async fn send_conversation_message(
     .execute(pool)
     .await?;
 
-    publish_message_created(pool, user_id, &message_id).await?;
     publish_conversation_updated(pool, user_id, &meta_scope.id).await?;
 
     Ok(json!({
@@ -419,6 +457,12 @@ pub async fn process_meta_webhook_payload(
         .unwrap_or_default();
 
     for entry in entries {
+        let entry_asset_id = entry
+            .get("id")
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
         let messaging_events = entry
             .get("messaging")
             .and_then(|value| value.as_array())
@@ -426,20 +470,6 @@ pub async fn process_meta_webhook_payload(
             .unwrap_or_default();
 
         for event in messaging_events {
-            if event
-                .get("message")
-                .and_then(|message| message.get("is_echo"))
-                .and_then(|value| value.as_bool())
-                .unwrap_or(false)
-            {
-                continue;
-            }
-
-            let message = match event.get("message") {
-                Some(value) => value,
-                None => continue,
-            };
-
             let sender_id = event
                 .get("sender")
                 .and_then(|value| value.get("id"))
@@ -455,16 +485,43 @@ pub async fn process_meta_webhook_payload(
                 .trim()
                 .to_string();
 
-            if sender_id.is_empty() || recipient_id.is_empty() {
+            let asset_id = entry_asset_id.as_deref().unwrap_or(&recipient_id);
+            if asset_id.is_empty() {
                 continue;
             }
 
-            let channel = resolve_meta_channel(pool, &object, &recipient_id)
-                .await?
-                .or_else(|| if object == "page" { None } else { None });
+            let channel = resolve_meta_channel(pool, &object, asset_id).await?;
             let Some(channel) = channel else {
+                log::warn!(
+                    "ignoring Meta webhook with unresolved or ambiguous asset object={} asset_id={}",
+                    object,
+                    asset_id
+                );
                 continue;
             };
+
+            if let Some(delivery) = event.get("delivery") {
+                apply_meta_delivery_event(pool, &channel, delivery).await?;
+                continue;
+            }
+            if let Some(read) = event.get("read") {
+                apply_meta_read_event(pool, &channel, &sender_id, read).await?;
+                continue;
+            }
+
+            let message = match event.get("message") {
+                Some(value) => value,
+                None => continue,
+            };
+            if message
+                .get("is_echo")
+                .or_else(|| message.get("is_self"))
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false)
+                || sender_id.is_empty()
+            {
+                continue;
+            }
 
             let content = meta_message_content(message);
             if content.is_empty() {
@@ -476,17 +533,19 @@ pub async fn process_meta_webhook_payload(
                 .and_then(|value| value.as_str())
                 .map(str::to_string);
 
-            let (conversation_id, unread_count) =
+            let (conversation_id, _) =
                 find_or_create_meta_conversation(pool, &channel, &sender_id, None).await?;
 
             let message_id = cuid2::create_id();
-            sqlx::query(
+            let inserted = sqlx::query_scalar::<_, String>(
                 r#"
                 INSERT INTO "Message" (
                     id, "conversationId", sender, content,
                     "providerMessageId", "providerStatus", "providerMetadata", timestamp
                 )
                 VALUES ($1, $2, 'customer', $3, $4, 'RECEIVED', $5, NOW())
+                ON CONFLICT ("conversationId", "providerMessageId") DO NOTHING
+                RETURNING id
                 "#,
             )
             .bind(&message_id)
@@ -498,17 +557,21 @@ pub async fn process_meta_webhook_payload(
                 "object": object,
                 "event": event,
             }))
-            .execute(pool)
+            .fetch_optional(pool)
             .await?;
+
+            if inserted.is_none() {
+                continue;
+            }
 
             sqlx::query(
                 r#"
                 UPDATE "Conversation"
-                SET "lastMessageAt" = NOW(), status = 'active', "unreadCount" = $1 + 1, "updatedAt" = NOW()
-                WHERE id = $2
+                SET "lastMessageAt" = NOW(), status = 'active',
+                    "unreadCount" = "unreadCount" + 1, "updatedAt" = NOW()
+                WHERE id = $1
                 "#,
             )
-            .bind(unread_count)
             .bind(&conversation_id)
             .execute(pool)
             .await?;
@@ -606,6 +669,7 @@ async fn scoped_meta_conversation(
         JOIN "SocialChannelConnection" scc
           ON scc.id = split_part(c."customerIdentifier", ':', 2)
          AND scc."orgId" = $2
+         AND scc.status = 'CONNECTED'::"SocialChannelStatus"
         WHERE c.id = $1
           AND c."orgId" = $2
           AND c.channel IN ('facebook', 'instagram')
@@ -645,18 +709,23 @@ async fn resolve_meta_channel(
         FROM "SocialChannelConnection"
         WHERE platform = $1::"SocialPlatform"
           AND "externalAccountId" = $2
-        LIMIT 1
+          AND status = 'CONNECTED'::"SocialChannelStatus"
+          AND "orgId" IS NOT NULL
+        LIMIT 2
         "#,
     )
     .bind(primary_platform)
     .bind(recipient_id)
-    .fetch_optional(pool)
+    .fetch_all(pool)
     .await?;
-    if direct.is_some() {
-        return Ok(direct);
+    if direct.len() == 1 {
+        return Ok(direct.into_iter().next());
+    }
+    if direct.len() > 1 {
+        return Ok(None);
     }
 
-    sqlx::query_as::<_, MetaChannelRow>(
+    let fallback = sqlx::query_as::<_, MetaChannelRow>(
         r#"
         SELECT
             id,
@@ -670,13 +739,19 @@ async fn resolve_meta_channel(
         FROM "SocialChannelConnection"
         WHERE platform = 'INSTAGRAM'::"SocialPlatform"
           AND COALESCE(metadata->>'pageId', '') = $1
-        LIMIT 1
+          AND status = 'CONNECTED'::"SocialChannelStatus"
+          AND "orgId" IS NOT NULL
+        LIMIT 2
         "#,
     )
     .bind(recipient_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(AppError::from)
+    .fetch_all(pool)
+    .await?;
+    if fallback.len() == 1 {
+        Ok(fallback.into_iter().next())
+    } else {
+        Ok(None)
+    }
 }
 
 async fn find_or_create_meta_conversation(
@@ -692,38 +767,29 @@ async fn find_or_create_meta_conversation(
     };
     let identifier = build_meta_conversation_identifier(&channel.id, customer_id);
 
-    let existing = sqlx::query_as::<_, (String, i32)>(
-        r#"
-        SELECT id, "unreadCount"
-        FROM "Conversation"
-        WHERE channel = $1 AND "customerIdentifier" = $2
-        LIMIT 1
-        "#,
-    )
-    .bind(channel_name)
-    .bind(&identifier)
-    .fetch_optional(pool)
-    .await?;
-
-    if let Some((id, unread_count)) = existing {
-        if let Some(name) = customer_name {
-            sqlx::query(r#"UPDATE "Conversation" SET "customerName" = COALESCE($1, "customerName"), "updatedAt" = NOW() WHERE id = $2"#)
-                .bind(name)
-                .bind(&id)
-                .execute(pool)
-                .await?;
-        }
-        return Ok((id, unread_count));
-    }
-
     let id = cuid2::create_id();
-    sqlx::query(
+    sqlx::query_as::<_, (String, i32)>(
         r#"
         INSERT INTO "Conversation" (
             id, channel, "customerIdentifier", "customerName", status,
-            "lastMessageAt", "unreadCount", "orgId", "createdAt", "updatedAt"
+            "lastMessageAt", "unreadCount", "orgId", "externalConnectionId", "createdAt", "updatedAt"
         )
-        VALUES ($1, $2, $3, $4, 'active', NOW(), 0, $5, NOW(), NOW())
+        VALUES (
+            $1, $2, $3, $4, 'active', NOW(), 0, $5,
+            (SELECT id FROM "ExternalConnection"
+             WHERE "orgId" = $5 AND "sourceType" = 'SOCIAL' AND "sourceId" = $6
+             LIMIT 1),
+            NOW(), NOW()
+        )
+        ON CONFLICT (channel, "customerIdentifier") DO UPDATE SET
+            "customerName" = COALESCE(EXCLUDED."customerName", "Conversation"."customerName"),
+            "externalConnectionId" = COALESCE(
+                "Conversation"."externalConnectionId",
+                EXCLUDED."externalConnectionId"
+            ),
+            "updatedAt" = NOW()
+        WHERE "Conversation"."orgId" = EXCLUDED."orgId"
+        RETURNING id, "unreadCount"
         "#,
     )
     .bind(&id)
@@ -731,10 +797,143 @@ async fn find_or_create_meta_conversation(
     .bind(&identifier)
     .bind(customer_name)
     .bind(channel.org_id.as_deref())
-    .execute(pool)
-    .await?;
+    .bind(&channel.id)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::from)
+}
 
-    Ok((id, 0))
+async fn apply_meta_delivery_event(
+    pool: &PgPool,
+    channel: &MetaChannelRow,
+    delivery: &Value,
+) -> Result<(), AppError> {
+    let Some(org_id) = channel.org_id.as_deref() else {
+        return Ok(());
+    };
+    let message_ids = delivery
+        .get("mids")
+        .and_then(|value| value.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.as_str().map(str::to_string))
+        .collect::<Vec<_>>();
+    if message_ids.is_empty() {
+        return Ok(());
+    }
+
+    let updated_ids = sqlx::query_scalar::<_, String>(
+        r#"
+        UPDATE "Message" message
+        SET "providerStatus" = 'DELIVERED', "errorCode" = NULL, "errorMessage" = NULL
+        FROM "Conversation" conversation
+        WHERE message."conversationId" = conversation.id
+          AND conversation."orgId" = $1
+          AND message."providerMessageId" = ANY($2)
+          AND COALESCE(message."providerStatus", '') NOT IN ('READ', 'FAILED')
+        RETURNING message.id
+        "#,
+    )
+    .bind(org_id)
+    .bind(&message_ids)
+    .fetch_all(pool)
+    .await?;
+    for message_id in updated_ids {
+        publish_message_updated(pool, &message_id).await?;
+    }
+    Ok(())
+}
+
+async fn apply_meta_read_event(
+    pool: &PgPool,
+    channel: &MetaChannelRow,
+    customer_id: &str,
+    read: &Value,
+) -> Result<(), AppError> {
+    let Some(org_id) = channel.org_id.as_deref() else {
+        return Ok(());
+    };
+    let Some(watermark) = read.get("watermark").and_then(|value| value.as_i64()) else {
+        return Ok(());
+    };
+    if customer_id.is_empty() {
+        return Ok(());
+    }
+    let channel_name = if channel.platform == "INSTAGRAM" {
+        "instagram"
+    } else {
+        "facebook"
+    };
+    let identifier = build_meta_conversation_identifier(&channel.id, customer_id);
+    let updated_ids = sqlx::query_scalar::<_, String>(
+        r#"
+        UPDATE "Message" message
+        SET "providerStatus" = 'READ', "errorCode" = NULL, "errorMessage" = NULL
+        FROM "Conversation" conversation
+        WHERE message."conversationId" = conversation.id
+          AND conversation."orgId" = $1
+          AND conversation.channel = $2
+          AND conversation."customerIdentifier" = $3
+          AND message.sender = 'bot'
+          AND message.timestamp <= to_timestamp($4::double precision / 1000.0)
+          AND COALESCE(message."providerStatus", '') NOT IN ('READ', 'FAILED')
+        RETURNING message.id
+        "#,
+    )
+    .bind(org_id)
+    .bind(channel_name)
+    .bind(identifier)
+    .bind(watermark)
+    .fetch_all(pool)
+    .await?;
+    for message_id in updated_ids {
+        publish_message_updated(pool, &message_id).await?;
+    }
+    Ok(())
+}
+
+async fn publish_message_updated(pool: &PgPool, message_id: &str) -> Result<(), AppError> {
+    let Some(message) = sqlx::query_as::<_, InboxMessageRow>(
+        r#"
+        SELECT id, "conversationId" AS conversation_id, sender, content,
+               "whatsappMessageId" AS whatsapp_message_id,
+               "whatsappStatus" AS whatsapp_status,
+               "providerMessageId" AS provider_message_id,
+               "providerStatus" AS provider_status,
+               "errorCode" AS error_code,
+               "errorMessage" AS error_message,
+               timestamp AT TIME ZONE 'UTC' AS timestamp
+        FROM "Message"
+        WHERE id = $1
+        LIMIT 1
+        "#,
+    )
+    .bind(message_id)
+    .fetch_optional(pool)
+    .await?
+    else {
+        return Ok(());
+    };
+    let Some(org_id) = conversation_org_id(pool, &message.conversation_id).await? else {
+        return Ok(());
+    };
+
+    publish_event_best_effort(
+        &org_id,
+        json!({
+            "type": "message.updated",
+            "conversationId": message.conversation_id,
+            "message": {
+                "id": message.id,
+                "providerStatus": message.provider_status,
+                "providerMessageId": message.provider_message_id,
+                "errorCode": message.error_code,
+                "errorMessage": message.error_message,
+            }
+        }),
+    )
+    .await;
+    Ok(())
 }
 
 async fn publish_conversation_updated(
@@ -1010,4 +1209,68 @@ async fn fetch_meta_json<T: serde::de::DeserializeOwned>(
 
     serde_json::from_str(&body)
         .map_err(|_| AppError::Internal("Failed to decode Meta response".to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        build_meta_conversation_identifier, meta_message_content,
+        parse_meta_conversation_identifier, scoped_conversation, verify_meta_signature, HmacSha256,
+    };
+    use hmac::Mac;
+    use serde_json::json;
+
+    #[test]
+    fn meta_webhook_signature_must_match_the_raw_body() {
+        let secret = "test-app-secret";
+        let body = br#"{"object":"page","entry":[]}"#;
+        let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("valid secret");
+        mac.update(body);
+        let signature = format!("sha256={}", hex::encode(mac.finalize().into_bytes()));
+
+        assert!(verify_meta_signature(secret, Some(&signature), body).is_ok());
+        assert!(verify_meta_signature(secret, Some(&signature), b"modified").is_err());
+        assert!(verify_meta_signature(secret, None, body).is_err());
+    }
+
+    #[test]
+    fn meta_conversation_identifiers_keep_connection_and_customer_scope() {
+        let identifier = build_meta_conversation_identifier("social_123", "customer:456");
+        assert_eq!(
+            parse_meta_conversation_identifier(&identifier),
+            Some(("social_123".to_string(), "customer:456".to_string()))
+        );
+        assert_eq!(parse_meta_conversation_identifier("customer:456"), None);
+    }
+
+    #[test]
+    fn inbound_attachments_have_a_storable_preview() {
+        assert_eq!(meta_message_content(&json!({ "text": " Hello " })), "Hello");
+        assert_eq!(
+            meta_message_content(&json!({ "attachments": [{ "type": "image" }] })),
+            "[image attachment]"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a seeded PostgreSQL database"]
+    async fn conversation_reads_are_isolated_by_organization() {
+        let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is required");
+        let pool = sqlx::PgPool::connect(&database_url)
+            .await
+            .expect("database connection failed");
+
+        assert!(
+            scoped_conversation(&pool, "org_meta_a", "conversation_meta_a")
+                .await
+                .expect("organization A lookup failed")
+                .is_some()
+        );
+        assert!(
+            scoped_conversation(&pool, "org_meta_b", "conversation_meta_a")
+                .await
+                .expect("organization B lookup failed")
+                .is_none()
+        );
+    }
 }

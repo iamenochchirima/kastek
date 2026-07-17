@@ -122,6 +122,7 @@ model ExternalConnection {
 
   capabilities      ExternalConnectionCapability[]
   consumers         ExternalConnectionConsumer[]
+  conversations     Conversation[]
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -853,9 +854,12 @@ model Conversation {
   lastMessageAt      DateTime @default(now())
   lastReadAt         DateTime?
   unreadCount        Int      @default(0)
+  starred             Boolean  @default(false)
 
-  orgId              String?
-  org                Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  orgId                String?
+  org                  Organization?       @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  externalConnectionId String?
+  externalConnection   ExternalConnection? @relation(fields: [externalConnectionId], references: [id], onDelete: SetNull)
 
   messages     Message[]
   callSessions WhatsappCallSession[]
@@ -866,6 +870,7 @@ model Conversation {
   @@unique([channel, customerIdentifier])
   @@index([channel])
   @@index([orgId, lastMessageAt])
+  @@index([externalConnectionId, lastMessageAt])
   @@index([lastMessageAt])
 }
 
@@ -891,6 +896,7 @@ model Message {
   errorMessage      String?   @db.Text
   timestamp      DateTime     @default(now())
 
+  @@unique([conversationId, providerMessageId])
   @@index([conversationId])
   @@index([providerMessageId])
   @@index([providerStatus])

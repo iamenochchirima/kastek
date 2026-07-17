@@ -385,6 +385,27 @@ pub async fn record_source_health(
     error: Option<&str>,
 ) -> Result<(), AppError> {
     sync_org_connections(pool, org_id).await?;
+    record_synced_source_health(
+        pool,
+        org_id,
+        source_type,
+        source_id,
+        healthy,
+        webhook_status,
+        error,
+    )
+    .await
+}
+
+pub async fn record_synced_source_health(
+    pool: &PgPool,
+    org_id: &str,
+    source_type: &str,
+    source_id: &str,
+    healthy: bool,
+    webhook_status: Option<&str>,
+    error: Option<&str>,
+) -> Result<(), AppError> {
     sqlx::query(
         r#"
         UPDATE "ExternalConnection"
