@@ -1,5 +1,9 @@
 import { fetchFromTenants } from "@/lib/admin-auth";
 import Link from "next/link";
+import { Plus } from "lucide-react";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { buttonClassName } from "@/components/ui/button";
 
 interface Workspace {
   id: string;
@@ -44,23 +48,10 @@ export default async function AgenciesPage() {
     : [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Agencies ({workspaces.length})</h1>
-          <p className="text-sm text-text-muted mt-1">
-            Tenant workspaces provisioned on the platform.
-          </p>
-        </div>
-        <Link
-          href="/agencies/new"
-          className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          + New Agency
-        </Link>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader title="Agencies" description={`${workspaces.length} tenant workspace${workspaces.length === 1 ? "" : "s"} provisioned on the platform.`} actions={<Link href="/agencies/new" className={buttonClassName()}><Plus className="size-4" />New agency</Link>} />
 
-      <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+      <div className="admin-table-wrap">
         {loadError ? (
           <div className="border-b border-border bg-danger/10 px-4 py-3 text-sm text-danger">
             {loadError}
@@ -80,15 +71,15 @@ export default async function AgenciesPage() {
             </Link>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[700px] text-sm">
             <thead>
-              <tr className="border-b border-border">
-                <th className="px-4 py-3 text-left font-medium text-text-muted">Name</th>
-                <th className="px-4 py-3 text-left font-medium text-text-muted">Slug</th>
-                <th className="px-4 py-3 text-left font-medium text-text-muted">Status</th>
-                <th className="px-4 py-3 text-right font-medium text-text-muted">Clients</th>
-                <th className="px-4 py-3 text-right font-medium text-text-muted">Created</th>
-                <th className="px-4 py-3 text-right font-medium text-text-muted"></th>
+              <tr className="admin-table-head border-b border-border">
+                <th className="px-4 py-3 text-left">Name</th>
+                <th className="px-4 py-3 text-left">Slug</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-right">Clients</th>
+                <th className="px-4 py-3 text-right">Created</th>
+                <th className="px-4 py-3 text-right"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -99,15 +90,7 @@ export default async function AgenciesPage() {
                   </td>
                   <td className="px-4 py-3 text-text-muted font-mono text-xs">{ws.slug}</td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${
-                        ws.status === "active"
-                          ? "bg-green-500/15 text-green-400"
-                          : "bg-white/5 text-text-faint"
-                      }`}
-                    >
-                      {ws.status}
-                    </span>
+                    <StatusBadge value={ws.status} />
                   </td>
                   <td className="px-4 py-3 text-right text-text">{ws.clientCount}</td>
                   <td className="px-4 py-3 text-right text-text-faint">
@@ -116,7 +99,7 @@ export default async function AgenciesPage() {
                   <td className="px-4 py-3 text-right">
                     <Link
                       href={`/agencies/${ws.id}`}
-                      className="inline-flex items-center rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-overlay transition-colors"
+                      className={buttonClassName({ variant: "secondary", size: "sm" })}
                     >
                       Manage
                     </Link>

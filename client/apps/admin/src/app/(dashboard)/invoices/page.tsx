@@ -1,14 +1,10 @@
 import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
 import { getServiceLabel } from "@/lib/invoice";
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-slate-500/15 text-slate-300",
-  sent: "bg-blue-500/15 text-blue-300",
-  paid: "bg-green-500/15 text-green-300",
-  overdue: "bg-yellow-500/15 text-yellow-300",
-  cancelled: "bg-red-500/15 text-red-300",
-};
+import { AdminMetric, AdminPageHeader } from "@/components/admin/page-header";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { buttonClassName } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 function formatDate(value?: string | null) {
   if (!value) return null;
@@ -68,42 +64,12 @@ export default async function InvoicesPage() {
   const invoices = data.invoices ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Invoices</h1>
-          <p className="text-sm text-text-muted mt-1">
-            Track one-off invoices and recurring monthly clients from a single billing operations view.
-          </p>
-        </div>
-        <Link
-          href="/invoices/new"
-          className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          + New Invoice
-        </Link>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader title="Invoices" description="Track one-off invoices and recurring monthly clients from a single billing operations view." actions={<Link href="/invoices/new" className={buttonClassName()}><Plus className="size-4" />New invoice</Link>} />
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-xl border border-border bg-surface-raised p-5">
-          <p className="text-xs uppercase tracking-wide text-text-faint">Total Records</p>
-          <p className="mt-3 text-2xl font-semibold text-text">{summary.totalInvoices}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-surface-raised p-5">
-          <p className="text-xs uppercase tracking-wide text-text-faint">Monthly Clients</p>
-          <p className="mt-3 text-2xl font-semibold text-text">{summary.recurringClients}</p>
-        </div>
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
-          <p className="text-xs uppercase tracking-wide text-amber-300">Need Invoice Send</p>
-          <p className="mt-3 text-2xl font-semibold text-amber-200">{summary.needsInvoiceSend}</p>
-        </div>
-        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
-          <p className="text-xs uppercase tracking-wide text-red-300">Need Reminder</p>
-          <p className="mt-3 text-2xl font-semibold text-red-200">{summary.needsReminder}</p>
-        </div>
-      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><AdminMetric label="Total records" value={summary.totalInvoices} /><AdminMetric label="Monthly clients" value={summary.recurringClients} /><AdminMetric label="Need invoice send" value={summary.needsInvoiceSend} tone="attention" /><AdminMetric label="Need reminder" value={summary.needsReminder} tone="danger" /></div>
 
-      <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
         <div className="border-b border-border px-6 py-4">
           <h2 className="font-semibold text-text">Action Queue</h2>
           <p className="text-sm text-text-muted mt-1">
@@ -137,8 +103,8 @@ export default async function InvoicesPage() {
         )}
       </div>
 
-      <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
-        <div className="grid grid-cols-[1.5fr_1.1fr_1.5fr_1fr_1fr] gap-4 px-6 py-3 border-b border-border text-xs font-semibold uppercase tracking-wider text-text-faint">
+      <div className="admin-table-wrap">
+        <div className="grid min-w-[780px] grid-cols-[1.5fr_1.1fr_1.5fr_1fr_1fr] gap-4 border-b border-border px-5 py-3 admin-table-head">
           <div>Business</div>
           <div>Billing</div>
           <div>Current Cycle</div>
@@ -151,11 +117,11 @@ export default async function InvoicesPage() {
             No invoices created yet.
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="min-w-[780px] divide-y divide-border">
             {invoices.map((invoice) => (
               <div
                 key={invoice.id}
-                className="grid grid-cols-[1.5fr_1.1fr_1.5fr_1fr_1fr] gap-4 px-6 py-4 items-center"
+                className="grid grid-cols-[1.5fr_1.1fr_1.5fr_1fr_1fr] items-center gap-4 px-5 py-4 hover:bg-secondary"
               >
                 <div>
                   <p className="font-medium text-sm text-text">{invoice.businessName}</p>
@@ -185,19 +151,13 @@ export default async function InvoicesPage() {
                 </div>
 
                 <div>
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
-                      STATUS_COLORS[invoice.status] || "bg-surface-overlay text-text-muted"
-                    }`}
-                  >
-                    {invoice.status}
-                  </span>
+                  <StatusBadge value={invoice.status} />
                 </div>
 
                 <div className="text-right">
                   <Link
                     href={`/invoices/${invoice.id}`}
-                    className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+                    className={buttonClassName({ variant: "secondary", size: "sm" })}
                   >
                     Open
                   </Link>

@@ -4,6 +4,9 @@ import CampaignsTable from "@/components/admin/campaigns-table";
 import OutreachDeleteAllButton from "@/components/admin/outreach-delete-all";
 import AddOutreachLead from "@/components/admin/add-outreach-lead";
 import OutreachSyncDraftsButton from "@/components/admin/outreach-sync-drafts-button";
+import { AdminMetric, AdminPageHeader } from "@/components/admin/page-header";
+import { buttonClassName } from "@/components/ui/button";
+import { Download, Mail, Plus } from "lucide-react";
 
 type Campaign = {
   id: string;
@@ -41,23 +44,19 @@ export default async function OutreachPage() {
   const sortedCategories = Object.entries(categoryMap).sort((a, b) => b[1].total - a[1].total);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-text">
-          AI Services ({campaigns.length} campaigns)
-        </h1>
-        <div className="flex items-center gap-3">
+    <div className="admin-page">
+      <AdminPageHeader title="AI services" description={`${campaigns.length} campaign${campaigns.length === 1 ? "" : "s"} with ${totalLeads} total leads.`} actions={<>
           <Link
             href="/outreach/delivery"
-            className="border border-border hover:bg-surface-overlay text-text px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className={buttonClassName({ variant: "secondary" })}
           >
-            Delivery Monitoring
+            <Download className="size-4" />Delivery log
           </Link>
           <Link
             href="/outreach/drafts"
-            className="border border-border hover:bg-surface-overlay text-text px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className={buttonClassName({ variant: "secondary" })}
           >
-            Browse Draft Emails
+            <Mail className="size-4" />Email drafts
           </Link>
           <OutreachSyncDraftsButton />
           {campaigns.length > 0 && <OutreachDeleteAllButton campaignCount={campaigns.length} leadCount={totalLeads} />}
@@ -68,44 +67,18 @@ export default async function OutreachPage() {
           )}
           <Link
             href="/outreach/import"
-            className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className={buttonClassName()}
           >
-            + Import
+            <Plus className="size-4" />Import
           </Link>
-        </div>
-      </div>
+      </>} />
 
       {/* Overall Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-surface-raised rounded-xl border border-border p-5">
-          <p className="text-sm text-text-muted">Total Leads</p>
-          <p className="text-3xl font-bold text-text mt-1">{totalLeads}</p>
-          <p className="text-xs text-text-faint mt-1">{totalPending} pending</p>
-        </div>
-        <div className="bg-blue-500/10 rounded-xl border border-blue-500/20 p-5">
-          <p className="text-sm text-blue-400">Emails Sent</p>
-          <p className="text-3xl font-bold text-blue-400 mt-1">{totalSent}</p>
-          <p className="text-xs text-blue-400/60 mt-1">
-            {totalLeads > 0 ? Math.round((totalSent / totalLeads) * 100) : 0}% of leads
-          </p>
-        </div>
-        <div className="bg-purple-500/10 rounded-xl border border-purple-500/20 p-5">
-          <p className="text-sm text-purple-400">Replied</p>
-          <p className="text-3xl font-bold text-purple-400 mt-1">{totalReplied}</p>
-          <p className="text-xs text-purple-400/60 mt-1">{responseRate}% response rate</p>
-        </div>
-        <div className="bg-green-500/10 rounded-xl border border-green-500/20 p-5">
-          <p className="text-sm text-green-400">Campaigns</p>
-          <p className="text-3xl font-bold text-green-400 mt-1">{campaigns.length}</p>
-          <p className="text-xs text-green-400/60 mt-1">
-            {campaigns.filter((c) => c.status === "active").length} active
-          </p>
-        </div>
-      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><AdminMetric label="Total leads" value={totalLeads} detail={`${totalPending} pending`} /><AdminMetric label="Emails sent" value={totalSent} detail={`${totalLeads > 0 ? Math.round((totalSent / totalLeads) * 100) : 0}% of leads`} tone="info" /><AdminMetric label="Replied" value={totalReplied} detail={`${responseRate}% response rate`} tone="attention" /><AdminMetric label="Campaigns" value={campaigns.length} detail={`${campaigns.filter((c) => c.status === "active").length} active`} tone="success" /></div>
 
       {/* Pipeline Breakdown */}
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-surface-raised rounded-xl border border-border p-6">
+        <div className="rounded-lg border border-border bg-card p-5">
           <h2 className="font-semibold mb-4 text-text">Outreach Pipeline</h2>
           <div className="space-y-3">
             <PipelineRow label="Pending" count={totalPending} total={totalLeads} color="bg-white/20" />
@@ -115,7 +88,7 @@ export default async function OutreachPage() {
         </div>
 
         {/* By Category */}
-        <div className="bg-surface-raised rounded-xl border border-border p-6">
+        <div className="rounded-lg border border-border bg-card p-5">
           <h2 className="font-semibold mb-4 text-text">By Category</h2>
           {sortedCategories.length === 0 ? (
             <p className="text-text-faint text-sm">No leads imported yet</p>

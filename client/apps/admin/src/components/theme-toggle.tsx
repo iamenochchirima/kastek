@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Moon, Sun } from "lucide-react";
+import { buttonClassName } from "@/components/ui/button";
 
 type Theme = "light" | "dark";
 
@@ -30,10 +32,10 @@ export default function ThemeToggle() {
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       aria-pressed={theme === "dark"}
       suppressHydrationWarning
-      className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-surface px-3 text-sm font-medium text-text hover:border-primary/40 hover:text-primary"
+      className={buttonClassName({ variant: "ghost", size: "md", className: "gap-1.5 px-2.5" })}
     >
-      <span className="text-base leading-none" suppressHydrationWarning>{theme === "dark" ? "☀" : "☾"}</span>
-      <span suppressHydrationWarning>{theme === "dark" ? "Light" : "Dark"}</span>
+      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      <span className="hidden sm:inline" suppressHydrationWarning>{theme === "dark" ? "Light" : "Dark"}</span>
     </button>
   );
 }

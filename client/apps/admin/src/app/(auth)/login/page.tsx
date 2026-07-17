@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
+import { buttonClassName } from "@/components/ui/button";
 
 function LoginContent() {
   const router = useRouter();
@@ -30,7 +31,14 @@ function LoginContent() {
       });
 
       if (!res.ok) {
-        setError("Invalid email or password");
+        const data = await res.json().catch(() => ({}));
+        setError(
+          res.status === 503 || data.code === "CORE_BACKEND_UNAVAILABLE"
+            ? "The core service is starting or unavailable. Please try again shortly."
+            : typeof data.error === "string"
+              ? data.error
+              : "Invalid email or password"
+        );
         return;
       }
 
@@ -43,13 +51,12 @@ function LoginContent() {
   };
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="bg-surface-raised rounded-xl border border-border p-8">
+    <div>
+      <div className="rounded-lg border border-border bg-card p-6 shadow-sm sm:p-8">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-text">
-            Kasi<span className="text-primary">AI</span> Admin
-          </h1>
-          <p className="text-text-muted text-sm mt-1">Sign in to your admin account</p>
+          <div className="mx-auto mb-4 grid size-9 place-items-center rounded-md bg-accent text-sm font-semibold text-foreground">K</div>
+          <h1 className="text-2xl font-semibold tracking-[-0.025em] text-foreground">KasiTek Admin</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Sign in to the internal operations workspace.</p>
         </div>
 
         {passwordReset === "success" ? (
@@ -72,7 +79,7 @@ function LoginContent() {
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-text-muted mb-1">
+              <label htmlFor="email" className="mb-1 block text-sm font-medium text-foreground">
               Email
             </label>
             <input
@@ -81,18 +88,18 @@ function LoginContent() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
 
           <div>
             <div className="mb-1 flex items-center justify-between gap-3">
-              <label htmlFor="password" className="block text-sm font-medium text-text-muted">
+              <label htmlFor="password" className="block text-sm font-medium text-foreground">
                 Password
               </label>
               <Link
                 href="/forgot-password"
-                className="text-sm text-primary hover:text-primary-dark"
+                className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
               >
                 Forgot password?
               </Link>
@@ -104,7 +111,7 @@ function LoginContent() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 pr-14 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 pr-14 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
               />
               <button
                 type="button"
@@ -120,7 +127,7 @@ function LoginContent() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary hover:bg-primary-dark text-white py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50"
+            className={buttonClassName({ className: "w-full" })}
           >
             {loading ? "Signing in..." : "Sign In"}
           </button>

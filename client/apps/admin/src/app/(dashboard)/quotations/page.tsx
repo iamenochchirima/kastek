@@ -1,14 +1,10 @@
 import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
 import { getServiceLabel } from "@/lib/quotation";
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-slate-500/15 text-slate-300",
-  sent: "bg-blue-500/15 text-blue-300",
-  accepted: "bg-green-500/15 text-green-300",
-  rejected: "bg-red-500/15 text-red-300",
-  expired: "bg-yellow-500/15 text-yellow-300",
-};
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { buttonClassName } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 export default async function QuotationsPage() {
   const res = await fetchFromCore("/api/admin/quotations");
@@ -25,24 +21,11 @@ export default async function QuotationsPage() {
   }> = res.ok ? await res.json() : [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-        <h1 className="text-2xl font-bold text-text">Quotations</h1>
-        <p className="text-sm text-text-muted mt-1">
-          Create, update, download, and track standalone quotation records.
-        </p>
-        </div>
-        <Link
-          href="/quotations/new"
-          className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          + New Quotation
-        </Link>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader title="Quotations" description="Create, update, download, and track standalone quotation records." actions={<Link href="/quotations/new" className={buttonClassName()}><Plus className="size-4" />New quotation</Link>} />
 
-      <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
-        <div className="grid grid-cols-[1.8fr_1.2fr_1.6fr_0.9fr_1fr] gap-4 px-6 py-3 border-b border-border text-xs font-semibold uppercase tracking-wider text-text-faint">
+      <div className="admin-table-wrap">
+        <div className="grid min-w-[780px] grid-cols-[1.8fr_1.2fr_1.6fr_0.9fr_1fr] gap-4 border-b border-border px-5 py-3 admin-table-head">
           <div>Business</div>
           <div>Contact</div>
           <div>Quotation</div>
@@ -55,11 +38,11 @@ export default async function QuotationsPage() {
             No quotations created yet.
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="min-w-[780px] divide-y divide-border">
             {quotations.map((quotation) => (
               <div
                 key={quotation.id}
-                className="grid grid-cols-[1.8fr_1.2fr_1.6fr_0.9fr_1fr] gap-4 px-6 py-4 items-center"
+                className="grid grid-cols-[1.8fr_1.2fr_1.6fr_0.9fr_1fr] items-center gap-4 px-5 py-4 hover:bg-secondary"
               >
                 <div>
                   <p className="font-medium text-sm text-text">{quotation.businessName}</p>
@@ -84,19 +67,13 @@ export default async function QuotationsPage() {
                 </div>
 
                 <div>
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
-                      STATUS_COLORS[quotation.status] || "bg-surface-overlay text-text-muted"
-                    }`}
-                  >
-                    {quotation.status}
-                  </span>
+                  <StatusBadge value={quotation.status} />
                 </div>
 
                 <div className="text-right">
                   <Link
                     href={`/quotations/${quotation.id}`}
-                    className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+                    className={buttonClassName({ variant: "secondary", size: "sm" })}
                   >
                     Open
                   </Link>

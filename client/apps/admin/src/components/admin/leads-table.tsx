@@ -3,15 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-const STATUS_COLORS: Record<string, string> = {
-  new: "bg-blue-500/15 text-blue-400",
-  contacted: "bg-purple-500/15 text-purple-400",
-  interested: "bg-yellow-500/15 text-yellow-400",
-  quoted: "bg-orange-500/15 text-orange-400",
-  won: "bg-green-500/15 text-green-400",
-  lost: "bg-white/5 text-text-faint",
-};
+import { StatusBadge } from "@/components/admin/status-badge";
+import { buttonClassName } from "@/components/ui/button";
 
 const SOURCE_LABELS: Record<string, string> = {
   website: "Website",
@@ -93,7 +86,7 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
         {!selectMode ? (
           <button
             onClick={enterSelectMode}
-            className="text-xs font-medium text-text-muted hover:text-text px-3 py-1.5 rounded-lg border border-border hover:bg-surface-overlay transition-colors"
+            className={buttonClassName({ variant: "secondary", size: "sm" })}
           >
             Select
           </button>
@@ -101,7 +94,7 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
           <>
             <button
               onClick={exitSelectMode}
-              className="text-xs font-medium text-text-muted hover:text-text px-3 py-1.5 rounded-lg border border-border hover:bg-surface-overlay transition-colors"
+              className={buttonClassName({ variant: "secondary", size: "sm" })}
             >
               Cancel
             </button>
@@ -113,7 +106,7 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
                 <button
                   onClick={handleBulkDelete}
                   disabled={deleting}
-                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
+                  className={buttonClassName({ variant: "destructive", size: "sm" })}
                 >
                   {deleting ? "Deleting..." : "Delete selected"}
                 </button>
@@ -123,15 +116,15 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
         )}
       </div>
 
-      <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+      <div className="admin-table-wrap">
         {leads.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-text-faint">No leads found</p>
           </div>
         ) : (
-          <table className="w-full">
+          <table className="w-full min-w-[700px]">
             <thead>
-              <tr className="border-b border-border bg-surface-overlay">
+              <tr className="admin-table-head border-b border-border">
                 {selectMode && (
                   <th className="px-4 py-3 w-10">
                     <input
@@ -142,19 +135,19 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
                     />
                   </th>
                 )}
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="px-4 py-3 text-left">
                   Business
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="px-4 py-3 text-left">
                   Contact
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="px-4 py-3 text-left">
                   Source
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="px-4 py-3 text-left">
                   Status
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="px-4 py-3 text-left">
                   Date
                 </th>
               </tr>
@@ -193,13 +186,7 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${
-                        STATUS_COLORS[lead.status] || ""
-                      }`}
-                    >
-                      {lead.status}
-                    </span>
+                    <StatusBadge value={lead.status} />
                   </td>
                   <td className="px-4 py-3 text-xs text-text-muted">
                     {new Date(lead.createdAt).toLocaleDateString()}

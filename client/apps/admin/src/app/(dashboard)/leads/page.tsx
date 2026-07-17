@@ -2,6 +2,9 @@ import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
 import LeadFilters from "@/components/admin/lead-filters";
 import LeadsTable from "@/components/admin/leads-table";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { buttonClassName } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -41,16 +44,8 @@ export default async function LeadsPage({
   }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-text">Leads ({leads.length})</h1>
-        <Link
-          href="/leads/new"
-          className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          + Add Lead
-        </Link>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader title="Leads" description={`${leads.length} lead${leads.length === 1 ? "" : "s"} matching the current filters.`} actions={<Link href="/leads/new" className={buttonClassName()}><Plus className="size-4" />Add lead</Link>} />
 
       <LeadFilters />
 

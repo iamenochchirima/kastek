@@ -1,5 +1,8 @@
 import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
+import { Globe2, MessageCircle } from "lucide-react";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { StatusBadge } from "@/components/admin/status-badge";
 
 interface Conversation {
   id: string;
@@ -9,11 +12,6 @@ interface Conversation {
   status: string;
   lastMessageAt: string;
 }
-
-const CHANNEL_BADGES: Record<string, string> = {
-  whatsapp: "bg-green-500/15 text-green-400",
-  website: "bg-blue-500/15 text-blue-400",
-};
 
 export default async function ConversationsPage({
   searchParams,
@@ -30,12 +28,8 @@ export default async function ConversationsPage({
   const conversations: Conversation[] = res.ok ? await res.json() : [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-text">
-          Conversations ({conversations.length})
-        </h1>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader title="Conversations" description={`${conversations.length} conversation${conversations.length === 1 ? "" : "s"} matching the current filters.`} />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -85,7 +79,7 @@ export default async function ConversationsPage({
       </div>
 
       {/* Conversations list */}
-      <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
         {conversations.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-text-faint">No conversations yet</p>
@@ -98,8 +92,8 @@ export default async function ConversationsPage({
                 href={`/conversations/${conv.id}`}
                 className="flex items-center gap-4 px-4 py-4 hover:bg-surface-overlay transition-colors"
               >
-                <div className="w-10 h-10 rounded-full bg-surface-overlay flex items-center justify-center text-lg shrink-0">
-                  {conv.channel === "whatsapp" ? "💬" : "🌐"}
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+                  {conv.channel === "whatsapp" ? <MessageCircle className="size-5" /> : <Globe2 className="size-5" />}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -107,13 +101,7 @@ export default async function ConversationsPage({
                     <p className="font-medium text-sm text-text truncate">
                       {conv.customerName ?? conv.customerIdentifier}
                     </p>
-                    <span
-                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase ${
-                        CHANNEL_BADGES[conv.channel] ?? ""
-                      }`}
-                    >
-                      {conv.channel}
-                    </span>
+                    <StatusBadge value={conv.channel} className="text-[10px]" />
                   </div>
                 </div>
 

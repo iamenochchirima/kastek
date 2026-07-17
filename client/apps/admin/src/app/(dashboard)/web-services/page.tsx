@@ -5,6 +5,9 @@ import WebServicesFilters from "@/components/admin/web-services-filters";
 import DeleteAllButton from "@/components/admin/web-services-delete-all";
 import AddWebServiceLead from "@/components/admin/add-web-service-lead";
 import Pagination from "@/components/admin/pagination";
+import { AdminMetric, AdminPageHeader } from "@/components/admin/page-header";
+import { buttonClassName } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 interface WebServiceLead {
   id: string;
@@ -79,54 +82,24 @@ export default async function WebServicesPage({
   const conversionRate = called > 0 ? Math.round((interested / called) * 100) : 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-text">Web Services ({total})</h1>
-        <div className="flex items-center gap-3">
+    <div className="admin-page">
+      <AdminPageHeader title="Web services" description={`${total} business lead${total === 1 ? "" : "s"} in the service-call pipeline.`} actions={<>
           {total > 0 && <DeleteAllButton count={total} />}
           <AddWebServiceLead />
           <Link
             href="/web-services/import"
-            className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className={buttonClassName()}
           >
-            + Import
+            <Plus className="size-4" />Import
           </Link>
-        </div>
-      </div>
+      </>} />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        <div className="bg-surface-raised rounded-xl border border-border p-5">
-          <p className="text-sm text-text-muted">Total</p>
-          <p className="text-3xl font-bold text-text mt-1">{total}</p>
-          <p className="text-xs text-text-faint mt-1">{statusMap.pending ?? 0} pending</p>
-        </div>
-        <div className="bg-blue-500/10 rounded-xl border border-blue-500/20 p-5">
-          <p className="text-sm text-blue-400">Called</p>
-          <p className="text-3xl font-bold text-blue-400 mt-1">{called}</p>
-        </div>
-        <div className="bg-green-500/10 rounded-xl border border-green-500/20 p-5">
-          <p className="text-sm text-green-400">Interested</p>
-          <p className="text-3xl font-bold text-green-400 mt-1">{interested}</p>
-          <p className="text-xs text-green-400/60 mt-1">{conversionRate}% conversion</p>
-        </div>
-        <div className="bg-yellow-500/10 rounded-xl border border-yellow-500/20 p-5">
-          <p className="text-sm text-yellow-400">Callback</p>
-          <p className="text-3xl font-bold text-yellow-400 mt-1">{statusMap.callback ?? 0}</p>
-        </div>
-        <div className="bg-red-500/10 rounded-xl border border-red-500/20 p-5">
-          <p className="text-sm text-red-400">No Answer</p>
-          <p className="text-3xl font-bold text-red-400 mt-1">{statusMap.no_answer ?? 0}</p>
-        </div>
-        <div className="bg-zinc-500/10 rounded-xl border border-zinc-500/20 p-5">
-          <p className="text-sm text-zinc-400">Dead</p>
-          <p className="text-3xl font-bold text-zinc-400 mt-1">{statusMap.dead ?? 0}</p>
-        </div>
-      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6"><AdminMetric label="Total" value={total} detail={`${statusMap.pending ?? 0} pending`} /><AdminMetric label="Called" value={called} tone="info" /><AdminMetric label="Interested" value={interested} detail={`${conversionRate}% conversion`} tone="success" /><AdminMetric label="Callback" value={statusMap.callback ?? 0} tone="attention" /><AdminMetric label="No answer" value={statusMap.no_answer ?? 0} tone="danger" /><AdminMetric label="Dead" value={statusMap.dead ?? 0} /></div>
 
       {/* Category breakdown */}
       {categories.length > 0 && (
-        <div className="bg-surface-raised rounded-xl border border-border p-6">
+        <div className="rounded-lg border border-border bg-card p-5">
           <h2 className="font-semibold text-text mb-3">By Category</h2>
           <div className="flex flex-wrap gap-2">
             {categories.map((c) => (

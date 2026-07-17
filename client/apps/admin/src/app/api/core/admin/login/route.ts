@@ -28,11 +28,23 @@ export async function POST(req: Request) {
   const isHttps = requestUrl.protocol === "https:";
   const body = await req.text();
 
-  const res = await fetch(`${CORE_BACKEND_URL}/api/admin/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${CORE_BACKEND_URL}/api/admin/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      cache: "no-store",
+    });
+  } catch {
+    return NextResponse.json(
+      {
+        error: "The Kasitek core service is unavailable.",
+        code: "CORE_BACKEND_UNAVAILABLE",
+      },
+      { status: 503 }
+    );
+  }
 
   const data = await res.json().catch(() => ({}));
 
