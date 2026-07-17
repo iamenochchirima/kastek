@@ -145,7 +145,8 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Require organisation admin or owner roles for sensitive settings, connections, billing, and team actions.
 - [x] Update realtime channel naming from user-scoped channels to organisation-scoped channels where events are shared by a team.
 - [ ] Preserve personal notifications separately from shared workspace activity.
-- [ ] Update workspace summary queries to aggregate active-organisation data only.
+- [x] Update workspace summary queries to aggregate active-organisation data only.
+- [x] Add workspace-summary regression tests for organisation isolation and shared team visibility.
 - [ ] Add tests proving one organisation cannot read or modify another organisation’s records.
 
 ### Client changes
