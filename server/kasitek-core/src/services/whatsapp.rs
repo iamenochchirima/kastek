@@ -1667,6 +1667,7 @@ pub async fn import_contacts(
 ) -> Result<Value, AppError> {
     let mut csv_bytes = Vec::new();
     let mut default_opt_in = false;
+    let mut consent_confirmed = false;
     let mut requested_list_label: Option<String> = None;
 
     while let Some(field) = payload.next().await {
@@ -1684,6 +1685,9 @@ pub async fn import_contacts(
             csv_bytes = bytes;
         } else if name == "defaultOptIn" {
             default_opt_in =
+                parse_bool_like(std::str::from_utf8(&bytes).unwrap_or("")).unwrap_or(false);
+        } else if name == "consentConfirmed" {
+            consent_confirmed =
                 parse_bool_like(std::str::from_utf8(&bytes).unwrap_or("")).unwrap_or(false);
         } else if name == "listLabel" {
             let raw = std::str::from_utf8(&bytes).unwrap_or("").trim().to_string();
@@ -1814,6 +1818,16 @@ pub async fn import_contacts(
 
     if deduped.is_empty() && invalid_rows.is_empty() {
         return Err(AppError::BadRequest("CSV has no rows".to_string()));
+    }
+
+    let includes_opted_in_contact = deduped
+        .values()
+        .any(|(_, _, _, _, opt_in, _, _, _, _)| *opt_in);
+    if !has_confirmed_import_consent(includes_opted_in_contact, consent_confirmed) {
+        return Err(AppError::BadRequest(
+            "Confirm that you have permission to record consent before importing opted-in contacts"
+                .to_string(),
+        ));
     }
 
     let phones = deduped.keys().cloned().collect::<Vec<_>>();
@@ -1959,15 +1973,20 @@ pub async fn import_contacts(
             sqlx::query(
                 r#"
                 UPDATE "WhatsappContactListMembership"
-                SET "fullName" = $1,
+                SET "fullName" = COALESCE("fullName", $1),
                     location = $2,
                     tags = $3,
                     notes = $4,
                     metadata = $5,
-                    "optIn" = $6,
-                    "optInSource" = $7,
-                    "optInDate" = $8,
-                    excluded = false,
+                    "optIn" = CASE WHEN $6 THEN true ELSE "optIn" END,
+                    "optInSource" = CASE
+                        WHEN $6 AND "optInSource" IS NULL THEN $7
+                        ELSE "optInSource"
+                    END,
+                    "optInDate" = CASE
+                        WHEN $6 THEN COALESCE("optInDate", $8)
+                        ELSE "optInDate"
+                    END,
                     "updatedAt" = NOW()
                 WHERE id = $9
                 "#,
@@ -2181,6 +2200,22 @@ fn parse_scheduled_at(value: Option<String>) -> Result<Option<chrono::DateTime<U
             .map(|dt| Some(dt.with_timezone(&Utc)))
             .map_err(|_| AppError::BadRequest("Scheduled time is invalid".to_string())),
         None => Ok(None),
+    }
+}
+
+fn has_confirmed_import_consent(includes_opted_in_contact: bool, consent_confirmed: bool) -> bool {
+    !includes_opted_in_contact || consent_confirmed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::has_confirmed_import_consent;
+
+    #[test]
+    fn imports_with_opted_in_contacts_require_confirmation() {
+        assert!(!has_confirmed_import_consent(true, false));
+        assert!(has_confirmed_import_consent(true, true));
+        assert!(has_confirmed_import_consent(false, false));
     }
 }
 

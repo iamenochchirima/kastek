@@ -162,7 +162,8 @@ export default function ContactsManager({
 }: ContactsManagerProps) {
   const router = useRouter();
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [defaultOptIn, setDefaultOptIn] = useState(true);
+  const [defaultOptIn, setDefaultOptIn] = useState(false);
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [importListLabel, setImportListLabel] = useState(filters.listLabel || "default");
   const [importing, setImporting] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -259,6 +260,7 @@ export default function ContactsManager({
       const formData = new FormData();
       formData.append("file", csvFile);
       formData.append("defaultOptIn", defaultOptIn ? "true" : "false");
+      formData.append("consentConfirmed", consentConfirmed ? "true" : "false");
       formData.append("listLabel", importListLabel.trim() || "default");
       setImportProgress({
         phase: "uploading",
@@ -448,11 +450,11 @@ export default function ContactsManager({
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(body.error || "Failed to delete list");
+      setError(body.error || "Failed to remove list");
       return;
     }
 
-    setNotice(`Deleted list ${label}.`);
+    setNotice(`Removed list ${label}.`);
     setDeleteTargetLabel(null);
     navigate({ listLabel: filters.listLabel === label ? "" : filters.listLabel });
     router.refresh();
@@ -461,6 +463,8 @@ export default function ContactsManager({
   function prepareAddContacts(label: string) {
     setImportListLabel(label);
     setCsvFile(null);
+    setDefaultOptIn(false);
+    setConsentConfirmed(false);
     setShowImportModal(true);
   }
 
@@ -579,6 +583,8 @@ export default function ContactsManager({
                 onClick={() => {
                   setImportListLabel(filters.listLabel || "default");
                   setCsvFile(null);
+                  setDefaultOptIn(false);
+                  setConsentConfirmed(false);
                   setShowImportModal(true);
                 }}
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
@@ -880,6 +886,18 @@ export default function ContactsManager({
                   />
                   Default imported contacts to opted-in
                 </label>
+
+                <label className="flex items-start gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-3 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={consentConfirmed}
+                    onChange={(event) => setConsentConfirmed(event.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    I confirm that I have permission to record marketing consent for every opted-in row in this CSV. Re-importing does not revoke an existing opt-in.
+                  </span>
+                </label>
               </div>
               {importing || importProgress.phase === "done" ? (
                 <div className="mt-4">
@@ -898,7 +916,7 @@ export default function ContactsManager({
                 <button
                   type="button"
                   onClick={onImportCsv}
-                  disabled={importing}
+                  disabled={importing || (defaultOptIn && !consentConfirmed)}
                   className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
                 >
                   {importing ? "Importing..." : "Import into list"}
@@ -1244,9 +1262,9 @@ export default function ContactsManager({
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
             <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6">
               <div>
-                <h2 className="text-xl font-semibold text-foreground">Delete list</h2>
+                <h2 className="text-xl font-semibold text-foreground">Remove list</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Delete <span className="font-semibold text-foreground">{deleteTargetLabel}</span> and its contacts. This cannot be undone.
+                  Remove <span className="font-semibold text-foreground">{deleteTargetLabel}</span> and its memberships. Customer records and consent history stay intact.
                 </p>
               </div>
 
@@ -1263,7 +1281,7 @@ export default function ContactsManager({
                   onClick={() => deleteList(deleteTargetLabel)}
                   className="rounded-md bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground hover:opacity-90"
                 >
-                  Delete list
+                  Remove list
                 </button>
               </div>
             </div>
@@ -1353,7 +1371,7 @@ function ListActionsMenu({
         <DropdownMenuItem onClick={() => onDownload(label)}>Download CSV</DropdownMenuItem>
         <DropdownMenuItem onClick={() => onRename(label)}>Rename</DropdownMenuItem>
         <DropdownMenuItem onClick={() => onDelete(label)} className="text-destructive focus:text-destructive">
-          Delete
+          Remove list
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
