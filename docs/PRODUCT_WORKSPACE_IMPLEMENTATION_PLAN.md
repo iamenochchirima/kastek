@@ -330,17 +330,17 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Automation
 
-- [ ] Keep agent creation and management under `/agents`.
+- [x] Keep agent creation and management under `/agents`.
 - [ ] Define a separate workflow model before creating `/workflows`; do not label n8n deployment records as a complete workflow product by default.
 - [x] Add an Activity view that combines agent execution, deployment, errors, and handoff records.
 - [ ] Link agents to their permitted connection capabilities and organisation entitlements.
-- [ ] Block agent deployment when the relevant product, connection, or limit is unavailable.
+- [x] Block agent deployment when the relevant product, connection, or limit is unavailable.
 
 ### Manage
 
 - [ ] Move business profile and organisation settings into Workspace settings.
-- [ ] Keep user profile settings separate from workspace settings.
-- [ ] Move team management and invitations under Team.
+- [x] Keep user profile settings separate from workspace settings.
+- [x] Move team management and invitations under Team.
 - [ ] Create Billing and usage as the only place for plan, product, invoice, payment method, usage, and upgrade actions.
 
 ## Phase 8: Build the Billing and Usage Area
