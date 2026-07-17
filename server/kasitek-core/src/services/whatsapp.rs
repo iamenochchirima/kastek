@@ -1208,6 +1208,7 @@ pub async fn list_contacts(
         SELECT
             m.id,
             m."contactId" AS contact_id,
+            c."customerId" AS customer_id,
             m."userId" AS user_id,
             c.phone,
             COALESCE(m."fullName", c."fullName") AS full_name,
@@ -1391,6 +1392,7 @@ pub async fn export_contact_list(
         SELECT
             m.id,
             m."contactId" AS contact_id,
+            c."customerId" AS customer_id,
             m."userId" AS user_id,
             c.phone,
             COALESCE(m."fullName", c."fullName") AS full_name,
@@ -4242,6 +4244,7 @@ async fn select_list_contact_row(
         SELECT
             m.id,
             m."contactId" AS contact_id,
+            c."customerId" AS customer_id,
             m."userId" AS user_id,
             c.phone,
             COALESCE(m."fullName", c."fullName") AS full_name,

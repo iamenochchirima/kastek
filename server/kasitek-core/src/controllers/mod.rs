@@ -13,6 +13,7 @@ pub mod billing;
 pub mod bots;
 pub mod chat;
 pub mod connections;
+pub mod customers;
 pub mod health;
 pub mod inbox;
 pub mod notifications;

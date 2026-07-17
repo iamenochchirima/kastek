@@ -1,4 +1,5 @@
-use sqlx::PgPool;
+use serde_json::{json, Value};
+use sqlx::{PgPool, Row};
 
 use crate::error::AppError;
 
@@ -241,9 +242,156 @@ pub async fn link_whatsapp_contact(
     Ok(customer_id)
 }
 
+const CUSTOMER_DETAIL_QUERIES: [&str; 5] = [
+    r#"
+        SELECT id, "displayName" AS display_name, metadata,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at,
+               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "Customer"
+        WHERE id = $1 AND "orgId" = $2
+        LIMIT 1
+    "#,
+    r#"
+        SELECT id, channel, "scopeId" AS scope_id, "externalId" AS external_id,
+               "displayName" AS display_name, metadata,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at
+        FROM "CustomerIdentity"
+        WHERE "customerId" = $1 AND "orgId" = $2
+        ORDER BY channel ASC, "createdAt" ASC
+    "#,
+    r#"
+        SELECT id, phone, "fullName" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags,
+               "listLabel" AS list_label, "optIn" AS opt_in, "optInSource" AS opt_in_source,
+               "optInDate" AT TIME ZONE 'UTC' AS opt_in_date, excluded, notes,
+               "lastMarketingSent" AT TIME ZONE 'UTC' AS last_marketing_sent
+        FROM "WhatsappContact"
+        WHERE "customerId" = $1 AND "orgId" = $2
+        ORDER BY "updatedAt" DESC
+    "#,
+    r#"
+        SELECT conversation.id, conversation.channel,
+               conversation."customerIdentifier" AS customer_identifier,
+               conversation."customerName" AS customer_name,
+               conversation.status,
+               conversation."lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
+               conversation."unreadCount" AS unread_count,
+               connection."displayName" AS connection_label
+        FROM "Conversation" conversation
+        LEFT JOIN "ExternalConnection" connection
+          ON connection.id = conversation."externalConnectionId"
+         AND connection."orgId" = conversation."orgId"
+        WHERE conversation."customerId" = $1 AND conversation."orgId" = $2
+        ORDER BY conversation."lastMessageAt" DESC
+        LIMIT 25
+    "#,
+    r#"
+        SELECT campaign.id, campaign.name, campaign.status::text AS status,
+               campaign."templateName" AS template_name,
+               campaign."sentCount" AS sent_count,
+               campaign."deliveredCount" AS delivered_count,
+               campaign."readCount" AS read_count,
+               MAX(recipient."sentAt") AT TIME ZONE 'UTC' AS last_sent_at
+        FROM "WhatsappCampaignRecipient" recipient
+        JOIN "WhatsappContact" contact ON contact.id = recipient."contactId"
+        JOIN "WhatsappCampaign" campaign ON campaign.id = recipient."campaignId"
+        WHERE contact."customerId" = $1
+          AND contact."orgId" = $2
+          AND campaign."orgId" = $2
+        GROUP BY campaign.id
+        ORDER BY MAX(recipient."sentAt") DESC NULLS LAST, campaign."updatedAt" DESC
+        LIMIT 25
+    "#,
+];
+
+pub async fn get_customer_detail(
+    pool: &PgPool,
+    org_id: &str,
+    customer_id: &str,
+) -> Result<Option<Value>, AppError> {
+    let customer = sqlx::query(CUSTOMER_DETAIL_QUERIES[0])
+        .bind(customer_id)
+        .bind(org_id)
+        .fetch_optional(pool)
+        .await?;
+    let Some(customer) = customer else {
+        return Ok(None);
+    };
+
+    let (identities, contacts, conversations, campaigns) = tokio::try_join!(
+        sqlx::query(CUSTOMER_DETAIL_QUERIES[1])
+            .bind(customer_id)
+            .bind(org_id)
+            .fetch_all(pool),
+        sqlx::query(CUSTOMER_DETAIL_QUERIES[2])
+            .bind(customer_id)
+            .bind(org_id)
+            .fetch_all(pool),
+        sqlx::query(CUSTOMER_DETAIL_QUERIES[3])
+            .bind(customer_id)
+            .bind(org_id)
+            .fetch_all(pool),
+        sqlx::query(CUSTOMER_DETAIL_QUERIES[4])
+            .bind(customer_id)
+            .bind(org_id)
+            .fetch_all(pool),
+    )?;
+
+    Ok(Some(json!({
+        "customer": {
+            "id": customer.get::<String, _>("id"),
+            "displayName": customer.get::<Option<String>, _>("display_name"),
+            "metadata": customer.get::<Option<Value>, _>("metadata"),
+            "createdAt": customer.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+            "updatedAt": customer.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
+        },
+        "identities": identities.into_iter().map(|identity| json!({
+            "id": identity.get::<String, _>("id"),
+            "channel": identity.get::<String, _>("channel"),
+            "scopeId": identity.get::<Option<String>, _>("scope_id"),
+            "externalId": identity.get::<String, _>("external_id"),
+            "displayName": identity.get::<Option<String>, _>("display_name"),
+            "metadata": identity.get::<Option<Value>, _>("metadata"),
+            "createdAt": identity.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+        })).collect::<Vec<_>>(),
+        "contacts": contacts.into_iter().map(|contact| json!({
+            "id": contact.get::<String, _>("id"),
+            "phone": contact.get::<String, _>("phone"),
+            "fullName": contact.get::<Option<String>, _>("full_name"),
+            "tags": contact.get::<Vec<String>, _>("tags"),
+            "listLabel": contact.get::<String, _>("list_label"),
+            "optIn": contact.get::<bool, _>("opt_in"),
+            "optInSource": contact.get::<Option<String>, _>("opt_in_source"),
+            "optInDate": contact.get::<Option<chrono::DateTime<chrono::Utc>>, _>("opt_in_date"),
+            "excluded": contact.get::<bool, _>("excluded"),
+            "notes": contact.get::<Option<String>, _>("notes"),
+            "lastMarketingSent": contact.get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_marketing_sent"),
+        })).collect::<Vec<_>>(),
+        "conversations": conversations.into_iter().map(|conversation| json!({
+            "id": conversation.get::<String, _>("id"),
+            "channel": conversation.get::<String, _>("channel"),
+            "customerIdentifier": conversation.get::<String, _>("customer_identifier"),
+            "customerName": conversation.get::<Option<String>, _>("customer_name"),
+            "status": conversation.get::<String, _>("status"),
+            "lastMessageAt": conversation.get::<chrono::DateTime<chrono::Utc>, _>("last_message_at"),
+            "unreadCount": conversation.get::<i32, _>("unread_count"),
+            "connectionLabel": conversation.get::<Option<String>, _>("connection_label"),
+        })).collect::<Vec<_>>(),
+        "campaigns": campaigns.into_iter().map(|campaign| json!({
+            "id": campaign.get::<String, _>("id"),
+            "name": campaign.get::<String, _>("name"),
+            "status": campaign.get::<String, _>("status"),
+            "templateName": campaign.get::<String, _>("template_name"),
+            "sentCount": campaign.get::<i32, _>("sent_count"),
+            "deliveredCount": campaign.get::<i32, _>("delivered_count"),
+            "readCount": campaign.get::<i32, _>("read_count"),
+            "lastSentAt": campaign.get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_sent_at"),
+        })).collect::<Vec<_>>(),
+    })))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{meta_identity_key, whatsapp_identity_key};
+    use super::{meta_identity_key, whatsapp_identity_key, CUSTOMER_DETAIL_QUERIES};
 
     #[test]
     fn whatsapp_identity_is_phone_scoped() {
@@ -271,5 +419,15 @@ mod tests {
             meta_identity_key("facebook", "channel-a", "participant-1"),
             "facebook:channel-a:participant-1"
         );
+    }
+
+    #[test]
+    fn customer_detail_queries_are_scoped_to_the_active_organization() {
+        for query in CUSTOMER_DETAIL_QUERIES {
+            assert!(
+                query.contains("\"orgId\" = $2"),
+                "customer detail query is missing an organization boundary: {query}"
+            );
+        }
     }
 }

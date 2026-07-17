@@ -8,12 +8,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { apiUrl } from "@/lib/server-api";
 import { MoreHorizontal } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type ContactView = {
   id: string;
   contactId: string;
+  customerId: string | null;
   phone: string;
   fullName: string | null;
   tags: string[];
@@ -136,6 +138,19 @@ function parseDownloadFilename(contentDisposition: string | null, fallbackLabel:
   } catch {
     return match[1];
   }
+}
+
+function CustomerDetailsLink({ customerId }: { customerId: string | null }) {
+  if (!customerId) return null;
+
+  return (
+    <Link
+      href={`/contacts/${customerId}`}
+      className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+    >
+      View customer
+    </Link>
+  );
 }
 
 export default function ContactsManager({
@@ -933,6 +948,7 @@ export default function ContactsManager({
                           {contact.tags.length ? contact.tags.join(", ") : "No tags"}
                         </div>
                         <div className="mt-4 flex flex-wrap justify-end gap-2">
+                          <CustomerDetailsLink customerId={contact.customerId} />
                           <button
                             type="button"
                             onClick={() => navigate({ q: "", listLabel: contact.listLabel })}
@@ -982,6 +998,7 @@ export default function ContactsManager({
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex justify-end gap-2">
+                              <CustomerDetailsLink customerId={contact.customerId} />
                               <button
                                 type="button"
                                 onClick={() => navigate({ q: "", listLabel: contact.listLabel })}
@@ -1089,13 +1106,16 @@ export default function ContactsManager({
                             <div className="mt-1 text-sm text-foreground">{contact.phone}</div>
                             <div className="mt-1 text-xs text-muted-foreground">{contact.location || "-"}</div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => startEdit(contact)}
-                            className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground"
-                          >
-                            Edit
-                          </button>
+                          <div className="flex gap-2">
+                            <CustomerDetailsLink customerId={contact.customerId} />
+                            <button
+                              type="button"
+                              onClick={() => startEdit(contact)}
+                              className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground"
+                            >
+                              Edit
+                            </button>
+                          </div>
                         </div>
                         {metadataColumns.length > 0 ? (
                           <div className="mt-3 grid gap-2">
@@ -1156,13 +1176,16 @@ export default function ContactsManager({
                               : "Never"}
                           </td>
                           <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              onClick={() => startEdit(contact)}
-                              className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground"
-                            >
-                              Edit
-                            </button>
+                            <div className="flex gap-2">
+                              <CustomerDetailsLink customerId={contact.customerId} />
+                              <button
+                                type="button"
+                                onClick={() => startEdit(contact)}
+                                className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground"
+                              >
+                                Edit
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

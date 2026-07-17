@@ -852,6 +852,9 @@ pub struct WhatsappListContactRow {
     #[serde(rename = "contactId")]
     #[sqlx(rename = "contact_id")]
     pub contact_id: String,
+    #[serde(rename = "customerId")]
+    #[sqlx(rename = "customer_id")]
+    pub customer_id: Option<String>,
     #[serde(rename = "userId")]
     #[sqlx(rename = "user_id")]
     pub user_id: String,
