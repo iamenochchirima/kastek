@@ -338,7 +338,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Manage
 
-- [ ] Move business profile and organisation settings into Workspace settings.
+- [x] Move business profile and organisation settings into Workspace settings.
 - [x] Keep user profile settings separate from workspace settings.
 - [x] Move team management and invitations under Team.
 - [ ] Create Billing and usage as the only place for plan, product, invoice, payment method, usage, and upgrade actions.
