@@ -53,6 +53,14 @@ impl PaystackProvider {
             .map(ToString::to_string)
     }
 
+    fn external_id(value: Option<&Value>) -> Option<String> {
+        value.and_then(|value| match value {
+            Value::String(value) if !value.trim().is_empty() => Some(value.to_string()),
+            Value::Number(value) => Some(value.to_string()),
+            _ => None,
+        })
+    }
+
     fn parse_verified_transaction(data: &Value) -> Result<VerifiedTransaction, AppError> {
         let reference = data
             .get("reference")
@@ -74,6 +82,13 @@ impl PaystackProvider {
                 .and_then(Value::as_str)
                 .map(ToString::to_string),
             subscription_id: Self::subscription_code(data),
+            provider_transaction_id: Self::external_id(data.get("id")),
+            provider_authorization_id: data
+                .get("authorization")
+                .and_then(Value::as_object)
+                .and_then(|authorization| {
+                    Self::external_id(authorization.get("authorization_code"))
+                }),
         })
     }
 
@@ -111,6 +126,10 @@ impl PaystackProvider {
                 invoice.and_then(|value| value.get("period_end")),
             )
             .or_else(|| Self::parse_datetime(data.get("next_payment_date"))),
+            provider_invoice_id: invoice.and_then(|invoice| {
+                Self::external_id(invoice.get("invoice_code"))
+                    .or_else(|| Self::external_id(invoice.get("id")))
+            }),
         })
     }
 
@@ -370,7 +389,8 @@ mod tests {
             "reference": "ks_123",
             "customer": {"customer_code": "CUS_123"},
             "subscription": {"subscription_code": "SUB_123"},
-            "authorization": {"last4": "4081"}
+            "id": 123456,
+            "authorization": {"authorization_code": "AUTH_123", "last4": "4081"}
         });
         assert_eq!(
             PaystackProvider::parse_verified_transaction(&data).unwrap(),
@@ -381,6 +401,8 @@ mod tests {
                 currency: None,
                 customer_id: Some("CUS_123".to_string()),
                 subscription_id: Some("SUB_123".to_string()),
+                provider_transaction_id: Some("123456".to_string()),
+                provider_authorization_id: Some("AUTH_123".to_string()),
             }
         );
         assert!(
@@ -407,6 +429,7 @@ mod tests {
             "subscription_code": "SUB_123",
             "status": "attention",
             "most_recent_invoice": {
+                "invoice_code": "INV_123",
                 "period_start": "2026-07-01T00:00:00Z",
                 "period_end": "2026-08-01T00:00:00Z"
             }
@@ -414,6 +437,7 @@ mod tests {
         let subscription = PaystackProvider::parse_verified_subscription(&active).unwrap();
         assert_eq!(subscription.subscription_id, "SUB_123");
         assert_eq!(subscription.state, ProviderSubscriptionState::Attention);
+        assert_eq!(subscription.provider_invoice_id.as_deref(), Some("INV_123"));
         assert_eq!(
             subscription.current_period_end.unwrap().to_rfc3339(),
             "2026-08-01T00:00:00+00:00"

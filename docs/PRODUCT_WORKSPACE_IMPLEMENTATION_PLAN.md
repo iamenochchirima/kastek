@@ -375,7 +375,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Define a `BillingProvider` interface in the server layer.
 - [x] Keep provider API configuration, HTTP calls, webhook verification, and provider event mapping inside the Paystack adapter.
 - [x] Keep internal product, subscription, entitlement, invoice, and usage models provider-neutral.
-- [ ] Store Paystack customer, plan, subscription, transaction, invoice, and authorisation references as external IDs, never as the source of truth for access.
+- [x] Store Paystack customer, plan, subscription, transaction, invoice, and authorisation references as external IDs, never as the source of truth for access.
 - [x] Keep all Paystack secret-key calls on the server.
 - [x] Add separate test and live environment configuration.
 
@@ -424,7 +424,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 - [x] A successful verified Paystack payment activates only the intended organisation product/plan entitlement.
 - [x] Failed, cancelled, duplicate, forged, or mismatched payment events do not grant access.
-- [ ] Test mode covers the complete checkout, webhook, entitlement, and cancellation path before live keys are used.
+- [ ] Run the documented Paystack test-mode checkout, webhook, entitlement, and cancellation path before live keys are used.
 
 ## Phase 10: Test, Migrate, and Roll Out
 

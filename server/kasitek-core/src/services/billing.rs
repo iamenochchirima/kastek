@@ -1052,7 +1052,11 @@ async fn record_verification_response(
 ) -> Result<(), AppError> {
     sqlx::query(
         r#"
-        UPDATE "BillingCheckout" SET "providerResponse" = $3, "updatedAt" = NOW()
+        UPDATE "BillingCheckout"
+        SET "providerResponse" = $3,
+            "providerTransactionId" = COALESCE($4, "providerTransactionId"),
+            "providerAuthorizationId" = COALESCE($5, "providerAuthorizationId"),
+            "updatedAt" = NOW()
         WHERE reference = $1 AND provider = $2
     "#,
     )
@@ -1065,7 +1069,11 @@ async fn record_verification_response(
         "currency": transaction.currency,
         "customerId": transaction.customer_id,
         "subscriptionId": transaction.subscription_id,
+        "transactionId": transaction.provider_transaction_id,
+        "authorizationId": transaction.provider_authorization_id,
     }))
+    .bind(&transaction.provider_transaction_id)
+    .bind(&transaction.provider_authorization_id)
     .execute(pool)
     .await?;
     Ok(())
@@ -1320,6 +1328,21 @@ pub async fn reconcile_billing(
     for (subscription_row_id, org_id, subscription_id, cancel_at_period_end) in subscriptions {
         match provider.verify_subscription(&subscription_id).await {
             Ok(verified) => {
+                if let Some(provider_invoice_id) = verified.provider_invoice_id.as_deref() {
+                    sqlx::query(
+                        r#"
+                        UPDATE "BillingInvoice"
+                        SET "providerInvoiceId" = $1, "updatedAt" = NOW()
+                        WHERE "subscriptionId" = $2 AND provider = $3
+                          AND "providerInvoiceId" IS NULL
+                        "#,
+                    )
+                    .bind(provider_invoice_id)
+                    .bind(&subscription_row_id)
+                    .bind(provider.name())
+                    .execute(pool)
+                    .await?;
+                }
                 let Some((status, provider_cancel_at_period_end)) =
                     internal_subscription_state(&verified.state)
                 else {

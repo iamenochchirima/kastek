@@ -27,6 +27,8 @@ pub struct VerifiedTransaction {
     pub currency: Option<String>,
     pub customer_id: Option<String>,
     pub subscription_id: Option<String>,
+    pub provider_transaction_id: Option<String>,
+    pub provider_authorization_id: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -45,6 +47,7 @@ pub struct VerifiedSubscription {
     pub state: ProviderSubscriptionState,
     pub current_period_start: Option<DateTime<Utc>>,
     pub current_period_end: Option<DateTime<Utc>>,
+    pub provider_invoice_id: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]

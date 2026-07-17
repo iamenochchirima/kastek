@@ -309,6 +309,8 @@ model BillingCheckout {
   provider          String
   status            String       @default("PENDING")
   authorizationUrl String?
+  providerTransactionId String?
+  providerAuthorizationId String?
   providerResponse Json?
   completedAt      DateTime?
 
@@ -321,6 +323,7 @@ model BillingCheckout {
   updatedAt DateTime @updatedAt
 
   @@index([orgId, status])
+  @@index([provider, providerTransactionId])
   @@unique([orgId, provider, idempotencyKey])
 }
 
