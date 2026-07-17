@@ -352,7 +352,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Show current plan, status, billing period, trial/grace status, and cancellation date.
 - [x] Show current usage against each included limit.
 - [x] Show payment history from internal checkout records.
-- [ ] Show invoices from internal invoice records when provider invoices are synchronized.
+- [x] Show invoices from internal invoice records after provider payment verification is synchronized.
 - [x] Show manual/internal access grants separately from paid subscriptions.
 - [x] Add server-side checkout initialisation; payment redirects do not grant access.
 - [x] Restrict billing changes to organisation owners or explicitly authorised billing admins.

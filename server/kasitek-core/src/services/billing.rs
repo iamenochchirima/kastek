@@ -84,6 +84,7 @@ pub struct BillingSummary {
     #[serde(rename = "manualGrants")]
     pub manual_grants: Vec<ManualGrant>,
     pub payments: Vec<PaymentHistoryItem>,
+    pub invoices: Vec<BillingInvoiceItem>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -106,6 +107,30 @@ pub struct PaymentHistoryItem {
     #[serde(rename = "createdAt")]
     #[sqlx(rename = "created_at")]
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct BillingInvoiceItem {
+    #[serde(rename = "invoiceNumber")]
+    #[sqlx(rename = "invoice_number")]
+    pub invoice_number: String,
+    #[serde(rename = "productName")]
+    #[sqlx(rename = "product_name")]
+    pub product_name: String,
+    #[serde(rename = "planName")]
+    #[sqlx(rename = "plan_name")]
+    pub plan_name: String,
+    pub status: String,
+    pub currency: String,
+    #[serde(rename = "amountMinor")]
+    #[sqlx(rename = "amount_minor")]
+    pub amount_minor: Option<i32>,
+    #[serde(rename = "issuedAt")]
+    #[sqlx(rename = "issued_at")]
+    pub issued_at: DateTime<Utc>,
+    #[serde(rename = "paidAt")]
+    #[sqlx(rename = "paid_at")]
+    pub paid_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -454,7 +479,7 @@ async fn process_refund(
         UPDATE "BillingCheckout" SET status = 'REVERSED', "updatedAt" = NOW() WHERE id = $1
     "#,
     )
-    .bind(checkout_id)
+    .bind(&checkout_id)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -540,6 +565,18 @@ pub async fn activate_checkout(
     "#).bind(cuid2::create_id()).bind(&org_id).bind(&plan_id).bind(provider_name).bind(customer_id)
     .bind(&provider_subscription_id).execute(&mut *tx).await?;
 
+    let subscription_id = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT id FROM "OrganizationSubscription"
+        WHERE "orgId" = $1 AND provider = $2 AND "providerSubscriptionId" = $3
+        "#,
+    )
+    .bind(&org_id)
+    .bind(provider_name)
+    .bind(&provider_subscription_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
     sqlx::query(
         r#"
         UPDATE "BillingCheckout"
@@ -553,9 +590,35 @@ pub async fn activate_checkout(
         WHERE id = $1
     "#,
     )
-    .bind(checkout_id)
+    .bind(&checkout_id)
     .bind(customer_id)
     .bind(&provider_subscription_id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO "BillingInvoice" (
+          id, "invoiceNumber", "orgId", "checkoutId", "subscriptionId", provider,
+          "providerTransactionId", status, currency, "amountMinor", "issuedAt", "paidAt",
+          "createdAt", "updatedAt"
+        )
+        SELECT $1, 'KS-' || checkout.reference, checkout."orgId", checkout.id, $2, checkout.provider,
+               checkout.reference, 'PAID', plan.currency,
+               COALESCE((checkout."providerResponse"->>'amountMinor')::integer, plan."amountMinor"),
+               NOW(), NOW(), NOW(), NOW()
+        FROM "BillingCheckout" checkout
+        JOIN "ProductPlan" plan ON plan.id = checkout."planId"
+        WHERE checkout.id = $3
+        ON CONFLICT ("checkoutId") DO UPDATE SET
+          "subscriptionId" = EXCLUDED."subscriptionId",
+          "providerTransactionId" = EXCLUDED."providerTransactionId",
+          "updatedAt" = NOW()
+        "#,
+    )
+    .bind(cuid2::create_id())
+    .bind(subscription_id)
+    .bind(checkout_id)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -1523,11 +1586,30 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
     .bind(org_id)
     .fetch_all(pool)
     .await?;
+    let invoices = sqlx::query_as::<_, BillingInvoiceItem>(
+        r#"
+        SELECT invoice."invoiceNumber" AS invoice_number, product.name AS product_name,
+               plan.name AS plan_name, invoice.status, invoice.currency,
+               invoice."amountMinor" AS amount_minor,
+               invoice."issuedAt" AT TIME ZONE 'UTC' AS issued_at,
+               invoice."paidAt" AT TIME ZONE 'UTC' AS paid_at
+        FROM "BillingInvoice" invoice
+        JOIN "BillingCheckout" checkout ON checkout.id = invoice."checkoutId"
+        JOIN "ProductPlan" plan ON plan.id = checkout."planId"
+        JOIN "Product" product ON product.id = plan."productId"
+        WHERE invoice."orgId" = $1
+        ORDER BY invoice."issuedAt" DESC LIMIT 25
+        "#,
+    )
+    .bind(org_id)
+    .fetch_all(pool)
+    .await?;
     Ok(BillingSummary {
         org_id: org_id.to_string(),
         products,
         manual_grants,
         payments,
+        invoices,
     })
 }
 

@@ -191,6 +191,31 @@ export default async function BillingPage({
             </div>
           </section>
         ) : null}
+
+        {summary?.invoices.length ? (
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-lg font-semibold text-foreground">Invoices</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Billing documents created after a payment has been verified by the billing server.
+            </p>
+            <div className="mt-4 divide-y divide-border">
+              {summary.invoices.map((invoice) => (
+                <div key={invoice.invoiceNumber} className="flex flex-wrap items-center justify-between gap-4 py-3 text-sm">
+                  <div>
+                    <p className="font-medium text-foreground">{invoice.productName} · {invoice.planName}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{invoice.invoiceNumber}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium text-foreground">{formatPrice(invoice.amountMinor, invoice.currency)}</p>
+                    <p className="text-muted-foreground">
+                      {invoice.status.replaceAll("_", " ").toLowerCase()} · issued {formatDate(invoice.issuedAt)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );

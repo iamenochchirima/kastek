@@ -33,6 +33,7 @@ export type BillingSummary = {
   products: ProductAccess[];
   manualGrants: ManualGrant[];
   payments: PaymentHistoryItem[];
+  invoices: BillingInvoiceItem[];
 };
 
 export type PaymentHistoryItem = {
@@ -44,6 +45,17 @@ export type PaymentHistoryItem = {
   amountMinor: number | null;
   completedAt: string | null;
   createdAt: string;
+};
+
+export type BillingInvoiceItem = {
+  invoiceNumber: string;
+  productName: string;
+  planName: string;
+  status: string;
+  currency: string;
+  amountMinor: number | null;
+  issuedAt: string;
+  paidAt: string | null;
 };
 
 export type AvailablePlan = {

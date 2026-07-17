@@ -41,6 +41,7 @@ model Organization {
   entitlementGrants        OrganizationEntitlementGrant[]
   usageEvents              UsageEvent[]
   billingCheckouts         BillingCheckout[]
+  billingInvoices          BillingInvoice[]
   billingIssues            BillingReconciliationIssue[]
 
   createdAt DateTime @default(now())
@@ -252,6 +253,7 @@ model OrganizationSubscription {
   provider              String?
   providerCustomerId    String?
   providerSubscriptionId String?                       @unique
+  billingInvoices        BillingInvoice[]
 
   createdAt             DateTime                       @default(now())
   updatedAt             DateTime                       @updatedAt
@@ -313,12 +315,43 @@ model BillingCheckout {
   org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   plan ProductPlan  @relation(fields: [planId], references: [id], onDelete: Restrict)
   user User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  invoice BillingInvoice?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([orgId, status])
   @@unique([orgId, provider, idempotencyKey])
+}
+
+// An organisation-owned billing document. Provider identifiers are retained for
+// reconciliation, while access continues to be derived from subscriptions and
+// entitlements rather than this record.
+model BillingInvoice {
+  id                    String       @id @default(cuid())
+  invoiceNumber         String       @unique
+  orgId                 String
+  checkoutId            String       @unique
+  subscriptionId        String?
+  provider              String
+  providerInvoiceId     String?
+  providerTransactionId String?
+  status                String       @default("PAID")
+  currency              String
+  amountMinor           Int?
+  issuedAt              DateTime     @default(now())
+  paidAt                DateTime?
+
+  org          Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  checkout     BillingCheckout          @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
+  subscription OrganizationSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerInvoiceId])
+  @@index([orgId, issuedAt])
+  @@index([subscriptionId])
 }
 
 model PaystackWebhookEvent {
