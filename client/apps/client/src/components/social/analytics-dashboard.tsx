@@ -2,6 +2,7 @@
 
 import { apiUrl } from "@/lib/server-api";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -11,9 +12,22 @@ import {
   getPlatformLabel,
 } from "@/components/social/social-shared";
 
+type Campaign = {
+  id: string;
+  name: string;
+  status: string;
+  totalRecipients: number;
+  sentCount: number;
+  deliveredCount: number;
+  readCount: number;
+  failedCount: number;
+};
+
 export function AnalyticsDashboard() {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [channels, setChannels] = useState<SocialChannelConnection[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [view, setView] = useState<"content" | "campaigns">("content");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -26,9 +40,10 @@ export function AnalyticsDashboard() {
     setError("");
 
     try {
-      const [postsResponse, channelsResponse] = await Promise.all([
+      const [postsResponse, channelsResponse, campaignsResponse] = await Promise.all([
         fetch(apiUrl("/api/social/posts"), { cache: "no-store", credentials: "include" }),
         fetch(apiUrl("/api/social/channels"), { cache: "no-store", credentials: "include" }),
+        fetch(apiUrl("/api/whatsapp/campaigns"), { cache: "no-store", credentials: "include" }),
       ]);
 
       const postsPayload = (await postsResponse.json()) as { posts?: SocialPost[]; error?: string };
@@ -36,6 +51,7 @@ export function AnalyticsDashboard() {
         channels?: SocialChannelConnection[];
         error?: string;
       };
+      const campaignsPayload = (await campaignsResponse.json()) as { campaigns?: Campaign[]; error?: string };
 
       if (!postsResponse.ok) {
         throw new Error(postsPayload.error || "Failed to load analytics");
@@ -44,9 +60,11 @@ export function AnalyticsDashboard() {
       if (!channelsResponse.ok) {
         throw new Error(channelsPayload.error || "Failed to load analytics");
       }
+      if (!campaignsResponse.ok) throw new Error(campaignsPayload.error || "Failed to load campaign analytics");
 
       setPosts(postsPayload.posts || []);
       setChannels(channelsPayload.channels || []);
+      setCampaigns(campaignsPayload.campaigns || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load analytics");
     } finally {
@@ -89,6 +107,20 @@ export function AnalyticsDashboard() {
     [channels, posts],
   );
 
+  const campaignMetrics = useMemo(
+    () => campaigns.reduce(
+      (totals, campaign) => ({
+        recipients: totals.recipients + campaign.totalRecipients,
+        sent: totals.sent + campaign.sentCount,
+        delivered: totals.delivered + campaign.deliveredCount,
+        read: totals.read + campaign.readCount,
+        failed: totals.failed + campaign.failedCount,
+      }),
+      { recipients: 0, sent: 0, delivered: 0, read: 0, failed: 0 },
+    ),
+    [campaigns],
+  );
+
   return (
     <div className="min-h-screen p-6 lg:p-8">
       <div className="mx-auto max-w-[1400px] space-y-6">
@@ -96,8 +128,16 @@ export function AnalyticsDashboard() {
           <Badge className="mb-2 border-primary/30 bg-primary/5 text-primary">Analytics</Badge>
           <h1 className="text-3xl font-semibold tracking-tight">Measure what content actually performs.</h1>
           <p className="mt-1 text-muted-foreground">
-            This first version is operational analytics: publishing volume, channel readiness, queue health, and coverage by destination.
+            Content publishing and customer campaigns share one reporting entry point, with separate metrics and definitions.
           </p>
+        </div>
+
+        <div className="flex gap-2 border-b border-border">
+          {(["content", "campaigns"] as const).map((tab) => (
+            <button key={tab} type="button" onClick={() => setView(tab)} className={`border-b-2 px-4 py-2 text-sm font-medium ${view === tab ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>
+              {tab === "content" ? "Content" : "Campaigns"}
+            </button>
+          ))}
         </div>
 
         {error ? (
@@ -106,6 +146,7 @@ export function AnalyticsDashboard() {
           </div>
         ) : null}
 
+        {view === "content" ? <>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
             ["Posts Published", String(metrics.publishedCount), "Posts already marked as published in the workspace"],
@@ -161,6 +202,16 @@ export function AnalyticsDashboard() {
             </CardContent>
           </Card>
         </div>
+        </> : <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[["Recipients", campaignMetrics.recipients], ["Sent", campaignMetrics.sent], ["Delivered", campaignMetrics.delivered], ["Read", campaignMetrics.read]].map(([label, value]) => (
+              <Card key={String(label)}><CardContent className="p-5"><div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div><div className="mt-3 text-3xl font-semibold">{loading ? "--" : Number(value).toLocaleString("en-ZA")}</div></CardContent></Card>
+            ))}
+          </div>
+          <Card><CardHeader><CardTitle>Campaign delivery</CardTitle><CardDescription>WhatsApp delivery and read totals are separate from social publishing metrics.</CardDescription></CardHeader><CardContent className="space-y-3">
+            {campaigns.length ? campaigns.slice(0, 10).map((campaign) => <Link key={campaign.id} href={`/campaigns/${campaign.id}`} className="flex items-center justify-between rounded-md bg-secondary/50 p-4 text-sm hover:bg-secondary"><span className="font-semibold">{campaign.name}</span><span className="text-muted-foreground">{campaign.deliveredCount} delivered · {campaign.readCount} read · {campaign.failedCount} failed</span></Link>) : <p className="text-sm text-muted-foreground">No campaigns have been created yet.</p>}
+          </CardContent></Card>
+        </>}
       </div>
     </div>
   );

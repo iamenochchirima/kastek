@@ -326,7 +326,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Move templates from `/reach/templates` to `/templates`.
 - [x] Keep WhatsApp-specific configuration inside the connection or campaign flow, not in a broad Reach settings area.
 - [x] Move social publishing, calendar, and analytics to the final Growth routes.
-- [ ] Define whether content analytics and campaign analytics share an Analytics landing page with separate views.
+- [x] Keep `/analytics` as a shared landing page with separate Content and Campaigns views; do not blend their metrics.
 
 ### Automation
 
