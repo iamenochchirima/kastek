@@ -895,14 +895,21 @@ async fn record_bot_event_internal(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("eventType is required".to_string()))?;
+    let customer_id = resolve_event_customer_id(
+        pool,
+        org_id,
+        input.customer_id.as_deref(),
+        input.conversation_id.as_deref(),
+    )
+    .await?;
 
     sqlx::query(
         r#"
         INSERT INTO "BotEvent" (
             id, "botId", "userId", "orgId", "eventType", channel, status, "conversationId",
-            "responseTimeMs", metadata, "createdAt"
+            "customerId", "responseTimeMs", metadata, "createdAt"
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
         "#,
     )
     .bind(cuid2::create_id())
@@ -931,12 +938,67 @@ async fn record_bot_event_internal(
             .map(str::trim)
             .filter(|value| !value.is_empty()),
     )
+    .bind(customer_id)
     .bind(input.response_time_ms)
     .bind(input.metadata)
     .execute(pool)
     .await?;
 
     Ok(())
+}
+
+async fn resolve_event_customer_id(
+    pool: &PgPool,
+    org_id: &str,
+    customer_id: Option<&str>,
+    conversation_id: Option<&str>,
+) -> Result<Option<String>, AppError> {
+    let customer_id = customer_id.map(str::trim).filter(|value| !value.is_empty());
+    let conversation_id = conversation_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    let explicit_customer_id = match customer_id {
+        Some(customer_id) => sqlx::query_scalar::<_, String>(
+            r#"SELECT id FROM "Customer" WHERE id = $1 AND "orgId" = $2 LIMIT 1"#,
+        )
+        .bind(customer_id)
+        .bind(org_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Customer not found".to_string()))
+        .map(Some)?,
+        None => None,
+    };
+
+    let conversation_customer_id = match conversation_id {
+        Some(conversation_id) => sqlx::query_scalar::<_, Option<String>>(
+            r#"
+            SELECT "customerId"
+            FROM "Conversation"
+            WHERE id = $1 AND "orgId" = $2
+            LIMIT 1
+            "#,
+        )
+        .bind(conversation_id)
+        .bind(org_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?,
+        None => None,
+    };
+
+    if let (Some(explicit_customer_id), Some(conversation_customer_id)) =
+        (&explicit_customer_id, &conversation_customer_id)
+    {
+        if explicit_customer_id != conversation_customer_id {
+            return Err(AppError::BadRequest(
+                "customerId does not match the conversation customer".to_string(),
+            ));
+        }
+    }
+
+    Ok(explicit_customer_id.or(conversation_customer_id))
 }
 
 pub async fn record_bot_event_trusted(

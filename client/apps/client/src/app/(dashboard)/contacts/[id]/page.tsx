@@ -48,6 +48,15 @@ type CustomerDetailResponse = {
     readCount: number;
     lastSentAt: string | null;
   }>;
+  agentEvents: Array<{
+    id: string;
+    eventType: string;
+    channel: string | null;
+    status: string | null;
+    responseTimeMs: number | null;
+    createdAt: string;
+    botName: string;
+  }>;
 };
 
 function label(value: string) {
@@ -219,6 +228,42 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               ))
             ) : (
               <p className="text-sm text-muted-foreground">This customer has not been included in a WhatsApp campaign.</p>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-6">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Agent activity</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Events linked by the agent to this customer or their conversation.</p>
+            </div>
+            <Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground">
+              Open Agents →
+            </Link>
+          </div>
+          <div className="mt-5 divide-y divide-border rounded-xl border border-border">
+            {detail.agentEvents.length ? (
+              detail.agentEvents.map((event) => (
+                <div key={event.id} className="flex flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium text-foreground">{event.botName}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {label(event.eventType.replace("agent.", "").replaceAll("_", " "))}
+                      {event.channel ? ` · ${label(event.channel)}` : ""}
+                    </p>
+                  </div>
+                  <div className="text-sm text-muted-foreground sm:text-right">
+                    <p>{event.status ? label(event.status) : "Recorded"}</p>
+                    <p className="mt-1 text-xs">
+                      {event.responseTimeMs ? `${event.responseTimeMs} ms · ` : ""}
+                      {dateTime(event.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="px-4 py-6 text-sm text-muted-foreground">No agent events have been linked to this customer yet.</p>
             )}
           </div>
         </section>

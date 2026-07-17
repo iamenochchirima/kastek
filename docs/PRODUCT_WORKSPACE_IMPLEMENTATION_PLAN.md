@@ -317,7 +317,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 - [x] Make Contacts a shared organisation record list, not a Reach-only list.
 - [x] Add customer detail pages that link conversations, campaign participation, and social identity.
-- [ ] Add agent activity to customer details after agent events have a canonical customer link.
+- [x] Add agent activity to customer details after agent events have a canonical customer link.
 - [x] Define contact import, merge, consent, and deletion behaviour in `CONTACT_DATA_LIFECYCLE.md`.
 
 ### Growth

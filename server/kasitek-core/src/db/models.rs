@@ -1310,6 +1310,8 @@ pub struct BotEventCreateRequest {
     pub status: Option<String>,
     #[serde(rename = "conversationId")]
     pub conversation_id: Option<String>,
+    #[serde(rename = "customerId")]
+    pub customer_id: Option<String>,
     #[serde(rename = "responseTimeMs")]
     pub response_time_ms: Option<i32>,
     pub metadata: Option<Value>,

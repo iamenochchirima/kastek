@@ -525,8 +525,10 @@ model BotEvent {
   bot     BotConfiguration @relation(fields: [botId], references: [id], onDelete: Cascade)
   userId  String
   user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId   String?
-  org     Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  orgId      String?
+  org        Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  customerId String?
+  customer   Customer? @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
 
   eventType      String
   channel        String?
@@ -540,6 +542,7 @@ model BotEvent {
   @@index([botId, createdAt])
   @@index([userId, createdAt])
   @@index([orgId, createdAt])
+  @@index([customerId, createdAt])
 }
 
 model BotDeployment {
@@ -857,6 +860,7 @@ model Customer {
   identities       CustomerIdentity[]
   conversations    Conversation[]
   whatsappContacts WhatsappContact[]
+  botEvents        BotEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
