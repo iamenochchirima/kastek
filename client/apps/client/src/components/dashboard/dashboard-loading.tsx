@@ -226,30 +226,6 @@ export function WorkspacePageSkeleton() {
   );
 }
 
-export function ReachOverviewSkeleton() {
-  return (
-    <DashboardPageFrame>
-      <div className="space-y-3">
-        <Skeleton className="h-4 w-24" />
-        <Skeleton className="h-12 w-[min(520px,100%)]" />
-        <Skeleton className="h-4 w-[min(720px,100%)]" />
-        <Skeleton className="h-4 w-[min(640px,100%)]" />
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <div key={index} className="rounded-[28px] border border-border bg-card p-7">
-            <Skeleton className="h-12 w-12 rounded-2xl" />
-            <Skeleton className="mt-5 h-8 w-44" />
-            <Skeleton className="mt-3 h-4 w-full" />
-            <Skeleton className="mt-2 h-4 w-5/6" />
-          </div>
-        ))}
-      </div>
-    </DashboardPageFrame>
-  );
-}
-
 export function CampaignsPageSkeleton() {
   return (
     <DashboardPageFrame className="lg:p-8">

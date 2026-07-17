@@ -78,7 +78,7 @@ function VendorVisual() {
           </div>
           <div className="flex-1 bg-white/5 rounded-md px-3 py-1 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-[#60A5FA]/40 flex-shrink-0" />
-            <p className="text-white/30 text-[10px] truncate">app.yourplatform.io/dashboard</p>
+            <p className="text-white/30 text-[10px] truncate">app.yourplatform.io/workspace</p>
           </div>
         </div>
 

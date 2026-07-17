@@ -70,7 +70,7 @@ export default async function WorkspacePage() {
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Overview</h1>
           </div>
           <Link
-            href="/reach/campaigns/create"
+            href="/campaigns/create"
             className="inline-flex h-9 items-center rounded-md bg-primary px-3.5 text-sm font-semibold text-primary-foreground no-underline transition-opacity hover:opacity-90"
           >
             New campaign
@@ -94,7 +94,7 @@ export default async function WorkspacePage() {
           <SummaryCard label="Active agents" value={summary.botCount.toLocaleString("en-ZA")} detail={summary.botCount ? "Automations running" : "No automations running"} />
         </section>
 
-        <SectionHeading title="Work that needs attention" actionHref="/reach/templates" actionLabel="See all activity" />
+        <SectionHeading title="Work that needs attention" actionHref="/templates" actionLabel="See all activity" />
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.85fr)]">
           <section className="overflow-hidden rounded-lg border border-border bg-card">
             <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
@@ -102,12 +102,12 @@ export default async function WorkspacePage() {
                 <h2 className="text-base font-semibold text-foreground">Recent campaigns</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Latest activity across your outbound work.</p>
               </div>
-              <Link href="/reach/campaigns" className="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground no-underline hover:bg-secondary">Open campaigns</Link>
+              <Link href="/campaigns" className="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground no-underline hover:bg-secondary">Open campaigns</Link>
             </div>
             {summary.recentCampaigns.length ? (
               <div>
                 {summary.recentCampaigns.slice(0, 4).map((campaign) => (
-                  <Link key={campaign.id} href={`/reach/campaigns/${campaign.id}`} className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-3.5 no-underline last:border-b-0 hover:bg-secondary/60">
+                  <Link key={campaign.id} href={`/campaigns/${campaign.id}`} className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-5 py-3.5 no-underline last:border-b-0 hover:bg-secondary/60">
                     <span className="grid size-8 place-items-center rounded-md bg-secondary text-muted-foreground"><MessageCircle className="size-4" /></span>
                     <span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground">{campaign.name}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{campaign.templateName || "No template"} · {campaign.connectionLabel || "No connection"}</span></span>
                     <Status label={campaign.status} />
@@ -121,7 +121,7 @@ export default async function WorkspacePage() {
             <div className="px-5 py-4"><h2 className="text-base font-semibold text-foreground">Review queue</h2><p className="mt-1 text-sm text-muted-foreground">Items that need a decision.</p></div>
             <div className="px-5 pb-2">
               {summary.reviewQueue.length ? summary.reviewQueue.slice(0, 4).map((template) => (
-                <Link key={template.id} href="/reach/templates" className="flex gap-3 border-t border-border py-3.5 no-underline first:border-t-0">
+                <Link key={template.id} href="/templates" className="flex gap-3 border-t border-border py-3.5 no-underline first:border-t-0">
                   <span className={template.status === "REJECTED" ? "mt-1.5 size-2 shrink-0 rounded-full bg-destructive" : "mt-1.5 size-2 shrink-0 rounded-full bg-status-attention"} />
                   <span><span className="block text-sm font-semibold text-foreground">{template.templateName}</span><span className="mt-0.5 block text-xs text-muted-foreground">{template.status} · {template.connectionLabel || "No connection"}</span></span>
                 </Link>
@@ -130,7 +130,7 @@ export default async function WorkspacePage() {
           </section>
         </section>
 
-        <SectionHeading title="Campaign performance" actionHref="/reach/campaigns" actionLabel="View campaigns" />
+        <SectionHeading title="Campaign performance" actionHref="/campaigns" actionLabel="View campaigns" />
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.85fr)]">
           <section className="overflow-hidden rounded-lg border border-border bg-card">
             {summary.recentCampaigns.length ? (
@@ -154,7 +154,7 @@ export default async function WorkspacePage() {
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <OperationalLink href="/inbox" icon={MessageCircle} label="Inbox" detail="Open conversations and customer replies" />
-          <OperationalLink href="/reach/templates" icon={FileText} label="Templates" detail={`${summary.templateStatusMap.APPROVED || 0} approved templates`} />
+          <OperationalLink href="/templates" icon={FileText} label="Templates" detail={`${summary.templateStatusMap.APPROVED || 0} approved templates`} />
           <OperationalLink href="/agents" icon={Bot} label="Agents" detail={`${summary.botCount} configured automations`} />
           <OperationalLink href="/connections" icon={PlugZap} label="Connections" detail={`${summary.connections.length} connected numbers`} />
         </section>

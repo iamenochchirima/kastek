@@ -282,11 +282,12 @@ Every organisation can enter the workspace. Access is controlled at feature and 
   - [x] `/workspace/team`
   - [x] `/billing`
   - [x] `/workspace/settings`
-- [ ] Redirect current `/reach/*` routes to their final non-product-branded routes.
-- [ ] Redirect current `/social/*` routes to their final non-product-branded routes.
-- [ ] Remove or preserve `/dashboard/*` compatibility redirects only after usage confirms they are no longer needed.
-- [ ] Update all links, page titles, breadcrumbs, metadata, and tests.
-- [ ] Verify direct links, browser history, and bookmarks after redirects.
+- [x] Move the live implementations out of `/reach/*` and remove the obsolete route tree.
+- [x] Move the live implementations out of `/social/*` and remove the obsolete route tree.
+- [x] Remove the unused `/dashboard/*` compatibility route tree.
+- [x] Update internal application links to use the canonical route map.
+- [x] Add an automated check that rejects obsolete frontend route trees and URL literals.
+- [ ] Verify canonical direct links and browser history in a deployed environment.
 
 ### Overview page
 
@@ -316,10 +317,10 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Growth
 
-- [ ] Move campaign pages from `/reach/campaigns` to `/campaigns`.
-- [ ] Move templates from `/reach/templates` to `/templates`.
-- [ ] Keep WhatsApp-specific configuration inside the connection or campaign flow, not in a broad Reach settings area.
-- [ ] Move social planning, posts, calendar, and analytics to the final Growth routes.
+- [x] Move campaign pages from `/reach/campaigns` to `/campaigns`.
+- [x] Move templates from `/reach/templates` to `/templates`.
+- [x] Keep WhatsApp-specific configuration inside the connection or campaign flow, not in a broad Reach settings area.
+- [x] Move social publishing, calendar, and analytics to the final Growth routes.
 - [ ] Define whether content analytics and campaign analytics share an Analytics landing page with separate views.
 
 ### Automation

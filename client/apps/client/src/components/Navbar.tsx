@@ -33,7 +33,7 @@ export default async function Navbar() {
         <div className="flex items-center gap-3">
           {session?.user ? (
             <>
-              <Link href="/dashboard" className="text-sm text-text-muted transition hover:text-text">
+              <Link href="/workspace" className="text-sm text-text-muted transition hover:text-text">
                 Dashboard
               </Link>
               <SignOutButton />

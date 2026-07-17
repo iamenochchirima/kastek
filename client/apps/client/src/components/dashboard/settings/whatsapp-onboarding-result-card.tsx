@@ -108,10 +108,10 @@ export default function WhatsappOnboardingResultCard() {
 
       <div className="flex flex-wrap gap-3">
         <Link
-          href="/reach/settings"
+          href="/connections"
           className="rounded-lg border border-border px-4 py-2 text-sm text-foreground no-underline hover:border-primary/20"
         >
-          Back to Settings
+          Back to Connections
         </Link>
         <Link
           href="/campaigns"

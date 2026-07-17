@@ -14,24 +14,6 @@ function SocialPageFrame({
   );
 }
 
-function SocialHeaderSkeleton({
-  showAction = false,
-}: {
-  showAction?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-      <div className="min-w-0 space-y-3">
-        <Skeleton className="h-6 w-28 rounded-full" />
-        <Skeleton className="h-10 w-[min(520px,100%)]" />
-        <Skeleton className="h-4 w-[min(720px,100%)]" />
-        <Skeleton className="h-4 w-[min(620px,100%)]" />
-      </div>
-      {showAction ? <Skeleton className="h-10 w-36 rounded-md" /> : null}
-    </div>
-  );
-}
-
 function SocialMetricCards({ count = 4 }: { count?: number }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -48,69 +30,6 @@ function SocialMetricCards({ count = 4 }: { count?: number }) {
         </div>
       ))}
     </div>
-  );
-}
-
-export function SocialOverviewSkeleton() {
-  return (
-    <SocialPageFrame wide>
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
-        <SocialHeaderSkeleton showAction />
-      </div>
-
-      <SocialMetricCards />
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.2fr)_380px]">
-        <div className="rounded-xl border border-border bg-card p-6">
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="mt-2 h-4 w-64" />
-          <div className="mt-5 space-y-3">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Skeleton key={index} className="h-16 w-full rounded-xl" />
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-6">
-          <Skeleton className="h-6 w-36" />
-          <Skeleton className="mt-2 h-4 w-56" />
-          <div className="mt-5 space-y-3">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton key={index} className="h-16 w-full rounded-xl" />
-            ))}
-          </div>
-        </div>
-      </div>
-    </SocialPageFrame>
-  );
-}
-
-export function SocialPlannerSkeleton() {
-  return (
-    <SocialPageFrame wide>
-      <div className="space-y-3">
-        <Skeleton className="h-6 w-24 rounded-full" />
-        <Skeleton className="h-10 w-[min(520px,100%)]" />
-        <Skeleton className="h-4 w-[min(620px,100%)]" />
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="rounded-xl border border-border bg-card p-6">
-            <div className="flex items-center justify-between gap-3">
-              <Skeleton className="h-6 w-28" />
-              <Skeleton className="h-5 w-8" />
-            </div>
-            <Skeleton className="mt-2 h-4 w-40" />
-            <div className="mt-5 space-y-3">
-              {Array.from({ length: 4 }).map((__, itemIndex) => (
-                <Skeleton key={itemIndex} className="h-14 w-full rounded-md" />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </SocialPageFrame>
   );
 }
 
@@ -221,43 +140,6 @@ export function SocialPostsSkeleton() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-      </div>
-    </SocialPageFrame>
-  );
-}
-
-export function SocialChannelsSkeleton() {
-  return (
-    <SocialPageFrame>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-24 rounded-full" />
-          <Skeleton className="h-10 w-[min(560px,100%)]" />
-          <Skeleton className="h-4 w-[min(620px,100%)]" />
-        </div>
-        <Skeleton className="h-10 w-28 rounded-md" />
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_380px]">
-        <div className="rounded-xl border border-border bg-card p-6">
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="mt-2 h-4 w-72" />
-          <div className="mt-5 space-y-3">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Skeleton key={index} className="h-24 w-full rounded-xl" />
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-6">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="mt-2 h-4 w-44" />
-          <div className="mt-5 space-y-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <Skeleton key={index} className="h-10 w-full rounded-md" />
-            ))}
           </div>
         </div>
       </div>

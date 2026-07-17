@@ -43,11 +43,23 @@ function isBypassedRequest(requestUrl, request) {
 
   const pathname = requestUrl.pathname;
 
+  const workspaceRoutes = [
+    "/workspace",
+    "/inbox",
+    "/contacts",
+    "/campaigns",
+    "/templates",
+    "/content",
+    "/calendar",
+    "/analytics",
+    "/agents",
+    "/connections",
+    "/billing",
+  ];
+
   if (
     pathname.startsWith("/api/") ||
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/workspace") ||
-    pathname.startsWith("/social") ||
+    workspaceRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`)) ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/signup") ||
     pathname.startsWith("/auth")

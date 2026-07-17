@@ -70,17 +70,17 @@ const navigationGroups: NavigationGroup[] = [
     label: "Customer",
     items: [
       { name: "Inbox", href: "/inbox", icon: Bell },
-      { name: "Contacts", href: "/reach/contacts", icon: Users },
+      { name: "Contacts", href: "/contacts", icon: Users },
     ],
   },
   {
     label: "Growth",
     items: [
-      { name: "Campaigns", href: "/reach/campaigns", icon: Send, productKey: "reach" },
-      { name: "Templates", href: "/reach/templates", icon: FileText, productKey: "reach" },
-      { name: "Content", href: "/social/posts", icon: Sparkles, productKey: "social" },
-      { name: "Calendar", href: "/social/calendar", icon: CalendarDays, productKey: "social" },
-      { name: "Analytics", href: "/social/analytics", icon: Grid2x2, productKey: "social" },
+      { name: "Campaigns", href: "/campaigns", icon: Send, productKey: "reach" },
+      { name: "Templates", href: "/templates", icon: FileText, productKey: "reach" },
+      { name: "Content", href: "/content", icon: Sparkles, productKey: "social" },
+      { name: "Calendar", href: "/calendar", icon: CalendarDays, productKey: "social" },
+      { name: "Analytics", href: "/analytics", icon: Grid2x2, productKey: "social" },
     ],
   },
   {
