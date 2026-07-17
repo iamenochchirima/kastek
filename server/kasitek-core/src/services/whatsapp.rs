@@ -22,7 +22,7 @@ use crate::services::push::{send_push_notification_to_user, PushNotificationPayl
 use crate::services::realtime;
 use crate::services::social::{decrypt_social_secret, encrypt_social_secret};
 use crate::services::whatsapp_calls;
-use crate::services::{billing, connections};
+use crate::services::{billing, connections, customers};
 
 const GRAPH_BASE: &str = "https://graph.facebook.com/v19.0";
 
@@ -1645,6 +1645,14 @@ pub async fn update_contact(
     let contact = select_list_contact_row(pool, org_id, contact_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload contact".to_string()))?;
+    customers::link_whatsapp_contact(
+        pool,
+        org_id,
+        &contact.contact_id,
+        &contact.phone,
+        contact.full_name.as_deref(),
+    )
+    .await?;
 
     Ok(json!({ "contact": contact }))
 }
@@ -1939,6 +1947,9 @@ pub async fn import_contacts(
                 .await?;
             (contact_id, None)
         };
+
+        customers::link_whatsapp_contact(pool, org_id, &contact_id, &phone, full_name.as_deref())
+            .await?;
 
         if let Some(existing_membership_id) =
             existing_membership_by_contact_and_label.get(&(contact_id.clone(), list_label.clone()))
@@ -4054,8 +4065,10 @@ async fn find_or_create_conversation(
     connection_id: &str,
     phone: &str,
     customer_name: Option<&str>,
-) -> Result<(String, i32, chrono::DateTime<Utc>), AppError> {
+) -> Result<(String, i32, chrono::DateTime<Utc>, String), AppError> {
     let identifier = build_conversation_identifier(connection_id, phone);
+    let customer_id =
+        customers::ensure_whatsapp_customer(pool, org_id, phone, customer_name, None).await?;
     let existing = sqlx::query_as::<_, (String, i32, chrono::DateTime<Utc>)>(
         r#"
         SELECT
@@ -4077,6 +4090,7 @@ async fn find_or_create_conversation(
             UPDATE "Conversation"
             SET "customerName" = COALESCE($1, "customerName"),
                 "orgId" = $2,
+                "customerId" = COALESCE("customerId", $5),
                 "externalConnectionId" = COALESCE(
                     "externalConnectionId",
                     (SELECT id FROM "ExternalConnection"
@@ -4090,9 +4104,10 @@ async fn find_or_create_conversation(
         .bind(org_id)
         .bind(&id)
         .bind(connection_id)
+        .bind(&customer_id)
         .execute(pool)
         .await?;
-        return Ok((id, unread_count, last_message_at));
+        return Ok((id, unread_count, last_message_at, customer_id));
     }
     let id = cuid2::create_id();
     let now = Utc::now();
@@ -4100,14 +4115,15 @@ async fn find_or_create_conversation(
         r#"
         INSERT INTO "Conversation" (
             id, "orgId", channel, "customerIdentifier", "customerName", status,
-            "lastMessageAt", "unreadCount", "externalConnectionId", "createdAt", "updatedAt"
+            "lastMessageAt", "unreadCount", "externalConnectionId", "customerId",
+            "createdAt", "updatedAt"
         )
         VALUES (
             $1, $2, 'whatsapp', $3, $4, 'active', $5, 0,
             (SELECT id FROM "ExternalConnection"
              WHERE "orgId" = $2 AND "sourceType" = 'WHATSAPP' AND "sourceId" = $6
              LIMIT 1),
-            NOW(), NOW()
+            $7, NOW(), NOW()
         )
         "#,
     )
@@ -4117,9 +4133,10 @@ async fn find_or_create_conversation(
     .bind(customer_name)
     .bind(now)
     .bind(connection_id)
+    .bind(&customer_id)
     .execute(pool)
     .await?;
-    Ok((id, 0, now))
+    Ok((id, 0, now, customer_id))
 }
 
 fn normalize_phone(raw: &str) -> String {
@@ -4662,7 +4679,7 @@ async fn handle_incoming_messages(
             .and_then(|contact| contact.get("profile"))
             .and_then(|profile| profile.get("name"))
             .and_then(|v| v.as_str());
-        let (conversation_id, unread_count, _last) = find_or_create_conversation(
+        let (conversation_id, unread_count, _last, customer_id) = find_or_create_conversation(
             pool,
             org_id,
             &connection.id,
@@ -4706,6 +4723,18 @@ async fn handle_incoming_messages(
                 }
             }
         };
+        sqlx::query(
+            r#"
+            UPDATE "WhatsappContact"
+            SET "customerId" = $1, "updatedAt" = NOW()
+            WHERE id = $2 AND "orgId" = $3
+            "#,
+        )
+        .bind(&customer_id)
+        .bind(&contact_id)
+        .bind(org_id)
+        .execute(pool)
+        .await?;
         let content = text.clone().or(media).unwrap_or_default();
         let message_id = cuid2::create_id();
         let wa_message_id = message.get("id").and_then(|v| v.as_str());
@@ -5979,7 +6008,7 @@ pub async fn start_inbox_conversation(
         &body_parameters,
     )
     .await?;
-    let (conversation_id, _, _) = find_or_create_conversation(
+    let (conversation_id, _, _, customer_id) = find_or_create_conversation(
         pool,
         org_id,
         &connection.id,
@@ -6011,6 +6040,18 @@ pub async fn start_inbox_conversation(
         .await?;
         id
     };
+    sqlx::query(
+        r#"
+        UPDATE "WhatsappContact"
+        SET "customerId" = $1, "updatedAt" = NOW()
+        WHERE id = $2 AND "orgId" = $3
+        "#,
+    )
+    .bind(&customer_id)
+    .bind(&contact_id)
+    .bind(org_id)
+    .execute(pool)
+    .await?;
     let rendered = template
         .body
         .clone()

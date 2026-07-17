@@ -8,7 +8,7 @@ use crate::config::AppConfig;
 use crate::db::models::{ConversationRow, WhatsappSendMessageRequest};
 use crate::error::AppError;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
-use crate::services::{realtime, social, whatsapp};
+use crate::services::{customers, realtime, social, whatsapp};
 
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v23.0";
 
@@ -766,23 +766,39 @@ async fn find_or_create_meta_conversation(
         "facebook"
     };
     let identifier = build_meta_conversation_identifier(&channel.id, customer_id);
+    let canonical_customer_id = match channel.org_id.as_deref() {
+        Some(org_id) => Some(
+            customers::ensure_meta_customer(
+                pool,
+                org_id,
+                channel_name,
+                &channel.id,
+                customer_id,
+                customer_name,
+            )
+            .await?,
+        ),
+        None => None,
+    };
 
     let id = cuid2::create_id();
     sqlx::query_as::<_, (String, i32)>(
         r#"
         INSERT INTO "Conversation" (
             id, channel, "customerIdentifier", "customerName", status,
-            "lastMessageAt", "unreadCount", "orgId", "externalConnectionId", "createdAt", "updatedAt"
+            "lastMessageAt", "unreadCount", "orgId", "externalConnectionId", "customerId",
+            "createdAt", "updatedAt"
         )
         VALUES (
             $1, $2, $3, $4, 'active', NOW(), 0, $5,
             (SELECT id FROM "ExternalConnection"
              WHERE "orgId" = $5 AND "sourceType" = 'SOCIAL' AND "sourceId" = $6
              LIMIT 1),
-            NOW(), NOW()
+            $7, NOW(), NOW()
         )
         ON CONFLICT (channel, "customerIdentifier") DO UPDATE SET
             "customerName" = COALESCE(EXCLUDED."customerName", "Conversation"."customerName"),
+            "customerId" = COALESCE("Conversation"."customerId", EXCLUDED."customerId"),
             "externalConnectionId" = COALESCE(
                 "Conversation"."externalConnectionId",
                 EXCLUDED."externalConnectionId"
@@ -798,6 +814,7 @@ async fn find_or_create_meta_conversation(
     .bind(customer_name)
     .bind(channel.org_id.as_deref())
     .bind(&channel.id)
+    .bind(canonical_customer_id.as_deref())
     .fetch_one(pool)
     .await
     .map_err(AppError::from)

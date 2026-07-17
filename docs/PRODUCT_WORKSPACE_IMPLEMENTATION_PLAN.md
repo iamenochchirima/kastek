@@ -233,8 +233,11 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ## Phase 5: Unify the Inbox and Customer Work
 
-- [ ] Define the canonical customer/contact record for an organisation.
+- [x] Define the canonical customer/contact record for an organisation.
 - [ ] Map WhatsApp contacts, social identities, email addresses, and website-chat identities to the customer model without assuming they are always the same person.
+  - [x] Add conservative WhatsApp, Facebook, and Instagram identities with organisation and provider-account scope.
+  - [x] Backfill existing contacts and conversations without merging by display name.
+  - [ ] Add email and website-chat identities when those channels are implemented.
 - [ ] Define the canonical conversation record with channel, connection, participants, assignee, status, source, and linked campaign/agent context.
 - [ ] Move Inbox ownership from a WhatsApp-only user-scoped surface to an organisation-scoped multi-channel surface.
 - [ ] Keep the first release limited to channels that are actually connected; do not show fake empty channels as functional.

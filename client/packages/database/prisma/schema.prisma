@@ -34,6 +34,8 @@ model Organization {
   whatsappSendEvents       WhatsappSendEvent[]
   whatsappCallSessions     WhatsappCallSession[]
   externalConnections      ExternalConnection[]
+  customers                Customer[]
+  customerIdentities       CustomerIdentity[]
   conversations            Conversation[]
   subscriptions            OrganizationSubscription[]
   entitlementGrants        OrganizationEntitlementGrant[]
@@ -845,6 +847,47 @@ model WebServiceLead {
 
 // ─── Chatbot Conversations ───────────────────────────────────
 
+model Customer {
+  id          String @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  displayName String?
+  metadata    Json?
+
+  identities       CustomerIdentity[]
+  conversations    Conversation[]
+  whatsappContacts WhatsappContact[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, displayName])
+  @@index([orgId, updatedAt])
+  @@unique([orgId, id])
+}
+
+model CustomerIdentity {
+  id          String @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    Customer @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
+
+  channel     String
+  scopeId     String?
+  externalId  String
+  identityKey String
+  displayName String?
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, identityKey])
+  @@index([customerId, channel])
+  @@index([orgId, channel, externalId])
+}
+
 model Conversation {
   id                 String   @id @default(cuid())
   channel            String   // whatsapp | website
@@ -860,6 +903,8 @@ model Conversation {
   org                  Organization?       @relation(fields: [orgId], references: [id], onDelete: SetNull)
   externalConnectionId String?
   externalConnection   ExternalConnection? @relation(fields: [externalConnectionId], references: [id], onDelete: SetNull)
+  customerId            String?
+  customer              Customer?           @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
 
   messages     Message[]
   callSessions WhatsappCallSession[]
@@ -871,6 +916,7 @@ model Conversation {
   @@index([channel])
   @@index([orgId, lastMessageAt])
   @@index([externalConnectionId, lastMessageAt])
+  @@index([customerId, lastMessageAt])
   @@index([lastMessageAt])
 }
 
@@ -1320,6 +1366,8 @@ model WhatsappContact {
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   orgId             String?
   org               Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  customerId        String?
+  customer          Customer? @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
 
   phone             String
   fullName          String?
@@ -1347,6 +1395,7 @@ model WhatsappContact {
   @@index([userId, optIn, excluded])
   @@index([userId, listLabel])
   @@index([orgId, listLabel])
+  @@index([customerId])
   @@index([lastMarketingSent])
 }
 

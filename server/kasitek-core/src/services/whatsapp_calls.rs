@@ -8,6 +8,7 @@ use crate::db::models::{
     WhatsappCallSignalRequest,
 };
 use crate::error::AppError;
+use crate::services::customers;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
 use crate::services::realtime;
 use crate::services::social::decrypt_social_secret;
@@ -406,30 +407,45 @@ fn build_conversation_identifier(connection_id: &str, phone: &str) -> String {
 
 async fn find_or_create_conversation(
     pool: &PgPool,
+    org_id: &str,
     connection_id: &str,
     phone: &str,
     customer_name: Option<&str>,
 ) -> Result<String, AppError> {
     let identifier = build_conversation_identifier(connection_id, phone);
+    let customer_id =
+        customers::ensure_whatsapp_customer(pool, org_id, phone, customer_name, None).await?;
     let existing = sqlx::query_scalar::<_, String>(
         r#"
         SELECT id
         FROM "Conversation"
-        WHERE channel = 'whatsapp' AND "customerIdentifier" = $1
+        WHERE "orgId" = $1 AND channel = 'whatsapp' AND "customerIdentifier" = $2
         LIMIT 1
         "#,
     )
+    .bind(org_id)
     .bind(&identifier)
     .fetch_optional(pool)
     .await?;
 
     if let Some(id) = existing {
         if let Some(name) = customer_name.filter(|value| !value.trim().is_empty()) {
-            sqlx::query(r#"UPDATE "Conversation" SET "customerName" = $1, "updatedAt" = NOW() WHERE id = $2"#)
+            sqlx::query(r#"UPDATE "Conversation" SET "customerName" = $1, "customerId" = COALESCE("customerId", $2), "updatedAt" = NOW() WHERE id = $3 AND "orgId" = $4"#)
                 .bind(name)
+                .bind(&customer_id)
                 .bind(&id)
+                .bind(org_id)
                 .execute(pool)
                 .await?;
+        } else {
+            sqlx::query(
+                r#"UPDATE "Conversation" SET "customerId" = COALESCE("customerId", $1), "updatedAt" = NOW() WHERE id = $2 AND "orgId" = $3"#,
+            )
+            .bind(&customer_id)
+            .bind(&id)
+            .bind(org_id)
+            .execute(pool)
+            .await?;
         }
         return Ok(id);
     }
@@ -439,16 +455,26 @@ async fn find_or_create_conversation(
     sqlx::query(
         r#"
         INSERT INTO "Conversation" (
-            id, channel, "customerIdentifier", "customerName", status,
-            "lastMessageAt", "unreadCount", "createdAt", "updatedAt"
+            id, "orgId", channel, "customerIdentifier", "customerName", status,
+            "lastMessageAt", "unreadCount", "externalConnectionId", "customerId",
+            "createdAt", "updatedAt"
         )
-        VALUES ($1, 'whatsapp', $2, $3, 'active', $4, 0, NOW(), NOW())
+        VALUES (
+            $1, $2, 'whatsapp', $3, $4, 'active', $5, 0,
+            (SELECT id FROM "ExternalConnection"
+             WHERE "orgId" = $2 AND "sourceType" = 'WHATSAPP' AND "sourceId" = $6
+             LIMIT 1),
+            $7, NOW(), NOW()
+        )
         "#,
     )
     .bind(&id)
+    .bind(org_id)
     .bind(&identifier)
     .bind(customer_name)
     .bind(now)
+    .bind(connection_id)
+    .bind(&customer_id)
     .execute(pool)
     .await?;
     Ok(id)
@@ -711,8 +737,14 @@ pub async fn ingest_webhook_calls(
             None
         } else {
             Some(
-                find_or_create_conversation(pool, &connection_id, &customer_phone, customer_name)
-                    .await?,
+                find_or_create_conversation(
+                    pool,
+                    &org_id,
+                    &connection_id,
+                    &customer_phone,
+                    customer_name,
+                )
+                .await?,
             )
         };
 
