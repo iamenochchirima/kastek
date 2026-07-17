@@ -295,16 +295,16 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 
 ### Overview page
 
-- [ ] Replace the current mixed Workspace Pulse page with an action-oriented overview.
-- [ ] Show only items that need attention:
-  - [ ] Unassigned or unread conversations
-  - [ ] Failed or paused agents
-  - [ ] Campaigns requiring review or with failures
-  - [ ] Social posts awaiting approval or failed publishing
-  - [ ] Connections requiring reconnection
-  - [ ] Usage approaching a limit
-  - [ ] Billing action required
-- [ ] Keep performance reporting in Analytics instead of turning Home into a reporting dashboard.
+- [x] Replace the current mixed Workspace Pulse page with an action-oriented overview.
+- [x] Show only items that need attention:
+  - [x] Unassigned or unread conversations
+  - [x] Failed or paused agents
+  - [x] Campaigns requiring review or with failures
+  - [x] Social posts awaiting approval or failed publishing
+  - [x] Connections requiring reconnection
+  - [x] Usage approaching a limit
+  - [x] Billing action required
+- [x] Keep performance reporting in Analytics instead of turning Home into a reporting dashboard.
 
 ### Completion criteria
 

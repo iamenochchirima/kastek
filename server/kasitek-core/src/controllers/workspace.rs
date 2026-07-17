@@ -86,9 +86,19 @@ const CAMPAIGN_SENDS_SQL: &str = r#"
       AND r."sentAt" >= $2
     GROUP BY c."connectionId"
 "#;
+const UNREAD_CONVERSATIONS_SQL: &str =
+    r#"SELECT COUNT(*) FROM "Conversation" WHERE "orgId" = $1 AND "unreadCount" > 0"#;
+const AGENT_ATTENTION_SQL: &str = r#"
+    SELECT COUNT(*) FROM "BotDeployment" WHERE "orgId" = $1 AND status IN ('error', 'paused')
+"#;
+const SOCIAL_ATTENTION_SQL: &str = r#"SELECT COUNT(*) FROM "SocialPost" WHERE "orgId" = $1 AND status IN ('FAILED', 'PENDING_APPROVAL')"#;
+const CONNECTION_ATTENTION_SQL: &str = r#"
+    SELECT COUNT(*) FROM "ExternalConnection" WHERE "orgId" = $1
+      AND (status IN ('DISCONNECTED', 'REVOKED', 'NEEDS_ATTENTION') OR "healthStatus" = 'NEEDS_ATTENTION')
+"#;
 
 #[cfg(test)]
-const WORKSPACE_SUMMARY_QUERIES: [&str; 12] = [
+const WORKSPACE_SUMMARY_QUERIES: [&str; 16] = [
     BOT_COUNT_SQL,
     SOCIAL_POST_COUNT_SQL,
     TEMPLATE_STATUS_SQL,
@@ -101,6 +111,10 @@ const WORKSPACE_SUMMARY_QUERIES: [&str; 12] = [
     SEND_BREAKDOWN_SQL,
     REVIEW_QUEUE_SQL,
     CAMPAIGN_SENDS_SQL,
+    UNREAD_CONVERSATIONS_SQL,
+    AGENT_ATTENTION_SQL,
+    SOCIAL_ATTENTION_SQL,
+    CONNECTION_ATTENTION_SQL,
 ];
 
 pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
@@ -126,6 +140,10 @@ pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRe
         send_breakdown_rows,
         review_queue_rows,
         campaign_send_rows,
+        unread_conversations,
+        agent_attention,
+        social_attention,
+        connection_attention,
     ) = tokio::try_join!(
         sqlx::query_scalar::<_, i64>(BOT_COUNT_SQL)
             .bind(&org_id)
@@ -165,6 +183,18 @@ pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRe
             .bind(&org_id)
             .bind(since_24_hours)
             .fetch_all(pool.get_ref()),
+        sqlx::query_scalar::<_, i64>(UNREAD_CONVERSATIONS_SQL)
+            .bind(&org_id)
+            .fetch_one(pool.get_ref()),
+        sqlx::query_scalar::<_, i64>(AGENT_ATTENTION_SQL)
+            .bind(&org_id)
+            .fetch_one(pool.get_ref()),
+        sqlx::query_scalar::<_, i64>(SOCIAL_ATTENTION_SQL)
+            .bind(&org_id)
+            .fetch_one(pool.get_ref()),
+        sqlx::query_scalar::<_, i64>(CONNECTION_ATTENTION_SQL)
+            .bind(&org_id)
+            .fetch_one(pool.get_ref()),
     )?;
 
     let template_status_map = template_status_rows
@@ -259,6 +289,13 @@ pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRe
             },
             "sendStatusMap": send_status_map,
             "reviewQueue": review_queue,
+            "attention": {
+                "unreadConversations": unread_conversations,
+                "agentAttention": agent_attention,
+                "campaignFailures": campaign_summary_row.get::<i64, _>("failed_count") + campaign_summary_row.get::<i64, _>("blocked_count"),
+                "socialAttention": social_attention,
+                "connectionAttention": connection_attention,
+            },
         }
     })))
 }
