@@ -82,6 +82,8 @@ export type WhatsappConnectionOption = {
   currentQualityRating: string;
 };
 
+export type AgentActivityItem = { id: string; kind: string; createdAt: string; botName: string; title: string; status: string | null; channel: string | null; responseTimeMs: number | null; detail: string | null };
+
 type AgentTemplate = {
   value: string;
   label: string;
@@ -178,9 +180,11 @@ function statusClass(status: string) {
 export function AgentsPageClient({
   initialAgents,
   whatsappConnections,
+  activity,
 }: {
   initialAgents: AgentListItem[];
   whatsappConnections: WhatsappConnectionOption[];
+  activity: AgentActivityItem[];
 }) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
@@ -587,6 +591,21 @@ export function AgentsPageClient({
             ))}
           </div>
         )}
+
+        <Card>
+          <CardContent className="p-5">
+            <h2 className="text-lg font-semibold text-foreground">Activity</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Recent execution events, deployment changes, failures, and handoffs.</p>
+            <div className="mt-4 divide-y divide-border rounded-lg border border-border">
+              {activity.length ? activity.slice(0, 20).map((item) => (
+                <div key={`${item.kind}:${item.id}`} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div><span className="font-medium text-foreground">{item.botName}</span><span className="text-muted-foreground"> · {item.title}</span>{item.detail ? <p className="mt-1 text-xs text-destructive">{item.detail}</p> : null}</div>
+                  <div className="text-xs text-muted-foreground">{item.responseTimeMs ? `${item.responseTimeMs} ms · ` : ""}{new Date(item.createdAt).toLocaleString()}</div>
+                </div>
+              )) : <p className="px-4 py-5 text-sm text-muted-foreground">No agent activity has been recorded yet.</p>}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {createOpen ? (

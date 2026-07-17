@@ -75,6 +75,12 @@ pub async fn list(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRespo
     Ok(HttpResponse::Ok().json(serde_json::json!({ "bots": bots })))
 }
 
+pub async fn activity(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    Ok(HttpResponse::Ok().json(bots::list_agent_activity(pool.get_ref(), &org_id).await?))
+}
+
 pub async fn get(
     pool: web::Data<PgPool>,
     req: HttpRequest,

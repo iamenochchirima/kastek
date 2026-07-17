@@ -17,6 +17,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/bots")
                 .route("", web::get().to(bots::list))
+                .route("/activity", web::get().to(bots::activity))
                 .route("", web::post().to(bots::create))
                 .route("/{id}", web::get().to(bots::get))
                 .route("/{id}", web::patch().to(bots::patch))

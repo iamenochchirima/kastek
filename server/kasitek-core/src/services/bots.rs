@@ -13,7 +13,7 @@ use crate::services::whatsapp;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::{json, Value};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct BotListRow {
@@ -247,7 +247,9 @@ async fn resolve_integration_config_for_dispatch(
     }
 
     let Some(base_config) = integration_config.cloned() else {
-        return Ok(None);
+        return Err(AppError::BadRequest(
+            "A WhatsApp agent requires a connected WhatsApp number".to_string(),
+        ));
     };
 
     let connection_id = base_config
@@ -257,7 +259,9 @@ async fn resolve_integration_config_for_dispatch(
         .filter(|value| !value.is_empty());
 
     let Some(connection_id) = connection_id else {
-        return Ok(Some(base_config));
+        return Err(AppError::BadRequest(
+            "Select a WhatsApp connection before provisioning this agent".to_string(),
+        ));
     };
 
     let connection = whatsapp::get_connection_for_provisioning(pool, org_id, connection_id)
@@ -318,6 +322,14 @@ pub async fn execute_bot_action(
 
     match action {
         "provision" => {
+            crate::services::billing::require_usage_available(
+                pool,
+                org_id,
+                "agents",
+                "deployments",
+                1,
+            )
+            .await?;
             if let Some((_, status, _, _)) = existing.as_ref() {
                 if matches!(status.as_str(), "provisioning" | "active" | "paused") {
                     return Err(AppError::Conflict(
@@ -624,6 +636,33 @@ pub async fn execute_bot_action(
         .into_iter()
         .find(|bot_row| bot_row.id == bot_id)
         .ok_or_else(|| AppError::Internal("Failed to reload agent".to_string()))
+}
+
+pub async fn list_agent_activity(pool: &PgPool, org_id: &str) -> Result<Value, AppError> {
+    let activity = sqlx::query(r#"
+        SELECT * FROM (
+          SELECT e.id, 'event'::text AS kind, e."createdAt" AT TIME ZONE 'UTC' AS created_at,
+                 b.name AS bot_name, e."eventType" AS title, e.status, e.channel,
+                 e."conversationId" AS conversation_id, e."responseTimeMs" AS response_time_ms,
+                 NULL::text AS detail
+          FROM "BotEvent" e JOIN "BotConfiguration" b ON b.id = e."botId"
+          WHERE e."orgId" = $1 AND b."orgId" = $1
+          UNION ALL
+          SELECT d.id, 'deployment'::text AS kind, d."updatedAt" AT TIME ZONE 'UTC' AS created_at,
+                 b.name AS bot_name, d.status AS title, d.status, d.target AS channel,
+                 NULL::text AS conversation_id, NULL::int AS response_time_ms, d."errorMessage" AS detail
+          FROM "BotDeployment" d JOIN "BotConfiguration" b ON b.id = d."botId"
+          WHERE d."orgId" = $1 AND b."orgId" = $1
+        ) activity ORDER BY created_at DESC LIMIT 100
+    "#).bind(org_id).fetch_all(pool).await?;
+    Ok(json!({ "activity": activity.into_iter().map(|row| json!({
+        "id": row.get::<String, _>("id"), "kind": row.get::<String, _>("kind"),
+        "createdAt": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+        "botName": row.get::<String, _>("bot_name"), "title": row.get::<String, _>("title"),
+        "status": row.get::<Option<String>, _>("status"), "channel": row.get::<Option<String>, _>("channel"),
+        "conversationId": row.get::<Option<String>, _>("conversation_id"), "responseTimeMs": row.get::<Option<i32>, _>("response_time_ms"),
+        "detail": row.get::<Option<String>, _>("detail"),
+    })).collect::<Vec<_>>() }))
 }
 
 pub async fn apply_deployment_callback(

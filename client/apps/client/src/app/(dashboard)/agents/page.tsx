@@ -11,6 +11,18 @@ export const metadata = {
   title: "KasiAgents | KasiTek",
 };
 
+type AgentActivityItem = {
+  id: string;
+  kind: string;
+  createdAt: string;
+  botName: string;
+  title: string;
+  status: string | null;
+  channel: string | null;
+  responseTimeMs: number | null;
+  detail: string | null;
+};
+
 export default async function AgentsPage() {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
@@ -23,11 +35,13 @@ export default async function AgentsPage() {
   }>("/api/whatsapp/connections").catch(() => ({
     connections: [],
   }));
+  const activityResponse = await fetchRustJson<{ activity: AgentActivityItem[] }>("/api/bots/activity").catch(() => ({ activity: [] }));
 
   return (
     <AgentsPageClient
       initialAgents={response.bots}
       whatsappConnections={whatsappResponse.connections}
+      activity={activityResponse.activity}
     />
   );
 }
