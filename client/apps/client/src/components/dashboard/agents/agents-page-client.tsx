@@ -254,7 +254,7 @@ export function AgentsPageClient({
             templateKey: selectedTemplate.value,
             launchMode: "managed",
             ...(requiresWhatsappConnection && whatsappConnectionId
-              ? { whatsappConnectionId }
+              ? { whatsappConnectionId, permittedConnectionIds: [whatsappConnectionId] }
               : {}),
           },
         }),

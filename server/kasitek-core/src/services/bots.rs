@@ -264,6 +264,34 @@ async fn resolve_integration_config_for_dispatch(
         ));
     };
 
+    let permitted = base_config
+        .get("permittedConnectionIds")
+        .and_then(Value::as_array)
+        .map(|ids| {
+            ids.iter()
+                .filter_map(Value::as_str)
+                .any(|id| id == connection_id)
+        })
+        .unwrap_or(true);
+    if !permitted {
+        return Err(AppError::Forbidden(
+            "This agent is not permitted to use the selected WhatsApp connection".to_string(),
+        ));
+    }
+    let has_agent_capability = sqlx::query_scalar::<_, bool>(r#"
+        SELECT EXISTS (
+          SELECT 1 FROM "ExternalConnection" connection
+          JOIN "ExternalConnectionCapability" capability ON capability."connectionId" = connection.id
+          WHERE connection."orgId" = $1 AND connection."sourceType" = 'WHATSAPP'
+            AND connection."sourceId" = $2 AND capability.key = 'AGENT_CHANNEL' AND capability.enabled = true
+        )
+    "#).bind(org_id).bind(connection_id).fetch_one(pool).await?;
+    if !has_agent_capability {
+        return Err(AppError::Forbidden(
+            "The selected connection does not have the Agents channel capability".to_string(),
+        ));
+    }
+
     let connection = whatsapp::get_connection_for_provisioning(pool, org_id, connection_id)
         .await?
         .ok_or_else(|| {

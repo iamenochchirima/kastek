@@ -333,7 +333,7 @@ Every organisation can enter the workspace. Access is controlled at feature and 
 - [x] Keep agent creation and management under `/agents`.
 - [ ] Define a separate workflow model before creating `/workflows`; do not label n8n deployment records as a complete workflow product by default.
 - [x] Add an Activity view that combines agent execution, deployment, errors, and handoff records.
-- [ ] Link agents to their permitted connection capabilities and organisation entitlements.
+- [x] Link agents to their permitted connection capabilities and organisation entitlements.
 - [x] Block agent deployment when the relevant product, connection, or limit is unavailable.
 
 ### Manage
