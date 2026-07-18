@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { applyTheme, resolveStoredTheme, type AppTheme } from "@/lib/theme";
+import { useSyncExternalStore } from "react";
+import {
+  applyTheme,
+  resolveStoredTheme,
+  serverThemeSnapshot,
+  subscribeToThemeChange,
+} from "@/lib/theme";
 
 function SunIcon() {
   return (
@@ -21,12 +26,15 @@ function MoonIcon() {
 }
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<AppTheme>(resolveStoredTheme);
+  const theme = useSyncExternalStore(
+    subscribeToThemeChange,
+    resolveStoredTheme,
+    serverThemeSnapshot,
+  );
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
     applyTheme(nextTheme);
-    setTheme(nextTheme);
   }
 
   return (
@@ -35,11 +43,10 @@ export default function ThemeToggle() {
       onClick={toggleTheme}
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       aria-pressed={theme === "dark"}
-      suppressHydrationWarning
       className="inline-flex h-11 items-center gap-2 rounded-full border border-border/80 bg-card/90 px-3.5 text-sm font-medium text-foreground shadow-[var(--theme-shadow-panel)] backdrop-blur-xl transition-colors hover:border-primary/30 hover:text-primary"
     >
-      <span suppressHydrationWarning>{theme === "dark" ? <SunIcon /> : <MoonIcon />}</span>
-      <span suppressHydrationWarning>{theme === "dark" ? "Light" : "Dark"}</span>
+      <span>{theme === "dark" ? <SunIcon /> : <MoonIcon />}</span>
+      <span>{theme === "dark" ? "Light" : "Dark"}</span>
     </button>
   );
 }

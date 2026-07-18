@@ -38,7 +38,7 @@ import Image from "next/image";
 import { apiUrl } from "@/lib/server-api";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   useWhatsappInboxUnreadCount,
   WhatsappRealtimeProvider,
@@ -47,7 +47,12 @@ import PushNotificationReminder from "@/components/dashboard/notifications/push-
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import type { BillingSummary } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
-import { applyTheme, resolveStoredTheme, type AppTheme } from "@/lib/theme";
+import {
+  applyTheme,
+  resolveStoredTheme,
+  serverThemeSnapshot,
+  subscribeToThemeChange,
+} from "@/lib/theme";
 
 type NavItem = {
   name: string;
@@ -99,7 +104,11 @@ const navigationGroups: NavigationGroup[] = [
 ];
 
 function ThemeToggleSimple({ className }: { className?: string }) {
-  const [theme, setTheme] = useState<AppTheme>(resolveStoredTheme);
+  const theme = useSyncExternalStore(
+    subscribeToThemeChange,
+    resolveStoredTheme,
+    serverThemeSnapshot,
+  );
 
   return (
     <button
@@ -107,7 +116,6 @@ function ThemeToggleSimple({ className }: { className?: string }) {
       onClick={() => {
         const nextTheme = theme === "dark" ? "light" : "dark";
         applyTheme(nextTheme);
-        setTheme(nextTheme);
       }}
       className={cn(
         "inline-flex h-9 items-center justify-center gap-2 rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
