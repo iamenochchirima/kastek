@@ -3,7 +3,10 @@
 DROP INDEX IF EXISTS "WhatsappContact_userId_phone_key";
 DROP INDEX IF EXISTS "WhatsappContactListMembership_userId_contactId_listLabel_key";
 
-CREATE TEMP TABLE "_WhatsappContactDuplicate" ON COMMIT DROP AS
+-- These helper tables must survive Prisma's per-statement commits.
+DROP TABLE IF EXISTS "_WhatsappContactDuplicate";
+
+CREATE TABLE "_WhatsappContactDuplicate" AS
 SELECT id AS "duplicateId", "keepId"
 FROM (
   SELECT
@@ -40,7 +43,9 @@ DELETE FROM "WhatsappContact" contact
 USING "_WhatsappContactDuplicate" duplicate
 WHERE contact.id = duplicate."duplicateId";
 
-CREATE TEMP TABLE "_WhatsappMembershipDuplicate" ON COMMIT DROP AS
+DROP TABLE IF EXISTS "_WhatsappMembershipDuplicate";
+
+CREATE TABLE "_WhatsappMembershipDuplicate" AS
 SELECT id AS "duplicateId"
 FROM (
   SELECT
@@ -63,3 +68,6 @@ CREATE UNIQUE INDEX "WhatsappContact_orgId_phone_key"
 
 CREATE UNIQUE INDEX "WhatsappContactListMembership_orgId_contactId_listLabel_key"
   ON "WhatsappContactListMembership"("orgId", "contactId", "listLabel");
+
+DROP TABLE "_WhatsappMembershipDuplicate";
+DROP TABLE "_WhatsappContactDuplicate";

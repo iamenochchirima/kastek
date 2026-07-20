@@ -1,16 +1,16 @@
 ALTER TABLE "Invoice"
-ADD COLUMN "billingMode" TEXT NOT NULL DEFAULT 'one_off',
-ADD COLUMN "recurringActive" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN "billingAnchorDay" INTEGER,
-ADD COLUMN "reminderDaysAfterDue" INTEGER NOT NULL DEFAULT 3,
-ADD COLUMN "lastSentAt" TIMESTAMP(3),
-ADD COLUMN "lastReminderAt" TIMESTAMP(3),
-ADD COLUMN "lastPaidAt" TIMESTAMP(3);
+ADD COLUMN IF NOT EXISTS "billingMode" TEXT NOT NULL DEFAULT 'one_off',
+ADD COLUMN IF NOT EXISTS "recurringActive" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "billingAnchorDay" INTEGER,
+ADD COLUMN IF NOT EXISTS "reminderDaysAfterDue" INTEGER NOT NULL DEFAULT 3,
+ADD COLUMN IF NOT EXISTS "lastSentAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "lastReminderAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "lastPaidAt" TIMESTAMP(3);
 
-CREATE INDEX "Invoice_billingMode_recurringActive_idx"
+CREATE INDEX IF NOT EXISTS "Invoice_billingMode_recurringActive_idx"
 ON "Invoice"("billingMode", "recurringActive");
 
-CREATE TABLE "InvoiceRun" (
+CREATE TABLE IF NOT EXISTS "InvoiceRun" (
     "id" TEXT NOT NULL,
     "invoiceId" TEXT NOT NULL,
     "cycleKey" TEXT NOT NULL,
@@ -35,22 +35,29 @@ CREATE TABLE "InvoiceRun" (
     CONSTRAINT "InvoiceRun_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "InvoiceRun_invoiceId_cycleKey_key"
+CREATE UNIQUE INDEX IF NOT EXISTS "InvoiceRun_invoiceId_cycleKey_key"
 ON "InvoiceRun"("invoiceId", "cycleKey");
 
-CREATE INDEX "InvoiceRun_invoiceId_issueDate_idx"
+CREATE INDEX IF NOT EXISTS "InvoiceRun_invoiceId_issueDate_idx"
 ON "InvoiceRun"("invoiceId", "issueDate");
 
-CREATE INDEX "InvoiceRun_status_dueDate_idx"
+CREATE INDEX IF NOT EXISTS "InvoiceRun_status_dueDate_idx"
 ON "InvoiceRun"("status", "dueDate");
 
-CREATE INDEX "InvoiceRun_sendStatus_issueDate_idx"
+CREATE INDEX IF NOT EXISTS "InvoiceRun_sendStatus_issueDate_idx"
 ON "InvoiceRun"("sendStatus", "issueDate");
 
-CREATE INDEX "InvoiceRun_reminderStatus_reminderDueAt_idx"
+CREATE INDEX IF NOT EXISTS "InvoiceRun_reminderStatus_reminderDueAt_idx"
 ON "InvoiceRun"("reminderStatus", "reminderDueAt");
 
-ALTER TABLE "InvoiceRun"
-ADD CONSTRAINT "InvoiceRun_invoiceId_fkey"
-FOREIGN KEY ("invoiceId") REFERENCES "Invoice"("id")
-ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'InvoiceRun_invoiceId_fkey'
+    ) THEN
+        ALTER TABLE "InvoiceRun"
+        ADD CONSTRAINT "InvoiceRun_invoiceId_fkey"
+        FOREIGN KEY ("invoiceId") REFERENCES "Invoice"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;

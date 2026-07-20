@@ -2,7 +2,11 @@
 -- template record per workspace while preserving campaign references.
 DROP INDEX IF EXISTS "WhatsappTemplate_userId_templateName_language_key";
 
-CREATE TEMP TABLE "_WhatsappTemplateDuplicate" ON COMMIT DROP AS
+-- Prisma may commit between statements, so keep this helper table until the
+-- duplicate references have been updated and removed.
+DROP TABLE IF EXISTS "_WhatsappTemplateDuplicate";
+
+CREATE TABLE "_WhatsappTemplateDuplicate" AS
 SELECT id AS "duplicateId", "keepId"
 FROM (
   SELECT
@@ -31,3 +35,5 @@ WHERE template.id = duplicate."duplicateId";
 
 CREATE UNIQUE INDEX "WhatsappTemplate_orgId_templateName_language_key"
   ON "WhatsappTemplate"("orgId", "templateName", language);
+
+DROP TABLE "_WhatsappTemplateDuplicate";

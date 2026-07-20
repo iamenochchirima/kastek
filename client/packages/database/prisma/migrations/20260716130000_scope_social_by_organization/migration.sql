@@ -2,7 +2,11 @@
 -- provider account instead of creating one copy per connecting user.
 DROP INDEX IF EXISTS "SocialChannelConnection_userId_platform_externalAccountId_key";
 
-CREATE TEMP TABLE "_SocialChannelDuplicate" ON COMMIT DROP AS
+-- Prisma may execute migration statements outside one database transaction, so
+-- this cannot be a temporary table that disappears on the first commit.
+DROP TABLE IF EXISTS "_SocialChannelDuplicate";
+
+CREATE TABLE "_SocialChannelDuplicate" AS
 SELECT id AS "duplicateId", "keepId"
 FROM (
   SELECT
@@ -39,3 +43,5 @@ CREATE UNIQUE INDEX "SocialChannelConnection_orgId_platform_externalAccountId_ke
 
 CREATE INDEX IF NOT EXISTS "SocialChannelConnection_orgId_status_idx"
   ON "SocialChannelConnection"("orgId", status);
+
+DROP TABLE "_SocialChannelDuplicate";

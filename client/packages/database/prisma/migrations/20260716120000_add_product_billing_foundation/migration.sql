@@ -136,8 +136,8 @@ SELECT gen_random_uuid()::text, o.id, 'product.agents.enabled', 'true'::jsonb, '
 FROM "Organization" o
 WHERE EXISTS (SELECT 1 FROM "BotConfiguration" b WHERE b."orgId" = o.id)
   AND NOT EXISTS (
-    SELECT 1 FROM "OrganizationEntitlementGrant" grant
-    WHERE grant."orgId" = o.id AND grant.key = 'product.agents.enabled'
+    SELECT 1 FROM "OrganizationEntitlementGrant" existing_grant
+    WHERE existing_grant."orgId" = o.id AND existing_grant.key = 'product.agents.enabled'
   );
 
 INSERT INTO "OrganizationEntitlementGrant" ("id", "orgId", "key", "value", "source", "reason", "createdAt", "updatedAt")
@@ -149,8 +149,8 @@ WHERE (
     OR EXISTS (SELECT 1 FROM "WhatsappCampaign" c WHERE c."orgId" = o.id)
   )
   AND NOT EXISTS (
-    SELECT 1 FROM "OrganizationEntitlementGrant" grant
-    WHERE grant."orgId" = o.id AND grant.key = 'product.reach.enabled'
+    SELECT 1 FROM "OrganizationEntitlementGrant" existing_grant
+    WHERE existing_grant."orgId" = o.id AND existing_grant.key = 'product.reach.enabled'
   );
 
 INSERT INTO "OrganizationEntitlementGrant" ("id", "orgId", "key", "value", "source", "reason", "createdAt", "updatedAt")
@@ -161,6 +161,6 @@ WHERE (
     OR EXISTS (SELECT 1 FROM "SocialPost" p WHERE p."orgId" = o.id)
   )
   AND NOT EXISTS (
-    SELECT 1 FROM "OrganizationEntitlementGrant" grant
-    WHERE grant."orgId" = o.id AND grant.key = 'product.social.enabled'
+    SELECT 1 FROM "OrganizationEntitlementGrant" existing_grant
+    WHERE existing_grant."orgId" = o.id AND existing_grant.key = 'product.social.enabled'
   );
