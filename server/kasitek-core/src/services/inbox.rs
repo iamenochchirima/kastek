@@ -62,6 +62,8 @@ struct InboxMessageRow {
 #[derive(Debug, FromRow)]
 struct MetaChannelRow {
     id: String,
+    #[sqlx(rename = "external_connection_id")]
+    external_connection_id: String,
     #[sqlx(rename = "user_id")]
     user_id: String,
     #[sqlx(rename = "org_id")]
@@ -81,7 +83,6 @@ struct MetaConversationScopeRow {
     external_account_id: Option<String>,
     #[sqlx(rename = "access_token")]
     access_token: Option<String>,
-    metadata: Option<Value>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -167,6 +168,9 @@ pub async fn list_inbox_conversations(pool: &PgPool, org_id: &str) -> Result<Val
         FROM "Conversation" c
         JOIN "SocialChannelConnection" scc
           ON scc.id = split_part(c."customerIdentifier", ':', 2)
+        JOIN "ExternalConnection" connection
+          ON connection.id = c."externalConnectionId"
+         AND connection."orgId" = c."orgId"
         LEFT JOIN LATERAL (
             SELECT m.content
             FROM "Message" m
@@ -314,9 +318,10 @@ pub async fn send_conversation_message(
     })?;
     let access_token = social::decrypt_social_secret(encrypted_access_token)?;
 
-    let asset_id = meta_send_asset_id(&meta_scope).ok_or_else(|| {
-        AppError::BadRequest("Connected Meta channel is missing a target asset".to_string())
-    })?;
+    let asset_id =
+        meta_send_asset_id(meta_scope.external_account_id.as_deref()).ok_or_else(|| {
+            AppError::BadRequest("Connected Meta channel is missing a target asset".to_string())
+        })?;
 
     let message_id = cuid2::create_id();
     sqlx::query(
@@ -670,6 +675,10 @@ async fn scoped_meta_conversation(
           ON scc.id = split_part(c."customerIdentifier", ':', 2)
          AND scc."orgId" = $2
          AND scc.status = 'CONNECTED'::"SocialChannelStatus"
+        JOIN "ExternalConnection" connection
+          ON connection.id = c."externalConnectionId"
+         AND connection."orgId" = $2
+         AND connection.status = 'CONNECTED'::"ExternalConnectionStatus"
         WHERE c.id = $1
           AND c."orgId" = $2
           AND c.channel IN ('facebook', 'instagram')
@@ -698,19 +707,25 @@ async fn resolve_meta_channel(
     let direct = sqlx::query_as::<_, MetaChannelRow>(
         r#"
         SELECT
-            id,
-            "userId" AS user_id,
-            "orgId" AS org_id,
-            platform::text AS platform,
-            "displayName" AS display_name,
-            "externalAccountId" AS external_account_id,
-            "accessToken" AS access_token,
-            metadata
-        FROM "SocialChannelConnection"
-        WHERE platform = $1::"SocialPlatform"
-          AND "externalAccountId" = $2
-          AND status = 'CONNECTED'::"SocialChannelStatus"
-          AND "orgId" IS NOT NULL
+            channel.id,
+            connection.id AS external_connection_id,
+            channel."userId" AS user_id,
+            channel."orgId" AS org_id,
+            channel.platform::text AS platform,
+            channel."displayName" AS display_name,
+            channel."externalAccountId" AS external_account_id,
+            channel."accessToken" AS access_token,
+            channel.metadata
+        FROM "SocialChannelConnection" channel
+        JOIN "ExternalConnection" connection
+          ON connection."orgId" = channel."orgId"
+         AND connection."sourceType" = 'SOCIAL'
+         AND connection."sourceId" = channel.id
+         AND connection.status = 'CONNECTED'::"ExternalConnectionStatus"
+        WHERE channel.platform = $1::"SocialPlatform"
+          AND channel."externalAccountId" = $2
+          AND channel.status = 'CONNECTED'::"SocialChannelStatus"
+          AND channel."orgId" IS NOT NULL
         LIMIT 2
         "#,
     )
@@ -728,19 +743,25 @@ async fn resolve_meta_channel(
     let fallback = sqlx::query_as::<_, MetaChannelRow>(
         r#"
         SELECT
-            id,
-            "userId" AS user_id,
-            "orgId" AS org_id,
-            platform::text AS platform,
-            "displayName" AS display_name,
-            "externalAccountId" AS external_account_id,
-            "accessToken" AS access_token,
-            metadata
-        FROM "SocialChannelConnection"
-        WHERE platform = 'INSTAGRAM'::"SocialPlatform"
-          AND COALESCE(metadata->>'pageId', '') = $1
-          AND status = 'CONNECTED'::"SocialChannelStatus"
-          AND "orgId" IS NOT NULL
+            channel.id,
+            connection.id AS external_connection_id,
+            channel."userId" AS user_id,
+            channel."orgId" AS org_id,
+            channel.platform::text AS platform,
+            channel."displayName" AS display_name,
+            channel."externalAccountId" AS external_account_id,
+            channel."accessToken" AS access_token,
+            channel.metadata
+        FROM "SocialChannelConnection" channel
+        JOIN "ExternalConnection" connection
+          ON connection."orgId" = channel."orgId"
+         AND connection."sourceType" = 'SOCIAL'
+         AND connection."sourceId" = channel.id
+         AND connection.status = 'CONNECTED'::"ExternalConnectionStatus"
+        WHERE channel.platform = 'INSTAGRAM'::"SocialPlatform"
+          AND COALESCE(channel.metadata->>'pageId', '') = $1
+          AND channel.status = 'CONNECTED'::"SocialChannelStatus"
+          AND channel."orgId" IS NOT NULL
         LIMIT 2
         "#,
     )
@@ -791,9 +812,7 @@ async fn find_or_create_meta_conversation(
         )
         VALUES (
             $1, $2, $3, $4, 'active', NOW(), 0, $5,
-            (SELECT id FROM "ExternalConnection"
-             WHERE "orgId" = $5 AND "sourceType" = 'SOCIAL' AND "sourceId" = $6
-             LIMIT 1),
+            $6,
             $7, NOW(), NOW()
         )
         ON CONFLICT (channel, "customerIdentifier") DO UPDATE SET
@@ -813,7 +832,7 @@ async fn find_or_create_meta_conversation(
     .bind(&identifier)
     .bind(customer_name)
     .bind(channel.org_id.as_deref())
-    .bind(&channel.id)
+    .bind(&channel.external_connection_id)
     .bind(canonical_customer_id.as_deref())
     .fetch_one(pool)
     .await
@@ -846,12 +865,14 @@ async fn apply_meta_delivery_event(
         FROM "Conversation" conversation
         WHERE message."conversationId" = conversation.id
           AND conversation."orgId" = $1
-          AND message."providerMessageId" = ANY($2)
+          AND conversation."externalConnectionId" = $2
+          AND message."providerMessageId" = ANY($3)
           AND COALESCE(message."providerStatus", '') NOT IN ('READ', 'FAILED')
         RETURNING message.id
         "#,
     )
     .bind(org_id)
+    .bind(&channel.external_connection_id)
     .bind(&message_ids)
     .fetch_all(pool)
     .await?;
@@ -889,15 +910,17 @@ async fn apply_meta_read_event(
         FROM "Conversation" conversation
         WHERE message."conversationId" = conversation.id
           AND conversation."orgId" = $1
-          AND conversation.channel = $2
-          AND conversation."customerIdentifier" = $3
+          AND conversation."externalConnectionId" = $2
+          AND conversation.channel = $3
+          AND conversation."customerIdentifier" = $4
           AND message.sender = 'bot'
-          AND message.timestamp <= to_timestamp($4::double precision / 1000.0)
+          AND message.timestamp <= to_timestamp($5::double precision / 1000.0)
           AND COALESCE(message."providerStatus", '') NOT IN ('READ', 'FAILED')
         RETURNING message.id
         "#,
     )
     .bind(org_id)
+    .bind(&channel.external_connection_id)
     .bind(channel_name)
     .bind(identifier)
     .bind(watermark)
@@ -1193,18 +1216,8 @@ fn meta_message_content(message: &Value) -> String {
     format!("[{} attachment]", attachment_type)
 }
 
-fn meta_send_asset_id(scope: &MetaConversationScopeRow) -> Option<String> {
-    if scope.channel == "instagram" {
-        scope
-            .metadata
-            .as_ref()
-            .and_then(|value| value.get("pageId"))
-            .and_then(|value| value.as_str())
-            .map(str::to_string)
-            .or_else(|| scope.external_account_id.clone())
-    } else {
-        scope.external_account_id.clone()
-    }
+fn meta_send_asset_id(external_account_id: Option<&str>) -> Option<String> {
+    external_account_id.map(str::to_string)
 }
 
 async fn fetch_meta_json<T: serde::de::DeserializeOwned>(
@@ -1231,7 +1244,7 @@ async fn fetch_meta_json<T: serde::de::DeserializeOwned>(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_meta_conversation_identifier, meta_message_content,
+        build_meta_conversation_identifier, meta_message_content, meta_send_asset_id,
         parse_meta_conversation_identifier, scoped_conversation, verify_meta_signature, HmacSha256,
     };
     use hmac::Mac;
@@ -1266,6 +1279,14 @@ mod tests {
         assert_eq!(
             meta_message_content(&json!({ "attachments": [{ "type": "image" }] })),
             "[image attachment]"
+        );
+    }
+
+    #[test]
+    fn instagram_replies_target_the_connected_instagram_account() {
+        assert_eq!(
+            meta_send_asset_id(Some("instagram-account-id")),
+            Some("instagram-account-id".to_string())
         );
     }
 
