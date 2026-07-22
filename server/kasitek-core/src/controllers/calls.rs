@@ -1,5 +1,6 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use sqlx::PgPool;
+use std::collections::BTreeMap;
 
 use crate::db::models::VoiceConnectionCreateRequest;
 use crate::error::AppError;
@@ -48,4 +49,46 @@ pub async fn create_twilio_connection(
     let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let connection = calls::create_twilio_connection(pool.get_ref(), &org_id, &body).await?;
     Ok(HttpResponse::Created().json(connection))
+}
+
+pub async fn receive_twilio_voice_webhook(
+    pool: web::Data<PgPool>,
+    config: web::Data<crate::config::AppConfig>,
+    req: HttpRequest,
+    body: web::Form<BTreeMap<String, String>>,
+) -> Result<HttpResponse, AppError> {
+    let signature = req
+        .headers()
+        .get("x-twilio-signature")
+        .and_then(|value| value.to_str().ok());
+    calls::verify_twilio_webhook(
+        config.get_ref(),
+        "/api/webhooks/twilio/voice",
+        &body,
+        signature,
+    )?;
+    calls::record_twilio_webhook(pool.get_ref(), &body).await?;
+    Ok(HttpResponse::Ok()
+        .content_type("text/xml; charset=utf-8")
+        .body(calls::inbound_twiml(config.get_ref())))
+}
+
+pub async fn receive_twilio_status_webhook(
+    pool: web::Data<PgPool>,
+    config: web::Data<crate::config::AppConfig>,
+    req: HttpRequest,
+    body: web::Form<BTreeMap<String, String>>,
+) -> Result<HttpResponse, AppError> {
+    let signature = req
+        .headers()
+        .get("x-twilio-signature")
+        .and_then(|value| value.to_str().ok());
+    calls::verify_twilio_webhook(
+        config.get_ref(),
+        "/api/webhooks/twilio/status",
+        &body,
+        signature,
+    )?;
+    calls::record_twilio_webhook(pool.get_ref(), &body).await?;
+    Ok(HttpResponse::NoContent().finish())
 }

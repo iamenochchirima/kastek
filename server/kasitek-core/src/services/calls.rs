@@ -1,11 +1,23 @@
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
+use sha1::Sha1;
 use sqlx::PgPool;
+use std::collections::BTreeMap;
 
 use crate::config::AppConfig;
 use crate::db::models::{CommunicationCallRow, VoiceConnectionCreateRequest};
 use crate::error::AppError;
 
 const TWILIO_PROVIDER: &str = "TWILIO";
+type HmacSha1 = Hmac<Sha1>;
+
+#[derive(Debug, sqlx::FromRow)]
+struct TwilioConnectionRow {
+    id: String,
+    #[sqlx(rename = "org_id")]
+    org_id: String,
+}
 
 pub async fn sync_whatsapp_calls(pool: &PgPool, org_id: &str) -> Result<(), AppError> {
     sqlx::query(
@@ -131,6 +143,184 @@ pub fn provider_status(config: &AppConfig) -> Value {
             ]
         }]
     })
+}
+
+pub fn verify_twilio_webhook(
+    config: &AppConfig,
+    path: &str,
+    payload: &BTreeMap<String, String>,
+    signature: Option<&str>,
+) -> Result<(), AppError> {
+    let token = config
+        .twilio_auth_token
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::Unauthorized)?;
+    let base_url = config
+        .twilio_voice_webhook_url
+        .as_deref()
+        .and_then(|url| url.split("/api/webhooks/twilio/").next())
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::Unauthorized)?;
+    let signature = signature.ok_or(AppError::Unauthorized)?;
+
+    let mut signed_payload = format!("{}{}", base_url.trim_end_matches('/'), path);
+    for (key, value) in payload {
+        signed_payload.push_str(key);
+        signed_payload.push_str(value);
+    }
+
+    let received = BASE64
+        .decode(signature)
+        .map_err(|_| AppError::Unauthorized)?;
+    let mut mac = HmacSha1::new_from_slice(token.as_bytes())
+        .map_err(|_| AppError::Internal("Unable to verify Twilio signature".to_string()))?;
+    mac.update(signed_payload.as_bytes());
+    mac.verify_slice(&received)
+        .map_err(|_| AppError::Unauthorized)
+}
+
+pub async fn record_twilio_webhook(
+    pool: &PgPool,
+    payload: &BTreeMap<String, String>,
+) -> Result<Option<Value>, AppError> {
+    let call_sid = payload
+        .get("CallSid")
+        .map(String::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::BadRequest("Twilio webhook is missing CallSid".to_string()))?;
+    let to_phone = payload
+        .get("To")
+        .map(String::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::BadRequest("Twilio webhook is missing To".to_string()))?;
+    let from_phone = payload
+        .get("From")
+        .cloned()
+        .unwrap_or_else(|| "Unknown caller".to_string());
+
+    let connection = sqlx::query_as::<_, TwilioConnectionRow>(
+        r#"
+        SELECT id, "orgId" AS org_id
+        FROM "ExternalConnection"
+        WHERE provider = 'TWILIO'
+          AND "sourceType" = 'VOICE'
+          AND regexp_replace(COALESCE("externalAccountId", ''), '[^0-9]', '', 'g')
+              = regexp_replace($1, '[^0-9]', '', 'g')
+        LIMIT 1
+        "#,
+    )
+    .bind(to_phone)
+    .fetch_optional(pool)
+    .await?;
+    let Some(connection) = connection else {
+        log::warn!("received Twilio call for an unregistered number");
+        return Ok(None);
+    };
+
+    let direction = match payload.get("Direction").map(String::as_str) {
+        Some(value) if value.to_ascii_lowercase().starts_with("outbound") => "OUTBOUND",
+        _ => "INBOUND",
+    };
+    let status = normalize_twilio_status(payload.get("CallStatus").map(String::as_str));
+    let duration_seconds = payload
+        .get("CallDuration")
+        .and_then(|value| value.parse::<i32>().ok());
+    let raw_payload = serde_json::to_value(payload)
+        .map_err(|error| AppError::Internal(format!("Unable to encode Twilio webhook: {error}")))?;
+
+    let call = sqlx::query_as::<_, (String,)>(
+        r#"
+        INSERT INTO "CommunicationCall" (
+            id, "orgId", provider, "providerCallId", "connectionId", direction, status,
+            "fromPhone", "toPhone", "startedAt", "endedAt", "durationSeconds", "rawPayload",
+            "createdAt", "updatedAt"
+        )
+        VALUES ($1, $2, 'TWILIO', $3, $4, $5, $6, $7, $8,
+                NOW(), CASE WHEN $6 IN ('COMPLETED', 'MISSED', 'FAILED', 'CANCELLED') THEN NOW() ELSE NULL END,
+                $9, $10, NOW(), NOW())
+        ON CONFLICT (provider, "providerCallId") DO UPDATE SET
+            status = EXCLUDED.status,
+            direction = EXCLUDED.direction,
+            "fromPhone" = EXCLUDED."fromPhone",
+            "toPhone" = EXCLUDED."toPhone",
+            "endedAt" = CASE WHEN EXCLUDED.status IN ('COMPLETED', 'MISSED', 'FAILED', 'CANCELLED')
+                THEN NOW() ELSE "CommunicationCall"."endedAt" END,
+            "durationSeconds" = COALESCE(EXCLUDED."durationSeconds", "CommunicationCall"."durationSeconds"),
+            "rawPayload" = EXCLUDED."rawPayload",
+            "updatedAt" = NOW()
+        RETURNING id
+        "#,
+    )
+    .bind(format!("call_twilio_{}", cuid2::create_id()))
+    .bind(&connection.org_id)
+    .bind(call_sid)
+    .bind(&connection.id)
+    .bind(direction)
+    .bind(status)
+    .bind(&from_phone)
+    .bind(to_phone)
+    .bind(duration_seconds)
+    .bind(raw_payload)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(Some(
+        json!({ "callId": call.0, "orgId": connection.org_id, "status": status }),
+    ))
+}
+
+pub fn inbound_twiml(config: &AppConfig) -> String {
+    if let Some(number) = config
+        .twilio_inbound_fallback_number
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Dial answerOnBridge=\"true\">{}</Dial></Response>",
+            xml_escape(number)
+        );
+    }
+
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Reject reason=\"busy\"/></Response>"
+        .to_string()
+}
+
+fn normalize_twilio_status(status: Option<&str>) -> &'static str {
+    match status.unwrap_or_default().to_ascii_lowercase().as_str() {
+        "queued" | "ringing" => "RINGING",
+        "initiated" | "in-progress" => "ACTIVE",
+        "completed" => "COMPLETED",
+        "busy" | "no-answer" => "MISSED",
+        "failed" => "FAILED",
+        "canceled" => "CANCELLED",
+        _ => "RINGING",
+    }
+}
+
+fn xml_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_twilio_status;
+
+    #[test]
+    fn normalizes_twilio_call_statuses() {
+        assert_eq!(normalize_twilio_status(Some("ringing")), "RINGING");
+        assert_eq!(normalize_twilio_status(Some("in-progress")), "ACTIVE");
+        assert_eq!(normalize_twilio_status(Some("completed")), "COMPLETED");
+        assert_eq!(normalize_twilio_status(Some("no-answer")), "MISSED");
+        assert_eq!(normalize_twilio_status(Some("failed")), "FAILED");
+        assert_eq!(normalize_twilio_status(Some("canceled")), "CANCELLED");
+    }
 }
 
 pub async fn create_twilio_connection(

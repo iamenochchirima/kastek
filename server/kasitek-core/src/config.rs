@@ -34,6 +34,7 @@ pub struct AppConfig {
     pub twilio_auth_token: Option<String>,
     pub twilio_twiml_app_sid: Option<String>,
     pub twilio_voice_webhook_url: Option<String>,
+    pub twilio_inbound_fallback_number: Option<String>,
 }
 
 impl AppConfig {
@@ -99,6 +100,7 @@ impl AppConfig {
             twilio_auth_token: env_optional("TWILIO_AUTH_TOKEN"),
             twilio_twiml_app_sid: env_optional("TWILIO_TWIML_APP_SID"),
             twilio_voice_webhook_url: env_optional("TWILIO_VOICE_WEBHOOK_URL"),
+            twilio_inbound_fallback_number: env_optional("TWILIO_INBOUND_FALLBACK_NUMBER"),
         })
     }
 

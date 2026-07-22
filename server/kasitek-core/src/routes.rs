@@ -329,6 +329,17 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("", web::get().to(inbox::verify_meta_webhook))
                 .route("", web::post().to(inbox::receive_meta_webhook)),
         )
+        .service(
+            web::scope("/api/webhooks/twilio")
+                .route(
+                    "/voice",
+                    web::post().to(calls::receive_twilio_voice_webhook),
+                )
+                .route(
+                    "/status",
+                    web::post().to(calls::receive_twilio_status_webhook),
+                ),
+        )
         .route(
             "/api/quote-requests",
             web::post().to(public::create_quote_request),
