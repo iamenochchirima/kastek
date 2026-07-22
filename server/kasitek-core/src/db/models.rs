@@ -1140,6 +1140,70 @@ pub struct WhatsappCallSignalRequest {
 }
 
 #[derive(Debug, Clone, Serialize, FromRow)]
+pub struct CommunicationCallRow {
+    pub id: String,
+    pub provider: String,
+    #[serde(rename = "providerCallId")]
+    #[sqlx(rename = "provider_call_id")]
+    pub provider_call_id: Option<String>,
+    #[serde(rename = "connectionId")]
+    #[sqlx(rename = "connection_id")]
+    pub connection_id: Option<String>,
+    #[serde(rename = "conversationId")]
+    #[sqlx(rename = "conversation_id")]
+    pub conversation_id: Option<String>,
+    pub direction: String,
+    pub status: String,
+    #[serde(rename = "fromPhone")]
+    #[sqlx(rename = "from_phone")]
+    pub from_phone: String,
+    #[serde(rename = "toPhone")]
+    #[sqlx(rename = "to_phone")]
+    pub to_phone: String,
+    #[serde(rename = "agentLabel")]
+    #[sqlx(rename = "agent_label")]
+    pub agent_label: Option<String>,
+    #[serde(rename = "startedAt")]
+    #[sqlx(rename = "started_at")]
+    pub started_at: Option<DateTime<Utc>>,
+    #[serde(rename = "answeredAt")]
+    #[sqlx(rename = "answered_at")]
+    pub answered_at: Option<DateTime<Utc>>,
+    #[serde(rename = "endedAt")]
+    #[sqlx(rename = "ended_at")]
+    pub ended_at: Option<DateTime<Utc>>,
+    #[serde(rename = "durationSeconds")]
+    #[sqlx(rename = "duration_seconds")]
+    pub duration_seconds: Option<i32>,
+    #[serde(rename = "errorCode")]
+    #[sqlx(rename = "error_code")]
+    pub error_code: Option<String>,
+    #[serde(rename = "errorMessage")]
+    #[sqlx(rename = "error_message")]
+    pub error_message: Option<String>,
+    #[serde(rename = "connectionLabel")]
+    #[sqlx(rename = "connection_label")]
+    pub connection_label: Option<String>,
+    #[serde(rename = "conversationCustomerName")]
+    #[sqlx(rename = "conversation_customer_name")]
+    pub conversation_customer_name: Option<String>,
+    #[serde(rename = "createdAt")]
+    #[sqlx(rename = "created_at")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    #[sqlx(rename = "updated_at")]
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VoiceConnectionCreateRequest {
+    #[serde(rename = "phoneNumber")]
+    pub phone_number: Option<String>,
+    #[serde(rename = "displayName")]
+    pub display_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
 pub struct MessageRow {
     pub id: String,
     #[sqlx(rename = "conversation_id")]

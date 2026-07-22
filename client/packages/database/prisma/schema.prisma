@@ -33,6 +33,7 @@ model Organization {
   whatsappCampaigns        WhatsappCampaign[]
   whatsappSendEvents       WhatsappSendEvent[]
   whatsappCallSessions     WhatsappCallSession[]
+  calls                    CommunicationCall[]
   externalConnections      ExternalConnection[]
   customers                Customer[]
   customerIdentities       CustomerIdentity[]
@@ -126,6 +127,7 @@ model ExternalConnection {
   capabilities      ExternalConnectionCapability[]
   consumers         ExternalConnectionConsumer[]
   conversations     Conversation[]
+  calls             CommunicationCall[]
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -948,6 +950,7 @@ model Conversation {
 
   messages     Message[]
   callSessions WhatsappCallSession[]
+  calls        CommunicationCall[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -958,6 +961,65 @@ model Conversation {
   @@index([externalConnectionId, lastMessageAt])
   @@index([customerId, lastMessageAt])
   @@index([lastMessageAt])
+}
+
+model CommunicationCall {
+  id                String              @id @default(cuid())
+  orgId             String
+  org               Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  provider          String
+  providerCallId    String?
+  connectionId      String?
+  connection        ExternalConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  conversationId    String?
+  conversation      Conversation?       @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  whatsappSessionId String?             @unique
+  whatsappSession   WhatsappCallSession? @relation(fields: [whatsappSessionId], references: [id], onDelete: SetNull)
+  direction         String
+  status            String
+  fromPhone         String
+  toPhone           String
+  agentLabel        String?
+  startedAt         DateTime?
+  answeredAt        DateTime?
+  endedAt           DateTime?
+  durationSeconds   Int?
+  errorCode         String?
+  errorMessage      String?             @db.Text
+  rawPayload        Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  legs              CommunicationCallLeg[]
+
+  @@unique([provider, providerCallId])
+  @@index([orgId, createdAt])
+  @@index([orgId, status, createdAt])
+  @@index([connectionId, createdAt])
+  @@index([conversationId, createdAt])
+}
+
+model CommunicationCallLeg {
+  id              String            @id @default(cuid())
+  callId          String
+  call            CommunicationCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+  providerLegId   String?
+  direction       String
+  status          String
+  fromPhone       String?
+  toPhone         String?
+  startedAt       DateTime?
+  answeredAt      DateTime?
+  endedAt        DateTime?
+  durationSeconds Int?
+  errorCode       String?
+  errorMessage    String?           @db.Text
+  rawPayload      Json?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([callId, providerLegId])
+  @@index([callId, createdAt])
 }
 
 model Message {
@@ -1259,6 +1321,7 @@ model WhatsappCallSession {
   rawPayload     Json?
 
   events         WhatsappCallEvent[]
+  canonicalCall  CommunicationCall?
 
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt

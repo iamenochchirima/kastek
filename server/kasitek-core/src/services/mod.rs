@@ -4,6 +4,7 @@ pub mod auth;
 pub mod billing;
 pub mod billing_provider;
 pub mod bots;
+pub mod calls;
 pub mod connections;
 pub mod customers;
 pub mod inbox;

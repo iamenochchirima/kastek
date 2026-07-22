@@ -15,11 +15,13 @@ import {
   XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export type CallRecord = {
   id: string;
+  provider: string;
   connectionId: string;
   conversationId: string | null;
   direction: string;
@@ -37,6 +39,14 @@ export type CallRecord = {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type CallProviderStatus = {
+  providers: Array<{
+    provider: string;
+    configured: boolean;
+    requiredEnvironment: string[];
+  }>;
 };
 
 export type CallSummary = {
@@ -104,9 +114,11 @@ function statusClass(status: string) {
 export function CallsWorkspace({
   initialCalls,
   summary,
+  providers,
 }: {
   initialCalls: CallRecord[];
   summary: CallSummary | null;
+  providers: CallProviderStatus | null;
 }) {
   const [filter, setFilter] = useState<CallFilter>("all");
   const [query, setQuery] = useState("");
@@ -132,6 +144,7 @@ export function CallsWorkspace({
   const selectedCall = filteredCalls.find((call) => call.id === selectedCallId) ?? null;
   const activeCallCount = initialCalls.filter(isLiveCall).length;
   const missedCallCount = summary?.summary.missedCalls ?? initialCalls.filter((call) => call.status === "MISSED").length;
+  const twilioConfigured = providers?.providers.some((provider) => provider.provider === "TWILIO" && provider.configured) ?? false;
 
   const filters: Array<{ id: CallFilter; label: string; count: number }> = [
     { id: "all", label: "All calls", count: initialCalls.length },
@@ -157,9 +170,14 @@ export function CallsWorkspace({
               Review live, missed, and completed calls across connected providers. WhatsApp calls are available now.
             </p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <PhoneCall className="h-4 w-4 text-status-success" />
-            <span>Provider-ready workspace</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className="border-0 bg-status-success-soft text-status-success">WhatsApp calls</Badge>
+            <Badge className={cn("border-0", twilioConfigured ? "bg-status-success-soft text-status-success" : "bg-secondary text-muted-foreground")}>
+              {twilioConfigured ? "Business calling ready" : "Business calling setup needed"}
+            </Badge>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/connections">Manage calling</Link>
+            </Button>
           </div>
         </header>
 
@@ -238,7 +256,7 @@ export function CallsWorkspace({
                           </Badge>
                         </div>
                         <p className="mt-1 truncate text-xs text-muted-foreground">
-                          {inbound ? "Inbound" : "Outbound"} via {call.connectionLabel || "connected number"}
+                          {inbound ? "Inbound" : "Outbound"} {formatProvider(call.provider)} via {call.connectionLabel || "connected number"}
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
@@ -321,7 +339,7 @@ function CallDetails({ call }: { call: CallRecord }) {
         </div>
         <h2 className="mt-4 text-lg font-semibold text-foreground">{callContact(call)}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {inbound ? "Inbound" : "Outbound"} WhatsApp call
+          {inbound ? "Inbound" : "Outbound"} {formatProvider(call.provider)} call
         </p>
       </div>
 
@@ -349,6 +367,12 @@ function CallDetails({ call }: { call: CallRecord }) {
       )}
     </div>
   );
+}
+
+function formatProvider(provider: string) {
+  if (provider === "WHATSAPP") return "WhatsApp";
+  if (provider === "TWILIO") return "business phone";
+  return provider.toLowerCase().replace(/_/g, " ");
 }
 
 function CallDetail({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {

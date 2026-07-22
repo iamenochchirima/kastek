@@ -30,6 +30,10 @@ pub struct AppConfig {
     pub paystack_secret_key: Option<String>,
     pub paystack_mode: String,
     pub paystack_api_base_url: String,
+    pub twilio_account_sid: Option<String>,
+    pub twilio_auth_token: Option<String>,
+    pub twilio_twiml_app_sid: Option<String>,
+    pub twilio_voice_webhook_url: Option<String>,
 }
 
 impl AppConfig {
@@ -91,6 +95,10 @@ impl AppConfig {
                 "PAYSTACK_API_BASE_URL",
                 "https://api.paystack.co",
             ),
+            twilio_account_sid: env_optional("TWILIO_ACCOUNT_SID"),
+            twilio_auth_token: env_optional("TWILIO_AUTH_TOKEN"),
+            twilio_twiml_app_sid: env_optional("TWILIO_TWIML_APP_SID"),
+            twilio_voice_webhook_url: env_optional("TWILIO_VOICE_WEBHOOK_URL"),
         })
     }
 
@@ -100,6 +108,13 @@ impl AppConfig {
 
     pub fn web_push_configured(&self) -> bool {
         self.web_push_vapid_public_key.is_some() && self.web_push_vapid_private_key.is_some()
+    }
+
+    pub fn twilio_voice_configured(&self) -> bool {
+        self.twilio_account_sid.is_some()
+            && self.twilio_auth_token.is_some()
+            && self.twilio_twiml_app_sid.is_some()
+            && self.twilio_voice_webhook_url.is_some()
     }
 
     pub fn build_user_session_cookie(&self, value: &str) -> Cookie<'static> {

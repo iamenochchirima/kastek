@@ -2,7 +2,7 @@ use actix_web::web;
 
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
-    admin_outreach, admin_quotations, admin_web_services, ai, auth, billing, bots, chat,
+    admin_outreach, admin_quotations, admin_web_services, ai, auth, billing, bots, calls, chat,
     connections, customers, health, inbox, notifications, orgs, profile, public, realtime, social,
     whatsapp, whatsapp_calls, workspace,
 };
@@ -35,6 +35,16 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         )
         .route("/api/chat", web::post().to(chat::post))
         .route("/api/workspace/summary", web::get().to(workspace::summary))
+        .service(
+            web::scope("/api/calls")
+                .route("", web::get().to(calls::list_calls))
+                .route("/summary", web::get().to(calls::call_summary))
+                .route("/providers", web::get().to(calls::provider_status))
+                .route(
+                    "/providers/twilio/connections",
+                    web::post().to(calls::create_twilio_connection),
+                ),
+        )
         .service(web::scope("/api/customers").route("/{id}", web::get().to(customers::get)))
         .service(
             web::scope("/api/billing")
