@@ -32,8 +32,11 @@ pub struct AppConfig {
     pub paystack_api_base_url: String,
     pub twilio_account_sid: Option<String>,
     pub twilio_auth_token: Option<String>,
+    pub twilio_api_key_sid: Option<String>,
+    pub twilio_api_key_secret: Option<String>,
     pub twilio_twiml_app_sid: Option<String>,
     pub twilio_voice_webhook_url: Option<String>,
+    pub twilio_browser_twiml_url: Option<String>,
     pub twilio_inbound_fallback_number: Option<String>,
 }
 
@@ -98,8 +101,11 @@ impl AppConfig {
             ),
             twilio_account_sid: env_optional("TWILIO_ACCOUNT_SID"),
             twilio_auth_token: env_optional("TWILIO_AUTH_TOKEN"),
+            twilio_api_key_sid: env_optional("TWILIO_API_KEY_SID"),
+            twilio_api_key_secret: env_optional("TWILIO_API_KEY_SECRET"),
             twilio_twiml_app_sid: env_optional("TWILIO_TWIML_APP_SID"),
             twilio_voice_webhook_url: env_optional("TWILIO_VOICE_WEBHOOK_URL"),
+            twilio_browser_twiml_url: env_optional("TWILIO_BROWSER_TWIML_URL"),
             twilio_inbound_fallback_number: env_optional("TWILIO_INBOUND_FALLBACK_NUMBER"),
         })
     }
@@ -115,8 +121,15 @@ impl AppConfig {
     pub fn twilio_voice_configured(&self) -> bool {
         self.twilio_account_sid.is_some()
             && self.twilio_auth_token.is_some()
-            && self.twilio_twiml_app_sid.is_some()
             && self.twilio_voice_webhook_url.is_some()
+    }
+
+    pub fn twilio_browser_configured(&self) -> bool {
+        self.twilio_account_sid.is_some()
+            && self.twilio_api_key_sid.is_some()
+            && self.twilio_api_key_secret.is_some()
+            && self.twilio_twiml_app_sid.is_some()
+            && self.twilio_browser_twiml_url.is_some()
     }
 
     pub fn build_user_session_cookie(&self, value: &str) -> Cookie<'static> {

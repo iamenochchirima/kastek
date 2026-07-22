@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Call, Device } from "@twilio/voice-sdk";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -47,8 +48,16 @@ export type CallProviderStatus = {
   providers: Array<{
     provider: string;
     configured: boolean;
+    browserConfigured?: boolean;
     requiredEnvironment: string[];
   }>;
+};
+
+export type VoiceConnection = {
+  id: string;
+  provider: string;
+  displayName: string;
+  externalAccountId: string | null;
 };
 
 export type CallSummary = {
@@ -117,10 +126,12 @@ export function CallsWorkspace({
   initialCalls,
   summary,
   providers,
+  voiceConnections,
 }: {
   initialCalls: CallRecord[];
   summary: CallSummary | null;
   providers: CallProviderStatus | null;
+  voiceConnections: VoiceConnection[];
 }) {
   const [filter, setFilter] = useState<CallFilter>("all");
   const [query, setQuery] = useState("");
@@ -130,6 +141,13 @@ export function CallsWorkspace({
   const [voiceLabel, setVoiceLabel] = useState("");
   const [setupError, setSetupError] = useState("");
   const [setupPending, setSetupPending] = useState(false);
+  const [showDialer, setShowDialer] = useState(false);
+  const [dialConnectionId, setDialConnectionId] = useState(voiceConnections[0]?.id || "");
+  const [dialDestination, setDialDestination] = useState("");
+  const [dialError, setDialError] = useState("");
+  const [callState, setCallState] = useState<"idle" | "connecting" | "active">("idle");
+  const deviceRef = useRef<Device | null>(null);
+  const activeCallRef = useRef<Call | null>(null);
   const router = useRouter();
 
   const filteredCalls = useMemo(() => {
@@ -153,6 +171,13 @@ export function CallsWorkspace({
   const activeCallCount = initialCalls.filter(isLiveCall).length;
   const missedCallCount = summary?.summary.missedCalls ?? initialCalls.filter((call) => call.status === "MISSED").length;
   const twilioConfigured = providers?.providers.some((provider) => provider.provider === "TWILIO" && provider.configured) ?? false;
+
+  useEffect(() => {
+    return () => {
+      activeCallRef.current?.disconnect();
+      deviceRef.current?.destroy();
+    };
+  }, []);
 
   async function registerVoiceNumber() {
     setSetupError("");
@@ -180,6 +205,71 @@ export function CallsWorkspace({
     } finally {
       setSetupPending(false);
     }
+  }
+
+  async function startBrowserCall() {
+    setDialError("");
+    if (!twilioConfigured) {
+      setDialError("Browser calling is not configured for this workspace yet.");
+      return;
+    }
+    if (!dialConnectionId) {
+      setDialError("Select the business number to call from.");
+      return;
+    }
+    if (!/^\+[1-9]\d{7,14}$/.test(dialDestination.trim())) {
+      setDialError("Enter the destination in international format, for example +27115550123.");
+      return;
+    }
+
+    setCallState("connecting");
+    try {
+      const tokenResponse = await fetch(apiUrl("/api/calls/twilio/browser-token"), {
+        method: "POST",
+        credentials: "include",
+      });
+      const tokenPayload = await tokenResponse.json();
+      if (!tokenResponse.ok) throw new Error(tokenPayload.error || "Could not start browser calling");
+
+      deviceRef.current?.destroy();
+      const { Device: TwilioDevice } = await import("@twilio/voice-sdk");
+      const device = new TwilioDevice(tokenPayload.token);
+      deviceRef.current = device;
+      device.on("error", (error) => {
+        setDialError(error.message || "The browser call failed");
+        setCallState("idle");
+      });
+
+      const call = await device.connect({
+        params: { To: dialDestination.trim(), ConnectionId: dialConnectionId },
+      });
+      activeCallRef.current = call;
+      call.on("accept", () => {
+        setCallState("active");
+        router.refresh();
+      });
+      call.on("disconnect", () => {
+        activeCallRef.current = null;
+        device.destroy();
+        deviceRef.current = null;
+        setCallState("idle");
+        router.refresh();
+      });
+      call.on("cancel", () => {
+        activeCallRef.current = null;
+        device.destroy();
+        deviceRef.current = null;
+        setCallState("idle");
+        router.refresh();
+      });
+    } catch (error) {
+      setDialError(error instanceof Error ? error.message : "Could not start browser calling");
+      setCallState("idle");
+    }
+  }
+
+  function endBrowserCall() {
+    activeCallRef.current?.disconnect();
   }
 
   const filters: Array<{ id: CallFilter; label: string; count: number }> = [
@@ -217,6 +307,9 @@ export function CallsWorkspace({
             <Button variant="outline" size="sm" onClick={() => setShowVoiceSetup((visible) => !visible)}>
               {showVoiceSetup ? "Close setup" : "Connect business number"}
             </Button>
+            <Button onClick={() => setShowDialer((visible) => !visible)} disabled={!twilioConfigured || voiceConnections.length === 0}>
+              {showDialer ? "Close dialer" : "New call"}
+            </Button>
           </div>
         </header>
 
@@ -238,6 +331,42 @@ export function CallsWorkspace({
               </Button>
             </div>
             {setupError ? <p className="mt-3 text-sm text-destructive">{setupError}</p> : null}
+          </section>
+        ) : null}
+
+        {showDialer ? (
+          <section className="rounded-xl border border-border bg-card p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">Browser call</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Your browser will ask for microphone access before connecting the selected business number to the customer.
+                </p>
+              </div>
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-xl">
+                <select
+                  value={dialConnectionId}
+                  onChange={(event) => setDialConnectionId(event.target.value)}
+                  className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+                  disabled={callState !== "idle"}
+                >
+                  {voiceConnections.map((connection) => (
+                    <option key={connection.id} value={connection.id}>
+                      {connection.displayName}{connection.externalAccountId ? ` (${connection.externalAccountId})` : ""}
+                    </option>
+                  ))}
+                </select>
+                <Input value={dialDestination} onChange={(event) => setDialDestination(event.target.value)} placeholder="Customer number, e.g. +27115550123" disabled={callState !== "idle"} />
+              </div>
+              {callState === "idle" ? (
+                <Button onClick={startBrowserCall}>Call</Button>
+              ) : (
+                <Button variant="destructive" onClick={endBrowserCall}>
+                  {callState === "connecting" ? "Cancel call" : "End call"}
+                </Button>
+              )}
+            </div>
+            {dialError ? <p className="mt-3 text-sm text-destructive">{dialError}</p> : null}
           </section>
         ) : null}
 

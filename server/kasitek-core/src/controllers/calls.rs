@@ -51,6 +51,17 @@ pub async fn create_twilio_connection(
     Ok(HttpResponse::Created().json(connection))
 }
 
+pub async fn twilio_browser_token(
+    pool: web::Data<PgPool>,
+    config: web::Data<crate::config::AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let token = calls::create_twilio_browser_token(config.get_ref(), &org_id, &user.id)?;
+    Ok(HttpResponse::Ok().json(token))
+}
+
 pub async fn receive_twilio_voice_webhook(
     pool: web::Data<PgPool>,
     config: web::Data<crate::config::AppConfig>,
@@ -91,4 +102,26 @@ pub async fn receive_twilio_status_webhook(
     )?;
     calls::record_twilio_webhook(pool.get_ref(), &body).await?;
     Ok(HttpResponse::NoContent().finish())
+}
+
+pub async fn receive_twilio_browser_webhook(
+    pool: web::Data<PgPool>,
+    config: web::Data<crate::config::AppConfig>,
+    req: HttpRequest,
+    body: web::Form<BTreeMap<String, String>>,
+) -> Result<HttpResponse, AppError> {
+    let signature = req
+        .headers()
+        .get("x-twilio-signature")
+        .and_then(|value| value.to_str().ok());
+    calls::verify_twilio_webhook(
+        config.get_ref(),
+        "/api/webhooks/twilio/browser",
+        &body,
+        signature,
+    )?;
+    let twiml = calls::record_twilio_browser_call(pool.get_ref(), config.get_ref(), &body).await?;
+    Ok(HttpResponse::Ok()
+        .content_type("text/xml; charset=utf-8")
+        .body(twiml))
 }

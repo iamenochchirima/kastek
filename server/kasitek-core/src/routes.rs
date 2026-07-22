@@ -41,6 +41,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/summary", web::get().to(calls::call_summary))
                 .route("/providers", web::get().to(calls::provider_status))
                 .route(
+                    "/twilio/browser-token",
+                    web::post().to(calls::twilio_browser_token),
+                )
+                .route(
                     "/providers/twilio/connections",
                     web::post().to(calls::create_twilio_connection),
                 ),
@@ -338,6 +342,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route(
                     "/status",
                     web::post().to(calls::receive_twilio_status_webhook),
+                )
+                .route(
+                    "/browser",
+                    web::post().to(calls::receive_twilio_browser_webhook),
                 ),
         )
         .route(
