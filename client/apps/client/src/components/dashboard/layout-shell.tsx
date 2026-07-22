@@ -27,6 +27,7 @@ import {
   Menu,
   Moon,
   PanelLeftOpen,
+  PhoneCall,
   Send,
   Settings,
   Sparkles,
@@ -75,6 +76,7 @@ const navigationGroups: NavigationGroup[] = [
     label: "Customer",
     items: [
       { name: "Inbox", href: "/inbox", icon: Bell },
+      { name: "Calls", href: "/calls", icon: PhoneCall },
       { name: "Contacts", href: "/contacts", icon: Users },
     ],
   },
