@@ -17,7 +17,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { apiUrl } from "@/lib/server-api";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export type CallRecord = {
   id: string;
@@ -123,6 +125,12 @@ export function CallsWorkspace({
   const [filter, setFilter] = useState<CallFilter>("all");
   const [query, setQuery] = useState("");
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
+  const [showVoiceSetup, setShowVoiceSetup] = useState(false);
+  const [voiceNumber, setVoiceNumber] = useState("");
+  const [voiceLabel, setVoiceLabel] = useState("");
+  const [setupError, setSetupError] = useState("");
+  const [setupPending, setSetupPending] = useState(false);
+  const router = useRouter();
 
   const filteredCalls = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -145,6 +153,34 @@ export function CallsWorkspace({
   const activeCallCount = initialCalls.filter(isLiveCall).length;
   const missedCallCount = summary?.summary.missedCalls ?? initialCalls.filter((call) => call.status === "MISSED").length;
   const twilioConfigured = providers?.providers.some((provider) => provider.provider === "TWILIO" && provider.configured) ?? false;
+
+  async function registerVoiceNumber() {
+    setSetupError("");
+    if (!voiceNumber.trim()) {
+      setSetupError("Enter the Twilio number in international format, for example +27115550123.");
+      return;
+    }
+
+    setSetupPending(true);
+    try {
+      const response = await fetch(apiUrl("/api/calls/providers/twilio/connections"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber: voiceNumber, displayName: voiceLabel || undefined }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not register the business number");
+      setShowVoiceSetup(false);
+      setVoiceNumber("");
+      setVoiceLabel("");
+      router.refresh();
+    } catch (error) {
+      setSetupError(error instanceof Error ? error.message : "Could not register the business number");
+    } finally {
+      setSetupPending(false);
+    }
+  }
 
   const filters: Array<{ id: CallFilter; label: string; count: number }> = [
     { id: "all", label: "All calls", count: initialCalls.length },
@@ -178,8 +214,32 @@ export function CallsWorkspace({
             <Button asChild variant="outline" size="sm">
               <Link href="/connections">Manage calling</Link>
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowVoiceSetup((visible) => !visible)}>
+              {showVoiceSetup ? "Close setup" : "Connect business number"}
+            </Button>
           </div>
         </header>
+
+        {showVoiceSetup ? (
+          <section className="rounded-xl border border-border bg-card p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">Connect a Twilio business number</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  This registers the number to this workspace. Calls remain inactive until the Twilio environment and webhooks are configured.
+                </p>
+              </div>
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-xl">
+                <Input value={voiceNumber} onChange={(event) => setVoiceNumber(event.target.value)} placeholder="+27115550123" />
+                <Input value={voiceLabel} onChange={(event) => setVoiceLabel(event.target.value)} placeholder="Support line (optional)" />
+              </div>
+              <Button onClick={registerVoiceNumber} disabled={setupPending}>
+                {setupPending ? "Saving..." : "Register number"}
+              </Button>
+            </div>
+            {setupError ? <p className="mt-3 text-sm text-destructive">{setupError}</p> : null}
+          </section>
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <CallMetric label="All calls" value={summary?.summary.totalCalls ?? initialCalls.length} icon={PhoneCall} />
