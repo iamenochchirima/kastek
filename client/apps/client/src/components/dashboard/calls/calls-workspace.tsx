@@ -10,6 +10,7 @@ import {
   Clock3,
   ExternalLink,
   MessageCircle,
+  type LucideIcon,
   PhoneCall,
   PhoneMissed,
   Search,
@@ -141,6 +142,7 @@ export function CallsWorkspace({
   const [voiceLabel, setVoiceLabel] = useState("");
   const [setupError, setSetupError] = useState("");
   const [setupPending, setSetupPending] = useState(false);
+  const [showCallOptions, setShowCallOptions] = useState(false);
   const [showDialer, setShowDialer] = useState(false);
   const [dialConnectionId, setDialConnectionId] = useState(voiceConnections[0]?.id || "");
   const [dialDestination, setDialDestination] = useState("");
@@ -171,6 +173,7 @@ export function CallsWorkspace({
   const activeCallCount = initialCalls.filter(isLiveCall).length;
   const missedCallCount = summary?.summary.missedCalls ?? initialCalls.filter((call) => call.status === "MISSED").length;
   const twilioConfigured = providers?.providers.some((provider) => provider.provider === "TWILIO" && provider.configured) ?? false;
+  const browserCallingAvailable = twilioConfigured && voiceConnections.length > 0;
 
   useEffect(() => {
     return () => {
@@ -286,34 +289,90 @@ export function CallsWorkspace({
   return (
     <div className="min-h-screen bg-background p-5 lg:p-8">
       <div className="mx-auto max-w-[1500px] space-y-6">
-        <header className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <header className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               Customer operations
             </p>
             <h1 className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-foreground">Calls</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Review live, missed, and completed calls across connected providers. WhatsApp calls are available now.
+              Review call activity and handle customer conversations across your connected channels.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className="border-0 bg-status-success-soft text-status-success">WhatsApp calls</Badge>
-            <Badge className={cn("border-0", twilioConfigured ? "bg-status-success-soft text-status-success" : "bg-secondary text-muted-foreground")}>
-              {twilioConfigured ? "Business calling ready" : "Business calling setup needed"}
-            </Badge>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/connections">Manage calling</Link>
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowVoiceSetup((visible) => !visible)}>
-              {showVoiceSetup ? "Close setup" : "Connect business number"}
-            </Button>
-            <Button onClick={() => setShowDialer((visible) => !visible)} disabled={!twilioConfigured || voiceConnections.length === 0}>
-              {showDialer ? "Close dialer" : "New call"}
-            </Button>
-          </div>
+          <Button
+            onClick={() => {
+              setShowCallOptions((visible) => !visible);
+              setShowDialer(false);
+              setShowVoiceSetup(false);
+            }}
+          >
+            {showCallOptions ? "Close" : "New call"}
+          </Button>
         </header>
 
-        {showVoiceSetup ? (
+        <section className="grid overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-2">
+          <CallSupport
+            icon={MessageCircle}
+            title="WhatsApp calls"
+            detail="Receive and answer customer calls from Inbox."
+            state="Available"
+            stateClass="text-status-success"
+          />
+          <CallSupport
+            icon={PhoneCall}
+            title="Business phone"
+            detail={browserCallingAvailable ? "Place browser calls from a registered business number." : "Connect a business number to place browser calls."}
+            state={browserCallingAvailable ? "Available" : "Setup needed"}
+            stateClass={browserCallingAvailable ? "text-status-success" : "text-muted-foreground"}
+          />
+        </section>
+
+        {showCallOptions ? (
+          <section className="rounded-xl border border-border bg-card p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-foreground">Start a call</p>
+                <p className="mt-1 text-sm text-muted-foreground">Choose an available calling method for this workspace.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {browserCallingAvailable ? (
+                  <Button
+                    onClick={() => {
+                      setShowDialer(true);
+                      setShowVoiceSetup(false);
+                    }}
+                  >
+                    <PhoneCall className="h-4 w-4" />
+                    Business phone
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowVoiceSetup(true);
+                      setShowDialer(false);
+                    }}
+                  >
+                    Connect business number
+                  </Button>
+                )}
+                <Button asChild variant="outline">
+                  <Link href="/inbox">
+                    <MessageCircle className="h-4 w-4" />
+                    Open WhatsApp calls
+                  </Link>
+                </Button>
+              </div>
+            </div>
+            {!browserCallingAvailable && voiceConnections.length > 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                The business number is registered, but browser calling still needs provider configuration. <Link className="text-foreground underline underline-offset-4" href="/connections">Manage calling</Link>.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
+        {showCallOptions && showVoiceSetup ? (
           <section className="rounded-xl border border-border bg-card p-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
               <div className="min-w-0 flex-1">
@@ -334,7 +393,7 @@ export function CallsWorkspace({
           </section>
         ) : null}
 
-        {showDialer ? (
+        {showCallOptions && showDialer ? (
           <section className="rounded-xl border border-border bg-card p-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
               <div className="min-w-0 flex-1">
@@ -495,6 +554,35 @@ function CallMetric({
         </div>
       </div>
       <p className="mt-4 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function CallSupport({
+  icon: Icon,
+  title,
+  detail,
+  state,
+  stateClass,
+}: {
+  icon: LucideIcon;
+  title: string;
+  detail: string;
+  state: string;
+  stateClass: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 p-4 first:border-b first:border-border sm:first:border-b-0 sm:first:border-r">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-foreground">{title}</p>
+          <span className={cn("text-xs font-medium", stateClass)}>{state}</span>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+      </div>
     </div>
   );
 }
