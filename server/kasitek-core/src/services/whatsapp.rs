@@ -5946,6 +5946,7 @@ pub async fn list_inbox_conversations(pool: &PgPool, org_id: &str) -> Result<Val
     for conversation in conversations {
         result.push(json!({
             "id": conversation.id,
+            "channel": conversation.channel,
             "customerName": conversation.customer_name,
             "phone": conversation.phone.unwrap_or_else(|| conversation.customer_identifier.clone()),
             "status": conversation.status,
