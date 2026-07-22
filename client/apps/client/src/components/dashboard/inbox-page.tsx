@@ -368,9 +368,7 @@ export default function InboxPageClient({
     "all" | "whatsapp" | "email" | "sms" | "instagram" | "facebook"
   >("all");
   const [selectedWhatsappConnectionId, setSelectedWhatsappConnectionId] = useState<string | null>(null);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
-    conversations[0]?.id ?? null,
-  );
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messagesByConversationId, setMessagesByConversationId] = useState<
     Record<string, ConversationMessage[]>
   >({});
@@ -548,9 +546,7 @@ export default function InboxPageClient({
     whatsappConnectionFilters[0];
 
   const selectedConversation =
-    filteredConversations.find((conversation) => conversation.id === selectedConversationId) ??
-    filteredConversations[0] ??
-    null;
+    filteredConversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
 
   useEffect(() => {
     if (selectedConversation?.channel === "whatsapp") return;
@@ -568,19 +564,11 @@ export default function InboxPageClient({
   }, [liveConversations, preferredConversationId, selectedConversationId]);
 
   useEffect(() => {
-    if (!filteredConversations.length) {
-      if (selectedConversationId !== null) {
-        setSelectedConversationId(null);
-      }
-      return;
-    }
-
-    const stillVisible = filteredConversations.some(
-      (conversation) => conversation.id === selectedConversationId,
-    );
-
-    if (!stillVisible) {
-      setSelectedConversationId(filteredConversations[0].id);
+    if (
+      selectedConversationId &&
+      !filteredConversations.some((conversation) => conversation.id === selectedConversationId)
+    ) {
+      setSelectedConversationId(null);
     }
   }, [filteredConversations, selectedConversationId]);
 
@@ -1696,9 +1684,6 @@ export default function InboxPageClient({
     if (!window.confirm(`Delete the conversation with ${selectedConversation.name}?`)) return;
 
     const deletedConversationId = selectedConversationId;
-    const nextSelectedId =
-      liveConversations.find((conversation) => conversation.id !== deletedConversationId)?.id ?? null;
-
     const response = await fetch(apiUrl(`/api/whatsapp/inbox/${deletedConversationId}`), {
       method: "DELETE",
       credentials: "include",
@@ -1718,7 +1703,7 @@ export default function InboxPageClient({
       delete next[deletedConversationId];
       return next;
     });
-    setSelectedConversationId(nextSelectedId);
+    setSelectedConversationId(null);
   }
 
   async function sendMessage() {
@@ -1899,6 +1884,7 @@ export default function InboxPageClient({
                     if (channel.disabled) return;
                     setSelectedChannel(channel.id);
                     setSelectedWhatsappConnectionId(null);
+                    setSelectedConversationId(null);
                     setMobileConversationOpen(false);
                   }}
                   className={cn(
@@ -1954,6 +1940,7 @@ export default function InboxPageClient({
                       key={connectionFilter.id || "all"}
                       onClick={() => {
                         setSelectedWhatsappConnectionId(connectionFilter.id);
+                        setSelectedConversationId(null);
                         setMobileConversationOpen(false);
                       }}
                       className={cn(
@@ -1990,6 +1977,7 @@ export default function InboxPageClient({
                   type="button"
                   onClick={() => {
                     setFilter(filterItem.id);
+                    setSelectedConversationId(null);
                     setMobileConversationOpen(false);
                   }}
                   className={cn(
@@ -2206,7 +2194,12 @@ export default function InboxPageClient({
             mobileConversationOpen ? "flex" : "hidden md:flex",
           )}
         >
-          <div className="flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-6">
+          <div
+            className={cn(
+              "flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-6",
+              !selectedConversation && "hidden",
+            )}
+          >
             {selectedConversation ? (
               <>
                 <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -2366,6 +2359,7 @@ export default function InboxPageClient({
           ) : null}
 
           <ScrollArea className="min-h-0 flex-1 p-3 sm:p-6">
+            {selectedConversation ? (
             <div className="mx-auto max-w-3xl space-y-4">
               {selectedConversationCall ? (
                 <div className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
@@ -2640,6 +2634,19 @@ export default function InboxPageClient({
               )}
               <div ref={messagesEndRef} />
             </div>
+            ) : (
+              <div className="flex min-h-full items-center justify-center px-6 py-16 text-center">
+                <div className="max-w-xs">
+                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-border bg-secondary/60">
+                    <MessageCircle className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">Select a conversation</p>
+                  <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
+                    Choose a conversation from the list to view messages and reply.
+                  </p>
+                </div>
+              </div>
+            )}
           </ScrollArea>
           {reactionPicker ? (
             <div
@@ -2668,6 +2675,7 @@ export default function InboxPageClient({
             />
           ) : null}
 
+          {selectedConversation ? (
           <div className="border-t border-border bg-card p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
             <div className="mx-auto max-w-3xl">
               {composerError ? (
@@ -2785,6 +2793,7 @@ export default function InboxPageClient({
               </div>
             </div>
           </div>
+          ) : null}
         </div>
         </div>
         <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
