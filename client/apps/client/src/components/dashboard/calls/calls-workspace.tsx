@@ -182,6 +182,19 @@ export function CallsWorkspace({
     };
   }, []);
 
+  useEffect(() => {
+    if (!showCallOptions) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && callState === "idle") {
+        setShowCallOptions(false);
+        setShowDialer(false);
+        setShowVoiceSetup(false);
+      }
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [callState, showCallOptions]);
+
   async function registerVoiceNumber() {
     setSetupError("");
     if (!voiceNumber.trim()) {
@@ -328,105 +341,130 @@ export function CallsWorkspace({
         </section>
 
         {showCallOptions ? (
-          <section className="rounded-xl border border-border bg-card p-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Start a call</p>
-                <p className="mt-1 text-sm text-muted-foreground">Choose an available calling method for this workspace.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {browserCallingAvailable ? (
-                  <Button
-                    onClick={() => {
-                      setShowDialer(true);
-                      setShowVoiceSetup(false);
-                    }}
-                  >
-                    <PhoneCall className="h-4 w-4" />
-                    Business phone
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowVoiceSetup(true);
-                      setShowDialer(false);
-                    }}
-                  >
-                    Connect business number
-                  </Button>
-                )}
-                <Button asChild variant="outline">
-                  <Link href="/inbox">
-                    <MessageCircle className="h-4 w-4" />
-                    Open WhatsApp calls
-                  </Link>
-                </Button>
-              </div>
-            </div>
-            {!browserCallingAvailable && voiceConnections.length > 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">
-                The business number is registered, but browser calling still needs provider configuration. <Link className="text-foreground underline underline-offset-4" href="/connections">Manage calling</Link>.
-              </p>
-            ) : null}
-          </section>
-        ) : null}
-
-        {showCallOptions && showVoiceSetup ? (
-          <section className="rounded-xl border border-border bg-card p-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">Connect a Twilio business number</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  This registers the number to this workspace. Calls remain inactive until the Twilio environment and webhooks are configured.
-                </p>
-              </div>
-              <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-xl">
-                <Input value={voiceNumber} onChange={(event) => setVoiceNumber(event.target.value)} placeholder="+27115550123" />
-                <Input value={voiceLabel} onChange={(event) => setVoiceLabel(event.target.value)} placeholder="Support line (optional)" />
-              </div>
-              <Button onClick={registerVoiceNumber} disabled={setupPending}>
-                {setupPending ? "Saving..." : "Register number"}
-              </Button>
-            </div>
-            {setupError ? <p className="mt-3 text-sm text-destructive">{setupError}</p> : null}
-          </section>
-        ) : null}
-
-        {showCallOptions && showDialer ? (
-          <section className="rounded-xl border border-border bg-card p-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">Browser call</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Your browser will ask for microphone access before connecting the selected business number to the customer.
-                </p>
-              </div>
-              <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-xl">
-                <select
-                  value={dialConnectionId}
-                  onChange={(event) => setDialConnectionId(event.target.value)}
-                  className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
+            onMouseDown={() => {
+              if (callState === "idle") {
+                setShowCallOptions(false);
+                setShowDialer(false);
+                setShowVoiceSetup(false);
+              }
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="new-call-title"
+              className="w-full max-w-2xl rounded-xl border border-border bg-card shadow-2xl"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <header className="flex items-start justify-between border-b border-border px-5 py-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Calls</p>
+                  <h2 id="new-call-title" className="mt-1 text-lg font-semibold text-foreground">
+                    {showDialer ? "Business phone call" : showVoiceSetup ? "Connect business number" : "Start a call"}
+                  </h2>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Close new call dialog"
                   disabled={callState !== "idle"}
+                  onClick={() => {
+                    setShowCallOptions(false);
+                    setShowDialer(false);
+                    setShowVoiceSetup(false);
+                  }}
                 >
-                  {voiceConnections.map((connection) => (
-                    <option key={connection.id} value={connection.id}>
-                      {connection.displayName}{connection.externalAccountId ? ` (${connection.externalAccountId})` : ""}
-                    </option>
-                  ))}
-                </select>
-                <Input value={dialDestination} onChange={(event) => setDialDestination(event.target.value)} placeholder="Customer number, e.g. +27115550123" disabled={callState !== "idle"} />
-              </div>
-              {callState === "idle" ? (
-                <Button onClick={startBrowserCall}>Call</Button>
-              ) : (
-                <Button variant="destructive" onClick={endBrowserCall}>
-                  {callState === "connecting" ? "Cancel call" : "End call"}
+                  <XCircle className="h-4 w-4" />
                 </Button>
-              )}
-            </div>
-            {dialError ? <p className="mt-3 text-sm text-destructive">{dialError}</p> : null}
-          </section>
+              </header>
+
+              <div className="p-5">
+                {!showVoiceSetup && !showDialer ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">Choose an available calling method for this workspace.</p>
+                    <button
+                      type="button"
+                      disabled={!browserCallingAvailable}
+                      onClick={() => setShowDialer(true)}
+                      className="flex w-full items-center gap-4 rounded-lg border border-border p-4 text-left transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-secondary text-foreground"><PhoneCall className="h-5 w-5" /></div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground">Business phone</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Place a browser call using a registered business number.</p>
+                      </div>
+                      <span className={cn("text-xs font-medium", browserCallingAvailable ? "text-status-success" : "text-muted-foreground")}>
+                        {browserCallingAvailable ? "Available" : "Setup needed"}
+                      </span>
+                    </button>
+                    {!browserCallingAvailable ? (
+                      <Button variant="outline" className="w-full" onClick={() => setShowVoiceSetup(true)}>
+                        Connect a business number
+                      </Button>
+                    ) : null}
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href="/inbox">
+                        <MessageCircle className="h-4 w-4" />
+                        Open WhatsApp calls in Inbox
+                      </Link>
+                    </Button>
+                    {!browserCallingAvailable && voiceConnections.length > 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        The business number is registered, but browser calling still needs provider configuration. <Link className="text-foreground underline underline-offset-4" href="/connections">Manage calling</Link>.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {showVoiceSetup ? (
+                  <div className="space-y-4">
+                    <p className="text-sm leading-6 text-muted-foreground">Register the Twilio number that belongs to this workspace. It can be activated after the provider configuration is complete.</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Input value={voiceNumber} onChange={(event) => setVoiceNumber(event.target.value)} placeholder="+27115550123" />
+                      <Input value={voiceLabel} onChange={(event) => setVoiceLabel(event.target.value)} placeholder="Support line (optional)" />
+                    </div>
+                    {setupError ? <p className="text-sm text-destructive">{setupError}</p> : null}
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setShowVoiceSetup(false)} disabled={setupPending}>Back</Button>
+                      <Button onClick={registerVoiceNumber} disabled={setupPending}>{setupPending ? "Saving..." : "Register number"}</Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {showDialer ? (
+                  <div className="space-y-4">
+                    <p className="text-sm leading-6 text-muted-foreground">Your browser will ask for microphone access before it connects the selected business number to the customer.</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <select
+                        value={dialConnectionId}
+                        onChange={(event) => setDialConnectionId(event.target.value)}
+                        className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+                        disabled={callState !== "idle"}
+                      >
+                        {voiceConnections.map((connection) => (
+                          <option key={connection.id} value={connection.id}>
+                            {connection.displayName}{connection.externalAccountId ? ` (${connection.externalAccountId})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <Input value={dialDestination} onChange={(event) => setDialDestination(event.target.value)} placeholder="Customer number, e.g. +27115550123" disabled={callState !== "idle"} />
+                    </div>
+                    {dialError ? <p className="text-sm text-destructive">{dialError}</p> : null}
+                    <div className="flex justify-end gap-2">
+                      {callState === "idle" ? <Button variant="outline" onClick={() => setShowDialer(false)}>Back</Button> : null}
+                      {callState === "idle" ? (
+                        <Button onClick={startBrowserCall}>Call</Button>
+                      ) : (
+                        <Button variant="destructive" onClick={endBrowserCall}>{callState === "connecting" ? "Cancel call" : "End call"}</Button>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          </div>
         ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
