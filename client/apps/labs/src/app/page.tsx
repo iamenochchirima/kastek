@@ -9,6 +9,7 @@ import {
   Radio,
   Workflow,
 } from "lucide-react";
+import Image from "next/image";
 
 const appUrl = process.env.NEXT_PUBLIC_KASITEK_APP_URL ?? "http://localhost:3000";
 const demoUrl = process.env.NEXT_PUBLIC_KASITEK_DEMO_URL ?? `${appUrl}/demo`;
@@ -74,9 +75,14 @@ export default function LabsLandingPage() {
     <main className="labs-page">
       <header className="site-header">
         <a className="wordmark" href="#top" aria-label="Kasitek Labs home">
-          <span className="wordmark-symbol" aria-hidden="true">
-            K<span>/</span>L
-          </span>
+          <Image
+            className="brand-mark"
+            src="/logo.png"
+            alt=""
+            width={40}
+            height={40}
+            priority
+          />
           <span className="wordmark-name">
             Kasitek
             <small>Labs</small>
@@ -340,9 +346,7 @@ export default function LabsLandingPage() {
 
       <footer className="site-footer">
         <a className="wordmark footer-wordmark" href="#top" aria-label="Back to top">
-          <span className="wordmark-symbol" aria-hidden="true">
-            K<span>/</span>L
-          </span>
+          <Image className="brand-mark" src="/logo.png" alt="" width={40} height={40} />
           <span className="wordmark-name">
             Kasitek
             <small>Labs</small>

@@ -74,21 +74,11 @@ summary {
   width: fit-content;
 }
 
-.wordmark-symbol {
-  display: grid;
-  place-items: center;
+.brand-mark {
+  display: block;
   width: 40px;
   height: 40px;
-  color: var(--ink);
-  background: var(--acid);
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: -0.08em;
-}
-
-.wordmark-symbol span {
-  color: var(--orange);
-  padding: 0 1px;
+  object-fit: contain;
 }
 
 .wordmark-name {
@@ -1212,7 +1202,7 @@ summary {
     height: 76px;
   }
 
-  .wordmark-symbol {
+  .brand-mark {
     width: 35px;
     height: 35px;
   }
