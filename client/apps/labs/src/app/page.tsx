@@ -18,42 +18,58 @@ const contactEmail =
 
 const disciplines = [
   {
-    title: "Product",
+    title: "Products",
     icon: Layers3,
-    text: "One workspace for conversations, campaigns, content and agents.",
-    tags: ["Kasitek", "KasiAgents", "KasiReach", "KasiSocial"],
+    text:
+      "Kasitek brings customer work, growth activity and automation into one connected workspace.",
+    tags: ["Inbox & contacts", "Campaigns", "Content & calendar", "Agents"],
   },
   {
-    title: "Systems",
+    title: "Services",
     icon: Workflow,
-    text: "Custom software and automation shaped around how your team works.",
-    tags: ["Web platforms", "AI agents", "Integrations", "Operations"],
+    text:
+      "We configure, extend and connect the platform around the work your team needs to get done.",
+    tags: [
+      "Implementation",
+      "Integrations",
+      "Websites & bookings",
+      "Managed support",
+    ],
   },
   {
-    title: "Partnerships",
+    title: "Partnership",
     icon: Braces,
-    text: "White-label infrastructure and technical delivery for agencies.",
-    tags: ["Partner portals", "Client workspaces", "Managed delivery"],
+    text:
+      "Agencies can deliver Kasitek under their own brand, backed by the platform and our technical team.",
+    tags: [
+      "White-label workspaces",
+      "Client accounts",
+      "Agency operations",
+      "Technical delivery",
+    ],
   },
 ];
 
 const operatingAreas = [
   {
-    title: "Talk",
-    subtitle: "Customer conversations",
-    text: "Bring WhatsApp, Meta and human handoff into one working inbox.",
+    title: "Customer",
+    subtitle: "Inbox, contacts and bookings",
+    text:
+      "Keep conversations, calls, customer records and appointments close to the people doing the work.",
     icon: MessageSquare,
   },
   {
-    title: "Reach",
-    subtitle: "Campaigns that land",
-    text: "Plan, send and learn without stitching together five tools.",
+    title: "Growth",
+    subtitle: "Campaigns, templates and content",
+    text:
+      "Plan outreach, manage reusable content and keep your calendar moving from the same workspace.",
     icon: Radio,
   },
   {
-    title: "Run",
+    title: "Automation",
     subtitle: "Agents and workflows",
-    text: "Put repeatable work on reliable rails, with people in control.",
+    text:
+      "Use controlled agents for repeatable customer work, with your team ready to step in when it matters.",
     icon: Bot,
   },
 ];
@@ -196,8 +212,11 @@ export default function LabsLandingPage() {
 
       <section className="disciplines section-pad" id="work">
         <div className="section-heading">
-          <h2>One studio.<br />Three ways in.</h2>
-          <p>Use the product. Build something specific. Or partner with us.</p>
+          <h2>One platform.<br />Three ways to work with us.</h2>
+          <p>
+            Use Kasitek directly, bring us in to build, or deliver it under your
+            own brand.
+          </p>
         </div>
 
         <div className="discipline-grid">
@@ -220,10 +239,10 @@ export default function LabsLandingPage() {
 
       <section className="operating-system section-pad">
         <div className="operating-intro">
-          <h2>Built around the way work actually moves.</h2>
+          <h2>One workspace for customer work.</h2>
           <p>
-            Kasitek connects the customer journey—from the first message to the
-            next campaign—inside one workspace.
+            Kasitek keeps the customer context connected—from the first message
+            to the follow-up, campaign, appointment and report.
           </p>
           <a className="button button-dark" href={appUrl}>
             Open Kasitek
