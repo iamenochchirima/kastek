@@ -116,34 +116,38 @@ export default function LabsLandingPage() {
           </div>
         </div>
 
-        <div className="systems-stage" aria-label="A connected operating system illustration">
-          <div className="signal-orbit orbit-one" />
-          <div className="signal-orbit orbit-two" />
-          <div className="signal-line signal-line-one" />
-          <div className="signal-line signal-line-two" />
-
-          <div className="system-core">
-            <span className="core-k">K</span>
-            <span className="core-pulse" />
+        <div className="hero-artifacts" aria-label="A composition of customer work, campaigns and automation">
+          <div className="artifact-title" aria-hidden="true">
+            <span>Customer</span>
+            <strong>work</strong>
+            <span>in motion</span>
           </div>
 
-          <div className="system-node node-listen">
-            <strong>Listen</strong>
-            <span>Inbox</span>
-          </div>
-          <div className="system-node node-decide">
-            <strong>Decide</strong>
-            <span>Agents</span>
-          </div>
-          <div className="system-node node-act">
-            <strong>Act</strong>
-            <span>Campaigns</span>
-          </div>
-          <div className="system-node node-learn">
-            <strong>Learn</strong>
-            <span>Analytics</span>
-          </div>
+          <article className="artifact artifact-message">
+            <span className="artifact-label">New enquiry</span>
+            <p>“Thursday morning would be great.”</p>
+            <footer><span>Thando M.</span><i>→</i><span>Inbox</span></footer>
+          </article>
 
+          <article className="artifact artifact-booking">
+            <span className="artifact-label">Booking confirmed</span>
+            <strong>Thu<br />10:00</strong>
+            <small>Consultation · Thando M.</small>
+            <i>✓</i>
+          </article>
+
+          <article className="artifact artifact-campaign">
+            <span>Campaign</span>
+            <strong>July follow-up</strong>
+            <div><i /><b>74%</b></div>
+          </article>
+
+          <article className="artifact artifact-handoff">
+            <i>✦</i>
+            <span><b>Agent handoff</b><small>Pricing request needs review</small></span>
+          </article>
+
+          <div className="artifact-k" aria-hidden="true"><span>K</span><small>Kasitek<br />Labs</small></div>
         </div>
       </section>
 
