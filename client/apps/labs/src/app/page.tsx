@@ -245,10 +245,11 @@ export default function LabsLandingPage() {
 
       <section className="final-cta section-pad">
         <div>
-          <p className="eyebrow dark-eyebrow">Have a messy process?</p>
+          <p className="contact-prompt">Have a messy process?</p>
           <h2>Good.<br />That&apos;s where we start.</h2>
         </div>
         <a className="round-cta" href={`mailto:${contactEmail}?subject=Project enquiry`}>
+          <small>Start a conversation</small>
           <span>Tell us<br />about it</span>
           <ArrowUpRight aria-hidden="true" />
         </a>

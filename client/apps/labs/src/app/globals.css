@@ -1582,18 +1582,19 @@ summary {
   background: var(--paper);
 }
 
-.dark-eyebrow {
+.contact-prompt {
   display: inline-flex;
+  align-items: center;
   width: fit-content;
-  margin-bottom: 28px;
-  padding-bottom: 10px;
+  margin: 0 0 30px;
+  padding: 4px 0 4px 15px;
   color: var(--orange);
-  border-bottom: 1px solid currentColor;
+  border-left: 3px solid currentColor;
   font-family: "Helvetica Neue", "Arial Nova", Arial, sans-serif;
-  font-size: clamp(14px, 1.35vw, 20px);
+  font-size: clamp(17px, 1.6vw, 24px);
   font-weight: 700;
-  letter-spacing: -0.025em;
-  line-height: 1;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
   text-transform: none;
 }
 
@@ -1602,15 +1603,15 @@ summary {
   flex: 0 0 auto;
   flex-direction: column;
   justify-content: space-between;
-  width: clamp(210px, 22vw, 330px);
-  height: clamp(210px, 22vw, 330px);
-  padding: clamp(26px, 2.5vw, 38px);
+  width: clamp(248px, 24vw, 360px);
+  height: clamp(248px, 24vw, 360px);
+  padding: clamp(28px, 2.7vw, 42px);
   color: var(--ink);
   background: var(--acid);
-  border: 1px solid var(--ink);
+  border: 3px solid var(--ink);
   border-radius: 50%;
-  box-shadow: 9px 10px 0 var(--ink);
-  font-size: clamp(22px, 2vw, 29px);
+  box-shadow: 12px 12px 0 var(--orange);
+  font-size: clamp(25px, 2.25vw, 33px);
   font-weight: 800;
   line-height: 0.94;
   letter-spacing: -0.045em;
@@ -1619,6 +1620,16 @@ summary {
 
 .round-cta span {
   max-width: 160px;
+}
+
+.round-cta small {
+  color: rgba(16, 17, 15, 0.58);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .round-cta svg {
@@ -2215,12 +2226,13 @@ summary {
 
   .round-cta {
     align-self: flex-start;
-    width: min(78vw, 294px);
-    height: min(78vw, 294px);
+    width: min(82vw, 318px);
+    height: min(82vw, 318px);
     margin-top: 6px;
-    padding: 31px;
-    box-shadow: 7px 8px 0 var(--ink);
-    font-size: 27px;
+    padding: 34px;
+    border-width: 3px;
+    box-shadow: 9px 9px 0 var(--orange);
+    font-size: 29px;
   }
 
   .footer-bottom {
