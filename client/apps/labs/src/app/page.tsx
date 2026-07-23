@@ -2,14 +2,12 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUpRight,
-  Bot,
   Braces,
   Layers3,
-  MessageSquare,
-  Radio,
   Workflow,
 } from "lucide-react";
 import Image from "next/image";
+import { ProductWorkspacePreview } from "@/components/product-workspace-preview";
 
 const appUrl = process.env.NEXT_PUBLIC_KASITEK_APP_URL ?? "http://localhost:3000";
 const demoUrl = process.env.NEXT_PUBLIC_KASITEK_DEMO_URL ?? `${appUrl}/demo`;
@@ -47,30 +45,6 @@ const disciplines = [
       "Agency operations",
       "Technical delivery",
     ],
-  },
-];
-
-const operatingAreas = [
-  {
-    title: "Customer",
-    subtitle: "Inbox, contacts and bookings",
-    text:
-      "Keep conversations, calls, customer records and appointments close to the people doing the work.",
-    icon: MessageSquare,
-  },
-  {
-    title: "Growth",
-    subtitle: "Campaigns, templates and content",
-    text:
-      "Plan outreach, manage reusable content and keep your calendar moving from the same workspace.",
-    icon: Radio,
-  },
-  {
-    title: "Automation",
-    subtitle: "Agents and workflows",
-    text:
-      "Use controlled agents for repeatable customer work, with your team ready to step in when it matters.",
-    icon: Bot,
   },
 ];
 
@@ -239,30 +213,16 @@ export default function LabsLandingPage() {
 
       <section className="operating-system section-pad">
         <div className="operating-intro">
-          <h2>Kasitek: AI-powered customer operations.</h2>
+          <h2>Kasitek.</h2>
           <p>
-            Kasitek keeps the customer context connected—from the first message
-            to the follow-up, campaign, appointment and report.
+            Customer operations, growth and automation—kept in view.
           </p>
           <a className="button button-dark" href={appUrl}>
             Open Kasitek
             <ArrowUpRight aria-hidden="true" />
           </a>
         </div>
-
-        <div className="operating-list">
-          {operatingAreas.map((area) => (
-            <article key={area.title} className="operating-row">
-              <area.icon aria-hidden="true" />
-              <div>
-                <p>{area.subtitle}</p>
-                <h3>{area.title}</h3>
-              </div>
-              <p className="operating-copy">{area.text}</p>
-              <ArrowUpRight className="operating-arrow" aria-hidden="true" />
-            </article>
-          ))}
-        </div>
+        <ProductWorkspacePreview />
       </section>
 
       <section className="approach section-pad" id="approach">
