@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { ProductWorkspacePreview } from "@/components/product-workspace-preview";
+import { ServicesDeliveryPreview } from "@/components/services-delivery-preview";
+import { PartnershipWorkspacePreview } from "@/components/partnership-workspace-preview";
 
 const appUrl = process.env.NEXT_PUBLIC_KASITEK_APP_URL ?? "http://localhost:3000";
 const demoUrl = process.env.NEXT_PUBLIC_KASITEK_DEMO_URL ?? `${appUrl}/demo`;
@@ -46,12 +48,6 @@ const disciplines = [
       "Technical delivery",
     ],
   },
-];
-
-const processSteps = [
-  ["Find the friction", "We map the work, the handoffs and the real constraint."],
-  ["Build the useful thing", "A focused first release, connected to the systems you already use."],
-  ["Stay for the outcome", "We measure, improve and operate what matters after launch."],
 ];
 
 export default function LabsLandingPage() {
@@ -229,22 +225,11 @@ export default function LabsLandingPage() {
         <div className="approach-heading">
           <h2>Built around the work.<br />Not the trend.</h2>
         </div>
-
-        <div className="process-list">
-          {processSteps.map(([title, text]) => (
-            <article key={title}>
-              <h3>{title}</h3>
-              <p>{text}</p>
-            </article>
-          ))}
-        </div>
+        <ServicesDeliveryPreview />
       </section>
 
       <section className="partner-section section-pad" id="partners">
-        <div className="partner-mark" aria-hidden="true">
-          <span>K</span>
-          <span>+</span>
-        </div>
+        <PartnershipWorkspacePreview />
         <div className="partner-copy">
           <h2>Your brand in front.<br />The platform behind it.</h2>
           <p>
