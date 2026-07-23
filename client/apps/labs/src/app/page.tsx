@@ -92,9 +92,19 @@ export default function LabsLandingPage() {
       </header>
 
       <section className="hero" id="top">
+        <div className="hero-image" aria-hidden="true">
+          <Image
+            src="/hero-mountain-study.jpg"
+            alt=""
+            fill
+            sizes="100vw"
+            priority
+          />
+        </div>
+
         <div className="hero-copy">
           <h1>
-            Useful tech.
+            Useful AI.
             <span>Beautifully put to work.</span>
           </h1>
 
@@ -116,15 +126,6 @@ export default function LabsLandingPage() {
           </div>
         </div>
 
-        <div className="hero-artwork">
-          <Image
-            src="/hero-material-study.png"
-            alt="An abstract studio sculpture made from black paper, brushed metal, translucent green acrylic and orange cord"
-            fill
-            sizes="(max-width: 900px) 90vw, 42vw"
-            priority
-          />
-        </div>
       </section>
 
       <section className="ticker" aria-label="Kasitek Labs capabilities">
