@@ -116,38 +116,14 @@ export default function LabsLandingPage() {
           </div>
         </div>
 
-        <div className="hero-artifacts" aria-label="A composition of customer work, campaigns and automation">
-          <div className="artifact-title" aria-hidden="true">
-            <span>Customer</span>
-            <strong>work</strong>
-            <span>in motion</span>
-          </div>
-
-          <article className="artifact artifact-message">
-            <span className="artifact-label">New enquiry</span>
-            <p>“Thursday morning would be great.”</p>
-            <footer><span>Thando M.</span><i>→</i><span>Inbox</span></footer>
-          </article>
-
-          <article className="artifact artifact-booking">
-            <span className="artifact-label">Booking confirmed</span>
-            <strong>Thu<br />10:00</strong>
-            <small>Consultation · Thando M.</small>
-            <i>✓</i>
-          </article>
-
-          <article className="artifact artifact-campaign">
-            <span>Campaign</span>
-            <strong>July follow-up</strong>
-            <div><i /><b>74%</b></div>
-          </article>
-
-          <article className="artifact artifact-handoff">
-            <i>✦</i>
-            <span><b>Agent handoff</b><small>Pricing request needs review</small></span>
-          </article>
-
-          <div className="artifact-k" aria-hidden="true"><span>K</span><small>Kasitek<br />Labs</small></div>
+        <div className="hero-artwork">
+          <Image
+            src="/hero-material-study.png"
+            alt="An abstract studio sculpture made from black paper, brushed metal, translucent green acrylic and orange cord"
+            fill
+            sizes="(max-width: 900px) 90vw, 42vw"
+            priority
+          />
         </div>
       </section>
 
