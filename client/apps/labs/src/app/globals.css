@@ -46,11 +46,7 @@ summary {
 .labs-page {
   min-width: 320px;
   overflow: clip;
-  background:
-    linear-gradient(rgba(16, 17, 15, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(16, 17, 15, 0.035) 1px, transparent 1px),
-    var(--paper);
-  background-size: 96px 96px;
+  background: var(--paper);
 }
 
 .site-header {
@@ -175,18 +171,6 @@ summary {
     radial-gradient(circle at 70% 35%, rgba(216, 255, 62, 0.11), transparent 22%),
     radial-gradient(circle at 100% 85%, rgba(255, 92, 53, 0.11), transparent 30%),
     var(--ink);
-}
-
-.hero::before {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-  background-size: 96px 96px;
-  content: "";
-  mask-image: linear-gradient(to bottom, black 0%, transparent 82%);
 }
 
 .hero-copy,
