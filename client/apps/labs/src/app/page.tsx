@@ -21,14 +21,14 @@ const disciplines = [
     title: "Products",
     icon: Layers3,
     text:
-      "Kasitek brings customer work, growth activity and automation into one connected workspace.",
+      "Kasitek is our AI-enabled workspace for customer engagement, growth activity and automation.",
     tags: ["Inbox & contacts", "Campaigns", "Content & calendar", "Agents"],
   },
   {
     title: "Services",
     icon: Workflow,
     text:
-      "We configure, extend and connect the platform around the work your team needs to get done.",
+      "We design, implement and support systems that fit your team and the way it works.",
     tags: [
       "Implementation",
       "Integrations",
@@ -40,7 +40,7 @@ const disciplines = [
     title: "Partnership",
     icon: Braces,
     text:
-      "Agencies can deliver Kasitek under their own brand, backed by the platform and our technical team.",
+      "Deliver your own client experience on infrastructure built and operated by Kasitek Labs.",
     tags: [
       "White-label workspaces",
       "Client accounts",
@@ -130,8 +130,8 @@ export default function LabsLandingPage() {
 
           <div className="hero-intro">
             <p>
-              We design software, AI agents and connected customer systems for
-              businesses that have outgrown patchwork tools.
+              Kasitek Labs builds AI products and technology services for
+              customer engagement, business growth and everyday operations.
             </p>
             <div className="hero-actions">
               <a className="button button-light" href={demoUrl}>
@@ -179,43 +179,43 @@ export default function LabsLandingPage() {
 
       <section className="ticker" aria-label="Kasitek Labs capabilities">
         <div className="ticker-track">
-          <span>Product design</span>
+          <span>AI products</span>
           <i>✦</i>
-          <span>AI systems</span>
+          <span>Customer operations</span>
           <i>✦</i>
-          <span>WhatsApp &amp; Meta</span>
+          <span>Growth systems</span>
           <i>✦</i>
           <span>Custom software</span>
           <i>✦</i>
           <span>White-label infrastructure</span>
           <i>✦</i>
-          <span>Product design</span>
+          <span>AI products</span>
           <i>✦</i>
-          <span>AI systems</span>
+          <span>Customer operations</span>
           <i>✦</i>
-          <span>WhatsApp &amp; Meta</span>
+          <span>Growth systems</span>
         </div>
       </section>
 
       <section className="statement section-pad">
         <div className="statement-copy">
           <h2>
-            Technology should make the work feel
-            <em> simpler.</em>
+            AI should earn its place in the
+            <em> business.</em>
           </h2>
           <p className="statement-note">
-            We start with the bottleneck—not the buzzword. Then we design the
-            smallest system that can move the business forward.
+            We start with the work, the context and the constraint. Then we build
+            the product, service or system that can make a measurable difference.
           </p>
         </div>
       </section>
 
       <section className="disciplines section-pad" id="work">
         <div className="section-heading">
-          <h2>One platform.<br />Three ways to work with us.</h2>
+          <h2>Three ways to work<br />with Kasitek Labs.</h2>
           <p>
-            Use Kasitek directly, bring us in to build, or deliver it under your
-            own brand.
+            Use Kasitek directly, bring us in to build, or deliver a client
+            experience under your own brand.
           </p>
         </div>
 
@@ -239,7 +239,7 @@ export default function LabsLandingPage() {
 
       <section className="operating-system section-pad">
         <div className="operating-intro">
-          <h2>One workspace for customer work.</h2>
+          <h2>Kasitek: AI-powered customer operations.</h2>
           <p>
             Kasitek keeps the customer context connected—from the first message
             to the follow-up, campaign, appointment and report.
@@ -267,7 +267,7 @@ export default function LabsLandingPage() {
 
       <section className="approach section-pad" id="approach">
         <div className="approach-heading">
-          <h2>Small team.<br />Clear decisions.<br />Real delivery.</h2>
+          <h2>Built around the work.<br />Not the trend.</h2>
         </div>
 
         <div className="process-list">
@@ -286,10 +286,10 @@ export default function LabsLandingPage() {
           <span>+</span>
         </div>
         <div className="partner-copy">
-          <h2>Your brand in front.<br />Serious infrastructure behind it.</h2>
+          <h2>Your brand in front.<br />The platform behind it.</h2>
           <p>
             Give clients a polished software experience without building the
-            platform, integrations and operating layer from scratch.
+            platform, integrations and operating layer yourself.
           </p>
           <a className="button button-acid" href={`mailto:${contactEmail}?subject=Kasitek partner enquiry`}>
             Talk partnerships
@@ -323,8 +323,8 @@ export default function LabsLandingPage() {
           <a href="#top">Back to top ↑</a>
         </div>
         <div className="footer-bottom">
-          <p>Product company &amp; technology studio.</p>
-          <p>Johannesburg, South Africa</p>
+          <p>AI products &amp; technology services.</p>
+          <p>Durban, South Africa</p>
           <p>© {new Date().getFullYear()} Kasitek Labs</p>
         </div>
       </footer>

@@ -4,12 +4,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Kasitek Labs | Product company & technology studio",
   description:
-    "Kasitek Labs designs software, AI agents and connected customer systems for growing businesses and agency partners.",
+    "Kasitek Labs builds AI products and technology services for customer engagement, business growth and everyday operations.",
   applicationName: "Kasitek Labs",
   openGraph: {
     title: "Kasitek Labs",
     description:
-      "Useful technology, beautifully put to work.",
+      "AI products and technology services for customer engagement, business growth and everyday operations.",
     type: "website",
   },
 };
