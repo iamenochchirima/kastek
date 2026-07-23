@@ -1583,7 +1583,18 @@ summary {
 }
 
 .dark-eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 28px;
+  padding-bottom: 10px;
   color: var(--orange);
+  border-bottom: 1px solid currentColor;
+  font-family: "Helvetica Neue", "Arial Nova", Arial, sans-serif;
+  font-size: clamp(14px, 1.35vw, 20px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  text-transform: none;
 }
 
 .round-cta {
@@ -1593,19 +1604,27 @@ summary {
   justify-content: space-between;
   width: clamp(210px, 22vw, 330px);
   height: clamp(210px, 22vw, 330px);
-  padding: 35px;
+  padding: clamp(26px, 2.5vw, 38px);
   color: var(--ink);
   background: var(--acid);
+  border: 1px solid var(--ink);
   border-radius: 50%;
-  font-size: 22px;
+  box-shadow: 9px 10px 0 var(--ink);
+  font-size: clamp(22px, 2vw, 29px);
   font-weight: 800;
+  line-height: 0.94;
+  letter-spacing: -0.045em;
   transition: color 250ms ease, background 250ms ease, transform 250ms ease;
+}
+
+.round-cta span {
+  max-width: 160px;
 }
 
 .round-cta svg {
   align-self: flex-end;
-  width: 30px;
-  height: 30px;
+  width: clamp(28px, 2.5vw, 38px);
+  height: clamp(28px, 2.5vw, 38px);
 }
 
 .round-cta:hover {
@@ -2195,9 +2214,13 @@ summary {
   }
 
   .round-cta {
-    align-self: flex-end;
-    width: 220px;
-    height: 220px;
+    align-self: flex-start;
+    width: min(78vw, 294px);
+    height: min(78vw, 294px);
+    margin-top: 6px;
+    padding: 31px;
+    box-shadow: 7px 8px 0 var(--ink);
+    font-size: 27px;
   }
 
   .footer-bottom {
