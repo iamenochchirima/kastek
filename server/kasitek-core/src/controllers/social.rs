@@ -399,7 +399,7 @@ pub async fn x_oauth_callback(
             .clone()
             .unwrap_or_else(|| error.clone());
         let redirect = format!(
-            "{}/social/channels?error={}",
+            "{}/connections?error={}",
             config.auth_url,
             urlencoding::encode(&message)
         );
@@ -440,7 +440,7 @@ pub async fn x_oauth_callback(
         social::upsert_x_connection_for_org(pool.get_ref(), &user.id, &org_id, &tokens, &profile)
             .await?;
 
-    let redirect = format!("{}/social/channels?connected=x", config.auth_url);
+    let redirect = format!("{}/connections?connected=x", config.auth_url);
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))
         .cookie(
@@ -516,7 +516,7 @@ pub async fn meta_oauth_callback(
             .clone()
             .unwrap_or_else(|| error.clone());
         let redirect = format!(
-            "{}/social/channels?error={}",
+            "{}/connections?error={}",
             config.auth_url,
             urlencoding::encode(&message)
         );
@@ -603,7 +603,7 @@ pub async fn meta_oauth_callback(
     }
 
     let redirect = format!(
-        "{}/social/channels?connected=meta&count={}",
+        "{}/connections?connected=meta&count={}",
         config.auth_url,
         connected.len()
     );
@@ -632,7 +632,7 @@ pub async fn linkedin_oauth_callback(
             .clone()
             .unwrap_or_else(|| error.clone());
         let redirect = format!(
-            "{}/social/channels?error={}",
+            "{}/connections?error={}",
             config.auth_url,
             urlencoding::encode(&message)
         );
@@ -674,7 +674,7 @@ pub async fn linkedin_oauth_callback(
     )
     .await?;
 
-    let redirect = format!("{}/social/channels?connected=linkedin", config.auth_url);
+    let redirect = format!("{}/connections?connected=linkedin", config.auth_url);
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))
         .cookie(

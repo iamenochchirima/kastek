@@ -10,9 +10,15 @@ export const metadata = {
   title: "Connections | KasiTek",
 };
 
-export default async function ConnectionsPage() {
+export default async function ConnectionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ connected?: string; count?: string; error?: string }>;
+}) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
+
+  const params = await searchParams;
 
   const [sharedResponse, whatsappResponse] = await Promise.all([
     fetchRustJson<{ connections: WorkspaceConnection[] }>("/api/connections").catch(() => ({ connections: [] })),
@@ -30,9 +36,32 @@ export default async function ConnectionsPage() {
           </p>
         </div>
 
-        <section id="whatsapp-setup" className="scroll-mt-6 space-y-3">
-          <WhatsappEmbeddedSignupCard connections={whatsappResponse.connections} />
+        {params.connected === "meta" ? (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+            {params.count === "1"
+              ? "Your Meta account was connected."
+              : `Your Meta accounts were connected${params.count ? ` (${params.count})` : ""}.`}
+            {" "}Facebook Pages and linked professional Instagram accounts are now available in this workspace.
+          </div>
+        ) : null}
 
+        {params.connected === "linkedin" || params.connected === "x" ? (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+            Your {params.connected === "linkedin" ? "LinkedIn" : "X"} account was connected and is ready to use in this workspace.
+          </div>
+        ) : null}
+
+        {params.error ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Meta connection could not be completed: {params.error}
+          </div>
+        ) : null}
+
+        <WhatsappEmbeddedSignupCard connections={whatsappResponse.connections} hidden />
+
+        <ConnectionsManager connections={sharedResponse.connections} />
+
+        <section id="whatsapp-setup" className="scroll-mt-6 space-y-3">
           <details className="rounded-xl border border-border bg-card">
             <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
               Advanced: connect with existing Meta credentials
@@ -46,8 +75,6 @@ export default async function ConnectionsPage() {
             </div>
           </details>
         </section>
-
-        <ConnectionsManager connections={sharedResponse.connections} />
       </div>
     </div>
   );

@@ -108,8 +108,10 @@ function parseEmbeddedSignupMessage(rawData: unknown):
 
 export default function WhatsappEmbeddedSignupCard({
   connections,
+  hidden = false,
 }: {
   connections: WhatsappConnectionView[];
+  hidden?: boolean;
 }) {
   const router = useRouter();
   const [sdkReady, setSdkReady] = useState(false);
@@ -359,6 +361,8 @@ export default function WhatsappEmbeddedSignupCard({
     window.addEventListener("kasitek:start-whatsapp-embedded-signup", handleStart);
     return () => window.removeEventListener("kasitek:start-whatsapp-embedded-signup", handleStart);
   }, []);
+
+  if (hidden) return null;
 
   return (
     <section className="rounded-xl border border-border bg-card p-5">

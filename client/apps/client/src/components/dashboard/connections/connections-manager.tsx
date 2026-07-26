@@ -2,13 +2,13 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { WorkspaceConnection } from "@/lib/connections";
 import { apiUrl } from "@/lib/server-api";
 import {
   AtSign,
   Bot,
-  CheckCircle2,
   Facebook,
   Instagram,
   Linkedin,
@@ -16,32 +16,56 @@ import {
   Radio,
   RefreshCw,
   Send,
-  ShieldAlert,
   Unplug,
+  X as CloseIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 const providerDetails = {
-  WHATSAPP: { label: "WhatsApp", icon: MessageCircle, connectPath: "#whatsapp-setup" },
-  FACEBOOK: { label: "Facebook", icon: Facebook, connectPath: "/api/social/oauth/meta/start" },
-  INSTAGRAM: { label: "Instagram", icon: Instagram, connectPath: "/api/social/oauth/meta/start" },
-  THREADS: { label: "Threads", icon: AtSign, connectPath: null },
-  LINKEDIN: { label: "LinkedIn", icon: Linkedin, connectPath: "/api/social/oauth/linkedin/start" },
-  X: { label: "X", icon: Send, connectPath: "/api/social/oauth/x/start" },
+  WHATSAPP: {
+    label: "WhatsApp",
+    availableLabel: "Available to connect",
+    icon: MessageCircle,
+    connectPath: "#whatsapp-setup",
+    connectLabel: "Connect",
+  },
+  FACEBOOK: {
+    label: "Facebook",
+    availableLabel: "Pages via Meta",
+    icon: Facebook,
+    connectPath: "/api/social/oauth/meta/start",
+    connectLabel: "Connect Meta",
+  },
+  INSTAGRAM: {
+    label: "Instagram",
+    availableLabel: "Professional accounts via Meta",
+    icon: Instagram,
+    connectPath: "/api/social/oauth/meta/start",
+    connectLabel: "Connect Meta",
+  },
+  THREADS: {
+    label: "Threads",
+    availableLabel: "Separate Meta integration",
+    icon: AtSign,
+    connectPath: null,
+    connectLabel: "Connect",
+  },
+  LINKEDIN: {
+    label: "LinkedIn",
+    availableLabel: "Available to connect",
+    icon: Linkedin,
+    connectPath: "/api/social/oauth/linkedin/start",
+    connectLabel: "Connect",
+  },
+  X: {
+    label: "X",
+    availableLabel: "Available to connect",
+    icon: Send,
+    connectPath: "/api/social/oauth/x/start",
+    connectLabel: "Connect",
+  },
 } as const;
-
-const capabilityLabels: Record<string, string> = {
-  AGENT_CHANNEL: "Agents",
-  CAMPAIGNS_SEND: "Campaigns",
-  COMMENTS_MANAGE: "Comments",
-  MEDIA_PUBLISH: "Media",
-  MESSAGING_INBOUND: "Receive messages",
-  MESSAGING_OUTBOUND: "Send messages",
-  SOCIAL_ANALYTICS: "Analytics",
-  SOCIAL_PUBLISH: "Publish",
-  TEMPLATES_MANAGE: "Templates",
-};
 
 const productLabels: Record<string, string> = {
   agents: "Agents",
@@ -65,14 +89,39 @@ function statusPresentation(status: WorkspaceConnection["status"]) {
   }
 }
 
+function readableStatus(value: string) {
+  return value.toLowerCase().replaceAll("_", " ");
+}
+
+function safeProviderDetails(metadata: Record<string, unknown> | null) {
+  if (!metadata) return [];
+
+  return Object.entries(metadata).filter(([key]) => !/(token|secret|password|credential)/i.test(key));
+}
+
+function formatDetail(value: unknown) {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
 export function ConnectionsManager({ connections }: { connections: WorkspaceConnection[] }) {
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [selectedConnection, setSelectedConnection] = useState<WorkspaceConnection | null>(null);
+  const groupedConnections = Object.entries(providerDetails)
+    .map(([provider, detail]) => ({
+      provider,
+      detail,
+      connections: connections.filter((connection) => connection.provider === provider),
+    }))
+    .filter((group) => group.connections.length > 0);
 
   async function setStatus(connection: WorkspaceConnection, status: "DISCONNECTED" | "REVOKED") {
     setPending(`${connection.id}:${status}`);
     setError("");
+
     try {
       const response = await fetch(apiUrl(`/api/connections/${connection.id}/status`), {
         method: "PATCH",
@@ -90,83 +139,142 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
     }
   }
 
-  const connectedCount = connections.filter((item) => item.status === "CONNECTED").length;
-  const attentionCount = connections.filter((item) => item.status === "NEEDS_ATTENTION").length;
-
   function beginWhatsappEmbeddedSignup() {
-    document.getElementById("whatsapp-setup")?.scrollIntoView({ behavior: "smooth", block: "start" });
     window.dispatchEvent(new Event("kasitek:start-whatsapp-embedded-signup"));
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card className="gap-2 py-4">
-          <CardContent className="flex items-center justify-between">
-            <div><p className="text-2xl font-semibold">{connectedCount}</p><p className="text-sm text-muted-foreground">Connected accounts</p></div>
-            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-          </CardContent>
-        </Card>
-        <Card className="gap-2 py-4">
-          <CardContent className="flex items-center justify-between">
-            <div><p className="text-2xl font-semibold">{attentionCount}</p><p className="text-sm text-muted-foreground">Need attention</p></div>
-            <ShieldAlert className="h-5 w-5 text-amber-500" />
-          </CardContent>
-        </Card>
-        <Card className="gap-2 py-4">
-          <CardContent className="flex items-center justify-between">
-            <div><p className="text-2xl font-semibold">{connections.length}</p><p className="text-sm text-muted-foreground">Provider accounts</p></div>
-            <Radio className="h-5 w-5 text-primary" />
-          </CardContent>
-        </Card>
-      </div>
+    <div className="space-y-8">
+      {error ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
 
-      {error ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Connect accounts</h2>
+          <p className="text-sm text-muted-foreground">
+            Add the channels your workspace will use. You can connect more accounts at any time.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {Object.entries(providerDetails).map(([provider, detail]) => {
+            const Icon = detail.icon;
+            const providerConnections = connections.filter((item) => item.provider === provider);
+            const connected = providerConnections.filter((item) => item.status === "CONNECTED").length;
+            const canConnect = Boolean(detail.connectPath);
+            const actionLabel = connected > 0
+              ? provider === "FACEBOOK" || provider === "INSTAGRAM"
+                ? "Add Meta accounts"
+                : "Add another"
+              : detail.connectLabel ?? "Connect";
+
+            return (
+              <Card key={provider} className="gap-0 py-0">
+                <CardContent className="flex items-center justify-between gap-4 p-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="rounded-md border bg-secondary p-2"><Icon className="h-5 w-5" /></div>
+                    <div className="min-w-0">
+                      <p className="font-medium">{detail.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {connected > 0 ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+                              {connected}
+                            </span>
+                            connected
+                          </span>
+                        ) : canConnect ? detail.availableLabel ?? "Available to connect" : detail.availableLabel ?? "Coming soon"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {provider === "WHATSAPP" ? (
+                    <Button variant={connected > 0 ? "outline" : "default"} size="sm" onClick={beginWhatsappEmbeddedSignup}>
+                      {actionLabel}
+                    </Button>
+                  ) : canConnect ? (
+                    <Button asChild variant={connected > 0 ? "outline" : "default"} size="sm">
+                      <a href={detail.connectPath!}>{actionLabel}</a>
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" disabled>Planned</Button>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold">Connected accounts</h2>
-          <p className="text-sm text-muted-foreground">Provider accounts shared by workspace features.</p>
+          <p className="text-sm text-muted-foreground">Manage the accounts already available to your workspace.</p>
         </div>
+
         {connections.length === 0 ? (
-          <Card><CardContent className="py-6 text-sm text-muted-foreground">No provider accounts are connected yet.</CardContent></Card>
+          <Card><CardContent className="py-6 text-sm text-muted-foreground">No accounts connected yet.</CardContent></Card>
         ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {connections.map((connection) => {
-              const detail = providerDetails[connection.provider as keyof typeof providerDetails];
+          <div className="space-y-7">
+            {groupedConnections.map((group) => {
+              const GroupIcon = group.detail.icon;
+
+              return (
+                <section key={group.provider} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-md border bg-secondary p-1.5"><GroupIcon className="h-4 w-4" /></div>
+                    <h3 className="font-medium">{group.detail.label}</h3>
+                    <span className="inline-flex size-5 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground">
+                      {group.connections.length}
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {group.connections.map((connection) => {
+                      const detail = group.detail;
               const Icon = detail?.icon ?? Radio;
               const status = statusPresentation(connection.status);
               const reconnectPath = detail?.connectPath;
+
               return (
-                <Card key={connection.id} className="overflow-hidden">
-                  <CardHeader className="border-b">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="rounded-md border bg-secondary p-2"><Icon className="h-5 w-5" /></div>
-                      <div className="min-w-0">
-                        <CardTitle className="truncate">{connection.displayName}</CardTitle>
-                        <p className="mt-1 text-sm text-muted-foreground">{detail?.label ?? connection.provider}{connection.handle ? ` · ${connection.handle}` : ""}</p>
+                <Card
+                  key={connection.id}
+                  className="cursor-pointer gap-0 py-0 transition-colors hover:border-primary/50"
+                  onClick={() => setSelectedConnection(connection)}
+                >
+                  <CardContent className="space-y-4 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="rounded-md border bg-secondary p-2"><Icon className="h-5 w-5" /></div>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{connection.displayName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {detail?.label ?? connection.provider}{connection.handle ? ` · ${connection.handle}` : ""}
+                          </p>
+                        </div>
                       </div>
+                      <Badge variant="outline" className={status.className}>{status.label}</Badge>
                     </div>
-                    <Badge variant="outline" className={status.className}>{status.label}</Badge>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-3 gap-3 text-xs">
-                      <div><p className="text-muted-foreground">Credentials</p><p className="mt-1 font-medium">{connection.credentialStatus.toLowerCase().replaceAll("_", " ")}</p></div>
-                      <div><p className="text-muted-foreground">Health</p><p className="mt-1 font-medium">{connection.healthStatus.toLowerCase().replaceAll("_", " ")}</p></div>
-                      <div><p className="text-muted-foreground">Webhook</p><p className="mt-1 font-medium">{connection.webhookStatus.toLowerCase().replaceAll("_", " ")}</p></div>
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>Credentials: <strong className="font-medium text-foreground">{readableStatus(connection.credentialStatus)}</strong></span>
+                      <span>Health: <strong className="font-medium text-foreground">{readableStatus(connection.healthStatus)}</strong></span>
                     </div>
-                    <div>
-                      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Used by</p>
-                      <div className="flex flex-wrap gap-2">{connection.consumers.map((item) => <Badge key={item} variant="secondary">{productLabels[item] ?? item}</Badge>)}</div>
-                    </div>
-                    <div>
-                      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Capabilities</p>
-                      <div className="flex flex-wrap gap-2">{connection.capabilities.map((capability) => <Badge key={capability.key} variant="outline" className={!capability.enabled ? "opacity-50" : ""}>{capabilityLabels[capability.key] ?? capability.key}{capability.entitlementKey ? " · subscription" : ""}</Badge>)}</div>
-                    </div>
+
+                    {connection.consumers.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {connection.consumers.map((item) => <Badge key={item} variant="secondary">{productLabels[item] ?? item}</Badge>)}
+                      </div>
+                    ) : null}
+
                     {connection.lastError ? <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{connection.lastError}</p> : null}
-                    <div className="flex flex-wrap gap-2 border-t pt-4">
+
+                    <div className="flex flex-wrap gap-2 border-t pt-3" onClick={(event) => event.stopPropagation()}>
                       {connection.status !== "CONNECTED" && reconnectPath ? (
-                        <Button asChild size="sm"><a href={reconnectPath.startsWith("#") ? reconnectPath : apiUrl(reconnectPath)}><RefreshCw />Reconnect</a></Button>
+                        <Button asChild size="sm"><a href={reconnectPath}><RefreshCw />Reconnect</a></Button>
                       ) : null}
                       {connection.status === "CONNECTED" ? (
                         <Button variant="outline" size="sm" disabled={pending !== null} onClick={() => void setStatus(connection, "DISCONNECTED")}><Unplug />Disconnect</Button>
@@ -178,31 +286,62 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                   </CardContent>
                 </Card>
               );
+                    })}
+                  </div>
+                </section>
+              );
             })}
           </div>
         )}
       </section>
 
-      <section className="space-y-3">
-        <div><h2 className="text-lg font-semibold">Add provider</h2><p className="text-sm text-muted-foreground">Connect another account to this workspace.</p></div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {Object.entries(providerDetails).map(([provider, detail]) => {
-            const Icon = detail.icon;
+      <Sheet open={selectedConnection !== null} onOpenChange={(open: boolean) => { if (!open) setSelectedConnection(null); }}>
+        <SheetContent side="right" className="w-full max-w-xl overflow-y-auto border-l border-border p-5 sm:w-[32rem]">
+          {selectedConnection ? (() => {
+            const providerDetail = providerDetails[selectedConnection.provider as keyof typeof providerDetails];
+            const Icon = providerDetail?.icon ?? Radio;
+            const status = statusPresentation(selectedConnection.status);
+            const metadataDetails = safeProviderDetails(selectedConnection.metadata);
+            const rows = [
+              ["Provider", providerDetail?.label ?? selectedConnection.provider],
+              ["Account ID", selectedConnection.externalAccountId ?? "—"],
+              ["Handle", selectedConnection.handle ?? "—"],
+              ["Credentials", readableStatus(selectedConnection.credentialStatus)],
+              ["Health", readableStatus(selectedConnection.healthStatus)],
+              ["Webhook", readableStatus(selectedConnection.webhookStatus)],
+              ["Last checked", selectedConnection.lastCheckedAt ?? "Not checked yet"],
+              ["Connected", selectedConnection.createdAt],
+              ["Last updated", selectedConnection.updatedAt],
+            ];
+
             return (
-              <Card key={provider} className="py-4">
-                <CardContent className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3"><div className="rounded-md border bg-secondary p-2"><Icon className="h-5 w-5" /></div><div><p className="font-medium">{detail.label}</p><p className="text-xs text-muted-foreground">{detail.connectPath ? "Available" : "Not wired yet"}</p></div></div>
-                  {provider === "WHATSAPP" ? (
-                    <Button variant="outline" size="sm" onClick={beginWhatsappEmbeddedSignup}>
-                      Connect
-                    </Button>
-                  ) : detail.connectPath ? <Button asChild variant="outline" size="sm"><a href={apiUrl(detail.connectPath)}>Connect</a></Button> : <Button variant="outline" size="sm" disabled>Planned</Button>}
-                </CardContent>
-              </Card>
+              <div className="space-y-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-md border bg-secondary p-2"><Icon className="h-5 w-5" /></div>
+                    <div><p className="font-semibold">{selectedConnection.displayName}</p><p className="text-sm text-muted-foreground">Connection details</p></div>
+                  </div>
+                  <Button variant="ghost" size="icon-sm" onClick={() => setSelectedConnection(null)} aria-label="Close details"><CloseIcon /></Button>
+                </div>
+
+                <Badge variant="outline" className={status.className}>{status.label}</Badge>
+
+                <div className="space-y-1 rounded-lg border p-3">
+                  {rows.map(([label, value]) => <div key={label} className="grid grid-cols-[8rem_1fr] gap-3 py-2 text-sm"><span className="text-muted-foreground">{label}</span><span className="break-all font-medium">{value}</span></div>)}
+                </div>
+
+                <div><h3 className="mb-2 text-sm font-semibold">Workspace use</h3><div className="flex flex-wrap gap-1.5">{selectedConnection.consumers.length ? selectedConnection.consumers.map((item) => <Badge key={item} variant="secondary">{productLabels[item] ?? item}</Badge>) : <span className="text-sm text-muted-foreground">Not assigned to a workspace feature yet.</span>}</div></div>
+
+                <div><h3 className="mb-2 text-sm font-semibold">Capabilities</h3><div className="flex flex-wrap gap-1.5">{selectedConnection.capabilities.length ? selectedConnection.capabilities.map((capability) => <Badge key={capability.key} variant="outline" className={!capability.enabled ? "opacity-50" : ""}>{capability.key.toLowerCase().replaceAll("_", " ")}{capability.entitlementKey ? ` · ${capability.entitlementKey}` : ""}</Badge>) : <span className="text-sm text-muted-foreground">No capabilities reported.</span>}</div></div>
+
+                <div><h3 className="mb-2 text-sm font-semibold">Provider data</h3>{metadataDetails.length ? <div className="space-y-1 rounded-lg border p-3">{metadataDetails.map(([key, value]) => <div key={key} className="grid grid-cols-[8rem_1fr] gap-3 py-2 text-sm"><span className="break-all text-muted-foreground">{key}</span><span className="break-all font-medium">{formatDetail(value)}</span></div>)}</div> : <p className="text-sm text-muted-foreground">No additional provider data is stored.</p>}</div>
+
+                {selectedConnection.lastError ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{selectedConnection.lastError}</div> : null}
+              </div>
             );
-          })}
-        </div>
-      </section>
+          })() : null}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

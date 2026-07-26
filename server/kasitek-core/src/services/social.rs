@@ -996,7 +996,7 @@ async fn get_social_channel_by_external_account(
         r#"
         SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
                "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
-               metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
+               metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "SocialChannelConnection"
         WHERE "orgId" = $1 AND platform = '{platform}'::"SocialPlatform" AND "externalAccountId" = $2
         LIMIT 1
@@ -1018,7 +1018,7 @@ pub async fn list_social_channels(
         r#"
         SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
                "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
-               metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
+               metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "SocialChannelConnection"
         WHERE "orgId" = $1
         ORDER BY platform ASC, "createdAt" DESC
@@ -1039,7 +1039,7 @@ pub async fn get_social_channel(
         r#"
         SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
                "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
-               metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
+               metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "SocialChannelConnection"
         WHERE id = $1 AND "orgId" = $2
         LIMIT 1
@@ -1089,7 +1089,7 @@ pub async fn create_social_channel(
         r#"
         SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
                "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
-               metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
+               metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "SocialChannelConnection"
         WHERE "orgId" = $1
         ORDER BY "createdAt" DESC
@@ -1197,7 +1197,7 @@ async fn load_posts(
             SELECT id, "userId" AS user_id, "primaryChannelId" AS primary_channel_id, title, prompt, content,
                    ARRAY(SELECT unnest(channels)::text) AS channels,
                    status::text AS status, "scheduledFor" AS scheduled_for, "publishedAt" AS published_at,
-                   metadata, "createdAt" AS created_at, "updatedAt" AS updated_at
+                   metadata, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "SocialPost"
             WHERE "orgId" = $1 AND id = $2
             "#,
@@ -1212,7 +1212,7 @@ async fn load_posts(
             SELECT id, "userId" AS user_id, "primaryChannelId" AS primary_channel_id, title, prompt, content,
                    ARRAY(SELECT unnest(channels)::text) AS channels,
                    status::text AS status, "scheduledFor" AS scheduled_for, "publishedAt" AS published_at,
-                   metadata, "createdAt" AS created_at, "updatedAt" AS updated_at
+                   metadata, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "SocialPost"
             WHERE "orgId" = $1
             ORDER BY "createdAt" DESC
@@ -1236,7 +1236,7 @@ async fn load_posts(
     let variants = sqlx::query_as::<_, SocialPostVariant>(
         r#"
         SELECT id, "postId" AS post_id, platform::text AS platform, content, status::text AS status,
-               "aiGenerated" AS ai_generated, metadata, "createdAt" AS created_at, "updatedAt" AS updated_at
+               "aiGenerated" AS ai_generated, metadata, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "SocialPostVariant"
         WHERE "postId" = ANY($1)
         ORDER BY "createdAt" ASC
@@ -1252,7 +1252,7 @@ async fn load_posts(
                "channelConnectionId" AS channel_connection_id, platform::text AS platform,
                status::text AS status, "scheduledFor" AS scheduled_for, "publishedAt" AS published_at,
                "externalPostId" AS external_post_id, "errorMessage" AS error_message,
-               metadata, "createdAt" AS created_at, "updatedAt" AS updated_at
+               metadata, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "SocialPublishJob"
         WHERE "postId" = ANY($1)
         ORDER BY "createdAt" DESC
@@ -1269,7 +1269,7 @@ async fn load_posts(
             r#"
             SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
                    "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
-                   metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
+                   metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "SocialChannelConnection"
             WHERE id = ANY($1)
             "#,
@@ -1655,7 +1655,7 @@ async fn resolve_connected_channel_for_platform(
             SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
                    "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
                    "accessToken" AS access_token, "refreshToken" AS refresh_token,
-                   metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
+                   metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "SocialChannelConnection"
             WHERE id = $1 AND "orgId" = $2 AND platform = '{platform}'::"SocialPlatform" AND status = 'CONNECTED'::"SocialChannelStatus"
             LIMIT 1
@@ -1678,7 +1678,7 @@ async fn resolve_connected_channel_for_platform(
         SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
                "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
                "accessToken" AS access_token, "refreshToken" AS refresh_token,
-               metadata, "lastSyncedAt" AS last_synced_at, "createdAt" AS created_at, "updatedAt" AS updated_at
+               metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "SocialChannelConnection"
         WHERE "orgId" = $1 AND platform = '{platform}'::"SocialPlatform" AND status = 'CONNECTED'::"SocialChannelStatus"
         ORDER BY "updatedAt" DESC
