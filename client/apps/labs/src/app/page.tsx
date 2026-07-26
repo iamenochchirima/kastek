@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { ProductWorkspacePreview } from "@/components/product-workspace-preview";
-import { ServicesDeliveryPreview } from "@/components/services-delivery-preview";
+import { ServiceDeliveryMontage } from "@/components/service-delivery-montage";
 import { PartnershipWorkspacePreview } from "@/components/partnership-workspace-preview";
 
 const appUrl = process.env.NEXT_PUBLIC_KASITEK_APP_URL ?? "http://localhost:3000";
@@ -213,7 +213,7 @@ export default function LabsLandingPage() {
             </a>
           </div>
         </div>
-        <ServicesDeliveryPreview />
+        <ServiceDeliveryMontage />
       </section>
 
       <section className="partner-section section-pad" id="partners">
