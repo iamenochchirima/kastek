@@ -6,6 +6,7 @@ export type RustSessionUser = {
   name: string;
   email: string;
   image: string;
+  emailVerified: string | null;
 };
 
 export type RustSession = {
@@ -25,6 +26,7 @@ export const getRustSession = cache(async (): Promise<RustSession | null> => {
         name: payload.user.name ?? "",
         email: payload.user.email ?? "",
         image: payload.user.image ?? "",
+        emailVerified: payload.user.emailVerified ?? null,
       },
     };
   } catch {

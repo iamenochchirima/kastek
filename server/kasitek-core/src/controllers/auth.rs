@@ -7,21 +7,42 @@ use std::collections::HashMap;
 use crate::config::AppConfig;
 use crate::db::models::{
     AccountCheckRequest, LoginRequest, PasswordSetupRequest, SendOtpRequest, SetPasswordRequest,
-    SignupRequest, User, UserProfileResponse, VerifyOtpRequest,
+    ResendVerificationRequest, SignupRequest, User, UserProfileResponse, VerifyOtpRequest,
 };
 use crate::error::AppError;
-use crate::middleware::extract_user;
+use crate::middleware::extract_user_allow_unverified;
 use crate::services::auth::{
     create_session, delete_session, issue_verification_token, send_email, send_sms_message,
 };
 use crate::services::orgs;
 
 fn auth_server_base_url(config: &AppConfig) -> String {
-    std::env::var("API_BASE_URL").unwrap_or_else(|_| format!("http://localhost:{}", config.port))
+    std::env::var("API_BASE_URL").unwrap_or_else(|_| config.public_api_url.clone())
 }
 
 fn google_redirect_uri(config: &AppConfig) -> String {
     format!("{}/api/auth/google/callback", auth_server_base_url(config))
+}
+
+async fn send_account_verification_email(
+    pool: &PgPool,
+    config: &AppConfig,
+    email: &str,
+) -> Result<(), AppError> {
+    let token = issue_verification_token(pool, email).await?;
+    let verify_url = format!(
+        "{}/api/auth/verify-email?token={}&email={}",
+        auth_server_base_url(config),
+        token,
+        urlencoding::encode(email)
+    );
+    send_email(
+        config,
+        email,
+        "Verify your KasiTek account",
+        &format!("Welcome to KasiTek. Verify your email here: {}", verify_url),
+    )
+    .await
 }
 
 pub async fn signup(
@@ -58,6 +79,20 @@ pub async fn signup(
     .await?;
 
     if existing > 0 {
+        let email_verified = sqlx::query_scalar::<_, Option<chrono::DateTime<chrono::Utc>>>(
+            r#"SELECT "emailVerified" FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
+        )
+        .bind(&email)
+        .fetch_one(pool.get_ref())
+        .await?;
+
+        if email_verified.is_none() {
+            return Ok(HttpResponse::Conflict().json(serde_json::json!({
+                "error": "This account still needs email verification.",
+                "code": "EMAIL_UNVERIFIED"
+            })));
+        }
+
         let has_google_account = sqlx::query_scalar::<_, i64>(
             r#"
             SELECT COUNT(*)
@@ -150,21 +185,7 @@ pub async fn signup(
     let base_slug = orgs::slugify(&user_id);
     let _ = orgs::create_org(pool.get_ref(), &user_id, &org_name, &base_slug, None).await;
 
-    let token = issue_verification_token(pool.get_ref(), &email).await?;
-    let verify_url = format!(
-        "{}/api/auth/verify-email?token={}&email={}",
-        config.auth_url,
-        token,
-        urlencoding::encode(&email)
-    );
-
-    let _ = send_email(
-        config.get_ref(),
-        &email,
-        "Verify your KasiTek account",
-        &format!("Welcome to KasiTek. Verify your email here: {}", verify_url),
-    )
-    .await;
+    let _ = send_account_verification_email(pool.get_ref(), config.get_ref(), &email).await;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "Account created. Check your email to verify.",
@@ -207,6 +228,13 @@ pub async fn login(
         return Err(AppError::Unauthorized);
     }
 
+    if user.email_verified.is_none() {
+        return Ok(HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "Verify your email before signing in.",
+            "code": "EMAIL_UNVERIFIED"
+        })));
+    }
+
     let session_token = create_session(pool.get_ref(), &user.id).await?;
 
     Ok(HttpResponse::Ok()
@@ -229,7 +257,7 @@ pub async fn logout(
 }
 
 pub async fn me(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
-    let user = extract_user(&req, pool.get_ref()).await?;
+    let user = extract_user_allow_unverified(&req, pool.get_ref()).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "user": UserProfileResponse::from(user)
     })))
@@ -529,6 +557,43 @@ pub async fn account_check(
     Ok(HttpResponse::Ok().json(serde_json::json!({ "provider": provider })))
 }
 
+pub async fn resend_verification(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    body: web::Json<ResendVerificationRequest>,
+) -> Result<HttpResponse, AppError> {
+    let email = body
+        .email
+        .as_ref()
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty());
+
+    if let Some(email) = email {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            SELECT id, name, email, phone, image, password,
+                   "emailVerified" AT TIME ZONE 'UTC' AS "emailVerified",
+                   "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
+                   "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
+            FROM "User"
+            WHERE lower(email) = lower($1)
+            LIMIT 1
+            "#,
+        )
+        .bind(&email)
+        .fetch_optional(pool.get_ref())
+        .await?;
+
+        if user.is_some_and(|user| user.email_verified.is_none()) {
+            send_account_verification_email(pool.get_ref(), config.get_ref(), &email).await?;
+        }
+    }
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "message": "If this account needs verification, we sent a new verification link."
+    })))
+}
+
 pub async fn send_otp(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -655,10 +720,24 @@ pub async fn verify_email(
     .execute(pool.get_ref())
     .await?;
 
+    sqlx::query(
+        r#"DELETE FROM "Session" WHERE "userId" IN (
+            SELECT id FROM "User" WHERE lower(email) = lower($1)
+        )"#,
+    )
+    .bind(&email)
+    .execute(pool.get_ref())
+    .await?;
+
     Ok(HttpResponse::Found()
+        .cookie(config.clear_user_session_cookie())
         .append_header((
             "Location",
-            format!("{}/login?verified=true", config.frontend_url),
+            format!(
+                "{}/verify-request?verified=true&email={}",
+                config.frontend_url.trim_end_matches('/'),
+                urlencoding::encode(&email)
+            ),
         ))
         .finish())
 }

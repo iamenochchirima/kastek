@@ -22,7 +22,10 @@ fn extract_user_session_token(req: &HttpRequest) -> Option<String> {
         .or_else(|| extract_bearer_token(req))
 }
 
-pub async fn extract_user(req: &HttpRequest, pool: &PgPool) -> Result<User, AppError> {
+pub async fn extract_user_allow_unverified(
+    req: &HttpRequest,
+    pool: &PgPool,
+) -> Result<User, AppError> {
     let token = extract_user_session_token(req).ok_or(AppError::Unauthorized)?;
 
     let session = sqlx::query_as::<_, SessionRecord>(
@@ -39,7 +42,7 @@ pub async fn extract_user(req: &HttpRequest, pool: &PgPool) -> Result<User, AppE
 
     let _ = (&session.id, &session.session_token, &session.expires);
 
-    sqlx::query_as::<_, User>(
+    let user = sqlx::query_as::<_, User>(
         r#"
         SELECT
             id,
@@ -58,7 +61,19 @@ pub async fn extract_user(req: &HttpRequest, pool: &PgPool) -> Result<User, AppE
     .bind(session.user_id)
     .fetch_optional(pool)
     .await?
-    .ok_or(AppError::Unauthorized)
+    .ok_or(AppError::Unauthorized)?;
+
+    Ok(user)
+}
+
+pub async fn extract_user(req: &HttpRequest, pool: &PgPool) -> Result<User, AppError> {
+    let user = extract_user_allow_unverified(req, pool).await?;
+    if user.email_verified.is_none() {
+        return Err(AppError::Forbidden(
+            "Verify your email before accessing your workspace".to_string(),
+        ));
+    }
+    Ok(user)
 }
 
 /// Resolve the active workspace and verify the authenticated user belongs to it.

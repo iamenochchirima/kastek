@@ -1,16 +1,14 @@
 "use client";
 
-import { useState, use } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiUrl } from "@/lib/server-api";
 
-export default function LoginForm({
-  searchParams,
-}: {
-  searchParams: Promise<{ callbackUrl?: string; verified?: string }>;
-}) {
-  const { callbackUrl, verified } = use(searchParams);
+export default function LoginForm() {
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") ?? undefined;
+  const verified = searchParams.get("verified") ?? undefined;
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,11 +35,17 @@ export default function LoginForm({
     });
     const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
+      code?: string;
     };
 
     setLoading(false);
 
     if (!response.ok) {
+      if (payload.code === "EMAIL_UNVERIFIED") {
+        router.replace(`/verify-request?email=${encodeURIComponent(email)}`);
+        return;
+      }
+
       // Check what auth method this email uses
       const check = await fetch(apiUrl("/api/auth/account-check"), {
         method: "POST",

@@ -2,8 +2,8 @@ use actix_web::web;
 
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
-    admin_outreach, admin_quotations, admin_web_services, ai, auth, billing, bots, calls, chat,
-    connections, customers, health, inbox, notifications, orgs, profile, public, realtime, social,
+    admin_outreach, admin_quotations, admin_web_services, ai, auth, billing, bookings, bots, calls, chat,
+    connections, customers, health, inbox, notifications, onboarding, orgs, profile, product_tour, public, realtime, social,
     whatsapp, whatsapp_calls, workspace,
 };
 
@@ -108,6 +108,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::get().to(auth::google_oauth_callback),
                 )
                 .route("/account-check", web::post().to(auth::account_check))
+                .route("/resend-verification", web::post().to(auth::resend_verification))
                 .route("/send-otp", web::post().to(auth::send_otp))
                 .route("/verify-otp", web::post().to(auth::verify_otp))
                 .route("/verify-email", web::get().to(auth::verify_email))
@@ -127,7 +128,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         )
         .service(
             web::scope("/api/onboarding")
+                .route("", web::get().to(onboarding::get))
+                .route("", web::patch().to(onboarding::update))
                 .route("/phone", web::post().to(profile::save_onboarding_phone)),
+        )
+        .service(
+            web::scope("/api/product-tour")
+                .route("", web::get().to(product_tour::get))
+                .route("", web::patch().to(product_tour::update)),
         )
         .service(
             web::scope("/api/notifications")
@@ -192,6 +200,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .service(
                     web::scope("/publish-jobs")
                         .route("/{id}", web::patch().to(social::update_publish_job)),
+                ),
+        )
+        .service(
+            web::scope("/api/bookings")
+                .route("", web::get().to(bookings::list_bookings))
+                .route("", web::post().to(bookings::create_booking))
+                .route("/{id}", web::patch().to(bookings::update_booking))
+                .service(
+                    web::scope("/services")
+                        .route("", web::get().to(bookings::list_services))
+                        .route("", web::post().to(bookings::create_service))
+                        .route("/{id}", web::patch().to(bookings::update_service)),
                 ),
         )
         .service(

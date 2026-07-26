@@ -14,9 +14,6 @@ export default function SignupPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Create your Kasi<span className="text-primary">Tek</span> account
         </h1>
-        <p className="mt-2 text-muted-foreground">
-          Set up your workspace and start using KasiTek products.
-        </p>
       </div>
       <SignupForm />
     </div>

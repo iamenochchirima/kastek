@@ -15,12 +15,14 @@ import {
   Bell,
   Cable,
   CalendarDays,
+  CalendarCheck,
   ChevronDown,
   CreditCard,
   Download,
   Bot,
   FileText,
   Grid2x2,
+  HelpCircle,
   LayoutGrid,
   LockKeyhole,
   LogOut,
@@ -48,6 +50,8 @@ import PushNotificationReminder from "@/components/dashboard/notifications/push-
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import type { BillingSummary } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
+import type { ProductTourStatus } from "@/lib/product-tour";
+import { ProductTour } from "@/components/dashboard/product-tour";
 import {
   applyTheme,
   resolveStoredTheme,
@@ -66,6 +70,19 @@ type NavigationGroup = {
   label: string;
   items: NavItem[];
 };
+
+function tourTarget(href: string) {
+  return ({
+    "/workspace": "overview",
+    "/inbox": "inbox",
+    "/connections": "connections",
+    "/agents": "agents",
+    "/content": "content",
+    "/bookings": "bookings",
+    "/campaigns": "campaigns",
+    "/workspace/team": "team",
+  } as Record<string, string | undefined>)[href];
+}
 
 const navigationGroups: NavigationGroup[] = [
   {
@@ -87,6 +104,7 @@ const navigationGroups: NavigationGroup[] = [
       { name: "Templates", href: "/templates", icon: FileText, productKey: "reach" },
       { name: "Content", href: "/content", icon: Sparkles, productKey: "social" },
       { name: "Calendar", href: "/calendar", icon: CalendarDays, productKey: "social" },
+      { name: "Bookings", href: "/bookings", icon: CalendarCheck },
       { name: "Analytics", href: "/analytics", icon: Grid2x2, productKey: "social" },
     ],
   },
@@ -187,6 +205,7 @@ function NavigationSection({
           <Link
             key={item.href}
             href={href}
+            data-tour={tourTarget(item.href)}
             onClick={onNavigate}
             className={cn(
               "relative flex min-h-9 items-center rounded-md text-[13px] font-medium leading-5 no-underline transition-colors",
@@ -310,6 +329,19 @@ function SidebarContent({
           <ThemeToggleSimple className={collapsed ? "w-9 px-0 [&_span]:hidden" : undefined} />
         </div>
 
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("kasitek:restart-product-tour"))}
+          className={cn(
+            "flex min-h-9 w-full items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+            collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
+          )}
+          title="Take a tour"
+        >
+          <HelpCircle className="h-[18px] w-[18px] shrink-0" />
+          {!collapsed ? <span>Take a tour</span> : null}
+        </button>
+
         <Link
           href="/workspace/notifications"
           onClick={onNavigate}
@@ -430,6 +462,7 @@ export function LayoutShell({
   orgs = [],
   activeOrgId = null,
   billingSummary = null,
+  productTourStatus = null,
 }: {
   children: React.ReactNode;
   user?: { name?: string | null; email?: string | null; image?: string | null };
@@ -437,6 +470,7 @@ export function LayoutShell({
   orgs?: Org[];
   activeOrgId?: string | null;
   billingSummary?: BillingSummary | null;
+  productTourStatus?: ProductTourStatus | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
@@ -509,6 +543,7 @@ export function LayoutShell({
             <PushNotificationReminder />
             {children}
           </main>
+          <ProductTour status={productTourStatus} />
         </div>
       </>
     </WhatsappRealtimeProvider>

@@ -2,22 +2,38 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/server-api";
 
+function getPasswordStrength(password: string) {
+  if (!password) return { score: 0, label: "", hint: "Use at least 8 characters." };
+
+  const checks = [
+    password.length >= 8,
+    /[a-z]/.test(password) && /[A-Z]/.test(password),
+    /\d/.test(password),
+    /[^A-Za-z0-9]/.test(password),
+    password.length >= 12,
+  ];
+  const score = checks.filter(Boolean).length;
+
+  if (score <= 1) return { score: 1, label: "Weak", hint: "Add uppercase, numbers, or symbols." };
+  if (score === 2) return { score: 2, label: "Fair", hint: "Add another character type or make it longer." };
+  if (score === 3) return { score: 3, label: "Good", hint: "A longer password will make it stronger." };
+  return { score: 4, label: "Strong", hint: "This password has a good mix of characters." };
+}
+
 export default function SignupForm() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [passwordSetupSent, setPasswordSetupSent] = useState(false);
+  const passwordStrength = getPasswordStrength(password);
 
   const handleGoogleSignIn = () => {
     window.location.assign(
@@ -25,64 +41,9 @@ export default function SignupForm() {
     );
   };
 
-  const handleSendOtp = async () => {
-    if (!phone) {
-      setError("Please enter a phone number");
-      return;
-    }
-    setError("");
-    setOtpLoading(true);
-
-    const res = await fetch(apiUrl("/api/auth/send-otp"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ phone }),
-    });
-
-    const data = await res.json();
-    setOtpLoading(false);
-
-    if (!res.ok) {
-      setError(data.error);
-    } else {
-      setOtpSent(true);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otp) {
-      setError("Please enter the verification code");
-      return;
-    }
-    setError("");
-    setOtpLoading(true);
-
-    const res = await fetch(apiUrl("/api/auth/verify-otp"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ phone, code: otp }),
-    });
-
-    const data = await res.json();
-    setOtpLoading(false);
-
-    if (!res.ok) {
-      setError(data.error);
-    } else {
-      setPhoneVerified(true);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
-    if (!phoneVerified) {
-      setError("Please verify your phone number first");
-      return;
-    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -95,14 +56,20 @@ export default function SignupForm() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ email, password, name, phone, phoneVerified: true }),
+      body: JSON.stringify({
+        email,
+        password,
+        name,
+      }),
     });
 
     const data = await res.json();
     setLoading(false);
 
     if (!res.ok) {
-      if (data.code === "GOOGLE_ACCOUNT_EXISTS") {
+      if (data.code === "EMAIL_UNVERIFIED") {
+        router.replace(`/verify-request?email=${encodeURIComponent(email)}`);
+      } else if (data.code === "GOOGLE_ACCOUNT_EXISTS") {
         setPasswordSetupSent(true);
       } else {
         setError(data.error);
@@ -222,74 +189,6 @@ export default function SignupForm() {
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground">
-            Phone Number
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => {
-                setPhone(e.target.value);
-                if (phoneVerified) {
-                  setPhoneVerified(false);
-                  setOtpSent(false);
-                  setOtp("");
-                }
-              }}
-              placeholder="e.g. +27 72 123 4567"
-              required
-              disabled={phoneVerified}
-              className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-60"
-            />
-            {!phoneVerified && !otpSent && (
-              <button
-                type="button"
-                onClick={handleSendOtp}
-                disabled={otpLoading || !phone}
-                className="shrink-0 rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
-              >
-                {otpLoading ? "Sending..." : "Send Code"}
-              </button>
-            )}
-            {phoneVerified && (
-              <div className="flex shrink-0 items-center rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
-                Verified
-              </div>
-            )}
-          </div>
-          {otpSent && !phoneVerified && (
-            <div className="mt-2 flex gap-2">
-              <input
-                type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="Enter 6-digit code"
-                maxLength={6}
-                className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleVerifyOtp}
-                disabled={otpLoading || otp.length < 6}
-                className="shrink-0 rounded-xl border border-accent bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
-              >
-                {otpLoading ? "Checking..." : "Verify"}
-              </button>
-            </div>
-          )}
-          {otpSent && !phoneVerified && (
-            <button
-              type="button"
-              onClick={handleSendOtp}
-              disabled={otpLoading}
-              className="mt-1.5 text-xs text-muted-foreground hover:text-primary"
-            >
-              Resend code
-            </button>
-          )}
-        </div>
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">
             Password
           </label>
           <input
@@ -301,6 +200,30 @@ export default function SignupForm() {
             minLength={8}
             className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
+          <div className="mt-2" aria-live="polite">
+            <div className="flex gap-1" aria-label={passwordStrength.label ? `Password strength: ${passwordStrength.label}` : "Password strength"}>
+              {[1, 2, 3, 4].map((segment) => (
+                <span
+                  key={segment}
+                  className={`h-1 flex-1 rounded-full ${
+                    segment <= passwordStrength.score
+                      ? passwordStrength.score === 1
+                        ? "bg-destructive"
+                        : passwordStrength.score === 2
+                          ? "bg-status-attention"
+                          : passwordStrength.score === 3
+                            ? "bg-primary/70"
+                            : "bg-primary"
+                      : "bg-border"
+                  }`}
+                />
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {passwordStrength.label ? <span className="font-medium text-foreground">{passwordStrength.label}. </span> : null}
+              {passwordStrength.hint}
+            </p>
+          </div>
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground">

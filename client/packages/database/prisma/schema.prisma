@@ -44,6 +44,8 @@ model Organization {
   billingCheckouts         BillingCheckout[]
   billingInvoices          BillingInvoice[]
   billingIssues            BillingReconciliationIssue[]
+  onboardingProfile        OrganizationOnboardingProfile?
+  productTours             UserProductTour[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -67,6 +69,22 @@ model OrganizationMember {
   @@unique([orgId, userId])
   @@index([userId])
   @@index([orgId, role])
+}
+
+model OrganizationOnboardingProfile {
+  id             String       @id @default(cuid())
+  orgId          String       @unique
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  website        String?
+  primaryGoal    String?
+  primaryGoals   String[]     @default([])
+  teamRole       String?
+  industry       String?
+  referralSource String?
+  completedAt    DateTime?
+  skippedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model OrganizationInvitation {
@@ -223,6 +241,24 @@ model ProductPlan {
   updatedAt           DateTime        @updatedAt
 
   @@index([productId, active])
+}
+
+model UserProductTour {
+  id          String       @id @default(cuid())
+  userId      String
+  orgId       String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  status      String       @default("PENDING")
+  currentStep Int          @default(0)
+  startedAt   DateTime?
+  completedAt DateTime?
+  dismissedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([userId, orgId])
+  @@index([orgId])
 }
 
 model PlanEntitlement {
@@ -427,6 +463,7 @@ model User {
   whatsappCallSessions WhatsappCallSession[]
   pushSubscriptions   PushSubscription[]
   billingCheckouts    BillingCheckout[]
+  productTours        UserProductTour[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

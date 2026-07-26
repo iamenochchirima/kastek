@@ -192,7 +192,7 @@ export default function LabsLandingPage() {
         <div className="operating-intro">
           <h2>Kasitek.</h2>
           <p>
-            Customer operations, growth and automation—kept in view.
+            Customer work, growth activity and automation in one workspace.
           </p>
           <a className="button button-dark" href={appUrl}>
             Open Kasitek
@@ -204,7 +204,14 @@ export default function LabsLandingPage() {
 
       <section className="approach section-pad" id="approach">
         <div className="approach-heading">
-          <h2>Built around the work.<br />Not the trend.</h2>
+          <h2>Built around your work.</h2>
+          <div className="approach-details">
+            <p>We design, build and deliver systems that fit the way your business actually operates.</p>
+            <a className="approach-cta" href={`mailto:${contactEmail}?subject=Project enquiry`}>
+              Start a project
+              <ArrowUpRight aria-hidden="true" />
+            </a>
+          </div>
         </div>
         <ServicesDeliveryPreview />
       </section>

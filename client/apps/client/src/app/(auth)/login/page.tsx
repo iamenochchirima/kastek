@@ -6,14 +6,10 @@ export const metadata = {
   title: "Sign In | KasiTek",
 };
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ callbackUrl?: string }>;
-}) {
+export default async function LoginPage() {
   const session = await getRustSession();
   if (session?.user?.id) {
-    redirect("/workspace");
+    redirect(session.user.emailVerified ? "/workspace" : `/verify-request?email=${encodeURIComponent(session.user.email)}`);
   }
 
   return (
@@ -29,7 +25,7 @@ export default async function LoginPage({
           Access your workspace, products, and connected automation flows.
         </p>
       </div>
-      <LoginForm searchParams={searchParams} />
+      <LoginForm />
     </div>
   );
 }
