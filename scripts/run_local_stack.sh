@@ -46,6 +46,7 @@ services["calls"]="$ROOT_DIR/server/kasitek-calls|cargo run"
 services["tenants"]="$ROOT_DIR/server/kasitek-tenants|cargo run"
 services["client"]="$ROOT_DIR/client|pnpm run dev"
 services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
+services["labs"]="$ROOT_DIR/client|pnpm --filter labs dev"
 services["ngrok"]="$ROOT_DIR|ngrok http http://localhost:4000"
 
 add_tab() {
@@ -99,7 +100,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  for service in core calls tenants client admin ngrok; do
+  for service in core calls tenants client admin labs ngrok; do
     add_service "$service"
   done
 elif [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
