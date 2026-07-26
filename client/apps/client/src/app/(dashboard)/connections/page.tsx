@@ -1,3 +1,4 @@
+import WhatsappEmbeddedSignupCard from "@/components/dashboard/settings/whatsapp-embedded-signup-card";
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 import { ConnectionsManager } from "@/components/dashboard/connections/connections-manager";
 import type { WhatsappConnectionView, WorkspaceConnection } from "@/lib/connections";
@@ -29,11 +30,24 @@ export default async function ConnectionsPage() {
           </p>
         </div>
 
-        <ConnectionsManager connections={sharedResponse.connections} />
+        <section id="whatsapp-setup" className="scroll-mt-6 space-y-3">
+          <WhatsappEmbeddedSignupCard connections={whatsappResponse.connections} />
 
-        <section id="whatsapp-setup" className="scroll-mt-6">
-          <WhatsappManualConnectionCard connections={whatsappResponse.connections} mode="maintenance" />
+          <details className="rounded-xl border border-border bg-card">
+            <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+              Advanced: connect with existing Meta credentials
+            </summary>
+            <div className="border-t border-border p-5">
+              <p className="mb-4 text-sm text-muted-foreground">
+                Use this only if you cannot complete Meta Embedded Signup. Most workspaces should
+                connect through the Meta flow above.
+              </p>
+              <WhatsappManualConnectionCard connections={whatsappResponse.connections} mode="setup" />
+            </div>
+          </details>
         </section>
+
+        <ConnectionsManager connections={sharedResponse.connections} />
       </div>
     </div>
   );

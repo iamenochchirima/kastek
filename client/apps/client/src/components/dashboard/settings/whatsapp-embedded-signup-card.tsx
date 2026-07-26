@@ -123,6 +123,7 @@ export default function WhatsappEmbeddedSignupCard({
   >({});
 
   const finishDataRef = useRef<EmbeddedSignupFinishData | null>(null);
+  const startSignupRef = useRef<() => void>(() => undefined);
 
   const appId = process.env.NEXT_PUBLIC_META_APP_ID || "";
   const configId = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || "";
@@ -311,7 +312,7 @@ export default function WhatsappEmbeddedSignupCard({
     setLoading(true);
 
     window.FB.login(
-      async (response) => {
+      (response) => {
         const code = response.authResponse?.code;
 
         if (!code) {
@@ -320,25 +321,25 @@ export default function WhatsappEmbeddedSignupCard({
           return;
         }
 
-        try {
-          await finalizeSignup(code);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : "Failed to connect WhatsApp";
-          const params = new URLSearchParams({
-            status: "error",
-            message,
-            diagnostics: JSON.stringify([
-              {
-                step: "finalize_signup",
-                ok: false,
-                detail: message,
-              },
-            ]),
+        void finalizeSignup(code)
+          .catch((err) => {
+            const message = err instanceof Error ? err.message : "Failed to connect WhatsApp";
+            const params = new URLSearchParams({
+              status: "error",
+              message,
+              diagnostics: JSON.stringify([
+                {
+                  step: "finalize_signup",
+                  ok: false,
+                  detail: message,
+                },
+              ]),
+            });
+            router.push(`/connections/whatsapp-onboarding?${params.toString()}`);
+          })
+          .finally(() => {
+            setLoading(false);
           });
-          router.push(`/connections/whatsapp-onboarding?${params.toString()}`);
-        } finally {
-          setLoading(false);
-        }
       },
       {
         config_id: configId,
@@ -350,6 +351,14 @@ export default function WhatsappEmbeddedSignupCard({
       }
     );
   }
+
+  startSignupRef.current = startEmbeddedSignup;
+
+  useEffect(() => {
+    const handleStart = () => startSignupRef.current();
+    window.addEventListener("kasitek:start-whatsapp-embedded-signup", handleStart);
+    return () => window.removeEventListener("kasitek:start-whatsapp-embedded-signup", handleStart);
+  }, []);
 
   return (
     <section className="rounded-xl border border-border bg-card p-5">

@@ -53,7 +53,7 @@ export default function WhatsappOnboardingResultCard() {
   const ok = status === "success";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <div
         className={`rounded-xl border p-5 ${
           ok
@@ -106,18 +106,12 @@ export default function WhatsappOnboardingResultCard() {
         )}
       </section>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex justify-end">
         <Link
           href="/connections"
-          className="rounded-lg border border-border px-4 py-2 text-sm text-foreground no-underline hover:border-primary/20"
-        >
-          Back to Connections
-        </Link>
-        <Link
-          href="/campaigns"
           className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground no-underline"
         >
-          Go to Campaigns
+          Finish
         </Link>
       </div>
     </div>

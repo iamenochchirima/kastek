@@ -93,6 +93,11 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
   const connectedCount = connections.filter((item) => item.status === "CONNECTED").length;
   const attentionCount = connections.filter((item) => item.status === "NEEDS_ATTENTION").length;
 
+  function beginWhatsappEmbeddedSignup() {
+    document.getElementById("whatsapp-setup")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.dispatchEvent(new Event("kasitek:start-whatsapp-embedded-signup"));
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-3">
@@ -187,7 +192,11 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
               <Card key={provider} className="py-4">
                 <CardContent className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3"><div className="rounded-md border bg-secondary p-2"><Icon className="h-5 w-5" /></div><div><p className="font-medium">{detail.label}</p><p className="text-xs text-muted-foreground">{detail.connectPath ? "Available" : "Not wired yet"}</p></div></div>
-                  {detail.connectPath ? <Button asChild variant="outline" size="sm"><a href={detail.connectPath.startsWith("#") ? detail.connectPath : apiUrl(detail.connectPath)}>Connect</a></Button> : <Button variant="outline" size="sm" disabled>Planned</Button>}
+                  {provider === "WHATSAPP" ? (
+                    <Button variant="outline" size="sm" onClick={beginWhatsappEmbeddedSignup}>
+                      Connect
+                    </Button>
+                  ) : detail.connectPath ? <Button asChild variant="outline" size="sm"><a href={apiUrl(detail.connectPath)}>Connect</a></Button> : <Button variant="outline" size="sm" disabled>Planned</Button>}
                 </CardContent>
               </Card>
             );
