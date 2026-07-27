@@ -1,7 +1,7 @@
 {
   "id": "architecture/kasitek-technical-blueprint",
   "title": "Architecture",
-  "description": "This is the technical source of truth for how Kasitek products, services, systems, agents, and integrations fit together.",
+  "description": "This document defines the target architecture for the complete Kasitek platform. It is the technical reference for product boundaries, identity, tenancy, business domains, data, integrations, agents, security, and operations.",
   "source": "@site/../internal/architecture/kasitek-technical-blueprint.md",
   "sourceDirName": "architecture",
   "slug": "/architecture",
@@ -18,7 +18,11 @@
   },
   "sidebar": "tutorialSidebar",
   "previous": {
-    "title": "Product Roadmap",
-    "permalink": "/roadmap/product-roadmap"
+    "title": "Client-Ready Platform Checklist",
+    "permalink": "/execution/client-ready-platform-checklist"
+  },
+  "next": {
+    "title": "Action Platform Technical Design",
+    "permalink": "/architecture/action-platform-technical-design"
   }
 }

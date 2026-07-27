@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Building2, ChevronLeft, ChevronRight, FileText, Gauge, Globe2, Handshake,
+  Building2, ChevronDown, ChevronLeft, ChevronRight, FileText, Gauge, Globe2, Handshake,
   Inbox, Mail, Menu, ReceiptText, Send, Settings, Users, X,
 } from "lucide-react";
 import { buttonClassName } from "@/components/ui/button";
@@ -38,10 +38,38 @@ function isActive(pathname: string, href: string) {
 
 function Navigation({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(navigation.map((group) => [group.label, true]))
+  );
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("kasitek-labs-nav-groups");
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored) as Record<string, boolean>;
+      setOpenGroups((current) => ({ ...current, ...parsed }));
+    } catch {
+      // Ignore malformed local navigation preferences.
+    }
+  }, []);
+
+  function toggleGroup(label: string) {
+    setOpenGroups((current) => {
+      const next = { ...current, [label]: !current[label] };
+      window.localStorage.setItem("kasitek-labs-nav-groups", JSON.stringify(next));
+      return next;
+    });
+  }
+
   return <nav className="space-y-4" aria-label="Admin navigation">
-    {navigation.map((group) => <section key={group.label}>
-      {!collapsed ? <p className="mb-1 px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{group.label}</p> : null}
-      <div className="space-y-0.5">
+    {navigation.map((group) => {
+      const groupId = `admin-navigation-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
+      const isOpen = collapsed || openGroups[group.label] !== false;
+      return <section key={group.label}>
+      {!collapsed ? <button type="button" onClick={() => toggleGroup(group.label)} className="mb-1 flex w-full items-center justify-between rounded-md px-2.5 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground hover:bg-secondary hover:text-foreground" aria-expanded={isOpen} aria-controls={groupId}>
+        <span>{group.label}</span><ChevronDown className={`size-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+      </button> : null}
+      {isOpen ? <div id={groupId} className="space-y-0.5">
         {group.items.map((item) => {
           const Icon = item.icon;
           const active = isActive(pathname, item.href);
@@ -50,15 +78,16 @@ function Navigation({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate
             <Icon className="size-4 shrink-0" />{!collapsed ? <span>{item.label}</span> : null}
           </Link>;
         })}
-      </div>
-    </section>)}
+      </div> : null}
+    </section>;
+    })}
   </nav>;
 }
 
 function Brand({ collapsed = false }: { collapsed?: boolean }) {
   return <Link href="/dashboard" className={`flex items-center gap-2.5 px-2 ${collapsed ? "justify-center" : ""}`}>
-    <span className="grid size-7 place-items-center rounded-md bg-accent text-[11px] font-semibold text-foreground">K</span>
-    {!collapsed ? <span className="text-sm font-semibold tracking-[-0.02em] text-foreground">KasiTek <span className="font-normal text-muted-foreground">Admin</span></span> : null}
+    <img src="/logo.png" alt="Kasitek Labs" className="size-8 shrink-0 rounded-md object-cover" />
+    {!collapsed ? <span className="text-sm font-semibold tracking-[-0.02em] text-foreground">Kasitek <span className="font-normal text-muted-foreground">Labs</span></span> : null}
   </Link>;
 }
 

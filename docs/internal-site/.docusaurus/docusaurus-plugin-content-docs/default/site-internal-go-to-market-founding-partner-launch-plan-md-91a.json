@@ -1,0 +1,28 @@
+{
+  "id": "go-to-market/founding-partner-launch-plan",
+  "title": "Founding Partner Launch Plan",
+  "description": "Purpose",
+  "source": "@site/../internal/go-to-market/founding-partner-launch-plan.md",
+  "sourceDirName": "go-to-market",
+  "slug": "/go-to-market/founding-partner-launch",
+  "permalink": "/go-to-market/founding-partner-launch",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "title": "Founding Partner Launch Plan",
+    "slug": "/go-to-market/founding-partner-launch",
+    "sidebar_position": 3
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Product Roadmap",
+    "permalink": "/roadmap/product-roadmap"
+  },
+  "next": {
+    "title": "Client-Ready Platform Checklist",
+    "permalink": "/execution/client-ready-platform-checklist"
+  }
+}

@@ -477,10 +477,6 @@ export type OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput = {
   deleteMany?: Prisma.OrganizationInvitationScalarWhereInput | Prisma.OrganizationInvitationScalarWhereInput[]
 }
 
-export type NullableDateTimeFieldUpdateOperationsInput = {
-  set?: Date | string | null
-}
-
 export type OrganizationInvitationCreateNestedManyWithoutInvitedByInput = {
   create?: Prisma.XOR<Prisma.OrganizationInvitationCreateWithoutInvitedByInput, Prisma.OrganizationInvitationUncheckedCreateWithoutInvitedByInput> | Prisma.OrganizationInvitationCreateWithoutInvitedByInput[] | Prisma.OrganizationInvitationUncheckedCreateWithoutInvitedByInput[]
   connectOrCreate?: Prisma.OrganizationInvitationCreateOrConnectWithoutInvitedByInput | Prisma.OrganizationInvitationCreateOrConnectWithoutInvitedByInput[]

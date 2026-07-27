@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="docs-wrapper plugin-docs plugin-id-default docs-version-current docs-doc-page docs-doc-id-architecture/PROJECT_PLAN" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.10.1">
+<title data-rh="true">Kasitek Project Plan | Kasitek Internal Docs</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://internal-docs.kasitek.co.za/architecture/project-plan"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Kasitek Project Plan | Kasitek Internal Docs"><meta data-rh="true" name="description" content="This file captures the current product and architecture direction so implementation work stays aligned with the intended system shape."><meta data-rh="true" property="og:description" content="This file captures the current product and architecture direction so implementation work stays aligned with the intended system shape."><link data-rh="true" rel="canonical" href="https://internal-docs.kasitek.co.za/architecture/project-plan"><link data-rh="true" rel="alternate" href="https://internal-docs.kasitek.co.za/architecture/project-plan" hreflang="en"><link data-rh="true" rel="alternate" href="https://internal-docs.kasitek.co.za/architecture/project-plan" hreflang="x-default"><link rel="stylesheet" href="/assets/css/styles.6082afdc.css">
+<script src="/assets/js/runtime~main.25060cda.js" defer="defer"></script>
+<script src="/assets/js/main.8f953226.js" defer="defer"></script>
+</head>
+<body>
+<svg style="display: none;"><defs>
+<symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_KgxS" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><b class="navbar__title text--truncate">Kasitek Internal</b></a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/">Home</a><a class="navbar__item navbar__link" href="/features">Features</a><a class="navbar__item navbar__link" href="/white-paper/kasitek-white-paper">White Paper</a><a class="navbar__item navbar__link" href="/roadmap/product-roadmap">Roadmap</a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/architecture">Architecture</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><div class="toggle_tbyb colorModeToggle_e0Bn"><button class="clean-btn toggleButton_B91Z toggleButtonDisabled_p2Q9" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_lo8p lightToggleIcon_GXMs"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_lo8p darkToggleIcon_Yh_K"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_lo8p systemToggleIcon_XCRi"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_gvtp"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_XZWo"><div class="docsWrapper_C5ys"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_ZwfY" type="button"></button><div class="docRoot_VGkw"><main class="docMainContainer_AGU6 docMainContainerEnhanced_Is3H"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_Yr4n"><div class="docItemContainer_Drb5"><article><div class="tocCollapsible_Qqfg theme-doc-toc-mobile tocMobile_SUcu"><button type="button" class="clean-btn tocCollapsibleButton_StCq">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Kasitek Project Plan</h1></header>
+<p>This file captures the current product and architecture direction so implementation work stays aligned with the intended system shape.</p>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="product-surfaces">Product Surfaces<a href="#product-surfaces" class="hash-link" aria-label="Direct link to Product Surfaces" title="Direct link to Product Surfaces" translate="no">​</a></h2>
+<p>Kasitek currently operates across three main surfaces:</p>
+<ul>
+<li class=""><code>server/kasitek-core</code>: direct Kasitek product backend</li>
+<li class=""><code>server/kasitek-tenants</code>: white-label tenant backend</li>
+<li class=""><code>client/apps/client</code>: direct Kasitek client-facing app</li>
+<li class=""><code>client/apps/admin</code>: internal Kasitek operations app</li>
+<li class=""><code>client/apps/tenant-portal</code>: unified white-label tenant web app</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="white-label-direction">White-Label Direction<a href="#white-label-direction" class="hash-link" aria-label="Direct link to White-Label Direction" title="Direct link to White-Label Direction" translate="no">​</a></h2>
+<p>White-label is a first-class product line, not a future add-on.</p>
+<p>The active direction is:</p>
+<ul>
+<li class=""><code>kasitek-core</code> remains the backend for Kasitek&#x27;s direct product</li>
+<li class=""><code>kasitek-tenants</code> is the separate backend for white-label tenants</li>
+<li class=""><code>tenant-portal</code> is the unified white-label frontend for both tenant staff and tenant client users</li>
+<li class="">the tenant platform uses its own database and its own auth/session model</li>
+</ul>
+<p>Future work should not collapse white-label back into <code>kasitek-core</code>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="three-layer-operating-model">Three-Layer Operating Model<a href="#three-layer-operating-model" class="hash-link" aria-label="Direct link to Three-Layer Operating Model" title="Direct link to Three-Layer Operating Model" translate="no">​</a></h2>
+<p>The white-label system must support all three layers from the start:</p>
+<ol>
+<li class=""><code>Kasitek platform</code></li>
+<li class=""><code>Tenant admin / agency</code></li>
+<li class=""><code>Tenant clients / customer accounts</code></li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="layer-1-kasitek-platform">Layer 1: Kasitek Platform<a href="#layer-1-kasitek-platform" class="hash-link" aria-label="Direct link to Layer 1: Kasitek Platform" title="Direct link to Layer 1: Kasitek Platform" translate="no">​</a></h3>
+<p>Kasitek provisions and operates the system:</p>
+<ul>
+<li class="">create tenant workspaces</li>
+<li class="">manage tenant deployments and domains</li>
+<li class="">issue API keys</li>
+<li class="">configure plans, limits, and billing</li>
+<li class="">manage support and internal platform operations</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="layer-2-tenant-admin--agency">Layer 2: Tenant Admin / Agency<a href="#layer-2-tenant-admin--agency" class="hash-link" aria-label="Direct link to Layer 2: Tenant Admin / Agency" title="Direct link to Layer 2: Tenant Admin / Agency" translate="no">​</a></h3>
+<p>This is Kasitek&#x27;s direct paying client.</p>
+<p>Tenant admins and staff must be able to:</p>
+<ul>
+<li class="">log into their tenant admin portal</li>
+<li class="">manage workspace settings and branding</li>
+<li class="">manage tenant staff users</li>
+<li class="">add and manage their own clients</li>
+<li class="">invite client accounts</li>
+<li class="">manage services, automations, conversations, reporting, and usage</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="layer-3-tenant-clients--customer-accounts">Layer 3: Tenant Clients / Customer Accounts<a href="#layer-3-tenant-clients--customer-accounts" class="hash-link" aria-label="Direct link to Layer 3: Tenant Clients / Customer Accounts" title="Direct link to Layer 3: Tenant Clients / Customer Accounts" translate="no">​</a></h3>
+<p>These are the agency&#x27;s own clients.</p>
+<p>They must be first-class identities in the system from the beginning.</p>
+<p>Expected flow:</p>
+<ul>
+<li class="">tenant admin adds a client</li>
+<li class="">client receives an invite or secure onboarding link</li>
+<li class="">client creates credentials</li>
+<li class="">client logs into the tenant&#x27;s branded environment</li>
+<li class="">client accesses only their own allowed services and data</li>
+</ul>
+<p>This is core to the product model, not a later enhancement.</p>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="required-auth-modes">Required Auth Modes<a href="#required-auth-modes" class="hash-link" aria-label="Direct link to Required Auth Modes" title="Direct link to Required Auth Modes" translate="no">​</a></h2>
+<p>The platform must support multiple auth models in parallel:</p>
+<ul>
+<li class=""><code>platform/internal auth</code> for Kasitek operations</li>
+<li class=""><code>tenant staff auth</code> for agency admins and staff</li>
+<li class=""><code>tenant client auth</code> for the agency&#x27;s own clients</li>
+<li class=""><code>API key auth</code> for integrations and server-to-server access</li>
+</ul>
+<p>Do not simplify the architecture to only:</p>
+<ul>
+<li class="">direct Kasitek users</li>
+<li class="">tenant API keys</li>
+</ul>
+<p>That is insufficient for the real white-label flow.</p>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="implementation-direction">Implementation Direction<a href="#implementation-direction" class="hash-link" aria-label="Direct link to Implementation Direction" title="Direct link to Implementation Direction" translate="no">​</a></h2>
+<p>Current implementation should move in this order:</p>
+<ol>
+<li class="">establish tenant workspace resolution by domain/host</li>
+<li class="">establish tenant staff identity, roles, and sessions</li>
+<li class="">establish tenant client identity, invites, credentials, and sessions</li>
+<li class="">connect the unified tenant portal to real tenant backend APIs</li>
+<li class="">add provisioning flows for workspace, domain, branding, keys, and first admin</li>
+<li class="">add usage metering, billing controls, and service entitlements</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="architectural-boundaries">Architectural Boundaries<a href="#architectural-boundaries" class="hash-link" aria-label="Direct link to Architectural Boundaries" title="Direct link to Architectural Boundaries" translate="no">​</a></h2>
+<p>Keep these boundaries clear:</p>
+<ul>
+<li class=""><code>kasitek-core</code> should not absorb white-label tenant runtime concerns</li>
+<li class=""><code>kasitek-tenants</code> should own tenant-specific auth, routing, data isolation, and branded portal concerns</li>
+<li class="">direct Kasitek users and tenant users are different identity systems</li>
+<li class="">tenant staff and tenant clients are different identity layers inside the same tenant</li>
+<li class="">tenant staff and tenant client users should share one frontend app where practical, but remain separated by auth, layouts, and route areas</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="working-assumption">Working Assumption<a href="#working-assumption" class="hash-link" aria-label="Direct link to Working Assumption" title="Direct link to Working Assumption" translate="no">​</a></h2>
+<p>Unless explicitly changed, future work should assume:</p>
+<ul>
+<li class="">separate white-label backend: <code>server/kasitek-tenants</code></li>
+<li class="">unified white-label frontend: <code>client/apps/tenant-portal</code></li>
+<li class="">separate tenant database</li>
+<li class="">three-layer model is mandatory:<!-- -->
+<ol>
+<li class="">Kasitek platform</li>
+<li class="">tenant admin/staff</li>
+<li class="">tenant client/customer accounts</li>
+</ol>
+</li>
+</ul></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"></nav></div></div><div class="col col--3"><div class="tableOfContents_XYr6 thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#product-surfaces" class="table-of-contents__link toc-highlight">Product Surfaces</a></li><li><a href="#white-label-direction" class="table-of-contents__link toc-highlight">White-Label Direction</a></li><li><a href="#three-layer-operating-model" class="table-of-contents__link toc-highlight">Three-Layer Operating Model</a><ul><li><a href="#layer-1-kasitek-platform" class="table-of-contents__link toc-highlight">Layer 1: Kasitek Platform</a></li><li><a href="#layer-2-tenant-admin--agency" class="table-of-contents__link toc-highlight">Layer 2: Tenant Admin / Agency</a></li><li><a href="#layer-3-tenant-clients--customer-accounts" class="table-of-contents__link toc-highlight">Layer 3: Tenant Clients / Customer Accounts</a></li></ul></li><li><a href="#required-auth-modes" class="table-of-contents__link toc-highlight">Required Auth Modes</a></li><li><a href="#implementation-direction" class="table-of-contents__link toc-highlight">Implementation Direction</a></li><li><a href="#architectural-boundaries" class="table-of-contents__link toc-highlight">Architectural Boundaries</a></li><li><a href="#working-assumption" class="table-of-contents__link toc-highlight">Working Assumption</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Main Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/features">Product Features</a></li><li class="footer__item"><a class="footer__link-item" href="/white-paper/kasitek-white-paper">White Paper</a></li><li class="footer__item"><a class="footer__link-item" href="/roadmap/product-roadmap">Product Roadmap</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Architecture</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/">Internal Home</a></li><li class="footer__item"><a class="footer__link-item" href="/architecture">Architecture</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Internal use only. Copyright 2026 Kasitek Labs</div></div></div></footer></div>
+</body>
+</html>

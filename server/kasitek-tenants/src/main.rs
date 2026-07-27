@@ -1,3 +1,4 @@
+use ::config::{environment_allows_loopback_origins, is_loopback_origin};
 use actix_cors::Cors;
 use actix_web::{http::header::HeaderValue, middleware::Logger, web, App, HttpServer};
 use dotenv::dotenv;
@@ -69,6 +70,7 @@ async fn main() -> std::io::Result<()> {
 
     let port = config.port;
     let allowed_origins = config.allowed_origins.clone();
+    let allow_loopback_origins = environment_allows_loopback_origins(&config.environment);
 
     log::info!("starting tenant server on port {}", port);
 
@@ -82,9 +84,13 @@ async fn main() -> std::io::Result<()> {
             cors = cors.allowed_origin(origin);
         }
 
-        if let Some(platform_base_domain) = config.platform_base_domain.clone() {
+        let platform_base_domain = config.platform_base_domain.clone();
+        if allow_loopback_origins || platform_base_domain.is_some() {
             cors = cors.allowed_origin_fn(move |origin, _req_head| {
-                origin_matches_platform_domain(origin, &platform_base_domain)
+                (allow_loopback_origins && origin.to_str().is_ok_and(is_loopback_origin))
+                    || platform_base_domain.as_deref().is_some_and(|base_domain| {
+                        origin_matches_platform_domain(origin, base_domain)
+                    })
             });
         }
 

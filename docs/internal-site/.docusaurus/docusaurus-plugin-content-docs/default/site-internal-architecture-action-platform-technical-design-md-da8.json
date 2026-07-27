@@ -1,0 +1,28 @@
+{
+  "id": "architecture/action-platform-technical-design",
+  "title": "Action Platform Technical Design",
+  "description": "Status: Accepted for Slice 1; later-phase decisions remain open",
+  "source": "@site/../internal/architecture/action-platform-technical-design.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture/action-platform-technical-design",
+  "permalink": "/architecture/action-platform-technical-design",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "title": "Action Platform Technical Design",
+    "slug": "/architecture/action-platform-technical-design",
+    "sidebar_position": 5
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Architecture",
+    "permalink": "/architecture"
+  },
+  "next": {
+    "title": "Agent Protocol Implementation Plan",
+    "permalink": "/architecture/agent-protocol-implementation-plan"
+  }
+}

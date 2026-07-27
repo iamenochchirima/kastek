@@ -160,7 +160,7 @@ pub async fn request_email_change(
     let token = issue_verification_token(pool.get_ref(), &identifier).await?;
     let verify_url = format!(
         "{}/api/profile/email/verify?token={}&change={}",
-        config.auth_url,
+        config.public_api_url.trim_end_matches('/'),
         urlencoding::encode(&token),
         urlencoding::encode(&identifier)
     );

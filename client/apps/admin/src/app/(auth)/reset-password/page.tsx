@@ -64,7 +64,7 @@ function ResetPasswordContent() {
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-bold text-text">Choose a new password</h1>
           <p className="mt-1 text-sm text-text-muted">
-            Set a new password for your KasiTek admin account.
+            Set a new password for your Kasitek Labs account.
           </p>
         </div>
 

@@ -44,6 +44,8 @@ model Organization {
   billingCheckouts         BillingCheckout[]
   billingInvoices          BillingInvoice[]
   billingIssues            BillingReconciliationIssue[]
+  bookingServices          BookingService[]
+  bookings                 Booking[]
   onboardingProfile        OrganizationOnboardingProfile?
   productTours             UserProductTour[]
 
@@ -936,6 +938,7 @@ model Customer {
   conversations    Conversation[]
   whatsappContacts WhatsappContact[]
   botEvents        BotEvent[]
+  bookings         Booking[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -965,6 +968,59 @@ model CustomerIdentity {
   @@unique([orgId, identityKey])
   @@index([customerId, channel])
   @@index([orgId, channel, externalId])
+}
+
+// ─── Bookings ──────────────────────────────────────────────
+
+enum BookingStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model BookingService {
+  id              String   @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?  @db.Text
+  durationMinutes Int
+  active          Boolean  @default(true)
+  bookings        Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, active])
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  orgId           String
+  org             Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  serviceId       String
+  service         BookingService @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  customerId      String?
+  customer        Customer?     @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
+  contactName     String
+  contactPhone    String?
+  scheduledStart  DateTime
+  scheduledEnd    DateTime
+  timezone        String        @default("Africa/Johannesburg")
+  status          BookingStatus @default(SCHEDULED)
+  notes           String?       @db.Text
+  createdById     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, scheduledStart])
+  @@index([orgId, status, scheduledStart])
+  @@index([serviceId, scheduledStart])
+  @@index([customerId, scheduledStart])
 }
 
 model Conversation {

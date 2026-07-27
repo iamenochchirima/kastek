@@ -353,22 +353,39 @@ fn run_state(
         return ("pending".to_string(), "not_needed".to_string(), None);
     }
 
-    let reminder_due_at = Some(run.due_date + Duration::days(invoice.reminder_days_after_due as i64));
+    let reminder_due_at =
+        Some(run.due_date + Duration::days(invoice.reminder_days_after_due as i64));
 
     if run.reminder_sent_at.is_some() {
-        return ("reminder_sent".to_string(), "sent".to_string(), reminder_due_at);
+        return (
+            "reminder_sent".to_string(),
+            "sent".to_string(),
+            reminder_due_at,
+        );
     }
 
     if now >= run.due_date {
         if let Some(reminder_due) = reminder_due_at {
             if now >= reminder_due {
-                return ("reminder_due".to_string(), "pending".to_string(), reminder_due_at);
+                return (
+                    "reminder_due".to_string(),
+                    "pending".to_string(),
+                    reminder_due_at,
+                );
             }
         }
-        return ("overdue".to_string(), "not_needed".to_string(), reminder_due_at);
+        return (
+            "overdue".to_string(),
+            "not_needed".to_string(),
+            reminder_due_at,
+        );
     }
 
-    ("sent".to_string(), "not_needed".to_string(), reminder_due_at)
+    (
+        "sent".to_string(),
+        "not_needed".to_string(),
+        reminder_due_at,
+    )
 }
 
 async fn list_admin_ids(pool: &PgPool) -> Result<Vec<String>, AppError> {
@@ -628,16 +645,23 @@ async fn sync_current_run(
     Ok(Some(run))
 }
 
-fn operations_summary(invoice: &InvoiceRow, current_run: Option<&InvoiceRunRow>) -> InvoiceOperationsSummary {
+fn operations_summary(
+    invoice: &InvoiceRow,
+    current_run: Option<&InvoiceRunRow>,
+) -> InvoiceOperationsSummary {
     InvoiceOperationsSummary {
         recurring_client: invoice_is_recurring(invoice),
-        needs_invoice_send: current_run.is_some_and(|run| run.send_status == "pending" && Utc::now() >= run.issue_date),
+        needs_invoice_send: current_run
+            .is_some_and(|run| run.send_status == "pending" && Utc::now() >= run.issue_date),
         needs_reminder: current_run.is_some_and(|run| run.reminder_status == "pending"),
         cycle_label: current_run.map(|run| run.cycle_key.clone()),
     }
 }
 
-fn action_items_for_invoice(invoice: &InvoiceRow, current_run: Option<&InvoiceRunRow>) -> Vec<InvoiceActionItem> {
+fn action_items_for_invoice(
+    invoice: &InvoiceRow,
+    current_run: Option<&InvoiceRunRow>,
+) -> Vec<InvoiceActionItem> {
     let mut items = Vec::new();
 
     if let Some(run) = current_run {
@@ -674,10 +698,7 @@ fn action_items_for_invoice(invoice: &InvoiceRow, current_run: Option<&InvoiceRu
     items
 }
 
-async fn invoice_response(
-    pool: &PgPool,
-    mut invoice: InvoiceRow,
-) -> Result<Value, AppError> {
+async fn invoice_response(pool: &PgPool, mut invoice: InvoiceRow) -> Result<Value, AppError> {
     let current_run = sync_current_run(pool, &invoice).await?;
 
     if let Some(run) = &current_run {
@@ -836,7 +857,10 @@ pub async fn create_invoice(
         .unwrap_or_else(|| "one_off".to_string());
     let recurring_active = body.recurring_active.unwrap_or(billing_mode == "monthly");
     let billing_anchor_day = if recurring_active {
-        Some(parse_anchor_day(&body.billing_anchor_day, date.day() as i32))
+        Some(parse_anchor_day(
+            &body.billing_anchor_day,
+            date.day() as i32,
+        ))
     } else {
         None
     };
@@ -1243,13 +1267,17 @@ pub async fn invoice_run_action(
             .execute(pool.get_ref())
             .await?;
 
-            sqlx::query(r#"UPDATE "Invoice" SET status = 'draft', "updatedAt" = NOW() WHERE id = $1"#)
-                .bind(&invoice_id)
-                .execute(pool.get_ref())
-                .await?;
+            sqlx::query(
+                r#"UPDATE "Invoice" SET status = 'draft', "updatedAt" = NOW() WHERE id = $1"#,
+            )
+            .bind(&invoice_id)
+            .execute(pool.get_ref())
+            .await?;
         }
         _ => {
-            return Err(AppError::BadRequest("unsupported invoice action".to_string()));
+            return Err(AppError::BadRequest(
+                "unsupported invoice action".to_string(),
+            ));
         }
     }
 

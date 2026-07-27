@@ -39,6 +39,7 @@ export type BotEventMinAggregateOutputType = {
   botId: string | null
   userId: string | null
   orgId: string | null
+  customerId: string | null
   eventType: string | null
   channel: string | null
   status: string | null
@@ -52,6 +53,7 @@ export type BotEventMaxAggregateOutputType = {
   botId: string | null
   userId: string | null
   orgId: string | null
+  customerId: string | null
   eventType: string | null
   channel: string | null
   status: string | null
@@ -65,6 +67,7 @@ export type BotEventCountAggregateOutputType = {
   botId: number
   userId: number
   orgId: number
+  customerId: number
   eventType: number
   channel: number
   status: number
@@ -89,6 +92,7 @@ export type BotEventMinAggregateInputType = {
   botId?: true
   userId?: true
   orgId?: true
+  customerId?: true
   eventType?: true
   channel?: true
   status?: true
@@ -102,6 +106,7 @@ export type BotEventMaxAggregateInputType = {
   botId?: true
   userId?: true
   orgId?: true
+  customerId?: true
   eventType?: true
   channel?: true
   status?: true
@@ -115,6 +120,7 @@ export type BotEventCountAggregateInputType = {
   botId?: true
   userId?: true
   orgId?: true
+  customerId?: true
   eventType?: true
   channel?: true
   status?: true
@@ -216,6 +222,7 @@ export type BotEventGroupByOutputType = {
   botId: string
   userId: string
   orgId: string | null
+  customerId: string | null
   eventType: string
   channel: string | null
   status: string | null
@@ -253,6 +260,7 @@ export type BotEventWhereInput = {
   botId?: Prisma.StringFilter<"BotEvent"> | string
   userId?: Prisma.StringFilter<"BotEvent"> | string
   orgId?: Prisma.StringNullableFilter<"BotEvent"> | string | null
+  customerId?: Prisma.StringNullableFilter<"BotEvent"> | string | null
   eventType?: Prisma.StringFilter<"BotEvent"> | string
   channel?: Prisma.StringNullableFilter<"BotEvent"> | string | null
   status?: Prisma.StringNullableFilter<"BotEvent"> | string | null
@@ -263,6 +271,7 @@ export type BotEventWhereInput = {
   bot?: Prisma.XOR<Prisma.BotConfigurationScalarRelationFilter, Prisma.BotConfigurationWhereInput>
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
+  customer?: Prisma.XOR<Prisma.CustomerNullableScalarRelationFilter, Prisma.CustomerWhereInput> | null
 }
 
 export type BotEventOrderByWithRelationInput = {
@@ -270,6 +279,7 @@ export type BotEventOrderByWithRelationInput = {
   botId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orgId?: Prisma.SortOrderInput | Prisma.SortOrder
+  customerId?: Prisma.SortOrderInput | Prisma.SortOrder
   eventType?: Prisma.SortOrder
   channel?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -280,6 +290,7 @@ export type BotEventOrderByWithRelationInput = {
   bot?: Prisma.BotConfigurationOrderByWithRelationInput
   user?: Prisma.UserOrderByWithRelationInput
   org?: Prisma.OrganizationOrderByWithRelationInput
+  customer?: Prisma.CustomerOrderByWithRelationInput
 }
 
 export type BotEventWhereUniqueInput = Prisma.AtLeast<{
@@ -290,6 +301,7 @@ export type BotEventWhereUniqueInput = Prisma.AtLeast<{
   botId?: Prisma.StringFilter<"BotEvent"> | string
   userId?: Prisma.StringFilter<"BotEvent"> | string
   orgId?: Prisma.StringNullableFilter<"BotEvent"> | string | null
+  customerId?: Prisma.StringNullableFilter<"BotEvent"> | string | null
   eventType?: Prisma.StringFilter<"BotEvent"> | string
   channel?: Prisma.StringNullableFilter<"BotEvent"> | string | null
   status?: Prisma.StringNullableFilter<"BotEvent"> | string | null
@@ -300,6 +312,7 @@ export type BotEventWhereUniqueInput = Prisma.AtLeast<{
   bot?: Prisma.XOR<Prisma.BotConfigurationScalarRelationFilter, Prisma.BotConfigurationWhereInput>
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   org?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
+  customer?: Prisma.XOR<Prisma.CustomerNullableScalarRelationFilter, Prisma.CustomerWhereInput> | null
 }, "id">
 
 export type BotEventOrderByWithAggregationInput = {
@@ -307,6 +320,7 @@ export type BotEventOrderByWithAggregationInput = {
   botId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orgId?: Prisma.SortOrderInput | Prisma.SortOrder
+  customerId?: Prisma.SortOrderInput | Prisma.SortOrder
   eventType?: Prisma.SortOrder
   channel?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -329,6 +343,7 @@ export type BotEventScalarWhereWithAggregatesInput = {
   botId?: Prisma.StringWithAggregatesFilter<"BotEvent"> | string
   userId?: Prisma.StringWithAggregatesFilter<"BotEvent"> | string
   orgId?: Prisma.StringNullableWithAggregatesFilter<"BotEvent"> | string | null
+  customerId?: Prisma.StringNullableWithAggregatesFilter<"BotEvent"> | string | null
   eventType?: Prisma.StringWithAggregatesFilter<"BotEvent"> | string
   channel?: Prisma.StringNullableWithAggregatesFilter<"BotEvent"> | string | null
   status?: Prisma.StringNullableWithAggregatesFilter<"BotEvent"> | string | null
@@ -350,6 +365,7 @@ export type BotEventCreateInput = {
   bot: Prisma.BotConfigurationCreateNestedOneWithoutEventsInput
   user: Prisma.UserCreateNestedOneWithoutBotEventsInput
   org?: Prisma.OrganizationCreateNestedOneWithoutBotEventsInput
+  customer?: Prisma.CustomerCreateNestedOneWithoutBotEventsInput
 }
 
 export type BotEventUncheckedCreateInput = {
@@ -357,6 +373,7 @@ export type BotEventUncheckedCreateInput = {
   botId: string
   userId: string
   orgId?: string | null
+  customerId?: string | null
   eventType: string
   channel?: string | null
   status?: string | null
@@ -378,6 +395,7 @@ export type BotEventUpdateInput = {
   bot?: Prisma.BotConfigurationUpdateOneRequiredWithoutEventsNestedInput
   user?: Prisma.UserUpdateOneRequiredWithoutBotEventsNestedInput
   org?: Prisma.OrganizationUpdateOneWithoutBotEventsNestedInput
+  customer?: Prisma.CustomerUpdateOneWithoutBotEventsNestedInput
 }
 
 export type BotEventUncheckedUpdateInput = {
@@ -385,6 +403,7 @@ export type BotEventUncheckedUpdateInput = {
   botId?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
   channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -399,6 +418,7 @@ export type BotEventCreateManyInput = {
   botId: string
   userId: string
   orgId?: string | null
+  customerId?: string | null
   eventType: string
   channel?: string | null
   status?: string | null
@@ -424,6 +444,7 @@ export type BotEventUncheckedUpdateManyInput = {
   botId?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
   channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -448,6 +469,7 @@ export type BotEventCountOrderByAggregateInput = {
   botId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orgId?: Prisma.SortOrder
+  customerId?: Prisma.SortOrder
   eventType?: Prisma.SortOrder
   channel?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -466,6 +488,7 @@ export type BotEventMaxOrderByAggregateInput = {
   botId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orgId?: Prisma.SortOrder
+  customerId?: Prisma.SortOrder
   eventType?: Prisma.SortOrder
   channel?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -479,6 +502,7 @@ export type BotEventMinOrderByAggregateInput = {
   botId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orgId?: Prisma.SortOrder
+  customerId?: Prisma.SortOrder
   eventType?: Prisma.SortOrder
   channel?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -617,6 +641,48 @@ export type BotEventUncheckedUpdateManyWithoutBotNestedInput = {
   deleteMany?: Prisma.BotEventScalarWhereInput | Prisma.BotEventScalarWhereInput[]
 }
 
+export type BotEventCreateNestedManyWithoutCustomerInput = {
+  create?: Prisma.XOR<Prisma.BotEventCreateWithoutCustomerInput, Prisma.BotEventUncheckedCreateWithoutCustomerInput> | Prisma.BotEventCreateWithoutCustomerInput[] | Prisma.BotEventUncheckedCreateWithoutCustomerInput[]
+  connectOrCreate?: Prisma.BotEventCreateOrConnectWithoutCustomerInput | Prisma.BotEventCreateOrConnectWithoutCustomerInput[]
+  createMany?: Prisma.BotEventCreateManyCustomerInputEnvelope
+  connect?: Prisma.BotEventWhereUniqueInput | Prisma.BotEventWhereUniqueInput[]
+}
+
+export type BotEventUncheckedCreateNestedManyWithoutCustomerInput = {
+  create?: Prisma.XOR<Prisma.BotEventCreateWithoutCustomerInput, Prisma.BotEventUncheckedCreateWithoutCustomerInput> | Prisma.BotEventCreateWithoutCustomerInput[] | Prisma.BotEventUncheckedCreateWithoutCustomerInput[]
+  connectOrCreate?: Prisma.BotEventCreateOrConnectWithoutCustomerInput | Prisma.BotEventCreateOrConnectWithoutCustomerInput[]
+  createMany?: Prisma.BotEventCreateManyCustomerInputEnvelope
+  connect?: Prisma.BotEventWhereUniqueInput | Prisma.BotEventWhereUniqueInput[]
+}
+
+export type BotEventUpdateManyWithoutCustomerNestedInput = {
+  create?: Prisma.XOR<Prisma.BotEventCreateWithoutCustomerInput, Prisma.BotEventUncheckedCreateWithoutCustomerInput> | Prisma.BotEventCreateWithoutCustomerInput[] | Prisma.BotEventUncheckedCreateWithoutCustomerInput[]
+  connectOrCreate?: Prisma.BotEventCreateOrConnectWithoutCustomerInput | Prisma.BotEventCreateOrConnectWithoutCustomerInput[]
+  upsert?: Prisma.BotEventUpsertWithWhereUniqueWithoutCustomerInput | Prisma.BotEventUpsertWithWhereUniqueWithoutCustomerInput[]
+  createMany?: Prisma.BotEventCreateManyCustomerInputEnvelope
+  set?: Prisma.BotEventWhereUniqueInput | Prisma.BotEventWhereUniqueInput[]
+  disconnect?: Prisma.BotEventWhereUniqueInput | Prisma.BotEventWhereUniqueInput[]
+  delete?: Prisma.BotEventWhereUniqueInput | Prisma.BotEventWhereUniqueInput[]
+  connect?: Prisma.BotEventWhereUniqueInput | Prisma.BotEventWhereUniqueInput[]
+  update?: Prisma.BotEventUpdateWithWhereUniqueWithoutCustomerInput | Prisma.BotEventUpdateWithWhereUniqueWithoutCustomerInput[]
+  updateMany?: Prisma.BotEventUpdateManyWithWhereWithoutCustomerInput | Prisma.BotEventUpdateManyWithWhereWithoutCustomerInput[]
+  deleteMany?: Prisma.BotEventScalarWhereInput | Prisma.BotEventScalarWhereInput[]
+}
+
+export type BotEventUncheckedUpdateManyWithoutCustomerNestedInput = {
+  create?: Prisma.XOR<Prisma.BotEventCreateWithoutCustomerInput, Prisma.BotEventUncheckedCreateWithoutCustomerInput> | Prisma.BotEventCreateWithoutCustomerInput[] | Prisma.BotEventUncheckedCreateWithoutCustomerInput[]
+  connectOrCreate?: Prisma.BotEventCreateOrConnectWithoutCustomerInput | Prisma.BotEventCreateOrConnectWithoutCustomerInput[]
+  upsert?: Prisma.BotEventUpsertWithWhereUniqueWithoutCustomerInput | Prisma.BotEventUpsertWithWhereUniqueWithoutCustomerInput[]
+  createMany?: Prisma.BotEventCreateManyCustomerInputEnvelope
+  set?: Prisma.BotEventWhereUniqueInput | Prisma.BotEventWhereUniqueInput[]
+  disconnect?: Prisma.BotEventWhereUniqueInput | Prisma.BotEventWhereUniqueInput[]
+  delete?: Prisma.BotEventWhereUniqueInput | Prisma.BotEventWhereUniqueInput[]
+  connect?: Prisma.BotEventWhereUniqueInput | Prisma.BotEventWhereUniqueInput[]
+  update?: Prisma.BotEventUpdateWithWhereUniqueWithoutCustomerInput | Prisma.BotEventUpdateWithWhereUniqueWithoutCustomerInput[]
+  updateMany?: Prisma.BotEventUpdateManyWithWhereWithoutCustomerInput | Prisma.BotEventUpdateManyWithWhereWithoutCustomerInput[]
+  deleteMany?: Prisma.BotEventScalarWhereInput | Prisma.BotEventScalarWhereInput[]
+}
+
 export type BotEventCreateWithoutOrgInput = {
   id?: string
   eventType: string
@@ -628,12 +694,14 @@ export type BotEventCreateWithoutOrgInput = {
   createdAt?: Date | string
   bot: Prisma.BotConfigurationCreateNestedOneWithoutEventsInput
   user: Prisma.UserCreateNestedOneWithoutBotEventsInput
+  customer?: Prisma.CustomerCreateNestedOneWithoutBotEventsInput
 }
 
 export type BotEventUncheckedCreateWithoutOrgInput = {
   id?: string
   botId: string
   userId: string
+  customerId?: string | null
   eventType: string
   channel?: string | null
   status?: string | null
@@ -677,6 +745,7 @@ export type BotEventScalarWhereInput = {
   botId?: Prisma.StringFilter<"BotEvent"> | string
   userId?: Prisma.StringFilter<"BotEvent"> | string
   orgId?: Prisma.StringNullableFilter<"BotEvent"> | string | null
+  customerId?: Prisma.StringNullableFilter<"BotEvent"> | string | null
   eventType?: Prisma.StringFilter<"BotEvent"> | string
   channel?: Prisma.StringNullableFilter<"BotEvent"> | string | null
   status?: Prisma.StringNullableFilter<"BotEvent"> | string | null
@@ -697,12 +766,14 @@ export type BotEventCreateWithoutUserInput = {
   createdAt?: Date | string
   bot: Prisma.BotConfigurationCreateNestedOneWithoutEventsInput
   org?: Prisma.OrganizationCreateNestedOneWithoutBotEventsInput
+  customer?: Prisma.CustomerCreateNestedOneWithoutBotEventsInput
 }
 
 export type BotEventUncheckedCreateWithoutUserInput = {
   id?: string
   botId: string
   orgId?: string | null
+  customerId?: string | null
   eventType: string
   channel?: string | null
   status?: string | null
@@ -749,12 +820,14 @@ export type BotEventCreateWithoutBotInput = {
   createdAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutBotEventsInput
   org?: Prisma.OrganizationCreateNestedOneWithoutBotEventsInput
+  customer?: Prisma.CustomerCreateNestedOneWithoutBotEventsInput
 }
 
 export type BotEventUncheckedCreateWithoutBotInput = {
   id?: string
   userId: string
   orgId?: string | null
+  customerId?: string | null
   eventType: string
   channel?: string | null
   status?: string | null
@@ -790,10 +863,64 @@ export type BotEventUpdateManyWithWhereWithoutBotInput = {
   data: Prisma.XOR<Prisma.BotEventUpdateManyMutationInput, Prisma.BotEventUncheckedUpdateManyWithoutBotInput>
 }
 
+export type BotEventCreateWithoutCustomerInput = {
+  id?: string
+  eventType: string
+  channel?: string | null
+  status?: string | null
+  conversationId?: string | null
+  responseTimeMs?: number | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  bot: Prisma.BotConfigurationCreateNestedOneWithoutEventsInput
+  user: Prisma.UserCreateNestedOneWithoutBotEventsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutBotEventsInput
+}
+
+export type BotEventUncheckedCreateWithoutCustomerInput = {
+  id?: string
+  botId: string
+  userId: string
+  eventType: string
+  channel?: string | null
+  status?: string | null
+  conversationId?: string | null
+  responseTimeMs?: number | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+}
+
+export type BotEventCreateOrConnectWithoutCustomerInput = {
+  where: Prisma.BotEventWhereUniqueInput
+  create: Prisma.XOR<Prisma.BotEventCreateWithoutCustomerInput, Prisma.BotEventUncheckedCreateWithoutCustomerInput>
+}
+
+export type BotEventCreateManyCustomerInputEnvelope = {
+  data: Prisma.BotEventCreateManyCustomerInput | Prisma.BotEventCreateManyCustomerInput[]
+  skipDuplicates?: boolean
+}
+
+export type BotEventUpsertWithWhereUniqueWithoutCustomerInput = {
+  where: Prisma.BotEventWhereUniqueInput
+  update: Prisma.XOR<Prisma.BotEventUpdateWithoutCustomerInput, Prisma.BotEventUncheckedUpdateWithoutCustomerInput>
+  create: Prisma.XOR<Prisma.BotEventCreateWithoutCustomerInput, Prisma.BotEventUncheckedCreateWithoutCustomerInput>
+}
+
+export type BotEventUpdateWithWhereUniqueWithoutCustomerInput = {
+  where: Prisma.BotEventWhereUniqueInput
+  data: Prisma.XOR<Prisma.BotEventUpdateWithoutCustomerInput, Prisma.BotEventUncheckedUpdateWithoutCustomerInput>
+}
+
+export type BotEventUpdateManyWithWhereWithoutCustomerInput = {
+  where: Prisma.BotEventScalarWhereInput
+  data: Prisma.XOR<Prisma.BotEventUpdateManyMutationInput, Prisma.BotEventUncheckedUpdateManyWithoutCustomerInput>
+}
+
 export type BotEventCreateManyOrgInput = {
   id?: string
   botId: string
   userId: string
+  customerId?: string | null
   eventType: string
   channel?: string | null
   status?: string | null
@@ -814,12 +941,14 @@ export type BotEventUpdateWithoutOrgInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   bot?: Prisma.BotConfigurationUpdateOneRequiredWithoutEventsNestedInput
   user?: Prisma.UserUpdateOneRequiredWithoutBotEventsNestedInput
+  customer?: Prisma.CustomerUpdateOneWithoutBotEventsNestedInput
 }
 
 export type BotEventUncheckedUpdateWithoutOrgInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   botId?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
   channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -833,6 +962,7 @@ export type BotEventUncheckedUpdateManyWithoutOrgInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   botId?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
   channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -846,6 +976,7 @@ export type BotEventCreateManyUserInput = {
   id?: string
   botId: string
   orgId?: string | null
+  customerId?: string | null
   eventType: string
   channel?: string | null
   status?: string | null
@@ -866,12 +997,14 @@ export type BotEventUpdateWithoutUserInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   bot?: Prisma.BotConfigurationUpdateOneRequiredWithoutEventsNestedInput
   org?: Prisma.OrganizationUpdateOneWithoutBotEventsNestedInput
+  customer?: Prisma.CustomerUpdateOneWithoutBotEventsNestedInput
 }
 
 export type BotEventUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   botId?: Prisma.StringFieldUpdateOperationsInput | string
   orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
   channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -885,6 +1018,7 @@ export type BotEventUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   botId?: Prisma.StringFieldUpdateOperationsInput | string
   orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
   channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -898,6 +1032,7 @@ export type BotEventCreateManyBotInput = {
   id?: string
   userId: string
   orgId?: string | null
+  customerId?: string | null
   eventType: string
   channel?: string | null
   status?: string | null
@@ -918,12 +1053,14 @@ export type BotEventUpdateWithoutBotInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutBotEventsNestedInput
   org?: Prisma.OrganizationUpdateOneWithoutBotEventsNestedInput
+  customer?: Prisma.CustomerUpdateOneWithoutBotEventsNestedInput
 }
 
 export type BotEventUncheckedUpdateWithoutBotInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
   channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -937,6 +1074,60 @@ export type BotEventUncheckedUpdateManyWithoutBotInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eventType?: Prisma.StringFieldUpdateOperationsInput | string
+  channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  responseTimeMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type BotEventCreateManyCustomerInput = {
+  id?: string
+  botId: string
+  userId: string
+  eventType: string
+  channel?: string | null
+  status?: string | null
+  conversationId?: string | null
+  responseTimeMs?: number | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+}
+
+export type BotEventUpdateWithoutCustomerInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  eventType?: Prisma.StringFieldUpdateOperationsInput | string
+  channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  responseTimeMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  bot?: Prisma.BotConfigurationUpdateOneRequiredWithoutEventsNestedInput
+  user?: Prisma.UserUpdateOneRequiredWithoutBotEventsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutBotEventsNestedInput
+}
+
+export type BotEventUncheckedUpdateWithoutCustomerInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  botId?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  eventType?: Prisma.StringFieldUpdateOperationsInput | string
+  channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  responseTimeMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type BotEventUncheckedUpdateManyWithoutCustomerInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  botId?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
   channel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -953,6 +1144,7 @@ export type BotEventSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   botId?: boolean
   userId?: boolean
   orgId?: boolean
+  customerId?: boolean
   eventType?: boolean
   channel?: boolean
   status?: boolean
@@ -963,6 +1155,7 @@ export type BotEventSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   bot?: boolean | Prisma.BotConfigurationDefaultArgs<ExtArgs>
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   org?: boolean | Prisma.BotEvent$orgArgs<ExtArgs>
+  customer?: boolean | Prisma.BotEvent$customerArgs<ExtArgs>
 }, ExtArgs["result"]["botEvent"]>
 
 export type BotEventSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -970,6 +1163,7 @@ export type BotEventSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   botId?: boolean
   userId?: boolean
   orgId?: boolean
+  customerId?: boolean
   eventType?: boolean
   channel?: boolean
   status?: boolean
@@ -980,6 +1174,7 @@ export type BotEventSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   bot?: boolean | Prisma.BotConfigurationDefaultArgs<ExtArgs>
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   org?: boolean | Prisma.BotEvent$orgArgs<ExtArgs>
+  customer?: boolean | Prisma.BotEvent$customerArgs<ExtArgs>
 }, ExtArgs["result"]["botEvent"]>
 
 export type BotEventSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -987,6 +1182,7 @@ export type BotEventSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   botId?: boolean
   userId?: boolean
   orgId?: boolean
+  customerId?: boolean
   eventType?: boolean
   channel?: boolean
   status?: boolean
@@ -997,6 +1193,7 @@ export type BotEventSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   bot?: boolean | Prisma.BotConfigurationDefaultArgs<ExtArgs>
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   org?: boolean | Prisma.BotEvent$orgArgs<ExtArgs>
+  customer?: boolean | Prisma.BotEvent$customerArgs<ExtArgs>
 }, ExtArgs["result"]["botEvent"]>
 
 export type BotEventSelectScalar = {
@@ -1004,6 +1201,7 @@ export type BotEventSelectScalar = {
   botId?: boolean
   userId?: boolean
   orgId?: boolean
+  customerId?: boolean
   eventType?: boolean
   channel?: boolean
   status?: boolean
@@ -1013,21 +1211,24 @@ export type BotEventSelectScalar = {
   createdAt?: boolean
 }
 
-export type BotEventOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "botId" | "userId" | "orgId" | "eventType" | "channel" | "status" | "conversationId" | "responseTimeMs" | "metadata" | "createdAt", ExtArgs["result"]["botEvent"]>
+export type BotEventOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "botId" | "userId" | "orgId" | "customerId" | "eventType" | "channel" | "status" | "conversationId" | "responseTimeMs" | "metadata" | "createdAt", ExtArgs["result"]["botEvent"]>
 export type BotEventInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   bot?: boolean | Prisma.BotConfigurationDefaultArgs<ExtArgs>
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   org?: boolean | Prisma.BotEvent$orgArgs<ExtArgs>
+  customer?: boolean | Prisma.BotEvent$customerArgs<ExtArgs>
 }
 export type BotEventIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   bot?: boolean | Prisma.BotConfigurationDefaultArgs<ExtArgs>
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   org?: boolean | Prisma.BotEvent$orgArgs<ExtArgs>
+  customer?: boolean | Prisma.BotEvent$customerArgs<ExtArgs>
 }
 export type BotEventIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   bot?: boolean | Prisma.BotConfigurationDefaultArgs<ExtArgs>
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   org?: boolean | Prisma.BotEvent$orgArgs<ExtArgs>
+  customer?: boolean | Prisma.BotEvent$customerArgs<ExtArgs>
 }
 
 export type $BotEventPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1036,12 +1237,14 @@ export type $BotEventPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     bot: Prisma.$BotConfigurationPayload<ExtArgs>
     user: Prisma.$UserPayload<ExtArgs>
     org: Prisma.$OrganizationPayload<ExtArgs> | null
+    customer: Prisma.$CustomerPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     botId: string
     userId: string
     orgId: string | null
+    customerId: string | null
     eventType: string
     channel: string | null
     status: string | null
@@ -1446,6 +1649,7 @@ export interface Prisma__BotEventClient<T, Null = never, ExtArgs extends runtime
   bot<T extends Prisma.BotConfigurationDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.BotConfigurationDefaultArgs<ExtArgs>>): Prisma.Prisma__BotConfigurationClient<runtime.Types.Result.GetResult<Prisma.$BotConfigurationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   org<T extends Prisma.BotEvent$orgArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.BotEvent$orgArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  customer<T extends Prisma.BotEvent$customerArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.BotEvent$customerArgs<ExtArgs>>): Prisma.Prisma__CustomerClient<runtime.Types.Result.GetResult<Prisma.$CustomerPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1479,6 +1683,7 @@ export interface BotEventFieldRefs {
   readonly botId: Prisma.FieldRef<"BotEvent", 'String'>
   readonly userId: Prisma.FieldRef<"BotEvent", 'String'>
   readonly orgId: Prisma.FieldRef<"BotEvent", 'String'>
+  readonly customerId: Prisma.FieldRef<"BotEvent", 'String'>
   readonly eventType: Prisma.FieldRef<"BotEvent", 'String'>
   readonly channel: Prisma.FieldRef<"BotEvent", 'String'>
   readonly status: Prisma.FieldRef<"BotEvent", 'String'>
@@ -1898,6 +2103,25 @@ export type BotEvent$orgArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
    */
   include?: Prisma.OrganizationInclude<ExtArgs> | null
   where?: Prisma.OrganizationWhereInput
+}
+
+/**
+ * BotEvent.customer
+ */
+export type BotEvent$customerArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Customer
+   */
+  select?: Prisma.CustomerSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Customer
+   */
+  omit?: Prisma.CustomerOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CustomerInclude<ExtArgs> | null
+  where?: Prisma.CustomerWhereInput
 }
 
 /**

@@ -3,6 +3,7 @@ pub mod ai;
 pub mod auth;
 pub mod billing;
 pub mod billing_provider;
+pub mod bookings;
 pub mod bots;
 pub mod calls;
 pub mod connections;

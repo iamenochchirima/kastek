@@ -1,0 +1,16 @@
+{
+  "id": "runbooks/connection-failures",
+  "title": "Connection Failure Runbook",
+  "description": "Use this when a provider account shows NEEDS_ATTENTION, messages stop arriving, publishing fails, or a webhook is not healthy.",
+  "source": "@site/../internal/runbooks/connection-failures.md",
+  "sourceDirName": "runbooks",
+  "slug": "/runbooks/connection-failures",
+  "permalink": "/runbooks/connection-failures",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {
+    "title": "Connection Failure Runbook"
+  }
+}

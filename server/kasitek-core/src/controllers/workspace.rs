@@ -93,7 +93,8 @@ const AGENT_ATTENTION_SQL: &str = r#"
 "#;
 // Social posts do not have a PENDING_APPROVAL enum state. A draft is the
 // reviewable state before it is scheduled or published.
-const SOCIAL_ATTENTION_SQL: &str = r#"SELECT COUNT(*) FROM "SocialPost" WHERE "orgId" = $1 AND status IN ('FAILED', 'DRAFT')"#;
+const SOCIAL_ATTENTION_SQL: &str =
+    r#"SELECT COUNT(*) FROM "SocialPost" WHERE "orgId" = $1 AND status IN ('FAILED', 'DRAFT')"#;
 const CONNECTION_ATTENTION_SQL: &str = r#"
     SELECT COUNT(*) FROM "ExternalConnection" WHERE "orgId" = $1
       AND (status IN ('DISCONNECTED', 'REVOKED', 'NEEDS_ATTENTION') OR "healthStatus" = 'NEEDS_ATTENTION')

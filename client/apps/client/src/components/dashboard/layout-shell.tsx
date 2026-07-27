@@ -81,6 +81,7 @@ function tourTarget(href: string) {
     "/bookings": "bookings",
     "/campaigns": "campaigns",
     "/workspace/team": "team",
+    "/workspace/settings": "workspace-settings",
   } as Record<string, string | undefined>)[href];
 }
 
@@ -142,6 +143,7 @@ function ThemeToggleSimple({ className }: { className?: string }) {
         className,
       )}
       aria-label="Toggle theme"
+      data-tour="theme"
     >
       {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       <span>{theme === "dark" ? "Light" : "Dark"}</span>
@@ -291,6 +293,7 @@ function SidebarContent({
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:bg-secondary hover:text-foreground"
               onClick={() => setCollapsed(true)}
+              data-tour="sidebar-toggle"
             >
               <PanelLeftOpen className="h-4 w-4 scale-x-[-1]" />
             </Button>
@@ -300,7 +303,7 @@ function SidebarContent({
 
       <nav className={cn("sidebar-nav-scroll flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-3 py-2.5", collapsed && "px-2")}>
         {hasOrgs ? (
-          <div className="mb-3.5">
+          <div className="mb-3.5" data-tour="workspace-switcher">
             <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={collapsed} variant="panel" />
           </div>
         ) : null}
@@ -325,22 +328,36 @@ function SidebarContent({
             </p>
           </div>
         ) : null}
-        <div className={cn("flex items-center gap-2.5 rounded-md px-3 py-1", collapsed && "justify-center px-2")}>
+        <div className={cn("flex items-center", collapsed && "justify-center")}>
           <ThemeToggleSimple className={collapsed ? "w-9 px-0 [&_span]:hidden" : undefined} />
         </div>
 
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("kasitek:restart-product-tour"))}
-          className={cn(
-            "flex min-h-9 w-full items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-            collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
-          )}
-          title="Take a tour"
-        >
-          <HelpCircle className="h-[18px] w-[18px] shrink-0" />
-          {!collapsed ? <span>Take a tour</span> : null}
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "flex min-h-9 w-full items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+                collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
+              )}
+              title="Help"
+            >
+              <HelpCircle className="h-[18px] w-[18px] shrink-0" />
+              {!collapsed ? <span>Help</span> : null}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48">
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
+                window.dispatchEvent(new CustomEvent("kasitek:restart-product-tour"));
+              }}
+            >
+              <HelpCircle className="mr-2 h-4 w-4" />
+              Take a tour
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <Link
           href="/workspace/notifications"
@@ -357,6 +374,7 @@ function SidebarContent({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
+              data-tour="profile"
               className={cn(
                 "flex min-h-9 w-full items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
                 collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
@@ -414,6 +432,7 @@ function SidebarContent({
               size="icon"
               className="h-9 w-full rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
               onClick={() => setCollapsed(false)}
+              data-tour="sidebar-toggle"
             >
               <PanelLeftOpen className="h-4 w-4" />
             </Button>

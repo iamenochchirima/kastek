@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::env;
 use thiserror::Error;
+use url::{Host, Url};
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -56,6 +57,40 @@ pub fn env_truthy(name: &str) -> bool {
         env_optional(name),
         Some(value) if matches!(value.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on")
     )
+}
+
+/// Returns true for environment names intended to run only on a developer's
+/// machine. Staging and other non-production environments remain explicit.
+pub fn environment_allows_loopback_origins(environment: &str) -> bool {
+    matches!(
+        environment.trim().to_ascii_lowercase().as_str(),
+        "development" | "dev" | "local" | "test"
+    )
+}
+
+/// Validates a serialized browser origin and accepts only HTTP(S) loopback
+/// hosts. Ports are intentionally unrestricted for local frontend tooling.
+pub fn is_loopback_origin(origin: &str) -> bool {
+    let Ok(origin) = Url::parse(origin) else {
+        return false;
+    };
+
+    if !matches!(origin.scheme(), "http" | "https")
+        || !origin.username().is_empty()
+        || origin.password().is_some()
+        || origin.path() != "/"
+        || origin.query().is_some()
+        || origin.fragment().is_some()
+    {
+        return false;
+    }
+
+    match origin.host() {
+        Some(Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+        Some(Host::Ipv4(address)) => address.is_loopback(),
+        Some(Host::Ipv6(address)) => address.is_loopback(),
+        None => false,
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -241,5 +276,57 @@ impl TenantServerConfig {
 
     pub fn is_production(&self) -> bool {
         self.environment.eq_ignore_ascii_case("production")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{environment_allows_loopback_origins, is_loopback_origin};
+
+    #[test]
+    fn local_environment_names_enable_loopback_origins() {
+        for environment in ["development", "DEV", "local", "test"] {
+            assert!(environment_allows_loopback_origins(environment));
+        }
+
+        for environment in ["production", "staging", "preview", ""] {
+            assert!(!environment_allows_loopback_origins(environment));
+        }
+    }
+
+    #[test]
+    fn loopback_origins_accept_http_or_https_on_any_port() {
+        for origin in [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "https://localhost:8443",
+            "http://127.0.0.1:4200",
+            "http://127.10.20.30:8080",
+            "http://[::1]:3000",
+        ] {
+            assert!(
+                is_loopback_origin(origin),
+                "expected {origin} to be allowed"
+            );
+        }
+    }
+
+    #[test]
+    fn loopback_origin_validation_rejects_lookalikes_and_non_origins() {
+        for origin in [
+            "https://example.com",
+            "https://localhost.example.com:3000",
+            "https://example.com?next=localhost",
+            "ftp://localhost:3000",
+            "http://user@localhost:3000",
+            "http://localhost:3000/path",
+            "null",
+            "not a url",
+        ] {
+            assert!(
+                !is_loopback_origin(origin),
+                "expected {origin} to be denied"
+            );
+        }
     }
 }

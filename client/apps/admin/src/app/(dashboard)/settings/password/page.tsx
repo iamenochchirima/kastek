@@ -63,7 +63,7 @@ export default function AdminPasswordSettingsPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-semibold text-text">Password</h1>
         <p className="mt-2 text-sm text-text-muted">
-          Update the password for your internal KasiTek admin account.
+          Update the password for your internal Kasitek Labs account.
         </p>
       </div>
 

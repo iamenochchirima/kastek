@@ -42,22 +42,34 @@
       "plugin": "plugin---docusaurus-debugb-38-ad3"
     }
   },
-  "/-d4c": {
+  "/-559": {
     "__comp": "__comp---theme-docs-root-5-e-9-0b6",
     "__context": {
       "plugin": "plugin---aba-d70"
     }
   },
-  "/-0d5": {
+  "/-f1a": {
     "__comp": "__comp---theme-doc-version-roota-7-b-5de",
     "__props": "__props---22-d-307"
   },
-  "/-60f": {
+  "/-e86": {
     "__comp": "__comp---theme-doc-roota-94-67a"
   },
   "/architecture-4a4": {
     "__comp": "__comp---theme-doc-item-178-a40",
     "content": "content---architecturea-31-1c9"
+  },
+  "/architecture/action-platform-technical-design-b12": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---architecture-action-platform-technical-designda-8-054"
+  },
+  "/architecture/agent-protocol-implementation-checklist-825": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---architecture-agent-protocol-implementation-checklist-1-dd-59e"
+  },
+  "/architecture/agent-protocol-implementation-plan-fc9": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---architecture-agent-protocol-implementation-planbe-3-055"
   },
   "/architecture/project-plan-ca3": {
     "__comp": "__comp---theme-doc-item-178-a40",
@@ -67,6 +79,10 @@
     "__comp": "__comp---theme-doc-item-178-a40",
     "content": "content---contracts-n-8-n-provisioner-contractf-41-809"
   },
+  "/execution/client-ready-platform-checklist-1a7": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---execution-client-ready-platform-checklist-228-f04"
+  },
   "/execution/tenant-platform-execution-plan-3c2": {
     "__comp": "__comp---theme-doc-item-178-a40",
     "content": "content---execution-tenant-platform-execution-plan-167-127"
@@ -75,6 +91,10 @@
     "__comp": "__comp---theme-doc-item-178-a40",
     "content": "content---featurese-33-c7b"
   },
+  "/go-to-market/founding-partner-launch-0a2": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---go-to-market-founding-partner-launch-91-a-143"
+  },
   "/go-to-market/sales-and-social-plan-89d": {
     "__comp": "__comp---theme-doc-item-178-a40",
     "content": "content---go-to-market-sales-and-social-pland-85-b80"
@@ -82,6 +102,10 @@
   "/roadmap/product-roadmap-ee6": {
     "__comp": "__comp---theme-doc-item-178-a40",
     "content": "content---roadmap-product-roadmape-3-f-b98"
+  },
+  "/runbooks/connection-failures-191": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---runbooks-connection-failures-014-717"
   },
   "/strategy/company-strategy-5b1": {
     "__comp": "__comp---theme-doc-item-178-a40",

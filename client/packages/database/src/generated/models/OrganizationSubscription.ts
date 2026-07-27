@@ -264,6 +264,7 @@ export type OrganizationSubscriptionWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"OrganizationSubscription"> | Date | string
   org?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
   plan?: Prisma.XOR<Prisma.ProductPlanScalarRelationFilter, Prisma.ProductPlanWhereInput>
+  billingInvoices?: Prisma.BillingInvoiceListRelationFilter
 }
 
 export type OrganizationSubscriptionOrderByWithRelationInput = {
@@ -284,6 +285,7 @@ export type OrganizationSubscriptionOrderByWithRelationInput = {
   updatedAt?: Prisma.SortOrder
   org?: Prisma.OrganizationOrderByWithRelationInput
   plan?: Prisma.ProductPlanOrderByWithRelationInput
+  billingInvoices?: Prisma.BillingInvoiceOrderByRelationAggregateInput
 }
 
 export type OrganizationSubscriptionWhereUniqueInput = Prisma.AtLeast<{
@@ -307,6 +309,7 @@ export type OrganizationSubscriptionWhereUniqueInput = Prisma.AtLeast<{
   updatedAt?: Prisma.DateTimeFilter<"OrganizationSubscription"> | Date | string
   org?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
   plan?: Prisma.XOR<Prisma.ProductPlanScalarRelationFilter, Prisma.ProductPlanWhereInput>
+  billingInvoices?: Prisma.BillingInvoiceListRelationFilter
 }, "id" | "providerSubscriptionId">
 
 export type OrganizationSubscriptionOrderByWithAggregationInput = {
@@ -367,6 +370,7 @@ export type OrganizationSubscriptionCreateInput = {
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutSubscriptionsInput
   plan: Prisma.ProductPlanCreateNestedOneWithoutSubscriptionsInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutSubscriptionInput
 }
 
 export type OrganizationSubscriptionUncheckedCreateInput = {
@@ -385,6 +389,7 @@ export type OrganizationSubscriptionUncheckedCreateInput = {
   providerSubscriptionId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutSubscriptionInput
 }
 
 export type OrganizationSubscriptionUpdateInput = {
@@ -403,6 +408,7 @@ export type OrganizationSubscriptionUpdateInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutSubscriptionsNestedInput
   plan?: Prisma.ProductPlanUpdateOneRequiredWithoutSubscriptionsNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutSubscriptionNestedInput
 }
 
 export type OrganizationSubscriptionUncheckedUpdateInput = {
@@ -421,6 +427,7 @@ export type OrganizationSubscriptionUncheckedUpdateInput = {
   providerSubscriptionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutSubscriptionNestedInput
 }
 
 export type OrganizationSubscriptionCreateManyInput = {
@@ -539,6 +546,11 @@ export type OrganizationSubscriptionMinOrderByAggregateInput = {
   updatedAt?: Prisma.SortOrder
 }
 
+export type OrganizationSubscriptionNullableScalarRelationFilter = {
+  is?: Prisma.OrganizationSubscriptionWhereInput | null
+  isNot?: Prisma.OrganizationSubscriptionWhereInput | null
+}
+
 export type OrganizationSubscriptionCreateNestedManyWithoutOrgInput = {
   create?: Prisma.XOR<Prisma.OrganizationSubscriptionCreateWithoutOrgInput, Prisma.OrganizationSubscriptionUncheckedCreateWithoutOrgInput> | Prisma.OrganizationSubscriptionCreateWithoutOrgInput[] | Prisma.OrganizationSubscriptionUncheckedCreateWithoutOrgInput[]
   connectOrCreate?: Prisma.OrganizationSubscriptionCreateOrConnectWithoutOrgInput | Prisma.OrganizationSubscriptionCreateOrConnectWithoutOrgInput[]
@@ -627,6 +639,22 @@ export type EnumOrganizationSubscriptionStatusFieldUpdateOperationsInput = {
   set?: $Enums.OrganizationSubscriptionStatus
 }
 
+export type OrganizationSubscriptionCreateNestedOneWithoutBillingInvoicesInput = {
+  create?: Prisma.XOR<Prisma.OrganizationSubscriptionCreateWithoutBillingInvoicesInput, Prisma.OrganizationSubscriptionUncheckedCreateWithoutBillingInvoicesInput>
+  connectOrCreate?: Prisma.OrganizationSubscriptionCreateOrConnectWithoutBillingInvoicesInput
+  connect?: Prisma.OrganizationSubscriptionWhereUniqueInput
+}
+
+export type OrganizationSubscriptionUpdateOneWithoutBillingInvoicesNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationSubscriptionCreateWithoutBillingInvoicesInput, Prisma.OrganizationSubscriptionUncheckedCreateWithoutBillingInvoicesInput>
+  connectOrCreate?: Prisma.OrganizationSubscriptionCreateOrConnectWithoutBillingInvoicesInput
+  upsert?: Prisma.OrganizationSubscriptionUpsertWithoutBillingInvoicesInput
+  disconnect?: Prisma.OrganizationSubscriptionWhereInput | boolean
+  delete?: Prisma.OrganizationSubscriptionWhereInput | boolean
+  connect?: Prisma.OrganizationSubscriptionWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationSubscriptionUpdateToOneWithWhereWithoutBillingInvoicesInput, Prisma.OrganizationSubscriptionUpdateWithoutBillingInvoicesInput>, Prisma.OrganizationSubscriptionUncheckedUpdateWithoutBillingInvoicesInput>
+}
+
 export type OrganizationSubscriptionCreateWithoutOrgInput = {
   id?: string
   status?: $Enums.OrganizationSubscriptionStatus
@@ -642,6 +670,7 @@ export type OrganizationSubscriptionCreateWithoutOrgInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   plan: Prisma.ProductPlanCreateNestedOneWithoutSubscriptionsInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutSubscriptionInput
 }
 
 export type OrganizationSubscriptionUncheckedCreateWithoutOrgInput = {
@@ -659,6 +688,7 @@ export type OrganizationSubscriptionUncheckedCreateWithoutOrgInput = {
   providerSubscriptionId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutSubscriptionInput
 }
 
 export type OrganizationSubscriptionCreateOrConnectWithoutOrgInput = {
@@ -723,6 +753,7 @@ export type OrganizationSubscriptionCreateWithoutPlanInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutSubscriptionsInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutSubscriptionInput
 }
 
 export type OrganizationSubscriptionUncheckedCreateWithoutPlanInput = {
@@ -740,6 +771,7 @@ export type OrganizationSubscriptionUncheckedCreateWithoutPlanInput = {
   providerSubscriptionId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutSubscriptionInput
 }
 
 export type OrganizationSubscriptionCreateOrConnectWithoutPlanInput = {
@@ -766,6 +798,94 @@ export type OrganizationSubscriptionUpdateWithWhereUniqueWithoutPlanInput = {
 export type OrganizationSubscriptionUpdateManyWithWhereWithoutPlanInput = {
   where: Prisma.OrganizationSubscriptionScalarWhereInput
   data: Prisma.XOR<Prisma.OrganizationSubscriptionUpdateManyMutationInput, Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutPlanInput>
+}
+
+export type OrganizationSubscriptionCreateWithoutBillingInvoicesInput = {
+  id?: string
+  status?: $Enums.OrganizationSubscriptionStatus
+  startedAt?: Date | string
+  currentPeriodStart?: Date | string | null
+  currentPeriodEnd?: Date | string | null
+  trialEndsAt?: Date | string | null
+  cancelAtPeriodEnd?: boolean
+  cancelledAt?: Date | string | null
+  provider?: string | null
+  providerCustomerId?: string | null
+  providerSubscriptionId?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  org: Prisma.OrganizationCreateNestedOneWithoutSubscriptionsInput
+  plan: Prisma.ProductPlanCreateNestedOneWithoutSubscriptionsInput
+}
+
+export type OrganizationSubscriptionUncheckedCreateWithoutBillingInvoicesInput = {
+  id?: string
+  orgId: string
+  planId: string
+  status?: $Enums.OrganizationSubscriptionStatus
+  startedAt?: Date | string
+  currentPeriodStart?: Date | string | null
+  currentPeriodEnd?: Date | string | null
+  trialEndsAt?: Date | string | null
+  cancelAtPeriodEnd?: boolean
+  cancelledAt?: Date | string | null
+  provider?: string | null
+  providerCustomerId?: string | null
+  providerSubscriptionId?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type OrganizationSubscriptionCreateOrConnectWithoutBillingInvoicesInput = {
+  where: Prisma.OrganizationSubscriptionWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationSubscriptionCreateWithoutBillingInvoicesInput, Prisma.OrganizationSubscriptionUncheckedCreateWithoutBillingInvoicesInput>
+}
+
+export type OrganizationSubscriptionUpsertWithoutBillingInvoicesInput = {
+  update: Prisma.XOR<Prisma.OrganizationSubscriptionUpdateWithoutBillingInvoicesInput, Prisma.OrganizationSubscriptionUncheckedUpdateWithoutBillingInvoicesInput>
+  create: Prisma.XOR<Prisma.OrganizationSubscriptionCreateWithoutBillingInvoicesInput, Prisma.OrganizationSubscriptionUncheckedCreateWithoutBillingInvoicesInput>
+  where?: Prisma.OrganizationSubscriptionWhereInput
+}
+
+export type OrganizationSubscriptionUpdateToOneWithWhereWithoutBillingInvoicesInput = {
+  where?: Prisma.OrganizationSubscriptionWhereInput
+  data: Prisma.XOR<Prisma.OrganizationSubscriptionUpdateWithoutBillingInvoicesInput, Prisma.OrganizationSubscriptionUncheckedUpdateWithoutBillingInvoicesInput>
+}
+
+export type OrganizationSubscriptionUpdateWithoutBillingInvoicesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.EnumOrganizationSubscriptionStatusFieldUpdateOperationsInput | $Enums.OrganizationSubscriptionStatus
+  startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  currentPeriodStart?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  currentPeriodEnd?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  trialEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancelAtPeriodEnd?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerCustomerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerSubscriptionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  org?: Prisma.OrganizationUpdateOneRequiredWithoutSubscriptionsNestedInput
+  plan?: Prisma.ProductPlanUpdateOneRequiredWithoutSubscriptionsNestedInput
+}
+
+export type OrganizationSubscriptionUncheckedUpdateWithoutBillingInvoicesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.StringFieldUpdateOperationsInput | string
+  planId?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.EnumOrganizationSubscriptionStatusFieldUpdateOperationsInput | $Enums.OrganizationSubscriptionStatus
+  startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  currentPeriodStart?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  currentPeriodEnd?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  trialEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancelAtPeriodEnd?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  cancelledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerCustomerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerSubscriptionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type OrganizationSubscriptionCreateManyOrgInput = {
@@ -800,6 +920,7 @@ export type OrganizationSubscriptionUpdateWithoutOrgInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   plan?: Prisma.ProductPlanUpdateOneRequiredWithoutSubscriptionsNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutSubscriptionNestedInput
 }
 
 export type OrganizationSubscriptionUncheckedUpdateWithoutOrgInput = {
@@ -817,6 +938,7 @@ export type OrganizationSubscriptionUncheckedUpdateWithoutOrgInput = {
   providerSubscriptionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutSubscriptionNestedInput
 }
 
 export type OrganizationSubscriptionUncheckedUpdateManyWithoutOrgInput = {
@@ -868,6 +990,7 @@ export type OrganizationSubscriptionUpdateWithoutPlanInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutSubscriptionsNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutSubscriptionNestedInput
 }
 
 export type OrganizationSubscriptionUncheckedUpdateWithoutPlanInput = {
@@ -885,6 +1008,7 @@ export type OrganizationSubscriptionUncheckedUpdateWithoutPlanInput = {
   providerSubscriptionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutSubscriptionNestedInput
 }
 
 export type OrganizationSubscriptionUncheckedUpdateManyWithoutPlanInput = {
@@ -905,6 +1029,35 @@ export type OrganizationSubscriptionUncheckedUpdateManyWithoutPlanInput = {
 }
 
 
+/**
+ * Count Type OrganizationSubscriptionCountOutputType
+ */
+
+export type OrganizationSubscriptionCountOutputType = {
+  billingInvoices: number
+}
+
+export type OrganizationSubscriptionCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  billingInvoices?: boolean | OrganizationSubscriptionCountOutputTypeCountBillingInvoicesArgs
+}
+
+/**
+ * OrganizationSubscriptionCountOutputType without action
+ */
+export type OrganizationSubscriptionCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the OrganizationSubscriptionCountOutputType
+   */
+  select?: Prisma.OrganizationSubscriptionCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * OrganizationSubscriptionCountOutputType without action
+ */
+export type OrganizationSubscriptionCountOutputTypeCountBillingInvoicesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.BillingInvoiceWhereInput
+}
+
 
 export type OrganizationSubscriptionSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -924,6 +1077,8 @@ export type OrganizationSubscriptionSelect<ExtArgs extends runtime.Types.Extensi
   updatedAt?: boolean
   org?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   plan?: boolean | Prisma.ProductPlanDefaultArgs<ExtArgs>
+  billingInvoices?: boolean | Prisma.OrganizationSubscription$billingInvoicesArgs<ExtArgs>
+  _count?: boolean | Prisma.OrganizationSubscriptionCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["organizationSubscription"]>
 
 export type OrganizationSubscriptionSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -988,6 +1143,8 @@ export type OrganizationSubscriptionOmit<ExtArgs extends runtime.Types.Extension
 export type OrganizationSubscriptionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   org?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   plan?: boolean | Prisma.ProductPlanDefaultArgs<ExtArgs>
+  billingInvoices?: boolean | Prisma.OrganizationSubscription$billingInvoicesArgs<ExtArgs>
+  _count?: boolean | Prisma.OrganizationSubscriptionCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type OrganizationSubscriptionIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   org?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
@@ -1003,6 +1160,7 @@ export type $OrganizationSubscriptionPayload<ExtArgs extends runtime.Types.Exten
   objects: {
     org: Prisma.$OrganizationPayload<ExtArgs>
     plan: Prisma.$ProductPlanPayload<ExtArgs>
+    billingInvoices: Prisma.$BillingInvoicePayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1416,6 +1574,7 @@ export interface Prisma__OrganizationSubscriptionClient<T, Null = never, ExtArgs
   readonly [Symbol.toStringTag]: "PrismaPromise"
   org<T extends Prisma.OrganizationDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrganizationDefaultArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   plan<T extends Prisma.ProductPlanDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ProductPlanDefaultArgs<ExtArgs>>): Prisma.Prisma__ProductPlanClient<runtime.Types.Result.GetResult<Prisma.$ProductPlanPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  billingInvoices<T extends Prisma.OrganizationSubscription$billingInvoicesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrganizationSubscription$billingInvoicesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BillingInvoicePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1853,6 +2012,30 @@ export type OrganizationSubscriptionDeleteManyArgs<ExtArgs extends runtime.Types
    * Limit how many OrganizationSubscriptions to delete.
    */
   limit?: number
+}
+
+/**
+ * OrganizationSubscription.billingInvoices
+ */
+export type OrganizationSubscription$billingInvoicesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the BillingInvoice
+   */
+  select?: Prisma.BillingInvoiceSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the BillingInvoice
+   */
+  omit?: Prisma.BillingInvoiceOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.BillingInvoiceInclude<ExtArgs> | null
+  where?: Prisma.BillingInvoiceWhereInput
+  orderBy?: Prisma.BillingInvoiceOrderByWithRelationInput | Prisma.BillingInvoiceOrderByWithRelationInput[]
+  cursor?: Prisma.BillingInvoiceWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.BillingInvoiceScalarFieldEnum | Prisma.BillingInvoiceScalarFieldEnum[]
 }
 
 /**

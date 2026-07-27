@@ -48,6 +48,16 @@ type CustomerDetailResponse = {
     readCount: number;
     lastSentAt: string | null;
   }>;
+  bookings: Array<{
+    id: string;
+    serviceName: string;
+    contactName: string;
+    scheduledStart: string;
+    scheduledEnd: string;
+    timezone: string;
+    status: string;
+    notes: string | null;
+  }>;
   agentEvents: Array<{
     id: string;
     eventType: string;
@@ -107,6 +117,9 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               </span>
               <span className="rounded-full border border-border px-3 py-1.5 text-muted-foreground">
                 {detail.conversations.length} conversations
+              </span>
+              <span className="rounded-full border border-border px-3 py-1.5 text-muted-foreground">
+                {detail.bookings.length} bookings
               </span>
             </div>
           </div>
@@ -228,6 +241,36 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               ))
             ) : (
               <p className="text-sm text-muted-foreground">This customer has not been included in a WhatsApp campaign.</p>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-6">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Bookings</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Appointments and outcomes recorded for this customer.</p>
+            </div>
+            <Link href="/bookings" className="text-sm text-muted-foreground hover:text-foreground">
+              Open Bookings →
+            </Link>
+          </div>
+          <div className="mt-5 divide-y divide-border rounded-xl border border-border">
+            {detail.bookings.length ? (
+              detail.bookings.map((booking) => (
+                <div key={booking.id} className="flex flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium text-foreground">{booking.serviceName}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {dateTime(booking.scheduledStart)} · {booking.timezone}
+                    </p>
+                    {booking.notes ? <p className="mt-1 text-sm text-muted-foreground">{booking.notes}</p> : null}
+                  </div>
+                  <p className="text-sm text-muted-foreground sm:text-right">{label(booking.status.replaceAll("_", " "))}</p>
+                </div>
+              ))
+            ) : (
+              <p className="px-4 py-6 text-sm text-muted-foreground">No bookings are linked to this customer yet.</p>
             )}
           </div>
         </section>

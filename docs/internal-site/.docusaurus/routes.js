@@ -39,19 +39,37 @@ export default [
   },
   {
     path: '/',
-    component: ComponentCreator('/', 'd4c'),
+    component: ComponentCreator('/', '559'),
     routes: [
       {
         path: '/',
-        component: ComponentCreator('/', '0d5'),
+        component: ComponentCreator('/', 'f1a'),
         routes: [
           {
             path: '/',
-            component: ComponentCreator('/', '60f'),
+            component: ComponentCreator('/', 'e86'),
             routes: [
               {
                 path: '/architecture',
                 component: ComponentCreator('/architecture', '4a4'),
+                exact: true,
+                sidebar: "tutorialSidebar"
+              },
+              {
+                path: '/architecture/action-platform-technical-design',
+                component: ComponentCreator('/architecture/action-platform-technical-design', 'b12'),
+                exact: true,
+                sidebar: "tutorialSidebar"
+              },
+              {
+                path: '/architecture/agent-protocol-implementation-checklist',
+                component: ComponentCreator('/architecture/agent-protocol-implementation-checklist', '825'),
+                exact: true,
+                sidebar: "tutorialSidebar"
+              },
+              {
+                path: '/architecture/agent-protocol-implementation-plan',
+                component: ComponentCreator('/architecture/agent-protocol-implementation-plan', 'fc9'),
                 exact: true,
                 sidebar: "tutorialSidebar"
               },
@@ -66,6 +84,12 @@ export default [
                 exact: true
               },
               {
+                path: '/execution/client-ready-platform-checklist',
+                component: ComponentCreator('/execution/client-ready-platform-checklist', '1a7'),
+                exact: true,
+                sidebar: "tutorialSidebar"
+              },
+              {
                 path: '/execution/tenant-platform-execution-plan',
                 component: ComponentCreator('/execution/tenant-platform-execution-plan', '3c2'),
                 exact: true
@@ -73,6 +97,12 @@ export default [
               {
                 path: '/features',
                 component: ComponentCreator('/features', 'bc1'),
+                exact: true,
+                sidebar: "tutorialSidebar"
+              },
+              {
+                path: '/go-to-market/founding-partner-launch',
+                component: ComponentCreator('/go-to-market/founding-partner-launch', '0a2'),
                 exact: true,
                 sidebar: "tutorialSidebar"
               },
@@ -86,6 +116,11 @@ export default [
                 component: ComponentCreator('/roadmap/product-roadmap', 'ee6'),
                 exact: true,
                 sidebar: "tutorialSidebar"
+              },
+              {
+                path: '/runbooks/connection-failures',
+                component: ComponentCreator('/runbooks/connection-failures', '191'),
+                exact: true
               },
               {
                 path: '/strategy/company-strategy',

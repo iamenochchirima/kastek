@@ -171,9 +171,11 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
                   <td className="px-4 py-3">
                     <Link href={`/leads/${lead.id}`} className="hover:text-primary">
                       <p className="font-medium text-sm text-text">{lead.businessName}</p>
-                      <p className="text-text-faint text-xs capitalize">
-                        {lead.businessType.replace(/_/g, " ")}
-                      </p>
+                      {lead.businessType ? (
+                        <p className="text-text-faint text-xs capitalize">
+                          {lead.businessType.replace(/_/g, " ")}
+                        </p>
+                      ) : null}
                     </Link>
                   </td>
                   <td className="px-4 py-3">

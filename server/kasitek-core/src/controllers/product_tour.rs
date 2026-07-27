@@ -5,7 +5,7 @@ use sqlx::{FromRow, PgPool};
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
 
-const TOUR_STEPS: i32 = 5;
+const TOUR_STEPS: i32 = 10;
 
 #[derive(FromRow)]
 struct TourRow {

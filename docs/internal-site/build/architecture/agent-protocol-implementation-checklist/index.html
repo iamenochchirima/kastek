@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="docs-wrapper plugin-docs plugin-id-default docs-version-current docs-doc-page docs-doc-id-architecture/agent-protocol-implementation-checklist" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.10.1">
+<title data-rh="true">Agent Protocol Implementation Checklist | Kasitek Internal Docs</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://internal-docs.kasitek.co.za/architecture/agent-protocol-implementation-checklist"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Agent Protocol Implementation Checklist | Kasitek Internal Docs"><meta data-rh="true" name="description" content="This is the working checklist for implementing the REST, webhook, action, MCP, and later A2A architecture defined in the Kasitek Platform Architecture."><meta data-rh="true" property="og:description" content="This is the working checklist for implementing the REST, webhook, action, MCP, and later A2A architecture defined in the Kasitek Platform Architecture."><link data-rh="true" rel="canonical" href="https://internal-docs.kasitek.co.za/architecture/agent-protocol-implementation-checklist"><link data-rh="true" rel="alternate" href="https://internal-docs.kasitek.co.za/architecture/agent-protocol-implementation-checklist" hreflang="en"><link data-rh="true" rel="alternate" href="https://internal-docs.kasitek.co.za/architecture/agent-protocol-implementation-checklist" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Agent Protocol Implementation Checklist","item":"https://internal-docs.kasitek.co.za/architecture/agent-protocol-implementation-checklist"}]}</script><link rel="stylesheet" href="/assets/css/styles.6082afdc.css">
+<script src="/assets/js/runtime~main.25060cda.js" defer="defer"></script>
+<script src="/assets/js/main.8f953226.js" defer="defer"></script>
+</head>
+<body>
+<svg style="display: none;"><defs>
+<symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||"light"),document.documentElement.setAttribute("data-theme-choice",t||"light")}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_KgxS" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><b class="navbar__title text--truncate">Kasitek Internal</b></a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/">Home</a><a class="navbar__item navbar__link" href="/features">Features</a><a class="navbar__item navbar__link" href="/white-paper/kasitek-white-paper">White Paper</a><a class="navbar__item navbar__link" href="/roadmap/product-roadmap">Roadmap</a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/architecture">Architecture</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><div class="toggle_tbyb colorModeToggle_e0Bn"><button class="clean-btn toggleButton_B91Z toggleButtonDisabled_p2Q9" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_lo8p lightToggleIcon_GXMs"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_lo8p darkToggleIcon_Yh_K"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_lo8p systemToggleIcon_XCRi"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_gvtp"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_XZWo"><div class="docsWrapper_C5ys"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_ZwfY" type="button"></button><div class="docRoot_VGkw"><aside class="theme-doc-sidebar-container docSidebarContainer_VbfH"><div class="sidebarViewport_hdr5"><div class="sidebar_o3DM"><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_XdK2"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/"><span title="Kasitek Internal Docs" class="linkLabel_HNbd">Kasitek Internal Docs</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/features"><span title="Product Features" class="linkLabel_HNbd">Product Features</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/white-paper/kasitek-white-paper"><span title="Kasitek White Paper" class="linkLabel_HNbd">Kasitek White Paper</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/roadmap/product-roadmap"><span title="Product Roadmap" class="linkLabel_HNbd">Product Roadmap</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/architecture"><span title="Architecture" class="linkLabel_HNbd">Architecture</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/architecture/action-platform-technical-design"><span title="Action Platform Technical Design" class="linkLabel_HNbd">Action Platform Technical Design</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/architecture/agent-protocol-implementation-plan"><span title="Agent Protocol Implementation Plan" class="linkLabel_HNbd">Agent Protocol Implementation Plan</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" href="/architecture/agent-protocol-implementation-checklist"><span title="Agent Protocol Implementation Checklist" class="linkLabel_HNbd">Agent Protocol Implementation Checklist</span></a></li></ul></nav></div></div></aside><main class="docMainContainer_AGU6"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_Yr4n"><div class="docItemContainer_Drb5"><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_sPy9" aria-label="Breadcrumbs"><ul class="breadcrumbs"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_mZnQ"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link">Agent Protocol Implementation Checklist</span></li></ul></nav><div class="tocCollapsible_Qqfg theme-doc-toc-mobile tocMobile_SUcu"><button type="button" class="clean-btn tocCollapsibleButton_StCq">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Agent Protocol Implementation Checklist</h1></header>
+<p>This is the working checklist for implementing the REST, webhook, action, MCP, and later A2A architecture defined in the <a class="" href="/architecture">Kasitek Platform Architecture</a>.</p>
+<p>Detailed requirements and exit gates are in the <a class="" href="/architecture/agent-protocol-implementation-plan">Agent Protocol Implementation Plan</a>. The agreed code structure and production design are preserved in the <a class="" href="/architecture/action-platform-technical-design">Action Platform Technical Design</a>. This page is the day-to-day progress tracker.</p>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="how-this-checklist-is-used">How this checklist is used<a href="#how-this-checklist-is-used" class="hash-link" aria-label="Direct link to How this checklist is used" title="Direct link to How this checklist is used" translate="no">​</a></h2>
+<ul>
+<li class="">Mark an item complete only when reviewable evidence exists.</li>
+<li class="">Evidence can be code, tests, migrations, an accepted ADR, a security review, a dashboard, or a runbook.</li>
+<li class="">Code existing does not complete a phase; the phase exit gate must pass.</li>
+<li class="">Reopen an item if a later architecture or protocol change invalidates its evidence.</li>
+<li class="">Direct and white-label implementations must remain separate runtime and database boundaries.</li>
+<li class="">MCP and A2A must use the internal action layer. They may not call product databases directly.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="status-summary">Status summary<a href="#status-summary" class="hash-link" aria-label="Direct link to Status summary" title="Direct link to Status summary" translate="no">​</a></h2>
+<table><thead><tr><th>Phase</th><th>Status</th><th>Exit evidence</th></tr></thead><tbody><tr><td>0. Architecture decisions and security baseline</td><td>In progress</td><td>ADRs, protocol pins, and threat model</td></tr><tr><td>1. Action foundation</td><td>In progress</td><td>Contracts, registry, schemas, catalog, and contract tests implemented; runtime handlers remain</td></tr><tr><td>2. Identity, grants, policy, and entitlements</td><td>Foundation in progress</td><td>Pipeline shell implemented; runtime policy adapters and persistence remain</td></tr><tr><td>3. Runs, approvals, effects, and audit</td><td>Not started</td><td>Recovery, replay, and approval-integrity tests</td></tr><tr><td>4. REST and webhook hardening</td><td>Partial foundation</td><td>Shared action path and contract tests</td></tr><tr><td>5. Native-agent validation</td><td>Not started</td><td>One real workflow uses only actions</td></tr><tr><td>6. MCP read-and-draft pilot</td><td>Not started</td><td>Secure allowlisted pilot</td></tr><tr><td>7. MCP controlled actions</td><td>Blocked</td><td>Requires successful Phase 6</td></tr><tr><td>8. A2A readiness decision</td><td>Research</td><td>Accepted proceed, defer, or reject ADR</td></tr><tr><td>9. A2A implementation</td><td>Not authorised</td><td>Requires accepted Phase 8 decision</td></tr><tr><td>10. Production hardening</td><td>Not started</td><td>Operational and security readiness approval</td></tr></tbody></table>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="current-focus">Current focus<a href="#current-focus" class="hash-link" aria-label="Direct link to Current focus" title="Direct link to Current focus" translate="no">​</a></h2>
+<p><strong>Current phase:</strong> Phase 1 — Protocol-neutral action foundation</p>
+<p><strong>Completed slices:</strong> Action contracts and registry; protocol-neutral execution pipeline shell.</p>
+<p><strong>Next implementation slice:</strong> Connect <code>customer.search</code> to separate direct and white-label domain handlers, with database isolation and pagination tests.</p>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-0--architecture-decisions-and-security-baseline">Phase 0 — Architecture decisions and security baseline<a href="#phase-0--architecture-decisions-and-security-baseline" class="hash-link" aria-label="Direct link to Phase 0 — Architecture decisions and security baseline" title="Direct link to Phase 0 — Architecture decisions and security baseline" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="documentation-foundation">Documentation foundation<a href="#documentation-foundation" class="hash-link" aria-label="Direct link to Documentation foundation" title="Direct link to Documentation foundation" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Publish the target Kasitek platform architecture.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Publish the detailed agent protocol implementation plan.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Publish this working implementation checklist.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Publish the action platform technical design for review.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Name the engineering owner for the action and protocol platform.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define the review cadence for this checklist.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="required-architecture-decisions">Required architecture decisions<a href="#required-architecture-decisions" class="hash-link" aria-label="Direct link to Required architecture decisions" title="Direct link to Required architecture decisions" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Decide whether Kasitek will adopt or operate the OAuth 2.1 authorization server.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Decide the MCP endpoint topology for direct and white-label runtimes.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Decide whether the agent protocol gateway starts as a separate deployment or an application module.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Decide the action naming and versioning convention.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Decide the OAuth scope naming convention.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Decide the approval rules for each risk class.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Decide approval expiry, revocation, payload binding, and four-eyes rules.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Decide audit retention and sensitive-data redaction rules.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Decide how existing automation workflows connect to the new execution model.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Record each accepted decision as an ADR.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="protocol-baselines">Protocol baselines<a href="#protocol-baselines" class="hash-link" aria-label="Direct link to Protocol baselines" title="Direct link to Protocol baselines" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Pin MCP protocol revision <code>2025-11-25</code> in configuration and tests.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Record that MCP experimental Tasks are not the internal source of execution truth.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Record A2A <code>1.0</code> as research-only until the readiness gate passes.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define how protocol upgrades are reviewed and tested.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Create the supported-client compatibility matrix.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="threat-model">Threat model<a href="#threat-model" class="hash-link" aria-label="Direct link to Threat model" title="Direct link to Threat model" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Threat-model authentication and OAuth redirect flows.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Threat-model token theft, token passthrough, and confused-deputy attacks.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Threat-model cross-tenant and cross-client discovery and invocation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Threat-model prompt injection causing unsafe tool calls.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Threat-model replayed requests and replayed approvals.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Threat-model malicious tool arguments and file references.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Threat-model webhook and callback SSRF.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Threat-model support and operator elevation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define mitigations and owners for every high-risk threat.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define emergency kill switches by protocol, client, tenant, and action.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-0-exit-gate">Phase 0 exit gate<a href="#phase-0-exit-gate" class="hash-link" aria-label="Direct link to Phase 0 exit gate" title="Direct link to Phase 0 exit gate" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Required ADRs are accepted.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->The threat model has no unowned critical mitigation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->MCP is pinned and A2A remains disabled.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-1--protocol-neutral-action-foundation">Phase 1 — Protocol-neutral action foundation<a href="#phase-1--protocol-neutral-action-foundation" class="hash-link" aria-label="Direct link to Phase 1 — Protocol-neutral action foundation" title="Direct link to Phase 1 — Protocol-neutral action foundation" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="shared-action-contracts">Shared action contracts<a href="#shared-action-contracts" class="hash-link" aria-label="Direct link to Shared action contracts" title="Direct link to Shared action contracts" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Create the shared <code>actions</code> crate/module.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define action name and semantic version.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define owning domain.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define input and output JSON Schemas.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define risk class.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define supported product runtimes and actor types.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define organisation, tenant, and client-scope requirements.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define required grants and OAuth scopes.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define required entitlement.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define idempotency requirements.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define approval requirements.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define audit, usage, and data-classification requirements.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define action lifecycle states.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="invocation-and-result-contracts">Invocation and result contracts<a href="#invocation-and-result-contracts" class="hash-link" aria-label="Direct link to Invocation and result contracts" title="Direct link to Invocation and result contracts" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define the complete invocation context.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Require actor identity and delegated authority.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Require direct or white-label runtime selection.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Require organisation or tenant scope.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Require client scope for tenant-client actors.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Require invocation, correlation, and causation identifiers.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Support idempotency key and deadline.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define succeeded, accepted, approval-required, denied, and failed outcomes.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define safe stable error and denial codes.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Prevent internal errors and cross-tenant resource existence from leaking.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="action-registry">Action registry<a href="#action-registry" class="hash-link" aria-label="Direct link to Action registry" title="Direct link to Action registry" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Register action definitions by stable name and version.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Reject duplicate name and version registrations.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Validate action metadata during startup or build.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->List actions by runtime, lifecycle, actor, and grant.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Prevent callers from selecting their own risk class or entitlement.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Add registry unit tests.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="first-vertical-slice">First vertical slice<a href="#first-vertical-slice" class="hash-link" aria-label="Direct link to First vertical slice" title="Direct link to First vertical slice" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define <code>customer.search</code> as a read action.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define <code>conversation.get_summary</code> as a read action.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define <code>conversation.draft_reply</code> as a draft action.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement direct-runtime handlers.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement white-label handlers.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Enforce tenant-client scope in white-label handlers.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Validate input and output against the declared schemas.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Add usage and audit metadata.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-1-verification">Phase 1 verification<a href="#phase-1-verification" class="hash-link" aria-label="Direct link to Phase 1 verification" title="Direct link to Phase 1 verification" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Missing actor fails closed.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Missing runtime is unrepresentable because runtime is derived from the typed scope.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Missing organisation or tenant scope fails closed.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Missing required client scope fails closed.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Direct identities cannot enter white-label scope.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->White-label identities cannot enter direct scope.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Cross-tenant identifiers do not reveal resource existence.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Cross-client identifiers do not reveal resource existence.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Schema validation failures return stable internal error categories.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Registry and contract-level realm isolation tests pass.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-1-exit-gate">Phase 1 exit gate<a href="#phase-1-exit-gate" class="hash-link" aria-label="Direct link to Phase 1 exit gate" title="Direct link to Phase 1 exit gate" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->All three actions execute through the registry.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->No handler trusts tenant scope supplied only in action arguments.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Direct and white-label contract isolation tests pass.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="slice-2--protocol-neutral-execution-pipeline-shell">Slice 2 — Protocol-neutral execution pipeline shell<a href="#slice-2--protocol-neutral-execution-pipeline-shell" class="hash-link" aria-label="Direct link to Slice 2 — Protocol-neutral execution pipeline shell" title="Direct link to Slice 2 — Protocol-neutral execution pipeline shell" translate="no">​</a></h2>
+<p>This slice proves orchestration behavior with in-memory adapters. It does not claim that identity, grants, entitlements, approvals, idempotency, or journalling are durable yet.</p>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Create the separate <code>execution</code> crate.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Define ports for clock, identity, access, entitlements, policy, idempotency, journal, and action execution.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Inject time through a clock port for deterministic deadline enforcement.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Enforce the order: request validation, deadline, identity, access, entitlements, policy, idempotency, journal start, action execution, output validation, journal finish.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Stop before later stages when any gate denies or fails.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Return safe denial and failure codes without dependency error details.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Return approval-required without starting an action run.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Return an existing idempotent outcome without starting another run.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Require journal start to succeed before invoking an action handler.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Validate completed handler output against the registered action schema.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Reject empty durable-operation identifiers.</li>
+<li class="task-list-item"><input type="checkbox" disabled="" checked=""> <!-- -->Prove ordering and short-circuit behavior with in-memory contract tests.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement runtime-owned production adapters for every port.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add durable transaction boundaries for runs, idempotency, audit, and outbox records.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-2--identity-grants-policy-and-entitlements">Phase 2 — Identity, grants, policy, and entitlements<a href="#phase-2--identity-grants-policy-and-entitlements" class="hash-link" aria-label="Direct link to Phase 2 — Identity, grants, policy, and entitlements" title="Direct link to Phase 2 — Identity, grants, policy, and entitlements" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="machine-identity-and-grants">Machine identity and grants<a href="#machine-identity-and-grants" class="hash-link" aria-label="Direct link to Machine identity and grants" title="Direct link to Machine identity and grants" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define human, API client, native agent, and external agent actor types.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Store machine-client owner, runtime, status, redirect URIs, and scopes.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Store action grants by actor and runtime scope.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Support tenant and client-specific grants.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Support grant expiry and immediate revocation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Map roles to default grants without making roles the only policy input.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Reject inactive users, clients, tenants, organisations, and connections.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="policy-pipeline">Policy pipeline<a href="#policy-pipeline" class="hash-link" aria-label="Direct link to Policy pipeline" title="Direct link to Policy pipeline" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement identity validation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement runtime validation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement organisation or tenant validation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement client-scope validation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement grant evaluation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement entitlement and usage-limit evaluation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement risk and approval evaluation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Produce allow, deny, or approval-required decisions.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Record policy version and decision basis.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add tenant and action kill switches.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Apply rate limits before domain execution.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-2-exit-gate">Phase 2 exit gate<a href="#phase-2-exit-gate" class="hash-link" aria-label="Direct link to Phase 2 exit gate" title="Direct link to Phase 2 exit gate" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Revocation meets the accepted response objective.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->REST, native-agent, and protocol callers receive consistent policy decisions.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->All missing or invalid policy context fails closed.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-3--durable-runs-approvals-effects-and-audit">Phase 3 — Durable runs, approvals, effects, and audit<a href="#phase-3--durable-runs-approvals-effects-and-audit" class="hash-link" aria-label="Direct link to Phase 3 — Durable runs, approvals, effects, and audit" title="Direct link to Phase 3 — Durable runs, approvals, effects, and audit" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="persistence">Persistence<a href="#persistence" class="hash-link" aria-label="Direct link to Persistence" title="Direct link to Persistence" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add direct-runtime agent client and grant migrations.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add white-label agent client and grant migrations.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add run, step, and attempt records.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add approval request and decision records.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add idempotency and external-effect records.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add outbox records for run and approval changes.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add audit records and indexes.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Ensure tenant-owned indexes begin with tenant/workspace scope.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="approval-integrity">Approval integrity<a href="#approval-integrity" class="hash-link" aria-label="Direct link to Approval integrity" title="Direct link to Approval integrity" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Bind approval to actor, scope, action, target, payload hash, version, and expiry.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Invalidate approval when a bound field changes.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Prevent self-approval where four-eyes policy applies.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Make decisions append-only.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Support reject, expire, revoke, and cancel.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Show the exact external effect to the approver.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Resume approved work exactly once.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="execution-safety">Execution safety<a href="#execution-safety" class="hash-link" aria-label="Direct link to Execution safety" title="Direct link to Execution safety" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Prevent concurrent duplicate execution.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Reconcile unknown provider outcomes.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define timeout and retry behaviour.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define cancellation and compensation behaviour.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Separate diagnostic telemetry from audit evidence.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Trace an invocation from actor to provider result.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-3-exit-gate">Phase 3 exit gate<a href="#phase-3-exit-gate" class="hash-link" aria-label="Direct link to Phase 3 exit gate" title="Direct link to Phase 3 exit gate" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Crash-recovery tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Duplicate-effect and replay tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Approval mutation and replay tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Execution and audit evidence is queryable by operators.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-4--rest-and-webhook-foundation">Phase 4 — REST and webhook foundation<a href="#phase-4--rest-and-webhook-foundation" class="hash-link" aria-label="Direct link to Phase 4 — REST and webhook foundation" title="Direct link to Phase 4 — REST and webhook foundation" translate="no">​</a></h2>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Route agent-facing REST actions through action handlers.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add idempotency keys to mutating APIs.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add durable operation-status endpoints.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Standardise error envelopes and correlation identifiers.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Publish machine-readable REST contracts.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add consumer contract tests.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Verify webhook signatures, timestamps, identifiers, and replay windows.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Acknowledge webhooks only after durable receipt.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add dead-letter and controlled replay handling.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add provider-event duplication and reordering tests.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-4-exit-gate">Phase 4 exit gate<a href="#phase-4-exit-gate" class="hash-link" aria-label="Direct link to Phase 4 exit gate" title="Direct link to Phase 4 exit gate" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Product and agent calls produce the same domain and audit outcomes.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Webhook retry, duplication, and reordering tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Long-running work remains observable after disconnect.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-5--native-agent-validation">Phase 5 — Native-agent validation<a href="#phase-5--native-agent-validation" class="hash-link" aria-label="Direct link to Phase 5 — Native-agent validation" title="Direct link to Phase 5 — Native-agent validation" translate="no">​</a></h2>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Select one existing native agent workflow.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Move it to the invocation gateway.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Remove its direct database and provider write path.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Propagate actor, tenant, client, delegation, and correlation context.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Exercise read and draft actions.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Exercise one approved controlled action.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add operator views for runs, approvals, effects, and failures.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add cancellation, retry, and safe replay controls.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Measure latency, failures, approvals, retries, and cost.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-5-exit-gate">Phase 5 exit gate<a href="#phase-5-exit-gate" class="hash-link" aria-label="Direct link to Phase 5 exit gate" title="Direct link to Phase 5 exit gate" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->The workflow operates entirely through actions in a controlled environment.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->It can be disabled independently.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->No direct-write escape path remains.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-6--mcp-read-and-draft-pilot">Phase 6 — MCP read-and-draft pilot<a href="#phase-6--mcp-read-and-draft-pilot" class="hash-link" aria-label="Direct link to Phase 6 — MCP read-and-draft pilot" title="Direct link to Phase 6 — MCP read-and-draft pilot" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="transport-and-protocol-lifecycle">Transport and protocol lifecycle<a href="#transport-and-protocol-lifecycle" class="hash-link" aria-label="Direct link to Transport and protocol lifecycle" title="Direct link to Transport and protocol lifecycle" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement MCP Streamable HTTP.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement initialization and version negotiation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement capability negotiation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Require the negotiated protocol-version header.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Validate <code>Origin</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Enforce content type, body size, timeout, concurrency, and rate limits.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Separate protocol errors from tool-execution errors.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="oauth-protected-resource">OAuth protected resource<a href="#oauth-protected-resource" class="hash-link" aria-label="Direct link to OAuth protected resource" title="Direct link to OAuth protected resource" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Publish OAuth Protected Resource Metadata.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Publish authorization-server discovery metadata.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Return correct <code>WWW-Authenticate</code> challenges.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Support authorization code with PKCE.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Validate exact redirect URIs and state.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Require OAuth resource indicators.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Validate issuer, audience, signature, expiry, client, subject, and scopes.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Prohibit token passthrough.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Support refresh rotation and revocation where applicable.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="tool-adapter-and-pilot-catalogue">Tool adapter and pilot catalogue<a href="#tool-adapter-and-pilot-catalogue" class="hash-link" aria-label="Direct link to Tool adapter and pilot catalogue" title="Direct link to Tool adapter and pilot catalogue" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement <code>tools/list</code> from the action registry.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement <code>tools/call</code> through the invocation gateway.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Re-authorise every tool call.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Return schema-valid structured results.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Expose <code>customer.search</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Expose <code>conversation.get_summary</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Expose <code>conversation.draft_reply</code>.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Keep send, publish, launch, delete, billing, credential, and access tools disabled.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Restrict access with tenant and client allowlists.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-6-exit-gate">Phase 6 exit gate<a href="#phase-6-exit-gate" class="hash-link" aria-label="Direct link to Phase 6 exit gate" title="Direct link to Phase 6 exit gate" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Test with at least two independent MCP clients.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->OAuth discovery and consent work end to end.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Cross-tenant, token, schema, injection, and rate-limit tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Revocation and kill-switch exercises pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Security review approves the limited pilot.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-7--mcp-controlled-actions">Phase 7 — MCP controlled actions<a href="#phase-7--mcp-controlled-actions" class="hash-link" aria-label="Direct link to Phase 7 — MCP controlled actions" title="Direct link to Phase 7 — MCP controlled actions" translate="no">​</a></h2>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Select one low-blast-radius controlled-write action.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define its exact grant, entitlement, limit, and approval policy.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Provide dry-run or effect preview.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Bind approval to the final effect.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Re-authorise immediately before execution.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Enforce idempotency and reconciliation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add tenant-configurable enablement.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add metrics, alerts, and kill switch.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Run a limited pilot before selecting another write action.</li>
+</ul>
+<p>Suggested order:</p>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <code>assign_conversation</code></li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <code>schedule_approved_post</code></li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <code>send_approved_message</code></li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <code>publish_approved_post</code></li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <code>launch_approved_campaign</code></li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-7-exit-gate">Phase 7 exit gate<a href="#phase-7-exit-gate" class="hash-link" aria-label="Direct link to Phase 7 exit gate" title="Direct link to Phase 7 exit gate" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Duplicate and replay tests prove one logical effect.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Approval displays the precise external effect.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->The action can be disabled without gateway downtime.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Pilot evidence supports the next action.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-8--a2a-readiness-decision">Phase 8 — A2A readiness decision<a href="#phase-8--a2a-readiness-decision" class="hash-link" aria-label="Direct link to Phase 8 — A2A readiness decision" title="Direct link to Phase 8 — A2A readiness decision" translate="no">​</a></h2>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->A real delegation use case exists.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->MCP calls are insufficient for that use case.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Internal long-running run states are proven.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Cancellation and resumability are proven.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Artifact storage and scanning are defined.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Delegated authority attenuation is defined.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Callback SSRF protections are proven.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Partner trust and commercial policies are accepted.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->An A2A <code>1.0</code> interoperability prototype succeeds without production exposure.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Record an ADR to proceed, defer, or reject A2A.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-9--a2a-implementation">Phase 9 — A2A implementation<a href="#phase-9--a2a-implementation" class="hash-link" aria-label="Direct link to Phase 9 — A2A implementation" title="Direct link to Phase 9 — A2A implementation" translate="no">​</a></h2>
+<p>This phase remains blocked until Phase 8 explicitly authorises it.</p>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Publish a minimal public Agent Card.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Keep sensitive skills out of public discovery.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Declare supported versions, interfaces, skills, and authentication accurately.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Validate the <code>A2A-Version</code> header.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Map external tasks to internal runs.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement required message and task operations.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Enforce task and artifact scope before database queries.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement valid task-state transitions and terminal-state immutability.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement idempotent cancellation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Keep credentials out of agent chains.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Implement bounded streaming.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Secure push callbacks against SSRF and replay.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Test with an independent A2A implementation.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-9-exit-gate">Phase 9 exit gate<a href="#phase-9-exit-gate" class="hash-link" aria-label="Direct link to Phase 9 exit gate" title="Direct link to Phase 9 exit gate" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Interoperability tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Task enumeration and callback-security tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Delegation never increases originating authority.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Production access is limited to approved peers and skills.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-10--production-hardening">Phase 10 — Production hardening<a href="#phase-10--production-hardening" class="hash-link" aria-label="Direct link to Phase 10 — Production hardening" title="Direct link to Phase 10 — Production hardening" translate="no">​</a></h2>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define protocol and action SLOs.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Define capacity limits and error budgets.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Add dashboards by client, tenant, action, outcome, and risk.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Alert on authentication anomalies and cross-scope attempts.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Alert on approval replay, duplicate effects, and queue backlog.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Document onboarding, rotation, revocation, and offboarding.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Document emergency disablement and incident response.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Document protocol and action deprecation.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Load-test discovery, invocation, streaming, and polling.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Restore-test grants, approvals, runs, and audit evidence.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Complete security, privacy, and operational readiness reviews.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="phase-10-exit-gate">Phase 10 exit gate<a href="#phase-10-exit-gate" class="hash-link" aria-label="Direct link to Phase 10 exit gate" title="Direct link to Phase 10 exit gate" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Production readiness is formally approved.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Pilot restrictions are removed only for approved actions and clients.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Ongoing protocol review and checklist ownership are assigned.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="per-action-release-checklist">Per-action release checklist<a href="#per-action-release-checklist" class="hash-link" aria-label="Direct link to Per-action release checklist" title="Direct link to Per-action release checklist" translate="no">​</a></h2>
+<p>Use this checklist for every action added to native agents, MCP, or A2A.</p>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="contract-and-ownership">Contract and ownership<a href="#contract-and-ownership" class="hash-link" aria-label="Direct link to Contract and ownership" title="Direct link to Contract and ownership" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Owner and owning domain are named.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Business outcome and non-goals are documented.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Input and output schemas are versioned.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Risk and data classification are reviewed.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Supported runtimes and actors are explicit.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="authority-and-isolation">Authority and isolation<a href="#authority-and-isolation" class="hash-link" aria-label="Direct link to Authority and isolation" title="Direct link to Authority and isolation" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Grants and OAuth scopes are minimal.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Tenant or organisation scope cannot be overridden by arguments.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Client scope is enforced where required.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Entitlement and limits are enforced.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Approval policy is tested.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Delegation cannot increase authority.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="execution-and-evidence">Execution and evidence<a href="#execution-and-evidence" class="hash-link" aria-label="Direct link to Execution and evidence" title="Direct link to Execution and evidence" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Idempotency behaviour is defined.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Timeout, retry, cancellation, and reconciliation are defined.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Provider failure cannot produce a false success.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Audit evidence is complete and safely redacted.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Usage and cost are metered.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Metrics, alerts, and kill switch exist.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_jhCN" id="verification-and-rollout">Verification and rollout<a href="#verification-and-rollout" class="hash-link" aria-label="Direct link to Verification and rollout" title="Direct link to Verification and rollout" translate="no">​</a></h3>
+<ul class="contains-task-list containsTaskList_Rt0n">
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Unit, schema, integration, and contract tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Cross-tenant and cross-client tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Replay and duplicate tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Adversarial prompt and input tests pass.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Limited pilot succeeds.</li>
+<li class="task-list-item"><input type="checkbox" disabled=""> <!-- -->Disable, rollback, and deprecation paths exist.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_jhCN" id="evidence-log">Evidence log<a href="#evidence-log" class="hash-link" aria-label="Direct link to Evidence log" title="Direct link to Evidence log" translate="no">​</a></h2>
+<p>Add one row whenever a checklist group or exit gate is completed.</p>
+<table><thead><tr><th>Date</th><th>Checklist item or gate</th><th>Evidence</th><th>Reviewer</th></tr></thead><tbody><tr><td>2026-07-17</td><td>Target architecture published</td><td><a class="" href="/architecture">Kasitek Platform Architecture</a></td><td>Pending</td></tr><tr><td>2026-07-17</td><td>Detailed plan published</td><td><a class="" href="/architecture/agent-protocol-implementation-plan">Agent Protocol Implementation Plan</a></td><td>Pending</td></tr><tr><td>2026-07-17</td><td>Working checklist published</td><td>This document</td><td>Pending</td></tr><tr><td>2026-07-18</td><td>Core service design published for review</td><td><a class="" href="/architecture/action-platform-technical-design">Action Platform Technical Design</a></td><td>Pending</td></tr><tr><td>2026-07-18</td><td>Slice 1 action contracts and registry</td><td><code>server/crates/actions</code>; 16 tests passed; strict Clippy passed; workspace check passed</td><td>Automated verification</td></tr><tr><td>2026-07-18</td><td>Slice 2 execution pipeline shell</td><td><code>server/crates/execution</code>; 12 pipeline tests and 17 action tests passed; strict Clippy passed; workspace check passed</td><td>Automated verification</td></tr></tbody></table></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/architecture/agent-protocol-implementation-plan"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Agent Protocol Implementation Plan</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_XYr6 thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#how-this-checklist-is-used" class="table-of-contents__link toc-highlight">How this checklist is used</a></li><li><a href="#status-summary" class="table-of-contents__link toc-highlight">Status summary</a></li><li><a href="#current-focus" class="table-of-contents__link toc-highlight">Current focus</a></li><li><a href="#phase-0--architecture-decisions-and-security-baseline" class="table-of-contents__link toc-highlight">Phase 0 — Architecture decisions and security baseline</a><ul><li><a href="#documentation-foundation" class="table-of-contents__link toc-highlight">Documentation foundation</a></li><li><a href="#required-architecture-decisions" class="table-of-contents__link toc-highlight">Required architecture decisions</a></li><li><a href="#protocol-baselines" class="table-of-contents__link toc-highlight">Protocol baselines</a></li><li><a href="#threat-model" class="table-of-contents__link toc-highlight">Threat model</a></li><li><a href="#phase-0-exit-gate" class="table-of-contents__link toc-highlight">Phase 0 exit gate</a></li></ul></li><li><a href="#phase-1--protocol-neutral-action-foundation" class="table-of-contents__link toc-highlight">Phase 1 — Protocol-neutral action foundation</a><ul><li><a href="#shared-action-contracts" class="table-of-contents__link toc-highlight">Shared action contracts</a></li><li><a href="#invocation-and-result-contracts" class="table-of-contents__link toc-highlight">Invocation and result contracts</a></li><li><a href="#action-registry" class="table-of-contents__link toc-highlight">Action registry</a></li><li><a href="#first-vertical-slice" class="table-of-contents__link toc-highlight">First vertical slice</a></li><li><a href="#phase-1-verification" class="table-of-contents__link toc-highlight">Phase 1 verification</a></li><li><a href="#phase-1-exit-gate" class="table-of-contents__link toc-highlight">Phase 1 exit gate</a></li></ul></li><li><a href="#slice-2--protocol-neutral-execution-pipeline-shell" class="table-of-contents__link toc-highlight">Slice 2 — Protocol-neutral execution pipeline shell</a></li><li><a href="#phase-2--identity-grants-policy-and-entitlements" class="table-of-contents__link toc-highlight">Phase 2 — Identity, grants, policy, and entitlements</a><ul><li><a href="#machine-identity-and-grants" class="table-of-contents__link toc-highlight">Machine identity and grants</a></li><li><a href="#policy-pipeline" class="table-of-contents__link toc-highlight">Policy pipeline</a></li><li><a href="#phase-2-exit-gate" class="table-of-contents__link toc-highlight">Phase 2 exit gate</a></li></ul></li><li><a href="#phase-3--durable-runs-approvals-effects-and-audit" class="table-of-contents__link toc-highlight">Phase 3 — Durable runs, approvals, effects, and audit</a><ul><li><a href="#persistence" class="table-of-contents__link toc-highlight">Persistence</a></li><li><a href="#approval-integrity" class="table-of-contents__link toc-highlight">Approval integrity</a></li><li><a href="#execution-safety" class="table-of-contents__link toc-highlight">Execution safety</a></li><li><a href="#phase-3-exit-gate" class="table-of-contents__link toc-highlight">Phase 3 exit gate</a></li></ul></li><li><a href="#phase-4--rest-and-webhook-foundation" class="table-of-contents__link toc-highlight">Phase 4 — REST and webhook foundation</a><ul><li><a href="#phase-4-exit-gate" class="table-of-contents__link toc-highlight">Phase 4 exit gate</a></li></ul></li><li><a href="#phase-5--native-agent-validation" class="table-of-contents__link toc-highlight">Phase 5 — Native-agent validation</a><ul><li><a href="#phase-5-exit-gate" class="table-of-contents__link toc-highlight">Phase 5 exit gate</a></li></ul></li><li><a href="#phase-6--mcp-read-and-draft-pilot" class="table-of-contents__link toc-highlight">Phase 6 — MCP read-and-draft pilot</a><ul><li><a href="#transport-and-protocol-lifecycle" class="table-of-contents__link toc-highlight">Transport and protocol lifecycle</a></li><li><a href="#oauth-protected-resource" class="table-of-contents__link toc-highlight">OAuth protected resource</a></li><li><a href="#tool-adapter-and-pilot-catalogue" class="table-of-contents__link toc-highlight">Tool adapter and pilot catalogue</a></li><li><a href="#phase-6-exit-gate" class="table-of-contents__link toc-highlight">Phase 6 exit gate</a></li></ul></li><li><a href="#phase-7--mcp-controlled-actions" class="table-of-contents__link toc-highlight">Phase 7 — MCP controlled actions</a><ul><li><a href="#phase-7-exit-gate" class="table-of-contents__link toc-highlight">Phase 7 exit gate</a></li></ul></li><li><a href="#phase-8--a2a-readiness-decision" class="table-of-contents__link toc-highlight">Phase 8 — A2A readiness decision</a></li><li><a href="#phase-9--a2a-implementation" class="table-of-contents__link toc-highlight">Phase 9 — A2A implementation</a><ul><li><a href="#phase-9-exit-gate" class="table-of-contents__link toc-highlight">Phase 9 exit gate</a></li></ul></li><li><a href="#phase-10--production-hardening" class="table-of-contents__link toc-highlight">Phase 10 — Production hardening</a><ul><li><a href="#phase-10-exit-gate" class="table-of-contents__link toc-highlight">Phase 10 exit gate</a></li></ul></li><li><a href="#per-action-release-checklist" class="table-of-contents__link toc-highlight">Per-action release checklist</a><ul><li><a href="#contract-and-ownership" class="table-of-contents__link toc-highlight">Contract and ownership</a></li><li><a href="#authority-and-isolation" class="table-of-contents__link toc-highlight">Authority and isolation</a></li><li><a href="#execution-and-evidence" class="table-of-contents__link toc-highlight">Execution and evidence</a></li><li><a href="#verification-and-rollout" class="table-of-contents__link toc-highlight">Verification and rollout</a></li></ul></li><li><a href="#evidence-log" class="table-of-contents__link toc-highlight">Evidence log</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Main Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/features">Product Features</a></li><li class="footer__item"><a class="footer__link-item" href="/white-paper/kasitek-white-paper">White Paper</a></li><li class="footer__item"><a class="footer__link-item" href="/roadmap/product-roadmap">Product Roadmap</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Architecture</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/">Internal Home</a></li><li class="footer__item"><a class="footer__link-item" href="/architecture">Architecture</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Internal use only. Copyright 2026 Kasitek Labs</div></div></div></footer></div>
+</body>
+</html>

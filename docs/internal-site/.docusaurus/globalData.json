@@ -11,6 +11,21 @@
           "mainDocId": "README",
           "docs": [
             {
+              "id": "architecture/action-platform-technical-design",
+              "path": "/architecture/action-platform-technical-design",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "architecture/agent-protocol-implementation-checklist",
+              "path": "/architecture/agent-protocol-implementation-checklist",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "architecture/agent-protocol-implementation-plan",
+              "path": "/architecture/agent-protocol-implementation-plan",
+              "sidebar": "tutorialSidebar"
+            },
+            {
               "id": "architecture/kasitek-technical-blueprint",
               "path": "/architecture",
               "sidebar": "tutorialSidebar"
@@ -24,12 +39,22 @@
               "path": "/contracts/n8n-provisioner-contract"
             },
             {
+              "id": "execution/client-ready-platform-checklist",
+              "path": "/execution/client-ready-platform-checklist",
+              "sidebar": "tutorialSidebar"
+            },
+            {
               "id": "execution/TENANT_PLATFORM_EXECUTION_PLAN",
               "path": "/execution/tenant-platform-execution-plan"
             },
             {
               "id": "features/product-features",
               "path": "/features",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "go-to-market/founding-partner-launch-plan",
+              "path": "/go-to-market/founding-partner-launch",
               "sidebar": "tutorialSidebar"
             },
             {
@@ -45,6 +70,10 @@
               "id": "roadmap/product-roadmap",
               "path": "/roadmap/product-roadmap",
               "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "runbooks/connection-failures",
+              "path": "/runbooks/connection-failures"
             },
             {
               "id": "strategy/company-strategy",

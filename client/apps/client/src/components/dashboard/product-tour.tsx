@@ -25,8 +25,13 @@ function goalStep(goal: string | null): TourStep {
 
 function buildSteps(goal: string | null): TourStep[] {
   const steps = [
+    { target: "workspace-switcher", eyebrow: "Workspace", title: "Switch workspaces here", description: "Use this control to move between the workspaces you belong to without signing out." },
+    { target: "sidebar-toggle", eyebrow: "Navigation", title: "Make more room when you need it", description: "Collapse the sidebar to focus on your work, then expand it again whenever you need the full navigation." },
+    { target: "theme", eyebrow: "Appearance", title: "Choose the theme that suits you", description: "Switch between light and dark mode at any time. Your preference is remembered." },
+    { target: "profile", eyebrow: "Your account", title: "Your profile and account menu", description: "Open this menu for your profile, team access, and sign-out controls." },
+    { target: "workspace-settings", eyebrow: "Manage", title: "Workspace settings", description: "Manage workspace-level settings here as your business grows." },
     goalStep(goal),
-    { target: "connections", eyebrow: "Set up", title: "Connect your channels", description: "Connect WhatsApp and other available channels before working with real customer conversations." },
+    { target: "connections", eyebrow: "Set up", title: "Connect your channels", description: "Connect WhatsApp, Facebook, Instagram, LinkedIn, X, and any other available channels before working with real customer conversations." },
     { target: "inbox", eyebrow: "Customer conversations", title: "Keep messages in one place", description: "Use the inbox to reply, assign conversations, and keep the right context with every customer." },
     { target: "team", eyebrow: "Manage", title: "Invite your team", description: "Add the people who will use the workspace and give them the right access." },
     { target: "overview", eyebrow: "Home", title: "Come back to your overview", description: "Use Overview whenever you want a quick picture of activity and your next action." },
@@ -50,7 +55,6 @@ export function ProductTour({ status }: { status: ProductTourStatus | null }) {
   const [stepIndex, setStepIndex] = useState(Math.min(status?.currentStep ?? 0, steps.length - 1));
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [compact, setCompact] = useState(false);
-  const [busy, setBusy] = useState(false);
   const step = steps[stepIndex];
 
   const measureTarget = useCallback(() => {
@@ -73,16 +77,9 @@ export function ProductTour({ status }: { status: ProductTourStatus | null }) {
 
   useEffect(() => {
     const restart = () => {
-      void (async () => {
-        setBusy(true);
-        try {
-          await updateTour("restart", 0);
-          setStepIndex(0);
-          setOpen(true);
-        } finally {
-          setBusy(false);
-        }
-      })();
+      setStepIndex(0);
+      setOpen(true);
+      void updateTour("restart", 0).catch(() => undefined);
     };
     window.addEventListener("kasitek:restart-product-tour", restart);
     return () => window.removeEventListener("kasitek:restart-product-tour", restart);
@@ -94,30 +91,20 @@ export function ProductTour({ status }: { status: ProductTourStatus | null }) {
   const popoverTop = targetRect ? Math.min(Math.max(16, targetRect.top + targetRect.height / 2 - 132), viewportHeight - 280) : 24;
   const popoverLeft = targetRect ? Math.min(targetRect.right + 20, typeof window === "undefined" ? 320 : window.innerWidth - 372) : 24;
 
-  async function dismiss() {
-    setBusy(true);
-    try {
-      await updateTour("dismiss", stepIndex);
-      setOpen(false);
-    } finally {
-      setBusy(false);
-    }
+  function dismiss() {
+    setOpen(false);
+    void updateTour("dismiss", stepIndex).catch(() => undefined);
   }
 
-  async function next() {
-    setBusy(true);
-    try {
-      if (isLast) {
-        await updateTour("complete", stepIndex);
-        setOpen(false);
-        return;
-      }
-      const nextIndex = stepIndex + 1;
-      await updateTour(stepIndex === 0 ? "start" : "advance", nextIndex);
-      setStepIndex(nextIndex);
-    } finally {
-      setBusy(false);
+  function next() {
+    if (isLast) {
+      setOpen(false);
+      void updateTour("complete", stepIndex).catch(() => undefined);
+      return;
     }
+    const nextIndex = stepIndex + 1;
+    setStepIndex(nextIndex);
+    void updateTour(stepIndex === 0 ? "start" : "advance", nextIndex).catch(() => undefined);
   }
 
   function previous() {
@@ -134,13 +121,18 @@ export function ProductTour({ status }: { status: ProductTourStatus | null }) {
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">{step.eyebrow}</p>
             <h2 className="mt-2 text-lg font-semibold tracking-tight">{step.title}</h2>
           </div>
-          <button type="button" onClick={() => void dismiss()} disabled={busy} className="rounded-md p-1.5 text-muted-foreground transition hover:bg-secondary hover:text-foreground" aria-label="Skip tour"><X className="h-4 w-4" /></button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Step {stepIndex + 1} of {steps.length}</span>
+            <button type="button" onClick={dismiss} className="rounded-md p-1.5 text-muted-foreground transition hover:bg-secondary hover:text-foreground" aria-label="Skip tour"><X className="h-4 w-4" /></button>
+          </div>
         </div>
         <p className="relative mt-3 text-sm leading-6 text-muted-foreground">{step.description}</p>
-        <div className="relative mt-5 flex gap-1.5" aria-label={`Tour step ${stepIndex + 1} of ${steps.length}`}>{steps.map((item, index) => <span key={item.target} className={`h-1 flex-1 rounded-full transition-colors ${index <= stepIndex ? "bg-primary" : "bg-secondary"}`} />)}</div>
         <div className="relative mt-5 flex items-center justify-between gap-3">
-          {stepIndex > 0 ? <button type="button" onClick={previous} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</button> : <button type="button" onClick={() => void dismiss()} disabled={busy} className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">Skip tour</button>}
-          <button type="button" onClick={() => void next()} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50">{isLast ? "Finish" : "Next"}{isLast ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}</button>
+          <div className="flex items-center gap-1">
+            {stepIndex > 0 ? <button type="button" onClick={previous} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</button> : null}
+            <button type="button" onClick={dismiss} className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">Skip tour</button>
+          </div>
+          <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90">{isLast ? "Finish" : "Next"}{isLast ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}</button>
         </div>
       </section>
     </div>

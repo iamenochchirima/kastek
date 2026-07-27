@@ -1,0 +1,28 @@
+{
+  "id": "architecture/agent-protocol-implementation-plan",
+  "title": "Agent Protocol Implementation Plan",
+  "description": "This plan turns the Kasitek Platform Architecture protocol direction into an executable checklist.",
+  "source": "@site/../internal/architecture/agent-protocol-implementation-plan.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture/agent-protocol-implementation-plan",
+  "permalink": "/architecture/agent-protocol-implementation-plan",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "title": "Agent Protocol Implementation Plan",
+    "slug": "/architecture/agent-protocol-implementation-plan",
+    "sidebar_position": 5
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Action Platform Technical Design",
+    "permalink": "/architecture/action-platform-technical-design"
+  },
+  "next": {
+    "title": "Agent Protocol Implementation Checklist",
+    "permalink": "/architecture/agent-protocol-implementation-checklist"
+  }
+}

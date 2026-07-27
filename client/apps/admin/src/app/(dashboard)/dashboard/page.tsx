@@ -17,7 +17,7 @@ export default async function DashboardPage() {
   for (const lead of leads) { statusMap[lead.status] = (statusMap[lead.status] ?? 0) + 1; sourceMap[lead.source] = (sourceMap[lead.source] ?? 0) + 1; }
 
   return <div className="admin-page">
-    <AdminPageHeader eyebrow="KasiTek platform" title="Operations overview" description="Current lead, conversation, and sales activity across the internal workspace." actions={<Link href="/leads/new" className={buttonClassName()}><Plus className="size-4" />Add lead</Link>} />
+    <AdminPageHeader eyebrow="Kasitek Labs" title="Operations overview" description="Current lead, conversation, and sales activity across the internal workspace." actions={<Link href="/leads/new" className={buttonClassName()}><Plus className="size-4" />Add lead</Link>} />
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <AdminMetric label="Total leads" value={leads.length} detail="All recorded sources" />
       <AdminMetric label="New leads" value={statusMap.new ?? 0} detail="Awaiting first action" tone="info" />

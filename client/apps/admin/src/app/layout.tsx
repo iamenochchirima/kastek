@@ -3,8 +3,8 @@ import ThemeScript from "@/components/theme-script";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "KasiTek Admin",
-  description: "KasiTek Admin Dashboard",
+  title: "Kasitek Labs",
+  description: "Kasitek Labs internal operations workspace",
 };
 
 export default function RootLayout({
