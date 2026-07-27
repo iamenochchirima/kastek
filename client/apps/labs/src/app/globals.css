@@ -2323,7 +2323,6 @@ summary {
     linear-gradient(0deg, rgba(18, 20, 17, 0.52), transparent 35%);
 }
 
-.service-montage-head,
 .montage-footer,
 .montage-service-list,
 .montage-agent-card,
@@ -2331,24 +2330,6 @@ summary {
 .montage-app-card {
   position: absolute;
   z-index: 2;
-}
-
-.service-montage-head {
-  top: 0;
-  right: 0;
-  left: 0;
-  display: flex;
-  justify-content: space-between;
-  min-height: 42px;
-  padding: 0 14px;
-  color: rgba(255, 255, 255, 0.65);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 8px;
-  font-weight: 700;
-  line-height: 42px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .montage-agent-card {
@@ -2368,11 +2349,9 @@ summary {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 7px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .montage-card-kicker svg { width: 12px; height: 12px; }
@@ -2444,8 +2423,11 @@ summary {
 
 .montage-service-list {
   right: 6%;
-  bottom: 17%;
-  display: grid;
+  bottom: 14%;
+  display: flex;
+  max-width: min(46%, 270px);
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -2456,11 +2438,9 @@ summary {
   color: rgba(255, 255, 255, 0.72);
   background: rgba(19, 21, 18, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: -0.01em;
 }
 
 .montage-footer {
@@ -3351,10 +3331,6 @@ summary {
     box-shadow: 10px 12px 0 rgba(16, 17, 15, 0.1);
   }
 
-  .service-montage-head {
-    font-size: 7px;
-  }
-
   .montage-agent-card {
     top: 16%;
     left: 6%;
@@ -3365,7 +3341,7 @@ summary {
   .montage-agent-card > p { padding: 6px; font-size: 7px; }
   .montage-agent-card > div:not(.montage-card-kicker) { padding: 6px; font-size: 6px; }
   .montage-agent-card small { font-size: 5px; }
-  .montage-card-kicker { font-size: 6px; }
+  .montage-card-kicker { font-size: 7px; }
   .montage-workflow-card { bottom: 18%; left: 8%; width: 53%; padding: 8px; }
   .montage-workflow-route { grid-template-columns: 1fr 8px 25px 8px 1fr; gap: 2px; margin: 11px 0 8px; font-size: 5px; }
   .montage-workflow-route > span { padding: 6px 2px; }
@@ -3379,8 +3355,8 @@ summary {
   .montage-app-content main > section { gap: 3px; margin-top: 6px; }
   .montage-app-content main > section span { padding: 4px; }
   .montage-app-content main > section strong { font-size: 10px; }
-  .montage-service-list { right: 5%; bottom: 18%; gap: 4px; }
-  .montage-service-list span { padding: 4px 5px; font-size: 5px; }
+  .montage-service-list { right: 5%; bottom: 16%; max-width: 49%; gap: 4px; }
+  .montage-service-list span { padding: 4px 5px; font-size: 6px; }
   .montage-footer { right: 5%; bottom: 4%; left: 5%; min-height: 27px; font-size: 6px; }
 
   .partner-preview {

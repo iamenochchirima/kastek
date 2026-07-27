@@ -13,7 +13,12 @@ export const metadata = {
 export default async function ConnectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; count?: string; error?: string }>;
+  searchParams: Promise<{
+    connected?: string;
+    facebook_count?: string;
+    instagram_count?: string;
+    error?: string;
+  }>;
 }) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
@@ -36,12 +41,18 @@ export default async function ConnectionsPage({
           </p>
         </div>
 
-        {params.connected === "meta" ? (
+        {params.connected === "meta" && params.instagram_count === "0" ? (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+            Facebook connected successfully
+            {params.facebook_count ? ` (${params.facebook_count} Page${params.facebook_count === "1" ? "" : "s"})` : ""},
+            but Meta did not return a linked Instagram Professional account. Link the Instagram
+            Business or Creator account to the selected Facebook Page, then reconnect.
+          </div>
+        ) : params.connected === "meta" ? (
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
-            {params.count === "1"
-              ? "Your Meta account was connected."
-              : `Your Meta accounts were connected${params.count ? ` (${params.count})` : ""}.`}
-            {" "}Facebook Pages and linked professional Instagram accounts are now available in this workspace.
+            Meta connected successfully: {params.facebook_count ?? "0"} Facebook Page
+            {params.facebook_count === "1" ? "" : "s"} and {params.instagram_count ?? "0"} Instagram
+            account{params.instagram_count === "1" ? "" : "s"}.
           </div>
         ) : null}
 

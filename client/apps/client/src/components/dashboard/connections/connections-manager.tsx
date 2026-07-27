@@ -42,7 +42,7 @@ const providerDetails = {
     availableLabel: "Professional accounts via Meta",
     icon: Instagram,
     connectPath: "/api/social/oauth/meta/start",
-    connectLabel: "Connect Meta",
+    connectLabel: "Connect Instagram",
   },
   THREADS: {
     label: "Threads",

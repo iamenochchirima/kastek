@@ -13,8 +13,6 @@ export function ServiceDeliveryMontage() {
         priority={false}
       />
       <div className="service-montage-shade" />
-      <div className="service-montage-head"><span>Client delivery</span><span>Forward deployed</span></div>
-
       <article className="montage-agent-card">
         <div className="montage-card-kicker"><Bot aria-hidden="true" />AI agent</div>
         <p>Can I book a consultation for Thursday?</p>
@@ -40,7 +38,13 @@ export function ServiceDeliveryMontage() {
         </div>
       </article>
 
-      <div className="montage-service-list"><span>AI agents</span><span>AI workflows</span><span>Web applications</span></div>
+      <div className="montage-service-list" aria-label="Services we deliver">
+        <span>AI agents</span>
+        <span>AI workflows</span>
+        <span>Systems integration</span>
+        <span>Web applications</span>
+        <span>Websites &amp; bookings</span>
+      </div>
       <div className="montage-footer"><MessageCircle aria-hidden="true" /><span>Built close to the work. Improved in use.</span><Check aria-hidden="true" /></div>
     </div>
   );

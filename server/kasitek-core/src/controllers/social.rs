@@ -560,6 +560,14 @@ pub async fn meta_oauth_callback(
     let connected =
         social::upsert_meta_connections_for_org(pool.get_ref(), &user.id, &org_id, &tokens, &pages)
             .await?;
+    let facebook_count = connected
+        .iter()
+        .filter(|channel| channel.platform == "FACEBOOK")
+        .count();
+    let instagram_count = connected
+        .iter()
+        .filter(|channel| channel.platform == "INSTAGRAM")
+        .count();
 
     connections::sync_org_connections(pool.get_ref(), &org_id).await?;
     for page in &pages {
@@ -603,9 +611,8 @@ pub async fn meta_oauth_callback(
     }
 
     let redirect = format!(
-        "{}/connections?connected=meta&count={}",
-        config.auth_url,
-        connected.len()
+        "{}/connections?connected=meta&facebook_count={}&instagram_count={}",
+        config.auth_url, facebook_count, instagram_count
     );
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))
@@ -657,14 +664,33 @@ pub async fn linkedin_oauth_callback(
         return Err(AppError::BadRequest("Invalid OAuth state".to_string()));
     }
 
-    let tokens = social::exchange_linkedin_code_for_tokens(config.get_ref(), code).await?;
+    let tokens = social::exchange_linkedin_code_for_tokens(config.get_ref(), code)
+        .await
+        .map_err(|error| {
+            log::warn!("LinkedIn OAuth token exchange failed: {error}");
+            match error {
+                AppError::BadRequest(message) => {
+                    AppError::BadRequest(format!("LinkedIn token exchange failed: {message}"))
+                }
+                other => other,
+            }
+        })?;
     let profile = social::fetch_linkedin_profile(
         tokens
             .access_token
             .as_deref()
             .ok_or_else(|| AppError::BadRequest("Missing LinkedIn access token".to_string()))?,
     )
-    .await?;
+    .await
+    .map_err(|error| {
+        log::warn!("LinkedIn OAuth profile lookup failed: {error}");
+        match error {
+            AppError::BadRequest(message) => {
+                AppError::BadRequest(format!("LinkedIn profile lookup failed: {message}"))
+            }
+            other => other,
+        }
+    })?;
     let _channel = social::upsert_linkedin_connection_for_org(
         pool.get_ref(),
         &user.id,

@@ -355,6 +355,7 @@ pub fn build_meta_authorize_url(config: &AppConfig, state: &str) -> Result<Strin
         ]
         .join(",")
     });
+
     Ok(format!(
         "{META_AUTHORIZE_URL}?client_id={}&redirect_uri={}&state={}&response_type=code&scope={}",
         urlencoding::encode(&client_id),
@@ -490,13 +491,10 @@ pub async fn exchange_linkedin_code_for_tokens(
         "{}/api/social/oauth/linkedin/callback",
         social_app_url(config)
     );
-    let basic = STANDARD.encode(format!("{client_id}:{client_secret}"));
-
     let tokens: LinkedInTokenResponse = fetch_json(
         reqwest::Client::new()
             .post(LINKEDIN_TOKEN_URL)
             .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Authorization", format!("Basic {basic}"))
             .form(&[
                 ("grant_type", "authorization_code".to_string()),
                 ("code", code.to_string()),
