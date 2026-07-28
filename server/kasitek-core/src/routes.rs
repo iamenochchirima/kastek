@@ -165,6 +165,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::scope("/oauth")
                         .route("/meta/start", web::get().to(social::start_meta_oauth))
                         .route("/meta/callback", web::get().to(social::meta_oauth_callback))
+                        .route(
+                            "/instagram/start",
+                            web::get().to(social::start_instagram_oauth),
+                        )
+                        .route(
+                            "/instagram/callback",
+                            web::get().to(social::instagram_oauth_callback),
+                        )
                         .route("/x/start", web::get().to(social::start_x_oauth))
                         .route("/x/callback", web::get().to(social::x_oauth_callback))
                         .route(

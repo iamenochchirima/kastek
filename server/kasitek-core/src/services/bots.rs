@@ -350,11 +350,10 @@ pub async fn execute_bot_action(
 
     match action {
         "provision" => {
-            crate::services::billing::require_usage_available(
+            crate::services::billing::require_meter_available(
                 pool,
                 org_id,
-                "agents",
-                "deployments",
+                crate::services::billing::meters::AGENT_DEPLOYMENTS,
                 1,
             )
             .await?;

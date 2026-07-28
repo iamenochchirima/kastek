@@ -54,7 +54,7 @@ pub fn customer_search() -> ActionDefinition {
         client_scope: ClientScopeRule::Optional,
         required_grants: strings(["customers.read"]),
         required_oauth_scopes: strings(["customers:read"]),
-        required_entitlements: strings(["product.crm.enabled"]),
+        required_entitlements: strings(["feature.contacts.access"]),
         idempotency: IdempotencyRule::NotApplicable,
         data_classification: DataClassification::Confidential,
         audit: AuditRule::Access,

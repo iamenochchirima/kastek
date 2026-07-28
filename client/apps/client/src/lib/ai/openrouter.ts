@@ -48,7 +48,7 @@ export async function generateSocialCaptionWithOpenRouter({
       Authorization: `Bearer ${getOpenRouterApiKey()}`,
       "Content-Type": "application/json",
       "HTTP-Referer": getAppUrl(),
-      "X-OpenRouter-Title": "KasiTek KasiSocial",
+      "X-OpenRouter-Title": "KasiTek Content",
     },
     body: JSON.stringify({
       model: getOpenRouterModel(),

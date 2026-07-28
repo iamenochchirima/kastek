@@ -11,6 +11,7 @@ use crate::services::push::{send_push_notification_to_user, PushNotificationPayl
 use crate::services::{customers, realtime, social, whatsapp};
 
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v23.0";
+const INSTAGRAM_GRAPH_BASE: &str = "https://graph.instagram.com/v23.0";
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -83,6 +84,7 @@ struct MetaConversationScopeRow {
     external_account_id: Option<String>,
     #[sqlx(rename = "access_token")]
     access_token: Option<String>,
+    metadata: Option<Value>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -119,9 +121,33 @@ pub fn verify_meta_webhook_signature(
     signature_header: Option<&str>,
     body: &[u8],
 ) -> Result<(), AppError> {
-    let app_secret = std::env::var("AUTH_META_APP_SECRET")
-        .map_err(|_| AppError::Forbidden("Meta webhook secret is not configured".to_string()))?;
-    verify_meta_signature(&app_secret, signature_header, body)
+    let mut app_secrets = Vec::new();
+    if let Ok(secret) = std::env::var("AUTH_META_APP_SECRET") {
+        if !secret.trim().is_empty() {
+            app_secrets.push(secret);
+        }
+    }
+    if let Ok(secret) = std::env::var("AUTH_INSTAGRAM_APP_SECRET") {
+        if !secret.trim().is_empty() && !app_secrets.iter().any(|value| value == &secret) {
+            app_secrets.push(secret);
+        }
+    }
+    if app_secrets.is_empty() {
+        return Err(AppError::Forbidden(
+            "Meta webhook secret is not configured".to_string(),
+        ));
+    }
+
+    if app_secrets
+        .iter()
+        .any(|secret| verify_meta_signature(secret, signature_header, body).is_ok())
+    {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(
+            "Invalid Meta webhook signature".to_string(),
+        ))
+    }
 }
 
 fn verify_meta_signature(
@@ -345,15 +371,35 @@ pub async fn send_conversation_message(
     .await?;
     publish_message_created(pool, user_id, &message_id).await?;
 
+    let uses_instagram_login = meta_scope
+        .metadata
+        .as_ref()
+        .and_then(|value| value.get("authMethod"))
+        .and_then(Value::as_str)
+        == Some("instagram_login");
+    let graph_base = if uses_instagram_login {
+        INSTAGRAM_GRAPH_BASE
+    } else {
+        META_GRAPH_BASE
+    };
+    let request_body = if uses_instagram_login {
+        json!({
+            "recipient": { "id": customer_id },
+            "message": { "text": text },
+        })
+    } else {
+        json!({
+            "recipient": { "id": customer_id },
+            "messaging_type": "RESPONSE",
+            "message": { "text": text },
+        })
+    };
+
     let response: MetaSendMessageResponse = match fetch_meta_json(
         reqwest::Client::new()
-            .post(format!("{META_GRAPH_BASE}/{asset_id}/messages"))
+            .post(format!("{graph_base}/{asset_id}/messages"))
             .bearer_auth(access_token)
-            .json(&json!({
-                "recipient": { "id": customer_id },
-                "messaging_type": "RESPONSE",
-                "message": { "text": text },
-            })),
+            .json(&request_body),
         "Failed to send Meta message",
     )
     .await

@@ -19,6 +19,7 @@ import {
   Unplug,
   X as CloseIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -34,14 +35,14 @@ const providerDetails = {
     label: "Facebook",
     availableLabel: "Pages via Meta",
     icon: Facebook,
-    connectPath: "/api/social/oauth/meta/start",
-    connectLabel: "Connect Meta",
+    connectPath: "/api/social/oauth/meta/start?target=facebook",
+    connectLabel: "Add Facebook Pages",
   },
   INSTAGRAM: {
     label: "Instagram",
-    availableLabel: "Professional accounts via Meta",
+    availableLabel: "Business and Creator accounts",
     icon: Instagram,
-    connectPath: "/api/social/oauth/meta/start",
+    connectPath: "/api/social/oauth/instagram/start",
     connectLabel: "Connect Instagram",
   },
   THREADS: {
@@ -110,6 +111,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [selectedConnection, setSelectedConnection] = useState<WorkspaceConnection | null>(null);
+  const [connectionPicker, setConnectionPicker] = useState<"FACEBOOK" | "INSTAGRAM" | null>(null);
   const groupedConnections = Object.entries(providerDetails)
     .map(([provider, detail]) => ({
       provider,
@@ -131,6 +133,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Connection update failed");
+      setSelectedConnection(null);
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Connection update failed");
@@ -166,8 +169,8 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
             const connected = providerConnections.filter((item) => item.status === "CONNECTED").length;
             const canConnect = Boolean(detail.connectPath);
             const actionLabel = connected > 0
-              ? provider === "FACEBOOK" || provider === "INSTAGRAM"
-                ? "Add Meta accounts"
+              ? provider === "FACEBOOK"
+                ? "Add Pages"
                 : "Add another"
               : detail.connectLabel ?? "Connect";
 
@@ -193,6 +196,14 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
 
                   {provider === "WHATSAPP" ? (
                     <Button variant={connected > 0 ? "outline" : "default"} size="sm" onClick={beginWhatsappEmbeddedSignup}>
+                      {actionLabel}
+                    </Button>
+                  ) : provider === "FACEBOOK" || provider === "INSTAGRAM" ? (
+                    <Button
+                      variant={connected > 0 ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => setConnectionPicker(provider)}
+                    >
                       {actionLabel}
                     </Button>
                   ) : canConnect ? (
@@ -235,57 +246,29 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {group.connections.map((connection) => {
                       const detail = group.detail;
-              const Icon = detail?.icon ?? Radio;
-              const status = statusPresentation(connection.status);
-              const reconnectPath = detail?.connectPath;
+                      const Icon = detail?.icon ?? Radio;
+                      const status = statusPresentation(connection.status);
 
-              return (
-                <Card
-                  key={connection.id}
-                  className="cursor-pointer gap-0 py-0 transition-colors hover:border-primary/50"
-                  onClick={() => setSelectedConnection(connection)}
-                >
-                  <CardContent className="space-y-4 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="rounded-md border bg-secondary p-2"><Icon className="h-5 w-5" /></div>
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{connection.displayName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {detail?.label ?? connection.provider}{connection.handle ? ` · ${connection.handle}` : ""}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className={status.className}>{status.label}</Badge>
-                    </div>
-
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span>Credentials: <strong className="font-medium text-foreground">{readableStatus(connection.credentialStatus)}</strong></span>
-                      <span>Health: <strong className="font-medium text-foreground">{readableStatus(connection.healthStatus)}</strong></span>
-                    </div>
-
-                    {connection.consumers.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {connection.consumers.map((item) => <Badge key={item} variant="secondary">{productLabels[item] ?? item}</Badge>)}
-                      </div>
-                    ) : null}
-
-                    {connection.lastError ? <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{connection.lastError}</p> : null}
-
-                    <div className="flex flex-wrap gap-2 border-t pt-3" onClick={(event) => event.stopPropagation()}>
-                      {connection.status !== "CONNECTED" && reconnectPath ? (
-                        <Button asChild size="sm"><a href={reconnectPath}><RefreshCw />Reconnect</a></Button>
-                      ) : null}
-                      {connection.status === "CONNECTED" ? (
-                        <Button variant="outline" size="sm" disabled={pending !== null} onClick={() => void setStatus(connection, "DISCONNECTED")}><Unplug />Disconnect</Button>
-                      ) : null}
-                      {connection.status !== "REVOKED" ? (
-                        <Button variant="ghost" size="sm" disabled={pending !== null} onClick={() => void setStatus(connection, "REVOKED")}><Bot />Mark revoked</Button>
-                      ) : null}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
+                      return (
+                        <Card
+                          key={connection.id}
+                          className="cursor-pointer gap-0 py-0 transition-colors hover:border-primary/50 hover:bg-secondary/20"
+                          onClick={() => setSelectedConnection(connection)}
+                        >
+                          <CardContent className="flex min-h-16 items-center justify-between gap-3 p-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="rounded-md border bg-secondary p-1.5"><Icon className="h-4 w-4" /></div>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{connection.displayName}</p>
+                                {connection.handle ? (
+                                  <p className="truncate text-xs text-muted-foreground">{connection.handle}</p>
+                                ) : null}
+                              </div>
+                            </div>
+                            <Badge variant="outline" className={status.className}>{status.label}</Badge>
+                          </CardContent>
+                        </Card>
+                      );
                     })}
                   </div>
                 </section>
@@ -295,12 +278,93 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
         )}
       </section>
 
+      <Sheet
+        open={connectionPicker !== null}
+        onOpenChange={(open: boolean) => {
+          if (!open) setConnectionPicker(null);
+        }}
+      >
+        <SheetContent side="right" className="w-full max-w-lg overflow-y-auto border-l border-border p-6 sm:w-[30rem]">
+          {connectionPicker ? (
+            <div className="space-y-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Connect an account</p>
+                  <h2 className="mt-1 text-xl font-semibold">
+                    {connectionPicker === "FACEBOOK" ? "Choose Facebook Pages" : "Choose an Instagram connection"}
+                  </h2>
+                </div>
+                <Button variant="ghost" size="icon-sm" onClick={() => setConnectionPicker(null)} aria-label="Close account picker">
+                  <CloseIcon />
+                </Button>
+              </div>
+
+              {connectionPicker === "FACEBOOK" ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg border bg-secondary/40 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-md border bg-background p-2"><Facebook className="h-5 w-5" /></div>
+                      <div>
+                        <h3 className="font-medium">Facebook Pages</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Meta will ask which Pages KasiTek may access. Use the Page selection or Edit access step to choose the specific Pages you want in this workspace.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <Button asChild className="w-full">
+                    <Link href="/api/social/oauth/meta/start?target=facebook">Continue to Meta</Link>
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Only Facebook Pages returned by this connection flow will be added to the Facebook section.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Link
+                    href="/api/social/oauth/instagram/start"
+                    className="block rounded-lg border p-4 transition-colors hover:border-primary/60 hover:bg-secondary/40"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-md border bg-secondary p-2"><Instagram className="h-5 w-5" /></div>
+                      <div>
+                        <h3 className="font-medium">Instagram Business or Creator account</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Connect your professional Instagram account directly.
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/api/social/oauth/meta/start?target=instagram"
+                    className="block rounded-lg border p-4 transition-colors hover:border-primary/60 hover:bg-secondary/40"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-md border bg-secondary p-2"><Facebook className="h-5 w-5" /></div>
+                      <div>
+                        <h3 className="font-medium">Instagram account linked to a Facebook Page</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Connect Instagram through its linked Facebook Page.
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+
+                </div>
+              )}
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+
       <Sheet open={selectedConnection !== null} onOpenChange={(open: boolean) => { if (!open) setSelectedConnection(null); }}>
         <SheetContent side="right" className="w-full max-w-xl overflow-y-auto border-l border-border p-5 sm:w-[32rem]">
           {selectedConnection ? (() => {
             const providerDetail = providerDetails[selectedConnection.provider as keyof typeof providerDetails];
             const Icon = providerDetail?.icon ?? Radio;
             const status = statusPresentation(selectedConnection.status);
+            const reconnectPath = providerDetail?.connectPath;
             const metadataDetails = safeProviderDetails(selectedConnection.metadata);
             const rows = [
               ["Provider", providerDetail?.label ?? selectedConnection.provider],
@@ -337,6 +401,34 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                 <div><h3 className="mb-2 text-sm font-semibold">Provider data</h3>{metadataDetails.length ? <div className="space-y-1 rounded-lg border p-3">{metadataDetails.map(([key, value]) => <div key={key} className="grid grid-cols-[8rem_1fr] gap-3 py-2 text-sm"><span className="break-all text-muted-foreground">{key}</span><span className="break-all font-medium">{formatDetail(value)}</span></div>)}</div> : <p className="text-sm text-muted-foreground">No additional provider data is stored.</p>}</div>
 
                 {selectedConnection.lastError ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{selectedConnection.lastError}</div> : null}
+
+                <div className="flex flex-wrap gap-2 border-t pt-4">
+                  {selectedConnection.status !== "CONNECTED" && reconnectPath ? (
+                    <Button asChild size="sm">
+                      <Link href={reconnectPath}><RefreshCw />Reconnect</Link>
+                    </Button>
+                  ) : null}
+                  {selectedConnection.status === "CONNECTED" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={pending !== null}
+                      onClick={() => void setStatus(selectedConnection, "DISCONNECTED")}
+                    >
+                      <Unplug />Disconnect
+                    </Button>
+                  ) : null}
+                  {selectedConnection.status !== "REVOKED" ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={pending !== null}
+                      onClick={() => void setStatus(selectedConnection, "REVOKED")}
+                    >
+                      <Bot />Mark revoked
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             );
           })() : null}

@@ -8,7 +8,7 @@ import {
 } from "@/components/dashboard/agents/agents-page-client";
 
 export const metadata = {
-  title: "KasiAgents | KasiTek",
+  title: "Agents | KasiTek",
 };
 
 type AgentActivityItem = {

@@ -46,6 +46,7 @@ type ComposerState = {
   status: SocialPostStatus;
   scheduledFor: string;
   primaryChannelId: string;
+  instagramImageUrl: string;
   variants: ComposerVariant[];
 };
 
@@ -71,6 +72,7 @@ const emptyComposer: ComposerState = {
   status: "DRAFT",
   scheduledFor: "",
   primaryChannelId: "",
+  instagramImageUrl: "",
   variants: defaultChannels.map((platform) => ({
     platform,
     content: "",
@@ -202,6 +204,7 @@ export function PostsWorkspace() {
       status: "DRAFT",
       scheduledFor: "",
       primaryChannelId: "",
+      instagramImageUrl: "",
       variants: nextVariants.map((variant) => ({
         ...variant,
         status: variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT",
@@ -221,6 +224,10 @@ export function PostsWorkspace() {
       status: post.status,
       scheduledFor: formatDateInputValue(post.scheduledFor),
       primaryChannelId: post.primaryChannelId || "",
+      instagramImageUrl:
+        typeof post.metadata?.instagramImageUrl === "string"
+          ? post.metadata.instagramImageUrl
+          : "",
       variants: buildComposerVariants(post.channels, post.variants, post.content),
     });
     setActiveVariantPlatform(post.channels[0] || "FACEBOOK");
@@ -420,6 +427,7 @@ export function PostsWorkspace() {
             metadata: {
               createdFrom: "social-posts-workspace",
               aiAssistUsed: activeVariants.some((variant) => variant.aiGenerated),
+              instagramImageUrl: composer.instagramImageUrl.trim() || null,
             },
           }),
         },
@@ -932,6 +940,28 @@ export function PostsWorkspace() {
                   className="min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
                 />
               </label>
+
+              {composer.channels.includes("INSTAGRAM") ? (
+                <label className="block space-y-2">
+                  <span className="text-sm text-muted-foreground">
+                    Instagram image URL
+                  </span>
+                  <Input
+                    type="url"
+                    value={composer.instagramImageUrl}
+                    onChange={(event) =>
+                      setComposer((current) => ({
+                        ...current,
+                        instagramImageUrl: event.target.value,
+                      }))
+                    }
+                    placeholder="https://cdn.example.com/post-image.jpg"
+                  />
+                  <span className="block text-xs text-muted-foreground">
+                    Use a publicly accessible HTTPS image. Instagram fetches this image when the post publishes.
+                  </span>
+                </label>
+              ) : null}
 
               <div className="space-y-3">
                 <span className="text-sm text-muted-foreground">Publishing channels</span>

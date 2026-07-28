@@ -51,7 +51,7 @@ pub fn template_definition(
             key: other.to_string(),
             channel: channel.to_string(),
             workflow_template: format!("kasitek_{other}_v1"),
-            description: "Managed KasiAgents workflow template.".to_string(),
+            description: "Managed KasiTek agent workflow template.".to_string(),
         },
     }
 }

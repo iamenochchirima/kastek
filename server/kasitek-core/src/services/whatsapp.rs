@@ -2946,11 +2946,10 @@ pub async fn launch_campaign(
             "Campaign has no recipients to launch".to_string(),
         ));
     }
-    billing::require_usage_available(
+    billing::require_meter_available(
         pool,
         org_id,
-        "reach",
-        "campaign_recipients",
+        billing::meters::CAMPAIGN_RECIPIENTS,
         recipient_ids.len() as i64,
     )
     .await?;
@@ -3790,7 +3789,9 @@ async fn process_claimed_campaign_recipient(
         )));
     }
 
-    if let Err(error) = billing::require_product_access(pool, org_id, "reach").await {
+    if let Err(error) =
+        billing::require_capability(pool, org_id, billing::capabilities::CAMPAIGNS_SEND).await
+    {
         sqlx::query(
             r#"
             UPDATE "WhatsappCampaignRecipient"
@@ -3901,11 +3902,10 @@ async fn process_claimed_campaign_recipient(
             .execute(pool)
             .await?;
 
-            billing::record_usage(
+            billing::record_meter_usage(
                 pool,
                 org_id,
-                "reach",
-                "campaign_recipients",
+                billing::meters::CAMPAIGN_RECIPIENTS,
                 1,
                 "campaign_recipient",
                 recipient_id,

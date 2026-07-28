@@ -4,6 +4,6 @@ import { AdminPageHeader } from "@/components/admin/page-header";
 
 export default async function BillingAdminPage() {
   const response = await fetchFromCore("/api/admin/billing/catalog");
-  const catalog = response.ok ? await response.json() : { products: [], plans: [], entitlements: [] };
-  return <div className="admin-page"><AdminPageHeader title="Product billing" description="Manage sellable products, plan pricing, Paystack mappings, and entitlements." /><BillingCatalogManager products={catalog.products ?? []} plans={catalog.plans ?? []} entitlements={catalog.entitlements ?? []} /></div>;
+  const catalog = response.ok ? await response.json() : { products: [], plans: [], entitlements: [], accessDefinitions: [] };
+  return <div className="admin-page"><AdminPageHeader title="Workspace billing" description="Manage offerings, plan pricing, Paystack mappings, capabilities, and usage limits." /><BillingCatalogManager products={catalog.products ?? []} plans={catalog.plans ?? []} entitlements={catalog.entitlements ?? []} accessDefinitions={catalog.accessDefinitions ?? []} /></div>;
 }

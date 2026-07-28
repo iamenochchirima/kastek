@@ -16,7 +16,7 @@ async fn require_agents_access(
     user_id: &str,
 ) -> Result<String, AppError> {
     let org_id = resolve_active_org_id(req, pool, user_id).await?;
-    billing::require_product_access(pool, &org_id, "agents")
+    billing::require_capability(pool, &org_id, billing::capabilities::AGENTS_MANAGE)
         .await
         .map(|()| org_id)
 }

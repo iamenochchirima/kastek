@@ -135,7 +135,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
   },
   INSTAGRAM: {
     canPublish: true,
-    supportsManualPublish: false,
+    supportsManualPublish: true,
     supportsMediaUpload: true,
     supportsComments: true,
     supportsDMs: true,

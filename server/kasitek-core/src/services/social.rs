@@ -24,6 +24,10 @@ const X_POST_TWEET_URL: &str = "https://api.x.com/2/tweets";
 const META_AUTHORIZE_URL: &str = "https://www.facebook.com/v23.0/dialog/oauth";
 const META_TOKEN_URL: &str = "https://graph.facebook.com/v23.0/oauth/access_token";
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v23.0";
+const INSTAGRAM_AUTHORIZE_URL: &str = "https://www.instagram.com/oauth/authorize";
+const INSTAGRAM_TOKEN_URL: &str = "https://api.instagram.com/oauth/access_token";
+const INSTAGRAM_LONG_LIVED_TOKEN_URL: &str = "https://graph.instagram.com/access_token";
+const INSTAGRAM_GRAPH_BASE: &str = "https://graph.instagram.com/v23.0";
 const LINKEDIN_AUTHORIZE_URL: &str = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL: &str = "https://www.linkedin.com/oauth/v2/accessToken";
 const LINKEDIN_USERINFO_URL: &str = "https://api.linkedin.com/v2/userinfo";
@@ -32,6 +36,8 @@ const LINKEDIN_UGC_POSTS_URL: &str = "https://api.linkedin.com/v2/ugcPosts";
 pub const X_STATE_COOKIE: &str = "kasitek_social_x_state";
 pub const X_VERIFIER_COOKIE: &str = "kasitek_social_x_verifier";
 pub const META_STATE_COOKIE: &str = "kasitek_social_meta_state";
+pub const META_TARGET_COOKIE: &str = "kasitek_social_meta_target";
+pub const INSTAGRAM_STATE_COOKIE: &str = "kasitek_social_instagram_state";
 pub const LINKEDIN_STATE_COOKIE: &str = "kasitek_social_linkedin_state";
 
 const SOCIAL_PLATFORMS: &[&str] = &[
@@ -68,7 +74,7 @@ pub fn platform_capabilities(platform: &str) -> Value {
         }),
         "INSTAGRAM" => json!({
             "canPublish": true,
-            "supportsManualPublish": false,
+            "supportsManualPublish": true,
             "supportsMediaUpload": true,
             "supportsComments": true,
             "supportsDMs": true,
@@ -163,6 +169,11 @@ pub struct OAuthCallbackQuery {
     pub error_description: Option<String>,
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct MetaOAuthStartQuery {
+    pub target: Option<String>,
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct PublishExecutionResult {
     #[serde(rename = "jobId")]
@@ -220,6 +231,7 @@ struct PublishJobLoad {
     #[sqlx(rename = "external_post_id")]
     external_post_id: Option<String>,
     post_content: String,
+    post_metadata: Option<Value>,
     #[sqlx(rename = "post_primary_channel_id")]
     post_primary_channel_id: Option<String>,
     variant_content: Option<String>,
@@ -323,6 +335,10 @@ pub fn create_meta_oauth_state() -> String {
     cuid2::create_id().replace('-', "")
 }
 
+pub fn create_instagram_oauth_state() -> String {
+    cuid2::create_id().replace('-', "")
+}
+
 pub fn build_linkedin_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
     let client_id = required_env("AUTH_LINKEDIN_CLIENT_ID")?;
     let redirect_uri = format!(
@@ -365,6 +381,51 @@ pub fn build_meta_authorize_url(config: &AppConfig, state: &str) -> Result<Strin
     ))
 }
 
+fn instagram_app_id() -> Result<String, AppError> {
+    required_env("AUTH_INSTAGRAM_APP_ID").map_err(|_| {
+        AppError::Internal(
+            "AUTH_INSTAGRAM_APP_ID is required for direct Instagram Login; use the Instagram App ID from the Instagram API setup, not the Meta App ID".to_string(),
+        )
+    })
+}
+
+fn instagram_app_secret() -> Result<String, AppError> {
+    required_env("AUTH_INSTAGRAM_APP_SECRET").map_err(|_| {
+        AppError::Internal(
+            "AUTH_INSTAGRAM_APP_SECRET is required for direct Instagram Login".to_string(),
+        )
+    })
+}
+
+pub fn build_instagram_authorize_url(
+    config: &AppConfig,
+    state: &str,
+) -> Result<String, AppError> {
+    let client_id = instagram_app_id()?;
+    let redirect_uri = format!(
+        "{}/api/social/oauth/instagram/callback",
+        social_app_url(config)
+    );
+    let scope = std::env::var("AUTH_INSTAGRAM_SCOPES").unwrap_or_else(|_| {
+        [
+            "instagram_business_basic",
+            "instagram_business_content_publish",
+            "instagram_business_manage_messages",
+            "instagram_business_manage_comments",
+            "instagram_business_manage_insights",
+        ]
+        .join(",")
+    });
+
+    Ok(format!(
+        "{INSTAGRAM_AUTHORIZE_URL}?force_reauth=true&client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
+        urlencoding::encode(&client_id),
+        urlencoding::encode(&redirect_uri),
+        urlencoding::encode(&scope),
+        urlencoding::encode(state),
+    ))
+}
+
 async fn fetch_json<T: serde::de::DeserializeOwned>(
     request: reqwest::RequestBuilder,
     fallback: &str,
@@ -386,6 +447,13 @@ async fn fetch_json<T: serde::de::DeserializeOwned>(
                 parsed
                     .as_ref()
                     .and_then(|value| value.get("error").and_then(|v| v.as_str()))
+            })
+            .or_else(|| {
+                parsed
+                    .as_ref()
+                    .and_then(|value| value.get("error"))
+                    .and_then(|value| value.get("message"))
+                    .and_then(|value| value.as_str())
             })
             .unwrap_or(fallback);
         return Err(AppError::BadRequest(message.to_string()));
@@ -541,6 +609,43 @@ pub struct MetaTokenResponse {
 }
 
 #[derive(Clone, serde::Deserialize)]
+pub struct InstagramTokenResponse {
+    pub access_token: Option<String>,
+    pub token_type: Option<String>,
+    pub expires_in: Option<i64>,
+    pub permissions: Option<Vec<String>>,
+}
+
+#[derive(Clone, serde::Deserialize)]
+pub struct InstagramProfile {
+    pub id: Option<String>,
+    pub user_id: Option<Value>,
+    pub username: Option<String>,
+    pub name: Option<String>,
+    pub profile_picture_url: Option<String>,
+    pub followers_count: Option<i64>,
+    pub follows_count: Option<i64>,
+    pub media_count: Option<i64>,
+    pub account_type: Option<String>,
+}
+
+impl InstagramProfile {
+    pub fn account_id(&self) -> Option<String> {
+        self.id
+            .clone()
+            .or_else(|| value_as_identifier(self.user_id.as_ref()))
+    }
+}
+
+fn value_as_identifier(value: Option<&Value>) -> Option<String> {
+    match value {
+        Some(Value::String(value)) if !value.trim().is_empty() => Some(value.clone()),
+        Some(Value::Number(value)) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+#[derive(Clone, serde::Deserialize)]
 struct MetaPictureData {
     url: Option<String>,
 }
@@ -629,6 +734,106 @@ pub async fn exchange_meta_for_long_lived_token(
     Ok(tokens)
 }
 
+pub async fn exchange_instagram_code_for_token(
+    config: &AppConfig,
+    code: &str,
+) -> Result<InstagramTokenResponse, AppError> {
+    let client_id = instagram_app_id()?;
+    let client_secret = instagram_app_secret()?;
+    let redirect_uri = format!(
+        "{}/api/social/oauth/instagram/callback",
+        social_app_url(config)
+    );
+
+    let tokens: InstagramTokenResponse = fetch_json(
+        reqwest::Client::new()
+            .post(INSTAGRAM_TOKEN_URL)
+            .form(&[
+                ("client_id", client_id),
+                ("client_secret", client_secret),
+                ("grant_type", "authorization_code".to_string()),
+                ("redirect_uri", redirect_uri),
+                ("code", code.to_string()),
+            ]),
+        "Instagram OAuth exchange failed",
+    )
+    .await?;
+
+    if tokens.access_token.is_none() {
+        return Err(AppError::BadRequest(
+            "Instagram OAuth exchange did not return an access token".to_string(),
+        ));
+    }
+    Ok(tokens)
+}
+
+pub async fn exchange_instagram_for_long_lived_token(
+    short_lived_access_token: &str,
+) -> Result<InstagramTokenResponse, AppError> {
+    let client_secret = instagram_app_secret()?;
+    let tokens: InstagramTokenResponse = fetch_json(
+        reqwest::Client::new()
+            .get(INSTAGRAM_LONG_LIVED_TOKEN_URL)
+            .query(&[
+                ("grant_type", "ig_exchange_token"),
+                ("client_secret", client_secret.as_str()),
+                ("access_token", short_lived_access_token),
+            ]),
+        "Instagram long-lived token exchange failed",
+    )
+    .await?;
+
+    if tokens.access_token.is_none() {
+        return Err(AppError::BadRequest(
+            "Instagram long-lived token exchange did not return an access token".to_string(),
+        ));
+    }
+    Ok(tokens)
+}
+
+pub async fn fetch_instagram_profile(
+    access_token: &str,
+) -> Result<InstagramProfile, AppError> {
+    let profile: InstagramProfile = fetch_json(
+        reqwest::Client::new()
+            .get(format!("{INSTAGRAM_GRAPH_BASE}/me"))
+            .query(&[(
+                "fields",
+                "id,user_id,username,name,profile_picture_url,followers_count,follows_count,media_count,account_type",
+            )])
+            .bearer_auth(access_token),
+        "Failed to load the Instagram professional account",
+    )
+    .await?;
+
+    if profile.account_id().is_none() {
+        return Err(AppError::BadRequest(
+            "Instagram account lookup did not return an account identifier".to_string(),
+        ));
+    }
+    Ok(profile)
+}
+
+pub async fn subscribe_instagram_webhooks(
+    access_token: &str,
+    instagram_account_id: &str,
+) -> Result<(), AppError> {
+    let _: Value = fetch_json(
+        reqwest::Client::new()
+            .post(format!(
+                "{INSTAGRAM_GRAPH_BASE}/{instagram_account_id}/subscribed_apps"
+            ))
+            .bearer_auth(access_token)
+            .form(&[(
+                "subscribed_fields",
+                "messages,messaging_postbacks,messaging_optins,message_reactions,comments,live_comments",
+            )]),
+        "Failed to subscribe the Instagram account to webhooks",
+    )
+    .await?;
+    Ok(())
+}
+
 pub async fn fetch_meta_pages(access_token: &str) -> Result<Vec<MetaPageAccount>, AppError> {
     let response: MetaAccountsResponse = fetch_json(
         reqwest::Client::new()
@@ -690,6 +895,8 @@ pub async fn upsert_meta_connections_for_org(
     org_id: &str,
     user_tokens: &MetaTokenResponse,
     pages: &[MetaPageAccount],
+    include_facebook_pages: bool,
+    include_instagram_accounts: bool,
 ) -> Result<Vec<SocialChannel>, AppError> {
     let user_access_token = user_tokens
         .access_token
@@ -718,8 +925,9 @@ pub async fn upsert_meta_connections_for_org(
             "tokenType": user_tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
         });
 
-        sqlx::query(
-            r#"
+        if include_facebook_pages {
+            sqlx::query(
+                r#"
             INSERT INTO "SocialChannelConnection" (
                 id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
                 "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
@@ -738,31 +946,36 @@ pub async fn upsert_meta_connections_for_org(
                 metadata = EXCLUDED.metadata,
                 "lastSyncedAt" = NOW(),
                 "updatedAt" = NOW()
-            "#,
-        )
-        .bind(cuid2::create_id())
-        .bind(user_id)
-        .bind(org_id)
-        .bind(
-            page.name
-                .clone()
-                .unwrap_or_else(|| "Facebook Page".to_string()),
-        )
-        .bind(page.username.as_ref().map(|username| format!("@{username}")))
-        .bind(&page.id)
-        .bind(&encrypted_page_access_token)
-        .bind(Some(encrypted_user_access_token.clone()))
-        .bind(merge_channel_metadata_with_capabilities(
-            "FACEBOOK",
-            Some(page_metadata),
-        ))
-        .execute(pool)
-        .await?;
+                "#,
+            )
+            .bind(cuid2::create_id())
+            .bind(user_id)
+            .bind(org_id)
+            .bind(
+                page.name
+                    .clone()
+                    .unwrap_or_else(|| "Facebook Page".to_string()),
+            )
+            .bind(page.username.as_ref().map(|username| format!("@{username}")))
+            .bind(&page.id)
+            .bind(&encrypted_page_access_token)
+            .bind(Some(encrypted_user_access_token.clone()))
+            .bind(merge_channel_metadata_with_capabilities(
+                "FACEBOOK",
+                Some(page_metadata),
+            ))
+            .execute(pool)
+            .await?;
 
-        if let Some(channel) =
-            get_social_channel_by_external_account(pool, org_id, "FACEBOOK", &page.id).await?
-        {
-            saved.push(channel);
+            if let Some(channel) =
+                get_social_channel_by_external_account(pool, org_id, "FACEBOOK", &page.id).await?
+            {
+                saved.push(channel);
+            }
+        }
+
+        if !include_instagram_accounts {
+            continue;
         }
 
         let instagram = match page
@@ -844,6 +1057,99 @@ pub async fn upsert_meta_connections_for_org(
     }
 
     Ok(saved)
+}
+
+pub async fn upsert_instagram_connection_for_org(
+    pool: &PgPool,
+    user_id: &str,
+    org_id: &str,
+    tokens: &InstagramTokenResponse,
+    granted_permissions: Option<&[String]>,
+    profile: &InstagramProfile,
+) -> Result<SocialChannel, AppError> {
+    let account_id = profile.account_id().ok_or_else(|| {
+        AppError::BadRequest(
+            "Instagram account lookup did not return an account identifier".to_string(),
+        )
+    })?;
+    let access_token = tokens
+        .access_token
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Instagram access token".to_string()))?;
+    let encrypted_access_token = encrypt_social_secret(access_token)?;
+    let expires_at = tokens
+        .expires_in
+        .map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
+    let permissions = granted_permissions
+        .map(|values| values.to_vec())
+        .or_else(|| tokens.permissions.clone())
+        .unwrap_or_default();
+    let display_name = profile
+        .name
+        .clone()
+        .or(profile.username.clone())
+        .unwrap_or_else(|| "Instagram account".to_string());
+    let handle = profile
+        .username
+        .as_ref()
+        .map(|username| format!("@{username}"));
+    let metadata = json!({
+        "provider": "instagram",
+        "authMethod": "instagram_login",
+        "assetType": "instagram_professional_account",
+        "apiHost": "graph.instagram.com",
+        "instagramAccountId": account_id,
+        "username": profile.username,
+        "profilePictureUrl": profile.profile_picture_url,
+        "accountType": profile.account_type,
+        "followersCount": profile.followers_count,
+        "followsCount": profile.follows_count,
+        "mediaCount": profile.media_count,
+        "permissions": permissions,
+        "tokenType": tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
+        "tokenExpiresAt": expires_at,
+    });
+
+    sqlx::query(
+        r#"
+        INSERT INTO "SocialChannelConnection" (
+            id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
+            "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
+        )
+        VALUES (
+            $1, $2, $3, 'INSTAGRAM'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $4, $5, $6,
+            $7, NULL, $8, NOW(), NOW(), NOW()
+        )
+        ON CONFLICT ("orgId", platform, "externalAccountId")
+        DO UPDATE SET
+            "userId" = EXCLUDED."userId",
+            status = 'CONNECTED'::"SocialChannelStatus",
+            "displayName" = EXCLUDED."displayName",
+            handle = EXCLUDED.handle,
+            "accessToken" = EXCLUDED."accessToken",
+            "refreshToken" = NULL,
+            metadata = EXCLUDED.metadata,
+            "lastSyncedAt" = NOW(),
+            "updatedAt" = NOW()
+        "#,
+    )
+    .bind(cuid2::create_id())
+    .bind(user_id)
+    .bind(org_id)
+    .bind(display_name)
+    .bind(handle)
+    .bind(&account_id)
+    .bind(encrypted_access_token)
+    .bind(merge_channel_metadata_with_capabilities(
+        "INSTAGRAM",
+        Some(metadata),
+    ))
+    .execute(pool)
+    .await?;
+
+    get_social_channel_by_external_account(pool, org_id, "INSTAGRAM", &account_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Failed to save Instagram connection".to_string()))
 }
 
 pub async fn upsert_x_connection_for_org(
@@ -1822,6 +2128,72 @@ async fn publish_post_to_facebook(
     Ok((id.to_string(), text.to_string()))
 }
 
+async fn publish_post_to_instagram(
+    access_token_encrypted: &str,
+    external_account_id: &Option<String>,
+    connection_metadata: &Option<Value>,
+    image_url: &str,
+    caption: &str,
+) -> Result<(String, String), AppError> {
+    let account_id = external_account_id.as_deref().ok_or_else(|| {
+        AppError::BadRequest("Instagram connection is missing an account identifier".to_string())
+    })?;
+    let parsed_image_url = reqwest::Url::parse(image_url)
+        .map_err(|_| AppError::BadRequest("Instagram image URL is invalid".to_string()))?;
+    if parsed_image_url.scheme() != "https" {
+        return Err(AppError::BadRequest(
+            "Instagram requires a public HTTPS image URL".to_string(),
+        ));
+    }
+
+    let access_token = decrypt_social_secret(access_token_encrypted)?;
+    let uses_instagram_login = connection_metadata
+        .as_ref()
+        .and_then(|value| value.get("authMethod"))
+        .and_then(Value::as_str)
+        == Some("instagram_login");
+    let graph_base = if uses_instagram_login {
+        INSTAGRAM_GRAPH_BASE
+    } else {
+        META_GRAPH_BASE
+    };
+    let client = reqwest::Client::new();
+    let container: Value = fetch_json(
+        client
+            .post(format!("{graph_base}/{account_id}/media"))
+            .bearer_auth(&access_token)
+            .form(&[
+                ("image_url", image_url.to_string()),
+                ("caption", caption.to_string()),
+            ]),
+        "Failed to create the Instagram media container",
+    )
+    .await?;
+    let creation_id = container
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "Instagram did not return a media container identifier".to_string(),
+            )
+        })?;
+    let published: Value = fetch_json(
+        client
+            .post(format!("{graph_base}/{account_id}/media_publish"))
+            .bearer_auth(access_token)
+            .form(&[("creation_id", creation_id)]),
+        "Failed to publish the Instagram post",
+    )
+    .await?;
+    let post_id = published
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            AppError::BadRequest("Instagram did not return a published media id".to_string())
+        })?;
+    Ok((post_id.to_string(), caption.to_string()))
+}
+
 async fn mark_job_failed(
     pool: &PgPool,
     job_id: &str,
@@ -1843,7 +2215,9 @@ async fn mark_job_failed(
     sqlx::query(
         r#"
         UPDATE "SocialPost"
-        SET status = 'FAILED'::"SocialPostStatus", metadata = $1, "updatedAt" = NOW()
+        SET status = 'FAILED'::"SocialPostStatus",
+            metadata = COALESCE(metadata, '{}'::jsonb) || $1,
+            "updatedAt" = NOW()
         WHERE id = $2
         "#,
     )
@@ -1864,7 +2238,8 @@ async fn load_publish_job(pool: &PgPool, job_id: &str) -> Result<Option<PublishJ
         SELECT j.id, j."userId" AS user_id, j."orgId" AS org_id, j."postId" AS post_id, j."variantId" AS variant_id,
                j."channelConnectionId" AS channel_connection_id, j.platform::text AS platform,
                j.status::text AS status, j."externalPostId" AS external_post_id,
-               p.content AS post_content, p."primaryChannelId" AS post_primary_channel_id,
+               p.content AS post_content, p.metadata AS post_metadata,
+               p."primaryChannelId" AS post_primary_channel_id,
                v.content AS variant_content
         FROM "SocialPublishJob" j
         JOIN "SocialPost" p ON p.id = j."postId"
@@ -1942,8 +2317,9 @@ pub async fn execute_social_publish_job(
         .to_string();
 
     let result = async {
-        billing::require_product_access(pool, org_id, "social").await?;
-        billing::require_usage_available(pool, org_id, "social", "publishes", 1).await?;
+        billing::require_capability(pool, org_id, billing::capabilities::CONTENT_PUBLISH).await?;
+        billing::require_meter_available(pool, org_id, billing::meters::SOCIAL_PUBLISHES, 1)
+            .await?;
 
         if job.platform == "FACEBOOK" {
             let channel = resolve_connected_channel_for_platform(
@@ -1963,6 +2339,43 @@ pub async fn execute_social_publish_job(
                 channel.id,
                 Some(external_post_id),
                 "meta-facebook".to_string(),
+                published_text,
+            ))
+        } else if job.platform == "INSTAGRAM" {
+            let image_url = job
+                .post_metadata
+                .as_ref()
+                .and_then(|value| value.get("instagramImageUrl"))
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    AppError::BadRequest(
+                        "Add a public HTTPS image URL before publishing to Instagram".to_string(),
+                    )
+                })?;
+            let channel = resolve_connected_channel_for_platform(
+                pool,
+                org_id,
+                "INSTAGRAM",
+                &job.channel_connection_id,
+            )
+            .await?;
+            let access = channel.access_token.as_deref().ok_or_else(|| {
+                AppError::BadRequest("Connect an Instagram account before publishing".to_string())
+            })?;
+            let (external_post_id, published_text) = publish_post_to_instagram(
+                access,
+                &channel.external_account_id,
+                &channel.metadata,
+                image_url,
+                &publish_text,
+            )
+            .await?;
+            Ok((
+                channel.id,
+                Some(external_post_id),
+                "instagram".to_string(),
                 published_text,
             ))
         } else if job.platform == "THREADS" {
@@ -2064,7 +2477,7 @@ pub async fn execute_social_publish_job(
                 SET status = 'PUBLISHED'::"SocialPostStatus",
                     "publishedAt" = $1,
                     "primaryChannelId" = COALESCE("primaryChannelId", $2),
-                    metadata = $3,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || $3,
                     "updatedAt" = NOW()
                 WHERE id = $4
                 "#,
@@ -2080,11 +2493,10 @@ pub async fn execute_social_publish_job(
             .await?;
             tx.commit().await?;
 
-            billing::record_usage(
+            billing::record_meter_usage(
                 pool,
                 org_id,
-                "social",
-                "publishes",
+                billing::meters::SOCIAL_PUBLISHES,
                 1,
                 "social_publish_job",
                 &job.id,

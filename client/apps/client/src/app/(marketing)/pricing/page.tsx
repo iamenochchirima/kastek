@@ -123,8 +123,7 @@ export default function PricingPage() {
               Subscription Services.
             </h2>
             <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
-              Monthly subscriptions for KasiTek products like KasiAgents, KasiReach, and
-              KasiSocial.
+              Monthly workspace plans with the features and usage limits your team needs.
             </p>
           </div>
 

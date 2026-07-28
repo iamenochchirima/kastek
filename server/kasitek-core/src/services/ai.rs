@@ -73,7 +73,7 @@ async fn generate_with_openrouter(messages: Vec<Value>) -> Result<String, AppErr
         )
         .header("Content-Type", "application/json")
         .header("HTTP-Referer", get_app_url())
-        .header("X-OpenRouter-Title", "KasiTek KasiSocial")
+        .header("X-OpenRouter-Title", "KasiTek Content")
         .json(&json!({
             "model": get_openrouter_model(),
             "temperature": 0.7,
@@ -120,7 +120,7 @@ pub async fn generate_social_ideas(
     }
     let business_profile = load_business_profile(pool, user_id).await?;
     let system_prompt = [
-        "You are the strategy brain for KasiSocial.",
+        "You are the strategy assistant for the KasiTek content workspace.",
         "Generate practical social media post ideas for a business owner who wants usable drafts right now.",
         "Return valid JSON only.",
         "JSON shape: {\"ideas\":[{\"title\":\"string\",\"angle\":\"string\",\"hook\":\"string\",\"draft\":\"string\",\"suggestedChannels\":[\"FACEBOOK\"|\"INSTAGRAM\"|\"THREADS\"|\"LINKEDIN\"|\"X\"|\"WHATSAPP_STATUS\"]}]}",
@@ -214,7 +214,7 @@ pub async fn generate_social_caption(
     }
     let business_profile = load_business_profile(pool, user_id).await?;
     let system_prompt = [
-        "You write high-performing social media copy for businesses using KasiSocial.",
+        "You write social media copy for businesses using the KasiTek content workspace.",
         "Return valid JSON only.",
         "JSON shape: {\"title\":\"string\",\"content\":\"string\",\"suggestedChannels\":[\"FACEBOOK\"|\"INSTAGRAM\"|\"THREADS\"|\"LINKEDIN\"|\"X\"|\"WHATSAPP_STATUS\"],\"variants\":[{\"platform\":\"FACEBOOK\"|\"INSTAGRAM\"|\"THREADS\"|\"LINKEDIN\"|\"X\"|\"WHATSAPP_STATUS\",\"content\":\"string\"}]}.",
         "Keep copy aligned with the business voice and practical for real posting.",

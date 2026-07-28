@@ -260,7 +260,7 @@ fn website_workflow(payload: &AgentDispatchPayload) -> BuiltWorkflow {
 
     BuiltWorkflow {
         workflow: json!({
-            "name": format!("KasiAgents - {} [website]", payload.name),
+            "name": format!("KasiTek Agent - {} [website]", payload.name),
             "nodes": nodes,
             "connections": connections,
             "settings": {}
@@ -420,7 +420,7 @@ fn whatsapp_workflow(payload: &AgentDispatchPayload) -> BuiltWorkflow {
 
     BuiltWorkflow {
         workflow: json!({
-            "name": format!("KasiAgents - {} [whatsapp]", payload.name),
+            "name": format!("KasiTek Agent - {} [whatsapp]", payload.name),
             "nodes": nodes,
             "connections": connections,
             "settings": {}
@@ -437,7 +437,7 @@ pub fn build_workflow(payload: &AgentDispatchPayload) -> BuiltWorkflow {
             let ingress_path = workflow_path(payload, "");
             BuiltWorkflow {
                 workflow: json!({
-                    "name": format!("KasiAgents - {} [{}]", payload.name, payload.template.channel),
+                    "name": format!("KasiTek Agent - {} [{}]", payload.name, payload.template.channel),
                     "nodes": [
                         webhook_node("Inbound Trigger", &ingress_path),
                         respond_node(payload, &payload.template.channel, [540, 260])

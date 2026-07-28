@@ -14,13 +14,33 @@ use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
 use crate::services::{billing, orgs, whatsapp};
 
-async fn require_reach_access(
+async fn require_campaigns_access(
     pool: &PgPool,
     req: &HttpRequest,
     user_id: &str,
 ) -> Result<String, AppError> {
     let org_id = resolve_active_org_id(req, pool, user_id).await?;
-    billing::require_product_access(pool, &org_id, "reach").await?;
+    billing::require_capability(pool, &org_id, billing::capabilities::CAMPAIGNS_MANAGE).await?;
+    Ok(org_id)
+}
+
+async fn require_campaign_send_access(
+    pool: &PgPool,
+    req: &HttpRequest,
+    user_id: &str,
+) -> Result<String, AppError> {
+    let org_id = resolve_active_org_id(req, pool, user_id).await?;
+    billing::require_capability(pool, &org_id, billing::capabilities::CAMPAIGNS_SEND).await?;
+    Ok(org_id)
+}
+
+async fn require_templates_access(
+    pool: &PgPool,
+    req: &HttpRequest,
+    user_id: &str,
+) -> Result<String, AppError> {
+    let org_id = resolve_active_org_id(req, pool, user_id).await?;
+    billing::require_capability(pool, &org_id, billing::capabilities::TEMPLATES_MANAGE).await?;
     Ok(org_id)
 }
 
@@ -147,7 +167,7 @@ pub async fn create_template(
     body: web::Json<WhatsappTemplateCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_reach_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_templates_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::create_template(
         pool.get_ref(),
         &user.id,
@@ -170,7 +190,7 @@ pub async fn list_templates(
     query: web::Query<WhatsappTemplateListQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_templates_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::list_templates(pool.get_ref(), &org_id, query.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }
@@ -205,7 +225,7 @@ pub async fn import_contacts(
     payload: Multipart,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_reach_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_campaigns_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::import_contacts(pool.get_ref(), &user.id, &org_id, payload).await?;
     Ok(HttpResponse::Ok().json(result))
 }
@@ -227,7 +247,7 @@ pub async fn rename_contact_list(
     body: web::Json<WhatsappContactListRenameRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_reach_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_campaigns_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::rename_contact_list(pool.get_ref(), &org_id, &path, &body).await?;
     Ok(HttpResponse::Ok().json(result))
 }
@@ -238,7 +258,7 @@ pub async fn delete_contact_list(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_reach_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_campaigns_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::delete_contact_list(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
@@ -248,7 +268,7 @@ pub async fn list_campaigns(
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_campaigns_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::list_campaigns(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(result))
 }
@@ -259,7 +279,7 @@ pub async fn create_campaign(
     body: web::Json<WhatsappCampaignCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_reach_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_campaigns_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::create_campaign(pool.get_ref(), &user.id, &org_id, &body).await?;
     Ok(HttpResponse::Created().json(result))
 }
@@ -270,7 +290,7 @@ pub async fn get_campaign(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_campaigns_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::get_campaign(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
@@ -281,7 +301,7 @@ pub async fn get_campaign_summary(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_campaigns_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::get_campaign_summary(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }
@@ -293,7 +313,7 @@ pub async fn launch_campaign(
     body: web::Json<WhatsappCampaignActionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_reach_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_campaign_send_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::launch_campaign(
         pool.get_ref(),
         &user.id,
@@ -313,7 +333,7 @@ pub async fn update_campaign(
     body: web::Json<WhatsappCampaignActionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_reach_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_campaigns_access(pool.get_ref(), &req, &user.id).await?;
     let action = body
         .action
         .as_deref()
@@ -357,7 +377,7 @@ pub async fn delete_campaign(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_reach_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_campaigns_access(pool.get_ref(), &req, &user.id).await?;
     let result = whatsapp::delete_campaign(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(result))
 }

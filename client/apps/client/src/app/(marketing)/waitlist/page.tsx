@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 };
 
 const highlights = [
-  "Register interest for KasiAgents, KasiReach, or KasiSocial",
-  "Tell us which plan or product fits your business",
+  "Register interest in agents, campaigns, or content publishing",
+  "Tell us which plan or workspace features fit your business",
   "Get notified when access opens or rollout slots become available",
 ];
 

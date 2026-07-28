@@ -56,15 +56,23 @@ export default async function ConnectionsPage({
           </div>
         ) : null}
 
-        {params.connected === "linkedin" || params.connected === "x" ? (
+        {params.connected === "instagram" ||
+        params.connected === "linkedin" ||
+        params.connected === "x" ? (
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
-            Your {params.connected === "linkedin" ? "LinkedIn" : "X"} account was connected and is ready to use in this workspace.
+            Your{" "}
+            {params.connected === "instagram"
+              ? "Instagram"
+              : params.connected === "linkedin"
+                ? "LinkedIn"
+                : "X"}{" "}
+            account was connected and is ready to use in this workspace.
           </div>
         ) : null}
 
         {params.error ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Meta connection could not be completed: {params.error}
+            Connection could not be completed: {params.error}
           </div>
         ) : null}
 

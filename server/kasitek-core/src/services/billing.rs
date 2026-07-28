@@ -10,6 +10,112 @@ use crate::services::billing_provider::{
     BillingProvider, CheckoutRequest, ProviderEvent, ProviderSubscriptionState,
 };
 
+pub mod capabilities {
+    pub const AGENTS_MANAGE: &str = "feature.agents.manage";
+    pub const CAMPAIGNS_MANAGE: &str = "feature.campaigns.manage";
+    pub const CAMPAIGNS_SEND: &str = "feature.campaigns.send";
+    pub const CONTACTS_ACCESS: &str = "feature.contacts.access";
+    pub const CONTENT_MANAGE: &str = "feature.content.manage";
+    pub const CONTENT_PUBLISH: &str = "feature.content.publish";
+    pub const ANALYTICS_VIEW: &str = "feature.analytics.view";
+    pub const INBOX_ACCESS: &str = "feature.inbox.access";
+    pub const TEMPLATES_MANAGE: &str = "feature.templates.manage";
+}
+
+pub mod meters {
+    pub const AGENT_DEPLOYMENTS: &str = "agent_deployments";
+    pub const CAMPAIGN_RECIPIENTS: &str = "campaign_recipients";
+    pub const SOCIAL_PUBLISHES: &str = "social_publishes";
+}
+
+struct CapabilityDefinition {
+    key: &'static str,
+    name: &'static str,
+    description: &'static str,
+    legacy_entitlement: &'static str,
+}
+
+const CAPABILITY_DEFINITIONS: &[CapabilityDefinition] = &[
+    CapabilityDefinition {
+        key: capabilities::AGENTS_MANAGE,
+        name: "AI agents",
+        description: "Create, configure, and deploy workspace agents.",
+        legacy_entitlement: "product.agents.enabled",
+    },
+    CapabilityDefinition {
+        key: capabilities::CAMPAIGNS_MANAGE,
+        name: "Campaigns",
+        description: "Create and manage customer messaging campaigns.",
+        legacy_entitlement: "product.reach.enabled",
+    },
+    CapabilityDefinition {
+        key: capabilities::CAMPAIGNS_SEND,
+        name: "Campaign sending",
+        description: "Launch campaigns and send messages to campaign recipients.",
+        legacy_entitlement: "product.reach.enabled",
+    },
+    CapabilityDefinition {
+        key: capabilities::TEMPLATES_MANAGE,
+        name: "Message templates",
+        description: "Create and manage reusable provider message templates.",
+        legacy_entitlement: "product.reach.enabled",
+    },
+    CapabilityDefinition {
+        key: capabilities::CONTACTS_ACCESS,
+        name: "Contacts",
+        description: "Access and manage workspace customer records.",
+        legacy_entitlement: "product.crm.enabled",
+    },
+    CapabilityDefinition {
+        key: capabilities::CONTENT_MANAGE,
+        name: "Content workspace",
+        description: "Plan, create, schedule, and manage multi-platform content.",
+        legacy_entitlement: "product.social.enabled",
+    },
+    CapabilityDefinition {
+        key: capabilities::CONTENT_PUBLISH,
+        name: "Content publishing",
+        description: "Publish approved content to connected social accounts.",
+        legacy_entitlement: "product.social.enabled",
+    },
+    CapabilityDefinition {
+        key: capabilities::ANALYTICS_VIEW,
+        name: "Analytics",
+        description: "View workspace, campaign, and connected-channel analytics.",
+        legacy_entitlement: "product.social.enabled",
+    },
+    CapabilityDefinition {
+        key: capabilities::INBOX_ACCESS,
+        name: "Shared inbox",
+        description: "Access connected customer conversations in one inbox.",
+        legacy_entitlement: "product.inbox.enabled",
+    },
+];
+
+struct MeterDefinition {
+    key: &'static str,
+    name: &'static str,
+    description: &'static str,
+}
+
+const METER_DEFINITIONS: &[MeterDefinition] = &[
+    MeterDefinition {
+        key: meters::AGENT_DEPLOYMENTS,
+        name: "Agent deployments",
+        description: "Agent deployment operations during the current month.",
+    },
+    MeterDefinition {
+        key: meters::CAMPAIGN_RECIPIENTS,
+        name: "Campaign recipients",
+        description: "Recipients processed by campaigns during the current month.",
+    },
+    MeterDefinition {
+        key: meters::SOCIAL_PUBLISHES,
+        name: "Published content",
+        description: "Social publishing operations during the current month.",
+    },
+];
+
 #[derive(Debug, FromRow)]
 struct ProductRow {
     key: String,
@@ -77,9 +183,30 @@ pub struct ProductAccess {
 }
 
 #[derive(Debug, Serialize)]
+pub struct CapabilityAccess {
+    pub key: String,
+    pub name: String,
+    pub description: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MeterUsage {
+    pub key: String,
+    pub name: String,
+    pub description: String,
+    pub used: i64,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct BillingSummary {
     #[serde(rename = "orgId")]
     pub org_id: String,
+    pub features: Vec<CapabilityAccess>,
+    pub meters: Vec<MeterUsage>,
+    // Kept temporarily for checkout and subscription-management compatibility.
+    // Runtime authorization must use `features`, never this product catalog.
     pub products: Vec<ProductAccess>,
     #[serde(rename = "manualGrants")]
     pub manual_grants: Vec<ManualGrant>,
@@ -180,7 +307,7 @@ pub async fn create_manual_grant(
     reason: &str,
     actor_id: &str,
 ) -> Result<ManualGrant, AppError> {
-    let key = key.trim();
+    let key = validate_entitlement_key(key)?;
     let reason = reason.trim();
     if key.is_empty() || reason.is_empty() {
         return Err(AppError::BadRequest(
@@ -658,6 +785,20 @@ fn validate_catalog_key(key: &str) -> Result<&str, AppError> {
     Ok(key)
 }
 
+fn validate_entitlement_key(key: &str) -> Result<&str, AppError> {
+    let key = validate_catalog_key(key)?;
+    let is_capability = capability_definition(key).is_some();
+    let is_meter = key
+        .strip_prefix("limit.")
+        .is_some_and(|meter_key| METER_DEFINITIONS.iter().any(|item| item.key == meter_key));
+    if !is_capability && !is_meter {
+        return Err(AppError::BadRequest(
+            "Entitlements must use a registered feature key or workspace meter limit".to_string(),
+        ));
+    }
+    Ok(key)
+}
+
 pub async fn admin_catalog(pool: &PgPool) -> Result<Value, AppError> {
     let products = sqlx::query_as::<_, (String, String, Option<String>, bool)>(
         r#"
@@ -723,7 +864,32 @@ pub async fn admin_catalog(pool: &PgPool) -> Result<Value, AppError> {
         })
     })
     .collect::<Vec<_>>();
-    Ok(serde_json::json!({"products": products, "plans": plans, "entitlements": entitlements}))
+    let capability_definitions = CAPABILITY_DEFINITIONS
+        .iter()
+        .map(|definition| {
+            serde_json::json!({
+                "key": definition.key,
+                "name": definition.name,
+                "kind": "capability",
+            })
+        })
+        .collect::<Vec<_>>();
+    let meter_definitions = METER_DEFINITIONS
+        .iter()
+        .map(|definition| {
+            serde_json::json!({
+                "key": format!("limit.{}", definition.key),
+                "name": definition.name,
+                "kind": "meter",
+            })
+        })
+        .collect::<Vec<_>>();
+    Ok(serde_json::json!({
+        "products": products,
+        "plans": plans,
+        "entitlements": entitlements,
+        "accessDefinitions": capability_definitions.into_iter().chain(meter_definitions).collect::<Vec<_>>(),
+    }))
 }
 
 pub async fn upsert_product(
@@ -820,7 +986,7 @@ pub async fn upsert_plan_entitlement(
     value: Value,
 ) -> Result<Value, AppError> {
     let plan_key = validate_catalog_key(plan_key)?;
-    let key = validate_catalog_key(key)?;
+    let key = validate_entitlement_key(key)?;
     if !value.is_boolean() && !value.is_number() && !value.is_string() {
         return Err(AppError::BadRequest(
             "Entitlement values must be boolean, number, or string".to_string(),
@@ -1485,6 +1651,15 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
         let value = merge_entitlement_value(entitlements.get(&entitlement.key), entitlement.value);
         entitlements.insert(entitlement.key, value);
     }
+    let features = CAPABILITY_DEFINITIONS
+        .iter()
+        .map(|definition| CapabilityAccess {
+            key: definition.key.to_string(),
+            name: definition.name.to_string(),
+            description: definition.description.to_string(),
+            enabled: entitlement_allows_capability(&entitlements, definition),
+        })
+        .collect();
 
     let subscription_rows = sqlx::query_as::<_, SubscriptionRow>(
         r#"
@@ -1525,12 +1700,37 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
     .await?;
 
     let mut usage_by_product = HashMap::<String, HashMap<String, i64>>::new();
+    let mut usage_by_meter = HashMap::<String, i64>::new();
     for usage in usage_rows {
+        if let Some(meter_key) = canonical_meter_key(&usage.product_key, &usage.metric_key) {
+            *usage_by_meter.entry(meter_key.to_string()).or_default() += usage.quantity;
+        }
         usage_by_product
             .entry(usage.product_key)
             .or_default()
             .insert(usage.metric_key, usage.quantity);
     }
+    let meters = METER_DEFINITIONS
+        .iter()
+        .map(|definition| {
+            let current_key = format!("limit.{}", definition.key);
+            let legacy_limit = legacy_meter(definition.key).and_then(|(product, metric)| {
+                entitlements
+                    .get(&format!("limit.{product}.{metric}"))
+                    .and_then(Value::as_i64)
+            });
+            MeterUsage {
+                key: definition.key.to_string(),
+                name: definition.name.to_string(),
+                description: definition.description.to_string(),
+                used: usage_by_meter.remove(definition.key).unwrap_or_default(),
+                limit: entitlements
+                    .get(&current_key)
+                    .and_then(Value::as_i64)
+                    .or(legacy_limit),
+            }
+        })
+        .collect();
 
     let products = products
         .into_iter()
@@ -1629,6 +1829,8 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
     .await?;
     Ok(BillingSummary {
         org_id: org_id.to_string(),
+        features,
+        meters,
         products,
         manual_grants,
         payments,
@@ -1676,87 +1878,192 @@ pub async fn set_subscription_enabled(
     Ok(())
 }
 
-pub async fn require_product_access(
+fn entitlement_allows_capability(
+    entitlements: &HashMap<String, Value>,
+    definition: &CapabilityDefinition,
+) -> bool {
+    entitlements
+        .get(definition.key)
+        .and_then(Value::as_bool)
+        .or_else(|| {
+            entitlements
+                .get(definition.legacy_entitlement)
+                .and_then(Value::as_bool)
+        })
+        .unwrap_or(false)
+}
+
+fn capability_definition(capability_key: &str) -> Option<&'static CapabilityDefinition> {
+    CAPABILITY_DEFINITIONS
+        .iter()
+        .find(|definition| definition.key == capability_key)
+}
+
+async fn capability_is_enabled(
     pool: &PgPool,
     org_id: &str,
-    product_key: &str,
-) -> Result<(), AppError> {
-    let summary = get_billing_summary(pool, org_id).await?;
-    let product = summary
-        .products
-        .into_iter()
-        .find(|product| product.key == product_key)
-        .ok_or_else(|| AppError::NotFound("Product is not configured".to_string()))?;
+    definition: &CapabilityDefinition,
+) -> Result<bool, AppError> {
+    let enabled = sqlx::query_scalar::<_, bool>(
+        r#"
+        WITH candidate AS (
+          SELECT key, value
+          FROM "OrganizationEntitlementGrant"
+          WHERE "orgId" = $1
+            AND key = ANY(ARRAY[$2, $3])
+            AND "startsAt" <= NOW()
+            AND ("endsAt" IS NULL OR "endsAt" > NOW())
+            AND jsonb_typeof(value) = 'boolean'
+          UNION ALL
+          SELECT entitlement.key, entitlement.value
+          FROM "OrganizationSubscription" subscription
+          JOIN "PlanEntitlement" entitlement ON entitlement."planId" = subscription."planId"
+          WHERE subscription."orgId" = $1
+            AND entitlement.key = ANY(ARRAY[$2, $3])
+            AND subscription.status IN (
+              'TRIAL'::"OrganizationSubscriptionStatus",
+              'ACTIVE'::"OrganizationSubscriptionStatus",
+              'GRACE'::"OrganizationSubscriptionStatus"
+            )
+            AND jsonb_typeof(entitlement.value) = 'boolean'
+        ),
+        current_value AS (
+          SELECT bool_or((value #>> '{}')::boolean) AS enabled
+          FROM candidate WHERE key = $2
+        ),
+        legacy_value AS (
+          SELECT bool_or((value #>> '{}')::boolean) AS enabled
+          FROM candidate WHERE key = $3
+        )
+        SELECT COALESCE(
+          (SELECT enabled FROM current_value),
+          (SELECT enabled FROM legacy_value),
+          false
+        )
+        "#,
+    )
+    .bind(org_id)
+    .bind(definition.key)
+    .bind(definition.legacy_entitlement)
+    .fetch_one(pool)
+    .await?;
+    Ok(enabled)
+}
 
-    if product.has_access {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden(format!(
-            "{} requires an active plan or entitlement grant for this organisation",
-            product.name
-        )))
+pub async fn require_capability(
+    pool: &PgPool,
+    org_id: &str,
+    capability_key: &str,
+) -> Result<(), AppError> {
+    let definition = capability_definition(capability_key)
+        .ok_or_else(|| AppError::Internal(format!("Unknown capability: {capability_key}")))?;
+    if capability_is_enabled(pool, org_id, definition).await? {
+        return Ok(());
+    }
+    Err(AppError::Forbidden(format!(
+        "{} is not included in this workspace's current plan",
+        definition.name
+    )))
+}
+
+fn legacy_meter(meter_key: &str) -> Option<(&'static str, &'static str)> {
+    match meter_key {
+        meters::AGENT_DEPLOYMENTS => Some(("agents", "deployments")),
+        meters::CAMPAIGN_RECIPIENTS => Some(("reach", "campaign_recipients")),
+        meters::SOCIAL_PUBLISHES => Some(("social", "publishes")),
+        _ => None,
     }
 }
 
-pub async fn usage_limit(
-    pool: &PgPool,
-    org_id: &str,
-    product_key: &str,
-    metric_key: &str,
-) -> Result<Option<i64>, AppError> {
-    let entitlement_key = format!("limit.{product_key}.{metric_key}");
-    sqlx::query_scalar::<_, Option<i64>>(r#"
-        SELECT MAX((candidate.value #>> '{}')::bigint)
-        FROM (
-          SELECT value FROM "OrganizationEntitlementGrant"
-          WHERE "orgId" = $1 AND key = $2 AND "startsAt" <= NOW()
-            AND ("endsAt" IS NULL OR "endsAt" > NOW()) AND jsonb_typeof(value) = 'number'
-          UNION ALL
-          SELECT entitlement.value
-          FROM "OrganizationSubscription" subscription
-          JOIN "PlanEntitlement" entitlement ON entitlement."planId" = subscription."planId"
-          WHERE subscription."orgId" = $1 AND entitlement.key = $2
-            AND subscription.status IN ('TRIAL'::"OrganizationSubscriptionStatus", 'ACTIVE'::"OrganizationSubscriptionStatus", 'GRACE'::"OrganizationSubscriptionStatus")
-            AND jsonb_typeof(entitlement.value) = 'number'
-        ) candidate
-    "#).bind(org_id).bind(entitlement_key).fetch_one(pool).await.map_err(AppError::from)
+fn canonical_meter_key(product_key: &str, metric_key: &str) -> Option<&'static str> {
+    if product_key == "workspace" {
+        return METER_DEFINITIONS
+            .iter()
+            .find(|definition| definition.key == metric_key)
+            .map(|definition| definition.key);
+    }
+    METER_DEFINITIONS
+        .iter()
+        .find(|definition| {
+            legacy_meter(definition.key).is_some_and(|legacy| legacy == (product_key, metric_key))
+        })
+        .map(|definition| definition.key)
 }
 
-pub async fn require_usage_available(
+pub async fn meter_limit(
     pool: &PgPool,
     org_id: &str,
-    product_key: &str,
-    metric_key: &str,
+    meter_key: &str,
+) -> Result<Option<i64>, AppError> {
+    let current_key = format!("limit.{meter_key}");
+    let legacy_key = legacy_meter(meter_key)
+        .map(|(product, metric)| format!("limit.{product}.{metric}"))
+        .unwrap_or_default();
+    sqlx::query_scalar::<_, Option<i64>>(r#"
+        WITH candidate AS (
+          SELECT key, value FROM "OrganizationEntitlementGrant"
+          WHERE "orgId" = $1 AND key = ANY(ARRAY[$2, $3]) AND "startsAt" <= NOW()
+            AND ("endsAt" IS NULL OR "endsAt" > NOW()) AND jsonb_typeof(value) = 'number'
+          UNION ALL
+          SELECT entitlement.key, entitlement.value
+          FROM "OrganizationSubscription" subscription
+          JOIN "PlanEntitlement" entitlement ON entitlement."planId" = subscription."planId"
+          WHERE subscription."orgId" = $1 AND entitlement.key = ANY(ARRAY[$2, $3])
+            AND subscription.status IN ('TRIAL'::"OrganizationSubscriptionStatus", 'ACTIVE'::"OrganizationSubscriptionStatus", 'GRACE'::"OrganizationSubscriptionStatus")
+            AND jsonb_typeof(entitlement.value) = 'number'
+        ),
+        current_value AS (
+          SELECT MAX((value #>> '{}')::bigint) AS value FROM candidate WHERE key = $2
+        ),
+        legacy_value AS (
+          SELECT MAX((value #>> '{}')::bigint) AS value FROM candidate WHERE key = $3
+        )
+        SELECT COALESCE(
+          (SELECT value FROM current_value),
+          (SELECT value FROM legacy_value)
+        )
+    "#).bind(org_id).bind(current_key).bind(legacy_key).fetch_one(pool).await.map_err(AppError::from)
+}
+
+pub async fn require_meter_available(
+    pool: &PgPool,
+    org_id: &str,
+    meter_key: &str,
     quantity: i64,
 ) -> Result<(), AppError> {
-    let Some(limit) = usage_limit(pool, org_id, product_key, metric_key).await? else {
+    let Some(limit) = meter_limit(pool, org_id, meter_key).await? else {
         return Ok(());
     };
+    let legacy = legacy_meter(meter_key);
     let used = sqlx::query_scalar::<_, i64>(
         r#"
         SELECT COALESCE(SUM(quantity), 0)::bigint FROM "UsageEvent"
-        WHERE "orgId" = $1 AND "productKey" = $2 AND "metricKey" = $3
+        WHERE "orgId" = $1
+          AND (
+            ("productKey" = 'workspace' AND "metricKey" = $2)
+            OR ("productKey" = $3 AND "metricKey" = $4)
+          )
           AND "occurredAt" >= date_trunc('month', NOW())
     "#,
     )
     .bind(org_id)
-    .bind(product_key)
-    .bind(metric_key)
+    .bind(meter_key)
+    .bind(legacy.map(|item| item.0).unwrap_or(""))
+    .bind(legacy.map(|item| item.1).unwrap_or(""))
     .fetch_one(pool)
     .await?;
     if used.saturating_add(quantity) > limit {
         return Err(AppError::Forbidden(format!(
-            "The {product_key} {metric_key} monthly limit has been reached"
+            "The {meter_key} monthly limit for this workspace has been reached"
         )));
     }
     Ok(())
 }
 
-pub async fn record_usage(
+pub async fn record_meter_usage(
     pool: &PgPool,
     org_id: &str,
-    product_key: &str,
-    metric_key: &str,
+    meter_key: &str,
     quantity: i32,
     source_type: &str,
     source_id: &str,
@@ -1767,7 +2074,7 @@ pub async fn record_usage(
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
         ON CONFLICT ("idempotencyKey") DO NOTHING
     "#)
-    .bind(cuid2::create_id()).bind(org_id).bind(product_key).bind(metric_key).bind(quantity)
+    .bind(cuid2::create_id()).bind(org_id).bind("workspace").bind(meter_key).bind(quantity)
     .bind(source_type).bind(source_id).bind(idempotency_key).execute(pool).await?;
     Ok(result.rows_affected() == 1)
 }
@@ -1817,5 +2124,32 @@ mod tests {
             merge_entitlement_value(Some(&Value::from(50)), Value::from(25)),
             Value::from(50)
         );
+    }
+
+    #[test]
+    fn resolves_capabilities_from_new_keys_before_legacy_keys() {
+        let definition = capability_definition(capabilities::CONTENT_PUBLISH).unwrap();
+        let mut entitlements =
+            HashMap::from([("product.social.enabled".to_string(), Value::Bool(true))]);
+        assert!(entitlement_allows_capability(&entitlements, definition));
+
+        entitlements.insert(
+            capabilities::CONTENT_PUBLISH.to_string(),
+            Value::Bool(false),
+        );
+        assert!(!entitlement_allows_capability(&entitlements, definition));
+    }
+
+    #[test]
+    fn maps_legacy_usage_to_workspace_meters() {
+        assert_eq!(
+            canonical_meter_key("reach", "campaign_recipients"),
+            Some(meters::CAMPAIGN_RECIPIENTS)
+        );
+        assert_eq!(
+            canonical_meter_key("workspace", meters::SOCIAL_PUBLISHES),
+            Some(meters::SOCIAL_PUBLISHES)
+        );
+        assert_eq!(canonical_meter_key("reach", "unknown"), None);
     }
 }

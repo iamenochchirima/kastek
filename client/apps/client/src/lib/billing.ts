@@ -17,6 +17,32 @@ export type ProductAccess = {
   limits: Record<string, number>;
 };
 
+export type CapabilityKey =
+  | "feature.agents.manage"
+  | "feature.campaigns.manage"
+  | "feature.campaigns.send"
+  | "feature.contacts.access"
+  | "feature.templates.manage"
+  | "feature.content.manage"
+  | "feature.content.publish"
+  | "feature.analytics.view"
+  | "feature.inbox.access";
+
+export type CapabilityAccess = {
+  key: CapabilityKey;
+  name: string;
+  description: string;
+  enabled: boolean;
+};
+
+export type MeterUsage = {
+  key: string;
+  name: string;
+  description: string;
+  used: number;
+  limit: number | null;
+};
+
 export type ManualGrant = {
   id: string;
   orgId: string;
@@ -30,6 +56,9 @@ export type ManualGrant = {
 
 export type BillingSummary = {
   orgId: string;
+  features: CapabilityAccess[];
+  meters: MeterUsage[];
+  /** @deprecated Checkout/subscription compatibility only. Do not use for feature guards. */
   products: ProductAccess[];
   manualGrants: ManualGrant[];
   payments: PaymentHistoryItem[];

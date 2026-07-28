@@ -21,9 +21,9 @@ const productOptions = [
   { value: "kasitek_product_basic", label: "KasiTek Basic Plan" },
   { value: "kasitek_product_growth", label: "KasiTek Growth Plan" },
   { value: "kasitek_product_scale", label: "KasiTek Scale Plan" },
-  { value: "kasiagents", label: "KasiAgents" },
-  { value: "kasireach", label: "KasiReach" },
-  { value: "kasisocial", label: "KasiSocial" },
+  { value: "feature_agents", label: "AI agents" },
+  { value: "feature_campaigns", label: "Campaigns and messaging" },
+  { value: "feature_content", label: "Content planning and publishing" },
 ];
 
 const productAliasMap: Record<string, string> = {
@@ -33,9 +33,12 @@ const productAliasMap: Record<string, string> = {
   "basic plan": "kasitek_product_basic",
   "growth plan": "kasitek_product_growth",
   "scale plan": "kasitek_product_scale",
-  kasiagents: "kasiagents",
-  kasireach: "kasireach",
-  kasisocial: "kasisocial",
+  agents: "feature_agents",
+  campaigns: "feature_campaigns",
+  content: "feature_content",
+  kasiagents: "feature_agents",
+  kasireach: "feature_campaigns",
+  kasisocial: "feature_content",
 };
 
 export default function ProductWaitlistForm() {

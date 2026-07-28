@@ -48,7 +48,7 @@ import {
 } from "@/components/dashboard/whatsapp-realtime-provider";
 import PushNotificationReminder from "@/components/dashboard/notifications/push-notification-reminder";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
-import type { BillingSummary } from "@/lib/billing";
+import type { BillingSummary, CapabilityKey } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
 import type { ProductTourStatus } from "@/lib/product-tour";
 import { ProductTour } from "@/components/dashboard/product-tour";
@@ -63,7 +63,7 @@ type NavItem = {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  productKey?: "agents" | "reach" | "social";
+  featureKey?: CapabilityKey;
 };
 
 type NavigationGroup = {
@@ -101,17 +101,17 @@ const navigationGroups: NavigationGroup[] = [
   {
     label: "Growth",
     items: [
-      { name: "Campaigns", href: "/campaigns", icon: Send, productKey: "reach" },
-      { name: "Templates", href: "/templates", icon: FileText, productKey: "reach" },
-      { name: "Content", href: "/content", icon: Sparkles, productKey: "social" },
-      { name: "Calendar", href: "/calendar", icon: CalendarDays, productKey: "social" },
+      { name: "Campaigns", href: "/campaigns", icon: Send, featureKey: "feature.campaigns.manage" },
+      { name: "Templates", href: "/templates", icon: FileText, featureKey: "feature.templates.manage" },
+      { name: "Content", href: "/content", icon: Sparkles, featureKey: "feature.content.manage" },
+      { name: "Calendar", href: "/calendar", icon: CalendarDays, featureKey: "feature.content.manage" },
       { name: "Bookings", href: "/bookings", icon: CalendarCheck },
-      { name: "Analytics", href: "/analytics", icon: Grid2x2, productKey: "social" },
+      { name: "Analytics", href: "/analytics", icon: Grid2x2, featureKey: "feature.analytics.view" },
     ],
   },
   {
     label: "Automation",
-    items: [{ name: "Agents", href: "/agents", icon: Bot, productKey: "agents" }],
+    items: [{ name: "Agents", href: "/agents", icon: Bot, featureKey: "feature.agents.manage" }],
   },
   {
     label: "Manage",
@@ -197,10 +197,10 @@ function NavigationSection({
       {(collapsed || isOpen) ? <div id={`sidebar-section-${group.label.toLowerCase()}`} className="space-y-0.5">{group.items.map((item) => {
         const active = isItemActive(pathname, item.href);
         const showBadge = item.href === "/inbox" && inboxUnreadCount > 0;
-        const product = item.productKey
-          ? billingSummary?.products.find((candidate) => candidate.key === item.productKey)
+        const feature = item.featureKey
+          ? billingSummary?.features?.find((candidate) => candidate.key === item.featureKey)
           : null;
-        const locked = Boolean(item.productKey && product && !product.hasAccess);
+        const locked = Boolean(item.featureKey && feature && !feature.enabled);
         const href = locked ? "/billing" : item.href;
 
         return (

@@ -185,13 +185,13 @@ async fn sync_capabilities(
             SELECT * FROM (VALUES
                 ('MESSAGING_INBOUND', NULL::text, ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM']),
                 ('MESSAGING_OUTBOUND', NULL::text, ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM']),
-                ('CAMPAIGNS_SEND', 'product.reach.enabled', ARRAY['WHATSAPP']),
-                ('TEMPLATES_MANAGE', 'product.reach.enabled', ARRAY['WHATSAPP']),
-                ('AGENT_CHANNEL', 'product.agents.enabled', ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM']),
-                ('SOCIAL_PUBLISH', 'product.social.enabled', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'LINKEDIN', 'X', 'WHATSAPP_STATUS']),
-                ('SOCIAL_ANALYTICS', 'product.social.enabled', ARRAY['FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'X']),
-                ('COMMENTS_MANAGE', 'product.social.enabled', ARRAY['FACEBOOK', 'INSTAGRAM', 'X']),
-                ('MEDIA_PUBLISH', 'product.social.enabled', ARRAY['FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'X', 'WHATSAPP_STATUS']),
+                ('CAMPAIGNS_SEND', 'feature.campaigns.send', ARRAY['WHATSAPP']),
+                ('TEMPLATES_MANAGE', 'feature.templates.manage', ARRAY['WHATSAPP']),
+                ('AGENT_CHANNEL', 'feature.agents.manage', ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM']),
+                ('SOCIAL_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'LINKEDIN', 'X', 'WHATSAPP_STATUS']),
+                ('SOCIAL_ANALYTICS', 'feature.analytics.view', ARRAY['FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'X']),
+                ('COMMENTS_MANAGE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'X']),
+                ('MEDIA_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'X', 'WHATSAPP_STATUS']),
                 ('CALLS_INBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_OUTBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_BROWSER', NULL::text, ARRAY['TWILIO'])
@@ -227,11 +227,11 @@ async fn sync_consumers(tx: &mut Transaction<'_, Postgres>, org_id: &str) -> Res
         FROM "ExternalConnection" connection
         CROSS JOIN LATERAL (
             SELECT unnest(CASE connection.provider
-                WHEN 'WHATSAPP' THEN ARRAY['inbox', 'reach', 'agents']
-                WHEN 'FACEBOOK' THEN ARRAY['inbox', 'social', 'agents']
-                WHEN 'INSTAGRAM' THEN ARRAY['inbox', 'social', 'agents']
+                WHEN 'WHATSAPP' THEN ARRAY['inbox', 'campaigns', 'agents']
+                WHEN 'FACEBOOK' THEN ARRAY['inbox', 'content', 'agents']
+                WHEN 'INSTAGRAM' THEN ARRAY['inbox', 'content', 'agents']
                 WHEN 'TWILIO' THEN ARRAY['calls', 'inbox']
-                ELSE ARRAY['social']
+                ELSE ARRAY['content']
             END) AS product_key
         ) consumer
         WHERE connection."orgId" = $1
@@ -478,7 +478,7 @@ mod tests {
                 && connection
                     .consumers
                     .as_array()
-                    .is_some_and(|items| items.iter().any(|item| item == "reach"))
+                    .is_some_and(|items| items.iter().any(|item| item == "campaigns"))
         }));
 
         let whatsapp = org_a

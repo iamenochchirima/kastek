@@ -322,7 +322,7 @@ export function AgentsPageClient({
       <div className="mx-auto max-w-[1400px] space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-3xl">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">KasiAgents</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Agents</h1>
             <p className="mt-1 text-muted-foreground">
               Manage your deployed agents, track usage, and control provisioning from one place.
             </p>
@@ -362,7 +362,7 @@ export function AgentsPageClient({
               <div className="max-w-2xl space-y-2">
                 <h2 className="text-xl font-semibold text-foreground">No agents yet</h2>
                 <p className="text-sm text-muted-foreground">
-                  Start with a managed WhatsApp, website, voice, or support agent. KasiAgents
+                  Start with a managed WhatsApp, website, voice, or support agent. KasiTek
                   creates the control-plane record and launches the underlying workflow for you.
                 </p>
               </div>

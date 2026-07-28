@@ -32,6 +32,10 @@ const VALID_PRODUCTS: &[&str] = &[
     "kasitek_product_basic",
     "kasitek_product_growth",
     "kasitek_product_scale",
+    "feature_agents",
+    "feature_campaigns",
+    "feature_content",
+    // Accepted for old waitlist links during the naming transition.
     "kasiagents",
     "kasireach",
     "kasisocial",

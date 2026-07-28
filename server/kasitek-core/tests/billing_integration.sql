@@ -11,8 +11,8 @@ VALUES ('billing-product', 'billing-test', 'Billing Test', true, NOW(), NOW());
 INSERT INTO "ProductPlan" (id, "productId", key, name, interval, currency, "amountMinor", active, "createdAt", "updatedAt")
 VALUES ('billing-plan', 'billing-product', 'billing-test-monthly', 'Test Monthly', 'MONTHLY', 'ZAR', 10000, true, NOW(), NOW());
 INSERT INTO "PlanEntitlement" (id, "planId", key, value, "createdAt", "updatedAt") VALUES
-  ('billing-entitlement-access', 'billing-plan', 'product.billing-test.enabled', 'true', NOW(), NOW()),
-  ('billing-entitlement-limit', 'billing-plan', 'limit.billing-test.actions', '10', NOW(), NOW());
+  ('billing-entitlement-access', 'billing-plan', 'feature.content.publish', 'true', NOW(), NOW()),
+  ('billing-entitlement-limit', 'billing-plan', 'limit.social_publishes', '10', NOW(), NOW());
 INSERT INTO "OrganizationSubscription" (id, "orgId", "planId", status, provider, "providerSubscriptionId", "createdAt", "updatedAt")
 VALUES ('billing-subscription', 'billing-org-a', 'billing-plan', 'ACTIVE', 'paystack', 'SUB_TEST', NOW(), NOW());
 
@@ -27,15 +27,15 @@ BEGIN
 END $$;
 
 INSERT INTO "UsageEvent" (id, "orgId", "productKey", "metricKey", quantity, "idempotencyKey", "occurredAt", "createdAt")
-VALUES ('usage-a', 'billing-org-a', 'billing-test', 'actions', 3, 'billing-usage-key', NOW(), NOW())
+VALUES ('usage-a', 'billing-org-a', 'workspace', 'social_publishes', 3, 'billing-usage-key', NOW(), NOW())
 ON CONFLICT ("idempotencyKey") DO NOTHING;
 INSERT INTO "UsageEvent" (id, "orgId", "productKey", "metricKey", quantity, "idempotencyKey", "occurredAt", "createdAt")
-VALUES ('usage-b', 'billing-org-a', 'billing-test', 'actions', 3, 'billing-usage-key', NOW(), NOW())
+VALUES ('usage-b', 'billing-org-a', 'workspace', 'social_publishes', 3, 'billing-usage-key', NOW(), NOW())
 ON CONFLICT ("idempotencyKey") DO NOTHING;
 
 DO $$
 BEGIN
-  IF (SELECT SUM(quantity) FROM "UsageEvent" WHERE "orgId" = 'billing-org-a' AND "metricKey" = 'actions') <> 3 THEN
+  IF (SELECT SUM(quantity) FROM "UsageEvent" WHERE "orgId" = 'billing-org-a' AND "metricKey" = 'social_publishes') <> 3 THEN
     RAISE EXCEPTION 'usage idempotency failed';
   END IF;
 END $$;

@@ -16,7 +16,17 @@ async fn require_social_access(
     user_id: &str,
 ) -> Result<String, AppError> {
     let org_id = resolve_active_org_id(req, pool, user_id).await?;
-    billing::require_product_access(pool, &org_id, "social").await?;
+    billing::require_capability(pool, &org_id, billing::capabilities::CONTENT_MANAGE).await?;
+    Ok(org_id)
+}
+
+async fn require_social_publish_access(
+    pool: &PgPool,
+    req: &HttpRequest,
+    user_id: &str,
+) -> Result<String, AppError> {
+    let org_id = resolve_active_org_id(req, pool, user_id).await?;
+    billing::require_capability(pool, &org_id, billing::capabilities::CONTENT_PUBLISH).await?;
     Ok(org_id)
 }
 
@@ -151,7 +161,7 @@ pub async fn list_posts(
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
     let posts = social::list_social_posts(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "posts": posts })))
 }
@@ -173,7 +183,7 @@ pub async fn get_post(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
     let post = social::get_social_post(pool.get_ref(), &org_id, &path)
         .await?
         .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
@@ -213,7 +223,7 @@ pub async fn publish_post(
     body: web::Json<SocialPublishRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_publish_access(pool.get_ref(), &req, &user.id).await?;
     let requested_platform = body.platform.as_deref().unwrap_or("X");
     if requested_platform != "X"
         && requested_platform != "LINKEDIN"
@@ -282,7 +292,7 @@ pub async fn update_publish_job(
     body: web::Json<SocialPublishJobActionRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_publish_access(pool.get_ref(), &req, &user.id).await?;
     let action = body
         .action
         .as_deref()
@@ -484,15 +494,55 @@ pub async fn start_meta_oauth(
     config: web::Data<AppConfig>,
     pool: web::Data<PgPool>,
     req: HttpRequest,
+    query: web::Query<social::MetaOAuthStartQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let _org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let target = match query.target.as_deref().unwrap_or("facebook") {
+        "facebook" => "facebook",
+        "instagram" => "instagram",
+        _ => {
+            return Err(AppError::BadRequest(
+                "Meta connection target must be facebook or instagram".to_string(),
+            ))
+        }
+    };
     let state = social::create_meta_oauth_state();
     let authorize_url = social::build_meta_authorize_url(config.get_ref(), &state)?;
     Ok(HttpResponse::Found()
         .append_header(("Location", authorize_url))
         .cookie(
             actix_web::cookie::Cookie::build(social::META_STATE_COOKIE, state)
+                .path("/")
+                .http_only(true)
+                .same_site(actix_web::cookie::SameSite::Lax)
+                .secure(config.is_production())
+                .finish(),
+        )
+        .cookie(
+            actix_web::cookie::Cookie::build(social::META_TARGET_COOKIE, target)
+                .path("/")
+                .http_only(true)
+                .same_site(actix_web::cookie::SameSite::Lax)
+                .secure(config.is_production())
+                .finish(),
+        )
+        .finish())
+}
+
+pub async fn start_instagram_oauth(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let _org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let state = social::create_instagram_oauth_state();
+    let authorize_url = social::build_instagram_authorize_url(config.get_ref(), &state)?;
+    Ok(HttpResponse::Found()
+        .append_header(("Location", authorize_url))
+        .cookie(
+            actix_web::cookie::Cookie::build(social::INSTAGRAM_STATE_COOKIE, state)
                 .path("/")
                 .http_only(true)
                 .same_site(actix_web::cookie::SameSite::Lax)
@@ -540,6 +590,19 @@ pub async fn meta_oauth_callback(
     if stored_state != returned_state {
         return Err(AppError::BadRequest("Invalid OAuth state".to_string()));
     }
+    let target = req
+        .cookie(social::META_TARGET_COOKIE)
+        .map(|cookie| cookie.value().to_string())
+        .unwrap_or_else(|| "facebook".to_string());
+    let (include_facebook_pages, include_instagram_accounts) = match target.as_str() {
+        "facebook" => (true, false),
+        "instagram" => (false, true),
+        _ => {
+            return Err(AppError::BadRequest(
+                "Invalid Meta connection target".to_string(),
+            ))
+        }
+    };
 
     let short_lived_tokens = social::exchange_meta_code_for_tokens(config.get_ref(), code).await?;
     let tokens = social::exchange_meta_for_long_lived_token(
@@ -557,9 +620,16 @@ pub async fn meta_oauth_callback(
             .ok_or_else(|| AppError::BadRequest("Missing Meta access token".to_string()))?,
     )
     .await?;
-    let connected =
-        social::upsert_meta_connections_for_org(pool.get_ref(), &user.id, &org_id, &tokens, &pages)
-            .await?;
+    let connected = social::upsert_meta_connections_for_org(
+        pool.get_ref(),
+        &user.id,
+        &org_id,
+        &tokens,
+        &pages,
+        include_facebook_pages,
+        include_instagram_accounts,
+    )
+    .await?;
     let facebook_count = connected
         .iter()
         .filter(|channel| channel.platform == "FACEBOOK")
@@ -618,6 +688,117 @@ pub async fn meta_oauth_callback(
         .append_header(("Location", redirect))
         .cookie(
             actix_web::cookie::Cookie::build(social::META_STATE_COOKIE, "")
+                .path("/")
+                .max_age(actix_web::cookie::time::Duration::seconds(0))
+                .finish(),
+        )
+        .cookie(
+            actix_web::cookie::Cookie::build(social::META_TARGET_COOKIE, "")
+                .path("/")
+                .max_age(actix_web::cookie::time::Duration::seconds(0))
+                .finish(),
+        )
+        .finish())
+}
+
+pub async fn instagram_oauth_callback(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<social::OAuthCallbackQuery>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    if let Some(error) = query.error.as_ref() {
+        let message = query
+            .error_description
+            .clone()
+            .unwrap_or_else(|| error.clone());
+        let redirect = format!(
+            "{}/connections?error={}",
+            config.auth_url,
+            urlencoding::encode(&message)
+        );
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", redirect))
+            .finish());
+    }
+
+    let code = query
+        .code
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Instagram OAuth code".to_string()))?;
+    let returned_state = query
+        .state
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Invalid Instagram OAuth state".to_string()))?;
+    let stored_state = req
+        .cookie(social::INSTAGRAM_STATE_COOKIE)
+        .map(|cookie| cookie.value().to_string())
+        .ok_or_else(|| AppError::BadRequest("Invalid Instagram OAuth state".to_string()))?;
+    if stored_state != returned_state {
+        return Err(AppError::BadRequest(
+            "Invalid Instagram OAuth state".to_string(),
+        ));
+    }
+
+    let short_lived =
+        social::exchange_instagram_code_for_token(config.get_ref(), code).await?;
+    let short_lived_access_token = short_lived
+        .access_token
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Instagram access token".to_string()))?;
+    let long_lived =
+        social::exchange_instagram_for_long_lived_token(short_lived_access_token).await?;
+    let access_token = long_lived
+        .access_token
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Instagram access token".to_string()))?;
+    let profile = social::fetch_instagram_profile(access_token).await?;
+    let channel = social::upsert_instagram_connection_for_org(
+        pool.get_ref(),
+        &user.id,
+        &org_id,
+        &long_lived,
+        short_lived.permissions.as_deref(),
+        &profile,
+    )
+    .await?;
+
+    connections::sync_org_connections(pool.get_ref(), &org_id).await?;
+    let account_id = channel.external_account_id.as_deref().ok_or_else(|| {
+        AppError::Internal("Saved Instagram connection is missing an account ID".to_string())
+    })?;
+    let subscription_result =
+        social::subscribe_instagram_webhooks(access_token, account_id).await;
+    let subscription_error = subscription_result.as_ref().err().map(ToString::to_string);
+    connections::record_synced_source_health(
+        pool.get_ref(),
+        &org_id,
+        "SOCIAL",
+        &channel.id,
+        subscription_result.is_ok(),
+        Some(if subscription_result.is_ok() {
+            "ACTIVE"
+        } else {
+            "FAILED"
+        }),
+        subscription_error.as_deref(),
+    )
+    .await?;
+    if let Err(error) = subscription_result {
+        log::warn!(
+            "failed to subscribe Instagram account {} to webhooks: {}",
+            account_id,
+            error
+        );
+    }
+
+    let redirect = format!("{}/connections?connected=instagram", config.auth_url);
+    Ok(HttpResponse::Found()
+        .append_header(("Location", redirect))
+        .cookie(
+            actix_web::cookie::Cookie::build(social::INSTAGRAM_STATE_COOKIE, "")
                 .path("/")
                 .max_age(actix_web::cookie::time::Duration::seconds(0))
                 .finish(),
