@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   useCallback,
   useEffect,
@@ -284,7 +285,16 @@ export function ProductWorkspacePreview() {
       <div className="product-preview-viewport">
         <div className="product-preview-canvas">
           <div className="product-preview-bar">
-            <span className="product-preview-brand"><i>K</i> Kasitek</span>
+            <span className="product-preview-brand">
+              <Image
+                className="product-preview-logo"
+                src="/logo.png"
+                alt=""
+                width={20}
+                height={20}
+              />
+              Kasitek
+            </span>
             <span className="product-preview-workspace">Northstar Studio <ChevronDown aria-hidden="true" /></span>
             <div className="product-preview-actions"><Search aria-hidden="true" /><Bell aria-hidden="true" /><span>NS</span></div>
           </div>

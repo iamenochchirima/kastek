@@ -1,51 +1,101 @@
 import Image from "next/image";
-import { ArrowRight, Bot, Braces, CalendarDays, Check, MessageCircle, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Bot,
+  Braces,
+  Check,
+  Layers3,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 
 export function ServiceDeliveryMontage() {
   return (
-    <div className="service-montage">
-      <Image
-        className="service-montage-image"
-        src="/images/service-delivery-editorial-v1.png"
-        alt="A software delivery project being worked through at a studio table"
-        fill
-        sizes="(max-width: 900px) 100vw, 62vw"
-        priority={false}
-      />
-      <div className="service-montage-shade" />
-      <article className="montage-agent-card">
-        <div className="montage-card-kicker"><Bot aria-hidden="true" />AI agent</div>
-        <p>Can I book a consultation for Thursday?</p>
-        <div><Sparkles aria-hidden="true" />I&apos;ve found two times. Which works for you?</div>
-        <small>Customer work, with your team in control</small>
-      </article>
+    <div className="service-delivery">
+      <div className="service-montage">
+        <Image
+          className="service-montage-image"
+          src="/images/service-delivery-editorial-v1.png"
+          alt="A software delivery project being worked through at a studio table"
+          fill
+          sizes="(max-width: 900px) 100vw, 62vw"
+          priority={false}
+        />
+        <div className="service-montage-shade" />
 
-      <article className="montage-workflow-card">
-        <div className="montage-card-kicker"><Braces aria-hidden="true" />Workflow integration</div>
-        <div className="montage-workflow-route"><span>Form</span><ArrowRight aria-hidden="true" /><b><Braces aria-hidden="true" />AI</b><ArrowRight aria-hidden="true" /><span>CRM</span></div>
-        <small><i />Qualified enquiry routed to the team</small>
-      </article>
+        <article className="montage-agent-card">
+          <div className="montage-card-kicker">
+            <span><Bot aria-hidden="true" />Customer intake agent</span>
+            <em>Review</em>
+          </div>
+          <div className="montage-agent-request">
+            <small>New enquiry</small>
+            <p>We need a service across two locations. Can you review the request?</p>
+          </div>
+          <div className="montage-agent-context">
+            <span>Customer record</span>
+            <span>Service rules</span>
+            <span>Team capacity</span>
+          </div>
+          <div className="montage-agent-response">
+            <Sparkles aria-hidden="true" />
+            <span><strong>Action plan prepared</strong>Record matched, route selected and reply drafted.</span>
+          </div>
+          <small className="montage-control-note"><ShieldCheck aria-hidden="true" />Approval before action</small>
+        </article>
 
-      <article className="montage-app-card">
-        <div className="montage-browser-top"><i /><i /><i /><span>client application</span></div>
-        <div className="montage-app-content">
-          <aside><i /><i /><i className="is-active" /><i /></aside>
-          <main>
-            <div><b>Appointments</b><span>July</span></div>
-            <section><span><small>Today</small><strong>12</strong></span><span><small>Confirmed</small><strong>9</strong></span></section>
-            <p><CalendarDays aria-hidden="true" />Thursday consultation <b>10:00</b></p>
-          </main>
+        <article className="montage-workflow-card">
+          <div className="montage-card-kicker">
+            <span><Braces aria-hidden="true" />Workflow integration</span>
+            <em>Running</em>
+          </div>
+          <div className="montage-workflow-route">
+            <span>Enquiry</span>
+            <ArrowRight aria-hidden="true" />
+            <b><Bot aria-hidden="true" />Agent</b>
+            <ArrowRight aria-hidden="true" />
+            <span>CRM</span>
+            <ArrowRight aria-hidden="true" />
+            <span>Team</span>
+          </div>
+          <small><i />Record updated · task created · response prepared</small>
+        </article>
+
+        <article className="montage-app-card">
+          <div className="montage-browser-top"><i /><i /><i /><span>client operations portal</span></div>
+          <div className="montage-app-content">
+            <aside><i /><i className="is-active" /><i /><i /></aside>
+            <main>
+              <div><b>Customer requests</b><span>Live</span></div>
+              <section>
+                <span><small>Open</small><strong>12</strong></span>
+                <span><small>Assigned</small><strong>9</strong></span>
+              </section>
+              <div className="montage-app-row"><span>New service request</span><b>Assigned</b></div>
+              <div className="montage-app-row"><span>Customer reply</span><b>Prepared</b></div>
+            </main>
+          </div>
+        </article>
+
+        <article className="montage-kasitek-card">
+          <div className="montage-card-kicker">
+            <span><Layers3 aria-hidden="true" />Kasitek implementation</span>
+            <em>Configured</em>
+          </div>
+          <div className="montage-kasitek-modules">
+            <span>Customer</span>
+            <span>Growth</span>
+            <span>Agents</span>
+          </div>
+          <small><i />Workspace connected to the client operation</small>
+        </article>
+
+        <div className="montage-story-caption">
+          <span>One engagement</span>
+          <p>The agent, integrations and operational software delivered as one working system.</p>
+          <Check aria-hidden="true" />
         </div>
-      </article>
-
-      <div className="montage-service-list" aria-label="Services we deliver">
-        <span>AI agents</span>
-        <span>AI workflows</span>
-        <span>Systems integration</span>
-        <span>Web applications</span>
-        <span>Websites &amp; bookings</span>
       </div>
-      <div className="montage-footer"><MessageCircle aria-hidden="true" /><span>Built close to the work. Improved in use.</span><Check aria-hidden="true" /></div>
     </div>
   );
 }
