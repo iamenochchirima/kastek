@@ -41,11 +41,21 @@ async fn require_social_connection_admin(
 }
 
 pub async fn list_channels(
+    config: web::Data<AppConfig>,
     pool: web::Data<PgPool>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    if let Err(error) =
+        social::ensure_meta_instagram_app_webhooks(pool.get_ref(), &org_id, config.get_ref()).await
+    {
+        log::warn!(
+            "failed to ensure Meta Instagram app webhook subscription org_id={}: {}",
+            org_id,
+            error
+        );
+    }
     if let Err(error) =
         social::ensure_meta_page_webhook_subscriptions(pool.get_ref(), &org_id).await
     {
@@ -649,13 +659,24 @@ pub async fn meta_oauth_callback(
         .count();
 
     connections::sync_org_connections(pool.get_ref(), &org_id).await?;
+    let instagram_app_subscription = if include_instagram_accounts && instagram_count > 0 {
+        let result = social::subscribe_meta_instagram_app_webhooks(config.get_ref()).await;
+        if let Err(error) = &result {
+            log::warn!(
+                "failed to configure Instagram messaging webhooks for the Meta app: {}",
+                error
+            );
+        }
+        Some(result)
+    } else {
+        None
+    };
     for page in &pages {
         let Some(page_access_token) = page.access_token.as_deref() else {
             continue;
         };
         let subscription_result =
             social::subscribe_meta_page_webhooks(page_access_token, &page.id).await;
-        let error_message = subscription_result.as_ref().err().map(ToString::to_string);
         for channel in connected.iter().filter(|channel| {
             channel.external_account_id.as_deref() == Some(page.id.as_str())
                 || channel
@@ -665,13 +686,23 @@ pub async fn meta_oauth_callback(
                     .and_then(|value| value.as_str())
                     == Some(page.id.as_str())
         }) {
+            let instagram_app_error = (channel.platform == "INSTAGRAM")
+                .then_some(instagram_app_subscription.as_ref())
+                .flatten()
+                .and_then(|result| result.as_ref().err());
+            let error_message = subscription_result
+                .as_ref()
+                .err()
+                .or(instagram_app_error)
+                .map(ToString::to_string);
+            let subscription_healthy = subscription_result.is_ok() && instagram_app_error.is_none();
             connections::record_synced_source_health(
                 pool.get_ref(),
                 &org_id,
                 "SOCIAL",
                 &channel.id,
-                subscription_result.is_ok(),
-                Some(if subscription_result.is_ok() {
+                subscription_healthy,
+                Some(if subscription_healthy {
                     "ACTIVE"
                 } else {
                     "FAILED"

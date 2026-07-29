@@ -7,6 +7,7 @@ use crypto_utils::{
 use serde_json::{json, Value};
 use sqlx::{PgPool, Postgres, Transaction};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::config::AppConfig;
 use crate::db::models::{
@@ -27,6 +28,9 @@ const META_GRAPH_BASE: &str = "https://graph.facebook.com/v23.0";
 const META_PAGE_WEBHOOK_FIELDS: &str =
     "messages,message_echoes,messaging_postbacks,message_deliveries,message_reads";
 const META_PAGE_WEBHOOK_SUBSCRIPTION_VERSION: i32 = 2;
+const META_INSTAGRAM_WEBHOOK_FIELDS: &str =
+    "messages,messaging_postbacks,messaging_seen,message_reactions";
+static META_INSTAGRAM_APP_WEBHOOK_CONFIGURED: AtomicBool = AtomicBool::new(false);
 const INSTAGRAM_AUTHORIZE_URL: &str = "https://www.instagram.com/oauth/authorize";
 const INSTAGRAM_TOKEN_URL: &str = "https://api.instagram.com/oauth/access_token";
 const INSTAGRAM_LONG_LIVED_TOKEN_URL: &str = "https://graph.instagram.com/access_token";
@@ -888,6 +892,71 @@ pub async fn subscribe_meta_page_webhooks(
     )
     .await?;
     Ok(())
+}
+
+pub async fn subscribe_meta_instagram_app_webhooks(config: &AppConfig) -> Result<(), AppError> {
+    let app_id = required_env("AUTH_META_APP_ID")?;
+    let app_secret = required_env("AUTH_META_APP_SECRET")?;
+    let verify_token = std::env::var("META_WEBHOOK_VERIFY_TOKEN")
+        .or_else(|_| std::env::var("AUTH_META_WEBHOOK_VERIFY_TOKEN"))
+        .map_err(|_| {
+            AppError::Internal(
+                "META_WEBHOOK_VERIFY_TOKEN or AUTH_META_WEBHOOK_VERIFY_TOKEN is required"
+                    .to_string(),
+            )
+        })?;
+    let callback_url = format!("{}/api/webhooks/meta", social_app_url(config));
+    let app_access_token = format!("{app_id}|{app_secret}");
+
+    let _: Value = fetch_json(
+        reqwest::Client::new()
+            .post(format!("{META_GRAPH_BASE}/{app_id}/subscriptions"))
+            .form(&[
+                ("object", "instagram"),
+                ("callback_url", callback_url.as_str()),
+                ("verify_token", verify_token.as_str()),
+                ("fields", META_INSTAGRAM_WEBHOOK_FIELDS),
+                ("include_values", "true"),
+                ("access_token", app_access_token.as_str()),
+            ]),
+        "Failed to configure Instagram messaging webhooks for the Meta app",
+    )
+    .await?;
+    META_INSTAGRAM_APP_WEBHOOK_CONFIGURED.store(true, Ordering::Release);
+    Ok(())
+}
+
+pub async fn ensure_meta_instagram_app_webhooks(
+    pool: &PgPool,
+    org_id: &str,
+    config: &AppConfig,
+) -> Result<bool, AppError> {
+    if META_INSTAGRAM_APP_WEBHOOK_CONFIGURED.load(Ordering::Acquire) {
+        return Ok(false);
+    }
+
+    let has_page_linked_instagram = sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS (
+            SELECT 1
+            FROM "SocialChannelConnection"
+            WHERE "orgId" = $1
+              AND platform = 'INSTAGRAM'::"SocialPlatform"
+              AND status = 'CONNECTED'::"SocialChannelStatus"
+              AND metadata->>'provider' = 'meta'
+        )
+        "#,
+    )
+    .bind(org_id)
+    .fetch_one(pool)
+    .await?;
+
+    if !has_page_linked_instagram {
+        return Ok(false);
+    }
+
+    subscribe_meta_instagram_app_webhooks(config).await?;
+    Ok(true)
 }
 
 pub async fn ensure_meta_page_webhook_subscriptions(
