@@ -20,15 +20,15 @@ the same implementation: capability and policy differences must be explicit.
 This project is not in production. Implement the new message model as a clean
 cutover, not a compatibility layer:
 
-- [ ] Replace the current text-envelope approach with one canonical structured
+- [x] Replace the current text-envelope approach with one canonical structured
       message model; do not add new envelope variants or dual-write paths.
-- [ ] Remove superseded parsers, temporary fields, and UI branches in the same
+- [x] Remove superseded parsers, temporary fields, and UI branches in the same
       change once the replacement is wired and tested.
 - [ ] Use a development database migration/reset and fresh provider test data
       where that is clearer than a historic-data backfill.
-- [ ] Keep only the migration code needed to reach the new schema. Do not retain
+- [x] Keep only the migration code needed to reach the new schema. Do not retain
       runtime backward-compatibility code for obsolete local data.
-- [ ] Use Git commits as the rollback mechanism while the work is under active
+- [x] Use Git commits as the rollback mechanism while the work is under active
       development.
 
 ## Current baseline and gaps
@@ -40,10 +40,10 @@ cutover, not a compatibility layer:
 - [x] Messenger and Instagram messages can be received and sent as text.
 - [x] Messenger and Instagram reply context is now persisted when a provider
       message ID is available.
-- [ ] Meta inbound attachments are currently represented as text placeholders;
-      no durable attachment record or safe media retrieval exists.
-- [ ] Meta reactions, edits, deletes, and unsend events are not yet modelled as
-      first-class Inbox events.
+- [x] Meta inbound attachments are normalized into durable attachment records
+      and served through an org-scoped media proxy.
+- [ ] Meta reactions are modeled as first-class Inbox events. Edits, deletes,
+      and unsend events still need provider fixtures before being enabled.
 - [ ] Meta reply support must be exercised against real Messenger and Instagram
       accounts, including a provider rejection path. The Inbox must retain the
       local reply relationship even where the provider does not render a native
@@ -51,8 +51,8 @@ cutover, not a compatibility layer:
 - [ ] Media sending is WhatsApp-only. Messenger and Instagram must not expose an
       enabled attachment control until their adapter supports the selected media
       type.
-- [ ] Magic `content` envelopes are useful for compatibility but are not the
-      durable contract for new channel features.
+- [x] Magic `content` envelopes are removed; rich message state has one durable
+      contract.
 
 ## Non-negotiable design rules
 
@@ -76,7 +76,20 @@ cutover, not a compatibility layer:
 
 ## Phase 0 — capability contract and audit
 
-- [ ] Create a versioned `ChannelCapabilities` contract returned with every
+Current server-enforced capability matrix (version 1):
+
+| Channel | Send text/reply | Send media | Send reaction | Receive media | Receive reactions | Provider delete |
+| --- | --- | --- | --- | --- | --- | --- |
+| WhatsApp Cloud API | yes | image, video, audio, document, sticker | yes | yes | yes | yes |
+| Facebook Messenger | yes | not enabled yet | not enabled yet | yes | yes | not enabled yet |
+| Instagram Messaging | yes | not enabled yet | not enabled yet | yes | yes | not enabled yet |
+
+The Inbox consumes this server-owned matrix from each timeline response. It does
+not infer capability from a channel label. Meta outbound media/reactions remain
+disabled until the exact connection mode, permissions, send endpoint, and
+provider fixtures are verified.
+
+- [x] Create a versioned `ChannelCapabilities` contract returned with every
       connection/conversation. Include:
       - text send
       - images, video, audio, documents, stickers
@@ -89,26 +102,26 @@ cutover, not a compatibility layer:
 - [ ] Verify every matrix entry against the exact currently configured provider
       API/version and app permissions. Record the documentation link, webhook
       field, send endpoint, token type, and app-review requirement.
-- [ ] Mark unsupported or unapproved features as unavailable in the UI; do not
+- [x] Mark unsupported or unapproved features as unavailable in the UI; do not
       use disabled controls with hidden fallback behaviour.
 - [ ] Add a small provider test workspace/account matrix so every supported
       event can be generated deliberately without using customer conversations.
 
 ## Phase 1 — durable message domain model
 
-- [ ] Replace magic text prefixes with structured message records in one schema
+- [x] Replace magic text prefixes with structured message records in one schema
       cutover. Remove the corresponding runtime envelope parsing and writes.
-- [ ] Define a `MessageAttachment` record with message ID, provider attachment
+- [x] Define a `MessageAttachment` record with message ID, provider attachment
       ID, provider media ID/URL reference, type, MIME type, file name, byte
       size, checksum, dimensions/duration, storage key, scan state, download
       state, and sanitized preview metadata.
-- [ ] Define a `MessageReference` record for replies/quotes with source message
+- [x] Define a `MessageReference` record for replies/quotes with source message
       ID, source provider message ID, relationship type, and immutable preview
       snapshot. It must remain usable if the source message is removed.
-- [ ] Define a `MessageReaction` record keyed by message, actor/provider actor
+- [x] Define a `MessageReaction` record keyed by message, actor/provider actor
       ID, emoji, action timestamp, provider event ID, and active state. Support
       add, replace, and remove without manufacturing duplicate timeline items.
-- [ ] Define a `MessageEvent`/audit record for provider events that affect a
+- [x] Define a `MessageEvent`/audit record for provider events that affect a
       message but are not messages themselves: delivery, read, edit, delete,
       unsend, reaction, referral, and policy failure.
 - [ ] Keep `providerMessageId` unique per conversation/provider and add the
@@ -116,9 +129,9 @@ cutover, not a compatibility layer:
       conversation rendering.
 - [ ] Reset/reseed development message data where needed rather than carrying
       uncertain historic attachment or reaction content into the new model.
-- [ ] Publish typed realtime payloads for message created/updated, attachment
+- [x] Publish typed realtime payloads for message created/updated, attachment
       ready/failed, reaction changed, receipt changed, and message deleted.
-- [ ] Delete obsolete schema fields, helper functions, endpoint branches, and
+- [x] Delete obsolete schema fields, helper functions, endpoint branches, and
       client types before closing this phase; no dead compatibility code remains.
 
 ## Phase 2 — adapter boundary and webhook ingestion
@@ -131,7 +144,7 @@ cutover, not a compatibility layer:
       - capability discovery/configuration
 - [ ] Keep WhatsApp, Messenger, Instagram-via-Facebook-Login, and
       Instagram-Login implementations separate behind that interface.
-- [ ] Validate Meta webhook signatures before JSON processing and retain
+- [x] Validate Meta webhook signatures before JSON processing and retain
       signature/processing diagnostics without leaking tokens or content.
 - [ ] Parse all relevant webhook variants before creating records:
       - ordinary text and echo/self messages
@@ -149,7 +162,7 @@ cutover, not a compatibility layer:
 
 ## Phase 3 — attachments, media, and stickers
 
-- [ ] Implement inbound attachment normalization for each channel: image,
+- [x] Implement inbound attachment normalization for each channel: image,
       video, audio/voice, document, sticker, location/contact/share where the
       provider exposes them.
 - [ ] Fetch attachment metadata/content with the connection token on the server.
@@ -158,7 +171,8 @@ cutover, not a compatibility layer:
 - [ ] Store source media in private object storage (or an equivalent protected
       backend), generate thumbnails/previews asynchronously, and serve through
       an org-authorized media endpoint.
-- [ ] Render states distinctly: uploading, processing, ready, unavailable,
+- [x] Render states distinctly: ready, unavailable, and download failure; upload,
+      processing, scan, and provider-expiry states remain pending.
       expired-at-provider, failed scan, and download failed. Do not render an
       unknown file as `[attachment]` when useful metadata exists.
 - [ ] Implement outbound media per capability, beginning with the most common
