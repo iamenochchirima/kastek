@@ -634,9 +634,7 @@ pub struct InstagramProfile {
 
 impl InstagramProfile {
     pub fn account_id(&self) -> Option<String> {
-        self.id
-            .clone()
-            .or_else(|| value_as_identifier(self.user_id.as_ref()))
+        value_as_identifier(self.user_id.as_ref()).or_else(|| self.id.clone())
     }
 }
 
@@ -1140,6 +1138,8 @@ pub async fn upsert_instagram_connection_for_org(
             "Instagram account lookup did not return an account identifier".to_string(),
         )
     })?;
+    let app_scoped_account_id = profile.id.clone();
+    let instagram_user_id = value_as_identifier(profile.user_id.as_ref());
     let access_token = tokens
         .access_token
         .as_deref()
@@ -1167,6 +1167,8 @@ pub async fn upsert_instagram_connection_for_org(
         "assetType": "instagram_professional_account",
         "apiHost": "graph.instagram.com",
         "instagramAccountId": account_id,
+        "instagramUserId": instagram_user_id,
+        "instagramAppScopedId": app_scoped_account_id,
         "username": profile.username,
         "profilePictureUrl": profile.profile_picture_url,
         "accountType": profile.account_type,
@@ -1177,6 +1179,50 @@ pub async fn upsert_instagram_connection_for_org(
         "tokenType": tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
         "tokenExpiresAt": expires_at,
     });
+
+    let mut tx = pool.begin().await?;
+    if let Some(app_scoped_account_id) = app_scoped_account_id
+        .as_deref()
+        .filter(|value| *value != account_id)
+    {
+        let canonical_connection_exists = sqlx::query_scalar::<_, bool>(
+            r#"
+            SELECT EXISTS (
+                SELECT 1
+                FROM "SocialChannelConnection"
+                WHERE "orgId" = $1
+                  AND platform = 'INSTAGRAM'::"SocialPlatform"
+                  AND "externalAccountId" = $2
+            )
+            "#,
+        )
+        .bind(org_id)
+        .bind(&account_id)
+        .fetch_one(tx.as_mut())
+        .await?;
+
+        if !canonical_connection_exists {
+            sqlx::query(
+                r#"
+                UPDATE "SocialChannelConnection"
+                SET "externalAccountId" = $1,
+                    "updatedAt" = NOW()
+                WHERE "orgId" = $2
+                  AND platform = 'INSTAGRAM'::"SocialPlatform"
+                  AND metadata->>'authMethod' = 'instagram_login'
+                  AND (
+                      "externalAccountId" = $3
+                      OR metadata->>'instagramAppScopedId' = $3
+                  )
+                "#,
+            )
+            .bind(&account_id)
+            .bind(org_id)
+            .bind(app_scoped_account_id)
+            .execute(tx.as_mut())
+            .await?;
+        }
+    }
 
     sqlx::query(
         r#"
@@ -1212,8 +1258,9 @@ pub async fn upsert_instagram_connection_for_org(
         "INSTAGRAM",
         Some(metadata),
     ))
-    .execute(pool)
+    .execute(tx.as_mut())
     .await?;
+    tx.commit().await?;
 
     get_social_channel_by_external_account(pool, org_id, "INSTAGRAM", &account_id)
         .await?
@@ -2615,4 +2662,50 @@ pub async fn process_due_social_publish_jobs(pool: &PgPool, limit: i64) -> Resul
     }
 
     Ok(processed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InstagramProfile, Value};
+
+    fn profile(id: Option<&str>, user_id: Option<Value>) -> InstagramProfile {
+        InstagramProfile {
+            id: id.map(str::to_string),
+            user_id,
+            username: None,
+            name: None,
+            profile_picture_url: None,
+            followers_count: None,
+            follows_count: None,
+            media_count: None,
+            account_type: None,
+        }
+    }
+
+    #[test]
+    fn instagram_profile_prefers_webhook_routing_user_id() {
+        let profile = profile(
+            Some("app-scoped-id"),
+            Some(Value::String("instagram-user-id".to_string())),
+        );
+
+        assert_eq!(profile.account_id().as_deref(), Some("instagram-user-id"));
+    }
+
+    #[test]
+    fn instagram_profile_accepts_numeric_webhook_routing_user_id() {
+        let profile = profile(
+            Some("app-scoped-id"),
+            Some(Value::Number(17841404705725617_u64.into())),
+        );
+
+        assert_eq!(profile.account_id().as_deref(), Some("17841404705725617"));
+    }
+
+    #[test]
+    fn instagram_profile_falls_back_to_app_scoped_id() {
+        let profile = profile(Some("app-scoped-id"), None);
+
+        assert_eq!(profile.account_id().as_deref(), Some("app-scoped-id"));
+    }
 }

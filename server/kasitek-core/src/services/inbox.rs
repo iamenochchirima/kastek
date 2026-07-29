@@ -1308,7 +1308,17 @@ async fn resolve_meta_channel(
          AND connection."sourceId" = channel.id
          AND connection.status = 'CONNECTED'::"ExternalConnectionStatus"
         WHERE channel.platform = $1::"SocialPlatform"
-          AND channel."externalAccountId" = $2
+          AND (
+              channel."externalAccountId" = $2
+              OR (
+                  $1 = 'INSTAGRAM'
+                  AND (
+                      channel.metadata->>'instagramAccountId' = $2
+                      OR channel.metadata->>'instagramUserId' = $2
+                      OR channel.metadata->>'instagramAppScopedId' = $2
+                  )
+              )
+          )
           AND channel.status = 'CONNECTED'::"SocialChannelStatus"
           AND channel."orgId" IS NOT NULL
         LIMIT 2
@@ -1483,13 +1493,7 @@ async fn resolve_meta_customer_name(
         .and_then(|value| value.get("authMethod"))
         .and_then(Value::as_str)
         == Some("instagram_login");
-    let (graph_base, fields) = if uses_instagram_login {
-        (INSTAGRAM_GRAPH_BASE, "name,username,profile_picture_url")
-    } else if channel.platform == "INSTAGRAM" {
-        (META_GRAPH_BASE, "name,username,profile_pic")
-    } else {
-        (META_GRAPH_BASE, "first_name,last_name,profile_pic")
-    };
+    let (graph_base, fields) = meta_customer_profile_query(uses_instagram_login, &channel.platform);
 
     let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(4))
@@ -1542,6 +1546,21 @@ async fn resolve_meta_customer_name(
     };
 
     Ok(meta_profile_display_name(&profile))
+}
+
+fn meta_customer_profile_query(
+    uses_instagram_login: bool,
+    platform: &str,
+) -> (&'static str, &'static str) {
+    if uses_instagram_login {
+        // Instagram Login's IGSID profile endpoint rejects profile_picture_url.
+        // A failed field makes Meta reject the complete lookup, including the name.
+        (INSTAGRAM_GRAPH_BASE, "name,username")
+    } else if platform == "INSTAGRAM" {
+        (META_GRAPH_BASE, "name,username,profile_pic")
+    } else {
+        (META_GRAPH_BASE, "first_name,last_name,profile_pic")
+    }
 }
 
 async fn apply_meta_delivery_event(
@@ -2620,7 +2639,7 @@ async fn fetch_meta_json<T: serde::de::DeserializeOwned>(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_meta_conversation_identifier, meta_delivery_message_ids,
+        build_meta_conversation_identifier, meta_customer_profile_query, meta_delivery_message_ids,
         meta_graph_message_attachments, meta_graph_message_content,
         meta_graph_message_recipient_name, meta_message_attachments, meta_message_is_echo,
         meta_profile_display_name, meta_receipt_watermark, meta_reply_to_mid, meta_send_asset_id,
@@ -2667,6 +2686,15 @@ mod tests {
             Some("@enoch")
         );
         assert_eq!(meta_profile_display_name(&json!({})), None);
+    }
+
+    #[test]
+    fn direct_instagram_profile_query_only_requests_supported_sender_fields() {
+        let (graph_base, fields) = meta_customer_profile_query(true, "INSTAGRAM");
+
+        assert_eq!(graph_base, super::INSTAGRAM_GRAPH_BASE);
+        assert_eq!(fields, "name,username");
+        assert!(!fields.contains("profile_picture_url"));
     }
 
     #[test]
