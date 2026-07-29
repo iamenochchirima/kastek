@@ -787,8 +787,8 @@ summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
-  gap: clamp(48px, 6vw, 104px);
-  min-height: 850px;
+  gap: clamp(40px, 5vw, 84px);
+  min-height: clamp(740px, 54vw, 850px);
   overflow: hidden;
   background: var(--paper-bright);
 }
@@ -821,8 +821,9 @@ summary {
 }
 
 .operating-system > .product-preview {
-  width: min(100%, 980px);
-  justify-self: start;
+  width: 100%;
+  max-width: 980px;
+  justify-self: stretch;
   box-shadow: 24px 26px 0 rgba(16, 17, 15, 0.1);
 }
 
@@ -3587,7 +3588,38 @@ summary {
   }
 
   .operating-system {
-    gap: 6vw;
+    grid-template-columns: 1fr;
+    gap: 70px;
+    min-height: auto;
+  }
+
+  .operating-intro {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+    align-items: end;
+    gap: 32px 64px;
+    width: 100%;
+  }
+
+  .operating-intro h2 {
+    grid-row: 1 / span 2;
+    margin-bottom: 0;
+  }
+
+  .operating-copy {
+    align-self: end;
+    margin: 0;
+  }
+
+  .operating-intro > .button {
+    align-self: start;
+    justify-self: start;
+  }
+
+  .operating-system > .product-preview {
+    width: 100%;
+    max-width: none;
+    justify-self: stretch;
   }
 }
 
@@ -3657,7 +3689,6 @@ summary {
     justify-self: center;
   }
 
-  .operating-system,
   .approach,
   .partner-section {
     grid-template-columns: 1fr;
@@ -3687,12 +3718,19 @@ summary {
 
   .operating-intro {
     position: static;
-    margin-bottom: 50px;
+    grid-template-columns: 1fr;
+    gap: 30px;
+    margin-bottom: 0;
+  }
+
+  .operating-intro h2 {
+    grid-row: auto;
+    max-width: 680px;
   }
 
   .operating-system > .product-preview {
-    width: min(100%, 760px);
-    justify-self: start;
+    width: 100%;
+    justify-self: stretch;
   }
 
   .product-preview-body {
@@ -3942,6 +3980,26 @@ summary {
     font-size: clamp(45px, 14vw, 68px);
   }
 
+  .operating-system {
+    gap: 48px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .operating-intro {
+    gap: 24px;
+    padding: 0 6px;
+  }
+
+  .operating-copy {
+    margin: 0;
+  }
+
+  .operating-copy p {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
   .section-heading {
     margin-bottom: 55px;
   }
@@ -3956,9 +4014,39 @@ summary {
   }
 
   .product-preview {
-    margin-right: -8px;
-    margin-left: -8px;
+    margin-right: 0;
+    margin-left: 0;
     box-shadow: 10px 12px 0 rgba(16, 17, 15, 0.08);
+  }
+
+  .product-preview-bar {
+    grid-template-columns: 1fr auto;
+    min-height: 46px;
+    padding: 0 10px;
+  }
+
+  .product-preview-brand {
+    font-size: 10px;
+  }
+
+  .product-preview-logo {
+    width: 17px;
+    height: 17px;
+    flex-basis: 17px;
+  }
+
+  .product-preview-actions {
+    gap: 8px;
+  }
+
+  .product-preview-actions svg {
+    width: 12px;
+  }
+
+  .product-preview-actions span {
+    width: 21px;
+    height: 21px;
+    font-size: 7px;
   }
 
   .product-preview-body {

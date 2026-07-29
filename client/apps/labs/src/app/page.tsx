@@ -140,7 +140,7 @@ export default function LabsLandingPage() {
         </div>
       </section>
 
-      <section className="operating-system section-pad">
+      <section className="operating-system section-pad" id="kasitek">
         <div className="operating-intro">
           <h2>
             The AI workspace for business operations.
