@@ -239,6 +239,13 @@ type MessageReaction = {
   occurredAt?: string;
 };
 
+function isStickerOnlyMessage(message: ConversationMessage) {
+  return Boolean(message.attachments?.length) &&
+    message.attachments!.every((attachment) => attachment.kind === "sticker") &&
+    !message.content?.trim() &&
+    !message.reference;
+}
+
 function getMessageAttachment(message: ConversationMessage) {
   return message.attachments?.[0] || null;
 }
@@ -2911,8 +2918,11 @@ export default function InboxPageClient({
               ) : renderedMessages.length === 0 ? (
                 <div className="py-8 text-center text-sm text-muted-foreground">No messages yet.</div>
               ) : (
-                renderedMessages.map((message) => (
-                <motion.div
+                renderedMessages.map((message) => {
+                  const stickerOnly = isStickerOnlyMessage(message);
+
+                  return (
+                  <motion.div
                   key={message.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -2923,10 +2933,15 @@ export default function InboxPageClient({
                 >
                   <div
                     className={cn(
-                      "group relative max-w-[85%] rounded-lg p-3 sm:max-w-[70%]",
-                      message.sender === "customer"
-                        ? "bg-secondary text-foreground"
-                        : "border border-primary/20 bg-primary/10 text-foreground",
+                      "group relative max-w-[85%] text-foreground sm:max-w-[70%]",
+                      stickerOnly
+                        ? "p-0"
+                        : cn(
+                            "rounded-lg p-3",
+                            message.sender === "customer"
+                              ? "bg-secondary"
+                              : "border border-primary/20 bg-primary/10",
+                          ),
                     )}
                   >
                     <div className="absolute -top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
@@ -2994,7 +3009,7 @@ export default function InboxPageClient({
                       channel={selectedConversation?.channel || "whatsapp"}
                       onOpenMedia={(url, kind, caption) => setLightbox({ url, kind, caption })}
                     />
-                    <div className="mt-1.5 space-y-1">
+                    <div className={cn("space-y-1", stickerOnly ? "mt-0.5" : "mt-1.5")}>
                       {message.status === "failed" && message.errorMessage ? (
                         <p className="max-w-[220px] text-right text-[10px] leading-snug text-destructive">
                           {message.errorMessage}
@@ -3043,7 +3058,8 @@ export default function InboxPageClient({
                     </div>
                   </div>
                 </motion.div>
-                ))
+                  );
+                })
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -3329,7 +3345,7 @@ function MessageAttachmentContent({
         key={`sticker-${reloadToken}`}
         src={mediaUrl}
         alt={attachment.fileName || "sticker"}
-        className="max-h-48 max-w-48 cursor-zoom-in object-contain"
+        className="h-32 w-32 cursor-zoom-in object-contain"
         onError={() => setMediaFailed(true)}
         onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)}
       />
