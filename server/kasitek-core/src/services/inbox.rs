@@ -273,6 +273,124 @@ pub async fn list_conversation_messages(
     }))
 }
 
+pub async fn update_instagram_request_status(
+    pool: &PgPool,
+    org_id: &str,
+    conversation_id: &str,
+    action: &str,
+) -> Result<Value, AppError> {
+    let status = match action {
+        "accept" => "active",
+        "decline" => "declined",
+        _ => {
+            return Err(AppError::BadRequest(
+                "Invalid message request action".to_string(),
+            ))
+        }
+    };
+    let updated = sqlx::query_scalar::<_, String>(
+        r#"UPDATE "Conversation"
+           SET status = $1, "unreadCount" = CASE WHEN $1 = 'declined' THEN 0 ELSE "unreadCount" END,
+               "updatedAt" = NOW()
+           WHERE id = $2 AND "orgId" = $3 AND channel = 'instagram' AND status = 'request'
+           RETURNING id"#,
+    )
+    .bind(status)
+    .bind(conversation_id)
+    .bind(org_id)
+    .fetch_optional(pool)
+    .await?;
+    if updated.is_none() {
+        return Err(AppError::BadRequest(
+            "This Instagram message request is no longer pending".to_string(),
+        ));
+    }
+    Ok(json!({ "conversationId": conversation_id, "status": status }))
+}
+
+fn meta_attachment_data(payload: &Value) -> Option<&Vec<Value>> {
+    payload
+        .pointer("/attachments/data")
+        .or_else(|| payload.get("data"))
+        .and_then(Value::as_array)
+}
+
+fn select_meta_attachment_url(
+    payload: &Value,
+    provider_media_id: Option<&str>,
+    prefer_sticker: bool,
+) -> Option<String> {
+    let attachments = meta_attachment_data(payload)?;
+    attachments
+        .iter()
+        .find(|attachment| {
+            provider_media_id
+                .map(|media_id| attachment.get("id").and_then(Value::as_str) == Some(media_id))
+                .unwrap_or(false)
+        })
+        .or_else(|| {
+            prefer_sticker
+                .then(|| {
+                    attachments
+                        .iter()
+                        .find(|attachment| meta_attachment_is_sticker(attachment, attachment))
+                })
+                .flatten()
+        })
+        .or_else(|| (prefer_sticker && attachments.len() == 1).then(|| &attachments[0]))
+        .and_then(|attachment| {
+            attachment
+                .pointer("/image_data/url")
+                .or_else(|| attachment.get("url"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+}
+
+async fn fetch_meta_attachment_payload(
+    request: reqwest::RequestBuilder,
+    lookup: &str,
+) -> Option<Value> {
+    let response = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            log::warn!("[meta-media] lookup={} request_failed={}", lookup, error);
+            return None;
+        }
+    };
+    let status = response.status();
+    let payload = match response.json::<Value>().await {
+        Ok(payload) => payload,
+        Err(error) => {
+            log::warn!(
+                "[meta-media] lookup={} status={} invalid_json={}",
+                lookup,
+                status,
+                error
+            );
+            return None;
+        }
+    };
+    if !status.is_success() {
+        let code = payload.pointer("/error/code").and_then(Value::as_i64);
+        let error_type = payload.pointer("/error/type").and_then(Value::as_str);
+        let message = payload
+            .pointer("/error/message")
+            .and_then(Value::as_str)
+            .map(|message| message.chars().take(240).collect::<String>());
+        log::warn!(
+            "[meta-media] lookup={} status={} graph_code={:?} graph_type={:?} graph_message={:?}",
+            lookup,
+            status,
+            code,
+            error_type,
+            message
+        );
+        return None;
+    }
+    Some(payload)
+}
+
 async fn resolve_meta_message_attachment_url(
     graph_base: &str,
     access_token: &str,
@@ -281,52 +399,41 @@ async fn resolve_meta_message_attachment_url(
     prefer_sticker: bool,
 ) -> Option<String> {
     let message_provider_id = message_provider_id?;
-    let response = reqwest::Client::new()
-        .get(format!("{graph_base}/{message_provider_id}/attachments"))
-        .bearer_auth(access_token)
-        .query(&[("fields", "id,url,image_data,render_as_sticker,sticker_id")])
-        .send()
-        .await
-        .ok()?;
-    if !response.status().is_success() {
-        return None;
+    let client = reqwest::Client::new();
+
+    // The documented message node includes an `attachments` connection. Keep
+    // the field request deliberately small: asking for unsupported sticker
+    // fields causes Graph to reject the whole request and forces us back to
+    // Meta's flattened webhook JPEG.
+    if let Some(payload) = fetch_meta_attachment_payload(
+        client
+            .get(format!("{graph_base}/{message_provider_id}"))
+            .bearer_auth(access_token)
+            .query(&[("fields", "attachments")]),
+        "message_node",
+    )
+    .await
+    {
+        if let Some(url) = select_meta_attachment_url(&payload, provider_media_id, prefer_sticker) {
+            return Some(url);
+        }
+        log::warn!(
+            "[meta-media] lookup=message_node attachment_not_found count={}",
+            meta_attachment_data(&payload).map_or(0, Vec::len)
+        );
     }
 
-    response
-        .json::<Value>()
-        .await
-        .ok()?
-        .get("data")
-        .and_then(Value::as_array)
-        .and_then(|attachments| {
-            attachments
-                .iter()
-                .find(|attachment| {
-                    provider_media_id
-                        .map(|media_id| {
-                            attachment.get("id").and_then(Value::as_str) == Some(media_id)
-                        })
-                        .unwrap_or(false)
-                })
-                .or_else(|| {
-                    prefer_sticker
-                        .then(|| {
-                            attachments.iter().find(|attachment| {
-                                attachment.get("render_as_sticker").and_then(Value::as_bool)
-                                    == Some(true)
-                                    || attachment.get("sticker_id").is_some()
-                            })
-                        })
-                        .flatten()
-                })
-                .and_then(|attachment| {
-                    attachment
-                        .pointer("/image_data/url")
-                        .or_else(|| attachment.get("url"))
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                })
-        })
+    // Some Graph versions also expose attachments as an edge. This is a
+    // compatibility fallback, still using only standard media fields.
+    let payload = fetch_meta_attachment_payload(
+        client
+            .get(format!("{graph_base}/{message_provider_id}/attachments"))
+            .bearer_auth(access_token)
+            .query(&[("fields", "id,url,image_data")]),
+        "attachment_edge",
+    )
+    .await?;
+    select_meta_attachment_url(&payload, provider_media_id, prefer_sticker)
 }
 
 pub async fn download_message_attachment(
@@ -416,9 +523,9 @@ pub async fn download_message_attachment(
         .cloned()
         .unwrap_or(Value::Null);
     let media_url_from_payload = provider_payload
-        .get("url")
+        .pointer("/image_data/url")
+        .or_else(|| provider_payload.get("url"))
         .or_else(|| provider_payload.get("attachment_url"))
-        .or_else(|| provider_payload.pointer("/image_data/url"))
         .and_then(Value::as_str)
         .map(str::to_string);
     let message_provider_id = message_metadata.as_ref().and_then(|metadata| {
@@ -448,10 +555,10 @@ pub async fn download_message_attachment(
     } else {
         None
     };
-    let media_url = if refreshed_sticker_url.is_some() {
-        refreshed_sticker_url
-    } else if media_url_from_payload.is_some() {
-        media_url_from_payload
+    let resolved_media = if let Some(url) = refreshed_sticker_url {
+        Some((url, "graph_message_attachment"))
+    } else if let Some(url) = media_url_from_payload {
+        Some((url, "webhook_payload"))
     } else {
         async {
             let media_id = provider_media_id.as_deref()?;
@@ -469,7 +576,7 @@ pub async fn download_message_attachment(
             )
             .await
             {
-                return Some(url);
+                return Some((url, "graph_message_attachment"));
             }
 
             let response = reqwest::Client::new()
@@ -488,11 +595,11 @@ pub async fn download_message_attachment(
                 .ok()?
                 .get("url")
                 .and_then(Value::as_str)
-                .map(str::to_string)
+                .map(|url| (url.to_string(), "graph_media_node"))
         }
         .await
-    }
-    .ok_or_else(|| {
+    };
+    let (media_url, media_source) = resolved_media.ok_or_else(|| {
         AppError::BadRequest("Attachment download is not available from this channel".to_string())
     })?;
 
@@ -546,6 +653,16 @@ pub async fn download_message_attachment(
     let content_type = response_content_type
         .or(mime_type)
         .unwrap_or_else(|| "application/octet-stream".to_string());
+    if attachment_kind == "sticker" {
+        log::info!(
+            "[meta-media] kind=sticker attachment_id={} provider_media_id={} source={} content_type={} bytes={}",
+            attachment_id,
+            provider_media_id.as_deref().unwrap_or("none"),
+            media_source,
+            content_type,
+            bytes.len()
+        );
+    }
     let extension = content_type.split('/').nth(1).unwrap_or("bin");
     let fallback_name = format!(
         "{}-attachment-{}.{}",
@@ -562,6 +679,7 @@ pub async fn download_message_attachment(
             format!("inline; filename=\"{}\"", filename),
         ))
         .append_header(("Cache-Control", "private, max-age=60"))
+        .append_header(("X-KasiTek-Media-Source", media_source))
         .body(bytes))
 }
 
@@ -1032,7 +1150,8 @@ pub async fn process_meta_webhook_payload(
             sqlx::query(
                 r#"
                 UPDATE "Conversation"
-                SET "lastMessageAt" = NOW(), status = 'active',
+                SET "lastMessageAt" = NOW(),
+                    status = CASE WHEN status = 'request' THEN 'request' ELSE 'active' END,
                     "unreadCount" = "unreadCount" + $2, "updatedAt" = NOW()
                 WHERE id = $1
                 "#,
@@ -1277,9 +1396,9 @@ async fn find_or_create_meta_conversation(
             "createdAt", "updatedAt"
         )
         VALUES (
-            $1, $2, $3, $4, 'active', NOW(), 0, $5,
-            $6,
-            $7, NOW(), NOW()
+            $1, $2, $3, $4, $5, NOW(), 0, $6,
+            $7,
+            $8, NOW(), NOW()
         )
         ON CONFLICT (channel, "customerIdentifier") DO UPDATE SET
             "customerName" = COALESCE(EXCLUDED."customerName", "Conversation"."customerName"),
@@ -1297,6 +1416,11 @@ async fn find_or_create_meta_conversation(
     .bind(channel_name)
     .bind(&identifier)
     .bind(customer_name)
+    .bind(if channel.platform == "INSTAGRAM" {
+        "request"
+    } else {
+        "active"
+    })
     .bind(channel.org_id.as_deref())
     .bind(&channel.external_connection_id)
     .bind(canonical_customer_id.as_deref())
@@ -2147,6 +2271,96 @@ struct MetaIncomingAttachment {
     metadata: Value,
 }
 
+fn meta_value_identifier(value: Option<&Value>) -> Option<String> {
+    match value {
+        Some(Value::String(value)) => {
+            let value = value.trim();
+            (!value.is_empty()).then(|| value.to_string())
+        }
+        Some(Value::Number(value)) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn meta_attachment_is_sticker(attachment: &Value, payload: &Value) -> bool {
+    attachment
+        .get("type")
+        .and_then(Value::as_str)
+        .is_some_and(|kind| kind.eq_ignore_ascii_case("sticker"))
+        || attachment.get("render_as_sticker").and_then(Value::as_bool) == Some(true)
+        || payload.get("render_as_sticker").and_then(Value::as_bool) == Some(true)
+        || attachment
+            .get("sticker_id")
+            .is_some_and(|value| !value.is_null())
+        || payload
+            .get("sticker_id")
+            .is_some_and(|value| !value.is_null())
+        || attachment
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.starts_with("sticker_"))
+        || payload
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.starts_with("sticker_"))
+}
+
+fn meta_sticker_id(attachment: &Value, payload: &Value) -> Option<String> {
+    meta_value_identifier(
+        payload
+            .get("sticker_id")
+            .or_else(|| attachment.get("sticker_id")),
+    )
+    .or_else(|| {
+        payload
+            .get("id")
+            .or_else(|| attachment.get("id"))
+            .and_then(Value::as_str)
+            .and_then(|id| id.strip_prefix("sticker_"))
+            .map(str::to_string)
+    })
+}
+
+fn meta_attachment_metadata(
+    attachment: &Value,
+    payload: Value,
+    source: &str,
+    is_sticker: bool,
+) -> Value {
+    let sticker_id = meta_sticker_id(attachment, &payload);
+    let animation = is_sticker.then(|| {
+        json!({
+            "spriteUrl": payload
+                .pointer("/sprite_image_2x/uri")
+                .or_else(|| payload.pointer("/sprite_image/uri"))
+                .or_else(|| attachment.pointer("/sprite_image_2x/uri"))
+                .or_else(|| attachment.pointer("/sprite_image/uri")),
+            "framesPerRow": payload
+                .get("frames_per_row")
+                .or_else(|| attachment.get("frames_per_row")),
+            "framesPerColumn": payload
+                .get("frames_per_column")
+                .or_else(|| attachment.get("frames_per_column")),
+            "frameCount": payload
+                .get("frame_count")
+                .or_else(|| attachment.get("frame_count")),
+            "frameRate": payload
+                .get("frame_rate")
+                .or_else(|| attachment.get("frame_rate")),
+        })
+    });
+
+    json!({
+        "providerPayload": payload,
+        "providerSource": source,
+        "sticker": is_sticker.then(|| json!({
+            "id": sticker_id,
+            "renderAsSticker": true,
+            "animation": animation,
+        })),
+    })
+}
+
 fn meta_message_text(message: &Value) -> String {
     if let Some(text) = message.get("text").and_then(|value| value.as_str()) {
         let trimmed = text.trim();
@@ -2166,11 +2380,7 @@ fn meta_message_attachments(message: &Value) -> Vec<MetaIncomingAttachment> {
         .flatten()
         .map(|attachment| {
             let payload = attachment.get("payload").cloned().unwrap_or(Value::Null);
-            let is_sticker = payload.get("sticker_id").is_some()
-                || attachment
-                    .get("type")
-                    .and_then(Value::as_str)
-                    .is_some_and(|kind| kind.eq_ignore_ascii_case("sticker"));
+            let is_sticker = meta_attachment_is_sticker(attachment, &payload);
             MetaIncomingAttachment {
                 kind: if is_sticker {
                     "sticker"
@@ -2183,11 +2393,13 @@ fn meta_message_attachments(message: &Value) -> Vec<MetaIncomingAttachment> {
                     )
                 }
                 .to_string(),
-                provider_media_id: payload
-                    .get("id")
-                    .or_else(|| attachment.get("id"))
-                    .and_then(Value::as_str)
-                    .map(str::to_string),
+                provider_media_id: meta_value_identifier(
+                    payload
+                        .get("id")
+                        .or_else(|| attachment.get("id"))
+                        .or_else(|| payload.get("sticker_id"))
+                        .or_else(|| attachment.get("sticker_id")),
+                ),
                 mime_type: payload
                     .get("mime_type")
                     .and_then(Value::as_str)
@@ -2197,7 +2409,7 @@ fn meta_message_attachments(message: &Value) -> Vec<MetaIncomingAttachment> {
                     .or_else(|| payload.get("filename"))
                     .and_then(Value::as_str)
                     .map(str::to_string),
-                metadata: json!({ "providerPayload": payload }),
+                metadata: meta_attachment_metadata(attachment, payload, "webhook", is_sticker),
             }
         })
         .collect();
@@ -2287,35 +2499,42 @@ fn meta_graph_message_attachments(message: &Value) -> Vec<MetaIncomingAttachment
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .map(|attachment| MetaIncomingAttachment {
-            kind: if attachment.get("render_as_sticker").and_then(Value::as_bool) == Some(true)
-                || attachment.get("sticker_id").is_some()
-            {
-                "sticker"
-            } else {
-                normalize_attachment_kind(
-                    attachment
-                        .get("mime_type")
-                        .and_then(Value::as_str)
-                        .and_then(|mime_type| mime_type.split('/').next())
-                        .unwrap_or("attachment"),
-                )
+        .map(|attachment| {
+            let payload = attachment.clone();
+            let is_sticker = meta_attachment_is_sticker(attachment, &payload);
+            MetaIncomingAttachment {
+                kind: if is_sticker {
+                    "sticker"
+                } else {
+                    normalize_attachment_kind(
+                        attachment
+                            .get("mime_type")
+                            .and_then(Value::as_str)
+                            .and_then(|mime_type| mime_type.split('/').next())
+                            .unwrap_or("attachment"),
+                    )
+                }
+                .to_string(),
+                provider_media_id: attachment
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                mime_type: attachment
+                    .get("mime_type")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                file_name: attachment
+                    .get("name")
+                    .or_else(|| attachment.get("filename"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                metadata: meta_attachment_metadata(
+                    attachment,
+                    payload,
+                    "graph_message",
+                    is_sticker,
+                ),
             }
-            .to_string(),
-            provider_media_id: attachment
-                .get("id")
-                .and_then(Value::as_str)
-                .map(str::to_string),
-            mime_type: attachment
-                .get("mime_type")
-                .and_then(Value::as_str)
-                .map(str::to_string),
-            file_name: attachment
-                .get("name")
-                .or_else(|| attachment.get("filename"))
-                .and_then(Value::as_str)
-                .map(str::to_string),
-            metadata: json!({ "providerPayload": attachment }),
         })
         .collect()
 }
@@ -2406,7 +2625,8 @@ mod tests {
         meta_graph_message_recipient_name, meta_message_attachments, meta_message_is_echo,
         meta_profile_display_name, meta_receipt_watermark, meta_reply_to_mid, meta_send_asset_id,
         normalize_attachment_kind, parse_meta_conversation_identifier,
-        sanitize_attachment_filename, scoped_conversation, verify_meta_signature, HmacSha256,
+        sanitize_attachment_filename, scoped_conversation, select_meta_attachment_url,
+        verify_meta_signature, HmacSha256,
     };
     use hmac::Mac;
     use serde_json::json;
@@ -2579,6 +2799,89 @@ mod tests {
                 .metadata
                 .pointer("/providerPayload/image_data/url"),
             Some(&json!("https://scontent.xx.fbcdn.net/sticker.png"))
+        );
+    }
+
+    #[test]
+    fn message_node_attachment_lookup_prefers_full_image_data() {
+        let payload = json!({
+            "attachments": {
+                "data": [{
+                    "id": "sticker_42",
+                    "url": "https://scontent.xx.fbcdn.net/thumbnail.jpg",
+                    "image_data": {
+                        "url": "https://scontent.xx.fbcdn.net/full-sticker.png"
+                    }
+                }]
+            }
+        });
+
+        assert_eq!(
+            select_meta_attachment_url(&payload, Some("sticker_42"), true).as_deref(),
+            Some("https://scontent.xx.fbcdn.net/full-sticker.png")
+        );
+    }
+
+    #[test]
+    fn attachment_edge_lookup_supports_single_sticker_fallback() {
+        let payload = json!({
+            "data": [{
+                "id": "opaque-provider-id",
+                "url": "https://scontent.xx.fbcdn.net/full-sticker.png"
+            }]
+        });
+
+        assert_eq!(
+            select_meta_attachment_url(&payload, None, true).as_deref(),
+            Some("https://scontent.xx.fbcdn.net/full-sticker.png")
+        );
+    }
+
+    #[test]
+    fn graph_sticker_ids_are_classified_without_render_flag() {
+        let attachments = meta_graph_message_attachments(&json!({
+            "attachments": {
+                "data": [{
+                    "id": "sticker_987654",
+                    "mime_type": "image/png",
+                    "image_data": { "url": "https://scontent.xx.fbcdn.net/sticker.png" }
+                }]
+            }
+        }));
+
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].kind, "sticker");
+        assert_eq!(
+            attachments[0].metadata.pointer("/sticker/id"),
+            Some(&json!("987654"))
+        );
+        assert_eq!(
+            attachments[0].metadata.get("providerSource"),
+            Some(&json!("graph_message"))
+        );
+    }
+
+    #[test]
+    fn webhook_numeric_sticker_ids_are_preserved_as_strings() {
+        let attachments = meta_message_attachments(&json!({
+            "attachments": [{
+                "type": "image",
+                "payload": {
+                    "url": "https://scontent.xx.fbcdn.net/sticker.png",
+                    "sticker_id": 123456789
+                }
+            }]
+        }));
+
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].kind, "sticker");
+        assert_eq!(
+            attachments[0].provider_media_id.as_deref(),
+            Some("123456789")
+        );
+        assert_eq!(
+            attachments[0].metadata.pointer("/sticker/id"),
+            Some(&json!("123456789"))
         );
     }
 

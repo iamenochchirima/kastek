@@ -72,6 +72,7 @@ type InboxConversation = {
   connectionLabel: string;
   avatar: string;
   status: "online" | "offline";
+  requestStatus: "active" | "request" | "declined" | string;
   tags: string[];
 };
 
@@ -81,6 +82,7 @@ type InboxConversationPayload = {
   customerName: string | null;
   phone: string;
   lastMessage: string;
+  status: string;
   lastMessageAt: string;
   unreadCount: number;
   starred: boolean;
@@ -105,6 +107,7 @@ function mapInboxConversation(conversation: InboxConversationPayload): InboxConv
       conversation.connectionLabel || conversation.phone || "Unknown number",
     avatar: buildConversationAvatar(name),
     status: "offline",
+    requestStatus: conversation.status || "active",
     tags: [],
   };
 }
@@ -239,7 +242,32 @@ type MessageReaction = {
   occurredAt?: string;
 };
 
-const legacyAttachmentPlaceholders = new Set(["[attachment]", "attachment"]);
+const legacyAttachmentPlaceholders = new Set(["[attachment]", "attachment", "sticker"]);
+
+function isStickerAttachment(attachment: MessageAttachment) {
+  if (attachment.kind === "sticker" || attachment.providerMediaId?.startsWith("sticker_")) {
+    return true;
+  }
+
+  const metadata = attachment.metadata;
+  if (!metadata || typeof metadata !== "object") return false;
+
+  const sticker = metadata.sticker;
+  if (sticker && typeof sticker === "object") return true;
+
+  const providerPayload = metadata.providerPayload;
+  if (!providerPayload || typeof providerPayload !== "object") return false;
+  const payload = providerPayload as Record<string, unknown>;
+
+  return (
+    payload.render_as_sticker === true ||
+    payload.sticker_id != null ||
+    (
+      typeof payload.id === "string" &&
+      payload.id.startsWith("sticker_")
+    )
+  );
+}
 
 function getMeaningfulMessageContent(message: Pick<ConversationMessage, "content" | "attachments">) {
   const content = message.content?.trim() || "";
@@ -254,7 +282,7 @@ function getMeaningfulMessageContent(message: Pick<ConversationMessage, "content
 
 function isStickerOnlyMessage(message: ConversationMessage) {
   return Boolean(message.attachments?.length) &&
-    message.attachments!.every((attachment) => attachment.kind === "sticker") &&
+    message.attachments!.every(isStickerAttachment) &&
     !getMeaningfulMessageContent(message) &&
     !message.reference;
 }
@@ -270,7 +298,9 @@ function getMessageDisplayText(message: Pick<ConversationMessage, "content" | "d
 
   const attachment = message.attachments?.[0];
   if (!attachment) return "No message content";
-  return attachment.fileName || getMediaLabel(attachment.kind);
+  return attachment.fileName || getMediaLabel(
+    isStickerAttachment(attachment) ? "sticker" : attachment.kind,
+  );
 }
 
 function getMessagePreview(message: Pick<ConversationMessage, "content" | "deletedAt" | "attachments">) {
@@ -780,6 +810,7 @@ export default function InboxPageClient({
       conversation.connectionId === selectedConnectionId;
     const filterMatch =
       filter === "all" ||
+      (filter === "requests" && conversation.requestStatus === "request") ||
       (filter === "unread" && conversation.unread) ||
       (filter === "starred" && conversation.starred);
     return channelMatch && connectionMatch && filterMatch;
@@ -1586,6 +1617,7 @@ export default function InboxPageClient({
               payload.conversation?.connectionLabel || payload.conversation?.phone || "Unknown number",
             avatar: buildConversationAvatar(fallbackName),
             status: "offline" as const,
+            requestStatus: "active",
             tags: [],
           });
         }
@@ -1710,6 +1742,7 @@ export default function InboxPageClient({
                 payload.conversation.customerName || payload.conversation.phone || "?",
               ),
               status: "offline" as const,
+              requestStatus: "active",
               tags: [],
             };
 
@@ -2116,6 +2149,10 @@ export default function InboxPageClient({
 
   async function sendMessage() {
     if (!selectedConversationId) return;
+    if (selectedConversation?.requestStatus === "request") {
+      setComposerError("Accept this Instagram message request before replying.");
+      return;
+    }
     const conversationId = selectedConversationId;
 
     const trimmed = messageInput.trim();
@@ -2222,6 +2259,26 @@ export default function InboxPageClient({
     }
 
     setComposerLoading(false);
+  }
+
+  async function updateMessageRequest(action: "accept" | "decline") {
+    if (!selectedConversationId || !selectedConversation) return;
+    setComposerLoading(true);
+    setComposerError("");
+    const response = await fetch(apiUrl(`/api/inbox/${selectedConversationId}/request`), {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    setComposerLoading(false);
+    if (!response.ok) {
+      setComposerError(payload.error || "Unable to update this message request.");
+      return;
+    }
+    setLiveConversations((current) => current.map((conversation) => conversation.id === selectedConversationId ? { ...conversation, requestStatus: payload.status } : conversation));
+    if (action === "decline") setSelectedConversationId(null);
   }
 
   function insertEmojiAtCursor(emoji: string) {
@@ -2383,6 +2440,7 @@ export default function InboxPageClient({
             <div className="mt-3 flex items-center gap-1 overflow-x-auto" aria-label="Conversation filters">
               {[
                 { id: "all", label: "All" },
+                { id: "requests", label: "Requests" },
                 { id: "unread", label: "Unread" },
                 { id: "starred", label: "Starred" },
               ].map((filterItem) => (
@@ -2671,6 +2729,7 @@ export default function InboxPageClient({
                       >
                         {currentChannel.name}
                       </Badge>
+                      {selectedConversation.requestStatus === "request" ? <Badge variant="outline" className="border-status-attention/30 bg-status-attention-soft text-[10px] text-status-attention">Message request</Badge> : null}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">
                       <span>{selectedConversation.handle}</span>
@@ -2684,6 +2743,10 @@ export default function InboxPageClient({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
+                  {selectedConversation.requestStatus === "request" ? <>
+                    <Button size="sm" className="hidden sm:inline-flex" onClick={() => void updateMessageRequest("accept")} disabled={composerLoading}>Accept</Button>
+                    <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => void updateMessageRequest("decline")} disabled={composerLoading}>Decline</Button>
+                  </> : null}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="ghost" size="icon" className="hidden h-8 w-8 text-muted-foreground sm:inline-flex">
@@ -3183,7 +3246,7 @@ export default function InboxPageClient({
                   size="icon"
                   className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={!Object.values(selectedConversationCapabilities.attachments).some(Boolean)}
+                  disabled={selectedConversation?.requestStatus === "request" || !Object.values(selectedConversationCapabilities.attachments).some(Boolean)}
                   title={
                     Object.values(selectedConversationCapabilities.attachments).some(Boolean)
                       ? "Attach a file"
@@ -3194,10 +3257,11 @@ export default function InboxPageClient({
                 </Button>
                 <textarea
                   ref={composerInputRef}
-                  placeholder={selectedConversation ? `Message ${selectedConversation.name}...` : "Type a message"}
+                  placeholder={selectedConversation?.requestStatus === "request" ? "Accept this request before replying" : selectedConversation ? `Message ${selectedConversation.name}...` : "Type a message"}
                   value={messageInput}
                   onChange={(event) => setMessageInput(event.target.value)}
                   rows={1}
+                  disabled={selectedConversation?.requestStatus === "request"}
                   className="min-h-10 max-h-40 flex-1 resize-none border-0 bg-transparent px-3 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground"
                 />
                 <Button
@@ -3229,7 +3293,7 @@ export default function InboxPageClient({
                   size="icon"
                   className="h-9 w-9 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={() => void sendMessage()}
-                  disabled={composerLoading || (!messageInput.trim() && !selectedFile)}
+                  disabled={selectedConversation?.requestStatus === "request" || composerLoading || (!messageInput.trim() && !selectedFile)}
                 >
                   <Send className="h-4 w-4" />
                 </Button>
@@ -3330,6 +3394,7 @@ function MessageAttachmentContent({
     channel === "whatsapp"
       ? apiUrl(`/api/whatsapp/inbox/media/${message.id}/attachments/${attachment.id}`)
       : apiUrl(`/api/inbox/messages/${message.id}/attachments/${attachment.id}`);
+  const sticker = isStickerAttachment(attachment);
 
   if (mediaFailed) {
     return (
@@ -3339,7 +3404,7 @@ function MessageAttachmentContent({
         </div>
         <div className="flex flex-wrap gap-2">
           <a href={mediaUrl} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-border/60 px-3 py-2 text-sm text-foreground no-underline">
-            {`Open ${getMediaLabel(attachment.kind)}`}
+            {`Open ${getMediaLabel(sticker ? "sticker" : attachment.kind)}`}
           </a>
           <button type="button" onClick={() => { setMediaFailed(false); setReloadToken((current) => current + 1); }} className="inline-flex rounded-md border border-border/60 px-3 py-2 text-sm text-foreground">
             Retry preview
@@ -3349,7 +3414,7 @@ function MessageAttachmentContent({
     );
   }
 
-  if (attachment.kind === "sticker") {
+  if (sticker) {
     return (
       // Meta may return a transparent sticker asset or a flattened preview.
       // Render the provider response unchanged; altering its pixels damages
@@ -3359,9 +3424,9 @@ function MessageAttachmentContent({
         key={`sticker-${reloadToken}`}
         src={mediaUrl}
         alt={attachment.fileName || "sticker"}
-        className="h-32 w-32 cursor-zoom-in object-contain"
+        className="block h-32 w-32 cursor-zoom-in object-contain"
         onError={() => setMediaFailed(true)}
-        onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)}
+        onClick={() => onOpenMedia(mediaUrl, "sticker", caption)}
       />
     );
   }
