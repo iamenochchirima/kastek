@@ -3171,11 +3171,9 @@ function DashboardMessageContent({
   channel: InboxConversation["channel"];
   onOpenMedia: (url: string, kind: MessageAttachmentKind, caption?: string | null) => void;
 }) {
-  const attachment = getMessageAttachment(message);
-  const [mediaFailed, setMediaFailed] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
   const previewText = getMessageDisplayText(message);
   const replyPreview = message.reference?.previewText || null;
+  const attachments = message.attachments || [];
 
   const replyCard = replyPreview ? (
     <ReplyPreviewCard
@@ -3185,7 +3183,7 @@ function DashboardMessageContent({
     />
   ) : null;
 
-  if (!attachment) {
+  if (!attachments.length) {
     return (
       <div className="space-y-2">
         {replyCard}
@@ -3194,118 +3192,83 @@ function DashboardMessageContent({
     );
   }
 
-  const mediaUrl = channel === "whatsapp" ? apiUrl(`/api/whatsapp/inbox/media/${message.id}`) : null;
   const caption = message.content?.trim() || null;
 
-  if (!mediaUrl) {
-    return (
-      <div className="space-y-2">
-        {replyCard}
-        <div className="rounded-md border border-border/60 bg-card/40 px-3 py-2 text-xs text-muted-foreground">
-          {`${getMediaLabel(attachment.kind)} received. Secure preview is being prepared for this channel.`}
-        </div>
-        {caption ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{caption}</p> : null}
-      </div>
-    );
-  }
+  return (
+    <div className="space-y-2">
+      {replyCard}
+      {attachments.map((attachment) => (
+        <MessageAttachmentContent
+          key={attachment.id}
+          message={message}
+          attachment={attachment}
+          channel={channel}
+          caption={caption}
+          onOpenMedia={onOpenMedia}
+        />
+      ))}
+      {caption ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{caption}</p> : null}
+    </div>
+  );
+}
+
+function MessageAttachmentContent({
+  message,
+  attachment,
+  channel,
+  caption,
+  onOpenMedia,
+}: {
+  message: ConversationMessage;
+  attachment: MessageAttachment;
+  channel: InboxConversation["channel"];
+  caption: string | null;
+  onOpenMedia: (url: string, kind: MessageAttachmentKind, caption?: string | null) => void;
+}) {
+  const [mediaFailed, setMediaFailed] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+  const mediaUrl =
+    channel === "whatsapp"
+      ? apiUrl(`/api/whatsapp/inbox/media/${message.id}`)
+      : apiUrl(`/api/inbox/messages/${message.id}/attachments/${attachment.id}`);
 
   if (mediaFailed) {
     return (
       <div className="space-y-2">
-        {replyCard}
         <div className="rounded-md border border-border/60 bg-card/40 px-3 py-2 text-xs text-muted-foreground">
           Media preview unavailable.
         </div>
-        <a
-          href={mediaUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex rounded-md border border-border/60 px-3 py-2 text-sm text-foreground no-underline"
-        >
-          {`Open ${getMediaLabel(attachment.kind)}`}
-        </a>
-        <button
-          type="button"
-          onClick={() => {
-            setMediaFailed(false);
-            setReloadToken((current) => current + 1);
-          }}
-          className="inline-flex rounded-md border border-border/60 px-3 py-2 text-sm text-foreground"
-        >
-          Retry preview
-        </button>
-        {caption ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{caption}</p> : null}
+        <div className="flex flex-wrap gap-2">
+          <a href={mediaUrl} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-border/60 px-3 py-2 text-sm text-foreground no-underline">
+            {`Open ${getMediaLabel(attachment.kind)}`}
+          </a>
+          <button type="button" onClick={() => { setMediaFailed(false); setReloadToken((current) => current + 1); }} className="inline-flex rounded-md border border-border/60 px-3 py-2 text-sm text-foreground">
+            Retry preview
+          </button>
+        </div>
       </div>
     );
   }
 
   if (attachment.kind === "image" || attachment.kind === "sticker") {
     return (
-      <div className="space-y-2">
-        {replyCard}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          key={`image-${reloadToken}`}
-          src={mediaUrl}
-          alt={caption || "attachment"}
-          className="max-h-72 w-full max-w-sm cursor-zoom-in rounded-md border border-border/60 object-contain"
-          onError={() => setMediaFailed(true)}
-          onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)}
-        />
-        {caption ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{caption}</p> : null}
-      </div>
+      // eslint-disable-next-line @next/next/no-img-element
+      <img key={`image-${reloadToken}`} src={mediaUrl} alt={caption || attachment.fileName || "attachment"} className="max-h-72 w-full max-w-sm cursor-zoom-in rounded-md border border-border/60 object-contain" onError={() => setMediaFailed(true)} onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)} />
     );
   }
 
   if (attachment.kind === "video") {
-    return (
-      <div className="space-y-2">
-        {replyCard}
-        <video
-          key={`video-${reloadToken}`}
-          controls
-          className="max-h-72 w-full max-w-sm cursor-zoom-in rounded-md border border-border/60"
-          src={mediaUrl}
-          onError={() => setMediaFailed(true)}
-          onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)}
-        />
-        {caption ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{caption}</p> : null}
-      </div>
-    );
+    return <video key={`video-${reloadToken}`} controls className="max-h-72 w-full max-w-sm cursor-zoom-in rounded-md border border-border/60" src={mediaUrl} onError={() => setMediaFailed(true)} onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)} />;
   }
 
   if (attachment.kind === "audio") {
-    return (
-      <div className="space-y-2">
-        {replyCard}
-        <audio
-          key={`audio-${reloadToken}`}
-          controls
-          className="w-full max-w-sm"
-          src={mediaUrl}
-          onError={() => setMediaFailed(true)}
-        />
-      </div>
-    );
+    return <audio key={`audio-${reloadToken}`} controls className="w-full max-w-sm" src={mediaUrl} onError={() => setMediaFailed(true)} />;
   }
 
   return (
-    <div className="space-y-2">
-      {replyCard}
-      <a
-        href={mediaUrl}
-        onClick={(event) => {
-          event.preventDefault();
-          onOpenMedia(mediaUrl, attachment.kind, caption);
-        }}
-        className="inline-flex rounded-md border border-border/60 px-3 py-2 text-sm text-foreground no-underline"
-      >
-        {`Open ${getMediaLabel(attachment.kind)}`}
-      </a>
-      <p className="whitespace-pre-wrap text-sm leading-relaxed">
-        {caption || previewText}
-      </p>
-    </div>
+    <a href={mediaUrl} onClick={(event) => { event.preventDefault(); onOpenMedia(mediaUrl, attachment.kind, caption); }} className="inline-flex w-fit rounded-md border border-border/60 px-3 py-2 text-sm text-foreground no-underline">
+      {`Open ${attachment.fileName || getMediaLabel(attachment.kind)}`}
+    </a>
   );
 }
 

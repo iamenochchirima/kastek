@@ -1,3 +1,4 @@
+use actix_web::HttpResponse;
 use chrono::Utc;
 use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
@@ -12,6 +13,7 @@ use crate::services::{customers, message_domain, realtime, social, whatsapp};
 
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v23.0";
 const INSTAGRAM_GRAPH_BASE: &str = "https://graph.instagram.com/v23.0";
+const META_ATTACHMENT_MAX_BYTES: u64 = 25 * 1024 * 1024;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -265,6 +267,189 @@ pub async fn list_conversation_messages(
     let mapped = message_domain::list_timeline_messages(pool, &conversation.id).await?;
 
     Ok(json!({ "messages": mapped }))
+}
+
+pub async fn download_message_attachment(
+    pool: &PgPool,
+    org_id: &str,
+    message_id: &str,
+    attachment_id: &str,
+) -> Result<HttpResponse, AppError> {
+    let attachment = sqlx::query_as::<
+        _,
+        (
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Value,
+            String,
+            Option<String>,
+            Option<Value>,
+        ),
+    >(
+        r#"
+        SELECT
+            c.channel,
+            attachment."providerMediaId",
+            attachment."mimeType",
+            attachment."fileName",
+            attachment.metadata,
+            channel.platform::text,
+            channel."accessToken",
+            channel.metadata
+        FROM "MessageAttachment" attachment
+        JOIN "Message" message ON message.id = attachment."messageId"
+        JOIN "Conversation" c ON c.id = message."conversationId"
+        JOIN "SocialChannelConnection" channel
+          ON channel.id = split_part(c."customerIdentifier", ':', 2)
+         AND channel."orgId" = c."orgId"
+        WHERE attachment.id = $1
+          AND message.id = $2
+          AND c."orgId" = $3
+          AND c.channel IN ('facebook', 'instagram')
+          AND channel.status = 'CONNECTED'::"SocialChannelStatus"
+        LIMIT 1
+        "#,
+    )
+    .bind(attachment_id)
+    .bind(message_id)
+    .bind(org_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Attachment not found".to_string()))?;
+
+    let (
+        channel,
+        provider_media_id,
+        mime_type,
+        file_name,
+        attachment_metadata,
+        platform,
+        encrypted_access_token,
+        channel_metadata,
+    ) = attachment;
+    let encrypted_access_token = encrypted_access_token.ok_or_else(|| {
+        AppError::BadRequest("Connected channel is missing an access token".to_string())
+    })?;
+    let access_token = social::decrypt_social_secret(&encrypted_access_token)?;
+    let graph_base = if channel == "instagram"
+        && channel_metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get("authMethod"))
+            .and_then(Value::as_str)
+            == Some("instagram_login")
+    {
+        INSTAGRAM_GRAPH_BASE
+    } else {
+        META_GRAPH_BASE
+    };
+
+    let provider_payload = attachment_metadata
+        .get("providerPayload")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let media_url_from_payload = provider_payload
+        .get("url")
+        .or_else(|| provider_payload.get("attachment_url"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let media_url = if media_url_from_payload.is_some() {
+        media_url_from_payload
+    } else {
+        async {
+            let media_id = provider_media_id.as_deref()?;
+            let response = reqwest::Client::new()
+                .get(format!("{graph_base}/{media_id}"))
+                .bearer_auth(&access_token)
+                .query(&[("fields", "url")])
+                .send()
+                .await
+                .ok()?;
+            if !response.status().is_success() {
+                return None;
+            }
+            response
+                .json::<Value>()
+                .await
+                .ok()?
+                .get("url")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        }
+        .await
+    }
+    .ok_or_else(|| {
+        AppError::BadRequest("Attachment download is not available from this channel".to_string())
+    })?;
+
+    let parsed_url = reqwest::Url::parse(&media_url).map_err(|_| {
+        AppError::BadRequest("Provider returned an invalid attachment URL".to_string())
+    })?;
+    let host = parsed_url.host_str().unwrap_or_default();
+    let trusted_host = host.ends_with("facebook.com")
+        || host.ends_with("fbcdn.net")
+        || host.ends_with("fbsbx.com")
+        || host.ends_with("instagram.com")
+        || host.ends_with("cdninstagram.com");
+    if parsed_url.scheme() != "https" || !trusted_host {
+        return Err(AppError::BadRequest(
+            "Provider returned an untrusted attachment URL".to_string(),
+        ));
+    }
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(AppError::from)?;
+    // Meta returns a signed CDN URL for the actual media. Do not forward the
+    // workspace access token to that CDN; it is only used for the Graph lookup.
+    let response = client.get(parsed_url).send().await?;
+    if !response.status().is_success() {
+        return Err(AppError::BadRequest(format!(
+            "Provider attachment download failed ({})",
+            response.status()
+        )));
+    }
+    if response
+        .content_length()
+        .is_some_and(|length| length > META_ATTACHMENT_MAX_BYTES)
+    {
+        return Err(AppError::BadRequest(
+            "Attachment exceeds the 25 MB download limit".to_string(),
+        ));
+    }
+    let response_content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+    let bytes = response.bytes().await?;
+    if bytes.len() as u64 > META_ATTACHMENT_MAX_BYTES {
+        return Err(AppError::BadRequest(
+            "Attachment exceeds the 25 MB download limit".to_string(),
+        ));
+    }
+    let content_type = response_content_type
+        .or(mime_type)
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+    let extension = content_type.split('/').nth(1).unwrap_or("bin");
+    let fallback_name = format!(
+        "{}-attachment-{}.{}",
+        platform.to_lowercase(),
+        attachment_id,
+        extension
+    );
+    let filename = sanitize_attachment_filename(file_name.as_deref().unwrap_or(&fallback_name));
+
+    Ok(HttpResponse::Ok()
+        .append_header(("Content-Type", content_type))
+        .append_header((
+            "Content-Disposition",
+            format!("inline; filename=\"{}\"", filename),
+        ))
+        .append_header(("Cache-Control", "private, max-age=60"))
+        .body(bytes))
 }
 
 pub async fn send_conversation_message(
@@ -633,9 +818,10 @@ pub async fn process_meta_webhook_payload(
             )
             .await?;
 
-            let reply_target = if let Some(reply_to_provider_message_id) = meta_reply_to_mid(message) {
-                if let Some(reply_target) = sqlx::query_as::<_, InboxMessageRow>(
-                    r#"
+            let reply_target =
+                if let Some(reply_to_provider_message_id) = meta_reply_to_mid(message) {
+                    if let Some(reply_target) = sqlx::query_as::<_, InboxMessageRow>(
+                        r#"
                     SELECT id, "conversationId" AS conversation_id, sender, content,
                            "whatsappMessageId" AS whatsapp_message_id,
                            "whatsappStatus" AS whatsapp_status,
@@ -648,19 +834,19 @@ pub async fn process_meta_webhook_payload(
                     WHERE "conversationId" = $1 AND "providerMessageId" = $2
                     LIMIT 1
                     "#,
-                )
-                .bind(&conversation_id)
-                .bind(reply_to_provider_message_id)
-                .fetch_optional(pool)
-                .await?
-                {
-                    Some((reply_target, reply_to_provider_message_id))
+                    )
+                    .bind(&conversation_id)
+                    .bind(reply_to_provider_message_id)
+                    .fetch_optional(pool)
+                    .await?
+                    {
+                        Some((reply_target, reply_to_provider_message_id))
+                    } else {
+                        None
+                    }
                 } else {
                     None
-                }
-            } else {
-                None
-            };
+                };
 
             let message_id = cuid2::create_id();
             let message_sender = if is_echo { "bot" } else { "customer" };
@@ -680,7 +866,11 @@ pub async fn process_meta_webhook_payload(
             .bind(&conversation_id)
             .bind(message_sender)
             .bind(&content)
-            .bind(if attachments.is_empty() { "TEXT" } else { "MEDIA" })
+            .bind(if attachments.is_empty() {
+                "TEXT"
+            } else {
+                "MEDIA"
+            })
             .bind(message_mid.as_deref())
             .bind(provider_status)
             .bind(json!({
@@ -1260,7 +1450,8 @@ async fn sync_missing_meta_outbound_message(
     }
 
     let content = meta_graph_message_content(&graph_message);
-    if content.is_empty() {
+    let attachments = meta_graph_message_attachments(&graph_message);
+    if content.is_empty() && attachments.is_empty() {
         return Ok(());
     }
     let customer_name = meta_graph_message_recipient_name(&graph_message, customer_id)
@@ -1279,10 +1470,10 @@ async fn sync_missing_meta_outbound_message(
     let inserted = sqlx::query_scalar::<_, String>(
         r#"
         INSERT INTO "Message" (
-            id, "conversationId", sender, content,
+            id, "conversationId", sender, content, "contentType",
             "providerMessageId", "providerStatus", "providerMetadata", timestamp
         )
-        VALUES ($1, $2, 'bot', $3, $4, 'DELIVERED', $5, $6)
+        VALUES ($1, $2, 'bot', $3, $4, $5, 'DELIVERED', $6, $7)
         ON CONFLICT ("conversationId", "providerMessageId") DO NOTHING
         RETURNING id
         "#,
@@ -1290,6 +1481,11 @@ async fn sync_missing_meta_outbound_message(
     .bind(&message_id)
     .bind(&conversation_id)
     .bind(&content)
+    .bind(if attachments.is_empty() {
+        "TEXT"
+    } else {
+        "MEDIA"
+    })
     .bind(provider_message_id)
     .bind(json!({
         "provider": "facebook",
@@ -1302,6 +1498,19 @@ async fn sync_missing_meta_outbound_message(
     let Some(message_id) = inserted else {
         return Ok(());
     };
+    for attachment in &attachments {
+        message_domain::create_attachment(
+            pool,
+            &message_id,
+            attachment.provider_media_id.as_deref(),
+            &attachment.kind,
+            attachment.mime_type.as_deref(),
+            attachment.file_name.as_deref(),
+            None,
+            attachment.metadata.clone(),
+        )
+        .await?;
+    }
 
     sqlx::query(
         r#"
@@ -1396,6 +1605,21 @@ async fn publish_message_updated(pool: &PgPool, message_id: &str) -> Result<(), 
     let Some(org_id) = conversation_org_id(pool, &message.conversation_id).await? else {
         return Ok(());
     };
+    if let Some(status) = message.provider_status.as_deref() {
+        message_domain::record_event(
+            pool,
+            &message.conversation_id,
+            Some(&message.id),
+            message
+                .provider_message_id
+                .as_deref()
+                .map(|provider_id| format!("meta:status:{provider_id}:{status}"))
+                .as_deref(),
+            &format!("STATUS_{status}"),
+            json!({ "provider": "meta", "status": status }),
+        )
+        .await?;
+    }
 
     publish_event_best_effort(
         &org_id,
@@ -1635,6 +1859,36 @@ fn preview_text(content: &str, limit: usize) -> String {
     format!("{shortened}…")
 }
 
+fn sanitize_attachment_filename(value: &str) -> String {
+    let sanitized: String = value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_' | ' ') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let trimmed = sanitized.trim();
+    if trimmed.is_empty() {
+        "attachment.bin".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn normalize_attachment_kind(value: &str) -> &'static str {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "image" | "image_share" => "image",
+        "video" | "video_share" => "video",
+        "audio" => "audio",
+        "sticker" => "sticker",
+        "file" | "document" | "fallback" => "document",
+        _ => "file",
+    }
+}
+
 struct MetaIncomingAttachment {
     kind: String,
     provider_media_id: Option<String>,
@@ -1663,11 +1917,13 @@ fn meta_message_attachments(message: &Value) -> Vec<MetaIncomingAttachment> {
         .map(|attachment| {
             let payload = attachment.get("payload").cloned().unwrap_or(Value::Null);
             MetaIncomingAttachment {
-                kind: attachment
-                    .get("type")
-                    .and_then(Value::as_str)
-                    .unwrap_or("attachment")
-                    .to_string(),
+                kind: normalize_attachment_kind(
+                    attachment
+                        .get("type")
+                        .and_then(Value::as_str)
+                        .unwrap_or("attachment"),
+                )
+                .to_string(),
                 provider_media_id: payload
                     .get("id")
                     .or_else(|| attachment.get("id"))
@@ -1730,16 +1986,41 @@ fn meta_graph_message_content(message: &Value) -> String {
         return text.to_string();
     }
 
-    let has_attachments = message
+    String::new()
+}
+
+fn meta_graph_message_attachments(message: &Value) -> Vec<MetaIncomingAttachment> {
+    message
         .get("attachments")
         .and_then(|value| value.get("data"))
         .and_then(Value::as_array)
-        .is_some_and(|attachments| !attachments.is_empty());
-    if has_attachments {
-        "[attachment]".to_string()
-    } else {
-        String::new()
-    }
+        .into_iter()
+        .flatten()
+        .map(|attachment| MetaIncomingAttachment {
+            kind: normalize_attachment_kind(
+                attachment
+                    .get("mime_type")
+                    .and_then(Value::as_str)
+                    .and_then(|mime_type| mime_type.split('/').next())
+                    .unwrap_or("attachment"),
+            )
+            .to_string(),
+            provider_media_id: attachment
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            mime_type: attachment
+                .get("mime_type")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            file_name: attachment
+                .get("name")
+                .or_else(|| attachment.get("filename"))
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            metadata: json!({ "providerPayload": attachment }),
+        })
+        .collect()
 }
 
 fn meta_graph_message_recipient_name(message: &Value, customer_id: &str) -> Option<String> {
@@ -1826,7 +2107,8 @@ mod tests {
         build_meta_conversation_identifier, meta_delivery_message_ids, meta_graph_message_content,
         meta_graph_message_recipient_name, meta_message_attachments, meta_message_is_echo,
         meta_profile_display_name, meta_receipt_watermark, meta_reply_to_mid, meta_send_asset_id,
-        parse_meta_conversation_identifier, scoped_conversation, verify_meta_signature, HmacSha256,
+        normalize_attachment_kind, parse_meta_conversation_identifier, sanitize_attachment_filename,
+        scoped_conversation, verify_meta_signature, HmacSha256,
     };
     use hmac::Mac;
     use serde_json::json;
@@ -1882,7 +2164,10 @@ mod tests {
             meta_reply_to_mid(&json!({ "reply_to": { "mid": "mid.original" } })),
             Some("mid.original")
         );
-        assert_eq!(meta_reply_to_mid(&json!({ "reply_to": { "mid": "   " } })), None);
+        assert_eq!(
+            meta_reply_to_mid(&json!({ "reply_to": { "mid": "   " } })),
+            None
+        );
         assert_eq!(meta_reply_to_mid(&json!({ "text": "No context" })), None);
     }
 
@@ -1953,7 +2238,23 @@ mod tests {
         }));
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments[0].kind, "image");
-        assert_eq!(attachments[0].provider_media_id.as_deref(), Some("media-123"));
+        assert_eq!(
+            attachments[0].provider_media_id.as_deref(),
+            Some("media-123")
+        );
+    }
+
+    #[test]
+    fn attachment_kinds_are_normalized_for_the_client_contract() {
+        assert_eq!(normalize_attachment_kind("image_share"), "image");
+        assert_eq!(normalize_attachment_kind("application"), "file");
+        assert_eq!(normalize_attachment_kind("document"), "document");
+    }
+
+    #[test]
+    fn attachment_filenames_are_safe_for_content_disposition() {
+        assert_eq!(sanitize_attachment_filename("proof\".pdf"), "proof_.pdf");
+        assert_eq!(sanitize_attachment_filename(""), "attachment.bin");
     }
 
     #[test]

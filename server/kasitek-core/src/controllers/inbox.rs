@@ -59,6 +59,17 @@ pub async fn mark_read(
     Ok(HttpResponse::Ok().json(result))
 }
 
+pub async fn download_attachment(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let (message_id, attachment_id) = path.into_inner();
+    inbox::download_message_attachment(pool.get_ref(), &org_id, &message_id, &attachment_id).await
+}
+
 pub async fn verify_meta_webhook(
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> Result<HttpResponse, AppError> {

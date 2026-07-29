@@ -4639,6 +4639,18 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     .fetch_all(pool)
     .await?;
     for row in rows {
+        message_domain::record_event(
+            pool,
+            &row.conversation_id,
+            Some(&row.id),
+            row.whatsapp_message_id
+                .as_deref()
+                .map(|provider_id| format!("whatsapp:status:{provider_id}:{next_status}"))
+                .as_deref(),
+            &format!("STATUS_{next_status}"),
+            json!({ "provider": "whatsapp", "status": next_status }),
+        )
+        .await?;
         if let Some(conversation) = load_conversation_by_id(pool, &row.conversation_id).await? {
             if let Some((connection_id, _)) =
                 parse_conversation_identifier(&conversation.customer_identifier)
@@ -5155,9 +5167,19 @@ async fn publish_message_created(
         .await?
         .into_iter()
         .find(|candidate| candidate.get("id").and_then(Value::as_str) == Some(message_id));
-    let Some(structured_message) = structured_message else {
+    let Some(mut structured_message) = structured_message else {
         return Ok(());
     };
+    let can_react = structured_message
+        .get("providerMessageId")
+        .and_then(Value::as_str)
+        .is_some_and(|value| !value.is_empty())
+        && structured_message
+            .get("deletedAt")
+            .is_some_and(Value::is_null);
+    if let Some(object) = structured_message.as_object_mut() {
+        object.insert("canReact".to_string(), json!(can_react));
+    }
     let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
         .unwrap_or_else(|| ("".to_string(), conversation.customer_identifier.clone()));
     let connection_label = if connection_id.is_empty() {
@@ -6079,7 +6101,17 @@ pub async fn list_conversation_messages(
     let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
-    let mapped = message_domain::list_timeline_messages(pool, &conversation.id).await?;
+    let mut mapped = message_domain::list_timeline_messages(pool, &conversation.id).await?;
+    for message in &mut mapped {
+        let can_react = message
+            .get("providerMessageId")
+            .and_then(Value::as_str)
+            .is_some_and(|value| !value.is_empty())
+            && message.get("deletedAt").is_some_and(Value::is_null);
+        if let Some(object) = message.as_object_mut() {
+            object.insert("canReact".to_string(), json!(can_react));
+        }
+    }
     Ok(json!({ "messages": mapped }))
 }
 
@@ -6305,7 +6337,9 @@ pub async fn send_conversation_media(
         &uploaded_media_id,
         caption.as_deref(),
         Some(&final_filename),
-        reply_target.as_ref().map(|(_, provider_id)| provider_id.as_str()),
+        reply_target
+            .as_ref()
+            .map(|(_, provider_id)| provider_id.as_str()),
     )
     .await?;
 
@@ -6552,7 +6586,11 @@ pub async fn send_message_reaction(
         &conversation.id,
         Some(&target_message.id),
         None,
-        if remove { "REACTION_REMOVED" } else { "REACTION_ADDED" },
+        if remove {
+            "REACTION_REMOVED"
+        } else {
+            "REACTION_ADDED"
+        },
         json!({ "provider": "whatsapp", "emoji": if remove { "" } else { &emoji } }),
     )
     .await?;
@@ -6621,8 +6659,9 @@ pub async fn download_message_media(
     .await?
     .ok_or_else(|| AppError::NotFound("Media message not found".to_string()))?;
     let (message_conversation_id, media_id, mime_type, attachment_filename) = attachment;
-    let media_id = media_id
-        .ok_or_else(|| AppError::BadRequest("Message attachment is not available from WhatsApp".to_string()))?;
+    let media_id = media_id.ok_or_else(|| {
+        AppError::BadRequest("Message attachment is not available from WhatsApp".to_string())
+    })?;
     let conversation_identifier = sqlx::query_scalar::<_, String>(
         r#"SELECT "customerIdentifier" FROM "Conversation" WHERE id = $1"#,
     )
@@ -6641,9 +6680,7 @@ pub async fn download_message_media(
         .and_then(|v| v.split('/').nth(1))
         .unwrap_or("bin");
     let fallback_name = format!("whatsapp-media-{}.{}", message_id, extension);
-    let filename = sanitize_filename(
-        attachment_filename.as_deref().unwrap_or(&fallback_name),
-    );
+    let filename = sanitize_filename(attachment_filename.as_deref().unwrap_or(&fallback_name));
     Ok(actix_web::HttpResponse::Ok()
         .append_header(("Content-Type", content_type))
         .append_header((

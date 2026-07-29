@@ -2,9 +2,9 @@ use actix_web::web;
 
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
-    admin_outreach, admin_quotations, admin_web_services, ai, auth, billing, bookings, bots, calls, chat,
-    connections, customers, health, inbox, notifications, onboarding, orgs, profile, product_tour, public, realtime, social,
-    whatsapp, whatsapp_calls, workspace,
+    admin_outreach, admin_quotations, admin_web_services, ai, auth, billing, bookings, bots, calls,
+    chat, connections, customers, health, inbox, notifications, onboarding, orgs, product_tour,
+    profile, public, realtime, social, whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -108,7 +108,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::get().to(auth::google_oauth_callback),
                 )
                 .route("/account-check", web::post().to(auth::account_check))
-                .route("/resend-verification", web::post().to(auth::resend_verification))
+                .route(
+                    "/resend-verification",
+                    web::post().to(auth::resend_verification),
+                )
                 .route("/send-otp", web::post().to(auth::send_otp))
                 .route("/verify-otp", web::post().to(auth::verify_otp))
                 .route("/verify-email", web::get().to(auth::verify_email))
@@ -227,6 +230,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/conversations", web::get().to(inbox::list_conversations))
                 .route("/{id}/messages", web::get().to(inbox::list_messages))
                 .route("/{id}/messages", web::post().to(inbox::send_message))
+                .route(
+                    "/messages/{message_id}/attachments/{attachment_id}",
+                    web::get().to(inbox::download_attachment),
+                )
                 .route("/{id}/read", web::post().to(inbox::mark_read)),
         )
         .service(

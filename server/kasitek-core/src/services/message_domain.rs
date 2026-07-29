@@ -138,7 +138,7 @@ pub async fn list_timeline_messages(
                 "reference": message.reference,
                 "reactions": message.reactions,
                 "canReply": provider_message_id.is_some() && message.deleted_at.is_none(),
-                "canReact": provider_message_id.is_some() && message.deleted_at.is_none(),
+                "canReact": false,
             })
         })
         .collect())
