@@ -4,6 +4,41 @@ use sqlx::{FromRow, PgPool};
 
 use crate::error::AppError;
 
+pub fn channel_capabilities(channel: &str) -> Value {
+    match channel {
+        "whatsapp" => json!({
+            "version": 1,
+            "text": true,
+            "reply": true,
+            "reaction": true,
+            "attachments": { "image": true, "video": true, "audio": true, "document": true, "sticker": true },
+            "providerDelete": true,
+            "deliveryReceipts": true,
+            "readReceipts": true,
+        }),
+        "facebook" | "instagram" => json!({
+            "version": 1,
+            "text": true,
+            "reply": true,
+            "reaction": false,
+            "attachments": { "image": false, "video": false, "audio": false, "document": false, "sticker": false },
+            "providerDelete": false,
+            "deliveryReceipts": true,
+            "readReceipts": true,
+        }),
+        _ => json!({
+            "version": 1,
+            "text": false,
+            "reply": false,
+            "reaction": false,
+            "attachments": { "image": false, "video": false, "audio": false, "document": false, "sticker": false },
+            "providerDelete": false,
+            "deliveryReceipts": false,
+            "readReceipts": false,
+        }),
+    }
+}
+
 #[derive(Debug, FromRow)]
 struct MessageTimelineRow {
     id: String,
@@ -264,4 +299,25 @@ pub async fn record_event(
     .execute(pool)
     .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::channel_capabilities;
+
+    #[test]
+    fn capabilities_do_not_claim_unimplemented_meta_actions() {
+        let capabilities = channel_capabilities("instagram");
+        assert_eq!(capabilities["text"], true);
+        assert_eq!(capabilities["reply"], true);
+        assert_eq!(capabilities["reaction"], false);
+        assert_eq!(capabilities["attachments"]["image"], false);
+    }
+
+    #[test]
+    fn whatsapp_capabilities_expose_the_supported_rich_actions() {
+        let capabilities = channel_capabilities("whatsapp");
+        assert_eq!(capabilities["reaction"], true);
+        assert_eq!(capabilities["attachments"]["document"], true);
+    }
 }

@@ -6112,7 +6112,10 @@ pub async fn list_conversation_messages(
             object.insert("canReact".to_string(), json!(can_react));
         }
     }
-    Ok(json!({ "messages": mapped }))
+    Ok(json!({
+        "messages": mapped,
+        "capabilities": message_domain::channel_capabilities("whatsapp"),
+    }))
 }
 
 pub async fn send_conversation_message(

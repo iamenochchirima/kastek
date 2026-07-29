@@ -266,7 +266,10 @@ pub async fn list_conversation_messages(
 
     let mapped = message_domain::list_timeline_messages(pool, &conversation.id).await?;
 
-    Ok(json!({ "messages": mapped }))
+    Ok(json!({
+        "messages": mapped,
+        "capabilities": message_domain::channel_capabilities(&conversation.channel),
+    }))
 }
 
 pub async fn download_message_attachment(

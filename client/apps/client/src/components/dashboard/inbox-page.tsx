@@ -181,6 +181,34 @@ type ConversationMessage = {
   reactions?: MessageReaction[];
 };
 
+type ConversationCapabilities = {
+  version: number;
+  text: boolean;
+  reply: boolean;
+  reaction: boolean;
+  attachments: {
+    image: boolean;
+    video: boolean;
+    audio: boolean;
+    document: boolean;
+    sticker: boolean;
+  };
+  providerDelete: boolean;
+  deliveryReceipts: boolean;
+  readReceipts: boolean;
+};
+
+const unsupportedCapabilities: ConversationCapabilities = {
+  version: 1,
+  text: false,
+  reply: false,
+  reaction: false,
+  attachments: { image: false, video: false, audio: false, document: false, sticker: false },
+  providerDelete: false,
+  deliveryReceipts: false,
+  readReceipts: false,
+};
+
 type MessageAttachmentKind = "image" | "video" | "audio" | "document" | "sticker" | "file";
 
 type MessageAttachment = {
@@ -463,6 +491,9 @@ export default function InboxPageClient({
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messagesByConversationId, setMessagesByConversationId] = useState<
     Record<string, ConversationMessage[]>
+  >({});
+  const [capabilitiesByConversationId, setCapabilitiesByConversationId] = useState<
+    Record<string, ConversationCapabilities>
   >({});
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [composerLoading, setComposerLoading] = useState(false);
@@ -816,6 +847,9 @@ export default function InboxPageClient({
     () => (selectedConversationId ? messagesByConversationId[selectedConversationId] || [] : []),
     [messagesByConversationId, selectedConversationId],
   );
+  const selectedConversationCapabilities = selectedConversationId
+    ? capabilitiesByConversationId[selectedConversationId] || unsupportedCapabilities
+    : unsupportedCapabilities;
   const activeCallsByConversationId = useMemo(() => {
     const next: Record<string, WhatsappCallSession> = {};
     for (const call of callSessions) {
@@ -1249,6 +1283,7 @@ export default function InboxPageClient({
         });
         const payload = (await response.json()) as {
           messages?: ConversationMessage[];
+          capabilities?: ConversationCapabilities;
         };
 
         if (!response.ok) {
@@ -1278,6 +1313,12 @@ export default function InboxPageClient({
             ),
           })),
         }));
+        if (payload.capabilities) {
+          setCapabilitiesByConversationId((current) => ({
+            ...current,
+            [conversationId]: payload.capabilities!,
+          }));
+        }
       } catch {
         if (cancelled) return;
         setMessagesByConversationId((current) => ({
@@ -1316,6 +1357,7 @@ export default function InboxPageClient({
 
         const payload = (await response.json()) as {
           messages?: ConversationMessage[];
+          capabilities?: ConversationCapabilities;
         };
         if (cancelled || !Array.isArray(payload.messages)) return;
         const messages = payload.messages;
@@ -1341,6 +1383,12 @@ export default function InboxPageClient({
             ),
           })),
         }));
+        if (payload.capabilities) {
+          setCapabilitiesByConversationId((current) => ({
+            ...current,
+            [conversationId]: payload.capabilities!,
+          }));
+        }
       } catch {
         // Keep the last known messages if a foreground refresh fails.
       }
@@ -2888,7 +2936,7 @@ export default function InboxPageClient({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40">
                             <DropdownMenuItem
-                              disabled={!message.canReply}
+                              disabled={!message.canReply || !selectedConversationCapabilities.reply}
                               onClick={() =>
                                 setReplyDraft({
                                   messageId: message.id,
@@ -2899,15 +2947,19 @@ export default function InboxPageClient({
                               Reply
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              disabled={!message.canReact}
+                              disabled={!message.canReact || !selectedConversationCapabilities.reaction}
                               onClick={() => toggleReactionPicker(message.id)}
                             >
                               React
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => void deleteMessage(message.id)}>
-                              Delete
-                            </DropdownMenuItem>
+                            {selectedConversationCapabilities.providerDelete ? (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => void deleteMessage(message.id)}>
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            ) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -2940,7 +2992,7 @@ export default function InboxPageClient({
                               (
                                 selfReactionOverridesByMessageId[message.id] ??
                                 persistedSelfReactionsByMessageId[message.id]
-                              )?.trim() && message.canReact
+                              )?.trim() && message.canReact && selectedConversationCapabilities.reaction
                                 ? "cursor-pointer hover:bg-card"
                                 : "cursor-default",
                             )}
@@ -2950,7 +3002,7 @@ export default function InboxPageClient({
                                   (
                                     selfReactionOverridesByMessageId[message.id] ??
                                     persistedSelfReactionsByMessageId[message.id]
-                                  )?.trim() && message.canReact
+                                    )?.trim() && message.canReact && selectedConversationCapabilities.reaction
                                 )
                               ) {
                                 return;
@@ -3084,11 +3136,11 @@ export default function InboxPageClient({
                   size="icon"
                   className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={selectedConversation?.channel !== "whatsapp"}
+                  disabled={!Object.values(selectedConversationCapabilities.attachments).some(Boolean)}
                   title={
-                    selectedConversation?.channel === "whatsapp"
+                    Object.values(selectedConversationCapabilities.attachments).some(Boolean)
                       ? "Attach a file"
-                      : "Media replies are not available for this channel yet"
+                      : "Attachments are not available for this channel yet"
                   }
                 >
                   <Paperclip className="h-4 w-4" />
