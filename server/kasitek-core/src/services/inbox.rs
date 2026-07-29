@@ -273,6 +273,62 @@ pub async fn list_conversation_messages(
     }))
 }
 
+async fn resolve_meta_message_attachment_url(
+    graph_base: &str,
+    access_token: &str,
+    message_provider_id: Option<&str>,
+    provider_media_id: Option<&str>,
+    prefer_sticker: bool,
+) -> Option<String> {
+    let message_provider_id = message_provider_id?;
+    let response = reqwest::Client::new()
+        .get(format!("{graph_base}/{message_provider_id}/attachments"))
+        .bearer_auth(access_token)
+        .query(&[("fields", "id,url,image_data,render_as_sticker,sticker_id")])
+        .send()
+        .await
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+
+    response
+        .json::<Value>()
+        .await
+        .ok()?
+        .get("data")
+        .and_then(Value::as_array)
+        .and_then(|attachments| {
+            attachments
+                .iter()
+                .find(|attachment| {
+                    provider_media_id
+                        .map(|media_id| {
+                            attachment.get("id").and_then(Value::as_str) == Some(media_id)
+                        })
+                        .unwrap_or(false)
+                })
+                .or_else(|| {
+                    prefer_sticker
+                        .then(|| {
+                            attachments.iter().find(|attachment| {
+                                attachment.get("render_as_sticker").and_then(Value::as_bool)
+                                    == Some(true)
+                                    || attachment.get("sticker_id").is_some()
+                            })
+                        })
+                        .flatten()
+                })
+                .and_then(|attachment| {
+                    attachment
+                        .pointer("/image_data/url")
+                        .or_else(|| attachment.get("url"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+        })
+}
+
 pub async fn download_message_attachment(
     pool: &PgPool,
     org_id: &str,
@@ -282,6 +338,7 @@ pub async fn download_message_attachment(
     let attachment = sqlx::query_as::<
         _,
         (
+            String,
             String,
             Option<String>,
             Option<String>,
@@ -296,6 +353,7 @@ pub async fn download_message_attachment(
         r#"
         SELECT
             c.channel,
+            attachment.kind,
             attachment."providerMediaId",
             attachment."mimeType",
             attachment."fileName",
@@ -327,6 +385,7 @@ pub async fn download_message_attachment(
 
     let (
         channel,
+        attachment_kind,
         provider_media_id,
         mime_type,
         file_name,
@@ -362,7 +421,36 @@ pub async fn download_message_attachment(
         .or_else(|| provider_payload.pointer("/image_data/url"))
         .and_then(Value::as_str)
         .map(str::to_string);
-    let media_url = if media_url_from_payload.is_some() {
+    let message_provider_id = message_metadata.as_ref().and_then(|metadata| {
+        metadata
+            .get("graphMessage")
+            .or_else(|| metadata.get("event"))
+            .and_then(|message| {
+                message
+                    .get("id")
+                    .or_else(|| message.pointer("/message/mid"))
+            })
+            .and_then(Value::as_str)
+    });
+
+    // Webhook sticker URLs are frequently a 100px flattened thumbnail. Ask
+    // Graph for the message attachment first so the inbox uses the best media
+    // representation Meta makes available (usually image_data.url).
+    let refreshed_sticker_url = if attachment_kind == "sticker" {
+        resolve_meta_message_attachment_url(
+            graph_base,
+            &access_token,
+            message_provider_id,
+            provider_media_id.as_deref(),
+            true,
+        )
+        .await
+    } else {
+        None
+    };
+    let media_url = if refreshed_sticker_url.is_some() {
+        refreshed_sticker_url
+    } else if media_url_from_payload.is_some() {
         media_url_from_payload
     } else {
         async {
@@ -372,48 +460,16 @@ pub async fn download_message_attachment(
             // `image_data.url`. The sticker id itself is not a media node, so
             // retrieve the parent message attachments before trying the media
             // id as a Graph node.
-            if let Some(message_provider_id) = message_metadata.as_ref().and_then(|metadata| {
-                metadata
-                    .get("graphMessage")
-                    .or_else(|| metadata.get("event"))
-                    .and_then(|message| {
-                        message
-                            .get("id")
-                            .or_else(|| message.pointer("/message/mid"))
-                    })
-                    .and_then(Value::as_str)
-            }) {
-                let response = reqwest::Client::new()
-                    .get(format!("{graph_base}/{message_provider_id}/attachments"))
-                    .bearer_auth(&access_token)
-                    .query(&[("fields", "id,url,image_data")])
-                    .send()
-                    .await
-                    .ok()?;
-                if response.status().is_success() {
-                    if let Some(url) = response
-                        .json::<Value>()
-                        .await
-                        .ok()?
-                        .get("data")
-                        .and_then(Value::as_array)
-                        .and_then(|attachments| {
-                            attachments.iter().find_map(|attachment| {
-                                (attachment.get("id").and_then(Value::as_str) == Some(media_id))
-                                    .then(|| {
-                                        attachment
-                                            .get("url")
-                                            .or_else(|| attachment.pointer("/image_data/url"))
-                                            .and_then(Value::as_str)
-                                            .map(str::to_string)
-                                    })
-                                    .flatten()
-                            })
-                        })
-                    {
-                        return Some(url);
-                    }
-                }
+            if let Some(url) = resolve_meta_message_attachment_url(
+                graph_base,
+                &access_token,
+                message_provider_id,
+                Some(media_id),
+                false,
+            )
+            .await
+            {
+                return Some(url);
             }
 
             let response = reqwest::Client::new()
