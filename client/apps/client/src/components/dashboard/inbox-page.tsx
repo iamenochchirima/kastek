@@ -3298,7 +3298,7 @@ function MessageAttachmentContent({
   const [reloadToken, setReloadToken] = useState(0);
   const mediaUrl =
     channel === "whatsapp"
-      ? apiUrl(`/api/whatsapp/inbox/media/${message.id}`)
+      ? apiUrl(`/api/whatsapp/inbox/media/${message.id}/attachments/${attachment.id}`)
       : apiUrl(`/api/inbox/messages/${message.id}/attachments/${attachment.id}`);
 
   if (mediaFailed) {

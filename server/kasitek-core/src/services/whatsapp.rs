@@ -6632,10 +6632,11 @@ pub async fn delete_conversation_message(
     Ok(json!({ "success": true }))
 }
 
-pub async fn download_message_media(
+pub async fn download_message_attachment(
     pool: &PgPool,
     org_id: &str,
     message_id: &str,
+    attachment_id: &str,
 ) -> Result<actix_web::HttpResponse, AppError> {
     let connection_ids = org_connection_ids(pool, org_id).await?;
     if connection_ids.is_empty() {
@@ -6648,15 +6649,17 @@ pub async fn download_message_media(
         JOIN "MessageAttachment" attachment ON attachment."messageId" = m.id
         JOIN "Conversation" c ON c.id = m."conversationId"
         WHERE m.id = $1
+          AND attachment.id = $2
           AND c.channel = 'whatsapp'
           AND EXISTS (
-            SELECT 1 FROM unnest($2::text[]) AS connection_id
+            SELECT 1 FROM unnest($3::text[]) AS connection_id
             WHERE c."customerIdentifier" LIKE ('wa:' || connection_id || ':%')
           )
         LIMIT 1
         "#
     )
     .bind(message_id)
+    .bind(attachment_id)
     .bind(&connection_ids)
     .fetch_optional(pool)
     .await?

@@ -564,12 +564,14 @@ pub async fn delete_conversation_message(
     Ok(HttpResponse::Ok().json(result))
 }
 
-pub async fn download_message_media(
+pub async fn download_message_attachment(
     pool: web::Data<PgPool>,
     req: HttpRequest,
-    path: web::Path<String>,
+    path: web::Path<(String, String)>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
-    whatsapp::download_message_media(pool.get_ref(), &org_id, &path).await
+    let (message_id, attachment_id) = path.into_inner();
+    whatsapp::download_message_attachment(pool.get_ref(), &org_id, &message_id, &attachment_id)
+        .await
 }

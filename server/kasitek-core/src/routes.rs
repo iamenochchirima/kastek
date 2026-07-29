@@ -318,8 +318,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                             web::delete().to(whatsapp::delete_conversation_message),
                         )
                         .route(
-                            "/media/{message_id}",
-                            web::get().to(whatsapp::download_message_media),
+                            "/media/{message_id}/attachments/{attachment_id}",
+                            web::get().to(whatsapp::download_message_attachment),
                         ),
                 )
                 .service(
