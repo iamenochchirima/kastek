@@ -158,9 +158,36 @@ export type WhatsappRealtimeEvent =
         sender: "customer" | "bot";
         content: string;
         timestamp: string;
+        status?: "PROCESSING" | "SENT" | "DELIVERED" | "READ" | "FAILED" | "BLOCKED";
         whatsappStatus?: "SENT" | "DELIVERED" | "READ" | "FAILED" | "BLOCKED";
         providerStatus?: "PROCESSING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
         providerMessageId?: string | null;
+        contentType?: string;
+        attachments?: Array<{
+          id: string;
+          kind: "image" | "video" | "audio" | "document" | "sticker" | "file";
+          mimeType?: string | null;
+          fileName?: string | null;
+          byteSize?: number | null;
+          providerMediaId?: string | null;
+          downloadStatus?: string | null;
+          scanStatus?: string | null;
+          metadata?: Record<string, unknown> | null;
+        }>;
+        reference?: {
+          messageId?: string | null;
+          providerMessageId?: string | null;
+          kind?: string;
+          previewText?: string | null;
+          previewKind?: "image" | "video" | "audio" | "document" | "sticker" | "file" | null;
+        } | null;
+        reactions?: Array<{
+          id: string;
+          actorIdentifier: string;
+          emoji?: string | null;
+          active?: boolean;
+          occurredAt?: string;
+        }>;
       };
     }
   | {

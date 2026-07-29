@@ -57,15 +57,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import {
-  encodeStoredWhatsappReplyEnvelope,
-  getWhatsappMessageDisplayText,
-  getWhatsappMessagePreview,
-  parseStoredWhatsappMedia,
-  parseStoredWhatsappReaction,
-  type WhatsappMediaKind,
-  unwrapWhatsappStoredMessage,
-} from "@/lib/whatsapp/message-content";
 import { useWhatsappRealtimeSubscription } from "@/components/dashboard/whatsapp-realtime-provider";
 
 type InboxConversation = {
@@ -182,7 +173,60 @@ type ConversationMessage = {
   canReply?: boolean;
   canReact?: boolean;
   errorMessage?: string | null;
+  contentType?: "TEXT" | "MEDIA" | string;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+  attachments?: MessageAttachment[];
+  reference?: MessageReference | null;
+  reactions?: MessageReaction[];
 };
+
+type MessageAttachmentKind = "image" | "video" | "audio" | "document" | "sticker" | "file";
+
+type MessageAttachment = {
+  id: string;
+  kind: MessageAttachmentKind;
+  mimeType?: string | null;
+  fileName?: string | null;
+  byteSize?: number | null;
+  providerMediaId?: string | null;
+  downloadStatus?: string | null;
+  scanStatus?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+type MessageReference = {
+  messageId?: string | null;
+  providerMessageId?: string | null;
+  kind?: string;
+  previewText?: string | null;
+  previewKind?: MessageAttachmentKind | null;
+};
+
+type MessageReaction = {
+  id: string;
+  actorIdentifier: string;
+  emoji?: string | null;
+  active?: boolean;
+  occurredAt?: string;
+};
+
+function getMessageAttachment(message: ConversationMessage) {
+  return message.attachments?.[0] || null;
+}
+
+function getMessageDisplayText(message: Pick<ConversationMessage, "content" | "deletedAt" | "attachments">) {
+  if (message.deletedAt) return "Message deleted";
+  if (message.content?.trim()) return message.content;
+
+  const attachment = message.attachments?.[0];
+  if (!attachment) return "No message content";
+  return attachment.fileName || getMediaLabel(attachment.kind);
+}
+
+function getMessagePreview(message: Pick<ConversationMessage, "content" | "deletedAt" | "attachments">) {
+  return getMessageDisplayText(message).replace(/\s+/g, " ").trim().slice(0, 120);
+}
 
 type WhatsappCallSession = {
   id: string;
@@ -234,7 +278,7 @@ type ReactionPickerState = {
 
 type MediaLightboxState = {
   url: string;
-  kind: WhatsappMediaKind;
+  kind: MessageAttachmentKind;
   caption?: string | null;
 };
 
@@ -809,10 +853,11 @@ export default function InboxPageClient({
     const next: Record<string, string> = {};
 
     for (const message of selectedMessages) {
-      const reaction = parseStoredWhatsappReaction(message.content);
-      if (!reaction?.targetMessageId) continue;
-      if (!reaction.actorIdentifier?.startsWith("bot:")) continue;
-      next[reaction.targetMessageId] = reaction.emoji.trim();
+      const reaction = message.reactions?.find((candidate) =>
+        candidate.active !== false && candidate.actorIdentifier.startsWith("bot:"),
+      );
+      if (!reaction?.emoji) continue;
+      next[message.id] = reaction.emoji.trim();
     }
 
     return next;
@@ -823,13 +868,13 @@ export default function InboxPageClient({
     const latestByActorTarget = new Map<string, { targetMessageId: string; emoji: string }>();
 
     for (const message of selectedMessages) {
-      const reaction = parseStoredWhatsappReaction(message.content);
-      if (!reaction?.targetMessageId) continue;
-      const actor = reaction.actorIdentifier || message.sender;
-      latestByActorTarget.set(`${actor}:${reaction.targetMessageId}`, {
-        targetMessageId: reaction.targetMessageId,
-        emoji: reaction.emoji.trim(),
-      });
+      for (const reaction of message.reactions || []) {
+        if (reaction.active === false || !reaction.emoji?.trim()) continue;
+        latestByActorTarget.set(`${reaction.actorIdentifier}:${message.id}`, {
+          targetMessageId: message.id,
+          emoji: reaction.emoji.trim(),
+        });
+      }
     }
 
     for (const [targetMessageId, override] of Object.entries(selfReactionOverridesByMessageId)) {
@@ -867,14 +912,7 @@ export default function InboxPageClient({
     return next;
   }, [selectedMessages, selfReactionOverridesByMessageId]);
 
-  const renderedMessages = useMemo(
-    () =>
-      selectedMessages.filter((message) => {
-        const reaction = parseStoredWhatsappReaction(message.content);
-        return !reaction;
-      }),
-    [selectedMessages],
-  );
+  const renderedMessages = selectedMessages;
 
   const openConversation = (conversationId: string) => {
     setSelectedConversationId(conversationId);
@@ -1469,7 +1507,7 @@ export default function InboxPageClient({
             id: conversationId,
             name: fallbackName,
             handle: payload.conversation?.phone || "Unknown contact",
-            lastMessage: getWhatsappMessagePreview(payload.message.content),
+            lastMessage: getMessagePreview(payload.message),
             time: payload.message.timestamp,
             unread: payload.message.sender === "customer" && conversationId !== selectedConversationId,
             starred: false,
@@ -1486,7 +1524,7 @@ export default function InboxPageClient({
         return upsertConversationByRecentActivity(current, {
           ...existing,
           time: payload.message.timestamp,
-          lastMessage: getWhatsappMessagePreview(payload.message.content),
+          lastMessage: getMessagePreview(payload.message),
           unread:
             payload.message.sender === "customer"
               ? existing.id !== selectedConversationId
@@ -1502,15 +1540,19 @@ export default function InboxPageClient({
           id: payload.message.id,
           sender: payload.message.sender,
           content: payload.message.content,
-          text: getWhatsappMessageDisplayText(payload.message.content),
+          text: getMessageDisplayText(payload.message),
           time: new Date(payload.message.timestamp).toLocaleTimeString("en-ZA", {
             hour: "2-digit",
             minute: "2-digit",
           }),
           timestamp: payload.message.timestamp,
           providerMessageId: payload.message.providerMessageId,
+          contentType: payload.message.contentType,
+          attachments: payload.message.attachments || [],
+          reference: payload.message.reference || null,
+          reactions: payload.message.reactions || [],
           status: normalizeRealtimeStatus(
-            payload.message.providerStatus || payload.message.whatsappStatus,
+            payload.message.status || payload.message.providerStatus || payload.message.whatsappStatus,
           ),
         };
 
@@ -1998,16 +2040,6 @@ export default function InboxPageClient({
 
     const optimisticId = `optimistic:${Date.now()}`;
     if (trimmed && !selectedFile) {
-      const optimisticContent =
-        replyDraft?.messageId && replyDraft.text
-          ? encodeStoredWhatsappReplyEnvelope({
-              version: 1,
-              replyToMessageId: replyDraft.messageId,
-              replyPreview: replyDraft.text,
-              content: trimmed,
-            })
-          : trimmed;
-
       setMessagesByConversationId((current) => ({
         ...current,
         [conversationId]: [
@@ -2015,7 +2047,7 @@ export default function InboxPageClient({
           {
             id: optimisticId,
             sender: "bot",
-            content: optimisticContent,
+            content: trimmed,
             text: trimmed,
             time: new Date().toLocaleTimeString("en-ZA", {
               hour: "2-digit",
@@ -2023,6 +2055,16 @@ export default function InboxPageClient({
             }),
             timestamp: new Date().toISOString(),
             status: "pending",
+            contentType: "TEXT",
+            attachments: [],
+            reactions: [],
+            reference: replyDraft
+              ? {
+                  messageId: replyDraft.messageId,
+                  kind: "REPLY",
+                  previewText: replyDraft.text,
+                }
+              : null,
           },
         ],
       }));
@@ -2850,7 +2892,7 @@ export default function InboxPageClient({
                               onClick={() =>
                                 setReplyDraft({
                                   messageId: message.id,
-                                  text: getWhatsappMessageDisplayText(message.content).slice(0, 120),
+                                  text: getMessageDisplayText(message).slice(0, 120),
                                 })
                               }
                             >
@@ -2873,14 +2915,14 @@ export default function InboxPageClient({
                     <DashboardMessageContent
                       message={message}
                       replyTargetMessage={
-                        message.content.includes("__kasiai_wa_reply_v1__")
+                        message.reference?.messageId
                           ? selectedMessages.find(
-                              (candidate) =>
-                                candidate.id === unwrapWhatsappStoredMessage(message.content).replyToMessageId,
+                              (candidate) => candidate.id === message.reference?.messageId,
                             ) || null
                           : null
                       }
                       contactLabel={selectedConversation?.handle || selectedConversation?.name || "Contact"}
+                      channel={selectedConversation?.channel || "whatsapp"}
                       onOpenMedia={(url, kind, caption) => setLightbox({ url, kind, caption })}
                     />
                     <div className="mt-1.5 space-y-1">
@@ -3120,46 +3162,57 @@ function DashboardMessageContent({
   message,
   replyTargetMessage,
   contactLabel,
+  channel,
   onOpenMedia,
 }: {
   message: ConversationMessage;
   replyTargetMessage: ConversationMessage | null;
   contactLabel: string;
-  onOpenMedia: (url: string, kind: WhatsappMediaKind, caption?: string | null) => void;
+  channel: InboxConversation["channel"];
+  onOpenMedia: (url: string, kind: MessageAttachmentKind, caption?: string | null) => void;
 }) {
-  const unwrapped = unwrapWhatsappStoredMessage(message.content);
-  const media = parseStoredWhatsappMedia(unwrapped.content);
+  const attachment = getMessageAttachment(message);
   const [mediaFailed, setMediaFailed] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const previewText = getMessageDisplayText(message);
+  const replyPreview = message.reference?.previewText || null;
 
-  if (!media) {
+  const replyCard = replyPreview ? (
+    <ReplyPreviewCard
+      message={replyTargetMessage}
+      fallbackPreview={replyPreview}
+      contactLabel={contactLabel}
+    />
+  ) : null;
+
+  if (!attachment) {
     return (
       <div className="space-y-2">
-        {unwrapped.replyPreview ? (
-          <ReplyPreviewCard
-            message={replyTargetMessage}
-            fallbackPreview={unwrapped.replyPreview}
-            contactLabel={contactLabel}
-          />
-        ) : null}
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{unwrapped.content}</p>
+        {replyCard}
+        <p className="whitespace-pre-wrap text-sm leading-relaxed">{previewText}</p>
       </div>
     );
   }
 
-  const mediaUrl = apiUrl(`/api/whatsapp/inbox/media/${message.id}`);
-  const caption = media.caption?.trim();
+  const mediaUrl = channel === "whatsapp" ? apiUrl(`/api/whatsapp/inbox/media/${message.id}`) : null;
+  const caption = message.content?.trim() || null;
+
+  if (!mediaUrl) {
+    return (
+      <div className="space-y-2">
+        {replyCard}
+        <div className="rounded-md border border-border/60 bg-card/40 px-3 py-2 text-xs text-muted-foreground">
+          {`${getMediaLabel(attachment.kind)} received. Secure preview is being prepared for this channel.`}
+        </div>
+        {caption ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{caption}</p> : null}
+      </div>
+    );
+  }
 
   if (mediaFailed) {
     return (
       <div className="space-y-2">
-        {unwrapped.replyPreview ? (
-          <ReplyPreviewCard
-            message={replyTargetMessage}
-            fallbackPreview={unwrapped.replyPreview}
-            contactLabel={contactLabel}
-          />
-        ) : null}
+        {replyCard}
         <div className="rounded-md border border-border/60 bg-card/40 px-3 py-2 text-xs text-muted-foreground">
           Media preview unavailable.
         </div>
@@ -3169,7 +3222,7 @@ function DashboardMessageContent({
           rel="noreferrer"
           className="inline-flex rounded-md border border-border/60 px-3 py-2 text-sm text-foreground no-underline"
         >
-          {`Open ${getMediaLabel(media.kind)}`}
+          {`Open ${getMediaLabel(attachment.kind)}`}
         </a>
         <button
           type="button"
@@ -3186,16 +3239,10 @@ function DashboardMessageContent({
     );
   }
 
-  if (media.kind === "image" || media.kind === "sticker") {
+  if (attachment.kind === "image" || attachment.kind === "sticker") {
     return (
       <div className="space-y-2">
-        {unwrapped.replyPreview ? (
-          <ReplyPreviewCard
-            message={replyTargetMessage}
-            fallbackPreview={unwrapped.replyPreview}
-            contactLabel={contactLabel}
-          />
-        ) : null}
+        {replyCard}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           key={`image-${reloadToken}`}
@@ -3203,46 +3250,34 @@ function DashboardMessageContent({
           alt={caption || "attachment"}
           className="max-h-72 w-full max-w-sm cursor-zoom-in rounded-md border border-border/60 object-contain"
           onError={() => setMediaFailed(true)}
-          onClick={() => onOpenMedia(mediaUrl, media.kind, caption)}
+          onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)}
         />
         {caption ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{caption}</p> : null}
       </div>
     );
   }
 
-  if (media.kind === "video") {
+  if (attachment.kind === "video") {
     return (
       <div className="space-y-2">
-        {unwrapped.replyPreview ? (
-          <ReplyPreviewCard
-            message={replyTargetMessage}
-            fallbackPreview={unwrapped.replyPreview}
-            contactLabel={contactLabel}
-          />
-        ) : null}
+        {replyCard}
         <video
           key={`video-${reloadToken}`}
           controls
           className="max-h-72 w-full max-w-sm cursor-zoom-in rounded-md border border-border/60"
           src={mediaUrl}
           onError={() => setMediaFailed(true)}
-          onClick={() => onOpenMedia(mediaUrl, media.kind, caption)}
+          onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)}
         />
         {caption ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{caption}</p> : null}
       </div>
     );
   }
 
-  if (media.kind === "audio") {
+  if (attachment.kind === "audio") {
     return (
       <div className="space-y-2">
-        {unwrapped.replyPreview ? (
-          <ReplyPreviewCard
-            message={replyTargetMessage}
-            fallbackPreview={unwrapped.replyPreview}
-            contactLabel={contactLabel}
-          />
-        ) : null}
+        {replyCard}
         <audio
           key={`audio-${reloadToken}`}
           controls
@@ -3256,25 +3291,19 @@ function DashboardMessageContent({
 
   return (
     <div className="space-y-2">
-      {unwrapped.replyPreview ? (
-        <ReplyPreviewCard
-          message={replyTargetMessage}
-          fallbackPreview={unwrapped.replyPreview}
-          contactLabel={contactLabel}
-        />
-      ) : null}
+      {replyCard}
       <a
         href={mediaUrl}
         onClick={(event) => {
           event.preventDefault();
-          onOpenMedia(mediaUrl, media.kind, caption);
+          onOpenMedia(mediaUrl, attachment.kind, caption);
         }}
         className="inline-flex rounded-md border border-border/60 px-3 py-2 text-sm text-foreground no-underline"
       >
-        {`Open ${getMediaLabel(media.kind)}`}
+        {`Open ${getMediaLabel(attachment.kind)}`}
       </a>
       <p className="whitespace-pre-wrap text-sm leading-relaxed">
-        {caption || getWhatsappMessageDisplayText(message.content)}
+        {caption || previewText}
       </p>
     </div>
   );
@@ -3289,36 +3318,26 @@ function ReplyPreviewCard({
   fallbackPreview: string;
   contactLabel: string;
 }) {
-  const previewSource = message?.content || fallbackPreview;
-  const media = message ? parseStoredWhatsappMedia(unwrapWhatsappStoredMessage(message.content).content) : null;
+  const attachment = message ? getMessageAttachment(message) : null;
   const label = message?.sender === "bot" ? "You" : contactLabel;
-  const displayText = getWhatsappMessageDisplayText(previewSource);
-  const replyPreviewText = media ? getReplyPreviewText(media, displayText) : displayText;
-  const mediaUrl = message && media ? apiUrl(`/api/whatsapp/inbox/media/${message.id}`) : null;
+  const displayText = message ? getMessageDisplayText(message) : fallbackPreview;
+  const replyPreviewText = attachment ? getReplyPreviewText(attachment, displayText) : displayText;
 
   return (
     <div className="flex overflow-hidden rounded-md bg-secondary">
       <div className="w-1 shrink-0 bg-primary" />
       <div className="min-w-0 flex-1 px-3 py-2">
         <p className="truncate text-[11px] font-medium text-primary">{label}</p>
-        {media ? (
+        {attachment ? (
           <div className="mt-0.5 flex items-center gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                {renderReplyPreviewIcon(media.kind)}
+                {renderReplyPreviewIcon(attachment.kind)}
                 <p className="truncate text-xs text-muted-foreground">
                   {replyPreviewText}
                 </p>
               </div>
             </div>
-            {mediaUrl && (media.kind === "image" || media.kind === "sticker") ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={mediaUrl}
-                alt={media.kind}
-                className="h-10 w-10 shrink-0 rounded-sm object-cover"
-              />
-            ) : null}
           </div>
         ) : (
           <p className="truncate text-xs text-muted-foreground">{displayText}</p>
@@ -3406,19 +3425,16 @@ function calculateReactionPickerPosition(
   return { messageId, top, left };
 }
 
-function getMediaLabel(kind: "image" | "video" | "audio" | "document" | "sticker") {
+function getMediaLabel(kind: MessageAttachmentKind) {
   if (kind === "image") return "image";
   if (kind === "video") return "video";
   if (kind === "audio") return "audio";
   if (kind === "document") return "document";
-  return "sticker";
+  return kind === "sticker" ? "sticker" : "attachment";
 }
 
-function getReplyPreviewText(media: { kind: WhatsappMediaKind; caption?: string | null }, fallback: string) {
-  const caption = media.caption?.trim();
-  if (caption) {
-    return caption;
-  }
+function getReplyPreviewText(media: Pick<MessageAttachment, "kind" | "fileName">, fallback: string) {
+  if (media.fileName?.trim()) return media.fileName;
 
   if (media.kind === "image") {
     return "Photo";
@@ -3443,7 +3459,7 @@ function getReplyPreviewText(media: { kind: WhatsappMediaKind; caption?: string 
   return fallback;
 }
 
-function renderReplyPreviewIcon(kind: WhatsappMediaKind) {
+function renderReplyPreviewIcon(kind: MessageAttachmentKind) {
   if (kind === "image" || kind === "sticker") {
     return <FileImage className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />;
   }
@@ -3470,7 +3486,7 @@ function MediaLightbox({
   onClose,
 }: {
   url: string;
-  kind: WhatsappMediaKind;
+  kind: MessageAttachmentKind;
   caption?: string | null;
   onClose: () => void;
 }) {

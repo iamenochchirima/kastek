@@ -9,6 +9,7 @@ pub mod calls;
 pub mod connections;
 pub mod customers;
 pub mod inbox;
+pub mod message_domain;
 pub mod notifications;
 pub mod orgs;
 pub mod paystack;

@@ -22,7 +22,7 @@ use crate::services::push::{send_push_notification_to_user, PushNotificationPayl
 use crate::services::realtime;
 use crate::services::social::{decrypt_social_secret, encrypt_social_secret};
 use crate::services::whatsapp_calls;
-use crate::services::{billing, connections, customers};
+use crate::services::{billing, connections, customers, message_domain};
 
 const GRAPH_BASE: &str = "https://graph.facebook.com/v19.0";
 
@@ -4362,22 +4362,39 @@ fn get_inbound_text(message: &Value) -> Option<String> {
         })
 }
 
-fn get_media_content(message: &Value) -> Option<String> {
+struct IncomingWhatsappMedia {
+    kind: String,
+    media_id: String,
+    mime_type: Option<String>,
+    caption: Option<String>,
+    filename: Option<String>,
+    sha256: Option<String>,
+}
+
+fn get_incoming_media(message: &Value) -> Option<IncomingWhatsappMedia> {
     for kind in ["image", "video", "audio", "document", "sticker"] {
         if let Some(media) = message.get(kind) {
             if let Some(media_id) = media.get("id").and_then(|v| v.as_str()) {
-                return Some(format!(
-                    "__kasiai_wa_media_v1__:{}",
-                    json!({
-                        "version": 1,
-                        "kind": kind,
-                        "mediaId": media_id,
-                        "mimeType": media.get("mime_type").and_then(|v| v.as_str()),
-                        "caption": media.get("caption").and_then(|v| v.as_str()),
-                        "filename": media.get("filename").and_then(|v| v.as_str()),
-                        "sha256": media.get("sha256").and_then(|v| v.as_str())
-                    })
-                ));
+                return Some(IncomingWhatsappMedia {
+                    kind: kind.to_string(),
+                    media_id: media_id.to_string(),
+                    mime_type: media
+                        .get("mime_type")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string),
+                    caption: media
+                        .get("caption")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string),
+                    filename: media
+                        .get("filename")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string),
+                    sha256: media
+                        .get("sha256")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string),
+                });
             }
         }
     }
@@ -4707,7 +4724,7 @@ async fn handle_incoming_messages(
             continue;
         }
         let text = get_inbound_text(&message);
-        let media = get_media_content(&message);
+        let media = get_incoming_media(&message);
         if text.is_none() && media.is_none() {
             continue;
         }
@@ -4773,21 +4790,38 @@ async fn handle_incoming_messages(
         .bind(org_id)
         .execute(pool)
         .await?;
-        let content = text.clone().or(media).unwrap_or_default();
+        let content = text
+            .clone()
+            .or_else(|| media.as_ref().and_then(|value| value.caption.clone()))
+            .unwrap_or_default();
         let message_id = cuid2::create_id();
         let wa_message_id = message.get("id").and_then(|v| v.as_str());
         sqlx::query(
             r#"
-            INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappMessageId", timestamp)
-            VALUES ($1, $2, 'customer', $3, $4, NOW())
+            INSERT INTO "Message" (id, "conversationId", sender, content, "contentType", "whatsappMessageId", timestamp)
+            VALUES ($1, $2, 'customer', $3, $4, $5, NOW())
             "#,
         )
         .bind(&message_id)
         .bind(&conversation_id)
         .bind(&content)
+        .bind(if media.is_some() { "MEDIA" } else { "TEXT" })
         .bind(wa_message_id)
         .execute(pool)
         .await?;
+        if let Some(media) = media {
+            message_domain::create_attachment(
+                pool,
+                &message_id,
+                Some(&media.media_id),
+                &media.kind,
+                media.mime_type.as_deref(),
+                media.filename.as_deref(),
+                media.sha256.as_deref(),
+                json!({ "source": "whatsapp_webhook" }),
+            )
+            .await?;
+        }
         sqlx::query(
             r#"
             UPDATE "Conversation"
@@ -5117,6 +5151,13 @@ async fn publish_message_created(
     let Some(org_id) = conversation_org_id(pool, &conversation.id).await? else {
         return Ok(());
     };
+    let structured_message = message_domain::list_timeline_messages(pool, &conversation.id)
+        .await?
+        .into_iter()
+        .find(|candidate| candidate.get("id").and_then(Value::as_str) == Some(message_id));
+    let Some(structured_message) = structured_message else {
+        return Ok(());
+    };
     let (connection_id, phone) = parse_conversation_identifier(&conversation.customer_identifier)
         .unwrap_or_else(|| ("".to_string(), conversation.customer_identifier.clone()));
     let connection_label = if connection_id.is_empty() {
@@ -5143,13 +5184,7 @@ async fn publish_message_created(
                 "unreadCount": conversation.unread_count,
                 "lastMessageAt": conversation.last_message_at,
             },
-            "message": {
-                "id": message.id,
-                "sender": message.sender,
-                "content": message.content,
-                "timestamp": message.timestamp,
-                "whatsappStatus": message.whatsapp_status,
-            }
+            "message": structured_message,
         }),
     )
     .await;
@@ -5214,85 +5249,8 @@ async fn publish_message_send_failed(
     .await;
 }
 
-fn unwrap_reply_envelope(content: &str) -> (String, Option<String>, Option<String>) {
-    const REPLY_PREFIX: &str = "__kasiai_wa_reply_v1__:";
-    if let Some(raw) = content.strip_prefix(REPLY_PREFIX) {
-        if let Ok(value) = serde_json::from_str::<Value>(raw) {
-            let inner = value
-                .get("content")
-                .and_then(|v| v.as_str())
-                .unwrap_or(content)
-                .to_string();
-            let preview = value
-                .get("replyPreview")
-                .and_then(|v| v.as_str())
-                .map(|v| v.to_string());
-            let reply_to = value
-                .get("replyToWhatsappMessageId")
-                .and_then(|v| v.as_str())
-                .map(|v| v.to_string())
-                .or_else(|| {
-                    value
-                        .get("replyToMessageId")
-                        .and_then(|v| v.as_str())
-                        .map(|v| v.to_string())
-                });
-            return (inner, preview, reply_to);
-        }
-    }
-    (content.to_string(), None, None)
-}
-
-fn parse_stored_media(content: &str) -> Option<Value> {
-    const MEDIA_PREFIX: &str = "__kasiai_wa_media_v1__:";
-    let (inner, _, _) = unwrap_reply_envelope(content);
-    inner
-        .strip_prefix(MEDIA_PREFIX)
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
-}
-
-fn parse_stored_reaction(content: &str) -> Option<Value> {
-    const REACTION_PREFIX: &str = "__kasiai_wa_reaction_v1__:";
-    let (inner, _, _) = unwrap_reply_envelope(content);
-    inner
-        .strip_prefix(REACTION_PREFIX)
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
-}
-
 fn display_text(content: &str) -> String {
-    let (inner, _, _) = unwrap_reply_envelope(content);
-    if let Some(reaction) = parse_stored_reaction(&inner) {
-        let emoji = reaction
-            .get("emoji")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        return if emoji.is_empty() {
-            "Removed reaction".to_string()
-        } else {
-            format!("Reacted {}", emoji)
-        };
-    }
-    if let Some(media) = parse_stored_media(&inner) {
-        if let Some(caption) = media
-            .get("caption")
-            .and_then(|v| v.as_str())
-            .filter(|v| !v.trim().is_empty())
-        {
-            return caption.to_string();
-        }
-        let kind = media
-            .get("kind")
-            .and_then(|v| v.as_str())
-            .unwrap_or("media");
-        let mut chars = kind.chars();
-        return match chars.next() {
-            Some(first) => format!("{}{} attachment", first.to_uppercase(), chars.as_str()),
-            None => "Media attachment".to_string(),
-        };
-    }
-    inner
+    content.to_string()
 }
 
 fn preview_text(content: &str, max: usize) -> String {
@@ -5340,28 +5298,6 @@ fn media_kind_from_upload(filename: Option<&str>, mime_type: Option<&str>) -> &'
         "mp3" | "wav" | "ogg" | "m4a" | "aac" => "audio",
         _ => "document",
     }
-}
-
-fn build_stored_media_content(
-    kind: &str,
-    media_id: &str,
-    mime_type: Option<&str>,
-    caption: Option<&str>,
-    filename: Option<&str>,
-    sha256: Option<&str>,
-) -> String {
-    format!(
-        "__kasiai_wa_media_v1__:{}",
-        json!({
-            "version": 1,
-            "kind": kind,
-            "mediaId": media_id,
-            "mimeType": mime_type,
-            "caption": caption,
-            "filename": filename,
-            "sha256": sha256,
-        })
-    )
 }
 
 async fn send_text_message(
@@ -5600,7 +5536,19 @@ async fn process_claimed_inbox_message(
     let (_, phone) = parse_conversation_identifier(&job.customer_identifier)
         .ok_or_else(|| AppError::BadRequest("Invalid conversation identifier".to_string()))?;
     let access_token = decrypt_social_secret(&job.access_token_encrypted)?;
-    let (text, _, reply_to_whatsapp_message_id) = unwrap_reply_envelope(&job.content);
+    let reply_to_whatsapp_message_id = sqlx::query_scalar::<_, Option<String>>(
+        r#"
+        SELECT COALESCE(reference."referencedProviderMessageId", target."whatsappMessageId")
+        FROM "MessageReference" reference
+        LEFT JOIN "Message" target ON target.id = reference."referencedMessageId"
+        WHERE reference."messageId" = $1
+        LIMIT 1
+        "#,
+    )
+    .bind(&job.id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .flatten();
     log::info!(
         "[whatsapp-inbox-worker] sending queued message message_id={} conversation_id={} phone_number_id={} recipient_phone={} reply_to={:?}",
         job.id,
@@ -5613,7 +5561,7 @@ async fn process_claimed_inbox_message(
         &job.phone_number_id,
         &access_token,
         &phone,
-        &text,
+        &job.content,
         reply_to_whatsapp_message_id.as_deref(),
     )
     .await?;
@@ -6131,35 +6079,7 @@ pub async fn list_conversation_messages(
     let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
-    let messages = sqlx::query_as::<_, MessageRow>(
-        r#"
-        SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
-               "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message,
-               timestamp AT TIME ZONE 'UTC' AS timestamp
-        FROM "Message"
-        WHERE "conversationId" = $1
-        ORDER BY timestamp ASC
-        "#
-    )
-    .bind(&conversation.id)
-    .fetch_all(pool)
-    .await?;
-    let mapped = messages
-        .into_iter()
-        .map(|message| {
-            json!({
-                "id": message.id,
-                "sender": message.sender,
-                "whatsappMessageId": message.whatsapp_message_id,
-                "content": message.content,
-                "text": display_text(&message.content),
-                "time": message.timestamp,
-                "status": message.whatsapp_status,
-                "canReply": message.whatsapp_message_id.is_some(),
-                "canReact": message.whatsapp_message_id.is_some(),
-            })
-        })
-        .collect::<Vec<_>>();
+    let mapped = message_domain::list_timeline_messages(pool, &conversation.id).await?;
     Ok(json!({ "messages": mapped }))
 }
 
@@ -6181,8 +6101,7 @@ pub async fn send_conversation_message(
         .ok_or_else(|| AppError::BadRequest("Reply text or media file is required".to_string()))?;
     parse_conversation_identifier(&conversation.customer_identifier)
         .ok_or_else(|| AppError::BadRequest("Invalid conversation".to_string()))?;
-    let mut persisted_content = text.to_string();
-    if let Some(reply_to_message_id) = input
+    let reply_target = if let Some(reply_to_message_id) = input
         .reply_to_message_id
         .as_deref()
         .map(str::trim)
@@ -6208,17 +6127,10 @@ pub async fn send_conversation_message(
                 "This message cannot be replied to yet. Try again in a few seconds.".to_string(),
             )
         })?;
-        persisted_content = format!(
-            "__kasiai_wa_reply_v1__:{}",
-            json!({
-                "version": 1,
-                "replyToMessageId": reply_target.id,
-                "replyToWhatsappMessageId": target_wa_id,
-                "replyPreview": preview_text(&reply_target.content, 180),
-                "content": text
-            })
-        );
-    }
+        Some((reply_target, target_wa_id))
+    } else {
+        None
+    };
     let created_message_id = cuid2::create_id();
     log::info!(
         "[whatsapp-inbox-api] queueing message message_id={} conversation_id={} user_id={} has_reply={}",
@@ -6229,15 +6141,26 @@ pub async fn send_conversation_message(
     );
     sqlx::query(
         r#"
-        INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappStatus", timestamp)
-        VALUES ($1, $2, 'bot', $3, 'QUEUED', NOW())
+        INSERT INTO "Message" (id, "conversationId", sender, content, "contentType", "whatsappStatus", timestamp)
+        VALUES ($1, $2, 'bot', $3, 'TEXT', 'QUEUED', NOW())
         "#,
     )
     .bind(&created_message_id)
     .bind(&conversation.id)
-    .bind(&persisted_content)
+    .bind(text)
     .execute(pool)
     .await?;
+    if let Some((target, target_wa_id)) = reply_target {
+        message_domain::create_reference(
+            pool,
+            &created_message_id,
+            &target.id,
+            Some(&target_wa_id),
+            Some(&preview_text(&target.content, 180)),
+            Some("TEXT"),
+        )
+        .await?;
+    }
     sqlx::query(r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW() WHERE id = $1"#)
         .bind(&conversation.id)
         .execute(pool)
@@ -6331,7 +6254,7 @@ pub async fn send_conversation_media(
         .unwrap_or_else(|| format!("attachment-{}.bin", Utc::now().timestamp()));
     let media_kind = media_kind_from_upload(Some(&final_filename), mime_type.as_deref());
 
-    let reply_target_wa_id = if let Some(reply_target_message_id) = reply_to_message_id
+    let reply_target = if let Some(reply_target_message_id) = reply_to_message_id
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -6351,11 +6274,12 @@ pub async fn send_conversation_media(
         .fetch_optional(pool)
         .await?
         .ok_or_else(|| AppError::NotFound("Reply target not found".to_string()))?;
-        Some(reply_target.whatsapp_message_id.clone().ok_or_else(|| {
+        let target_wa_id = reply_target.whatsapp_message_id.clone().ok_or_else(|| {
             AppError::BadRequest(
                 "This message cannot be replied to yet. Try again in a few seconds.".to_string(),
             )
-        })?)
+        })?;
+        Some((reply_target, target_wa_id))
     } else {
         None
     };
@@ -6381,65 +6305,45 @@ pub async fn send_conversation_media(
         &uploaded_media_id,
         caption.as_deref(),
         Some(&final_filename),
-        reply_target_wa_id.as_deref(),
+        reply_target.as_ref().map(|(_, provider_id)| provider_id.as_str()),
     )
     .await?;
-
-    let mut persisted_content = build_stored_media_content(
-        media_kind,
-        &uploaded_media_id,
-        mime_type.as_deref(),
-        caption.as_deref(),
-        Some(&final_filename),
-        sha256.as_deref(),
-    );
-
-    if let Some(reply_target_message_id) = reply_to_message_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        if let Some(reply_target) = sqlx::query_as::<_, MessageRow>(
-            r#"
-            SELECT id, "conversationId" AS conversation_id, sender, content, "whatsappMessageId" AS whatsapp_message_id,
-                   "whatsappStatus" AS whatsapp_status, "errorCode" AS error_code, "errorMessage" AS error_message,
-                   timestamp AT TIME ZONE 'UTC' AS timestamp
-            FROM "Message"
-            WHERE id = $1 AND "conversationId" = $2
-            LIMIT 1
-            "#
-        )
-        .bind(reply_target_message_id)
-        .bind(&conversation.id)
-        .fetch_optional(pool)
-        .await?
-        {
-            persisted_content = format!(
-                "__kasiai_wa_reply_v1__:{}",
-                json!({
-                    "version": 1,
-                    "replyToMessageId": reply_target.id,
-                    "replyToWhatsappMessageId": reply_target.whatsapp_message_id,
-                    "replyPreview": preview_text(&reply_target.content, 180),
-                    "content": persisted_content
-                })
-            );
-        }
-    }
 
     let message_id = cuid2::create_id();
     sqlx::query(
         r#"
-        INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappMessageId", "whatsappStatus", timestamp)
-        VALUES ($1, $2, 'bot', $3, $4, 'SENT', NOW())
+        INSERT INTO "Message" (id, "conversationId", sender, content, "contentType", "whatsappMessageId", "whatsappStatus", timestamp)
+        VALUES ($1, $2, 'bot', $3, 'MEDIA', $4, 'SENT', NOW())
         "#,
     )
     .bind(&message_id)
     .bind(&conversation.id)
-    .bind(&persisted_content)
+    .bind(caption.as_deref().unwrap_or_default())
     .bind(&whatsapp_message_id)
     .execute(pool)
     .await?;
+    message_domain::create_attachment(
+        pool,
+        &message_id,
+        Some(&uploaded_media_id),
+        media_kind,
+        mime_type.as_deref(),
+        Some(&final_filename),
+        sha256.as_deref(),
+        json!({ "source": "whatsapp_upload" }),
+    )
+    .await?;
+    if let Some((target, target_wa_id)) = reply_target {
+        message_domain::create_reference(
+            pool,
+            &message_id,
+            &target.id,
+            Some(&target_wa_id),
+            Some(&preview_text(&target.content, 180)),
+            Some("TEXT"),
+        )
+        .await?;
+    }
     sqlx::query(
         r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW() WHERE id = $1"#,
     )
@@ -6629,25 +6533,28 @@ pub async fn send_message_reaction(
         if remove { "" } else { &emoji },
     )
     .await?;
-    sqlx::query(
-        r#"
-        INSERT INTO "Message" (id, "conversationId", sender, content, timestamp)
-        VALUES ($1, $2, 'bot', $3, NOW())
-        "#,
-    )
-    .bind(cuid2::create_id())
-    .bind(&conversation.id)
-    .bind(format!(
-        "__kasiai_wa_reaction_v1__:{}",
+    message_domain::upsert_reaction(
+        pool,
+        &target_message.id,
+        &format!("workspace:{}", connection.id),
+        if remove { None } else { Some(emoji.as_str()) },
+        !remove,
+        None,
         json!({
-            "version": 1,
-            "emoji": if remove { "" } else { &emoji },
-            "targetWhatsappMessageId": target_wa_id,
-            "targetMessageId": target_message.id,
-            "actorIdentifier": format!("bot:{}", connection.id),
-        })
-    ))
-    .execute(pool)
+            "provider": "whatsapp",
+            "targetProviderMessageId": target_wa_id,
+            "source": "workspace",
+        }),
+    )
+    .await?;
+    message_domain::record_event(
+        pool,
+        &conversation.id,
+        Some(&target_message.id),
+        None,
+        if remove { "REACTION_REMOVED" } else { "REACTION_ADDED" },
+        json!({ "provider": "whatsapp", "emoji": if remove { "" } else { &emoji } }),
+    )
     .await?;
     Ok(json!({ "success": true }))
 }
@@ -6693,12 +6600,11 @@ pub async fn download_message_media(
     if connection_ids.is_empty() {
         return Err(AppError::NotFound("Media message not found".to_string()));
     }
-    let message = sqlx::query_as::<_, MessageRow>(
+    let attachment = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>)>(
         r#"
-        SELECT m.id, m."conversationId" AS conversation_id, m.sender, m.content, m."whatsappMessageId" AS whatsapp_message_id,
-               m."whatsappStatus" AS whatsapp_status, m."errorCode" AS error_code, m."errorMessage" AS error_message,
-               m.timestamp AT TIME ZONE 'UTC' AS timestamp
+        SELECT m."conversationId", attachment."providerMediaId", attachment."mimeType", attachment."fileName"
         FROM "Message" m
+        JOIN "MessageAttachment" attachment ON attachment."messageId" = m.id
         JOIN "Conversation" c ON c.id = m."conversationId"
         WHERE m.id = $1
           AND c.channel = 'whatsapp'
@@ -6714,16 +6620,13 @@ pub async fn download_message_media(
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Media message not found".to_string()))?;
-    let media = parse_stored_media(&message.content)
-        .ok_or_else(|| AppError::BadRequest("Message does not contain media".to_string()))?;
-    let media_id = media
-        .get("mediaId")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::BadRequest("Message does not contain media".to_string()))?;
+    let (message_conversation_id, media_id, mime_type, attachment_filename) = attachment;
+    let media_id = media_id
+        .ok_or_else(|| AppError::BadRequest("Message attachment is not available from WhatsApp".to_string()))?;
     let conversation_identifier = sqlx::query_scalar::<_, String>(
         r#"SELECT "customerIdentifier" FROM "Conversation" WHERE id = $1"#,
     )
-    .bind(&message.conversation_id)
+    .bind(&message_conversation_id)
     .fetch_one(pool)
     .await?;
     let (connection_id, _) = parse_conversation_identifier(&conversation_identifier)
@@ -6732,18 +6635,14 @@ pub async fn download_message_media(
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
-    let (bytes, content_type) = download_media_bytes(&access_token, media_id).await?;
-    let extension = media
-        .get("mimeType")
-        .and_then(|v| v.as_str())
+    let (bytes, content_type) = download_media_bytes(&access_token, &media_id).await?;
+    let extension = mime_type
+        .as_deref()
         .and_then(|v| v.split('/').nth(1))
         .unwrap_or("bin");
-    let fallback_name = format!("whatsapp-media-{}.{}", message.id, extension);
+    let fallback_name = format!("whatsapp-media-{}.{}", message_id, extension);
     let filename = sanitize_filename(
-        media
-            .get("filename")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&fallback_name),
+        attachment_filename.as_deref().unwrap_or(&fallback_name),
     );
     Ok(actix_web::HttpResponse::Ok()
         .append_header(("Content-Type", content_type))

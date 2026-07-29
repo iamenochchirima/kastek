@@ -8,7 +8,7 @@ use crate::config::AppConfig;
 use crate::db::models::{ConversationRow, WhatsappSendMessageRequest};
 use crate::error::AppError;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
-use crate::services::{customers, realtime, social, whatsapp};
+use crate::services::{customers, message_domain, realtime, social, whatsapp};
 
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v23.0";
 const INSTAGRAM_GRAPH_BASE: &str = "https://graph.instagram.com/v23.0";
@@ -43,12 +43,7 @@ struct InboxMessageRow {
     id: String,
     #[sqlx(rename = "conversation_id")]
     conversation_id: String,
-    sender: String,
     content: String,
-    #[sqlx(rename = "whatsapp_message_id")]
-    whatsapp_message_id: Option<String>,
-    #[sqlx(rename = "whatsapp_status")]
-    whatsapp_status: Option<String>,
     #[sqlx(rename = "provider_message_id")]
     provider_message_id: Option<String>,
     #[sqlx(rename = "provider_status")]
@@ -57,7 +52,6 @@ struct InboxMessageRow {
     error_code: Option<String>,
     #[sqlx(rename = "error_message")]
     error_message: Option<String>,
-    timestamp: chrono::DateTime<Utc>,
 }
 
 #[derive(Debug, FromRow)]
@@ -268,49 +262,7 @@ pub async fn list_conversation_messages(
         return whatsapp::list_conversation_messages(pool, org_id, conversation_id).await;
     }
 
-    let messages = sqlx::query_as::<_, InboxMessageRow>(
-        r#"
-        SELECT
-            id,
-            "conversationId" AS conversation_id,
-            sender,
-            content,
-            "whatsappMessageId" AS whatsapp_message_id,
-            "whatsappStatus" AS whatsapp_status,
-            "providerMessageId" AS provider_message_id,
-            "providerStatus" AS provider_status,
-            "errorCode" AS error_code,
-            "errorMessage" AS error_message,
-            timestamp AT TIME ZONE 'UTC' AS timestamp
-        FROM "Message"
-        WHERE "conversationId" = $1
-        ORDER BY timestamp ASC
-        "#,
-    )
-    .bind(&conversation.id)
-    .fetch_all(pool)
-    .await?;
-
-    let mapped = messages
-        .into_iter()
-        .map(|message| {
-            json!({
-                "id": message.id,
-                "conversationId": message.conversation_id,
-                "sender": message.sender,
-                "content": message.content,
-                "text": message.content,
-                "time": message.timestamp,
-                "timestamp": message.timestamp,
-                "status": message.provider_status.or(message.whatsapp_status),
-                "providerMessageId": message.provider_message_id.or(message.whatsapp_message_id),
-                "errorCode": message.error_code,
-                "errorMessage": message.error_message,
-                "canReply": true,
-                "canReact": false,
-            })
-        })
-        .collect::<Vec<_>>();
+    let mapped = message_domain::list_timeline_messages(pool, &conversation.id).await?;
 
     Ok(json!({ "messages": mapped }))
 }
@@ -394,35 +346,19 @@ pub async fn send_conversation_message(
             "This message cannot be replied to yet. Try again in a few seconds.".to_string(),
         ));
     }
-    let persisted_content = reply_target
-        .as_ref()
-        .map(|target| {
-            format!(
-                "__kasiai_wa_reply_v1__:{}",
-                json!({
-                    "version": 1,
-                    "replyToMessageId": target.id,
-                    "replyToProviderMessageId": reply_to_provider_message_id,
-                    "replyPreview": preview_text(&target.content, 180),
-                    "content": text,
-                })
-            )
-        })
-        .unwrap_or_else(|| text.to_string());
-
     let message_id = cuid2::create_id();
     sqlx::query(
         r#"
         INSERT INTO "Message" (
-            id, "conversationId", sender, content,
+            id, "conversationId", sender, content, "contentType",
             "providerStatus", "providerMetadata", timestamp
         )
-        VALUES ($1, $2, 'bot', $3, 'PROCESSING', $4, NOW())
+        VALUES ($1, $2, 'bot', $3, 'TEXT', 'PROCESSING', $4, NOW())
         "#,
     )
     .bind(&message_id)
     .bind(&meta_scope.id)
-    .bind(&persisted_content)
+    .bind(text)
     .bind(json!({
         "provider": meta_scope.channel,
         "channelConnectionId": meta_scope.channel_connection_id,
@@ -430,6 +366,17 @@ pub async fn send_conversation_message(
     }))
     .execute(pool)
     .await?;
+    if let Some(target) = reply_target.as_ref() {
+        message_domain::create_reference(
+            pool,
+            &message_id,
+            &target.id,
+            reply_to_provider_message_id.as_deref(),
+            Some(&preview_text(&target.content, 180)),
+            Some("TEXT"),
+        )
+        .await?;
+    }
 
     let uses_instagram_login = meta_scope
         .metadata
@@ -666,8 +613,9 @@ pub async fn process_meta_webhook_payload(
                 continue;
             }
 
-            let content = meta_message_content(message);
-            if content.is_empty() {
+            let content = meta_message_text(message);
+            let attachments = meta_message_attachments(message);
+            if content.is_empty() && attachments.is_empty() {
                 continue;
             }
 
@@ -685,7 +633,7 @@ pub async fn process_meta_webhook_payload(
             )
             .await?;
 
-            let stored_content = if let Some(reply_to_provider_message_id) = meta_reply_to_mid(message) {
+            let reply_target = if let Some(reply_to_provider_message_id) = meta_reply_to_mid(message) {
                 if let Some(reply_target) = sqlx::query_as::<_, InboxMessageRow>(
                     r#"
                     SELECT id, "conversationId" AS conversation_id, sender, content,
@@ -706,21 +654,12 @@ pub async fn process_meta_webhook_payload(
                 .fetch_optional(pool)
                 .await?
                 {
-                    format!(
-                        "__kasiai_wa_reply_v1__:{}",
-                        json!({
-                            "version": 1,
-                            "replyToMessageId": reply_target.id,
-                            "replyToProviderMessageId": reply_to_provider_message_id,
-                            "replyPreview": preview_text(&reply_target.content, 180),
-                            "content": content,
-                        })
-                    )
+                    Some((reply_target, reply_to_provider_message_id))
                 } else {
-                    content.clone()
+                    None
                 }
             } else {
-                content.clone()
+                None
             };
 
             let message_id = cuid2::create_id();
@@ -729,10 +668,10 @@ pub async fn process_meta_webhook_payload(
             let inserted = sqlx::query_scalar::<_, String>(
                 r#"
                 INSERT INTO "Message" (
-                    id, "conversationId", sender, content,
+                    id, "conversationId", sender, content, "contentType",
                     "providerMessageId", "providerStatus", "providerMetadata", timestamp
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
                 ON CONFLICT ("conversationId", "providerMessageId") DO NOTHING
                 RETURNING id
                 "#,
@@ -740,7 +679,8 @@ pub async fn process_meta_webhook_payload(
             .bind(&message_id)
             .bind(&conversation_id)
             .bind(message_sender)
-            .bind(&stored_content)
+            .bind(&content)
+            .bind(if attachments.is_empty() { "TEXT" } else { "MEDIA" })
             .bind(message_mid.as_deref())
             .bind(provider_status)
             .bind(json!({
@@ -754,6 +694,30 @@ pub async fn process_meta_webhook_payload(
 
             if inserted.is_none() {
                 continue;
+            }
+            for attachment in &attachments {
+                message_domain::create_attachment(
+                    pool,
+                    &message_id,
+                    attachment.provider_media_id.as_deref(),
+                    &attachment.kind,
+                    attachment.mime_type.as_deref(),
+                    attachment.file_name.as_deref(),
+                    None,
+                    attachment.metadata.clone(),
+                )
+                .await?;
+            }
+            if let Some((target, provider_message_id)) = reply_target {
+                message_domain::create_reference(
+                    pool,
+                    &message_id,
+                    &target.id,
+                    Some(&provider_message_id),
+                    Some(&preview_text(&target.content, 180)),
+                    Some("TEXT"),
+                )
+                .await?;
             }
 
             sqlx::query(
@@ -1525,6 +1489,13 @@ async fn publish_message_created(
     let Some(org_id) = conversation_org_id(pool, &conversation.id).await? else {
         return Ok(());
     };
+    let message = message_domain::list_timeline_messages(pool, &conversation.id)
+        .await?
+        .into_iter()
+        .find(|candidate| candidate.get("id").and_then(Value::as_str) == Some(message_id));
+    let Some(message) = message else {
+        return Ok(());
+    };
     let (connection_id, connection_label, handle) =
         conversation_channel_context(pool, &conversation).await?;
 
@@ -1542,15 +1513,7 @@ async fn publish_message_created(
                 "unreadCount": conversation.unread_count,
                 "lastMessageAt": conversation.last_message_at,
             },
-            "message": {
-                "id": message.id,
-                "sender": message.sender,
-                "content": message.content,
-                "timestamp": message.timestamp,
-                "whatsappStatus": message.whatsapp_status,
-                "providerStatus": message.provider_status,
-                "providerMessageId": message.provider_message_id,
-            }
+            "message": message,
         }),
     )
     .await;
@@ -1672,7 +1635,15 @@ fn preview_text(content: &str, limit: usize) -> String {
     format!("{shortened}…")
 }
 
-fn meta_message_content(message: &Value) -> String {
+struct MetaIncomingAttachment {
+    kind: String,
+    provider_media_id: Option<String>,
+    mime_type: Option<String>,
+    file_name: Option<String>,
+    metadata: Value,
+}
+
+fn meta_message_text(message: &Value) -> String {
     if let Some(text) = message.get("text").and_then(|value| value.as_str()) {
         let trimmed = text.trim();
         if !trimmed.is_empty() {
@@ -1680,15 +1651,41 @@ fn meta_message_content(message: &Value) -> String {
         }
     }
 
-    let attachment_type = message
-        .get("attachments")
-        .and_then(|value| value.as_array())
-        .and_then(|attachments| attachments.first())
-        .and_then(|attachment| attachment.get("type"))
-        .and_then(|value| value.as_str())
-        .unwrap_or("attachment");
+    String::new()
+}
 
-    format!("[{} attachment]", attachment_type)
+fn meta_message_attachments(message: &Value) -> Vec<MetaIncomingAttachment> {
+    message
+        .get("attachments")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|attachment| {
+            let payload = attachment.get("payload").cloned().unwrap_or(Value::Null);
+            MetaIncomingAttachment {
+                kind: attachment
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("attachment")
+                    .to_string(),
+                provider_media_id: payload
+                    .get("id")
+                    .or_else(|| attachment.get("id"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                mime_type: payload
+                    .get("mime_type")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                file_name: payload
+                    .get("name")
+                    .or_else(|| payload.get("filename"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                metadata: json!({ "providerPayload": payload }),
+            }
+        })
+        .collect()
 }
 
 fn meta_message_is_echo(message: &Value) -> bool {
@@ -1827,7 +1824,7 @@ async fn fetch_meta_json<T: serde::de::DeserializeOwned>(
 mod tests {
     use super::{
         build_meta_conversation_identifier, meta_delivery_message_ids, meta_graph_message_content,
-        meta_graph_message_recipient_name, meta_message_content, meta_message_is_echo,
+        meta_graph_message_recipient_name, meta_message_attachments, meta_message_is_echo,
         meta_profile_display_name, meta_receipt_watermark, meta_reply_to_mid, meta_send_asset_id,
         parse_meta_conversation_identifier, scoped_conversation, verify_meta_signature, HmacSha256,
     };
@@ -1947,12 +1944,16 @@ mod tests {
     }
 
     #[test]
-    fn inbound_attachments_have_a_storable_preview() {
-        assert_eq!(meta_message_content(&json!({ "text": " Hello " })), "Hello");
-        assert_eq!(
-            meta_message_content(&json!({ "attachments": [{ "type": "image" }] })),
-            "[image attachment]"
-        );
+    fn inbound_attachments_are_structured() {
+        let attachments = meta_message_attachments(&json!({
+            "attachments": [{
+                "type": "image",
+                "payload": { "id": "media-123", "mime_type": "image/jpeg" }
+            }]
+        }));
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].kind, "image");
+        assert_eq!(attachments[0].provider_media_id.as_deref(), Some("media-123"));
     }
 
     #[test]

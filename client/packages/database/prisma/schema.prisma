@@ -1041,8 +1041,9 @@ model Conversation {
   customerId            String?
   customer              Customer?           @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
 
-  messages     Message[]
-  callSessions WhatsappCallSession[]
+  messages      Message[]
+  messageEvents MessageEvent[]
+  callSessions  WhatsappCallSession[]
   calls        CommunicationCall[]
 
   createdAt DateTime @default(now())
@@ -1121,6 +1122,7 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         String       // customer | bot
   content        String       @db.Text
+  contentType    String       @default("TEXT")
   providerMessageId String?
   providerStatus    String?
   providerMetadata  Json?
@@ -1135,7 +1137,15 @@ model Message {
   whatsappPricingType         String?
   errorCode         String?
   errorMessage      String?   @db.Text
+  editedAt          DateTime?
+  deletedAt         DateTime?
   timestamp      DateTime     @default(now())
+
+  attachments MessageAttachment[]
+  reference   MessageReference? @relation("MessageReplyReference")
+  referencedBy MessageReference[] @relation("ReferencedMessage")
+  reactions   MessageReaction[]
+  events      MessageEvent[]
 
   @@unique([conversationId, providerMessageId])
   @@index([conversationId])
@@ -1143,6 +1153,86 @@ model Message {
   @@index([providerStatus])
   @@index([whatsappMessageId])
   @@index([whatsappStatus])
+  @@index([contentType])
+  @@index([deletedAt])
+}
+
+model MessageAttachment {
+  id                   String   @id @default(cuid())
+  messageId            String
+  message              Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  providerAttachmentId String?
+  providerMediaId      String?
+  kind                 String
+  mimeType             String?
+  fileName             String?
+  byteSize             Int?
+  checksum             String?
+  width                Int?
+  height               Int?
+  durationMs           Int?
+  storageKey           String?
+  previewStorageKey    String?
+  downloadStatus       String   @default("PENDING")
+  scanStatus           String   @default("PENDING")
+  metadata             Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([messageId])
+  @@index([providerMediaId])
+  @@index([downloadStatus])
+}
+
+model MessageReference {
+  id                          String   @id @default(cuid())
+  messageId                   String   @unique
+  message                     Message  @relation("MessageReplyReference", fields: [messageId], references: [id], onDelete: Cascade)
+  referencedMessageId         String?
+  referencedMessage           Message? @relation("ReferencedMessage", fields: [referencedMessageId], references: [id], onDelete: SetNull)
+  referencedProviderMessageId String?
+  kind                        String   @default("REPLY")
+  previewText                 String?  @db.Text
+  previewKind                 String?
+  createdAt                   DateTime @default(now())
+
+  @@index([referencedMessageId])
+  @@index([referencedProviderMessageId])
+}
+
+model MessageReaction {
+  id               String   @id @default(cuid())
+  messageId        String
+  message          Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  actorIdentifier  String
+  emoji            String?
+  providerEventId  String?
+  active           Boolean  @default(true)
+  occurredAt       DateTime @default(now())
+  metadata         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([messageId, actorIdentifier])
+  @@index([providerEventId])
+  @@index([messageId, active])
+}
+
+model MessageEvent {
+  id              String        @id @default(cuid())
+  conversationId  String
+  conversation    Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messageId       String?
+  message         Message?      @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  providerEventId String?
+  kind            String
+  occurredAt      DateTime      @default(now())
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+
+  @@unique([conversationId, providerEventId])
+  @@index([messageId, occurredAt])
+  @@index([conversationId, occurredAt])
 }
 
 enum NotificationScopeType {
