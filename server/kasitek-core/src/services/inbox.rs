@@ -4,6 +4,7 @@ use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
 use sha2::Sha256;
 use sqlx::{FromRow, PgPool};
+use std::collections::HashSet;
 
 use crate::config::AppConfig;
 use crate::db::models::{ConversationRow, WhatsappSendMessageRequest};
@@ -289,6 +290,7 @@ pub async fn download_message_attachment(
             String,
             Option<String>,
             Option<Value>,
+            Option<Value>,
         ),
     >(
         r#"
@@ -300,7 +302,8 @@ pub async fn download_message_attachment(
             attachment.metadata,
             channel.platform::text,
             channel."accessToken",
-            channel.metadata
+            channel.metadata,
+            message."providerMetadata"
         FROM "MessageAttachment" attachment
         JOIN "Message" message ON message.id = attachment."messageId"
         JOIN "Conversation" c ON c.id = message."conversationId"
@@ -331,6 +334,7 @@ pub async fn download_message_attachment(
         platform,
         encrypted_access_token,
         channel_metadata,
+        message_metadata,
     ) = attachment;
     let encrypted_access_token = encrypted_access_token.ok_or_else(|| {
         AppError::BadRequest("Connected channel is missing an access token".to_string())
@@ -355,6 +359,7 @@ pub async fn download_message_attachment(
     let media_url_from_payload = provider_payload
         .get("url")
         .or_else(|| provider_payload.get("attachment_url"))
+        .or_else(|| provider_payload.pointer("/image_data/url"))
         .and_then(Value::as_str)
         .map(str::to_string);
     let media_url = if media_url_from_payload.is_some() {
@@ -362,6 +367,55 @@ pub async fn download_message_attachment(
     } else {
         async {
             let media_id = provider_media_id.as_deref()?;
+
+            // Graph represents outgoing stickers as an attachment with an
+            // `image_data.url`. The sticker id itself is not a media node, so
+            // retrieve the parent message attachments before trying the media
+            // id as a Graph node.
+            if let Some(message_provider_id) = message_metadata.as_ref().and_then(|metadata| {
+                metadata
+                    .get("graphMessage")
+                    .or_else(|| metadata.get("event"))
+                    .and_then(|message| {
+                        message
+                            .get("id")
+                            .or_else(|| message.pointer("/message/mid"))
+                    })
+                    .and_then(Value::as_str)
+            }) {
+                let response = reqwest::Client::new()
+                    .get(format!("{graph_base}/{message_provider_id}/attachments"))
+                    .bearer_auth(&access_token)
+                    .query(&[("fields", "id,url,image_data")])
+                    .send()
+                    .await
+                    .ok()?;
+                if response.status().is_success() {
+                    if let Some(url) = response
+                        .json::<Value>()
+                        .await
+                        .ok()?
+                        .get("data")
+                        .and_then(Value::as_array)
+                        .and_then(|attachments| {
+                            attachments.iter().find_map(|attachment| {
+                                (attachment.get("id").and_then(Value::as_str) == Some(media_id))
+                                    .then(|| {
+                                        attachment
+                                            .get("url")
+                                            .or_else(|| attachment.pointer("/image_data/url"))
+                                            .and_then(Value::as_str)
+                                            .map(str::to_string)
+                                    })
+                                    .flatten()
+                            })
+                        })
+                    {
+                        return Some(url);
+                    }
+                }
+            }
+
             let response = reqwest::Client::new()
                 .get(format!("{graph_base}/{media_id}"))
                 .bearer_auth(&access_token)
@@ -2049,20 +2103,29 @@ fn meta_message_text(message: &Value) -> String {
 }
 
 fn meta_message_attachments(message: &Value) -> Vec<MetaIncomingAttachment> {
-    message
+    let mut attachments: Vec<_> = message
         .get("attachments")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
         .map(|attachment| {
             let payload = attachment.get("payload").cloned().unwrap_or(Value::Null);
+            let is_sticker = payload.get("sticker_id").is_some()
+                || attachment
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .is_some_and(|kind| kind.eq_ignore_ascii_case("sticker"));
             MetaIncomingAttachment {
-                kind: normalize_attachment_kind(
-                    attachment
-                        .get("type")
-                        .and_then(Value::as_str)
-                        .unwrap_or("attachment"),
-                )
+                kind: if is_sticker {
+                    "sticker"
+                } else {
+                    normalize_attachment_kind(
+                        attachment
+                            .get("type")
+                            .and_then(Value::as_str)
+                            .unwrap_or("attachment"),
+                    )
+                }
                 .to_string(),
                 provider_media_id: payload
                     .get("id")
@@ -2081,7 +2144,39 @@ fn meta_message_attachments(message: &Value) -> Vec<MetaIncomingAttachment> {
                 metadata: json!({ "providerPayload": payload }),
             }
         })
-        .collect()
+        .collect();
+
+    // Messenger may emit an `image` representation and a `sticker`
+    // representation for the same sticker in one webhook. Keep the sticker
+    // variant only, otherwise the customer sees the same sticker twice.
+    let sticker_urls: HashSet<String> = attachments
+        .iter()
+        .filter(|attachment| attachment.kind == "sticker")
+        .filter_map(|attachment| {
+            attachment
+                .metadata
+                .pointer("/providerPayload/url")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .collect();
+    let mut retained_sticker_urls = HashSet::new();
+    attachments.retain(|attachment| {
+        if attachment.kind == "sticker" {
+            return attachment
+                .metadata
+                .pointer("/providerPayload/url")
+                .and_then(Value::as_str)
+                .map(|url| retained_sticker_urls.insert(url.to_string()))
+                .unwrap_or(true);
+        }
+        let attachment_url = attachment
+            .metadata
+            .pointer("/providerPayload/url")
+            .and_then(Value::as_str);
+        attachment_url.is_none_or(|url| !sticker_urls.contains(url))
+    });
+    attachments
 }
 
 fn meta_message_is_echo(message: &Value) -> bool {
@@ -2137,13 +2232,19 @@ fn meta_graph_message_attachments(message: &Value) -> Vec<MetaIncomingAttachment
         .into_iter()
         .flatten()
         .map(|attachment| MetaIncomingAttachment {
-            kind: normalize_attachment_kind(
-                attachment
-                    .get("mime_type")
-                    .and_then(Value::as_str)
-                    .and_then(|mime_type| mime_type.split('/').next())
-                    .unwrap_or("attachment"),
-            )
+            kind: if attachment.get("render_as_sticker").and_then(Value::as_bool) == Some(true)
+                || attachment.get("sticker_id").is_some()
+            {
+                "sticker"
+            } else {
+                normalize_attachment_kind(
+                    attachment
+                        .get("mime_type")
+                        .and_then(Value::as_str)
+                        .and_then(|mime_type| mime_type.split('/').next())
+                        .unwrap_or("attachment"),
+                )
+            }
             .to_string(),
             provider_media_id: attachment
                 .get("id")
@@ -2244,7 +2345,8 @@ async fn fetch_meta_json<T: serde::de::DeserializeOwned>(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_meta_conversation_identifier, meta_delivery_message_ids, meta_graph_message_content,
+        build_meta_conversation_identifier, meta_delivery_message_ids,
+        meta_graph_message_attachments, meta_graph_message_content,
         meta_graph_message_recipient_name, meta_message_attachments, meta_message_is_echo,
         meta_profile_display_name, meta_receipt_watermark, meta_reply_to_mid, meta_send_asset_id,
         normalize_attachment_kind, parse_meta_conversation_identifier,
@@ -2381,6 +2483,46 @@ mod tests {
         assert_eq!(
             attachments[0].provider_media_id.as_deref(),
             Some("media-123")
+        );
+    }
+
+    #[test]
+    fn messenger_duplicate_image_and_sticker_payloads_keep_the_sticker() {
+        let attachments = meta_message_attachments(&json!({
+            "attachments": [
+                {
+                    "type": "image",
+                    "payload": { "url": "https://scontent.xx.fbcdn.net/sticker.png", "sticker_id": 42 }
+                },
+                {
+                    "type": "sticker",
+                    "payload": { "url": "https://scontent.xx.fbcdn.net/sticker.png", "sticker_id": 42 }
+                }
+            ]
+        }));
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].kind, "sticker");
+    }
+
+    #[test]
+    fn graph_stickers_keep_image_data_for_media_retrieval() {
+        let attachments = meta_graph_message_attachments(&json!({
+            "attachments": {
+                "data": [{
+                    "id": "sticker_42",
+                    "mime_type": "image/png",
+                    "render_as_sticker": true,
+                    "image_data": { "url": "https://scontent.xx.fbcdn.net/sticker.png" }
+                }]
+            }
+        }));
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].kind, "sticker");
+        assert_eq!(
+            attachments[0]
+                .metadata
+                .pointer("/providerPayload/image_data/url"),
+            Some(&json!("https://scontent.xx.fbcdn.net/sticker.png"))
         );
     }
 

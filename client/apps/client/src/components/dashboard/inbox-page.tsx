@@ -3319,7 +3319,24 @@ function MessageAttachmentContent({
     );
   }
 
-  if (attachment.kind === "image" || attachment.kind === "sticker") {
+  if (attachment.kind === "sticker") {
+    return (
+      // Stickers are self-contained artwork, not message photos. Keep their
+      // native dimensions and transparent background instead of placing them
+      // inside a photo-card frame.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        key={`sticker-${reloadToken}`}
+        src={mediaUrl}
+        alt={attachment.fileName || "sticker"}
+        className="max-h-48 max-w-48 cursor-zoom-in object-contain"
+        onError={() => setMediaFailed(true)}
+        onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)}
+      />
+    );
+  }
+
+  if (attachment.kind === "image") {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img key={`image-${reloadToken}`} src={mediaUrl} alt={caption || attachment.fileName || "attachment"} className="max-h-72 w-full max-w-sm cursor-zoom-in rounded-md border border-border/60 object-contain" onError={() => setMediaFailed(true)} onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)} />
