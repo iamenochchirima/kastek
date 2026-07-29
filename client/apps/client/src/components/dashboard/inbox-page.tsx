@@ -239,10 +239,23 @@ type MessageReaction = {
   occurredAt?: string;
 };
 
+const legacyAttachmentPlaceholders = new Set(["[attachment]", "attachment"]);
+
+function getMeaningfulMessageContent(message: Pick<ConversationMessage, "content" | "attachments">) {
+  const content = message.content?.trim() || "";
+  if (
+    message.attachments?.length &&
+    legacyAttachmentPlaceholders.has(content.toLowerCase())
+  ) {
+    return "";
+  }
+  return content;
+}
+
 function isStickerOnlyMessage(message: ConversationMessage) {
   return Boolean(message.attachments?.length) &&
     message.attachments!.every((attachment) => attachment.kind === "sticker") &&
-    !message.content?.trim() &&
+    !getMeaningfulMessageContent(message) &&
     !message.reference;
 }
 
@@ -252,7 +265,8 @@ function getMessageAttachment(message: ConversationMessage) {
 
 function getMessageDisplayText(message: Pick<ConversationMessage, "content" | "deletedAt" | "attachments">) {
   if (message.deletedAt) return "Message deleted";
-  if (message.content?.trim()) return message.content;
+  const content = getMeaningfulMessageContent(message);
+  if (content) return content;
 
   const attachment = message.attachments?.[0];
   if (!attachment) return "No message content";
@@ -3277,7 +3291,7 @@ function DashboardMessageContent({
     );
   }
 
-  const caption = message.content?.trim() || null;
+  const caption = getMeaningfulMessageContent(message) || null;
 
   return (
     <div className="space-y-2">
@@ -3337,9 +3351,9 @@ function MessageAttachmentContent({
 
   if (attachment.kind === "sticker") {
     return (
-      // Stickers are self-contained artwork, not message photos. Keep their
-      // native dimensions and transparent background instead of placing them
-      // inside a photo-card frame.
+      // Meta may return a transparent sticker asset or a flattened preview.
+      // Render the provider response unchanged; altering its pixels damages
+      // anti-aliased artwork and cannot restore animation data.
       // eslint-disable-next-line @next/next/no-img-element
       <img
         key={`sticker-${reloadToken}`}
