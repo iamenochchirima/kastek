@@ -1697,6 +1697,23 @@ export default function InboxPageClient({
       return;
     }
 
+    if (payload.type === "message.reactions_updated") {
+      const conversationId = payload.conversationId;
+      setMessagesByConversationId((current) => {
+        const existing = current[conversationId];
+        if (!existing) return current;
+        return {
+          ...current,
+          [conversationId]: existing.map((message) =>
+            message.id === payload.message.id
+              ? { ...message, reactions: payload.message.reactions }
+              : message,
+          ),
+        };
+      });
+      return;
+    }
+
     if (payload.type === "message.updated") {
       const conversationId = payload.conversationId;
       setMessagesByConversationId((current) => {

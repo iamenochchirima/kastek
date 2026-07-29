@@ -179,6 +179,27 @@ pub async fn list_timeline_messages(
         .collect())
 }
 
+pub async fn list_active_reactions(pool: &PgPool, message_id: &str) -> Result<Value, AppError> {
+    sqlx::query_scalar::<_, Value>(
+        r#"
+        SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'id', reaction.id,
+            'emoji', reaction.emoji,
+            'actorIdentifier', reaction."actorIdentifier",
+            'active', reaction.active,
+            'occurredAt', reaction."occurredAt"
+        ) ORDER BY reaction."occurredAt" ASC), '[]'::jsonb)
+        FROM "MessageReaction" reaction
+        WHERE reaction."messageId" = $1
+          AND reaction.active = true
+        "#,
+    )
+    .bind(message_id)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::from)
+}
+
 pub async fn create_reference(
     pool: &PgPool,
     message_id: &str,

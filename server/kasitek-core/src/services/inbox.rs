@@ -761,6 +761,8 @@ pub async fn process_meta_webhook_payload(
             };
             let event_kind = if event.get("message").is_some() {
                 "message"
+            } else if event.get("reaction").is_some() {
+                "reaction"
             } else if event.get("delivery").is_some() {
                 "delivery"
             } else if event.get("read").is_some() {
@@ -784,6 +786,10 @@ pub async fn process_meta_webhook_payload(
             }
             if let Some(read) = event.get("read") {
                 apply_meta_read_event(pool, &channel, &sender_id, read).await?;
+                continue;
+            }
+            if let Some(reaction) = event.get("reaction") {
+                apply_meta_reaction_event(pool, &channel, &sender_id, reaction).await?;
                 continue;
             }
 
@@ -1583,6 +1589,137 @@ async fn apply_meta_read_event(
     Ok(())
 }
 
+async fn apply_meta_reaction_event(
+    pool: &PgPool,
+    channel: &MetaChannelRow,
+    actor_identifier: &str,
+    reaction: &Value,
+) -> Result<(), AppError> {
+    let Some(org_id) = channel.org_id.as_deref() else {
+        return Ok(());
+    };
+    let target_provider_message_id = reaction
+        .get("mid")
+        .or_else(|| reaction.get("message_id"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Meta reaction is missing a message ID".to_string()))?;
+    let actor_identifier = actor_identifier.trim();
+    if actor_identifier.is_empty() {
+        return Ok(());
+    }
+    let action = reaction
+        .get("action")
+        .and_then(Value::as_str)
+        .unwrap_or("react")
+        .trim()
+        .to_ascii_lowercase();
+    let active = action != "unreact" && action != "remove";
+    let emoji = reaction
+        .get("reaction")
+        .or_else(|| reaction.get("emoji"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let channel_name = if channel.platform == "INSTAGRAM" {
+        "instagram"
+    } else {
+        "facebook"
+    };
+
+    let target = sqlx::query_as::<_, (String, String)>(
+        r#"
+        SELECT message.id, message."conversationId"
+        FROM "Message" message
+        JOIN "Conversation" conversation ON conversation.id = message."conversationId"
+        WHERE conversation."orgId" = $1
+          AND conversation."externalConnectionId" = $2
+          AND conversation.channel = $3
+          AND message."providerMessageId" = $4
+        ORDER BY message.timestamp DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(org_id)
+    .bind(&channel.external_connection_id)
+    .bind(channel_name)
+    .bind(target_provider_message_id)
+    .fetch_optional(pool)
+    .await?;
+    let Some((message_id, conversation_id)) = target else {
+        log::info!(
+            "[meta-webhook] reaction target not found channel_id={} provider_message_id={}",
+            channel.id,
+            target_provider_message_id
+        );
+        return Ok(());
+    };
+
+    let event_id = reaction
+        .get("id")
+        .or_else(|| reaction.get("event_id"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            format!(
+                "meta:reaction:{}:{}:{}:{}",
+                target_provider_message_id,
+                actor_identifier,
+                action,
+                reaction
+                    .get("timestamp")
+                    .and_then(Value::as_i64)
+                    .unwrap_or_default(),
+            )
+        });
+    message_domain::upsert_reaction(
+        pool,
+        &message_id,
+        actor_identifier,
+        if active { emoji } else { None },
+        active,
+        Some(&event_id),
+        json!({ "provider": "meta", "payload": reaction }),
+    )
+    .await?;
+    message_domain::record_event(
+        pool,
+        &conversation_id,
+        Some(&message_id),
+        Some(&event_id),
+        if active {
+            "REACTION_ADDED"
+        } else {
+            "REACTION_REMOVED"
+        },
+        json!({ "provider": "meta", "actor": actor_identifier, "emoji": emoji, "action": action }),
+    )
+    .await?;
+    publish_message_reactions_updated(pool, &conversation_id, &message_id).await
+}
+
+async fn publish_message_reactions_updated(
+    pool: &PgPool,
+    conversation_id: &str,
+    message_id: &str,
+) -> Result<(), AppError> {
+    let Some(org_id) = conversation_org_id(pool, conversation_id).await? else {
+        return Ok(());
+    };
+    let reactions = message_domain::list_active_reactions(pool, message_id).await?;
+    publish_event_best_effort(
+        &org_id,
+        json!({
+            "type": "message.reactions_updated",
+            "conversationId": conversation_id,
+            "message": { "id": message_id, "reactions": reactions },
+        }),
+    )
+    .await;
+    Ok(())
+}
+
 async fn publish_message_updated(pool: &PgPool, message_id: &str) -> Result<(), AppError> {
     let Some(message) = sqlx::query_as::<_, InboxMessageRow>(
         r#"
@@ -2110,8 +2247,8 @@ mod tests {
         build_meta_conversation_identifier, meta_delivery_message_ids, meta_graph_message_content,
         meta_graph_message_recipient_name, meta_message_attachments, meta_message_is_echo,
         meta_profile_display_name, meta_receipt_watermark, meta_reply_to_mid, meta_send_asset_id,
-        normalize_attachment_kind, parse_meta_conversation_identifier, sanitize_attachment_filename,
-        scoped_conversation, verify_meta_signature, HmacSha256,
+        normalize_attachment_kind, parse_meta_conversation_identifier,
+        sanitize_attachment_filename, scoped_conversation, verify_meta_signature, HmacSha256,
     };
     use hmac::Mac;
     use serde_json::json;

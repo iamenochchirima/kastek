@@ -202,6 +202,20 @@ export type WhatsappRealtimeEvent =
       };
     }
   | {
+      type: "message.reactions_updated";
+      conversationId: string;
+      message: {
+        id: string;
+        reactions: Array<{
+          id: string;
+          actorIdentifier: string;
+          emoji?: string | null;
+          active?: boolean;
+          occurredAt?: string;
+        }>;
+      };
+    }
+  | {
       type: "conversation.updated";
       conversationId: string;
       conversation: {
