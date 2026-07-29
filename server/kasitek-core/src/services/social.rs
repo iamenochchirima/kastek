@@ -24,6 +24,9 @@ const X_POST_TWEET_URL: &str = "https://api.x.com/2/tweets";
 const META_AUTHORIZE_URL: &str = "https://www.facebook.com/v23.0/dialog/oauth";
 const META_TOKEN_URL: &str = "https://graph.facebook.com/v23.0/oauth/access_token";
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v23.0";
+const META_PAGE_WEBHOOK_FIELDS: &str =
+    "messages,message_echoes,messaging_postbacks,message_deliveries,message_reads";
+const META_PAGE_WEBHOOK_SUBSCRIPTION_VERSION: i32 = 2;
 const INSTAGRAM_AUTHORIZE_URL: &str = "https://www.instagram.com/oauth/authorize";
 const INSTAGRAM_TOKEN_URL: &str = "https://api.instagram.com/oauth/access_token";
 const INSTAGRAM_LONG_LIVED_TOKEN_URL: &str = "https://graph.instagram.com/access_token";
@@ -881,12 +884,77 @@ pub async fn subscribe_meta_page_webhooks(
             .bearer_auth(page_access_token)
             .form(&[(
                 "subscribed_fields",
-                "messages,messaging_postbacks,message_deliveries,message_reads",
+                META_PAGE_WEBHOOK_FIELDS,
             )]),
         "Failed to subscribe the Meta Page to messaging webhooks",
     )
     .await?;
     Ok(())
+}
+
+pub async fn ensure_meta_page_webhook_subscriptions(
+    pool: &PgPool,
+    org_id: &str,
+) -> Result<usize, AppError> {
+    let channels = sqlx::query_as::<_, (String, String, String)>(
+        r#"
+        SELECT id, "externalAccountId", "accessToken"
+        FROM "SocialChannelConnection"
+        WHERE "orgId" = $1
+          AND platform = 'FACEBOOK'::"SocialPlatform"
+          AND status = 'CONNECTED'::"SocialChannelStatus"
+          AND "externalAccountId" IS NOT NULL
+          AND "accessToken" IS NOT NULL
+          AND COALESCE(metadata->>'metaWebhookSubscriptionVersion', '0') <> $2
+        "#,
+    )
+    .bind(org_id)
+    .bind(META_PAGE_WEBHOOK_SUBSCRIPTION_VERSION.to_string())
+    .fetch_all(pool)
+    .await?;
+
+    let mut refreshed = 0;
+    for (channel_id, page_id, encrypted_access_token) in channels {
+        let access_token = match decrypt_social_secret(&encrypted_access_token) {
+            Ok(token) => token,
+            Err(error) => {
+                log::warn!(
+                    "failed to decrypt Meta Page token while refreshing webhooks channel_id={}: {}",
+                    channel_id,
+                    error
+                );
+                continue;
+            }
+        };
+        if let Err(error) = subscribe_meta_page_webhooks(&access_token, &page_id).await {
+            log::warn!(
+                "failed to refresh Meta Page webhook fields channel_id={} page_id={}: {}",
+                channel_id,
+                page_id,
+                error
+            );
+            continue;
+        }
+
+        sqlx::query(
+            r#"
+            UPDATE "SocialChannelConnection"
+            SET metadata = COALESCE(metadata, '{}'::jsonb)
+                    || jsonb_build_object('metaWebhookSubscriptionVersion', $1::int),
+                "lastSyncedAt" = NOW(),
+                "updatedAt" = NOW()
+            WHERE id = $2 AND "orgId" = $3
+            "#,
+        )
+        .bind(META_PAGE_WEBHOOK_SUBSCRIPTION_VERSION)
+        .bind(&channel_id)
+        .bind(org_id)
+        .execute(pool)
+        .await?;
+        refreshed += 1;
+    }
+
+    Ok(refreshed)
 }
 
 pub async fn upsert_meta_connections_for_org(

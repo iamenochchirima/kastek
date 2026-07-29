@@ -17,6 +17,7 @@ require_command cargo
 require_command pnpm
 require_command gnome-terminal
 require_command curl
+require_command ngrok
 
 # Write a temp launcher script for each service to avoid gnome-terminal's
 # argument parsing bug where '--' stops processing subsequent '--tab' flags.
@@ -48,6 +49,7 @@ services["client"]="$ROOT_DIR/client|pnpm run dev"
 services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
 services["labs"]="$ROOT_DIR/client|pnpm --filter labs dev"
 services["ngrok"]="$ROOT_DIR|ngrok http http://localhost:4000"
+services["ngrok-client"]="$ROOT_DIR|ngrok http --url=curtis-pastureless-sickerly.ngrok-free.dev 3000"
 
 add_tab() {
   local name="$1"
@@ -60,14 +62,6 @@ add_tab() {
 
 add_service() {
   local name="$1"
-
-  # Special handling for ngrok
-  if [[ "$name" == "ngrok" ]]; then
-    if pgrep -x ngrok > /dev/null; then
-      echo "ngrok is already running, skipping..."
-      return
-    fi
-  fi
 
   if [[ -z "${services[$name]:-}" ]]; then
     echo "Error: Unknown service '$name'" >&2
@@ -100,7 +94,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  for service in core calls tenants client admin labs ngrok; do
+  for service in core calls tenants client admin labs ngrok ngrok-client; do
     add_service "$service"
   done
 elif [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then

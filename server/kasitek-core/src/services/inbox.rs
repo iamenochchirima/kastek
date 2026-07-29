@@ -70,6 +70,11 @@ struct MetaChannelRow {
     #[sqlx(rename = "org_id")]
     org_id: Option<String>,
     platform: String,
+    #[sqlx(rename = "external_account_id")]
+    external_account_id: Option<String>,
+    #[sqlx(rename = "access_token")]
+    access_token: Option<String>,
+    metadata: Option<Value>,
 }
 
 #[derive(Debug, FromRow)]
@@ -349,6 +354,62 @@ pub async fn send_conversation_message(
             AppError::BadRequest("Connected Meta channel is missing a target asset".to_string())
         })?;
 
+    let reply_target = if let Some(reply_to_message_id) = input
+        .reply_to_message_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(
+            sqlx::query_as::<_, InboxMessageRow>(
+                r#"
+                SELECT id, "conversationId" AS conversation_id, sender, content,
+                       "whatsappMessageId" AS whatsapp_message_id,
+                       "whatsappStatus" AS whatsapp_status,
+                       "providerMessageId" AS provider_message_id,
+                       "providerStatus" AS provider_status,
+                       "errorCode" AS error_code,
+                       "errorMessage" AS error_message,
+                       timestamp AT TIME ZONE 'UTC' AS timestamp
+                FROM "Message"
+                WHERE id = $1 AND "conversationId" = $2
+                LIMIT 1
+                "#,
+            )
+            .bind(reply_to_message_id)
+            .bind(&meta_scope.id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Reply target not found".to_string()))?,
+        )
+    } else {
+        None
+    };
+    let reply_to_provider_message_id = reply_target
+        .as_ref()
+        .and_then(|target| target.provider_message_id.as_deref())
+        .map(str::to_string);
+    if reply_target.is_some() && reply_to_provider_message_id.is_none() {
+        return Err(AppError::BadRequest(
+            "This message cannot be replied to yet. Try again in a few seconds.".to_string(),
+        ));
+    }
+    let persisted_content = reply_target
+        .as_ref()
+        .map(|target| {
+            format!(
+                "__kasiai_wa_reply_v1__:{}",
+                json!({
+                    "version": 1,
+                    "replyToMessageId": target.id,
+                    "replyToProviderMessageId": reply_to_provider_message_id,
+                    "replyPreview": preview_text(&target.content, 180),
+                    "content": text,
+                })
+            )
+        })
+        .unwrap_or_else(|| text.to_string());
+
     let message_id = cuid2::create_id();
     sqlx::query(
         r#"
@@ -361,7 +422,7 @@ pub async fn send_conversation_message(
     )
     .bind(&message_id)
     .bind(&meta_scope.id)
-    .bind(text)
+    .bind(&persisted_content)
     .bind(json!({
         "provider": meta_scope.channel,
         "channelConnectionId": meta_scope.channel_connection_id,
@@ -369,7 +430,6 @@ pub async fn send_conversation_message(
     }))
     .execute(pool)
     .await?;
-    publish_message_created(pool, user_id, &message_id).await?;
 
     let uses_instagram_login = meta_scope
         .metadata
@@ -382,16 +442,20 @@ pub async fn send_conversation_message(
     } else {
         META_GRAPH_BASE
     };
+    let mut message_payload = json!({ "text": text });
+    if let Some(reply_to_provider_message_id) = reply_to_provider_message_id.as_deref() {
+        message_payload["reply_to"] = json!({ "mid": reply_to_provider_message_id });
+    }
     let request_body = if uses_instagram_login {
         json!({
             "recipient": { "id": customer_id },
-            "message": { "text": text },
+            "message": message_payload,
         })
     } else {
         json!({
             "recipient": { "id": customer_id },
             "messaging_type": "RESPONSE",
-            "message": { "text": text },
+            "message": message_payload,
         })
     };
 
@@ -451,6 +515,10 @@ pub async fn send_conversation_message(
     .execute(pool)
     .await?;
 
+    // Publish the first client-visible event only after Meta accepted the
+    // message. This avoids a PROCESSING event racing the optimistic UI and a
+    // later SENT event.
+    publish_message_created(pool, user_id, &message_id).await?;
     publish_conversation_updated(pool, user_id, &meta_scope.id).await?;
 
     Ok(json!({
@@ -496,6 +564,12 @@ pub async fn process_meta_webhook_payload(
     config: &AppConfig,
     payload: Value,
 ) -> Result<(), AppError> {
+    if std::env::var("META_WEBHOOK_LOG_PAYLOADS")
+        .ok()
+        .is_some_and(|value| matches!(value.trim(), "1" | "true" | "TRUE" | "yes" | "YES"))
+    {
+        log::info!("[meta-webhook] payload={payload}");
+    }
     let object = payload
         .get("object")
         .and_then(|value| value.as_str())
@@ -550,9 +624,27 @@ pub async fn process_meta_webhook_payload(
                 );
                 continue;
             };
+            let event_kind = if event.get("message").is_some() {
+                "message"
+            } else if event.get("delivery").is_some() {
+                "delivery"
+            } else if event.get("read").is_some() {
+                "read"
+            } else {
+                "unsupported"
+            };
+            log::info!(
+                "[meta-webhook] event={} object={} channel_id={} asset_id={} sender_id={} recipient_id={}",
+                event_kind,
+                object,
+                channel.id,
+                asset_id,
+                sender_id,
+                recipient_id
+            );
 
             if let Some(delivery) = event.get("delivery") {
-                apply_meta_delivery_event(pool, &channel, delivery).await?;
+                apply_meta_delivery_event(pool, &channel, &sender_id, delivery).await?;
                 continue;
             }
             if let Some(read) = event.get("read") {
@@ -564,13 +656,13 @@ pub async fn process_meta_webhook_payload(
                 Some(value) => value,
                 None => continue,
             };
-            if message
-                .get("is_echo")
-                .or_else(|| message.get("is_self"))
-                .and_then(|value| value.as_bool())
-                .unwrap_or(false)
-                || sender_id.is_empty()
-            {
+            let is_echo = meta_message_is_echo(message);
+            let customer_id = if is_echo {
+                recipient_id.as_str()
+            } else {
+                sender_id.as_str()
+            };
+            if customer_id.is_empty() {
                 continue;
             }
 
@@ -584,28 +676,77 @@ pub async fn process_meta_webhook_payload(
                 .and_then(|value| value.as_str())
                 .map(str::to_string);
 
-            let (conversation_id, _) =
-                find_or_create_meta_conversation(pool, &channel, &sender_id, None).await?;
+            let customer_name = resolve_meta_customer_name(pool, &channel, customer_id).await?;
+            let (conversation_id, _) = find_or_create_meta_conversation(
+                pool,
+                &channel,
+                customer_id,
+                customer_name.as_deref(),
+            )
+            .await?;
+
+            let stored_content = if let Some(reply_to_provider_message_id) = meta_reply_to_mid(message) {
+                if let Some(reply_target) = sqlx::query_as::<_, InboxMessageRow>(
+                    r#"
+                    SELECT id, "conversationId" AS conversation_id, sender, content,
+                           "whatsappMessageId" AS whatsapp_message_id,
+                           "whatsappStatus" AS whatsapp_status,
+                           "providerMessageId" AS provider_message_id,
+                           "providerStatus" AS provider_status,
+                           "errorCode" AS error_code,
+                           "errorMessage" AS error_message,
+                           timestamp AT TIME ZONE 'UTC' AS timestamp
+                    FROM "Message"
+                    WHERE "conversationId" = $1 AND "providerMessageId" = $2
+                    LIMIT 1
+                    "#,
+                )
+                .bind(&conversation_id)
+                .bind(reply_to_provider_message_id)
+                .fetch_optional(pool)
+                .await?
+                {
+                    format!(
+                        "__kasiai_wa_reply_v1__:{}",
+                        json!({
+                            "version": 1,
+                            "replyToMessageId": reply_target.id,
+                            "replyToProviderMessageId": reply_to_provider_message_id,
+                            "replyPreview": preview_text(&reply_target.content, 180),
+                            "content": content,
+                        })
+                    )
+                } else {
+                    content.clone()
+                }
+            } else {
+                content.clone()
+            };
 
             let message_id = cuid2::create_id();
+            let message_sender = if is_echo { "bot" } else { "customer" };
+            let provider_status = if is_echo { "SENT" } else { "RECEIVED" };
             let inserted = sqlx::query_scalar::<_, String>(
                 r#"
                 INSERT INTO "Message" (
                     id, "conversationId", sender, content,
                     "providerMessageId", "providerStatus", "providerMetadata", timestamp
                 )
-                VALUES ($1, $2, 'customer', $3, $4, 'RECEIVED', $5, NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
                 ON CONFLICT ("conversationId", "providerMessageId") DO NOTHING
                 RETURNING id
                 "#,
             )
             .bind(&message_id)
             .bind(&conversation_id)
-            .bind(&content)
+            .bind(message_sender)
+            .bind(&stored_content)
             .bind(message_mid.as_deref())
+            .bind(provider_status)
             .bind(json!({
                 "provider": channel.platform.to_lowercase(),
                 "object": object,
+                "isEcho": is_echo,
                 "event": event,
             }))
             .fetch_optional(pool)
@@ -619,23 +760,29 @@ pub async fn process_meta_webhook_payload(
                 r#"
                 UPDATE "Conversation"
                 SET "lastMessageAt" = NOW(), status = 'active',
-                    "unreadCount" = "unreadCount" + 1, "updatedAt" = NOW()
+                    "unreadCount" = "unreadCount" + $2, "updatedAt" = NOW()
                 WHERE id = $1
                 "#,
             )
             .bind(&conversation_id)
+            .bind(if is_echo { 0 } else { 1 })
             .execute(pool)
             .await?;
 
             publish_message_created(pool, &channel.user_id, &message_id).await?;
             publish_conversation_updated(pool, &channel.user_id, &conversation_id).await?;
 
+            if is_echo {
+                continue;
+            }
+
             let title = if channel.platform == "INSTAGRAM" {
                 "New Instagram message"
             } else {
                 "New Facebook message"
             };
-            let body = format!("{}: {}", sender_id, preview_text(&content, 120));
+            let sender_label = customer_name.as_deref().unwrap_or(&sender_id);
+            let body = format!("{}: {}", sender_label, preview_text(&content, 120));
             if let Err(error) = send_push_notification_to_user(
                 pool,
                 config,
@@ -885,46 +1032,328 @@ async fn find_or_create_meta_conversation(
     .map_err(AppError::from)
 }
 
+async fn resolve_meta_customer_name(
+    pool: &PgPool,
+    channel: &MetaChannelRow,
+    customer_id: &str,
+) -> Result<Option<String>, AppError> {
+    let identifier = build_meta_conversation_identifier(&channel.id, customer_id);
+    let existing_name = sqlx::query_scalar::<_, Option<String>>(
+        r#"
+        SELECT "customerName"
+        FROM "Conversation"
+        WHERE channel = $1
+          AND "customerIdentifier" = $2
+          AND "orgId" = $3
+        LIMIT 1
+        "#,
+    )
+    .bind(if channel.platform == "INSTAGRAM" {
+        "instagram"
+    } else {
+        "facebook"
+    })
+    .bind(&identifier)
+    .bind(channel.org_id.as_deref())
+    .fetch_optional(pool)
+    .await?
+    .flatten()
+    .map(|value| value.trim().to_string())
+    .filter(|value| !value.is_empty());
+
+    if existing_name.is_some() {
+        return Ok(existing_name);
+    }
+
+    let Some(encrypted_access_token) = channel.access_token.as_deref() else {
+        return Ok(None);
+    };
+    let access_token = match social::decrypt_social_secret(encrypted_access_token) {
+        Ok(token) => token,
+        Err(error) => {
+            log::warn!(
+                "failed to decrypt Meta channel token while resolving sender profile channel_id={}: {}",
+                channel.id,
+                error
+            );
+            return Ok(None);
+        }
+    };
+
+    let uses_instagram_login = channel
+        .metadata
+        .as_ref()
+        .and_then(|value| value.get("authMethod"))
+        .and_then(Value::as_str)
+        == Some("instagram_login");
+    let (graph_base, fields) = if uses_instagram_login {
+        (INSTAGRAM_GRAPH_BASE, "name,username,profile_picture_url")
+    } else if channel.platform == "INSTAGRAM" {
+        (META_GRAPH_BASE, "name,username,profile_pic")
+    } else {
+        (META_GRAPH_BASE, "first_name,last_name,profile_pic")
+    };
+
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(4))
+        .build()
+    {
+        Ok(client) => client,
+        Err(error) => {
+            log::warn!("failed to create Meta profile client: {error}");
+            return Ok(None);
+        }
+    };
+    let response = client
+        .get(format!("{graph_base}/{customer_id}"))
+        .query(&[("fields", fields)])
+        .bearer_auth(access_token)
+        .send()
+        .await;
+    let response = match response {
+        Ok(response) if response.status().is_success() => response,
+        Ok(response) => {
+            log::warn!(
+                "Meta sender profile lookup failed channel_id={} customer_id={} status={}",
+                channel.id,
+                customer_id,
+                response.status()
+            );
+            return Ok(None);
+        }
+        Err(error) => {
+            log::warn!(
+                "Meta sender profile lookup failed channel_id={} customer_id={}: {}",
+                channel.id,
+                customer_id,
+                error
+            );
+            return Ok(None);
+        }
+    };
+    let profile = match response.json::<Value>().await {
+        Ok(profile) => profile,
+        Err(error) => {
+            log::warn!(
+                "failed to decode Meta sender profile channel_id={} customer_id={}: {}",
+                channel.id,
+                customer_id,
+                error
+            );
+            return Ok(None);
+        }
+    };
+
+    Ok(meta_profile_display_name(&profile))
+}
+
 async fn apply_meta_delivery_event(
     pool: &PgPool,
     channel: &MetaChannelRow,
+    customer_id: &str,
     delivery: &Value,
 ) -> Result<(), AppError> {
     let Some(org_id) = channel.org_id.as_deref() else {
         return Ok(());
     };
-    let message_ids = delivery
-        .get("mids")
-        .and_then(|value| value.as_array())
-        .into_iter()
-        .flatten()
-        .filter_map(|value| value.as_str().map(str::to_string))
-        .collect::<Vec<_>>();
-    if message_ids.is_empty() {
+    let message_ids = meta_delivery_message_ids(delivery);
+    let watermark = meta_receipt_watermark(delivery);
+    if message_ids.is_empty() && watermark.is_none() {
         return Ok(());
     }
 
-    let updated_ids = sqlx::query_scalar::<_, String>(
+    let mut updated_ids = std::collections::HashSet::new();
+    if !message_ids.is_empty() {
+        updated_ids.extend(
+            sqlx::query_scalar::<_, String>(
+                r#"
+                UPDATE "Message" message
+                SET "providerStatus" = 'DELIVERED', "errorCode" = NULL, "errorMessage" = NULL
+                FROM "Conversation" conversation
+                WHERE message."conversationId" = conversation.id
+                  AND conversation."orgId" = $1
+                  AND conversation."externalConnectionId" = $2
+                  AND message."providerMessageId" = ANY($3)
+                  AND COALESCE(message."providerStatus", '') NOT IN ('READ', 'FAILED', 'DELIVERED')
+                RETURNING message.id
+                "#,
+            )
+            .bind(org_id)
+            .bind(&channel.external_connection_id)
+            .bind(&message_ids)
+            .fetch_all(pool)
+            .await?,
+        );
+    }
+
+    if let Some(watermark) = watermark.filter(|_| !customer_id.is_empty()) {
+        let channel_name = if channel.platform == "INSTAGRAM" {
+            "instagram"
+        } else {
+            "facebook"
+        };
+        let identifier = build_meta_conversation_identifier(&channel.id, customer_id);
+        updated_ids.extend(
+            sqlx::query_scalar::<_, String>(
+                r#"
+                UPDATE "Message" message
+                SET "providerStatus" = 'DELIVERED', "errorCode" = NULL, "errorMessage" = NULL
+                FROM "Conversation" conversation
+                WHERE message."conversationId" = conversation.id
+                  AND conversation."orgId" = $1
+                  AND conversation."externalConnectionId" = $2
+                  AND conversation.channel = $3
+                  AND conversation."customerIdentifier" = $4
+                  AND message.sender = 'bot'
+                  AND message.timestamp <= to_timestamp($5::double precision / 1000.0)
+                  AND COALESCE(message."providerStatus", '') NOT IN ('READ', 'FAILED', 'DELIVERED')
+                RETURNING message.id
+                "#,
+            )
+            .bind(org_id)
+            .bind(&channel.external_connection_id)
+            .bind(channel_name)
+            .bind(identifier)
+            .bind(watermark)
+            .fetch_all(pool)
+            .await?,
+        );
+    }
+
+    for message_id in updated_ids {
+        publish_message_updated(pool, &message_id).await?;
+    }
+
+    let known_message_ids = sqlx::query_scalar::<_, String>(
         r#"
-        UPDATE "Message" message
-        SET "providerStatus" = 'DELIVERED', "errorCode" = NULL, "errorMessage" = NULL
-        FROM "Conversation" conversation
-        WHERE message."conversationId" = conversation.id
-          AND conversation."orgId" = $1
+        SELECT message."providerMessageId"
+        FROM "Message" message
+        JOIN "Conversation" conversation ON conversation.id = message."conversationId"
+        WHERE conversation."orgId" = $1
           AND conversation."externalConnectionId" = $2
           AND message."providerMessageId" = ANY($3)
-          AND COALESCE(message."providerStatus", '') NOT IN ('READ', 'FAILED')
-        RETURNING message.id
         "#,
     )
     .bind(org_id)
     .bind(&channel.external_connection_id)
     .bind(&message_ids)
     .fetch_all(pool)
-    .await?;
-    for message_id in updated_ids {
-        publish_message_updated(pool, &message_id).await?;
+    .await?
+    .into_iter()
+    .collect::<std::collections::HashSet<_>>();
+
+    if channel.platform == "FACEBOOK" && !customer_id.is_empty() {
+        for provider_message_id in message_ids
+            .iter()
+            .filter(|message_id| !known_message_ids.contains(*message_id))
+        {
+            if let Err(error) =
+                sync_missing_meta_outbound_message(pool, channel, customer_id, provider_message_id)
+                    .await
+            {
+                log::warn!(
+                    "failed to sync missing Meta outbound message channel_id={} customer_id={} provider_message_id={}: {}",
+                    channel.id,
+                    customer_id,
+                    provider_message_id,
+                    error
+                );
+            }
+        }
     }
+    Ok(())
+}
+
+async fn sync_missing_meta_outbound_message(
+    pool: &PgPool,
+    channel: &MetaChannelRow,
+    customer_id: &str,
+    provider_message_id: &str,
+) -> Result<(), AppError> {
+    let encrypted_access_token = channel.access_token.as_deref().ok_or_else(|| {
+        AppError::BadRequest("Connected Meta Page is missing an access token".to_string())
+    })?;
+    let access_token = social::decrypt_social_secret(encrypted_access_token)?;
+    let graph_message: Value = fetch_meta_json(
+        reqwest::Client::new()
+            .get(format!("{META_GRAPH_BASE}/{provider_message_id}"))
+            .query(&[("fields", "id,message,from,to,created_time,attachments")])
+            .bearer_auth(access_token),
+        "Failed to load outbound Meta message",
+    )
+    .await?;
+
+    if let (Some(expected_page_id), Some(actual_sender_id)) = (
+        channel.external_account_id.as_deref(),
+        graph_message
+            .get("from")
+            .and_then(|value| value.get("id"))
+            .and_then(Value::as_str),
+    ) {
+        if expected_page_id != actual_sender_id {
+            return Ok(());
+        }
+    }
+
+    let content = meta_graph_message_content(&graph_message);
+    if content.is_empty() {
+        return Ok(());
+    }
+    let customer_name = meta_graph_message_recipient_name(&graph_message, customer_id)
+        .or(resolve_meta_customer_name(pool, channel, customer_id).await?);
+    let (conversation_id, _) =
+        find_or_create_meta_conversation(pool, channel, customer_id, customer_name.as_deref())
+            .await?;
+    let timestamp = graph_message
+        .get("created_time")
+        .and_then(Value::as_str)
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        .map(|value| value.with_timezone(&Utc))
+        .unwrap_or_else(Utc::now);
+
+    let message_id = cuid2::create_id();
+    let inserted = sqlx::query_scalar::<_, String>(
+        r#"
+        INSERT INTO "Message" (
+            id, "conversationId", sender, content,
+            "providerMessageId", "providerStatus", "providerMetadata", timestamp
+        )
+        VALUES ($1, $2, 'bot', $3, $4, 'DELIVERED', $5, $6)
+        ON CONFLICT ("conversationId", "providerMessageId") DO NOTHING
+        RETURNING id
+        "#,
+    )
+    .bind(&message_id)
+    .bind(&conversation_id)
+    .bind(&content)
+    .bind(provider_message_id)
+    .bind(json!({
+        "provider": "facebook",
+        "source": "delivery_backfill",
+        "graphMessage": graph_message,
+    }))
+    .bind(timestamp)
+    .fetch_optional(pool)
+    .await?;
+    let Some(message_id) = inserted else {
+        return Ok(());
+    };
+
+    sqlx::query(
+        r#"
+        UPDATE "Conversation"
+        SET "lastMessageAt" = GREATEST("lastMessageAt", $2),
+            status = 'active',
+            "updatedAt" = NOW()
+        WHERE id = $1
+        "#,
+    )
+    .bind(&conversation_id)
+    .bind(timestamp)
+    .execute(pool)
+    .await?;
+    publish_message_created(pool, &channel.user_id, &message_id).await?;
+    publish_conversation_updated(pool, &channel.user_id, &conversation_id).await?;
     Ok(())
 }
 
@@ -937,7 +1366,7 @@ async fn apply_meta_read_event(
     let Some(org_id) = channel.org_id.as_deref() else {
         return Ok(());
     };
-    let Some(watermark) = read.get("watermark").and_then(|value| value.as_i64()) else {
+    let Some(watermark) = meta_receipt_watermark(read) else {
         return Ok(());
     };
     if customer_id.is_empty() {
@@ -1262,6 +1691,113 @@ fn meta_message_content(message: &Value) -> String {
     format!("[{} attachment]", attachment_type)
 }
 
+fn meta_message_is_echo(message: &Value) -> bool {
+    message
+        .get("is_echo")
+        .or_else(|| message.get("is_self"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn meta_reply_to_mid(message: &Value) -> Option<&str> {
+    message
+        .get("reply_to")
+        .and_then(|value| value.get("mid"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn meta_delivery_message_ids(delivery: &Value) -> Vec<String> {
+    delivery
+        .get("mids")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect()
+}
+
+fn meta_receipt_watermark(receipt: &Value) -> Option<i64> {
+    receipt.get("watermark").and_then(Value::as_i64)
+}
+
+fn meta_graph_message_content(message: &Value) -> String {
+    if let Some(text) = message
+        .get("message")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return text.to_string();
+    }
+
+    let has_attachments = message
+        .get("attachments")
+        .and_then(|value| value.get("data"))
+        .and_then(Value::as_array)
+        .is_some_and(|attachments| !attachments.is_empty());
+    if has_attachments {
+        "[attachment]".to_string()
+    } else {
+        String::new()
+    }
+}
+
+fn meta_graph_message_recipient_name(message: &Value, customer_id: &str) -> Option<String> {
+    message
+        .get("to")
+        .and_then(|value| value.get("data"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|recipient| recipient.get("id").and_then(Value::as_str) == Some(customer_id))
+        .and_then(|recipient| recipient.get("name"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn meta_profile_display_name(profile: &Value) -> Option<String> {
+    let direct_name = profile
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if let Some(name) = direct_name {
+        return Some(name.to_string());
+    }
+
+    let full_name = [
+        profile
+            .get("first_name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim(),
+        profile
+            .get("last_name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim(),
+    ]
+    .into_iter()
+    .filter(|value| !value.is_empty())
+    .collect::<Vec<_>>()
+    .join(" ");
+    if !full_name.is_empty() {
+        return Some(full_name);
+    }
+
+    profile
+        .get("username")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|username| format!("@{username}"))
+}
+
 fn meta_send_asset_id(external_account_id: Option<&str>) -> Option<String> {
     external_account_id.map(str::to_string)
 }
@@ -1290,7 +1826,9 @@ async fn fetch_meta_json<T: serde::de::DeserializeOwned>(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_meta_conversation_identifier, meta_message_content, meta_send_asset_id,
+        build_meta_conversation_identifier, meta_delivery_message_ids, meta_graph_message_content,
+        meta_graph_message_recipient_name, meta_message_content, meta_message_is_echo,
+        meta_profile_display_name, meta_receipt_watermark, meta_reply_to_mid, meta_send_asset_id,
         parse_meta_conversation_identifier, scoped_conversation, verify_meta_signature, HmacSha256,
     };
     use hmac::Mac;
@@ -1307,6 +1845,95 @@ mod tests {
         assert!(verify_meta_signature(secret, Some(&signature), body).is_ok());
         assert!(verify_meta_signature(secret, Some(&signature), b"modified").is_err());
         assert!(verify_meta_signature(secret, None, body).is_err());
+    }
+
+    #[test]
+    fn meta_profile_name_prefers_name_then_full_name_then_username() {
+        assert_eq!(
+            meta_profile_display_name(&json!({
+                "name": "Ada Lovelace",
+                "username": "ada"
+            }))
+            .as_deref(),
+            Some("Ada Lovelace")
+        );
+        assert_eq!(
+            meta_profile_display_name(&json!({
+                "first_name": "Grace",
+                "last_name": "Hopper"
+            }))
+            .as_deref(),
+            Some("Grace Hopper")
+        );
+        assert_eq!(
+            meta_profile_display_name(&json!({ "username": "enoch" })).as_deref(),
+            Some("@enoch")
+        );
+        assert_eq!(meta_profile_display_name(&json!({})), None);
+    }
+
+    #[test]
+    fn meta_echo_and_self_messages_are_outbound() {
+        assert!(meta_message_is_echo(&json!({ "is_echo": true })));
+        assert!(meta_message_is_echo(&json!({ "is_self": true })));
+        assert!(!meta_message_is_echo(&json!({ "text": "Hello" })));
+    }
+
+    #[test]
+    fn meta_message_reply_context_uses_the_referenced_provider_message_id() {
+        assert_eq!(
+            meta_reply_to_mid(&json!({ "reply_to": { "mid": "mid.original" } })),
+            Some("mid.original")
+        );
+        assert_eq!(meta_reply_to_mid(&json!({ "reply_to": { "mid": "   " } })), None);
+        assert_eq!(meta_reply_to_mid(&json!({ "text": "No context" })), None);
+    }
+
+    #[test]
+    fn graph_message_data_can_backfill_outbound_replies() {
+        let message = json!({
+            "message": "Reply from Business Suite",
+            "to": {
+                "data": [
+                    { "id": "customer-1", "name": "Enoch Chirima" }
+                ]
+            }
+        });
+        assert_eq!(
+            meta_graph_message_content(&message),
+            "Reply from Business Suite"
+        );
+        assert_eq!(
+            meta_graph_message_recipient_name(&message, "customer-1").as_deref(),
+            Some("Enoch Chirima")
+        );
+        assert_eq!(
+            meta_graph_message_recipient_name(&message, "other-customer"),
+            None
+        );
+    }
+
+    #[test]
+    fn meta_delivery_receipts_support_message_ids_and_watermarks() {
+        let receipt = json!({
+            "mids": ["message-1", "message-2"],
+            "watermark": 1_785_260_850_379_i64
+        });
+        assert_eq!(
+            meta_delivery_message_ids(&receipt),
+            vec!["message-1".to_string(), "message-2".to_string()]
+        );
+        assert_eq!(
+            meta_receipt_watermark(&receipt),
+            Some(1_785_260_850_379_i64)
+        );
+
+        let watermark_only = json!({ "watermark": 1_785_260_850_400_i64 });
+        assert!(meta_delivery_message_ids(&watermark_only).is_empty());
+        assert_eq!(
+            meta_receipt_watermark(&watermark_only),
+            Some(1_785_260_850_400_i64)
+        );
     }
 
     #[test]

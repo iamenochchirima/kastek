@@ -46,6 +46,15 @@ pub async fn list_channels(
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    if let Err(error) =
+        social::ensure_meta_page_webhook_subscriptions(pool.get_ref(), &org_id).await
+    {
+        log::warn!(
+            "failed to ensure Meta Page webhook subscriptions org_id={}: {}",
+            org_id,
+            error
+        );
+    }
     let channels = social::list_social_channels(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "channels": channels })))
 }

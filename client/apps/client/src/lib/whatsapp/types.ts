@@ -160,6 +160,7 @@ export type WhatsappRealtimeEvent =
         timestamp: string;
         whatsappStatus?: "SENT" | "DELIVERED" | "READ" | "FAILED" | "BLOCKED";
         providerStatus?: "PROCESSING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
+        providerMessageId?: string | null;
       };
     }
   | {

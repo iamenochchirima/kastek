@@ -10,11 +10,10 @@ import Image from "next/image";
 import { ProductWorkspacePreview } from "@/components/product-workspace-preview";
 import { ServiceDeliveryMontage } from "@/components/service-delivery-montage";
 import { PartnershipWorkspacePreview } from "@/components/partnership-workspace-preview";
+import { LabsFooter, LabsHeader } from "@/components/labs-site-chrome";
+import { appUrl, contactEmail } from "@/lib/site-config";
 
-const appUrl = process.env.NEXT_PUBLIC_KASITEK_APP_URL ?? "http://localhost:3000";
 const demoUrl = process.env.NEXT_PUBLIC_KASITEK_DEMO_URL ?? `${appUrl}/demo`;
-const contactEmail =
-  process.env.NEXT_PUBLIC_KASITEK_CONTACT_EMAIL ?? "hello@kasitek.co.za";
 
 const disciplines = [
   {
@@ -53,43 +52,7 @@ const disciplines = [
 export default function LabsLandingPage() {
   return (
     <main className="labs-page">
-      <header className="site-header">
-        <a className="wordmark" href="#top" aria-label="Kasitek Labs home">
-          <Image
-            className="brand-mark"
-            src="/logo.png"
-            alt=""
-            width={40}
-            height={40}
-            priority
-          />
-          <span className="wordmark-name">
-            Kasitek
-            <small>Labs</small>
-          </span>
-        </a>
-
-        <nav className="desktop-nav" aria-label="Main navigation">
-          <a href="#work">What we build</a>
-          <a href="#approach">How we work</a>
-          <a href="#partners">Partners</a>
-        </nav>
-
-        <a className="header-cta" href={`mailto:${contactEmail}?subject=Project enquiry`}>
-          Start a project
-          <ArrowUpRight aria-hidden="true" />
-        </a>
-
-        <details className="mobile-nav">
-          <summary>Menu</summary>
-          <div className="mobile-nav-panel">
-            <a href="#work">What we build</a>
-            <a href="#approach">How we work</a>
-            <a href="#partners">Partners</a>
-            <a href={`mailto:${contactEmail}?subject=Project enquiry`}>Start a project</a>
-          </div>
-        </details>
-      </header>
+      <LabsHeader home />
 
       <section className="hero" id="top">
         <div className="hero-image" aria-hidden="true">
@@ -239,60 +202,7 @@ export default function LabsLandingPage() {
         </a>
       </section>
 
-      <footer className="site-footer">
-        <div className="footer-primary">
-          <div className="footer-brand">
-            <a className="wordmark footer-wordmark" href="#top" aria-label="Kasitek Labs home">
-              <Image className="brand-mark" src="/logo.png" alt="" width={40} height={40} />
-              <span className="wordmark-name">
-                Kasitek
-                <small>Labs</small>
-              </span>
-            </a>
-            <p>
-              AI products, delivery and infrastructure for business operations.
-            </p>
-            <a className="footer-contact" href={`mailto:${contactEmail}`}>
-              {contactEmail}
-              <ArrowUpRight aria-hidden="true" />
-            </a>
-          </div>
-
-          <nav className="footer-nav" aria-label="Footer navigation">
-            <div className="footer-column">
-              <p>Work with us</p>
-              <a href="#work">Products</a>
-              <a href="#approach">Services</a>
-              <a href="#partners">Partnership</a>
-              <a href={`mailto:${contactEmail}?subject=Project enquiry`}>Start a project</a>
-            </div>
-            <div className="footer-column">
-              <p>Kasitek</p>
-              <a href={appUrl}>Open Kasitek</a>
-              <a href={`${appUrl}/solutions`}>Solutions</a>
-              <a href={`${appUrl}/pricing`}>Pricing</a>
-            </div>
-            <div className="footer-column">
-              <p>Company</p>
-              <a href={`${appUrl}/about`}>About</a>
-              <a href={`${appUrl}/meta-business-platform`}>Meta Platform</a>
-              <a href={`mailto:${contactEmail}`}>Contact</a>
-            </div>
-            <div className="footer-column">
-              <p>Legal</p>
-              <a href={`${appUrl}/privacy-policy`}>Privacy</a>
-              <a href={`${appUrl}/terms`}>Terms of Service</a>
-              <a href={`${appUrl}/data-deletion`}>Data Deletion</a>
-            </div>
-          </nav>
-        </div>
-
-        <div className="footer-bottom">
-          <p>© {new Date().getFullYear()} Kasitek Labs</p>
-          <p>South Africa</p>
-          <a href="#top">Back to top ↑</a>
-        </div>
-      </footer>
+      <LabsFooter />
     </main>
   );
 }

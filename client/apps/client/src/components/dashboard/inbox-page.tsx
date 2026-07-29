@@ -84,6 +84,40 @@ type InboxConversation = {
   tags: string[];
 };
 
+type InboxConversationPayload = {
+  id: string;
+  channel: "whatsapp" | "facebook" | "instagram";
+  customerName: string | null;
+  phone: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
+  starred: boolean;
+  connectionId: string | null;
+  connectionLabel: string | null;
+};
+
+function mapInboxConversation(conversation: InboxConversationPayload): InboxConversation {
+  const name = conversation.customerName || conversation.phone || "Unknown contact";
+
+  return {
+    id: conversation.id,
+    name,
+    handle: conversation.phone,
+    lastMessage: conversation.lastMessage || "No messages yet",
+    time: conversation.lastMessageAt,
+    unread: conversation.unreadCount > 0,
+    starred: conversation.starred,
+    channel: conversation.channel,
+    connectionId: conversation.connectionId,
+    connectionLabel:
+      conversation.connectionLabel || conversation.phone || "Unknown number",
+    avatar: buildConversationAvatar(name),
+    status: "offline",
+    tags: [],
+  };
+}
+
 type WhatsappConnectionView = {
   id: string;
   phoneNumberId: string;
@@ -93,6 +127,17 @@ type WhatsappConnectionView = {
   dailyLimitEstimate: number | null;
   verified: boolean;
   createdAt: string;
+};
+
+type ChannelConnectionView = {
+  id: string;
+  label: string;
+  handle: string | null;
+};
+
+type MetaConnections = {
+  instagram: ChannelConnectionView[];
+  facebook: ChannelConnectionView[];
 };
 
 type ChannelCounts = {
@@ -132,6 +177,7 @@ type ConversationMessage = {
   time: string;
   timestamp?: string;
   whatsappMessageId?: string | null;
+  providerMessageId?: string | null;
   status?: "pending" | "failed" | "READ" | "DELIVERED" | "SENT" | "BLOCKED";
   canReply?: boolean;
   canReact?: boolean;
@@ -357,17 +403,19 @@ export default function InboxPageClient({
   whatsappConnections,
   conversations,
   channelCounts,
+  metaConnections,
 }: {
   whatsappConnections: WhatsappConnectionView[];
   conversations: InboxConversation[];
   channelCounts: ChannelCounts;
+  metaConnections: MetaConnections;
 }) {
   const searchParams = useSearchParams();
   const [liveConversations, setLiveConversations] = useState(conversations);
   const [selectedChannel, setSelectedChannel] = useState<
     "all" | "whatsapp" | "email" | "sms" | "instagram" | "facebook"
   >("all");
-  const [selectedWhatsappConnectionId, setSelectedWhatsappConnectionId] = useState<string | null>(null);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messagesByConversationId, setMessagesByConversationId] = useState<
     Record<string, ConversationMessage[]>
@@ -411,6 +459,46 @@ export default function InboxPageClient({
   useEffect(() => {
     setLiveConversations(conversations);
   }, [conversations]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshConversations = async () => {
+      if (document.visibilityState === "hidden") return;
+
+      try {
+        const response = await fetch(apiUrl("/api/inbox/conversations"), {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as {
+          conversations?: InboxConversationPayload[];
+        };
+        if (cancelled || !Array.isArray(payload.conversations)) return;
+
+        setLiveConversations(payload.conversations.map(mapInboxConversation));
+      } catch {
+        // Keep the current Inbox state if a foreground refresh fails.
+      }
+    };
+
+    const onVisibleOrFocused = () => {
+      if (document.visibilityState === "visible") {
+        void refreshConversations();
+      }
+    };
+
+    window.addEventListener("focus", onVisibleOrFocused);
+    document.addEventListener("visibilitychange", onVisibleOrFocused);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onVisibleOrFocused);
+      document.removeEventListener("visibilitychange", onVisibleOrFocused);
+    };
+  }, []);
 
   const whatsappUnreadCount = useMemo(
     () =>
@@ -529,21 +617,125 @@ export default function InboxPageClient({
     [liveConversations, whatsappConnections],
   );
 
+  const metaConnectionFilters = useMemo(() => {
+    const buildFilters = (
+      channel: "instagram" | "facebook",
+      connections: ChannelConnectionView[],
+      allLabel: string,
+    ) => [
+      {
+        id: null as string | null,
+        label: allLabel,
+        handle: null as string | null,
+        conversationCount: liveConversations.filter(
+          (conversation) => conversation.channel === channel,
+        ).length,
+        unreadCount: liveConversations.filter(
+          (conversation) => conversation.channel === channel && conversation.unread,
+        ).length,
+      },
+      ...connections.map((connection) => {
+        const connectionConversations = liveConversations.filter(
+          (conversation) =>
+            conversation.channel === channel && conversation.connectionId === connection.id,
+        );
+
+        return {
+          id: connection.id,
+          label: connection.label,
+          handle: connection.handle,
+          conversationCount: connectionConversations.length,
+          unreadCount: connectionConversations.filter((conversation) => conversation.unread).length,
+        };
+      }),
+    ];
+
+    return {
+      instagram: buildFilters(
+        "instagram",
+        metaConnections.instagram,
+        "All Instagram accounts",
+      ),
+      facebook: buildFilters("facebook", metaConnections.facebook, "All Pages"),
+    };
+  }, [liveConversations, metaConnections]);
+
+  const activeConnectionFilters =
+    selectedChannel === "whatsapp"
+      ? whatsappConnectionFilters
+      : selectedChannel === "instagram"
+        ? metaConnectionFilters.instagram
+        : selectedChannel === "facebook"
+          ? metaConnectionFilters.facebook
+          : [];
+  const selectedConnectionFilter =
+    activeConnectionFilters.find((connection) => connection.id === selectedConnectionId) ??
+    activeConnectionFilters[0];
+  const supportsConnectionFilter =
+    selectedChannel === "whatsapp" ||
+    selectedChannel === "instagram" ||
+    selectedChannel === "facebook";
+
   const filteredConversations = liveConversations.filter((conversation) => {
     const channelMatch = selectedChannel === "all" || conversation.channel === selectedChannel;
     const connectionMatch =
-      selectedChannel !== "whatsapp" ||
-      !selectedWhatsappConnectionId ||
-      conversation.connectionId === selectedWhatsappConnectionId;
+      !supportsConnectionFilter ||
+      !selectedConnectionId ||
+      conversation.connectionId === selectedConnectionId;
     const filterMatch =
       filter === "all" ||
       (filter === "unread" && conversation.unread) ||
       (filter === "starred" && conversation.starred);
     return channelMatch && connectionMatch && filterMatch;
   });
-  const selectedWhatsappConnectionFilter =
-    whatsappConnectionFilters.find((connection) => connection.id === selectedWhatsappConnectionId) ??
-    whatsappConnectionFilters[0];
+
+  const selectedChannelConversationCount =
+    selectedChannel === "all"
+      ? liveConversations.length
+      : selectedChannel === "email" || selectedChannel === "sms"
+        ? 0
+        : liveConversations.filter((conversation) => conversation.channel === selectedChannel).length;
+  const selectedChannelConnected =
+    selectedChannel === "all"
+      ? true
+      : selectedChannel === "email" || selectedChannel === "sms"
+        ? false
+        : channelCounts[selectedChannel].connected;
+  const emptyConversationCopy =
+    selectedChannel === "instagram"
+      ? {
+          title: selectedConnectionId
+            ? `No conversations for ${selectedConnectionFilter?.label || "this Instagram account"}`
+            : "No Instagram conversations yet",
+          description:
+            filter === "all"
+              ? "New messages will appear here after someone messages a connected Instagram account."
+              : "No Instagram conversations match this filter.",
+        }
+      : selectedChannel === "facebook"
+        ? {
+            title: selectedConnectionId
+              ? `No conversations for ${selectedConnectionFilter?.label || "this Page"}`
+              : "No Messenger conversations yet",
+            description:
+              filter === "all"
+                ? "New messages will appear here after someone messages a connected Facebook Page."
+                : "No Messenger conversations match this filter.",
+          }
+        : selectedChannel === "whatsapp"
+          ? {
+              title: selectedConnectionId
+                ? `No conversations for ${selectedConnectionFilter?.label || "this number"}`
+                : "No WhatsApp conversations yet",
+              description:
+                filter === "all"
+                  ? "New messages will appear here after someone messages a connected number."
+                  : "No WhatsApp conversations match this filter.",
+            }
+          : {
+              title: "No conversations yet",
+              description: "New customer messages will appear here.",
+            };
 
   const selectedConversation =
     filteredConversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
@@ -928,13 +1120,15 @@ export default function InboxPageClient({
                       type="button"
                       onClick={() => {
                         setSelectedChannel("whatsapp");
-                        setSelectedWhatsappConnectionId(connectionFilter.id);
+                        setSelectedConnectionId(connectionFilter.id);
                         setShowChannelPanel(false);
                         setMobileConversationOpen(false);
                       }}
                       className={cn(
                         "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary",
-                        selectedWhatsappConnectionId === connectionFilter.id && "bg-secondary text-foreground",
+                        selectedChannel === "whatsapp" &&
+                          selectedConnectionId === connectionFilter.id &&
+                          "bg-secondary text-foreground",
                       )}
                     >
                       <span className="truncate">{connectionFilter.label}</span>
@@ -1034,6 +1228,16 @@ export default function InboxPageClient({
               minute: "2-digit",
             }),
             timestamp: message.time,
+            status: normalizeRealtimeStatus(
+              message.status as
+                | "PROCESSING"
+                | "SENT"
+                | "DELIVERED"
+                | "READ"
+                | "FAILED"
+                | "BLOCKED"
+                | undefined,
+            ),
           })),
         }));
       } catch {
@@ -1055,6 +1259,70 @@ export default function InboxPageClient({
       cancelled = true;
     };
   }, [messagesByConversationId, selectedConversationId]);
+
+  useEffect(() => {
+    if (!selectedConversationId) return;
+
+    const conversationId = selectedConversationId;
+    let cancelled = false;
+
+    const refreshMessages = async () => {
+      if (document.visibilityState === "hidden") return;
+
+      try {
+        const response = await fetch(apiUrl(`/api/inbox/${conversationId}/messages`), {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as {
+          messages?: ConversationMessage[];
+        };
+        if (cancelled || !Array.isArray(payload.messages)) return;
+        const messages = payload.messages;
+
+        setMessagesByConversationId((current) => ({
+          ...current,
+          [conversationId]: messages.map((message) => ({
+            ...message,
+            time: new Date(message.time).toLocaleTimeString("en-ZA", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            timestamp: message.time,
+            status: normalizeRealtimeStatus(
+              message.status as
+                | "PROCESSING"
+                | "SENT"
+                | "DELIVERED"
+                | "READ"
+                | "FAILED"
+                | "BLOCKED"
+                | undefined,
+            ),
+          })),
+        }));
+      } catch {
+        // Keep the last known messages if a foreground refresh fails.
+      }
+    };
+
+    const onVisibleOrFocused = () => {
+      if (document.visibilityState === "visible") {
+        void refreshMessages();
+      }
+    };
+
+    window.addEventListener("focus", onVisibleOrFocused);
+    document.addEventListener("visibilitychange", onVisibleOrFocused);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onVisibleOrFocused);
+      document.removeEventListener("visibilitychange", onVisibleOrFocused);
+    };
+  }, [selectedConversationId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -1229,18 +1497,6 @@ export default function InboxPageClient({
       setMessagesByConversationId((current) => {
         const existing = current[conversationId];
         if (!existing) return current;
-        if (existing.some((message) => message.id === payload.message.id)) return current;
-
-        const next = [...existing];
-        const optimisticIndex =
-          payload.message.sender === "bot"
-            ? next.findIndex(
-                (message) =>
-                  message.sender === "bot" &&
-                  message.status === "pending" &&
-                  message.content === payload.message.content,
-              )
-            : -1;
 
         const confirmedMessage: ConversationMessage = {
           id: payload.message.id,
@@ -1252,10 +1508,34 @@ export default function InboxPageClient({
             minute: "2-digit",
           }),
           timestamp: payload.message.timestamp,
+          providerMessageId: payload.message.providerMessageId,
           status: normalizeRealtimeStatus(
             payload.message.providerStatus || payload.message.whatsappStatus,
           ),
         };
+
+        const existingMessageIndex = existing.findIndex(
+          (message) => message.id === payload.message.id,
+        );
+        if (existingMessageIndex !== -1) {
+          const next = [...existing];
+          next[existingMessageIndex] = {
+            ...next[existingMessageIndex],
+            ...confirmedMessage,
+          };
+          return { ...current, [conversationId]: next };
+        }
+
+        const next = [...existing];
+        const optimisticIndex =
+          payload.message.sender === "bot"
+            ? next.findIndex(
+                (message) =>
+                  message.sender === "bot" &&
+                  message.status === "pending" &&
+                  message.content === payload.message.content,
+              )
+            : -1;
 
         if (optimisticIndex !== -1) {
           next[optimisticIndex] = confirmedMessage;
@@ -1719,7 +1999,7 @@ export default function InboxPageClient({
     const optimisticId = `optimistic:${Date.now()}`;
     if (trimmed && !selectedFile) {
       const optimisticContent =
-        selectedConversation?.channel === "whatsapp" && replyDraft?.messageId && replyDraft.text
+        replyDraft?.messageId && replyDraft.text
           ? encodeStoredWhatsappReplyEnvelope({
               version: 1,
               replyToMessageId: replyDraft.messageId,
@@ -1883,7 +2163,7 @@ export default function InboxPageClient({
                   onClick={() => {
                     if (channel.disabled) return;
                     setSelectedChannel(channel.id);
-                    setSelectedWhatsappConnectionId(null);
+                    setSelectedConnectionId(null);
                     setSelectedConversationId(null);
                     setMobileConversationOpen(false);
                   }}
@@ -1925,27 +2205,33 @@ export default function InboxPageClient({
               </span>
             </div>
 
-            {selectedChannel === "whatsapp" && channelCounts.whatsapp.connected ? (
+            {supportsConnectionFilter && selectedChannelConnected ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="mb-3 h-8 max-w-full gap-2 text-xs">
-                    <MessageCircle className="h-3.5 w-3.5 text-status-success" />
-                    <span className="truncate">{selectedWhatsappConnectionFilter?.label || "All numbers"}</span>
+                    {selectedChannel === "whatsapp" ? (
+                      <MessageCircle className="h-3.5 w-3.5 text-status-success" />
+                    ) : selectedChannel === "instagram" ? (
+                      <Instagram className="h-3.5 w-3.5 text-fuchsia-400" />
+                    ) : (
+                      <Facebook className="h-3.5 w-3.5 text-blue-400" />
+                    )}
+                    <span className="truncate">{selectedConnectionFilter?.label}</span>
                     <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-56">
-                  {whatsappConnectionFilters.map((connectionFilter) => (
+                  {activeConnectionFilters.map((connectionFilter) => (
                     <DropdownMenuItem
                       key={connectionFilter.id || "all"}
                       onClick={() => {
-                        setSelectedWhatsappConnectionId(connectionFilter.id);
+                        setSelectedConnectionId(connectionFilter.id);
                         setSelectedConversationId(null);
                         setMobileConversationOpen(false);
                       }}
                       className={cn(
                         "flex items-center justify-between gap-4",
-                        selectedWhatsappConnectionId === connectionFilter.id && "bg-secondary",
+                        selectedConnectionId === connectionFilter.id && "bg-secondary",
                       )}
                     >
                       <span className="truncate">{connectionFilter.label}</span>
@@ -1995,20 +2281,30 @@ export default function InboxPageClient({
 
           <ScrollArea className="min-h-0 flex-1">
             <div className="p-2">
-              {!channelCounts.whatsapp.connected && selectedChannel === "whatsapp" ? (
+              {supportsConnectionFilter && !selectedChannelConnected ? (
                 <div className="flex flex-col items-center justify-center py-14 text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
                     <MessageCircle className="h-6 w-6 text-muted-foreground" />
                   </div>
-                  <p className="text-sm text-foreground">Connect WhatsApp to start using inbox</p>
+                  <p className="text-sm text-foreground">
+                    Connect {selectedChannel === "facebook" ? "Facebook" : selectedChannel} to start using inbox
+                  </p>
                 </div>
               ) : filteredConversations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
                     <MessageCircle className="h-6 w-6 text-muted-foreground" />
                   </div>
-                  <p className="text-sm text-muted-foreground">No conversations found</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Try adjusting your filters</p>
+                  <p className="text-sm text-foreground">{emptyConversationCopy.title}</p>
+                  <p className="mt-1 max-w-[260px] text-xs leading-5 text-muted-foreground">
+                    {emptyConversationCopy.description}
+                  </p>
+                  {selectedChannelConversationCount === 0 &&
+                  (selectedChannel === "instagram" || selectedChannel === "facebook") ? (
+                    <Button asChild variant="outline" size="sm" className="mt-4">
+                      <Link href="/connections">Manage connections</Link>
+                    </Button>
+                  ) : null}
                 </div>
               ) : (
                 filteredConversations.map((conversation) => {
@@ -2154,7 +2450,13 @@ export default function InboxPageClient({
                           </div>
                           <p className="mb-1 truncate text-xs text-muted-foreground">
                             {conversation.handle}
-                            {whatsappConnections.length > 1 ? ` · ${conversation.connectionLabel}` : ""}
+                            {(conversation.channel === "whatsapp"
+                              ? whatsappConnections.length
+                              : conversation.channel === "instagram"
+                                ? metaConnections.instagram.length
+                                : metaConnections.facebook.length) > 1
+                              ? ` · ${conversation.connectionLabel}`
+                              : ""}
                           </p>
                           {activeCallsByConversationId[conversation.id] ? (
                             <div className="mb-1">

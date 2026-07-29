@@ -27,15 +27,30 @@ type RustConnection = {
   createdAt: string;
 };
 
+type RustSocialChannel = {
+  id: string;
+  platform: string;
+  status: string;
+  display_name: string;
+  handle: string | null;
+};
+
 export default async function InboxPage() {
-  const [connectionsPayload, sharedConnectionsPayload, conversationsPayload] = await Promise.all([
+  const [
+    connectionsPayload,
+    sharedConnectionsPayload,
+    conversationsPayload,
+    socialChannelsPayload,
+  ] = await Promise.all([
     fetchRustJson<{ connections: RustConnection[] }>("/api/whatsapp/connections"),
     fetchRustJson<{ connections: WorkspaceConnection[] }>("/api/connections"),
     fetchRustJson<{ conversations: RustInboxConversation[] }>("/api/inbox/conversations"),
+    fetchRustJson<{ channels: RustSocialChannel[] }>("/api/social/channels"),
   ]);
 
   const connections = connectionsPayload.connections || [];
   const conversations = conversationsPayload.conversations || [];
+  const socialChannels = socialChannelsPayload.channels || [];
   const providerCounts = (provider: "WHATSAPP" | "FACEBOOK" | "INSTAGRAM") => {
     const providerConnections = sharedConnectionsPayload.connections.filter(
       (connection) => connection.provider === provider && connection.consumers.includes("inbox"),
@@ -82,6 +97,26 @@ export default async function InboxPage() {
         whatsapp: providerCounts("WHATSAPP"),
         instagram: providerCounts("INSTAGRAM"),
         facebook: providerCounts("FACEBOOK"),
+      }}
+      metaConnections={{
+        instagram: socialChannels
+          .filter(
+            (channel) => channel.platform === "INSTAGRAM" && channel.status === "CONNECTED",
+          )
+          .map((channel) => ({
+            id: channel.id,
+            label: channel.display_name,
+            handle: channel.handle,
+          })),
+        facebook: socialChannels
+          .filter(
+            (channel) => channel.platform === "FACEBOOK" && channel.status === "CONNECTED",
+          )
+          .map((channel) => ({
+            id: channel.id,
+            label: channel.display_name,
+            handle: channel.handle,
+          })),
       }}
     />
   );
