@@ -273,41 +273,6 @@ pub async fn list_conversation_messages(
     }))
 }
 
-pub async fn update_instagram_request_status(
-    pool: &PgPool,
-    org_id: &str,
-    conversation_id: &str,
-    action: &str,
-) -> Result<Value, AppError> {
-    let status = match action {
-        "accept" => "active",
-        "decline" => "declined",
-        _ => {
-            return Err(AppError::BadRequest(
-                "Invalid message request action".to_string(),
-            ))
-        }
-    };
-    let updated = sqlx::query_scalar::<_, String>(
-        r#"UPDATE "Conversation"
-           SET status = $1, "unreadCount" = CASE WHEN $1 = 'declined' THEN 0 ELSE "unreadCount" END,
-               "updatedAt" = NOW()
-           WHERE id = $2 AND "orgId" = $3 AND channel = 'instagram' AND status = 'request'
-           RETURNING id"#,
-    )
-    .bind(status)
-    .bind(conversation_id)
-    .bind(org_id)
-    .fetch_optional(pool)
-    .await?;
-    if updated.is_none() {
-        return Err(AppError::BadRequest(
-            "This Instagram message request is no longer pending".to_string(),
-        ));
-    }
-    Ok(json!({ "conversationId": conversation_id, "status": status }))
-}
-
 fn meta_attachment_data(payload: &Value) -> Option<&Vec<Value>> {
     payload
         .pointer("/attachments/data")
@@ -1151,7 +1116,7 @@ pub async fn process_meta_webhook_payload(
                 r#"
                 UPDATE "Conversation"
                 SET "lastMessageAt" = NOW(),
-                    status = CASE WHEN status = 'request' THEN 'request' ELSE 'active' END,
+                    status = 'active',
                     "unreadCount" = "unreadCount" + $2, "updatedAt" = NOW()
                 WHERE id = $1
                 "#,
@@ -1426,11 +1391,7 @@ async fn find_or_create_meta_conversation(
     .bind(channel_name)
     .bind(&identifier)
     .bind(customer_name)
-    .bind(if channel.platform == "INSTAGRAM" {
-        "request"
-    } else {
-        "active"
-    })
+    .bind("active")
     .bind(channel.org_id.as_deref())
     .bind(&channel.external_connection_id)
     .bind(canonical_customer_id.as_deref())

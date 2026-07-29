@@ -7,7 +7,6 @@ type RustInboxConversation = {
   channel: "whatsapp" | "facebook" | "instagram";
   customerName: string | null;
   phone: string;
-  status: string;
   lastMessageAt: string;
   unreadCount: number;
   starred: boolean;
