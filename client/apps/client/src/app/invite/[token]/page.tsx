@@ -28,7 +28,6 @@ export default async function InvitePage({
       token={token}
       invitation={invitation}
       isLoggedIn={!!session?.user?.id}
-      currentUserEmail={session?.user?.email ?? null}
     />
   );
 }

@@ -41,10 +41,18 @@ export default async function InboxPage() {
     conversationsPayload,
     socialChannelsPayload,
   ] = await Promise.all([
-    fetchRustJson<{ connections: RustConnection[] }>("/api/whatsapp/connections"),
-    fetchRustJson<{ connections: WorkspaceConnection[] }>("/api/connections"),
-    fetchRustJson<{ conversations: RustInboxConversation[] }>("/api/inbox/conversations"),
-    fetchRustJson<{ channels: RustSocialChannel[] }>("/api/social/channels"),
+    fetchRustJson<{ connections: RustConnection[] }>("/api/whatsapp/connections").catch(
+      () => ({ connections: [] }),
+    ),
+    fetchRustJson<{ connections: WorkspaceConnection[] }>("/api/connections").catch(
+      () => ({ connections: [] }),
+    ),
+    fetchRustJson<{ conversations: RustInboxConversation[] }>("/api/inbox/conversations").catch(
+      () => ({ conversations: [] }),
+    ),
+    fetchRustJson<{ channels: RustSocialChannel[] }>("/api/social/channels").catch(
+      () => ({ channels: [] }),
+    ),
   ]);
 
   const connections = connectionsPayload.connections || [];

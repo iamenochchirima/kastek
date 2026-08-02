@@ -1,3 +1,4 @@
+use bcrypt::{hash, DEFAULT_COST};
 use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
 use sqlx::{FromRow, PgPool, Row};
@@ -309,14 +310,14 @@ pub async fn list_invitations(
     org_id: &str,
 ) -> Result<Vec<OrgInvitationRow>, AppError> {
     Ok(sqlx::query_as::<_, OrgInvitationRow>(
-        r#"SELECT i.id, i."orgId", i.email, i.role::text AS role, i.token,
+        r#"SELECT i.id, i."orgId", i.email, i.role::text AS role, ''::text AS token,
                   i."invitedById", i."expiresAt" AT TIME ZONE 'UTC' AS "expiresAt",
                   i."acceptedAt" AT TIME ZONE 'UTC' AS "acceptedAt",
                   i."createdAt" AT TIME ZONE 'UTC' AS "createdAt",
                   u.name AS "invitedByName"
            FROM "OrganizationInvitation" i
            JOIN "User" u ON u.id = i."invitedById"
-           WHERE i."orgId" = $1
+           WHERE i."orgId" = $1 AND i."revokedAt" IS NULL
            ORDER BY i."createdAt" DESC"#,
     )
     .bind(org_id)
@@ -343,11 +344,12 @@ pub async fn create_invitation(
     }
 
     // Check if already a member
-    let already_member = sqlx::query_scalar::<_, bool>(
+    let already_active_member = sqlx::query_scalar::<_, bool>(
         r#"SELECT EXISTS(
              SELECT 1 FROM "OrganizationMember" m
              JOIN "User" u ON u.id = m."userId"
              WHERE m."orgId" = $1 AND LOWER(u.email) = LOWER($2)
+               AND (u.password IS NOT NULL OR u."emailVerified" IS NOT NULL)
            )"#,
     )
     .bind(org_id)
@@ -355,13 +357,14 @@ pub async fn create_invitation(
     .fetch_one(pool)
     .await?;
 
-    if already_member {
+    if already_active_member {
         return Err(AppError::Conflict(
             "That person is already a member of this organisation".to_string(),
         ));
     }
 
-    let token = cuid2::create_id();
+    let token = crypto_utils::generate_token(48);
+    let token_hash = crypto_utils::sha256_hex(&token);
     let expires_at = Utc::now() + Duration::days(7);
 
     // Upsert: if a pending invite exists for this email+org, replace it
@@ -376,10 +379,10 @@ pub async fn create_invitation(
 
     let inv = sqlx::query_as::<_, OrgInvitationRow>(
         r#"INSERT INTO "OrganizationInvitation"
-             (id, "orgId", email, role, token, "invitedById", "expiresAt", "createdAt", "updatedAt")
+             (id, "orgId", email, role, "tokenHash", "invitedById", "expiresAt", "createdAt", "updatedAt")
            VALUES ($1, $2, $3, $4::"OrgRole", $5, $6, $7, NOW(), NOW())
            RETURNING
-             id, "orgId", email, role::text AS role, token, "invitedById",
+             id, "orgId", email, role::text AS role, ''::text AS token, "invitedById",
              "expiresAt" AT TIME ZONE 'UTC' AS "expiresAt",
              "acceptedAt" AT TIME ZONE 'UTC' AS "acceptedAt",
              "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
@@ -389,7 +392,7 @@ pub async fn create_invitation(
     .bind(org_id)
     .bind(email)
     .bind(role)
-    .bind(&token)
+    .bind(&token_hash)
     .bind(invited_by_id)
     .bind(expires_at)
     .bind(invited_by_name)
@@ -417,14 +420,15 @@ pub async fn accept_invitation(
     token: &str,
     user_id: &str,
 ) -> Result<OrgRow, AppError> {
+    let token_hash = crypto_utils::sha256_hex(token);
     let inv = sqlx::query(
         r#"SELECT i.id, i."orgId", i.email, i.role::text AS role,
                   i."expiresAt" AT TIME ZONE 'UTC' AS "expiresAt",
                   i."acceptedAt" AT TIME ZONE 'UTC' AS "acceptedAt"
            FROM "OrganizationInvitation" i
-           WHERE i.token = $1"#,
+           WHERE i."tokenHash" = $1 AND i."revokedAt" IS NULL"#,
     )
-    .bind(token)
+    .bind(token_hash)
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Invitation not found".to_string()))?;
@@ -446,6 +450,19 @@ pub async fn accept_invitation(
     let org_id: String = inv.try_get("orgId").unwrap_or_default();
     let role: String = inv.try_get("role").unwrap_or_else(|_| "MEMBER".to_string());
     let inv_id: String = inv.try_get("id").unwrap_or_default();
+
+    let invited_email: String = inv.try_get("email").unwrap_or_default();
+    let user_email =
+        sqlx::query_scalar::<_, Option<String>>(r#"SELECT email FROM "User" WHERE id = $1"#)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?
+            .unwrap_or_default();
+    if !user_email.eq_ignore_ascii_case(&invited_email) {
+        return Err(AppError::Forbidden(
+            "Sign in with the email address that received this invitation".to_string(),
+        ));
+    }
 
     // Add member (ignore if already exists)
     sqlx::query(
@@ -476,17 +493,122 @@ pub async fn accept_invitation(
     Ok(org)
 }
 
+pub async fn activate_invitation_with_new_user(
+    pool: &PgPool,
+    token: &str,
+    name: Option<&str>,
+    password: &str,
+) -> Result<(OrgRow, String), AppError> {
+    let token_hash = crypto_utils::sha256_hex(token);
+    let mut tx = pool.begin().await?;
+    let invitation = sqlx::query(
+        r#"SELECT id, "orgId", email, role::text AS role,
+                  "expiresAt" AT TIME ZONE 'UTC' AS "expiresAt",
+                  "acceptedAt" AT TIME ZONE 'UTC' AS "acceptedAt"
+           FROM "OrganizationInvitation"
+           WHERE "tokenHash" = $1 AND "revokedAt" IS NULL
+           FOR UPDATE"#,
+    )
+    .bind(token_hash)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Invitation not found".to_string()))?;
+
+    let accepted_at: Option<DateTime<Utc>> = invitation.try_get("acceptedAt").unwrap_or(None);
+    let expires_at: DateTime<Utc> = invitation.try_get("expiresAt").unwrap_or(Utc::now());
+    if accepted_at.is_some() || expires_at <= Utc::now() {
+        return Err(AppError::BadRequest(
+            "This invitation is no longer valid".to_string(),
+        ));
+    }
+
+    let email: String = invitation.try_get("email").unwrap_or_default();
+    let existing_user = sqlx::query(
+        r#"SELECT id, password, "emailVerified" FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
+    )
+    .bind(&email)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let password_hash = hash(password, DEFAULT_COST)?;
+    let user_id = if let Some(existing_user) = existing_user {
+        let existing_password: Option<String> = existing_user.try_get("password").unwrap_or(None);
+        let existing_verified: Option<DateTime<Utc>> =
+            existing_user.try_get("emailVerified").unwrap_or(None);
+        if existing_password.is_some() || existing_verified.is_some() {
+            return Err(AppError::Conflict(
+                "An account already exists for this email. Sign in with that email to accept the invitation.".to_string(),
+            ));
+        }
+        let user_id: String = existing_user.try_get("id").unwrap_or_default();
+        sqlx::query(
+            r#"UPDATE "User" SET name = COALESCE($1, name), password = $2, "emailVerified" = NOW(), "updatedAt" = NOW() WHERE id = $3"#,
+        )
+        .bind(name)
+        .bind(password_hash)
+        .bind(&user_id)
+        .execute(&mut *tx)
+        .await?;
+        user_id
+    } else {
+        let user_id = cuid2::create_id();
+        sqlx::query(
+            r#"INSERT INTO "User" (id, name, email, password, "emailVerified", "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, NOW(), NOW(), NOW())"#,
+        )
+        .bind(&user_id)
+        .bind(name)
+        .bind(&email)
+        .bind(password_hash)
+        .execute(&mut *tx)
+        .await?;
+        user_id
+    };
+
+    let org_id: String = invitation.try_get("orgId").unwrap_or_default();
+    let role: String = invitation
+        .try_get("role")
+        .unwrap_or_else(|_| "MEMBER".to_string());
+    sqlx::query(
+        r#"INSERT INTO "OrganizationMember" (id, "orgId", "userId", role, "joinedAt", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4::"OrgRole", NOW(), NOW(), NOW())
+           ON CONFLICT ("orgId", "userId") DO UPDATE SET role = EXCLUDED.role, "updatedAt" = NOW()"#,
+    )
+    .bind(cuid2::create_id())
+    .bind(&org_id)
+    .bind(&user_id)
+    .bind(role)
+    .execute(&mut *tx)
+    .await?;
+
+    let invitation_id: String = invitation.try_get("id").unwrap_or_default();
+    sqlx::query(r#"UPDATE "OrganizationInvitation" SET "acceptedAt" = NOW(), "updatedAt" = NOW() WHERE id = $1"#)
+        .bind(invitation_id)
+        .execute(&mut *tx)
+        .await?;
+
+    let org = sqlx::query_as::<_, OrgRow>(
+        r#"SELECT id, name, slug, logo, "ownerId", "createdAt" AT TIME ZONE 'UTC' AS "createdAt", "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
+           FROM "Organization" WHERE id = $1"#,
+    )
+    .bind(org_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok((org, user_id))
+}
+
 pub async fn revoke_invitation(pool: &PgPool, org_id: &str, inv_id: &str) -> Result<(), AppError> {
-    let deleted = sqlx::query(
-        r#"DELETE FROM "OrganizationInvitation"
-           WHERE id = $1 AND "orgId" = $2 AND "acceptedAt" IS NULL"#,
+    let revoked = sqlx::query(
+        r#"UPDATE "OrganizationInvitation"
+           SET "revokedAt" = NOW(), "updatedAt" = NOW()
+           WHERE id = $1 AND "orgId" = $2 AND "acceptedAt" IS NULL AND "revokedAt" IS NULL"#,
     )
     .bind(inv_id)
     .bind(org_id)
     .execute(pool)
     .await?;
 
-    if deleted.rows_affected() == 0 {
+    if revoked.rows_affected() == 0 {
         return Err(AppError::NotFound(
             "Pending invitation not found".to_string(),
         ));
@@ -499,6 +621,7 @@ pub async fn get_invitation_by_token(
     pool: &PgPool,
     token: &str,
 ) -> Result<Option<serde_json::Value>, AppError> {
+    let token_hash = crypto_utils::sha256_hex(token);
     let row = sqlx::query(
         r#"SELECT i.id, i."orgId", i.email, i.role::text AS role,
                   i."expiresAt" AT TIME ZONE 'UTC' AS "expiresAt",
@@ -508,9 +631,9 @@ pub async fn get_invitation_by_token(
            FROM "OrganizationInvitation" i
            JOIN "Organization" o ON o.id = i."orgId"
            JOIN "User" u ON u.id = i."invitedById"
-           WHERE i.token = $1"#,
+           WHERE i."tokenHash" = $1 AND i."revokedAt" IS NULL"#,
     )
-    .bind(token)
+    .bind(token_hash)
     .fetch_optional(pool)
     .await?;
 

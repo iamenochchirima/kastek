@@ -6,8 +6,8 @@ use std::collections::HashMap;
 
 use crate::config::AppConfig;
 use crate::db::models::{
-    AccountCheckRequest, LoginRequest, PasswordSetupRequest, SendOtpRequest, SetPasswordRequest,
-    ResendVerificationRequest, SignupRequest, User, UserProfileResponse, VerifyOtpRequest,
+    AccountCheckRequest, LoginRequest, PasswordSetupRequest, ResendVerificationRequest,
+    SendOtpRequest, SetPasswordRequest, SignupRequest, User, UserProfileResponse, VerifyOtpRequest,
 };
 use crate::error::AppError;
 use crate::middleware::extract_user_allow_unverified;
@@ -50,6 +50,13 @@ pub async fn signup(
     config: web::Data<AppConfig>,
     body: web::Json<SignupRequest>,
 ) -> Result<HttpResponse, AppError> {
+    if config.private_release_mode {
+        return Ok(HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "KasiTek is currently available by invitation only.",
+            "code": "SIGNUP_INVITE_ONLY"
+        })));
+    }
+
     let email = body.email.trim().to_lowercase();
     let password = body.password.trim();
 
@@ -452,7 +459,13 @@ pub async fn google_oauth_callback(
             .execute(pool.get_ref())
             .await?;
 
-            // Auto-create personal organisation for new Google user
+            if config.private_release_mode {
+                return Err(AppError::Forbidden(
+                    "KasiTek is currently available by invitation only. Use the invitation link sent to you.".to_string(),
+                ));
+            }
+
+            // Public signup mode creates a personal organisation for new Google users.
             let org_name = name
                 .filter(|n| !n.is_empty())
                 .map(|n| format!("{}'s Workspace", n))

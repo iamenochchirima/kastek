@@ -170,12 +170,13 @@ export default function LoginForm() {
         </button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{" "}
-        <Link href="/signup" className="text-primary hover:underline">
-          Sign up
-        </Link>
-      </p>
+      {process.env.NEXT_PUBLIC_KASITEK_ACCESS_MODE === "public" ? (
+        <p className="text-center text-sm text-muted-foreground">
+          Don&apos;t have an account? <Link href="/signup" className="text-primary hover:underline">Sign up</Link>
+        </p>
+      ) : (
+        <p className="text-center text-sm text-muted-foreground">Need access? Ask your workspace administrator for an invitation.</p>
+      )}
     </div>
   );
 }

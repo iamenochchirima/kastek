@@ -54,7 +54,7 @@ function LoginContent() {
     <div>
       <div className="rounded-lg border border-border bg-card p-6 shadow-sm sm:p-8">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="Kasitek Labs" className="mx-auto mb-4 size-12 rounded-lg object-cover" />
+          <div aria-hidden="true" className="mx-auto mb-4 flex size-12 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground shadow-sm">K</div>
           <h1 className="text-2xl font-semibold tracking-[-0.025em] text-foreground">Kasitek Labs</h1>
           <p className="mt-1 text-sm text-muted-foreground">Sign in to the internal operations workspace.</p>
         </div>

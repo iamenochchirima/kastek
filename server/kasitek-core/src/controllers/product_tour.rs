@@ -78,16 +78,24 @@ pub async fn update(
     let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let action = body.action.trim().to_lowercase();
     let (status, step) = match action.as_str() {
-        "start" | "advance" => ("IN_PROGRESS", body.current_step.unwrap_or(0).clamp(0, TOUR_STEPS - 1)),
+        "start" | "advance" => (
+            "IN_PROGRESS",
+            body.current_step.unwrap_or(0).clamp(0, TOUR_STEPS - 1),
+        ),
         "complete" => ("COMPLETED", TOUR_STEPS - 1),
-        "dismiss" => ("DISMISSED", body.current_step.unwrap_or(0).clamp(0, TOUR_STEPS - 1)),
+        "dismiss" => (
+            "DISMISSED",
+            body.current_step.unwrap_or(0).clamp(0, TOUR_STEPS - 1),
+        ),
         "restart" => ("PENDING", 0),
         _ => return Err(AppError::BadRequest("Unknown tour action".to_string())),
     };
 
     let row = tour_row(pool.get_ref(), &org_id, &user.id).await?;
     if row.completed_at.is_none() && row.skipped_at.is_none() {
-        return Err(AppError::Forbidden("Finish workspace onboarding before starting the tour".to_string()));
+        return Err(AppError::Forbidden(
+            "Finish workspace onboarding before starting the tour".to_string(),
+        ));
     }
 
     sqlx::query(

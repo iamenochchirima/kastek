@@ -94,6 +94,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/invitations")
                 .route("/{token}", web::get().to(orgs::get_invitation_preview))
+                .route(
+                    "/{token}/activate",
+                    web::post().to(orgs::activate_invitation),
+                )
                 .route("/{token}/accept", web::post().to(orgs::accept_invitation)),
         )
         .service(
@@ -230,6 +234,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/conversations", web::get().to(inbox::list_conversations))
                 .route("/{id}/messages", web::get().to(inbox::list_messages))
                 .route("/{id}/messages", web::post().to(inbox::send_message))
+                .route(
+                    "/{id}/messages/{message_id}/retry",
+                    web::post().to(inbox::retry_message),
+                )
                 .route(
                     "/messages/{message_id}/attachments/{attachment_id}",
                     web::get().to(inbox::download_attachment),
@@ -403,6 +411,16 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/reset-password", web::post().to(admin::reset_password))
                 .route("/password", web::patch().to(admin::change_password))
                 .route("/stats", web::get().to(admin::stats))
+                .route("/access", web::get().to(admin::list_launch_access))
+                .route("/access", web::post().to(admin::provision_launch_user))
+                .route(
+                    "/access/{id}/resend",
+                    web::post().to(admin::resend_launch_access),
+                )
+                .route(
+                    "/access/{id}/revoke",
+                    web::post().to(admin::revoke_launch_access),
+                )
                 .route(
                     "/billing/reconcile/paystack",
                     web::post().to(admin_billing::reconcile_paystack),

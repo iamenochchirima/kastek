@@ -4,10 +4,12 @@ import ThemeScript from "@/components/theme-script";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  applicationName: "KasiTek",
-  title: "KasiTek | AI Solutions for Your Business",
-  description:
-    "We build WhatsApp chatbots, AI voice agents, and smart automations that handle your customer inquiries, bookings, and admin.",
+  applicationName: "KasiTek app",
+  title: {
+    default: "KasiTek app",
+    template: "%s | KasiTek app",
+  },
+  description: "Manage your KasiTek workspace, conversations, and connected channels.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/facebook-app-icon-dark-1024.png",
@@ -21,7 +23,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "KasiTek",
+    title: "KasiTek app",
   },
 };
 

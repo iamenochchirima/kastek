@@ -65,6 +65,15 @@ pub async fn list_channels(
             error
         );
     }
+    if let Err(error) =
+        social::ensure_instagram_account_webhook_subscriptions(pool.get_ref(), &org_id).await
+    {
+        log::warn!(
+            "failed to ensure Instagram account webhook subscriptions org_id={}: {}",
+            org_id,
+            error
+        );
+    }
     let channels = social::list_social_channels(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "channels": channels })))
 }
@@ -782,8 +791,7 @@ pub async fn instagram_oauth_callback(
         ));
     }
 
-    let short_lived =
-        social::exchange_instagram_code_for_token(config.get_ref(), code).await?;
+    let short_lived = social::exchange_instagram_code_for_token(config.get_ref(), code).await?;
     let short_lived_access_token = short_lived
         .access_token
         .as_deref()
@@ -809,8 +817,7 @@ pub async fn instagram_oauth_callback(
     let account_id = channel.external_account_id.as_deref().ok_or_else(|| {
         AppError::Internal("Saved Instagram connection is missing an account ID".to_string())
     })?;
-    let subscription_result =
-        social::subscribe_instagram_webhooks(access_token, account_id).await;
+    let subscription_result = social::subscribe_instagram_webhooks(access_token, account_id).await;
     let subscription_error = subscription_result.as_ref().err().map(ToString::to_string);
     connections::record_synced_source_health(
         pool.get_ref(),

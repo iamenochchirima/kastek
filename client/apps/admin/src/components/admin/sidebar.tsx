@@ -29,7 +29,10 @@ const navigation: NavGroup[] = [
     { href: "/outreach/delivery", label: "Delivery log", icon: Inbox },
     { href: "/web-services", label: "Web services", icon: Globe2 },
   ] },
-  { label: "Platform", items: [{ href: "/agencies", label: "Agencies", icon: Building2 }] },
+  { label: "Platform", items: [
+    { href: "/access", label: "User access", icon: Users },
+    { href: "/agencies", label: "Agencies", icon: Building2 },
+  ] },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -86,7 +89,7 @@ function Navigation({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate
 
 function Brand({ collapsed = false }: { collapsed?: boolean }) {
   return <Link href="/dashboard" className={`flex items-center gap-2.5 px-2 ${collapsed ? "justify-center" : ""}`}>
-    <img src="/logo.png" alt="Kasitek Labs" className="size-8 shrink-0 rounded-md object-cover" />
+    <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">K</span>
     {!collapsed ? <span className="text-sm font-semibold tracking-[-0.02em] text-foreground">Kasitek <span className="font-normal text-muted-foreground">Labs</span></span> : null}
   </Link>;
 }

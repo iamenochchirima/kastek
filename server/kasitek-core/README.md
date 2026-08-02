@@ -14,6 +14,12 @@ Actix-web backend for thearchitect.fun.
 cargo run
 ```
 
+## Temporary release access mode
+
+KasiTek starts in invitation-only mode. Set `KASITEK_ACCESS_MODE=private` (or leave it unset) while access is controlled: public signup is blocked, but activated users continue to sign in normally and invitation links can create their accounts.
+
+When the release is ready for public registration, set `KASITEK_ACCESS_MODE=public` on the core backend and `NEXT_PUBLIC_KASITEK_ACCESS_MODE=public` on the client app, then redeploy both services. Existing invitations and normal login continue to work in either mode.
+
 By default, the API server also starts the WhatsApp inbox, WhatsApp marketing, and social publishing workers in the same process.
 
 If you need to disable embedded workers for a pure API process, set:

@@ -2,10 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "KasiTek",
+    name: "KasiTek app",
     short_name: "KasiTek",
-    description:
-      "AI agents, automation systems, and digital infrastructure for businesses.",
+    description: "Manage your KasiTek workspace and connected customer channels.",
     start_url: "/",
     scope: "/",
     display: "standalone",

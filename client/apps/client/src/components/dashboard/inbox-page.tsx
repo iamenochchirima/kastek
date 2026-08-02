@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Picker from "@emoji-mart/react";
 import emojiData from "@emoji-mart/data";
+import type { EmojiMartData } from "@emoji-mart/data";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -26,6 +27,7 @@ import {
   MoreVertical,
   Paperclip,
   Phone,
+  RotateCcw,
   Search,
   Send,
   Smile,
@@ -58,6 +60,13 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useWhatsappRealtimeSubscription } from "@/components/dashboard/whatsapp-realtime-provider";
+
+function markConversationRead(conversationId: string) {
+  return fetch(apiUrl(`/api/inbox/${conversationId}/read`), {
+    method: "POST",
+    credentials: "include",
+  });
+}
 
 type InboxConversation = {
   id: string;
@@ -240,6 +249,97 @@ type MessageReaction = {
 };
 
 const legacyAttachmentPlaceholders = new Set(["[attachment]", "attachment", "sticker"]);
+
+const fluentEmojiAssetVersion = "1.1.0";
+const fluentEmojiAssetBaseUrl = `https://unpkg.com/@lobehub/fluent-emoji-3d@${fluentEmojiAssetVersion}/assets`;
+
+const fluentEmojiSequences = new Set(
+  Object.values((emojiData as EmojiMartData).emojis).flatMap((emoji) =>
+    emoji.skins.map((skin) => skin.native),
+  ),
+);
+
+type GraphemeSegmenter = {
+  segment(input: string): Iterable<{ segment: string }>;
+};
+
+type IntlWithSegmenter = typeof Intl & {
+  Segmenter?: new (
+    locales?: string | string[],
+    options?: { granularity: "grapheme" },
+  ) => GraphemeSegmenter;
+};
+
+function createGraphemeSegmenter() {
+  if (typeof Intl === "undefined") return null;
+
+  const Segmenter = (Intl as IntlWithSegmenter).Segmenter;
+  return Segmenter ? new Segmenter(undefined, { granularity: "grapheme" }) : null;
+}
+
+const graphemeSegmenter = createGraphemeSegmenter();
+
+function getEmojiPresentationSequence(segment: string) {
+  if (fluentEmojiSequences.has(segment)) return segment;
+
+  // U+2764 (❤), for example, is text-presenting in some Linux font stacks.
+  // Prefer the equivalent emoji-presentation sequence only when Emoji Mart
+  // recognises it, so ordinary text and unsupported characters stay untouched.
+  const emojiPresentation = segment.includes("\uFE0E")
+    ? segment.replace(/\uFE0E/g, "\uFE0F")
+    : `${segment}\uFE0F`;
+
+  return fluentEmojiSequences.has(emojiPresentation) ? emojiPresentation : null;
+}
+
+function getFluentEmojiAssetUrl(emoji: string) {
+  const codepoints = Array.from(emoji)
+    .map((character) => character.codePointAt(0)?.toString(16))
+    .filter((codepoint): codepoint is string => Boolean(codepoint))
+    .join("-");
+
+  return `${fluentEmojiAssetBaseUrl}/${codepoints}.webp`;
+}
+
+function FluentEmojiGlyph({ emoji }: { emoji: string }) {
+  const [assetFailed, setAssetFailed] = useState(false);
+
+  if (assetFailed) {
+    return <>{emoji}</>;
+  }
+
+  return (
+    // Fluent Emoji is Microsoft's MIT-licensed emoji artwork. Pinning the
+    // version makes each exact Unicode sequence stable and long-cacheable.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={getFluentEmojiAssetUrl(emoji)}
+      alt={emoji}
+      title={emoji}
+      className="inline-block h-[1.2em] w-[1.2em] align-[-0.22em] object-contain"
+      onError={() => setAssetFailed(true)}
+    />
+  );
+}
+
+function EmojiText({ value }: { value: string }) {
+  const segments = graphemeSegmenter
+    ? Array.from(graphemeSegmenter.segment(value), ({ segment }) => segment)
+    : Array.from(value);
+
+  return (
+    <>
+      {segments.map((segment, index) => {
+        const emoji = getEmojiPresentationSequence(segment);
+        return emoji ? (
+          <FluentEmojiGlyph key={`${index}-${emoji}`} emoji={emoji} />
+        ) : (
+          <span key={`${index}-${segment}`}>{segment}</span>
+        );
+      })}
+    </>
+  );
+}
 
 function isStickerAttachment(attachment: MessageAttachment) {
   if (attachment.kind === "sticker" || attachment.providerMediaId?.startsWith("sticker_")) {
@@ -545,6 +645,7 @@ export default function InboxPageClient({
   >({});
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [composerLoading, setComposerLoading] = useState(false);
+  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
   const [composerError, setComposerError] = useState("");
   const [filter, setFilter] = useState("all");
   const [messageInput, setMessageInput] = useState("");
@@ -1510,10 +1611,7 @@ export default function InboxPageClient({
       ),
     );
 
-    void fetch(apiUrl(`/api/inbox/${selectedConversationId}/read`), {
-      method: "POST",
-      credentials: "include",
-    });
+    void markConversationRead(selectedConversationId);
   }, [selectedConversationId]);
 
   useEffect(() => {
@@ -1593,6 +1691,15 @@ export default function InboxPageClient({
 
     if (payload.type === "message.created") {
       const conversationId = payload.conversationId;
+      const isVisibleCustomerMessage =
+        payload.message.sender === "customer" &&
+        conversationId === selectedConversationId &&
+        document.visibilityState === "visible";
+
+      if (isVisibleCustomerMessage) {
+        void markConversationRead(conversationId);
+      }
+
       setLiveConversations((current) => {
         const existing = current.find((conversation) => conversation.id === conversationId);
         const fallbackName =
@@ -2222,12 +2329,8 @@ export default function InboxPageClient({
       const payload = (await response.json().catch(() => ({}))) as {
         messageId?: string;
         queued?: boolean;
+        status?: "SENT";
       };
-      console.log("[inbox send debug]", {
-        conversationId,
-        optimisticId,
-        payload,
-      });
       if (payload.messageId && optimisticId.startsWith("optimistic:")) {
         setMessagesByConversationId((current) => ({
           ...current,
@@ -2236,7 +2339,7 @@ export default function InboxPageClient({
               ? {
                   ...message,
                   id: payload.messageId!,
-                  status: payload.queued ? "pending" : message.status,
+                  status: payload.queued ? "pending" : (payload.status || "SENT"),
                 }
               : message,
           ),
@@ -2249,6 +2352,63 @@ export default function InboxPageClient({
     }
 
     setComposerLoading(false);
+  }
+
+  async function retryMessage(message: ConversationMessage) {
+    if (!selectedConversationId || message.sender === "customer" || message.status !== "failed") {
+      return;
+    }
+
+    const conversationId = selectedConversationId;
+    setRetryingMessageId(message.id);
+    setComposerError("");
+    setMessagesByConversationId((current) => ({
+      ...current,
+      [conversationId]: (current[conversationId] || []).map((candidate) =>
+        candidate.id === message.id
+          ? { ...candidate, status: "pending", errorMessage: null }
+          : candidate,
+      ),
+    }));
+
+    try {
+      const response = await fetch(
+        apiUrl(`/api/inbox/${conversationId}/messages/${message.id}/retry`),
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        status?: "SENT";
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to retry message");
+      }
+
+      setMessagesByConversationId((current) => ({
+        ...current,
+        [conversationId]: (current[conversationId] || []).map((candidate) =>
+          candidate.id === message.id
+            ? { ...candidate, status: payload.status || "SENT", errorMessage: null }
+            : candidate,
+        ),
+      }));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to retry message";
+      setMessagesByConversationId((current) => ({
+        ...current,
+        [conversationId]: (current[conversationId] || []).map((candidate) =>
+          candidate.id === message.id
+            ? { ...candidate, status: "failed", errorMessage }
+            : candidate,
+        ),
+      }));
+    } finally {
+      setRetryingMessageId(null);
+    }
   }
 
   function insertEmojiAtCursor(emoji: string) {
@@ -2630,7 +2790,7 @@ export default function InboxPageClient({
                               conversation.unread ? "text-foreground" : "text-muted-foreground",
                             )}
                           >
-                            {conversation.lastMessage}
+                            <EmojiText value={conversation.lastMessage} />
                           </p>
                         </div>
                         {conversation.unread ? (
@@ -3052,9 +3212,31 @@ export default function InboxPageClient({
                     />
                     <div className={cn("space-y-1", stickerOnly ? "mt-0.5" : "mt-1.5")}>
                       {message.status === "failed" && message.errorMessage ? (
-                        <p className="max-w-[220px] text-right text-[10px] leading-snug text-destructive">
-                          {message.errorMessage}
-                        </p>
+                        <div className="flex max-w-[240px] flex-col items-end gap-1">
+                          <p className="text-right text-[10px] leading-snug text-destructive">
+                            {message.errorMessage}
+                          </p>
+                          {message.sender !== "customer" &&
+                          message.contentType === "TEXT" &&
+                          selectedConversation?.channel !== "whatsapp" ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 gap-1 px-2 text-[10px] text-destructive hover:text-destructive"
+                              disabled={retryingMessageId !== null}
+                              onClick={() => void retryMessage(message)}
+                            >
+                              <RotateCcw
+                                className={cn(
+                                  "h-3 w-3",
+                                  retryingMessageId === message.id && "animate-spin",
+                                )}
+                              />
+                              {retryingMessageId === message.id ? "Retrying" : "Retry"}
+                            </Button>
+                          ) : null}
+                        </div>
                       ) : null}
                       <div className="flex items-center justify-end gap-1.5">
                         {reactionDisplayByMessageId[message.id] ? (
@@ -3083,7 +3265,7 @@ export default function InboxPageClient({
                               void sendReaction(message.id, "", true);
                             }}
                           >
-                            {reactionDisplayByMessageId[message.id].emojis.join(" ")}
+                            <EmojiText value={reactionDisplayByMessageId[message.id].emojis.join(" ")} />
                             {reactionDisplayByMessageId[message.id].total > 1 ? (
                               <span className="text-[11px] text-muted-foreground">
                                 {reactionDisplayByMessageId[message.id].total}
@@ -3313,7 +3495,7 @@ function DashboardMessageContent({
     return (
       <div className="space-y-2">
         {replyCard}
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{previewText}</p>
+        <p className="whitespace-pre-wrap text-sm leading-relaxed"><EmojiText value={previewText} /></p>
       </div>
     );
   }
@@ -3333,7 +3515,7 @@ function DashboardMessageContent({
           onOpenMedia={onOpenMedia}
         />
       ))}
-      {caption ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{caption}</p> : null}
+      {caption ? <p className="whitespace-pre-wrap text-sm leading-relaxed"><EmojiText value={caption} /></p> : null}
     </div>
   );
 }
@@ -3441,13 +3623,13 @@ function ReplyPreviewCard({
               <div className="flex items-center gap-1.5">
                 {renderReplyPreviewIcon(attachment.kind)}
                 <p className="truncate text-xs text-muted-foreground">
-                  {replyPreviewText}
+                  <EmojiText value={replyPreviewText} />
                 </p>
               </div>
             </div>
           </div>
         ) : (
-          <p className="truncate text-xs text-muted-foreground">{displayText}</p>
+          <p className="truncate text-xs text-muted-foreground"><EmojiText value={displayText} /></p>
         )}
       </div>
     </div>

@@ -10,6 +10,15 @@ use crate::db::models::{
 use crate::error::AppError;
 use crate::middleware::{extract_admin, require_admin_role};
 use crate::services::auth::{issue_verification_token, send_email};
+use crate::services::orgs;
+
+#[derive(serde::Deserialize)]
+pub struct ProvisionLaunchUserRequest {
+    pub name: String,
+    pub email: String,
+    #[serde(rename = "workspaceName")]
+    pub workspace_name: String,
+}
 
 fn admin_password_reset_identifier(admin_id: &str) -> String {
     format!("admin-password-reset:{admin_id}")
@@ -242,4 +251,136 @@ pub async fn stats(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResp
         "totalSocialPosts": total_social_posts,
         "totalWhatsappCampaigns": total_whatsapp_campaigns,
     })))
+}
+
+pub async fn list_launch_access(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let admin = extract_admin(&req, pool.get_ref()).await?;
+    require_admin_role(&admin, &["superadmin", "admin", "viewer"])?;
+    let users = sqlx::query(
+        r#"SELECT i.id, i.email, i.role::text AS role, i."expiresAt", i."acceptedAt", i."revokedAt", i."createdAt",
+                  o.id AS "orgId", o.name AS "orgName", u.name
+           FROM "OrganizationInvitation" i
+           JOIN "Organization" o ON o.id = i."orgId"
+           JOIN "User" u ON lower(u.email) = lower(i.email)
+           WHERE u.password IS NULL OR i."acceptedAt" IS NOT NULL
+           ORDER BY i."createdAt" DESC"#,
+    ).fetch_all(pool.get_ref()).await?;
+    let now = chrono::Utc::now();
+    let access = users.into_iter().map(|row| {
+        let expires_at: chrono::DateTime<chrono::Utc> = sqlx::Row::try_get(&row, "expiresAt").unwrap_or(now);
+        let accepted_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::Row::try_get(&row, "acceptedAt").unwrap_or(None);
+        let revoked_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::Row::try_get(&row, "revokedAt").unwrap_or(None);
+        let status = if accepted_at.is_some() { "active" } else if revoked_at.is_some() { "revoked" } else if expires_at <= now { "expired" } else { "pending" };
+        serde_json::json!({
+            "id": sqlx::Row::try_get::<String, _>(&row, "id").unwrap_or_default(),
+            "name": sqlx::Row::try_get::<Option<String>, _>(&row, "name").unwrap_or(None),
+            "email": sqlx::Row::try_get::<String, _>(&row, "email").unwrap_or_default(),
+            "workspaceId": sqlx::Row::try_get::<String, _>(&row, "orgId").unwrap_or_default(),
+            "workspaceName": sqlx::Row::try_get::<String, _>(&row, "orgName").unwrap_or_default(),
+            "role": sqlx::Row::try_get::<String, _>(&row, "role").unwrap_or_default(),
+            "status": status,
+            "expiresAt": expires_at,
+            "createdAt": sqlx::Row::try_get::<chrono::DateTime<chrono::Utc>, _>(&row, "createdAt").unwrap_or(now),
+        })
+    }).collect::<Vec<_>>();
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "access": access })))
+}
+
+pub async fn provision_launch_user(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<ProvisionLaunchUserRequest>,
+) -> Result<HttpResponse, AppError> {
+    let admin = extract_admin(&req, pool.get_ref()).await?;
+    require_admin_role(&admin, &["superadmin", "admin"])?;
+    let name = body.name.trim();
+    let email = body.email.trim().to_ascii_lowercase();
+    let workspace_name = body.workspace_name.trim();
+    if name.is_empty() || workspace_name.is_empty() || !email.contains('@') {
+        return Err(AppError::BadRequest(
+            "Name, valid email, and workspace name are required".to_string(),
+        ));
+    }
+    let existing = sqlx::query_scalar::<_, bool>(
+        r#"SELECT EXISTS(SELECT 1 FROM "User" WHERE lower(email) = lower($1))"#,
+    )
+    .bind(&email)
+    .fetch_one(pool.get_ref())
+    .await?;
+    if existing {
+        return Err(AppError::Conflict(
+            "A KasiTek account or launch invitation already exists for this email".to_string(),
+        ));
+    }
+    let user_id = cuid2::create_id();
+    sqlx::query(r#"INSERT INTO "User" (id, name, email, "createdAt", "updatedAt") VALUES ($1, $2, $3, NOW(), NOW())"#)
+        .bind(&user_id).bind(name).bind(&email).execute(pool.get_ref()).await?;
+    let base_slug = orgs::slugify(workspace_name);
+    let slug = orgs::unique_slug(pool.get_ref(), &base_slug).await?;
+    let org = orgs::create_org(pool.get_ref(), &user_id, workspace_name, &slug, None).await?;
+    let invitation = orgs::create_invitation(
+        pool.get_ref(),
+        config.get_ref(),
+        &org.id,
+        &org.name,
+        &user_id,
+        Some(name),
+        &email,
+        "ADMIN",
+    )
+    .await?;
+    Ok(HttpResponse::Created().json(serde_json::json!({ "workspace": org, "invitation": { "id": invitation.id, "email": email, "expiresAt": invitation.expires_at } })))
+}
+
+pub async fn resend_launch_access(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let admin = extract_admin(&req, pool.get_ref()).await?;
+    require_admin_role(&admin, &["superadmin", "admin"])?;
+    let invite_id = path.into_inner();
+    let row = sqlx::query(r#"SELECT i.email, i."orgId", o.name AS "orgName", o."ownerId", u.name AS "ownerName" FROM "OrganizationInvitation" i JOIN "Organization" o ON o.id = i."orgId" JOIN "User" u ON u.id = o."ownerId" WHERE i.id = $1"#)
+        .bind(&invite_id).fetch_optional(pool.get_ref()).await?.ok_or_else(|| AppError::NotFound("Launch invitation not found".to_string()))?;
+    let email: String = sqlx::Row::try_get(&row, "email").unwrap_or_default();
+    let org_id: String = sqlx::Row::try_get(&row, "orgId").unwrap_or_default();
+    let org_name: String = sqlx::Row::try_get(&row, "orgName").unwrap_or_default();
+    let owner_id: String = sqlx::Row::try_get(&row, "ownerId").unwrap_or_default();
+    let owner_name: Option<String> = sqlx::Row::try_get(&row, "ownerName").unwrap_or(None);
+    let invitation = orgs::create_invitation(
+        pool.get_ref(),
+        config.get_ref(),
+        &org_id,
+        &org_name,
+        &owner_id,
+        owner_name.as_deref(),
+        &email,
+        "ADMIN",
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "invitation": { "id": invitation.id, "expiresAt": invitation.expires_at } })))
+}
+
+pub async fn revoke_launch_access(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let admin = extract_admin(&req, pool.get_ref()).await?;
+    require_admin_role(&admin, &["superadmin", "admin"])?;
+    let invitation_id = path.into_inner();
+    let org_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT "orgId" FROM "OrganizationInvitation" WHERE id = $1"#,
+    )
+    .bind(&invitation_id)
+    .fetch_optional(pool.get_ref())
+    .await?
+    .ok_or_else(|| AppError::NotFound("Launch invitation not found".to_string()))?;
+    orgs::revoke_invitation(pool.get_ref(), &org_id, &invitation_id).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "revoked": true })))
 }

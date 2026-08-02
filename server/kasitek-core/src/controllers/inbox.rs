@@ -48,6 +48,25 @@ pub async fn send_message(
     Ok(HttpResponse::Accepted().json(result))
 }
 
+pub async fn retry_message(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let (conversation_id, message_id) = path.into_inner();
+    let result = inbox::retry_conversation_message(
+        pool.get_ref(),
+        &user.id,
+        &org_id,
+        &conversation_id,
+        &message_id,
+    )
+    .await?;
+    Ok(HttpResponse::Accepted().json(result))
+}
+
 pub async fn mark_read(
     pool: web::Data<PgPool>,
     req: HttpRequest,

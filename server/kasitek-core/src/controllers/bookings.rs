@@ -28,10 +28,7 @@ fn required_trimmed(value: Option<&String>, label: &str) -> Result<String, AppEr
     optional_trimmed(value).ok_or_else(|| AppError::BadRequest(format!("{label} is required")))
 }
 
-async fn request_scope(
-    pool: &PgPool,
-    req: &HttpRequest,
-) -> Result<(String, String), AppError> {
+async fn request_scope(pool: &PgPool, req: &HttpRequest) -> Result<(String, String), AppError> {
     let user = extract_user(req, pool).await?;
     let org_id = resolve_active_org_id(req, pool, &user.id).await?;
     Ok((user.id, org_id))
@@ -57,7 +54,9 @@ pub async fn create_service(
     let duration_minutes = body
         .duration_minutes
         .filter(|value| (5..=1_440).contains(value))
-        .ok_or_else(|| AppError::BadRequest("Duration must be between 5 and 1440 minutes".to_string()))?;
+        .ok_or_else(|| {
+            AppError::BadRequest("Duration must be between 5 and 1440 minutes".to_string())
+        })?;
     let description = optional_trimmed(body.description.as_ref());
     let service = bookings::create_service(
         pool.get_ref(),
@@ -78,7 +77,10 @@ pub async fn update_service(
 ) -> Result<HttpResponse, AppError> {
     let (user_id, org_id) = request_scope(pool.get_ref(), &req).await?;
     orgs::require_admin(pool.get_ref(), &org_id, &user_id).await?;
-    if body.duration_minutes.is_some_and(|value| !(5..=1_440).contains(&value)) {
+    if body
+        .duration_minutes
+        .is_some_and(|value| !(5..=1_440).contains(&value))
+    {
         return Err(AppError::BadRequest(
             "Duration must be between 5 and 1440 minutes".to_string(),
         ));
@@ -124,9 +126,13 @@ pub async fn create_booking(
     let contact_name = required_trimmed(body.contact_name.as_ref(), "Contact name")?;
     let scheduled_start = required_trimmed(body.scheduled_start.as_ref(), "Start time")?
         .parse::<DateTime<Utc>>()
-        .map_err(|_| AppError::BadRequest("Start time must be a valid ISO-8601 timestamp".to_string()))?;
+        .map_err(|_| {
+            AppError::BadRequest("Start time must be a valid ISO-8601 timestamp".to_string())
+        })?;
     if scheduled_start <= Utc::now() {
-        return Err(AppError::BadRequest("Bookings must be scheduled in the future".to_string()));
+        return Err(AppError::BadRequest(
+            "Bookings must be scheduled in the future".to_string(),
+        ));
     }
     let timezone = optional_trimmed(body.timezone.as_ref())
         .unwrap_or_else(|| "Africa/Johannesburg".to_string());
@@ -163,7 +169,10 @@ pub async fn update_booking(
     {
         return Err(AppError::BadRequest("Invalid booking status".to_string()));
     }
-    let notes = body.notes.as_ref().map(|value| optional_trimmed(Some(value)));
+    let notes = body
+        .notes
+        .as_ref()
+        .map(|value| optional_trimmed(Some(value)));
     let booking = bookings::update_booking(
         pool.get_ref(),
         &org_id,

@@ -66,16 +66,28 @@ fn clean(value: Option<String>, label: &str, max_len: usize) -> Result<Option<St
     Ok(value)
 }
 
-fn clean_list(values: Option<Vec<String>>, label: &str, max_len: usize) -> Result<Option<Vec<String>>, AppError> {
-    let Some(values) = values else { return Ok(None); };
+fn clean_list(
+    values: Option<Vec<String>>,
+    label: &str,
+    max_len: usize,
+) -> Result<Option<Vec<String>>, AppError> {
+    let Some(values) = values else {
+        return Ok(None);
+    };
     let mut cleaned = Vec::new();
     for value in values {
         let value = value.trim().to_string();
-        if value.is_empty() { continue; }
-        if value.len() > max_len {
-            return Err(AppError::BadRequest(format!("{label} must be {max_len} characters or fewer")));
+        if value.is_empty() {
+            continue;
         }
-        if !cleaned.contains(&value) { cleaned.push(value); }
+        if value.len() > max_len {
+            return Err(AppError::BadRequest(format!(
+                "{label} must be {max_len} characters or fewer"
+            )));
+        }
+        if !cleaned.contains(&value) {
+            cleaned.push(value);
+        }
     }
     Ok(Some(cleaned))
 }

@@ -27,7 +27,10 @@ const BOOKING_SELECT: &str = r#"
       ON customer.id = b."customerId" AND customer."orgId" = b."orgId"
 "#;
 
-pub async fn list_services(pool: &PgPool, org_id: &str) -> Result<Vec<BookingServiceRow>, AppError> {
+pub async fn list_services(
+    pool: &PgPool,
+    org_id: &str,
+) -> Result<Vec<BookingServiceRow>, AppError> {
     Ok(sqlx::query_as::<_, BookingServiceRow>(
         r#"
         SELECT id, "orgId" AS org_id, name, description,
@@ -162,7 +165,9 @@ pub async fn create_booking(
         .await?
         .is_some();
         if !exists {
-            return Err(AppError::BadRequest("Contact does not belong to this workspace".to_string()));
+            return Err(AppError::BadRequest(
+                "Contact does not belong to this workspace".to_string(),
+            ));
         }
     }
 

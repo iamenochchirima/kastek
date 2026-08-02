@@ -30,6 +30,7 @@ const META_PAGE_WEBHOOK_FIELDS: &str =
 const META_PAGE_WEBHOOK_SUBSCRIPTION_VERSION: i32 = 2;
 const META_INSTAGRAM_WEBHOOK_FIELDS: &str =
     "messages,messaging_postbacks,messaging_seen,message_reactions";
+const META_INSTAGRAM_ACCOUNT_WEBHOOK_SUBSCRIPTION_VERSION: i32 = 1;
 static META_INSTAGRAM_APP_WEBHOOK_CONFIGURED: AtomicBool = AtomicBool::new(false);
 const INSTAGRAM_AUTHORIZE_URL: &str = "https://www.instagram.com/oauth/authorize";
 const INSTAGRAM_TOKEN_URL: &str = "https://api.instagram.com/oauth/access_token";
@@ -404,10 +405,7 @@ fn instagram_app_secret() -> Result<String, AppError> {
     })
 }
 
-pub fn build_instagram_authorize_url(
-    config: &AppConfig,
-    state: &str,
-) -> Result<String, AppError> {
+pub fn build_instagram_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
     let client_id = instagram_app_id()?;
     let redirect_uri = format!(
         "{}/api/social/oauth/instagram/callback",
@@ -751,15 +749,13 @@ pub async fn exchange_instagram_code_for_token(
     );
 
     let tokens: InstagramTokenResponse = fetch_json(
-        reqwest::Client::new()
-            .post(INSTAGRAM_TOKEN_URL)
-            .form(&[
-                ("client_id", client_id),
-                ("client_secret", client_secret),
-                ("grant_type", "authorization_code".to_string()),
-                ("redirect_uri", redirect_uri),
-                ("code", code.to_string()),
-            ]),
+        reqwest::Client::new().post(INSTAGRAM_TOKEN_URL).form(&[
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("grant_type", "authorization_code".to_string()),
+            ("redirect_uri", redirect_uri),
+            ("code", code.to_string()),
+        ]),
         "Instagram OAuth exchange failed",
     )
     .await?;
@@ -796,9 +792,7 @@ pub async fn exchange_instagram_for_long_lived_token(
     Ok(tokens)
 }
 
-pub async fn fetch_instagram_profile(
-    access_token: &str,
-) -> Result<InstagramProfile, AppError> {
+pub async fn fetch_instagram_profile(access_token: &str) -> Result<InstagramProfile, AppError> {
     let profile: InstagramProfile = fetch_json(
         reqwest::Client::new()
             .get(format!("{INSTAGRAM_GRAPH_BASE}/me"))
@@ -829,14 +823,78 @@ pub async fn subscribe_instagram_webhooks(
                 "{INSTAGRAM_GRAPH_BASE}/{instagram_account_id}/subscribed_apps"
             ))
             .bearer_auth(access_token)
-            .form(&[(
-                "subscribed_fields",
-                "messages,messaging_postbacks,messaging_optins,message_reactions,comments,live_comments",
-            )]),
+            .form(&[("subscribed_fields", META_INSTAGRAM_WEBHOOK_FIELDS)]),
         "Failed to subscribe the Instagram account to webhooks",
     )
     .await?;
     Ok(())
+}
+
+pub async fn ensure_instagram_account_webhook_subscriptions(
+    pool: &PgPool,
+    org_id: &str,
+) -> Result<usize, AppError> {
+    let channels = sqlx::query_as::<_, (String, String, String)>(
+        r#"
+        SELECT id, "externalAccountId", "accessToken"
+        FROM "SocialChannelConnection"
+        WHERE "orgId" = $1
+          AND platform = 'INSTAGRAM'::"SocialPlatform"
+          AND status = 'CONNECTED'::"SocialChannelStatus"
+          AND "externalAccountId" IS NOT NULL
+          AND "accessToken" IS NOT NULL
+          AND metadata->>'authMethod' = 'instagram_login'
+          AND COALESCE(metadata->>'instagramWebhookSubscriptionVersion', '0') <> $2
+        "#,
+    )
+    .bind(org_id)
+    .bind(META_INSTAGRAM_ACCOUNT_WEBHOOK_SUBSCRIPTION_VERSION.to_string())
+    .fetch_all(pool)
+    .await?;
+
+    let mut refreshed = 0;
+    for (channel_id, instagram_account_id, encrypted_access_token) in channels {
+        let access_token = match decrypt_social_secret(&encrypted_access_token) {
+            Ok(token) => token,
+            Err(error) => {
+                log::warn!(
+                    "failed to decrypt Instagram token while refreshing webhooks channel_id={}: {}",
+                    channel_id,
+                    error
+                );
+                continue;
+            }
+        };
+        if let Err(error) = subscribe_instagram_webhooks(&access_token, &instagram_account_id).await
+        {
+            log::warn!(
+                "failed to refresh Instagram webhook fields channel_id={} instagram_account_id={}: {}",
+                channel_id,
+                instagram_account_id,
+                error
+            );
+            continue;
+        }
+
+        sqlx::query(
+            r#"
+            UPDATE "SocialChannelConnection"
+            SET metadata = COALESCE(metadata, '{}'::jsonb)
+                    || jsonb_build_object('instagramWebhookSubscriptionVersion', $1::int),
+                "lastSyncedAt" = NOW(),
+                "updatedAt" = NOW()
+            WHERE id = $2 AND "orgId" = $3
+            "#,
+        )
+        .bind(META_INSTAGRAM_ACCOUNT_WEBHOOK_SUBSCRIPTION_VERSION)
+        .bind(&channel_id)
+        .bind(org_id)
+        .execute(pool)
+        .await?;
+        refreshed += 1;
+    }
+
+    Ok(refreshed)
 }
 
 pub async fn fetch_meta_pages(access_token: &str) -> Result<Vec<MetaPageAccount>, AppError> {
@@ -884,10 +942,7 @@ pub async fn subscribe_meta_page_webhooks(
         reqwest::Client::new()
             .post(format!("{META_GRAPH_BASE}/{page_id}/subscribed_apps"))
             .bearer_auth(page_access_token)
-            .form(&[(
-                "subscribed_fields",
-                META_PAGE_WEBHOOK_FIELDS,
-            )]),
+            .form(&[("subscribed_fields", META_PAGE_WEBHOOK_FIELDS)]),
         "Failed to subscribe the Meta Page to messaging webhooks",
     )
     .await?;
@@ -2353,14 +2408,9 @@ async fn publish_post_to_instagram(
         "Failed to create the Instagram media container",
     )
     .await?;
-    let creation_id = container
-        .get("id")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            AppError::BadRequest(
-                "Instagram did not return a media container identifier".to_string(),
-            )
-        })?;
+    let creation_id = container.get("id").and_then(Value::as_str).ok_or_else(|| {
+        AppError::BadRequest("Instagram did not return a media container identifier".to_string())
+    })?;
     let published: Value = fetch_json(
         client
             .post(format!("{graph_base}/{account_id}/media_publish"))
@@ -2369,12 +2419,9 @@ async fn publish_post_to_instagram(
         "Failed to publish the Instagram post",
     )
     .await?;
-    let post_id = published
-        .get("id")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            AppError::BadRequest("Instagram did not return a published media id".to_string())
-        })?;
+    let post_id = published.get("id").and_then(Value::as_str).ok_or_else(|| {
+        AppError::BadRequest("Instagram did not return a published media id".to_string())
+    })?;
     Ok((post_id.to_string(), caption.to_string()))
 }
 

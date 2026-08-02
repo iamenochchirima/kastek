@@ -15,6 +15,7 @@ pub struct AppConfig {
     pub admin_frontend_url: String,
     pub public_api_url: String,
     pub auth_url: String,
+    pub private_release_mode: bool,
     #[allow(dead_code)]
     pub session_secret: String,
     pub resend_api_key: Option<String>,
@@ -57,6 +58,8 @@ impl AppConfig {
         } else {
             "test".to_string()
         };
+        let private_release_mode =
+            !env_string_or("KASITEK_ACCESS_MODE", "private").eq_ignore_ascii_case("public");
 
         Ok(Self {
             port: env_u16_or("PORT", 4000),
@@ -69,6 +72,7 @@ impl AppConfig {
             admin_frontend_url,
             public_api_url,
             auth_url: frontend_url,
+            private_release_mode,
             session_secret: env_optional("SESSION_SECRET")
                 .or_else(|| env_optional("AUTH_SECRET"))
                 .unwrap_or_else(|| "kasitek-dev-session-secret".to_string()),

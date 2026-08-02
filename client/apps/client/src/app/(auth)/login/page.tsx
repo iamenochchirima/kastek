@@ -1,6 +1,7 @@
 import LoginForm from "@/components/auth/login-form";
 import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 export const metadata = {
   title: "Sign In | KasiTek",
@@ -25,7 +26,9 @@ export default async function LoginPage() {
           Access your workspace, products, and connected automation flows.
         </p>
       </div>
-      <LoginForm />
+      <Suspense fallback={null}>
+        <LoginForm />
+      </Suspense>
     </div>
   );
 }

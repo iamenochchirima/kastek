@@ -17,17 +17,18 @@ export function AcceptInviteClient({
   token,
   invitation,
   isLoggedIn,
-  currentUserEmail,
 }: {
   token: string;
   invitation: InvitationPreview | null;
   isLoggedIn: boolean;
-  currentUserEmail: string | null;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   if (!invitation) {
     return (
@@ -112,6 +113,40 @@ export function AcceptInviteClient({
     }
   }
 
+  async function handleActivation(e: React.FormEvent) {
+    e.preventDefault();
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    const res = await fetch(apiUrl(`/api/invitations/${token}/activate`), {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, password }),
+    });
+    setLoading(false);
+
+    if (res.ok) {
+      setAccepted(true);
+      setTimeout(() => {
+        router.push("/workspace");
+        router.refresh();
+      }, 1200);
+      return;
+    }
+
+    const data = await res.json().catch(() => ({}));
+    setError(data.error ?? "We could not activate this invitation.");
+  }
+
   if (accepted) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -170,29 +205,28 @@ export function AcceptInviteClient({
           </div>
         </div>
 
-        {!isLoggedIn && currentUserEmail !== invitation.email ? (
-          <p className="rounded-lg border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-sm text-status-attention">
-            You need to be logged in to accept this invitation.
-            {invitation.email ? (
-              <> Sign in with <strong>{invitation.email}</strong> to continue.</>
-            ) : null}
-          </p>
-        ) : null}
-
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-        <Button
-          onClick={handleAccept}
-          disabled={loading}
-          className="w-full"
-          size="lg"
-        >
-          {loading
-            ? "Joining…"
-            : isLoggedIn
-            ? `Join ${invitation.orgName}`
-            : "Log in to accept"}
-        </Button>
+        {isLoggedIn ? (
+          <Button onClick={handleAccept} disabled={loading} className="w-full" size="lg">
+            {loading ? "Joining…" : `Join ${invitation.orgName}`}
+          </Button>
+        ) : (
+          <form onSubmit={handleActivation} className="space-y-3">
+            <p className="text-sm text-muted-foreground">Create your account now. After this, use the normal KasiTek login page whenever you return.</p>
+            <label className="block text-sm font-medium text-foreground">Name
+              <input value={name} onChange={(event) => setName(event.target.value)} required className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" placeholder="Your name" />
+            </label>
+            <label className="block text-sm font-medium text-foreground">Password
+              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" placeholder="At least 8 characters" />
+            </label>
+            <label className="block text-sm font-medium text-foreground">Confirm password
+              <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" placeholder="Confirm your password" />
+            </label>
+            <Button type="submit" disabled={loading} className="w-full" size="lg">{loading ? "Creating account…" : "Create account and join"}</Button>
+            <p className="text-center text-xs text-muted-foreground">Already have an account? <button type="button" onClick={() => router.push(`/login?callbackUrl=${encodeURIComponent(`/invite/${token}`)}`)} className="text-primary hover:underline">Sign in</button></p>
+          </form>
+        )}
 
         <p className="text-center text-xs text-muted-foreground">
           By joining, you agree to work within this organisation&apos;s workspace on KasiTek.

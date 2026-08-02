@@ -38,6 +38,17 @@ export default function SignupForm() {
   const [passwordSetupSent, setPasswordSetupSent] = useState(false);
   const passwordStrength = getPasswordStrength(password);
 
+  if (process.env.NEXT_PUBLIC_KASITEK_ACCESS_MODE !== "public") {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-2xl text-primary">✉️</div>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">KasiTek is currently invite-only</h2>
+        <p className="text-muted-foreground">Use the secure link sent by your workspace administrator to create your account. Once activated, you can always sign in normally.</p>
+        <Link href="/login" className="inline-block text-sm text-primary hover:underline">Already have an account? Sign in</Link>
+      </div>
+    );
+  }
+
   const handleGoogleSignIn = () => {
     window.location.assign(
       apiUrl(`/api/auth/google/start?callbackUrl=${encodeURIComponent("/workspace")}`),

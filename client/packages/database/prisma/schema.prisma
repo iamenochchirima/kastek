@@ -94,10 +94,11 @@ model OrganizationInvitation {
   orgId        String
   email        String
   role         OrgRole  @default(MEMBER)
-  token        String   @unique @default(cuid())
+  tokenHash    String   @unique
   invitedById  String
   expiresAt    DateTime
   acceptedAt   DateTime?
+  revokedAt    DateTime?
 
   org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   invitedBy    User         @relation("SentInvitations", fields: [invitedById], references: [id], onDelete: Cascade)
@@ -106,7 +107,7 @@ model OrganizationInvitation {
   updatedAt    DateTime @updatedAt
 
   @@unique([orgId, email])
-  @@index([token])
+  @@index([tokenHash])
   @@index([orgId, acceptedAt])
 }
 
