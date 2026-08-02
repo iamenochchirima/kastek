@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
-import { contactEmail } from "@/lib/site-config";
+import Link from "next/link";
 
 type InnerHeroProps = {
   title: ReactNode;
   introduction: string;
   context?: string;
+  compact?: boolean;
   action?: {
     label: string;
     href: string;
@@ -16,10 +17,11 @@ export function InnerHero({
   title,
   introduction,
   context,
+  compact = false,
   action,
 }: InnerHeroProps) {
   return (
-    <header className="inner-hero">
+    <header className={`inner-hero${compact ? " is-compact" : ""}`}>
       <div className="inner-hero-title">
         {context ? <p>{context}</p> : null}
         <h1>{title}</h1>
@@ -46,14 +48,20 @@ export function ContactPanel({
 }) {
   return (
     <section className="inner-contact">
-      <h2>{title}</h2>
-      <a
-        className="button button-acid"
-        href={`mailto:${contactEmail}?subject=${encodeURIComponent(subject)}`}
-      >
-        Start a conversation
-        <ArrowUpRight aria-hidden="true" />
-      </a>
+      <div className="inner-contact-copy">
+        <p>New work</p>
+        <h2>{title}</h2>
+      </div>
+      <div className="inner-contact-action">
+        <p>Tell us what you&apos;re working on and where you need help.</p>
+        <Link
+          className="button button-acid"
+          href={`/contact?subject=${encodeURIComponent(subject)}`}
+        >
+          Start a conversation
+          <ArrowUpRight aria-hidden="true" />
+        </Link>
+      </div>
     </section>
   );
 }

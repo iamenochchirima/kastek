@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { appUrl, contactEmail } from "@/lib/site-config";
+import { appUrl } from "@/lib/site-config";
 
 type LabsHeaderProps = {
   home?: boolean;
@@ -33,28 +33,31 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
       </Link>
 
       <nav className="desktop-nav" aria-label="Main navigation">
-        <a href={`${sectionPrefix}#work`}>What we build</a>
-        <a href={`${sectionPrefix}#approach`}>How we work</a>
-        <a href={`${sectionPrefix}#partners`}>Partners</a>
+        <a href={`${sectionPrefix}#kasitek`}>Platform</a>
+        <a href={`${sectionPrefix}#approach`}>Services</a>
+        <a href={`${sectionPrefix}#partners`}>Partnership</a>
+        <Link href="/pricing">Pricing</Link>
       </nav>
 
-      <a
-        className="header-cta"
-        href={`mailto:${contactEmail}?subject=Project enquiry`}
-      >
-        Start a project
-        <ArrowUpRight aria-hidden="true" />
-      </a>
+      <div className="header-actions">
+        <Link className="header-cta header-cta-quote" href="/get-quote">
+          Get a quote
+        </Link>
+        <a className="header-cta" href={appUrl} target="_blank" rel="noreferrer">
+          Get started
+          <ArrowUpRight aria-hidden="true" />
+        </a>
+      </div>
 
       <details className="mobile-nav">
         <summary>Menu</summary>
         <div className="mobile-nav-panel">
-          <a href={`${sectionPrefix}#work`}>What we build</a>
-          <a href={`${sectionPrefix}#approach`}>How we work</a>
-          <a href={`${sectionPrefix}#partners`}>Partners</a>
-          <a href={`mailto:${contactEmail}?subject=Project enquiry`}>
-            Start a project
-          </a>
+          <a href={`${sectionPrefix}#kasitek`}>Platform</a>
+          <a href={`${sectionPrefix}#approach`}>Services</a>
+          <a href={`${sectionPrefix}#partners`}>Partnership</a>
+          <Link href="/pricing">Pricing</Link>
+          <Link href="/get-quote">Get a quote</Link>
+          <a href={appUrl} target="_blank" rel="noreferrer">Get started ↗</a>
         </div>
       </details>
     </header>
@@ -86,33 +89,29 @@ export function LabsFooter() {
           <p>
             AI products, delivery and infrastructure for business operations.
           </p>
-          <a className="footer-contact" href={`mailto:${contactEmail}`}>
-            {contactEmail}
-            <ArrowUpRight aria-hidden="true" />
-          </a>
         </div>
 
         <nav className="footer-nav" aria-label="Footer navigation">
           <div className="footer-column">
             <p>Work with us</p>
-            <Link href="/#work">Products</Link>
+            <Link href="/#kasitek">Platform</Link>
             <Link href="/#approach">Services</Link>
             <Link href="/#partners">Partnership</Link>
-            <a href={`mailto:${contactEmail}?subject=Project enquiry`}>
-              Start a project
-            </a>
+            <Link href="/get-quote">Request a quote</Link>
           </div>
           <div className="footer-column">
-            <p>Kasitek</p>
-            <a href={appUrl}>Open Kasitek</a>
-            <Link href="/solutions">Solutions</Link>
+            <p>Platform</p>
+            <Link href="/#kasitek">Overview</Link>
             <Link href="/pricing">Pricing</Link>
+            <a href={appUrl} target="_blank" rel="noreferrer">
+              Open Kasitek app ↗
+            </a>
           </div>
           <div className="footer-column">
             <p>Company</p>
             <Link href="/about">About</Link>
             <Link href="/meta-business-platform">Meta Platform</Link>
-            <a href={`mailto:${contactEmail}`}>Contact</a>
+            <Link href="/contact">Contact</Link>
           </div>
           <div className="footer-column">
             <p>Legal</p>

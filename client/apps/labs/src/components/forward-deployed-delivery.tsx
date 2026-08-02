@@ -4,6 +4,7 @@ export function ForwardDeployedDelivery() {
   return (
     <section className="forward-delivery section-pad" id="delivery">
       <div className="forward-delivery-intro">
+        <p className="forward-delivery-status">Coming soon</p>
         <h2>Forward-deployed delivery.</h2>
         <p>
           Our engineers work directly with your team from solution design

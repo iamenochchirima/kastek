@@ -7,13 +7,12 @@ import {
   Workflow,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { ProductWorkspacePreview } from "@/components/product-workspace-preview";
 import { ServiceDeliveryMontage } from "@/components/service-delivery-montage";
 import { PartnershipWorkspacePreview } from "@/components/partnership-workspace-preview";
 import { LabsFooter, LabsHeader } from "@/components/labs-site-chrome";
-import { appUrl, contactEmail } from "@/lib/site-config";
-
-const demoUrl = process.env.NEXT_PUBLIC_KASITEK_DEMO_URL ?? `${appUrl}/demo`;
+import { appUrl } from "@/lib/site-config";
 
 const disciplines = [
   {
@@ -32,7 +31,7 @@ const disciplines = [
       "AI agents",
       "Workflow integration",
       "Web apps & portals",
-      "Forward-deployed delivery",
+      "Forward-deployed delivery · Coming soon",
     ],
   },
   {
@@ -77,10 +76,10 @@ export default function LabsLandingPage() {
               customer engagement, business growth and everyday operations.
             </p>
             <div className="hero-actions">
-              <a className="button button-light" href={demoUrl}>
+              <Link className="button button-light" href="/demo">
                 See Kasitek
                 <ArrowRight aria-hidden="true" />
-              </a>
+              </Link>
               <a className="text-link" href="#work">
                 Explore the studio
                 <ArrowDown aria-hidden="true" />
@@ -151,7 +150,12 @@ export default function LabsLandingPage() {
               workflows from one place.
             </p>
           </div>
-          <a className="button button-dark" href={appUrl}>
+          <a
+            className="button button-dark"
+            href={appUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
             Open Kasitek
             <ArrowUpRight aria-hidden="true" />
           </a>
@@ -164,10 +168,10 @@ export default function LabsLandingPage() {
           <h2>Built around your work.</h2>
           <div className="approach-details">
             <p>We design, build and deliver systems that fit the way your business actually operates.</p>
-            <a className="approach-cta" href={`mailto:${contactEmail}?subject=Project enquiry`}>
+            <Link className="approach-cta" href="/get-quote?service=delivery">
               Start a project
               <ArrowUpRight aria-hidden="true" />
-            </a>
+            </Link>
           </div>
         </div>
         <ServiceDeliveryMontage />
@@ -177,15 +181,15 @@ export default function LabsLandingPage() {
 
       <section className="partner-section section-pad" id="partners">
         <div className="partner-copy">
-          <h2>Your brand in front.<br />The platform behind it.</h2>
+          <h2>Deliver more<br />under your own brand.</h2>
           <p>
-            Give clients a polished software experience without building the
-            platform, integrations and operating layer yourself.
+            Give clients AI-powered workspaces, services and automation without
+            building and maintaining the platform yourself.
           </p>
-          <a className="button button-acid" href={`mailto:${contactEmail}?subject=Kasitek partner enquiry`}>
+          <Link className="button button-acid" href="/contact?type=partnership">
             Talk partnerships
             <ArrowRight aria-hidden="true" />
-          </a>
+          </Link>
         </div>
         <PartnershipWorkspacePreview />
       </section>
@@ -195,11 +199,10 @@ export default function LabsLandingPage() {
           <p className="contact-prompt">Have a messy process?</p>
           <h2>Good.<br />That&apos;s where we start.</h2>
         </div>
-        <a className="round-cta" href={`mailto:${contactEmail}?subject=Project enquiry`}>
-          <small>Start a conversation</small>
+        <Link className="round-cta" href="/contact">
           <span>Tell us<br />about it</span>
           <ArrowUpRight aria-hidden="true" />
-        </a>
+        </Link>
       </section>
 
       <LabsFooter />

@@ -1,7 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, Check, ChevronDown, CircleDot, Layers3, Plus, Users } from "lucide-react";
+import {
+  ArrowUpRight,
+  BarChart3,
+  Check,
+  ChevronDown,
+  CircleDot,
+  Layers3,
+  Mail,
+  Mic,
+  PenTool,
+  Plus,
+  Users,
+} from "lucide-react";
 
 type PartnerStage = "platform" | "agency" | "client";
 
@@ -39,7 +51,20 @@ export function PartnershipWorkspacePreview() {
     <div className="partner-preview" ref={frameRef} data-stage={stage}>
       <div className="partner-preview-top"><span className="partner-preview-logo">m</span><b>Moyo Studio</b><span className="partner-preview-domain">moyostudio.co.za <ChevronDown aria-hidden="true" /></span><i>MS</i></div>
       <div className="partner-preview-body">
-        <aside><span>Workspace</span><button type="button" className={stage === "agency" ? "is-active" : ""} onClick={() => setStage("agency")}><Layers3 aria-hidden="true" />Overview</button><button type="button" className={stage === "client" ? "is-active" : ""} onClick={() => setStage("client")}><Users aria-hidden="true" />Clients</button><span>Settings</span><button type="button" className={stage === "platform" ? "is-active" : ""} onClick={() => setStage("platform")}><CircleDot aria-hidden="true" />Brand & domain</button></aside>
+        <aside>
+          <span>Workspace</span>
+          <button type="button" className={stage === "agency" ? "is-active" : ""} onClick={() => setStage("agency")}><Layers3 aria-hidden="true" />Overview</button>
+          <button type="button" className={stage === "client" ? "is-active" : ""} onClick={() => setStage("client")}><Users aria-hidden="true" />Clients</button>
+          <button type="button" onClick={() => setStage("client")}><Users aria-hidden="true" />Leads</button>
+          <span>Delivery</span>
+          <button type="button" onClick={() => setStage("agency")}><PenTool aria-hidden="true" />Content pipeline</button>
+          <button type="button" onClick={() => setStage("client")}><BarChart3 aria-hidden="true" />Client reporting</button>
+          <span>Automation</span>
+          <button type="button" onClick={() => setStage("client")}><Mail aria-hidden="true" />Nurturing</button>
+          <button type="button" onClick={() => setStage("client")}><Mic aria-hidden="true" />Voice agents</button>
+          <span>Settings</span>
+          <button type="button" className={stage === "platform" ? "is-active" : ""} onClick={() => setStage("platform")}><CircleDot aria-hidden="true" />Brand & domain</button>
+        </aside>
         <PlatformStage active={stage === "platform"} />
         <AgencyStage active={stage === "agency"} />
         <ClientStage active={stage === "client"} />

@@ -1,93 +1,71 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { Bot, Cable, PanelsTopLeft, Workflow } from "lucide-react";
+import { InnerHero } from "@/components/labs-inner-page";
 import { LabsInnerShell } from "@/components/labs-site-chrome";
-import { ContactPanel, InnerHero } from "@/components/labs-inner-page";
-import { contactEmail } from "@/lib/site-config";
+import { appUrl } from "@/lib/site-config";
 
 export const metadata: Metadata = {
   title: "Pricing | Kasitek Labs",
   description:
-    "Kasitek workspace plans and starting ranges for custom AI and software delivery.",
+    "Monthly Kasitek plans and scoped pricing for agents, integrations and custom software.",
 };
 
 const productTiers = [
   {
     name: "Basic",
-    monthly: "R450 / month",
-    description:
-      "For one business getting its core communication and operating workspace in place.",
+    monthly: "$25 / month",
+    description: "For one business starting with the core Kasitek workspace.",
     features: [
-      "One Kasitek workspace",
-      "Core communication, content and automation tools",
-      "Single business and brand",
-      "Guided onboarding",
-      "Standard usage limits and updates",
+      "One workspace and brand",
+      "Core communication, content and automation",
+      "Guided setup",
     ],
   },
   {
     name: "Growth",
-    monthly: "R799 / month",
+    monthly: "$45 / month",
     featured: true,
-    description:
-      "For teams running more channels, campaigns and automated work through Kasitek.",
+    description: "For a team running more channels and automated work.",
     features: [
-      "Higher workspace usage",
-      "Multiple connected channels",
+      "More channels and usage",
       "Advanced workflow configuration",
-      "Expanded campaigns and content activity",
       "Priority delivery support",
     ],
   },
   {
     name: "Scale",
-    monthly: "R1,299 / month",
-    description:
-      "For larger teams, deeper integrations and a more involved operational rollout.",
+    monthly: "$75 / month",
+    description: "For larger teams and more involved integrations.",
     features: [
-      "Higher limits and expanded access",
-      "Multi-team operating support",
+      "Expanded team access",
       "Advanced routing and integrations",
-      "Complex workflow configuration",
-      "Closer optimisation and rollout support",
+      "Tailored rollout",
     ],
   },
 ];
 
-const services = [
+const customWork = [
   {
     title: "AI agents",
-    price: "From R4,500",
-    description:
-      "Defined agent roles for messaging, service, booking, qualification or internal work.",
+    description: "Messaging, voice and operational agents.",
+    icon: Bot,
   },
   {
-    title: "Voice agents",
-    price: "From R8,500",
-    description:
-      "Inbound call handling, appointment booking, screening, FAQs and routing.",
+    title: "Workflows and integrations",
+    description: "AI workflows connected across your existing tools and data.",
+    icon: Cable,
   },
   {
-    title: "Workflow integration",
-    price: "From R3,500",
-    description:
-      "AI-assisted workflows connected to existing systems, information and approvals.",
+    title: "Applications and portals",
+    description: "Software for customers, staff and operations.",
+    icon: PanelsTopLeft,
   },
   {
-    title: "System integrations",
-    price: "From R5,000",
-    description:
-      "Connections to CRMs, booking tools, calendars, data sources and internal platforms.",
-  },
-  {
-    title: "Web applications and portals",
-    price: "From R6,500",
-    description:
-      "Customer applications, internal tools, dashboards and operational interfaces.",
-  },
-  {
-    title: "Managed delivery",
-    price: "Scoped quote",
-    description:
-      "Ongoing operation, review and extension after the initial system goes live.",
+    title: "Forward-deployed delivery",
+    description: "Engineering through design, launch and iteration. Coming soon.",
+    icon: Workflow,
+    comingSoon: true,
   },
 ];
 
@@ -96,17 +74,15 @@ export default function PricingPage() {
     <LabsInnerShell>
       <InnerHero
         context="Pricing"
-        title={<>Products by plan. Delivery by scope.</>}
-        introduction="Kasitek is priced monthly. Custom agents, integrations and applications are scoped against the work required."
+        title={<>Pricing.</>}
+        introduction="Monthly plans for Kasitek. Custom delivery is scoped separately."
+        compact
       />
 
       <section className="inner-section">
         <div className="inner-section-heading">
-          <h2>Kasitek workspace plans.</h2>
-          <p>
-            Indicative monthly plans. Final access and usage limits are
-            confirmed during onboarding.
-          </p>
+          <h2>Kasitek.</h2>
+          <p>Monthly platform plans.</p>
         </div>
         <div className="editorial-grid editorial-grid-three">
           {productTiers.map((tier) => (
@@ -124,9 +100,11 @@ export default function PricingPage() {
               </ul>
               <a
                 className="button button-dark"
-                href={`mailto:${contactEmail}?subject=${encodeURIComponent(`${tier.name} plan enquiry`)}`}
+                href={appUrl}
+                target="_blank"
+                rel="noreferrer"
               >
-                Discuss this plan
+                Get started
               </a>
             </article>
           ))}
@@ -135,27 +113,31 @@ export default function PricingPage() {
 
       <section className="inner-section inner-section-muted">
         <div className="inner-section-heading">
-          <h2>Custom delivery.</h2>
-          <p>
-            Starting ranges help set an initial budget. A final quote follows a
-            short scope and systems review.
-          </p>
+          <h2>Custom work.</h2>
+          <div className="inner-section-heading-action">
+            <p>Quoted against the system, integrations and delivery required.</p>
+            <Link
+              className="button button-dark"
+              href="/get-quote?service=custom-delivery"
+            >
+              Request a quote
+            </Link>
+          </div>
         </div>
-        <div className="editorial-grid editorial-grid-three">
-          {services.map((service) => (
-            <article className="editorial-card" key={service.title}>
-              <p>{service.price}</p>
-              <h3>{service.title}</h3>
-              <p>{service.description}</p>
+        <div className="feature-list">
+          {customWork.map((item) => (
+            <article className="feature-row" key={item.title}>
+              <h3>
+                <item.icon aria-hidden="true" />
+                {item.title}
+                {item.comingSoon ? <span className="coming-soon-badge">Coming soon</span> : null}
+              </h3>
+              <p>{item.description}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <ContactPanel
-        title="Move from a price range to a proper scope."
-        subject="Pricing and scope enquiry"
-      />
     </LabsInnerShell>
   );
 }
