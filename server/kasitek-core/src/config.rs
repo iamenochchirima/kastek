@@ -64,9 +64,7 @@ impl AppConfig {
         Ok(Self {
             port: env_u16_or("PORT", 4000),
             environment,
-            database_url: env_optional("KASITEK_CORE_DATABASE_URL")
-                .or_else(|| env_optional("DATABASE_URL"))
-                .ok_or(env::VarError::NotPresent)?,
+            database_url: env_optional("DATABASE_URL").ok_or(env::VarError::NotPresent)?,
             database_max_connections: env_u32_or("DATABASE_MAX_CONNECTIONS", 10),
             frontend_url: frontend_url.clone(),
             admin_frontend_url,
