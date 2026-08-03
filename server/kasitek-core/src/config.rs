@@ -1,4 +1,4 @@
-use ::config::{env_optional, env_string_or, env_u16_or, env_u32_or};
+use ::config::{env_optional, env_string_or, env_u16_or, env_u32_or, normalize_http_origin};
 use actix_web::cookie::{Cookie, SameSite};
 use std::env;
 
@@ -44,7 +44,9 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn from_env() -> Result<Self, env::VarError> {
         let environment = env_string_or("ENVIRONMENT", "development");
-        let frontend_url = env_string_or("FRONTEND_URL", "http://localhost:3000");
+        let frontend_url =
+            normalize_http_origin(&env_string_or("FRONTEND_URL", "http://localhost:3000"))
+                .expect("FRONTEND_URL must be an absolute HTTP(S) origin without a path");
         let admin_frontend_url = env_optional("ADMIN_FRONTEND_URL").unwrap_or_else(|| {
             if environment.eq_ignore_ascii_case("production") {
                 "https://admin.kasitek.co.za".to_string()
