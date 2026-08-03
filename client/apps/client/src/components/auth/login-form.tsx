@@ -27,46 +27,54 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setIsGoogleOnly(false);
     setLoading(true);
 
-    const response = await fetch(apiUrl("/api/auth/login"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password }),
-    });
-    const payload = (await response.json().catch(() => ({}))) as {
-      error?: string;
-      code?: string;
-    };
-
-    setLoading(false);
-
-    if (!response.ok) {
-      if (payload.code === "EMAIL_UNVERIFIED") {
-        router.replace(`/verify-request?email=${encodeURIComponent(email)}`);
-        return;
-      }
-
-      // Check what auth method this email uses
-      const check = await fetch(apiUrl("/api/auth/account-check"), {
+    try {
+      const response = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, password }),
       });
-      const { provider } = await check.json();
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+      };
 
-      if (provider === "google") {
-        setIsGoogleOnly(true);
-        setError("This account uses Google sign-in. Use the Google button above, or set up a password.");
+      if (!response.ok) {
+        if (payload.code === "EMAIL_UNVERIFIED") {
+          router.replace(`/verify-request?email=${encodeURIComponent(email)}`);
+          return;
+        }
+
+        // A failed account check should not hide the original login error.
+        const check = await fetch(apiUrl("/api/auth/account-check"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email }),
+        }).catch(() => null);
+        const account = check?.ok
+          ? ((await check.json().catch(() => ({}))) as { provider?: string })
+          : {};
+
+        if (account.provider === "google") {
+          setIsGoogleOnly(true);
+          setError(
+            "This account uses Google sign-in. Use the Google button above, or set up a password.",
+          );
+        } else {
+          setError(payload.error || "Invalid email or password");
+        }
       } else {
-        setIsGoogleOnly(false);
-        setError(payload.error || "Invalid email or password");
+        router.refresh();
+        router.push(callbackUrl ?? "/workspace");
       }
-    } else {
-      router.refresh();
-      router.push(callbackUrl ?? "/workspace");
+    } catch {
+      setError("We could not reach KasiTek. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -79,7 +87,11 @@ export default function LoginForm() {
       )}
 
       {error && (
-        <div className="rounded-lg border border-destructive/30 bg-status-danger-soft px-4 py-3 text-center text-sm text-destructive">
+        <div
+          role="alert"
+          aria-live="polite"
+          className="rounded-lg border border-destructive/30 bg-status-danger-soft px-4 py-3 text-center text-sm text-destructive"
+        >
           {error}
           {isGoogleOnly && (
             <p className="mt-2 text-xs text-muted-foreground">
