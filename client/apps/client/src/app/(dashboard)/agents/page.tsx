@@ -11,21 +11,14 @@ export const metadata = {
   title: "Agents | KasiTek",
 };
 
-type AgentActivityItem = {
-  id: string;
-  kind: string;
-  createdAt: string;
-  botName: string;
-  title: string;
-  status: string | null;
-  channel: string | null;
-  responseTimeMs: number | null;
-  detail: string | null;
-};
-
-export default async function AgentsPage() {
+export default async function AgentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ template?: string }>;
+}) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
+  const { template } = await searchParams;
 
   const response = await fetchRustJson<{ bots: AgentListItem[] }>("/api/bots").catch(() => ({
     bots: [],
@@ -35,13 +28,11 @@ export default async function AgentsPage() {
   }>("/api/whatsapp/connections").catch(() => ({
     connections: [],
   }));
-  const activityResponse = await fetchRustJson<{ activity: AgentActivityItem[] }>("/api/bots/activity").catch(() => ({ activity: [] }));
-
   return (
     <AgentsPageClient
       initialAgents={response.bots}
       whatsappConnections={whatsappResponse.connections}
-      activity={activityResponse.activity}
+      initialTemplateKey={template}
     />
   );
 }
