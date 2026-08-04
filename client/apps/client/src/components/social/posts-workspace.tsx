@@ -1,12 +1,12 @@
 "use client";
 
 import { apiUrl } from "@/lib/server-api";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, Pencil, RotateCcw, Sparkles, Trash2, Wand2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, CalendarDays, CalendarClock, Check, CircleAlert, FileClock, Pencil, Plus, RotateCcw, Search, Sparkles, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,9 +46,12 @@ type ComposerState = {
   status: SocialPostStatus;
   scheduledFor: string;
   primaryChannelId: string;
+  channelSelections: Partial<Record<SocialPlatform, string>>;
   instagramImageUrl: string;
   variants: ComposerVariant[];
 };
+
+type ComposerStep = 1 | 2 | 3 | 4;
 
 type GeneratedIdea = {
   title: string;
@@ -59,6 +62,7 @@ type GeneratedIdea = {
 };
 
 const defaultChannels: SocialPlatform[] = ["FACEBOOK", "INSTAGRAM", "THREADS", "LINKEDIN", "X"];
+const COMPOSER_DRAFT_STORAGE_KEY = "kasitek:content-composer";
 const supportedManualPublishPlatforms: SocialPlatform[] = SOCIAL_PLATFORM_ORDER.filter((platform) =>
   getPlatformCapabilities(platform).supportsManualPublish,
 );
@@ -68,10 +72,11 @@ const emptyComposer: ComposerState = {
   title: "",
   prompt: "",
   content: "",
-  channels: defaultChannels,
+  channels: [],
   status: "DRAFT",
   scheduledFor: "",
   primaryChannelId: "",
+  channelSelections: {},
   instagramImageUrl: "",
   variants: defaultChannels.map((platform) => ({
     platform,
@@ -94,13 +99,26 @@ function buildComposerVariants(channels: SocialPlatform[], variants?: SocialPost
   });
 }
 
-export function PostsWorkspace() {
+type PostsWorkspaceProps = {
+  view?: "posts" | "history";
+};
+
+const workspaceNavigation: Array<{ href: string; label: string; icon: typeof Pencil; view?: "posts" | "history" }> = [
+  { href: "/content", label: "Posts", icon: Pencil, view: "posts" },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/content/history", label: "History", icon: FileClock, view: "history" },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+];
+
+export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [channels, setChannels] = useState<SocialChannelConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"ALL" | SocialPostStatus>("ALL");
+  const [activeFilter, setActiveFilter] = useState<"ALL" | SocialPostStatus>(view === "history" ? "PUBLISHED" : "ALL");
+  const [search, setSearch] = useState("");
+  const [platformFilter, setPlatformFilter] = useState<"ALL" | SocialPlatform>("ALL");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [composer, setComposer] = useState<ComposerState>(emptyComposer);
   const [publishingKey, setPublishingKey] = useState<string | null>(null);
@@ -110,10 +128,35 @@ export function PostsWorkspace() {
   const [ideaTopic, setIdeaTopic] = useState("");
   const [ideaObjective, setIdeaObjective] = useState("");
   const [generatedIdeas, setGeneratedIdeas] = useState<GeneratedIdea[]>([]);
+  const [isIdeasOpen, setIsIdeasOpen] = useState(false);
   const [activeVariantPlatform, setActiveVariantPlatform] = useState<SocialPlatform>("FACEBOOK");
+  const [composerStep, setComposerStep] = useState<ComposerStep>(1);
 
   useEffect(() => {
     void loadData();
+  }, []);
+
+  useEffect(() => {
+    const saved = window.sessionStorage.getItem(COMPOSER_DRAFT_STORAGE_KEY);
+    if (!saved) return;
+
+    try {
+      const parsed = JSON.parse(saved) as {
+        composer?: ComposerState;
+        step?: ComposerStep;
+        activeVariantPlatform?: SocialPlatform;
+      };
+      if (parsed.composer) {
+        setComposer({ ...emptyComposer, ...parsed.composer });
+        setComposerStep(parsed.step && parsed.step >= 1 && parsed.step <= 4 ? parsed.step : 1);
+        setActiveVariantPlatform(parsed.activeVariantPlatform || parsed.composer.channels[0] || "FACEBOOK");
+        setIsComposerOpen(true);
+      }
+    } catch {
+      // A stale local composer should never block access to Content.
+    } finally {
+      window.sessionStorage.removeItem(COMPOSER_DRAFT_STORAGE_KEY);
+    }
   }, []);
 
   async function loadData() {
@@ -153,28 +196,30 @@ export function PostsWorkspace() {
   }
 
   const filteredPosts = useMemo(() => {
-    if (activeFilter === "ALL") return posts;
-    return posts.filter((post) => post.status === activeFilter);
-  }, [activeFilter, posts]);
+    const allowedStatuses = view === "history" ? ["PUBLISHED", "FAILED"] : ["DRAFT", "SCHEDULED", "PROCESSING"];
+    return posts.filter((post) => {
+      if (!allowedStatuses.includes(post.status)) return false;
+      if (activeFilter !== "ALL" && post.status !== activeFilter) return false;
+      if (platformFilter !== "ALL" && !post.channels.includes(platformFilter)) return false;
+      const needle = search.trim().toLowerCase();
+      return !needle || `${post.title || ""} ${post.content || ""}`.toLowerCase().includes(needle);
+    });
+  }, [activeFilter, platformFilter, posts, search, view]);
 
-  const queueCounts = useMemo(
-    () => ({
-      ideas: posts.filter((post) => post.prompt?.trim() && post.status === "DRAFT").length,
-      drafting: posts.filter((post) => post.status === "DRAFT").length,
-      approved: posts.filter((post) => post.status === "SCHEDULED").length,
-    }),
-    [posts],
-  );
+  const filters = view === "history" ? ["ALL", "PUBLISHED", "FAILED"] as const : ["ALL", "DRAFT", "SCHEDULED", "PROCESSING"] as const;
 
-  const connectedChannelsByPlatform = useMemo(
-    () =>
-      new Map(
-        channels
-          .filter((channel) => channel.status === "CONNECTED")
-          .map((channel) => [channel.platform, channel] as const),
-      ),
+  const connectedChannels = useMemo(
+    () => channels.filter((channel) => channel.status === "CONNECTED"),
     [channels],
   );
+
+  const connectedChannelsByPlatform = useMemo(() => {
+    const grouped = new Map<SocialPlatform, SocialChannelConnection[]>();
+    for (const channel of connectedChannels) {
+      grouped.set(channel.platform, [...(grouped.get(channel.platform) || []), channel]);
+    }
+    return grouped;
+  }, [connectedChannels]);
 
   const activeComposerVariants = useMemo(
     () => composer.variants.filter((variant) => composer.channels.includes(variant.platform)),
@@ -184,6 +229,7 @@ export function PostsWorkspace() {
   function openNewComposer() {
     setComposer(emptyComposer);
     setActiveVariantPlatform("FACEBOOK");
+    setComposerStep(1);
     setIsComposerOpen(true);
   }
 
@@ -204,6 +250,7 @@ export function PostsWorkspace() {
       status: "DRAFT",
       scheduledFor: "",
       primaryChannelId: "",
+      channelSelections: {},
       instagramImageUrl: "",
       variants: nextVariants.map((variant) => ({
         ...variant,
@@ -211,6 +258,7 @@ export function PostsWorkspace() {
       })),
     });
     setActiveVariantPlatform(nextChannels[0] || "FACEBOOK");
+    setComposerStep(1);
     setIsComposerOpen(true);
   }
 
@@ -224,6 +272,10 @@ export function PostsWorkspace() {
       status: post.status,
       scheduledFor: formatDateInputValue(post.scheduledFor),
       primaryChannelId: post.primaryChannelId || "",
+      channelSelections: post.publishJobs?.reduce<Partial<Record<SocialPlatform, string>>>((current, job) => {
+        if (job.channelConnectionId) current[job.platform] = job.channelConnectionId;
+        return current;
+      }, post.primaryChannelId && post.channels.length === 1 ? { [post.channels[0]]: post.primaryChannelId } : {}) || {},
       instagramImageUrl:
         typeof post.metadata?.instagramImageUrl === "string"
           ? post.metadata.instagramImageUrl
@@ -231,44 +283,72 @@ export function PostsWorkspace() {
       variants: buildComposerVariants(post.channels, post.variants, post.content),
     });
     setActiveVariantPlatform(post.channels[0] || "FACEBOOK");
+    setComposerStep(1);
     setIsComposerOpen(true);
   }
 
-  function toggleChannel(platform: SocialPlatform, checked: boolean) {
+  function selectChannel(channel: SocialChannelConnection) {
     setComposer((current) => {
-      const nextChannels = checked
-        ? [...new Set([...current.channels, platform])]
-        : current.channels.filter((channel) => channel !== platform);
+      const platform = channel.platform;
+      const nextChannels = current.channels.includes(platform)
+        ? current.channels
+        : [...current.channels, platform];
       const existingVariant = current.variants.find((variant) => variant.platform === platform);
-
-      const nextVariants = checked
-        ? existingVariant
-          ? current.variants
-          : [
-              ...current.variants,
-              {
-                platform,
-                content: current.content,
-                status: (platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT") as SocialVariantStatus,
-                aiGenerated: false,
-              },
-            ]
-        : current.variants.filter((variant) => variant.platform !== platform);
+      const nextVariants = existingVariant
+        ? current.variants
+        : [...current.variants, {
+            platform,
+            content: current.content,
+            status: (platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT") as SocialVariantStatus,
+            aiGenerated: false,
+          }];
 
       return {
         ...current,
         channels: nextChannels,
         variants: nextVariants,
+        primaryChannelId: current.primaryChannelId || channel.id,
+        channelSelections: { ...current.channelSelections, [platform]: channel.id },
       };
     });
+    setActiveVariantPlatform(channel.platform);
+  }
 
-    if (checked) {
-      setActiveVariantPlatform(platform);
-    } else if (activeVariantPlatform === platform) {
-      setActiveVariantPlatform(
-        composer.channels.find((channel) => channel !== platform) || "FACEBOOK",
-      );
-    }
+  function removeChannel(platform: SocialPlatform) {
+    setComposer((current) => {
+      const channelSelections = { ...current.channelSelections };
+      delete channelSelections[platform];
+      const nextChannels = current.channels.filter((channel) => channel !== platform);
+      const primaryChannelId = current.primaryChannelId === current.channelSelections[platform]
+        ? Object.values(channelSelections).find(Boolean) || ""
+        : current.primaryChannelId;
+      return {
+        ...current,
+        channels: nextChannels,
+        variants: current.variants.filter((variant) => variant.platform !== platform),
+        channelSelections,
+        primaryChannelId,
+      };
+    });
+    if (activeVariantPlatform === platform) setActiveVariantPlatform("FACEBOOK");
+  }
+
+  function beginConnection(platform: SocialPlatform) {
+    const endpoint: Partial<Record<SocialPlatform, string>> = {
+      FACEBOOK: "/api/social/oauth/meta/start?target=facebook",
+      INSTAGRAM: "/api/social/oauth/instagram/start",
+      LINKEDIN: "/api/social/oauth/linkedin/start",
+      X: "/api/social/oauth/x/start",
+    };
+    const href = endpoint[platform];
+    if (!href) return;
+
+    window.sessionStorage.setItem(COMPOSER_DRAFT_STORAGE_KEY, JSON.stringify({
+      composer,
+      step: composerStep,
+      activeVariantPlatform,
+    }));
+    window.location.assign(apiUrl(href));
   }
 
   function updateVariant(platform: SocialPlatform, patch: Partial<ComposerVariant>) {
@@ -319,10 +399,7 @@ export function PostsWorkspace() {
         throw new Error(payload.error || "Failed to generate caption");
       }
 
-      const nextChannels =
-        payload.draft?.suggestedChannels?.length
-          ? payload.draft.suggestedChannels
-          : composer.channels;
+      const nextChannels = composer.channels;
 
       setComposer((current) => ({
         ...current,
@@ -391,6 +468,18 @@ export function PostsWorkspace() {
   }
 
   async function savePost() {
+    if (!composer.channels.length) {
+      setError("Choose at least one connected destination first.");
+      setComposerStep(1);
+      return;
+    }
+
+    if (composer.channels.some((platform) => !composer.channelSelections[platform])) {
+      setError("Choose an account for every selected destination.");
+      setComposerStep(1);
+      return;
+    }
+
     if (!composer.content.trim()) {
       setError("Add a master post summary before saving.");
       return;
@@ -422,7 +511,8 @@ export function PostsWorkspace() {
             channels: composer.channels,
             status: composer.status,
             scheduledFor: composer.scheduledFor || null,
-            primaryChannelId: composer.primaryChannelId || null,
+            primaryChannelId: composer.primaryChannelId || Object.values(composer.channelSelections).find(Boolean) || null,
+            channelSelections: composer.channelSelections,
             variants: activeVariants,
             metadata: {
               createdFrom: "social-posts-workspace",
@@ -449,12 +539,32 @@ export function PostsWorkspace() {
 
       setComposer(emptyComposer);
       setActiveVariantPlatform("FACEBOOK");
+      setComposerStep(1);
       setIsComposerOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save post");
     } finally {
       setSaving(false);
     }
+  }
+
+  function advanceComposerStep() {
+    if (composerStep === 1) {
+      if (!composer.channels.length) {
+        setError("Choose at least one connected destination first.");
+        return;
+      }
+      if (composer.channels.some((platform) => !composer.channelSelections[platform])) {
+        setError("Choose an account for every selected destination.");
+        return;
+      }
+    }
+    if (composerStep === 2 && !composer.content.trim()) {
+      setError("Add the post copy before continuing.");
+      return;
+    }
+    setError("");
+    setComposerStep((current) => Math.min(current + 1, 4) as ComposerStep);
   }
 
   async function deletePost(id: string) {
@@ -538,24 +648,48 @@ export function PostsWorkspace() {
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1520px] space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <Badge className="mb-2 border-primary/30 bg-primary/5 text-primary">Posts</Badge>
-            <h1 className="text-3xl font-semibold tracking-tight">Create once, tailor per platform, publish once.</h1>
-            <p className="mt-1 max-w-3xl text-muted-foreground">
-              Each post now has a master draft plus editable platform variants, so LinkedIn can be more developed while X stays compact.
-            </p>
+        <div className="space-y-4 border-b border-border pb-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">{view === "history" ? "Post history" : "Posts"}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {view === "history" ? "Published posts and items that need attention." : "Create, review, and schedule posts."}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {view === "posts" ? (
+                <Button variant="outline" className="gap-2" onClick={() => setIsIdeasOpen(true)}>
+                  <Sparkles className="h-4 w-4" />
+                  Generate ideas
+                </Button>
+              ) : null}
+              <Button className="gap-2" onClick={openNewComposer}>
+                <Plus className="h-4 w-4" />
+                Create post
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button variant="outline" className="w-full gap-2 sm:w-auto" onClick={() => void loadData()}>
-              <CalendarClock className="h-4 w-4" />
-              Refresh
-            </Button>
-            <Button className="w-full gap-2 sm:w-auto" onClick={openNewComposer}>
-              <Wand2 className="h-4 w-4" />
-              New AI Draft
-            </Button>
-          </div>
+
+          <nav aria-label="Content navigation" className="flex gap-1 overflow-x-auto">
+            {workspaceNavigation.map((item) => {
+              const Icon = item.icon;
+              const active = item.view === view;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                    active
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
         {error ? (
@@ -564,137 +698,16 @@ export function PostsWorkspace() {
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_400px]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Draft Queue</CardTitle>
-              <CardDescription>Track ideas, drafts, and approved variant-driven posts.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-3">
-              {[
-                { title: "Ideas", count: queueCounts.ideas, helper: "Prompt-led concepts waiting for polish" },
-                { title: "Drafting", count: queueCounts.drafting, helper: "Platform variants still being refined" },
-                { title: "Approved", count: queueCounts.approved, helper: "Ready for scheduling and fan-out publish" },
-              ].map((column) => (
-                <div key={column.title} className="rounded-xl border border-border/60 bg-secondary/35 p-4">
-                  <div className="text-sm font-semibold">{column.title}</div>
-                  <div className="mt-3 text-3xl font-semibold">{column.count}</div>
-                  <div className="mt-2 text-sm text-muted-foreground">{column.helper}</div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>AI Idea Generator</CardTitle>
-                <CardDescription>Generate post ideas you can turn into editable drafts immediately.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Input
-                  value={ideaTopic}
-                  onChange={(event) => setIdeaTopic(event.target.value)}
-                  placeholder="Topic, offer, campaign, update, or audience..."
-                />
-                <Input
-                  value={ideaObjective}
-                  onChange={(event) => setIdeaObjective(event.target.value)}
-                  placeholder="Objective: leads, credibility, launch, engagement..."
-                />
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  disabled={generatingIdeas}
-                  onClick={() => void generateIdeas()}
-                >
-                  <Sparkles className="h-4 w-4" />
-                  {generatingIdeas ? "Generating..." : "Generate Ideas"}
-                </Button>
-
-                <div className="space-y-3">
-                  {generatedIdeas.length === 0 ? (
-                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-foreground">
-                      Generate a batch of usable post ideas, then open the strongest one as a draft and tailor variants before scheduling.
-                    </div>
-                  ) : (
-                    generatedIdeas.map((idea, index) => (
-                      <div key={`${idea.title}-${index}`} className="rounded-xl border border-border/70 bg-secondary/20 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-medium text-foreground">{idea.title}</p>
-                            <p className="mt-1 text-sm text-muted-foreground">{idea.angle}</p>
-                          </div>
-                          <Button size="sm" variant="outline" onClick={() => openIdeaAsDraft(idea)}>
-                            Use draft
-                          </Button>
-                        </div>
-                        <p className="mt-3 text-sm font-medium text-foreground">{idea.hook}</p>
-                        <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                          {idea.draft}
-                        </p>
-                        {idea.suggestedChannels?.length ? (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {idea.suggestedChannels.map((platform) => {
-                              const Icon = getPlatformIcon(platform);
-                              return (
-                                <Badge key={`${idea.title}-${platform}`} className={getPlatformTone(platform)}>
-                                  <Icon className="mr-1 h-3.5 w-3.5" />
-                                  {getPlatformLabel(platform)}
-                                </Badge>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>AI Variants</CardTitle>
-                <CardDescription>Generate a master draft plus platform-specific variants in one step.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Input
-                  value={composer.prompt}
-                  onChange={(event) =>
-                    setComposer((current) => ({ ...current, prompt: event.target.value }))
-                  }
-                  placeholder="Describe the offer, tone, CTA, and audience..."
-                />
-                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-foreground">
-                  {composer.content.trim()
-                    ? composer.content
-                    : "The AI route will produce a master draft and channel-specific variants once your OpenRouter key is configured."}
-                </div>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  disabled={generatingCaption}
-                  onClick={() => void generateWithAi()}
-                >
-                  <Sparkles className="h-4 w-4" />
-                  {generatingCaption ? "Generating..." : "Generate Variants"}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
         <Card>
-          <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <CardHeader className="flex flex-col gap-4 border-b border-border lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <CardTitle>Post Library</CardTitle>
-              <CardDescription>Each post carries its own variant set and publish jobs.</CardDescription>
+              <CardTitle>{view === "history" ? "Publishing history" : "Your posts"}</CardTitle>
+              <CardDescription>{view === "history" ? "Review outcomes, failures, and retry work." : "Drafts and scheduled posts ready for review."}</CardDescription>
             </div>
             <Tabs value={activeFilter} onValueChange={(value) => setActiveFilter(value as "ALL" | SocialPostStatus)}>
               <TabsList className="bg-secondary/50">
-                <TabsTrigger value="ALL">All</TabsTrigger>
-                {SOCIAL_POST_STATUSES.map((status) => (
+                {filters.map((status) => (
+                  status === "ALL" ? <TabsTrigger key={status} value="ALL">All</TabsTrigger> :
                   <TabsTrigger key={status} value={status}>
                     {getPostStatusMeta(status).label}
                   </TabsTrigger>
@@ -706,6 +719,23 @@ export function PostsWorkspace() {
             </Tabs>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Search posts" />
+              </div>
+              <select
+                className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+                value={platformFilter}
+                onChange={(event) => setPlatformFilter(event.target.value as "ALL" | SocialPlatform)}
+              >
+                <option value="ALL">All channels</option>
+                {SOCIAL_PLATFORM_ORDER.map((platform) => <option key={platform} value={platform}>{getPlatformLabel(platform)}</option>)}
+              </select>
+              <Button variant="outline" size="icon" onClick={() => void loadData()} aria-label="Refresh posts">
+                <CalendarClock className="h-4 w-4" />
+              </Button>
+            </div>
             {loading ? (
               Array.from({ length: 4 }).map((_, index) => (
                 <div key={index} className="rounded-xl border border-border/70 bg-secondary/30 p-4">
@@ -768,23 +798,6 @@ export function PostsWorkspace() {
                             );
                           })}
                         </div>
-                        <div className="grid gap-2 md:grid-cols-2">
-                          {post.variants?.map((variant) => (
-                            <div key={variant.id} className="rounded-lg border border-border/60 bg-background/30 p-3">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                                  {getPlatformLabel(variant.platform)}
-                                </span>
-                                <Badge className="border-border bg-background text-muted-foreground">
-                                  {variant.status}
-                                </Badge>
-                              </div>
-                              <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">
-                                {variant.content}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
                         <div className="text-sm text-muted-foreground">
                           {post.scheduledFor
                             ? `Scheduled for ${formatDateTime(post.scheduledFor)}`
@@ -824,7 +837,7 @@ export function PostsWorkspace() {
                           const platformJob =
                             post.publishJobs?.find((job) => job.platform === platform) || null;
                           const platformKey = `${post.id}:${platform}`;
-                          const connectedChannel = connectedChannelsByPlatform.get(platform);
+                          const connectedChannel = connectedChannelsByPlatform.get(platform)?.[0];
 
                           return (
                             <div key={`${post.id}-${platform}`} className="flex items-center gap-2">
@@ -895,214 +908,155 @@ export function PostsWorkspace() {
         </Card>
       </div>
 
+      {isIdeasOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button type="button" className="absolute inset-0 bg-overlay" onClick={() => setIsIdeasOpen(false)} aria-label="Close idea generator" />
+          <div className="relative max-h-[min(760px,calc(100vh-2rem))] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div>
+                <p className="text-lg font-semibold text-foreground">Generate ideas</p>
+                <p className="mt-1 text-sm text-muted-foreground">Start with a topic and an objective, then turn an idea into a post.</p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setIsIdeasOpen(false)} aria-label="Close idea generator">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input value={ideaTopic} onChange={(event) => setIdeaTopic(event.target.value)} placeholder="Topic or offer" />
+                <Input value={ideaObjective} onChange={(event) => setIdeaObjective(event.target.value)} placeholder="Objective" />
+              </div>
+              <Button className="gap-2" disabled={generatingIdeas} onClick={() => void generateIdeas()}>
+                <Sparkles className="h-4 w-4" />
+                {generatingIdeas ? "Generating..." : "Generate ideas"}
+              </Button>
+              {generatedIdeas.length ? (
+                <div className="space-y-3">
+                  {generatedIdeas.map((idea, index) => (
+                    <div key={`${idea.title}-${index}`} className="rounded-lg border border-border p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground">{idea.title}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{idea.angle}</p>
+                        </div>
+                        <Button size="sm" onClick={() => { openIdeaAsDraft(idea); setIsIdeasOpen(false); }}>
+                          Use idea
+                        </Button>
+                      </div>
+                      <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{idea.draft}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {isComposerOpen ? (
         <div className="fixed inset-0 z-50">
           <button type="button" className="absolute inset-0 bg-overlay" onClick={() => setIsComposerOpen(false)} aria-label="Close composer" />
-          <div className="absolute inset-y-0 right-0 w-full max-w-[760px] overflow-y-auto border-l border-border bg-card shadow-2xl">
+          <div className="absolute inset-y-0 right-0 flex w-full max-w-[760px] flex-col border-l border-border bg-card shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
               <div>
-                <p className="text-lg font-semibold text-foreground">{composer.id ? "Edit Post" : "New Post"}</p>
-                <p className="text-sm text-muted-foreground">Build the master post, then refine each platform variant before one-click publishing.</p>
+                <p className="text-lg font-semibold text-foreground">{composer.id ? "Edit post" : "New post"}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Step {composerStep} of 4</p>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setIsComposerOpen(false)}>
+              <Button variant="ghost" size="icon" onClick={() => setIsComposerOpen(false)} aria-label="Close composer">
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
-            <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6">
-              <label className="block space-y-2">
-                <span className="text-sm text-muted-foreground">Title</span>
-                <Input value={composer.title} onChange={(event) => setComposer((current) => ({ ...current, title: event.target.value }))} placeholder="Sunday special launch" />
-              </label>
+            <div className="flex gap-1 border-b border-border px-4 sm:px-6">
+              {["Destinations", "Post", "Versions", "Review"].map((label, index) => {
+                const step = (index + 1) as ComposerStep;
+                return <div key={label} className={`flex-1 border-b-2 px-1 py-3 text-center text-xs font-medium ${composerStep === step ? "border-foreground text-foreground" : composerStep > step ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}>{label}</div>;
+              })}
+            </div>
 
-              <label className="block space-y-2">
-                <span className="text-sm text-muted-foreground">AI prompt</span>
-                <div className="space-y-3">
-                  <textarea
-                    value={composer.prompt}
-                    onChange={(event) => setComposer((current) => ({ ...current, prompt: event.target.value }))}
-                    placeholder="Describe the offer, tone, CTA, and what should differ by platform."
-                    className="min-h-[96px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
-                  />
-                  <Button variant="outline" className="gap-2" disabled={generatingCaption} onClick={() => void generateWithAi()}>
-                    <Sparkles className="h-4 w-4" />
-                    {generatingCaption ? "Generating..." : "Generate Variants"}
-                  </Button>
-                </div>
-              </label>
-
-              <label className="block space-y-2">
-                <span className="text-sm text-muted-foreground">Master post summary</span>
-                <textarea
-                  value={composer.content}
-                  onChange={(event) => setComposer((current) => ({ ...current, content: event.target.value }))}
-                  placeholder="This is the shared campaign idea or master summary."
-                  className="min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
-                />
-              </label>
-
-              {composer.channels.includes("INSTAGRAM") ? (
-                <label className="block space-y-2">
-                  <span className="text-sm text-muted-foreground">
-                    Instagram image URL
-                  </span>
-                  <Input
-                    type="url"
-                    value={composer.instagramImageUrl}
-                    onChange={(event) =>
-                      setComposer((current) => ({
-                        ...current,
-                        instagramImageUrl: event.target.value,
-                      }))
-                    }
-                    placeholder="https://cdn.example.com/post-image.jpg"
-                  />
-                  <span className="block text-xs text-muted-foreground">
-                    Use a publicly accessible HTTPS image. Instagram fetches this image when the post publishes.
-                  </span>
-                </label>
+            <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+              {composerStep === 1 ? (
+                <section className="space-y-5">
+                  <div>
+                    <h2 className="text-xl font-semibold text-foreground">Choose destinations</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">Select the exact connected account for each platform.</p>
+                  </div>
+                  <div className="space-y-3">
+                    {defaultChannels.map((platform) => {
+                      const Icon = getPlatformIcon(platform);
+                      const options = connectedChannelsByPlatform.get(platform) || [];
+                      const selectedId = composer.channelSelections[platform];
+                      const selected = composer.channels.includes(platform);
+                      return (
+                        <div key={platform} className={`rounded-xl border p-4 ${selected ? "border-primary/40 bg-primary/5" : "border-border"}`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`rounded-md border p-2 ${getPlatformTone(platform)}`}><Icon className="h-4 w-4" /></div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-foreground">{getPlatformLabel(platform)}</p>
+                              <p className="text-sm text-muted-foreground">{options.length ? `${options.length} connected` : "Not connected"}</p>
+                            </div>
+                            {selected ? <Button variant="ghost" size="sm" onClick={() => removeChannel(platform)}>Remove</Button> : null}
+                          </div>
+                          {options.length ? (
+                            <div className="mt-3 grid gap-2">
+                              {options.map((channel) => {
+                                const isSelected = selectedId === channel.id;
+                                return (
+                                  <button type="button" key={channel.id} onClick={() => selectChannel(channel)} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition-colors ${isSelected ? "border-primary bg-primary/10 text-foreground" : "border-border bg-background hover:border-primary/50"}`}>
+                                    <span className="min-w-0"><span className="block truncate font-medium">{channel.displayName}</span>{channel.handle ? <span className="block truncate text-xs text-muted-foreground">@{channel.handle.replace(/^@/, "")}</span> : null}</span>
+                                    {isSelected ? <Check className="ml-3 h-4 w-4 shrink-0 text-primary" /> : null}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : platform === "THREADS" ? (
+                            <p className="mt-3 text-sm text-muted-foreground">Connection is not available yet.</p>
+                          ) : (
+                            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-secondary/40 px-3 py-2">
+                              <span className="text-sm text-muted-foreground">Connect an account to use this platform.</span>
+                              <Button size="sm" variant="outline" onClick={() => beginConnection(platform)}>Connect</Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
               ) : null}
 
-              <div className="space-y-3">
-                <span className="text-sm text-muted-foreground">Publishing channels</span>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {SOCIAL_PLATFORM_ORDER.map((platform) => {
-                    const Icon = getPlatformIcon(platform);
-                    const active = composer.channels.includes(platform);
-                    return (
-                      <label
-                        key={platform}
-                        className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${
-                          active ? "border-primary/30 bg-primary/5" : "border-border/70 bg-secondary/20"
-                        }`}
-                      >
-                        <Checkbox checked={active} onCheckedChange={(checked) => toggleChannel(platform, checked)} />
-                        <div className={`rounded-md border p-2 ${getPlatformTone(platform)}`}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <span className="text-sm text-foreground">{getPlatformLabel(platform)}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
+              {composerStep === 2 ? (
+                <section className="space-y-5">
+                  <div><h2 className="text-xl font-semibold text-foreground">Write the post</h2><p className="mt-1 text-sm text-muted-foreground">Start with the shared copy. You can tailor it next.</p></div>
+                  <label className="block space-y-2"><span className="text-sm text-muted-foreground">Title</span><Input value={composer.title} onChange={(event) => setComposer((current) => ({ ...current, title: event.target.value }))} placeholder="Post title" /></label>
+                  <label className="block space-y-2"><span className="text-sm text-muted-foreground">Post copy</span><textarea value={composer.content} onChange={(event) => setComposer((current) => ({ ...current, content: event.target.value }))} placeholder="Write your post..." className="min-h-[180px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary" /></label>
+                  <div className="rounded-xl border border-border bg-secondary/20 p-4"><label className="block space-y-2"><span className="text-sm font-medium text-foreground">Generate a draft</span><textarea value={composer.prompt} onChange={(event) => setComposer((current) => ({ ...current, prompt: event.target.value }))} placeholder="Optional prompt" className="min-h-[86px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" /></label><Button variant="outline" className="mt-3 gap-2" disabled={generatingCaption} onClick={() => void generateWithAi()}><Sparkles className="h-4 w-4" />{generatingCaption ? "Generating..." : "Generate versions"}</Button></div>
+                  {composer.channels.includes("INSTAGRAM") ? <label className="block space-y-2"><span className="text-sm text-muted-foreground">Instagram image URL</span><Input type="url" value={composer.instagramImageUrl} onChange={(event) => setComposer((current) => ({ ...current, instagramImageUrl: event.target.value }))} placeholder="https://example.com/image.jpg" /><span className="block text-xs text-muted-foreground">Required when publishing to Instagram.</span></label> : null}
+                </section>
+              ) : null}
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block space-y-2">
-                  <span className="text-sm text-muted-foreground">Status</span>
-                  <select
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-                    value={composer.status}
-                    onChange={(event) =>
-                      setComposer((current) => ({ ...current, status: event.target.value as SocialPostStatus }))
-                    }
-                  >
-                    {SOCIAL_POST_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {getPostStatusMeta(status).label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              {composerStep === 3 ? (
+                <section className="space-y-5">
+                  <div><h2 className="text-xl font-semibold text-foreground">Tailor versions</h2><p className="mt-1 text-sm text-muted-foreground">Adjust the copy for each selected destination.</p></div>
+                  <Tabs value={activeVariantPlatform} onValueChange={(value) => setActiveVariantPlatform(value as SocialPlatform)}>
+                    <TabsList className="flex w-full flex-wrap bg-secondary/50">{activeComposerVariants.map((variant) => <TabsTrigger key={variant.platform} value={variant.platform}>{getPlatformLabel(variant.platform)}</TabsTrigger>)}</TabsList>
+                    {activeComposerVariants.map((variant) => <TabsContent key={variant.platform} value={variant.platform}><div className="space-y-3 rounded-xl border border-border p-4"><label className="block space-y-2"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} copy</span><textarea value={variant.content} onChange={(event) => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[260px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" /></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Status</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" value={variant.status} onChange={(event) => updateVariant(variant.platform, { status: event.target.value as SocialVariantStatus })}><option value="DRAFT">Draft</option><option value="APPROVED">Approved</option><option value="NEEDS_EDITS">Needs edits</option></select></label></div></TabsContent>)}
+                  </Tabs>
+                </section>
+              ) : null}
 
-                <label className="block space-y-2">
-                  <span className="text-sm text-muted-foreground">Schedule</span>
-                  <Input type="datetime-local" value={composer.scheduledFor} onChange={(event) => setComposer((current) => ({ ...current, scheduledFor: event.target.value }))} />
-                </label>
-              </div>
+              {composerStep === 4 ? (
+                <section className="space-y-5">
+                  <div><h2 className="text-xl font-semibold text-foreground">Review and schedule</h2><p className="mt-1 text-sm text-muted-foreground">Save as a draft or schedule the selected versions.</p></div>
+                  <div className="rounded-xl border border-border p-4"><p className="text-sm font-medium text-foreground">Destinations</p><div className="mt-3 space-y-2">{composer.channels.map((platform) => { const channel = connectedChannels.find((item) => item.id === composer.channelSelections[platform]); return <div key={platform} className="flex items-center justify-between gap-3 text-sm"><span>{getPlatformLabel(platform)}</span><span className="text-muted-foreground">{channel?.displayName || "Not selected"}</span></div>; })}</div></div>
+                  <div className="grid gap-4 sm:grid-cols-2"><label className="block space-y-2"><span className="text-sm text-muted-foreground">Save as</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" value={composer.status} onChange={(event) => setComposer((current) => ({ ...current, status: event.target.value as SocialPostStatus }))}>{SOCIAL_POST_STATUSES.filter((status) => status === "DRAFT" || status === "SCHEDULED").map((status) => <option key={status} value={status}>{getPostStatusMeta(status).label}</option>)}</select></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Schedule</span><Input type="datetime-local" disabled={composer.status !== "SCHEDULED"} value={composer.scheduledFor} onChange={(event) => setComposer((current) => ({ ...current, scheduledFor: event.target.value }))} /></label></div>
+                  {composer.status === "SCHEDULED" && !composer.scheduledFor ? <div className="flex gap-2 rounded-md border border-status-warning/30 bg-status-warning-soft p-3 text-sm text-status-warning"><CircleAlert className="h-4 w-4 shrink-0" />Choose a date and time before scheduling.</div> : null}
+                </section>
+              ) : null}
+            </div>
 
-              <label className="block space-y-2">
-                <span className="text-sm text-muted-foreground">Primary connected channel</span>
-                <select
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-                  value={composer.primaryChannelId}
-                  onChange={(event) => setComposer((current) => ({ ...current, primaryChannelId: event.target.value }))}
-                >
-                  <option value="">None selected</option>
-                  {channels.map((channel) => (
-                    <option key={channel.id} value={channel.id}>
-                      {channel.displayName} • {getPlatformLabel(channel.platform)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Platform variants</span>
-                  <span className="text-xs text-muted-foreground">Each selected channel gets its own editable version.</span>
-                </div>
-
-                <Tabs value={activeVariantPlatform} onValueChange={(value) => setActiveVariantPlatform(value as SocialPlatform)}>
-                  <TabsList className="flex w-full flex-wrap bg-secondary/50">
-                    {activeComposerVariants.map((variant) => (
-                      <TabsTrigger key={variant.platform} value={variant.platform}>
-                        {getPlatformLabel(variant.platform)}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-
-                  {activeComposerVariants.map((variant) => (
-                    <TabsContent key={variant.platform} value={variant.platform}>
-                      <div className="space-y-4 rounded-xl border border-border/70 bg-secondary/20 p-4">
-                        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px]">
-                          <label className="block space-y-2">
-                            <span className="text-sm text-muted-foreground">
-                              {getPlatformLabel(variant.platform)} copy
-                            </span>
-                            <textarea
-                              value={variant.content}
-                              onChange={(event) =>
-                                updateVariant(variant.platform, { content: event.target.value })
-                              }
-                              placeholder={`Write the ${getPlatformLabel(variant.platform)} version here...`}
-                              className="min-h-[220px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
-                            />
-                          </label>
-
-                          <div className="space-y-4">
-                            <label className="block space-y-2">
-                              <span className="text-sm text-muted-foreground">Variant status</span>
-                              <select
-                                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-                                value={variant.status}
-                                onChange={(event) =>
-                                  updateVariant(variant.platform, {
-                                    status: event.target.value as SocialVariantStatus,
-                                  })
-                                }
-                              >
-                                <option value="DRAFT">Draft</option>
-                                <option value="APPROVED">Approved</option>
-                                <option value="NEEDS_EDITS">Needs edits</option>
-                              </select>
-                            </label>
-
-                            <div className="rounded-md border border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
-                              {variant.platform === "LINKEDIN"
-                                ? "LinkedIn variants should usually be more developed, more professional, and easier to scan in paragraphs."
-                                : variant.platform === "X"
-                                  ? "Keep X variants compact and tight."
-                                  : variant.platform === "WHATSAPP_STATUS"
-                                    ? "WhatsApp Status should stay short and direct."
-                                    : "Adjust tone, hook, and CTA for this channel."}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </TabsContent>
-                  ))}
-                </Tabs>
-              </div>
-
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => setIsComposerOpen(false)}>
-                  Cancel
-                </Button>
-                <Button className="flex-1" disabled={saving} onClick={() => void savePost()}>
-                  {saving ? "Saving..." : composer.id ? "Update Post" : "Create Post"}
-                </Button>
-              </div>
+            <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-4 sm:px-6">
+              <Button variant="ghost" onClick={() => composerStep === 1 ? setIsComposerOpen(false) : setComposerStep((current) => (current - 1) as ComposerStep)}>{composerStep === 1 ? "Cancel" : <><ArrowLeft className="mr-2 h-4 w-4" />Back</>}</Button>
+              {composerStep < 4 ? <Button onClick={advanceComposerStep}>Continue<ArrowRight className="ml-2 h-4 w-4" /></Button> : <Button disabled={saving || (composer.status === "SCHEDULED" && !composer.scheduledFor)} onClick={() => void savePost()}>{saving ? "Saving..." : composer.id ? "Update post" : composer.status === "SCHEDULED" ? "Schedule post" : "Save draft"}</Button>}
             </div>
           </div>
         </div>

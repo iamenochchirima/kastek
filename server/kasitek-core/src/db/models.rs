@@ -533,6 +533,8 @@ pub struct SocialPostUpsertRequest {
     pub scheduled_for: Option<String>,
     #[serde(rename = "primaryChannelId")]
     pub primary_channel_id: Option<String>,
+    #[serde(rename = "channelSelections")]
+    pub channel_selections: Option<HashMap<String, String>>,
     pub variants: Option<Vec<SocialPostVariantInput>>,
     pub metadata: Option<Value>,
 }

@@ -90,13 +90,7 @@ export function CalendarView() {
       <div className="mx-auto max-w-[1600px] space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <Badge className="mb-2 border-primary/30 bg-primary/5 text-primary">Calendar</Badge>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              See the whole publishing rhythm at a glance.
-            </h1>
-            <p className="mt-1 max-w-3xl text-muted-foreground">
-              Place scheduled posts across the month, watch gaps appear in real time, and keep the unscheduled draft bucket visible.
-            </p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Calendar</h1>
           </div>
           <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
             <Button

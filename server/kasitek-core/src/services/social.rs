@@ -1898,6 +1898,7 @@ async fn create_variants_and_jobs(
     org_id: &str,
     post_id: &str,
     variants: &[SocialPostVariantInput],
+    channel_selections: &HashMap<String, String>,
     post_status: &str,
     scheduled_for: Option<DateTime<Utc>>,
 ) -> Result<(), AppError> {
@@ -1926,11 +1927,11 @@ async fn create_variants_and_jobs(
         sqlx::query(
             r#"
             INSERT INTO "SocialPublishJob" (
-                id, "userId", "orgId", "postId", "variantId", platform, status, "scheduledFor", "createdAt", "updatedAt"
+                id, "userId", "orgId", "postId", "variantId", "channelConnectionId", platform, status, "scheduledFor", "createdAt", "updatedAt"
             )
             VALUES (
-                $1, $2, $3, $4, $5, CAST($6 AS "SocialPlatform"),
-                CAST($7 AS "SocialPublishJobStatus"), $8, NOW(), NOW()
+                $1, $2, $3, $4, $5, $6, CAST($7 AS "SocialPlatform"),
+                CAST($8 AS "SocialPublishJobStatus"), $9, NOW(), NOW()
             )
             "#,
         )
@@ -1939,6 +1940,7 @@ async fn create_variants_and_jobs(
         .bind(org_id)
         .bind(post_id)
         .bind(variant_id)
+        .bind(channel_selections.get(&variant.platform))
         .bind(&variant.platform)
         .bind(if post_status == "SCHEDULED" { "QUEUED" } else { "PENDING" })
         .bind(scheduled_for)
@@ -1947,6 +1949,42 @@ async fn create_variants_and_jobs(
     }
 
     Ok(())
+}
+
+async fn validate_channel_selections(
+    pool: &PgPool,
+    org_id: &str,
+    channels: &[String],
+    selections: &Option<HashMap<String, String>>,
+) -> Result<HashMap<String, String>, AppError> {
+    let selections = selections.clone().unwrap_or_default();
+    let mut validated = HashMap::new();
+
+    for platform in channels {
+        let channel_id = selections
+            .get(platform)
+            .map(String::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                AppError::BadRequest(format!(
+                    "Choose a connected {} account before saving",
+                    platform.to_lowercase()
+                ))
+            })?;
+        let channel = get_social_channel(pool, org_id, channel_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Selected channel was not found".to_string()))?;
+        if channel.status != "CONNECTED" || channel.platform != *platform {
+            return Err(AppError::BadRequest(format!(
+                "Choose a connected {} account before saving",
+                platform.to_lowercase()
+            )));
+        }
+        validated.insert(platform.clone(), channel.id);
+    }
+
+    Ok(validated)
 }
 
 pub async fn create_social_post(
@@ -1986,6 +2024,8 @@ pub async fn create_social_post(
     let scheduled_for = parse_optional_datetime(&request.scheduled_for)?;
     let primary_channel_id =
         validate_primary_channel(pool, org_id, &request.primary_channel_id).await?;
+    let channel_selections =
+        validate_channel_selections(pool, org_id, &channels, &request.channel_selections).await?;
     let variants = normalize_variants(&request.variants, &channels, &content);
     let post_id = cuid2::create_id();
 
@@ -2035,6 +2075,7 @@ pub async fn create_social_post(
         org_id,
         &post_id,
         &variants,
+        &channel_selections,
         &status,
         scheduled_for,
     )
@@ -2102,6 +2143,8 @@ pub async fn update_social_post(
     };
     let primary_channel_id =
         validate_primary_channel(pool, org_id, &primary_channel_request).await?;
+    let channel_selections =
+        validate_channel_selections(pool, org_id, &channels, &request.channel_selections).await?;
     let variants = normalize_variants(&request.variants, &channels, &content);
 
     let mut tx = pool.begin().await?;
@@ -2162,6 +2205,7 @@ pub async fn update_social_post(
         org_id,
         post_id,
         &variants,
+        &channel_selections,
         &status,
         scheduled_for,
     )
