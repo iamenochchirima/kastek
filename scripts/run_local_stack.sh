@@ -43,7 +43,6 @@ declare -A services
 
 # Define all available services
 services["core"]="$ROOT_DIR/server/kasitek-core|cargo run"
-services["calls"]="$ROOT_DIR/server/kasitek-calls|cargo run"
 services["tenants"]="$ROOT_DIR/server/kasitek-tenants|cargo run"
 services["client"]="$ROOT_DIR/client|pnpm run dev"
 services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
@@ -86,15 +85,15 @@ show_usage() {
   echo ""
   echo "Examples:"
   echo "  $0                    # Run all services"
-  echo "  $0 calls              # Run only the calls service"
-  echo "  $0 core calls client  # Run core, calls, and client"
+  echo "  $0 core               # Run the Core API, including Calls"
+  echo "  $0 core client        # Run the Core API and client"
   echo ""
 }
 
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  for service in core calls tenants client admin labs ngrok ngrok-client; do
+  for service in core tenants client admin labs ngrok ngrok-client; do
     add_service "$service"
   done
 elif [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then

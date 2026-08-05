@@ -9,7 +9,6 @@ truth:
 - local source files merged into the root vault on push:
   - `.env.local`
   - `server/kasitek-core/.env`
-  - `server/kasitek-calls/.env`
   - `server/kasitek-tenants/.env`
   - `client/.env.local`
   - `client/apps/tenant-portal/.env`
@@ -17,7 +16,6 @@ truth:
 - generated copies restored on pull:
   - `.env.local`
   - `server/kasitek-core/.env`
-  - `server/kasitek-calls/.env`
   - `server/kasitek-tenants/.env`
   - `client/.env`
   - `client/.env.local`

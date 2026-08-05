@@ -9,7 +9,6 @@ ROOT_LOCAL_ENV="$ROOT_DIR/.env.local"
 declare -a SOURCE_ENV_FILES=(
   ".env.local"
   "server/kasitek-core/.env"
-  "server/kasitek-calls/.env"
   "server/kasitek-tenants/.env"
   "client/.env.local"
   "client/apps/tenant-portal/.env"
@@ -19,7 +18,6 @@ declare -a SOURCE_ENV_FILES=(
 declare -a GENERATED_ENV_FILES=(
   ".env.local"
   "server/kasitek-core/.env"
-  "server/kasitek-calls/.env"
   "server/kasitek-tenants/.env"
   "client/.env"
   "client/.env.local"

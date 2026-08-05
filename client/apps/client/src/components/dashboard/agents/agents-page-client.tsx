@@ -1,14 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/server-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Bot,
-  ChartColumn,
   Check,
   Globe,
   MessageSquare,
@@ -16,7 +14,6 @@ import {
   Plus,
   Workflow,
   X,
-  Zap,
 } from "lucide-react";
 
 export type AgentListItem = {
@@ -206,14 +203,6 @@ export function AgentsPageClient({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const stats = useMemo(() => {
-    const totalHits = initialAgents.reduce((sum, agent) => sum + agent.hitCount, 0);
-    const totalConversations = initialAgents.reduce((sum, agent) => sum + agent.conversationCount, 0);
-    const activeAgents = initialAgents.filter((agent) => agent.status === "active").length;
-    const provisioningAgents = initialAgents.filter((agent) => agent.status === "provisioning").length;
-    return { totalHits, totalConversations, activeAgents, provisioningAgents };
-  }, [initialAgents]);
-
   const selectedTemplate = templates.find((item) => item.value === templateKey) ?? null;
   const requiresWhatsappConnection = selectedTemplate?.value === "whatsapp_agent";
 
@@ -331,9 +320,6 @@ export function AgentsPageClient({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-3xl">
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">Agents</h1>
-            <p className="mt-1 text-muted-foreground">
-              Manage your deployed agents, track usage, and control provisioning from one place.
-            </p>
           </div>
           <Button className="gap-2" onClick={openCreateModal}>
             <Plus className="h-4 w-4" />
@@ -347,32 +333,12 @@ export function AgentsPageClient({
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Agents" value={String(initialAgents.length)} icon={Bot} />
-          <MetricCard label="Active" value={String(stats.activeAgents)} icon={Zap} />
-          <MetricCard
-            label="Tracked Hits"
-            value={stats.totalHits.toLocaleString()}
-            helper="From recorded agent events"
-            icon={ChartColumn}
-          />
-          <MetricCard
-            label="Conversations"
-            value={stats.totalConversations.toLocaleString()}
-            helper={`${stats.provisioningAgents} provisioning`}
-            icon={MessageSquare}
-          />
-        </div>
-
         {initialAgents.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col gap-5 p-8 sm:flex-row sm:items-end sm:justify-between">
               <div className="max-w-2xl space-y-2">
                 <h2 className="text-xl font-semibold text-foreground">No agents yet</h2>
-                <p className="text-sm text-muted-foreground">
-                  Choose a channel to create your first agent. WhatsApp and website agents are
-                  available now; additional channels are being prepared.
-                </p>
+                <p className="text-sm text-muted-foreground">Create an agent to begin.</p>
               </div>
               <Button className="gap-2 sm:self-start" onClick={openCreateModal}>
                 <Plus className="h-4 w-4" />
@@ -758,33 +724,6 @@ function AgentTemplateIcon({ channel }: { channel: string }) {
   if (channel === "voice") return <PhoneCall className="h-4 w-4" />;
   if (channel === "workflow") return <Workflow className="h-4 w-4" />;
   return <MessageSquare className="h-4 w-4" />;
-}
-
-function MetricCard({
-  label,
-  value,
-  icon: Icon,
-  helper,
-}: {
-  label: string;
-  value: string;
-  icon: typeof Bot;
-  helper?: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
-            {helper ? <p className="mt-1 text-sm text-muted-foreground">{helper}</p> : null}
-          </div>
-          <Icon className="h-5 w-5 text-primary" />
-        </div>
-      </CardContent>
-    </Card>
-  );
 }
 
 function MetricMini({ label, value }: { label: string; value: string }) {
