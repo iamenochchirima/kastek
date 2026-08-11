@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { CreateVersionInput } from "../domain/types";
 
 export interface AgentTemplateDefinition {
@@ -10,7 +11,12 @@ export interface AgentTemplateDefinition {
   configuration: Record<string, unknown>;
   requiredConnections: string[];
   configurableFields: Array<{ key: string; type: "text" | "select"; description: string }>;
+  channelCompatibility: string[];
 }
+
+const templateSettingsSchema = z.object({
+  tone: z.enum(["concise", "balanced", "detailed"]).default("balanced"),
+}).strict();
 
 const templates: AgentTemplateDefinition[] = [
   {
@@ -23,6 +29,7 @@ const templates: AgentTemplateDefinition[] = [
     configuration: { maxContextMessages: 20, maxContextTokens: 4_000, maxModelCalls: 2, maxTotalTokens: 1_000 },
     requiredConnections: ["website"],
     configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
+    channelCompatibility: ["platform"],
   },
   {
     key: "faq-knowledge",
@@ -34,6 +41,7 @@ const templates: AgentTemplateDefinition[] = [
     configuration: { maxContextMessages: 24, maxContextTokens: 5_000, maxModelCalls: 2, maxTotalTokens: 1_200 },
     requiredConnections: [],
     configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
+    channelCompatibility: ["platform"],
   },
   {
     key: "lead-intake",
@@ -45,6 +53,7 @@ const templates: AgentTemplateDefinition[] = [
     configuration: { maxContextMessages: 20, maxContextTokens: 4_000, maxModelCalls: 2, maxTotalTokens: 1_000 },
     requiredConnections: [],
     configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
+    channelCompatibility: ["platform"],
   },
   {
     key: "booking-intake",
@@ -56,6 +65,7 @@ const templates: AgentTemplateDefinition[] = [
     configuration: { maxContextMessages: 20, maxContextTokens: 4_000, maxModelCalls: 2, maxTotalTokens: 1_000 },
     requiredConnections: [],
     configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
+    channelCompatibility: ["platform"],
   },
 ];
 
@@ -66,6 +76,7 @@ export function listAgentTemplates(): AgentTemplateDefinition[] {
     configuration: { ...template.configuration },
     requiredConnections: [...template.requiredConnections],
     configurableFields: template.configurableFields.map((field) => ({ ...field })),
+    channelCompatibility: [...template.channelCompatibility],
   }));
 }
 
@@ -74,12 +85,14 @@ export function getAgentTemplate(key: string): AgentTemplateDefinition | undefin
 }
 
 export function templateVersionInput(template: AgentTemplateDefinition, settings: Record<string, unknown>): CreateVersionInput {
-  const tone = typeof settings.tone === "string" && ["concise", "balanced", "detailed"].includes(settings.tone)
-    ? settings.tone
-    : "balanced";
+  const { tone } = templateSettingsSchema.parse(settings);
   return {
     instructions: `${template.instructions}\nPreferred response tone: ${tone}.`,
     configuration: { ...template.configuration },
     policy: { ...template.policy },
   };
+}
+
+export function parseTemplateSettings(settings: Record<string, unknown>): Record<string, unknown> {
+  return templateSettingsSchema.parse(settings);
 }

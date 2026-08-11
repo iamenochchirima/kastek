@@ -31,7 +31,7 @@ import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
 import { PlatformChatRepository } from "../db/repositories/platform-chat-repository";
-import { listAgentTemplates } from "../system/templates";
+import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -143,7 +143,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       name: z.string().trim().min(1).max(160).optional(),
       settings: z.record(z.string(), z.unknown()).default({}),
     }).parse(request.body ?? {});
-    const installed = await agents.installTemplate({ organizationId: auth.organizationId, actorId: auth.actorId, templateKey: request.params.templateKey, ...input });
+    const installed = await agents.installTemplate({ organizationId: auth.organizationId, actorId: auth.actorId, templateKey: request.params.templateKey, ...input, settings: parseTemplateSettings(input.settings) });
     return reply.code(installed.created ? 201 : 200).send(installed);
   });
 

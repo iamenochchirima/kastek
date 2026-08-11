@@ -6,49 +6,23 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Bot, Check, ChevronRight, Info, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ensureKasiAi, installAgentTemplate, type AgentDefinition } from "@/lib/agent-platform";
+import { ensureKasiAi, installAgentTemplate, type AgentDefinition, type AgentTemplate } from "@/lib/agent-platform";
 
 export type AgentListItem = AgentDefinition;
 
-type AgentTemplate = {
+type SelectableTemplate = {
   value: string;
   label: string;
   description: string;
   available: boolean;
 };
 
-const templates: AgentTemplate[] = [
-  {
-    value: "kasiai",
-    label: "KasiAi platform guide",
-    description: "Your default KasiTek guide for finding features, understanding settings, and completing platform tasks.",
-    available: true,
-  },
-  {
-    value: "website-support",
-    label: "Website enquiry agent",
-    description: "Capture website enquiries, collect useful context, and route the next step.",
-    available: true,
-  },
-  {
-    value: "faq-knowledge",
-    label: "FAQ and knowledge assistant",
-    description: "Answer frequently asked questions from connected knowledge sources.",
-    available: true,
-  },
-  {
-    value: "lead-intake",
-    label: "Lead intake assistant",
-    description: "Collect useful lead context and prepare a clear handoff to a person.",
-    available: true,
-  },
-  {
-    value: "booking-intake",
-    label: "Booking request intake",
-    description: "Collect booking details and prepare a request for team confirmation.",
-    available: true,
-  },
-];
+const kasiaiTemplate: SelectableTemplate = {
+  value: "kasiai",
+  label: "KasiAi platform guide",
+  description: "Your default KasiTek guide for finding features, understanding settings, and completing platform tasks.",
+  available: true,
+};
 
 function statusClass(status: string) {
   if (status === "active") return "border-accent/30 bg-accent/10 text-accent";
@@ -59,14 +33,17 @@ function statusClass(status: string) {
 export function AgentsPageClient({
   initialAgents,
   kasiaiInstallationId,
+  initialTemplates,
   initialTemplateKey,
 }: {
   initialAgents: AgentListItem[];
   kasiaiInstallationId: string | null;
+  initialTemplates: AgentTemplate[];
   initialTemplateKey?: string;
 }) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(Boolean(initialTemplateKey));
+  const templates: SelectableTemplate[] = [kasiaiTemplate, ...initialTemplates.map((template) => ({ value: template.key, label: template.name, description: template.description, available: true }))];
 
   return (
     <div className="min-h-screen p-6 lg:p-8">
@@ -110,7 +87,7 @@ export function AgentsPageClient({
         )}
       </div>
 
-      {createOpen ? <TemplateDialog onClose={() => setCreateOpen(false)} onInstalled={() => { setCreateOpen(false); router.refresh(); }} initialTemplateKey={initialTemplateKey} /> : null}
+      {createOpen ? <TemplateDialog templates={templates} onClose={() => setCreateOpen(false)} onInstalled={() => { setCreateOpen(false); router.refresh(); }} initialTemplateKey={initialTemplateKey} /> : null}
     </div>
   );
 }
@@ -151,8 +128,9 @@ function AgentCard({ agent }: { agent: AgentDefinition }) {
   );
 }
 
-function TemplateDialog({ onClose, onInstalled, initialTemplateKey }: { onClose: () => void; onInstalled: () => void; initialTemplateKey?: string }) {
+function TemplateDialog({ templates, onClose, onInstalled, initialTemplateKey }: { templates: SelectableTemplate[]; onClose: () => void; onInstalled: () => void; initialTemplateKey?: string }) {
   const [selected, setSelected] = useState(initialTemplateKey ?? "");
+  const [tone, setTone] = useState("balanced");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectedTemplate = templates.find((template) => template.value === selected);
@@ -165,7 +143,7 @@ function TemplateDialog({ onClose, onInstalled, initialTemplateKey }: { onClose:
       if (selectedTemplate.value === "kasiai") {
         await ensureKasiAi();
       } else {
-        await installAgentTemplate(selectedTemplate.value);
+        await installAgentTemplate(selectedTemplate.value, { tone });
       }
       onInstalled();
     } catch (cause) {
@@ -187,6 +165,16 @@ function TemplateDialog({ onClose, onInstalled, initialTemplateKey }: { onClose:
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close templates"><ChevronRight className="h-4 w-4 rotate-45" /></Button>
         </div>
+        {selectedTemplate && selectedTemplate.value !== "kasiai" ? (
+          <label className="mt-5 block text-sm font-medium text-foreground">
+            Response tone
+            <select value={tone} onChange={(event) => setTone(event.target.value)} className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+              <option value="concise">Concise</option>
+              <option value="balanced">Balanced</option>
+              <option value="detailed">Detailed</option>
+            </select>
+          </label>
+        ) : null}
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           {templates.map((template) => (
             <button

@@ -93,6 +93,7 @@ export type AgentTemplate = {
   description: string;
   requiredConnections: string[];
   configurableFields: Array<{ key: string; type: string; description: string }>;
+  channelCompatibility?: string[];
 };
 
 export function installAgentTemplate(templateKey: string, settings: Record<string, unknown> = {}): Promise<unknown> {

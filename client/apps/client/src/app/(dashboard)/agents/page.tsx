@@ -5,6 +5,7 @@ import {
   AgentsPageClient,
   type AgentListItem,
 } from "@/components/dashboard/agents/agents-page-client";
+import type { AgentTemplate } from "@/lib/agent-platform";
 
 export const metadata = {
   title: "Agents | KasiTek",
@@ -25,10 +26,12 @@ export default async function AgentsPage({
     body: JSON.stringify({}),
   }).catch(() => null);
   const response = await fetchRustJson<{ agents: AgentListItem[] }>("/api/agents").catch(() => ({ agents: [] }));
+  const templates = await fetchRustJson<{ templates: AgentTemplate[] }>("/api/agents/templates").catch(() => ({ templates: [] }));
   return (
     <AgentsPageClient
       initialAgents={response.agents}
       kasiaiInstallationId={installation?.id ?? null}
+      initialTemplates={templates.templates}
       initialTemplateKey={template}
     />
   );
