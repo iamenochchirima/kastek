@@ -47,5 +47,7 @@ describe("foundation migration", () => {
     const workflowStateSql = await readFile(new URL("../migrations/013_workflow_state.sql", import.meta.url), "utf8");
     expect(workflowStateSql).toContain("run_workflow_state");
     expect(workflowStateSql).toContain("revision");
+    const quarantineSql = await readFile(new URL("../migrations/014_memory_quarantine.sql", import.meta.url), "utf8");
+    expect(quarantineSql).toContain("quarantined");
   });
 });

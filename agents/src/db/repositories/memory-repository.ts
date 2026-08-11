@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
+import { detectMemoryPoisoning } from "../../memory/poisoning";
 
 export type MemoryNamespace = "conversation" | "user_private" | "organization_shared" | "agent_private";
 export type MemoryType = "working" | "semantic" | "episodic" | "procedural";
@@ -62,13 +63,16 @@ export class MemoryRepository {
     if (input.namespace === "user_private" && input.actorId && input.ownerUserId !== input.actorId) {
       throw new Error("User-private memory owner must match the acting user");
     }
+    const poisoningSignals = input.sourceType === "explicit" ? [] : detectMemoryPoisoning(input.canonicalText);
+    const status = poisoningSignals.length ? "quarantined" : "active";
+    const provenance = { ...(input.provenance ?? {}), ...(poisoningSignals.length ? { poisoningSignals, quarantinedAt: new Date().toISOString() } : {}) };
     const result = await query<MemoryRecord>(
       this.pool,
       `INSERT INTO memory_records
         (organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id,
          namespace, memory_type, canonical_text, content, source_type, provenance, sensitivity,
-         confidence, expires_at, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, $13, $14, $15)
+         confidence, expires_at, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         input.organizationId,
@@ -81,10 +85,11 @@ export class MemoryRepository {
         input.canonicalText,
         JSON.stringify(input.content ?? {}),
         input.sourceType,
-        JSON.stringify(input.provenance ?? {}),
+        JSON.stringify(provenance),
         input.sensitivity ?? "normal",
         input.confidence ?? null,
         input.expiresAt ?? null,
+        status,
         input.actorId ?? "system",
       ],
     );

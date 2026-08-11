@@ -22,12 +22,13 @@
 - [x] Migration 012 adds hashed, expiring, single-use channel pairing tokens and audit-backed
   binding consumption.
 - [x] Migration 013 adds separate optimistic-concurrency workflow state for each run.
+- [x] Migration 014 adds quarantine status for suspicious imported/inferred memory.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 54 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 55 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -473,7 +474,9 @@ received
 - [x] Require explicit policy before automatic memory creation.
 - [x] Prevent untrusted content from becoming procedural instructions. **Inferred procedural
   memory requires a separate explicit policy flag.**
-- [ ] Detect and review suspected memory poisoning.
+- [x] Detect and review suspected memory poisoning. **Imported/inferred memory matching
+  instruction-override, secret-exfiltration, safety-bypass, or prompt-extraction patterns is
+  quarantined with provenance signals and excluded from retrieval; review UI remains pending.**
 - [x] Allow users and operators to inspect, correct, and delete memory. **Repository-level controls are implemented; operator/user UI remains pending.**
 - [x] Propagate deletion to embeddings, summaries, and derived artifacts. **Canonical deletion jobs are recorded; embedding/derived propagation remains limited until those stores exist.**
 
