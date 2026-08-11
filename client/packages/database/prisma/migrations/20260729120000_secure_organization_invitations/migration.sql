@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 ALTER TABLE "OrganizationInvitation"
   ADD COLUMN "tokenHash" TEXT,
   ADD COLUMN "revokedAt" TIMESTAMP(3);
