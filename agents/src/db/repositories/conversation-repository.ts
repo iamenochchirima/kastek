@@ -24,6 +24,7 @@ export interface MessageRecord {
   content: Record<string, unknown>;
   provider: string | null;
   provider_message_id: string | null;
+  run_id: string | null;
   sequence_number: string;
   created_at: string;
 }

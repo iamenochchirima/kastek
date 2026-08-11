@@ -1,4 +1,4 @@
-import { Client, Connection } from "@temporalio/client";
+import { Client, Connection, WorkflowExecutionAlreadyStartedError } from "@temporalio/client";
 import type { AppConfig } from "../config";
 import type { DurableRunInput } from "./contracts";
 import type { ApprovalSignal, CancellationSignal } from "./contracts";
@@ -18,11 +18,16 @@ export async function startDurableRun(
   config: AppConfig,
   input: DurableRunInput,
 ): Promise<void> {
-  await client.workflow.start(agentRunWorkflow, {
-    workflowId: `agent-run-${input.runId}`,
-    taskQueue: config.TEMPORAL_TASK_QUEUE,
-    args: [input],
-  });
+  try {
+    await client.workflow.start(agentRunWorkflow, {
+      workflowId: `agent-run-${input.runId}`,
+      taskQueue: config.TEMPORAL_TASK_QUEUE,
+      args: [input],
+    });
+  } catch (error) {
+    if (error instanceof WorkflowExecutionAlreadyStartedError) return;
+    throw error;
+  }
 }
 
 export async function signalRunApproval(client: Client, runId: string, signal: ApprovalSignal): Promise<void> {

@@ -173,6 +173,53 @@ export class RunRepository {
       if (!run) throw new Error("Run not found");
       if (run.status === "completed") return run;
       assertRunTransition(run.status, "completed");
+      const responseMessage = typeof output.message === "string" ? output.message.trim() : "";
+      if (run.conversation_id) {
+        if (!responseMessage) throw new Error("Conversation run cannot complete without an assistant message");
+        const conversation = await client.query<{ id: string; status: string }>(
+          `SELECT id, status FROM conversations
+           WHERE id = $1 AND organization_id = $2
+           FOR UPDATE`,
+          [run.conversation_id, run.organization_id],
+        );
+        if (!conversation.rows[0] || conversation.rows[0].status !== "active") {
+          throw new Error("Active conversation not found");
+        }
+        const participant = await client.query<{ id: string }>(
+          `INSERT INTO participants
+            (conversation_id, organization_id, participant_type, external_id, display_name)
+           SELECT $1, $2, 'agent', $3, name
+           FROM agent_definitions WHERE id = $4
+           ON CONFLICT (conversation_id, participant_type, external_id)
+           DO UPDATE SET display_name = EXCLUDED.display_name
+           RETURNING id`,
+          [run.conversation_id, run.organization_id, run.agent_definition_id, run.agent_definition_id],
+        );
+        const nextSequence = await client.query<{ sequence_number: string }>(
+          `SELECT COALESCE(MAX(sequence_number), 0) + 1 AS sequence_number
+           FROM messages WHERE conversation_id = $1`,
+          [run.conversation_id],
+        );
+        await client.query(
+          `INSERT INTO messages
+            (conversation_id, organization_id, participant_id, direction, message_type, content,
+             provider, provider_message_id, sequence_number, run_id)
+           VALUES ($1, $2, $3, 'outbound', 'text', $4::jsonb, 'platform', $5, $6, $7)
+           ON CONFLICT (run_id, direction)
+           WHERE run_id IS NOT NULL AND direction IN ('inbound', 'outbound')
+           DO NOTHING`,
+          [
+            run.conversation_id,
+            run.organization_id,
+            participant.rows[0]!.id,
+            JSON.stringify({ text: responseMessage }),
+            run.id,
+            nextSequence.rows[0]!.sequence_number,
+            run.id,
+          ],
+        );
+        await client.query("UPDATE conversations SET updated_at = now() WHERE id = $1", [run.conversation_id]);
+      }
       const updated = await client.query<RunRecord>(
         `UPDATE agent_runs SET status = 'completed', output = $2::jsonb, finished_at = now(), updated_at = now()
          WHERE id = $1 RETURNING *`,

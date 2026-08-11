@@ -40,6 +40,16 @@ run and do not start a second Temporal workflow. Run inspection is available at
 invocations. The timeline is organization-scoped and backed by PostgreSQL, so it does not rely
 on API process memory or sticky sessions.
 
+Platform chat clients first call
+`POST /v1/installations/:installationId/platform/conversation` to resolve the authenticated
+user's durable conversation. They send text through
+`POST /v1/installations/:installationId/platform/messages` with a client-generated
+`idempotencyKey`. The latter stores the inbound message and run atomically, then dispatches the
+idempotently named Temporal workflow. Assistant output is committed as an outbound message in
+the same transaction that completes the run. Clients can read durable history from
+`GET /v1/conversations/:conversationId` and stream run events from
+`GET /v1/runs/:runId/events/stream`.
+
 ## kasitek-core read boundary
 
 The worker can expose explicitly granted read-only core tools when both of these settings are

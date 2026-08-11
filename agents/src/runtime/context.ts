@@ -70,7 +70,7 @@ export function buildAgentContext(input: ContextBuildInput): BuiltAgentContext {
   ];
   if (input.summary) systemSections.push(asUntrusted("conversation-summary", input.summary));
   if (input.longTermMemory) systemSections.push(asUntrusted("long-term-memory", input.longTermMemory));
-  if (input.temporaryContext) systemSections.push(asUntrusted("trusted-client-context", input.temporaryContext));
+  if (input.temporaryContext) systemSections.push(asUntrusted("client-ui-context", input.temporaryContext));
 
   const messages: ModelMessage[] = [{ role: "system", content: systemSections.join("\n\n") }];
   let estimatedTokens = estimateTokens(messages[0]!.content);

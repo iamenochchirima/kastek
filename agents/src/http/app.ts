@@ -30,6 +30,7 @@ import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
+import { PlatformChatRepository } from "../db/repositories/platform-chat-repository";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -37,6 +38,7 @@ export interface AppDependencies {
   agents?: AgentRepository;
   runs?: RunRepository;
   conversations?: ConversationRepository;
+  platformChat?: PlatformChatRepository;
   runSteps?: RunStepRepository;
   toolInvocations?: ToolInvocationRepository;
   toolGrants?: ToolGrantRepository;
@@ -75,6 +77,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const agents = dependencies.agents ?? new AgentRepository(dependencies.pool);
   const runs = dependencies.runs ?? new RunRepository(dependencies.pool);
   const conversations = dependencies.conversations ?? new ConversationRepository(dependencies.pool);
+  const platformChat = dependencies.platformChat ?? new PlatformChatRepository(dependencies.pool);
   const runSteps = dependencies.runSteps ?? new RunStepRepository(dependencies.pool);
   const toolInvocations = dependencies.toolInvocations ?? new ToolInvocationRepository(dependencies.pool);
   const toolGrants = dependencies.toolGrants ?? new ToolGrantRepository(dependencies.pool);
@@ -243,6 +246,69 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     });
     return reply.code(installation.created ? 201 : 200).send(installation);
   });
+
+  app.post<{ Params: { installationId: string } }>(
+    "/v1/installations/:installationId/platform/conversation",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      const resolved = await platformChat.resolveConversation({
+        organizationId: auth.organizationId,
+        installationId: request.params.installationId,
+        actorId: auth.actorId,
+      });
+      const messages = await conversations.listMessages(auth.organizationId, resolved.conversation.id);
+      return reply.send({ ...resolved, messages });
+    },
+  );
+
+  app.post<{ Params: { installationId: string } }>(
+    "/v1/installations/:installationId/platform/messages",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      const input = z.object({
+        message: z.string().trim().min(1).max(20_000),
+        idempotencyKey: z.string().trim().min(8).max(240),
+        context: z.object({
+          route: z.string().trim().max(500).optional(),
+          pageTitle: z.string().trim().max(240).optional(),
+          resourceType: z.string().trim().max(80).optional(),
+          resourceId: z.string().trim().max(240).optional(),
+        }).strict().optional(),
+      }).parse(request.body);
+      const accepted = await platformChat.acceptMessage({
+        organizationId: auth.organizationId,
+        installationId: request.params.installationId,
+        actorId: auth.actorId,
+        ...input,
+      });
+      const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
+      if (workflowEnabled && dependencies.startWorkflow && accepted.run.status === "received") {
+        try {
+          await dependencies.startWorkflow(accepted.run.id);
+        } catch (error) {
+          await runs.appendEvent({
+            organizationId: auth.organizationId,
+            runId: accepted.run.id,
+            installationId: request.params.installationId,
+            eventType: "run.dispatch_failed",
+            payload: {
+              message: error instanceof Error ? error.message : "Unable to dispatch workflow",
+              retryable: true,
+            },
+          });
+          throw error;
+        }
+      }
+      return reply.code(202).send({
+        conversation: accepted.conversation,
+        message: accepted.message,
+        runId: accepted.run.id,
+        status: accepted.run.status,
+        created: accepted.created,
+        durable: workflowEnabled,
+      });
+    },
+  );
 
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/schedules", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);

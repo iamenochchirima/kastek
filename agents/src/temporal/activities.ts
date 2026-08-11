@@ -115,7 +115,25 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       await runs.pauseRun(input.runId, input.status, input.output);
     },
     async completeRun(input) {
-      await runs.completeRun(input.runId, input.output);
+      const completed = await runs.completeRun(input.runId, input.output);
+      if (completed.conversation_id) {
+        try {
+          const messages = await conversations.listMessages(completed.organization_id, completed.conversation_id);
+          await summaries.rebuildFromMessages({
+            organizationId: completed.organization_id,
+            conversationId: completed.conversation_id,
+            messages,
+          });
+        } catch (error) {
+          await runs.appendEvent({
+            organizationId: completed.organization_id,
+            runId: completed.id,
+            installationId: completed.installation_id,
+            eventType: "agent.summary.failed",
+            payload: { message: error instanceof Error ? error.message : "Conversation summary failed" },
+          });
+        }
+      }
     },
     async failRun(input) {
       await runs.failRun(input.runId, input.error);
@@ -160,7 +178,9 @@ async function executeLoopForRun(
   const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
   const currentMessage = typeof run.input.message === "string" ? run.input.message : JSON.stringify(run.input);
   const conversation = run.conversation_id ? await conversations.getConversation(run.organization_id, run.conversation_id) : null;
-  const durableMessages = run.conversation_id ? await conversations.listMessages(run.organization_id, run.conversation_id) : [];
+  const durableMessages = run.conversation_id
+    ? (await conversations.listMessages(run.organization_id, run.conversation_id)).filter((message) => message.run_id !== run.id)
+    : [];
   const conversationSummary = run.conversation_id ? await summaries.getSummary(run.organization_id, run.conversation_id) : null;
   const retrievalRequested = retrievalGate(currentMessage);
   const retrievalScope = {
@@ -206,6 +226,9 @@ async function executeLoopForRun(
       createdAt: message.created_at,
     })),
     authorizedTools: tools.list(allowedTools),
+    temporaryContext: run.input.context && typeof run.input.context === "object" && !Array.isArray(run.input.context)
+      ? JSON.stringify(run.input.context)
+      : undefined,
     budget: {
       maxMessages: restrictiveLimit(configuration.maxContextMessages, installationSettings.maxContextMessages),
       maxContextTokens: restrictiveLimit(configuration.maxContextTokens, installationSettings.maxContextTokens),
@@ -337,18 +360,5 @@ async function executeLoopForRun(
       await runSteps.finishStep({ stepId: step.id, status: "failed", error });
     },
   });
-  if (run.conversation_id) {
-    try {
-      await summaries.rebuildFromMessages({ organizationId: run.organization_id, conversationId: run.conversation_id, messages: durableMessages });
-    } catch (error) {
-      await runs.appendEvent({
-        organizationId: run.organization_id,
-        runId: run.id,
-        installationId: run.installation_id,
-        eventType: "agent.summary.failed",
-        payload: { message: error instanceof Error ? error.message : "Conversation summary failed" },
-      });
-    }
-  }
   return loopResult;
 }

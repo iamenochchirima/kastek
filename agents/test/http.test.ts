@@ -3,6 +3,7 @@ import { buildApp } from "../src/http/app";
 import type { AgentRepository } from "../src/db/repositories/agent-repository";
 import type { RunRepository } from "../src/db/repositories/run-repository";
 import type { AppConfig } from "../src/config";
+import type { PlatformChatRepository } from "../src/db/repositories/platform-chat-repository";
 
 const config: AppConfig = {
   NODE_ENV: "test",
@@ -87,6 +88,49 @@ describe("Agent Platform HTTP foundation", () => {
     });
     expect(response.statusCode).toBe(202);
     expect(response.json()).toMatchObject({ runId: "run-1", durable: false });
+    await app.close();
+  });
+
+  it("resolves a user's platform conversation and accepts an idempotent chat message", async () => {
+    const started: string[] = [];
+    const platformChat = {
+      resolveConversation: async () => ({
+        conversation: { id: "conversation-1" },
+        userParticipant: { id: "user-participant-1" },
+        agentParticipant: { id: "agent-participant-1" },
+      }),
+      acceptMessage: async () => ({
+        conversation: { id: "conversation-1" },
+        userParticipant: { id: "user-participant-1" },
+        agentParticipant: { id: "agent-participant-1" },
+        message: { id: "message-1", content: { text: "Hello" } },
+        run: { id: "run-1", status: "received" },
+        created: true,
+      }),
+    } as unknown as PlatformChatRepository;
+    const app = buildApp({
+      config: { ...config, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      platformChat,
+      conversations: { listMessages: async () => [] } as never,
+      startWorkflow: async (runId) => { started.push(runId); },
+    });
+    const resolved = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/platform/conversation",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    const accepted = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/platform/messages",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { message: "Hello", idempotencyKey: "message-key-1", context: { route: "/dashboard" } },
+    });
+    expect(resolved.statusCode).toBe(200);
+    expect(resolved.json()).toMatchObject({ conversation: { id: "conversation-1" }, messages: [] });
+    expect(accepted.statusCode).toBe(202);
+    expect(accepted.json()).toMatchObject({ runId: "run-1", created: true, durable: true });
+    expect(started).toEqual(["run-1"]);
     await app.close();
   });
 

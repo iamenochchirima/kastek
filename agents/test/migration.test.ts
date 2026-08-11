@@ -57,5 +57,8 @@ describe("foundation migration", () => {
     expect(killSwitchSql).toContain("scope_type");
     const systemInstallationsSql = await readFile(new URL("../migrations/017_system_agent_installations.sql", import.meta.url), "utf8");
     expect(systemInstallationsSql).toContain("agent_installations_definition_scope_unique_idx");
+    const platformChatSql = await readFile(new URL("../migrations/018_platform_chat_delivery.sql", import.meta.url), "utf8");
+    expect(platformChatSql).toContain("ADD COLUMN IF NOT EXISTS run_id");
+    expect(platformChatSql).toContain("messages_run_direction_idx");
   });
 });

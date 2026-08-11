@@ -82,10 +82,11 @@ installation/conversation/run contracts instead of creating another KasiAi imple
   version.**
 - [x] A default-organization installation resolver exists. **The repository and authenticated API
   ensure one installation per organization/definition/scope.**
-- [ ] The platform channel API exposes low-level conversation/message/run operations but not one
-  atomic inbound-message operation.
-- [ ] A completed run stores its output but does not persist the assistant reply as a durable
-  outbound conversation message.
+- [x] The platform channel API exposes one atomic inbound-message operation. **Migration 018 and
+  `PlatformChatRepository` store the inbound message, run, attempt, state, and received event in
+  one transaction before workflow dispatch.**
+- [x] A completed conversation run persists the assistant reply as a durable outbound message
+  before changing the run to `completed`.
 - [ ] The SSE stream is not connected to the KasiTek client.
 - [ ] `kasitek-core` does not yet proxy authenticated Agent Platform control-plane or chat calls.
 - [ ] The Agent Platform internal signing secret and URL are not configured across both services.
@@ -173,37 +174,37 @@ also work for template-created agents.
 
 ### 7.1 Conversation resolution
 
-- [ ] Add an idempotent platform conversation resolver using the authenticated organization,
+- [x] Add an idempotent platform conversation resolver using the authenticated organization,
   installation, and user identity.
-- [ ] Use a stable external conversation identity such as `platform:user:<user-id>` without
+- [x] Use a stable external conversation identity such as `platform:user:<user-id>` without
   exposing it as authority.
-- [ ] Create the authenticated user participant and agent participant once.
+- [x] Create the authenticated user participant and agent participant once.
 - [ ] Return durable conversation metadata and ordered history with bounded pagination.
 - [ ] Support starting a new conversation without deleting prior history.
-- [ ] Preserve conversation isolation across users in the same organization.
+- [x] Preserve conversation isolation across users in the same organization.
 
 ### 7.2 Atomic inbound message and run start
 
-- [ ] Add one authenticated Agent Platform operation that validates the installation, persists an
+- [x] Add one authenticated Agent Platform operation that validates the installation, persists an
   inbound canonical message, creates an idempotent run, and starts its Temporal workflow.
-- [ ] Accept a client-generated idempotency key and ensure retries return the same message/run.
-- [ ] Accept trusted page context separately from user text: current route, page/resource type,
+- [x] Accept a client-generated idempotency key and ensure retries return the same message/run.
+- [x] Accept trusted page context separately from user text: current route, page/resource type,
   and permitted resource ID.
 - [ ] Re-authorize trusted page/resource context in `kasitek-core` before passing it to the Agent
   Platform.
-- [ ] Reject disabled installations, archived conversations, oversized content, unsupported
+- [x] Reject disabled installations, archived conversations, oversized content, unsupported
   message types, and invalid organization/user scope.
-- [ ] Acknowledge only after the inbound message and run are durably stored.
+- [x] Acknowledge only after the inbound message and run are durably stored.
 
 ### 7.3 Durable assistant reply
 
-- [ ] Persist the final model response as one outbound conversation message before marking the run
+- [x] Persist the final model response as one outbound conversation message before marking the run
   complete.
-- [ ] Make outbound persistence idempotent across Temporal activity retries.
+- [x] Make outbound persistence idempotent across Temporal activity retries.
 - [ ] Link the outbound message to its run and model-call records.
-- [ ] Persist failure and cancellation events without fabricating an assistant response.
-- [ ] Rebuild the conversation summary only after the new outbound message is durable.
-- [ ] Return the final message through run inspection and conversation history.
+- [x] Persist failure and cancellation events without fabricating an assistant response.
+- [x] Rebuild the conversation summary only after the new outbound message is durable.
+- [x] Return the final message through run inspection and conversation history.
 
 ### 7.4 Streaming and control
 
@@ -218,9 +219,9 @@ also work for template-created agents.
 
 **Exit gate**
 
-- [ ] One request creates exactly one inbound message, one run, and one outbound response.
-- [ ] Refreshing or reconnecting cannot duplicate the run or reply.
-- [ ] Conversation history is complete after API, worker, or browser restarts.
+- [x] One request creates exactly one inbound message, one run, and one outbound response.
+- [x] Refreshing or reconnecting cannot duplicate the run or reply.
+- [x] Conversation history is complete after API, worker, or browser restarts.
 
 ## 8. Phase D — Authenticated `kasitek-core` bridge
 
@@ -430,9 +431,9 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
 ### Agent Platform
 
 - [ ] Unit tests for system-agent visibility and protected mutation rules.
-- [ ] Database tests for idempotent organization installation and per-user conversations.
-- [ ] Database tests for cross-organization and cross-user isolation.
-- [ ] Integration test for atomic inbound message/run creation and retry idempotency.
+- [x] Database tests for idempotent organization installation and per-user conversations.
+- [x] Database tests for cross-organization and cross-user isolation.
+- [x] Integration test for atomic inbound message/run creation and retry idempotency.
 - [ ] Temporal test for durable outbound message persistence under activity retry.
 - [ ] Temporal Cloud test for worker stop/restart during a KasiAi run.
 - [ ] SSE cursor reconnect and terminal-close tests.
