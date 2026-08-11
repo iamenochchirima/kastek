@@ -148,6 +148,7 @@ function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: ()
 function TemplateDialog({ templates, onClose, onInstalled, initialTemplateKey }: { templates: SelectableTemplate[]; onClose: () => void; onInstalled: () => void; initialTemplateKey?: string }) {
   const [selected, setSelected] = useState(initialTemplateKey ?? "");
   const [tone, setTone] = useState("balanced");
+  const [step, setStep] = useState<"select" | "configure" | "review" | "success">(initialTemplateKey ? "configure" : "select");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectedTemplate = templates.find((template) => template.value === selected);
@@ -162,7 +163,7 @@ function TemplateDialog({ templates, onClose, onInstalled, initialTemplateKey }:
       } else {
         await installAgentTemplate(selectedTemplate.value, { tone });
       }
-      onInstalled();
+      setStep("success");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Installation failed");
     } finally {
@@ -182,34 +183,35 @@ function TemplateDialog({ templates, onClose, onInstalled, initialTemplateKey }:
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close templates"><ChevronRight className="h-4 w-4 rotate-45" /></Button>
         </div>
-        {selectedTemplate && selectedTemplate.value !== "kasiai" ? (
-          <label className="mt-5 block text-sm font-medium text-foreground">
-            Response tone
-            <select value={tone} onChange={(event) => setTone(event.target.value)} className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
-              <option value="concise">Concise</option>
-              <option value="balanced">Balanced</option>
-              <option value="detailed">Detailed</option>
-            </select>
-          </label>
-        ) : null}
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        {step === "select" ? <div className="mt-6 grid gap-3 sm:grid-cols-2">
           {templates.map((template) => (
             <button
               key={template.value}
               type="button"
               disabled={!template.available}
-              onClick={() => setSelected(template.value)}
+              onClick={() => { setSelected(template.value); setStep("configure"); setError(null); }}
               className={`rounded-xl border p-4 text-left transition-colors ${selected === template.value ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-secondary/40"} ${!template.available ? "cursor-not-allowed opacity-60" : ""}`}
             >
               <div className="flex items-center justify-between gap-2"><span className="font-medium text-foreground">{template.label}</span><Badge className={template.available ? "border-accent/20 bg-accent/10 text-accent" : "border-border bg-secondary text-muted-foreground"}>{template.available ? "Available" : "Coming soon"}</Badge></div>
               <p className="mt-2 text-sm leading-5 text-muted-foreground">{template.description}</p>
             </button>
           ))}
-        </div>
+        </div> : null}
+        {step === "configure" && selectedTemplate ? (
+          <div className="mt-6 space-y-4">
+            <div className="rounded-xl border border-border bg-card p-4"><p className="text-sm font-semibold text-foreground">{selectedTemplate.label}</p><p className="mt-1 text-sm leading-5 text-muted-foreground">{selectedTemplate.description}</p></div>
+            {selectedTemplate.value !== "kasiai" ? <label className="block text-sm font-medium text-foreground">Response tone<select value={tone} onChange={(event) => setTone(event.target.value)} className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="concise">Concise</option><option value="balanced">Balanced</option><option value="detailed">Detailed</option></select></label> : <p className="rounded-lg bg-primary/5 px-3 py-2 text-sm text-muted-foreground">KasiAi is managed as a protected system agent and does not expose configuration here.</p>}
+          </div>
+        ) : null}
+        {step === "review" && selectedTemplate ? <div className="mt-6 space-y-4"><h3 className="font-semibold text-foreground">Review installation</h3><dl className="divide-y divide-border rounded-xl border border-border bg-card text-sm"><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Template</dt><dd className="font-medium text-foreground">{selectedTemplate.label}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Response tone</dt><dd className="font-medium capitalize text-foreground">{selectedTemplate.value === "kasiai" ? "Managed by KasiTek" : tone}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Channel</dt><dd className="font-medium text-foreground">Platform chat</dd></div></dl><p className="text-sm text-muted-foreground">This creates a versioned agent, installs it for this workspace, and keeps its run history in the Agent Platform.</p></div> : null}
+        {step === "success" ? <div className="mt-8 rounded-xl border border-accent/30 bg-accent/10 p-6 text-center"><Check className="mx-auto h-8 w-8 text-accent" /><h3 className="mt-3 text-lg font-semibold text-foreground">Agent installed</h3><p className="mt-1 text-sm text-muted-foreground">The agent is ready in your workspace and can be opened from Agents.</p></div> : null}
         {error ? <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
         <div className="mt-6 flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>Close</Button>
-          <Button type="button" disabled={!selectedTemplate?.available || loading} onClick={() => void install()}>{loading ? "Installing…" : "Install template"}</Button>
+          {step === "success" ? <Button type="button" onClick={onInstalled}>Done</Button> : <>
+            <Button type="button" variant="outline" onClick={step === "select" ? onClose : () => setStep(step === "review" ? "configure" : "select")}>{step === "select" ? "Close" : "Back"}</Button>
+            {step === "configure" ? <Button type="button" disabled={!selectedTemplate?.available} onClick={() => setStep("review")}>Review</Button> : null}
+            {step === "review" ? <Button type="button" disabled={!selectedTemplate?.available || loading} onClick={() => void install()}>{loading ? "Installing…" : "Install agent"}</Button> : null}
+          </>}
         </div>
       </div>
     </div>

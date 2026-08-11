@@ -1,0 +1,30 @@
+import { describe, expect, it } from "vitest";
+import { listAgentTemplates, parseTemplateSettings, templateVersionInput } from "../src/system/templates";
+
+describe("agent templates", () => {
+  it("publishes a bounded, versioned catalog", () => {
+    const templates = listAgentTemplates();
+    expect(templates.length).toBeGreaterThanOrEqual(4);
+    for (const template of templates) {
+      expect(template.key).toMatch(/^[a-z0-9-]+$/);
+      expect(template.version).toBeGreaterThan(0);
+      expect(template.policy.allowedTools).toEqual(["platform.current_time"]);
+      expect(template.channelCompatibility).toContain("platform");
+    }
+  });
+
+  it("normalizes the supported setting and rejects unknown settings", () => {
+    expect(parseTemplateSettings({})).toEqual({ tone: "balanced" });
+    expect(parseTemplateSettings({ tone: "concise" })).toEqual({ tone: "concise" });
+    expect(() => parseTemplateSettings({ tone: "friendly" })).toThrow();
+    expect(() => parseTemplateSettings({ tone: "balanced", systemPrompt: "override" })).toThrow();
+  });
+
+  it("keeps template policy and configuration server-owned", () => {
+    const template = listAgentTemplates()[0]!;
+    const version = templateVersionInput(template, { tone: "detailed" });
+    expect(version.instructions).toContain("Preferred response tone: detailed.");
+    expect(version.configuration).toEqual(template.configuration);
+    expect(version.policy).toEqual(template.policy);
+  });
+});

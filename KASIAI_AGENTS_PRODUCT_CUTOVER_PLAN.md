@@ -301,7 +301,7 @@ also work for template-created agents.
 - [x] Add an initial client template catalog with stable keys and explicit availability states. Only
   KasiAi is available until the ordinary-agent creation transaction exists.
 - [x] Move the catalog to a versioned server-owned source with schemas and template policy.
-- [ ] Start with a small set that the current runtime can honestly support:
+- [x] Start with a small set that the current runtime can honestly support:
   - general website/support assistant;
   - FAQ and knowledge assistant;
   - lead-intake assistant;
@@ -309,8 +309,8 @@ also work for template-created agents.
     create bookings until the booking tool exists.
 - [x] Define instructions, model policy, allowed tools, required connections, configurable fields,
   budgets, and channel compatibility for every template.
-- [ ] Validate all template configuration fields on the server (the initial tone setting is
-  normalized server-side; stricter schema validation remains before production).
+- [x] Validate all template configuration fields on the server; the versioned catalog currently
+  exposes only the strict tone enum and rejects unknown fields.
 - [x] Create ordinary organization-owned definition, draft version, published version,
   installation, grants, and default platform conversation from a template transactionally.
 - [x] Record the source template key/version but permit later version history independent of the
@@ -321,7 +321,7 @@ also work for template-created agents.
 
 - [x] Replace the old bot creation modal with a template selection flow; unavailable templates are
   visibly disabled rather than routed to legacy provisioning.
-- [ ] Implement template selection, minimal configuration, review, create, and success states.
+- [x] Implement template selection, minimal configuration, review, create, and success states.
 - [x] Support pause/resume, publish, rollback, retire, and archive through real Agent Platform
   operations exposed through the authenticated core bridge.
 - [x] Add safe deletion semantics: archive definitions and preserve historical runs; do not hard
