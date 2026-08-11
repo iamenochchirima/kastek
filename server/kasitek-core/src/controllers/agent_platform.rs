@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::agent_platform::AgentPlatformClient;
+use crate::services::{agent_platform::AgentPlatformClient, billing};
 
 #[derive(Debug, Deserialize)]
 pub struct StreamQuery {
@@ -24,6 +24,16 @@ async fn scope(
 ) -> Result<(crate::db::models::User, String), AppError> {
     let user = extract_user(req, pool).await?;
     let organization_id = resolve_active_org_id(req, pool, &user.id).await?;
+    Ok((user, organization_id))
+}
+
+async fn management_scope(
+    req: &HttpRequest,
+    pool: &PgPool,
+) -> Result<(crate::db::models::User, String), AppError> {
+    let (user, organization_id) = scope(req, pool).await?;
+    billing::require_capability(pool, &organization_id, billing::capabilities::AGENTS_MANAGE)
+        .await?;
     Ok((user, organization_id))
 }
 
@@ -144,7 +154,7 @@ pub async fn set_installation_status(
     req: HttpRequest,
     path: web::Path<(String, String)>,
 ) -> Result<HttpResponse, AppError> {
-    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
     let (installation_id, status) = path.into_inner();
     if !matches!(status.as_str(), "active" | "paused" | "disabled") {
         return Err(AppError::BadRequest(
@@ -153,6 +163,120 @@ pub async fn set_installation_status(
     }
     let response = client(config.get_ref())?
         .set_installation_status(&organization_id, &user.id, &installation_id, &status)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_agent_versions(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    agent_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_agent_versions(&organization_id, &user.id, &agent_id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+async fn mutate_agent_version(
+    pool: &PgPool,
+    config: &AppConfig,
+    req: HttpRequest,
+    agent_id: String,
+    version_id: String,
+    action: &'static str,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool).await?;
+    let response = match action {
+        "publish" => {
+            client(config)?
+                .publish_agent_version(&organization_id, &user.id, &agent_id, &version_id)
+                .await?
+        }
+        "rollback" => {
+            client(config)?
+                .rollback_agent_version(&organization_id, &user.id, &agent_id, &version_id)
+                .await?
+        }
+        "retire" => {
+            client(config)?
+                .retire_agent_version(&organization_id, &user.id, &agent_id, &version_id)
+                .await?
+        }
+        _ => {
+            return Err(AppError::BadRequest(
+                "Unknown agent version action".to_string(),
+            ))
+        }
+    };
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn publish_agent_version(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (agent_id, version_id) = path.into_inner();
+    mutate_agent_version(
+        pool.get_ref(),
+        config.get_ref(),
+        req,
+        agent_id,
+        version_id,
+        "publish",
+    )
+    .await
+}
+
+pub async fn rollback_agent_version(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (agent_id, version_id) = path.into_inner();
+    mutate_agent_version(
+        pool.get_ref(),
+        config.get_ref(),
+        req,
+        agent_id,
+        version_id,
+        "rollback",
+    )
+    .await
+}
+
+pub async fn retire_agent_version(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (agent_id, version_id) = path.into_inner();
+    mutate_agent_version(
+        pool.get_ref(),
+        config.get_ref(),
+        req,
+        agent_id,
+        version_id,
+        "retire",
+    )
+    .await
+}
+
+pub async fn archive_agent(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    agent_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .archive_agent(&organization_id, &user.id, &agent_id)
         .await?;
     Ok(HttpResponse::Ok().json(response))
 }

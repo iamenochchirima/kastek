@@ -289,10 +289,12 @@ also work for template-created agents.
   published version; last-run/failure detail remains to be expanded.
   run, failure state, and current published version.
 - [ ] Add empty, loading, error, paused, disabled, and unavailable states backed by real data.
-- [ ] Add agent detail pages for overview, instructions/settings permitted by template, deployment,
-  conversations, activity, memory/knowledge, and versions where available.
-- [ ] Prevent protected-agent controls from appearing for KasiAi.
-- [ ] Remove UI controls that are not implemented rather than leaving placeholders.
+- [x] Add an agent detail page for overview, installation state, version history, and available
+  lifecycle operations; template settings, conversations, activity, and memory/knowledge detail
+  remain follow-up surfaces.
+- [x] Prevent protected-agent mutation controls from appearing for KasiAi.
+- [x] Expose only lifecycle controls backed by real Agent Platform operations; protected and
+  unavailable mutations are not rendered.
 
 ### 10.2 Initial template catalog
 
@@ -320,10 +322,9 @@ also work for template-created agents.
 - [x] Replace the old bot creation modal with a template selection flow; unavailable templates are
   visibly disabled rather than routed to legacy provisioning.
 - [ ] Implement template selection, minimal configuration, review, create, and success states.
-- [x] Support pause/resume through real Agent Platform installation operations; publish, rollback,
-  retire, and archive controls remain to be expanded.
-  archive through real Agent Platform operations.
-- [ ] Add safe deletion semantics: archive definitions and preserve historical runs; do not hard
+- [x] Support pause/resume, publish, rollback, retire, and archive through real Agent Platform
+  operations exposed through the authenticated core bridge.
+- [x] Add safe deletion semantics: archive definitions and preserve historical runs; do not hard
   delete active agent history from normal user controls.
 - [ ] Bind the platform channel by default so a newly created template agent can be tested in the
   product immediately.

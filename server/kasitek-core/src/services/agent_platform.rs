@@ -205,6 +205,94 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_agent_versions(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/agents/{agent_id}/versions"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn publish_agent_version(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+        version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/agents/{agent_id}/versions/{version_id}/publish"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn rollback_agent_version(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+        version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/agents/{agent_id}/versions/{version_id}/rollback"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn retire_agent_version(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+        version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/agents/{agent_id}/versions/{version_id}/retire"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn archive_agent(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/agents/{agent_id}/archive"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
     pub async fn resolve_platform_conversation(
         &self,
         organization_id: &str,

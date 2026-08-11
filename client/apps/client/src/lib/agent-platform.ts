@@ -112,6 +112,39 @@ export function setAgentInstallationStatus(installationId: string, status: "acti
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/status/${status}`, { method: "POST" });
 }
 
+export type AgentVersion = {
+  id: string;
+  agent_definition_id: string;
+  version_number: number;
+  status: "draft" | "published" | "retired" | "archived" | string;
+  instructions?: string | null;
+  model_policy?: Record<string, unknown>;
+  tool_policy?: Record<string, unknown>;
+  created_at: string;
+  published_at?: string | null;
+  retired_at?: string | null;
+};
+
+export function listAgentVersions(agentId: string): Promise<{ versions: AgentVersion[] }> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}/versions`);
+}
+
+export function publishAgentVersion(agentId: string, versionId: string): Promise<AgentVersion> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}/publish`, { method: "POST" });
+}
+
+export function rollbackAgentVersion(agentId: string, versionId: string): Promise<AgentVersion> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}/rollback`, { method: "POST" });
+}
+
+export function retireAgentVersion(agentId: string, versionId: string): Promise<AgentVersion> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}/retire`, { method: "POST" });
+}
+
+export function archiveAgent(agentId: string): Promise<AgentDefinition> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}/archive`, { method: "POST" });
+}
+
 export function resolvePlatformConversation(installationId: string): Promise<ConversationResponse> {
   return request<ConversationResponse>(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/conversation`, {
     method: "POST",

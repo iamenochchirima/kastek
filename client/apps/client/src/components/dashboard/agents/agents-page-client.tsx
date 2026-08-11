@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Bot, Check, ChevronRight, Info, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ensureKasiAi, installAgentTemplate, setAgentInstallationStatus, type AgentDefinition, type AgentTemplate } from "@/lib/agent-platform";
 
 export type AgentListItem = AgentDefinition;
@@ -115,7 +116,7 @@ function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: ()
               {isKasiAi ? <Sparkles className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">{agent.name}</h2>
+              <h2 className="text-lg font-semibold text-foreground"><Link className="hover:text-primary" href={`/agents/${encodeURIComponent(agent.id)}`}>{agent.name}</Link></h2>
               <p className="mt-1 text-sm text-muted-foreground">{agent.description || "Installed Agent Platform agent"}</p>
             </div>
           </div>
@@ -130,6 +131,7 @@ function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: ()
           {agent.version_number ? <span>Version {agent.version_number}</span> : null}
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button asChild type="button" variant="outline" size="sm"><Link href={`/agents/${encodeURIComponent(agent.id)}`}>Open details</Link></Button>
           {isKasiAi ? (
             <span className="inline-flex items-center gap-1.5 text-xs text-accent"><Check className="h-3.5 w-3.5" />Available from the sidebar</span>
           ) : (

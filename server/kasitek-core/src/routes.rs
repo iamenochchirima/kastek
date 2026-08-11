@@ -44,6 +44,26 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::post().to(agent_platform::set_installation_status),
                 )
                 .route(
+                    "/{agentId}/versions",
+                    web::get().to(agent_platform::list_agent_versions),
+                )
+                .route(
+                    "/{agentId}/versions/{versionId}/publish",
+                    web::post().to(agent_platform::publish_agent_version),
+                )
+                .route(
+                    "/{agentId}/versions/{versionId}/rollback",
+                    web::post().to(agent_platform::rollback_agent_version),
+                )
+                .route(
+                    "/{agentId}/versions/{versionId}/retire",
+                    web::post().to(agent_platform::retire_agent_version),
+                )
+                .route(
+                    "/{agentId}/archive",
+                    web::post().to(agent_platform::archive_agent),
+                )
+                .route(
                     "/kasiai/ensure",
                     web::post().to(agent_platform::ensure_kasiai),
                 )
