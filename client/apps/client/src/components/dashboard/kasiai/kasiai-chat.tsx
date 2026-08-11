@@ -110,12 +110,32 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
       }
       const controller = new AbortController();
       streamAbort.current = controller;
-      await streamAgentRun(accepted.runId, (event) => {
-        if (event.event === "run.failed" || event.event === "agent.stream_error") {
-          const payload = event.data.payload as { message?: string } | undefined;
-          setError(payload?.message ?? "KasiAi could not complete this request");
+      let cursor = 0;
+      let completed = false;
+      for (let attempt = 0; attempt < 3 && !completed; attempt += 1) {
+        try {
+          const stream = await streamAgentRun(accepted.runId, (event) => {
+            const sequence = Number(event.data.sequence_number);
+            if (Number.isSafeInteger(sequence) && sequence > cursor) cursor = sequence;
+            if (["run.failed", "run.cancelled", "run.expired"].includes(event.event)) {
+              const payload = event.data.payload as { message?: string } | undefined;
+              setError(payload?.message ?? "KasiAi could not complete this request");
+            }
+            if (event.event === "run.failed" || event.event === "agent.stream_error") {
+              const payload = event.data.payload as { message?: string } | undefined;
+              setError(payload?.message ?? "KasiAi could not complete this request");
+            }
+          }, controller.signal, cursor);
+          cursor = stream.lastSequence;
+          completed = stream.terminal;
+          if (!completed && attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 500 * (attempt + 1)));
+        } catch (cause) {
+          if (cause instanceof DOMException && cause.name === "AbortError") throw cause;
+          if (attempt === 2) throw cause;
+          await new Promise((resolve) => window.setTimeout(resolve, 500 * (attempt + 1)));
         }
-      }, controller.signal);
+      }
+      if (!completed) throw new Error("The run stream ended before KasiAi finished; please try again.");
       await loadConversation(accepted.conversation.id);
     } catch (cause) {
       if (!(cause instanceof DOMException && cause.name === "AbortError")) {

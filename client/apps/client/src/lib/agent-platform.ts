@@ -136,12 +136,16 @@ export type AgentStreamEvent = {
   data: Record<string, unknown>;
 };
 
+export type AgentStreamResult = { lastSequence: number; terminal: boolean };
+
 export async function streamAgentRun(
   runId: string,
   onEvent: (event: AgentStreamEvent) => void,
   signal: AbortSignal,
-): Promise<void> {
-  const response = await fetch(apiUrl(`/api/agents/runs/${encodeURIComponent(runId)}/events/stream`), {
+  after = 0,
+): Promise<AgentStreamResult> {
+  const query = after > 0 ? `?after=${after}` : "";
+  const response = await fetch(apiUrl(`/api/agents/runs/${encodeURIComponent(runId)}/events/stream${query}`), {
     credentials: "include",
     signal,
     headers: { Accept: "text/event-stream" },
@@ -153,11 +157,16 @@ export async function streamAgentRun(
   const decoder = new TextDecoder();
   let buffer = "";
   let eventName = "message";
+  let lastSequence = after;
+  let terminal = false;
   let dataLines: string[] = [];
   const flush = () => {
     if (!dataLines.length) return;
     try {
       const data = JSON.parse(dataLines.join("\n")) as Record<string, unknown>;
+      const sequence = Number(data.sequence_number);
+      if (Number.isSafeInteger(sequence) && sequence > lastSequence) lastSequence = sequence;
+      if (["run.completed", "run.failed", "run.cancelled", "run.expired"].includes(eventName)) terminal = true;
       onEvent({ event: eventName, data });
     } catch {
       // Ignore keep-alives and malformed intermediary chunks; the durable run is authoritative.
@@ -183,7 +192,7 @@ export async function streamAgentRun(
     if (chunk.done) {
       if (buffer.trim()) dataLines.push(buffer.trim());
       flush();
-      return;
+      return { lastSequence, terminal };
     }
   }
 }

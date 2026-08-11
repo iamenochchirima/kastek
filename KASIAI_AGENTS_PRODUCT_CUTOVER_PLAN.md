@@ -212,7 +212,7 @@ also work for template-created agents.
   tool status, approval required, completed, failed, and cancelled.
 - [ ] Redact prompts, credentials, hidden policy, internal tool arguments, and unsafe tool output
   from browser events.
-- [ ] Support stream reconnection using the durable event cursor.
+- [x] Support stream reconnection using the durable event cursor.
 - [ ] Close the stream reliably on terminal status.
 - [ ] Wire cancellation to the existing Temporal cancellation signal.
 - [ ] Keep approval events in the contract even though the first KasiAi tool set is read-only.
