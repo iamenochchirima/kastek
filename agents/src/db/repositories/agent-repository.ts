@@ -152,6 +152,17 @@ export class AgentRepository {
           actorId,
         ],
       );
+      const allowedTools = Array.isArray(input.policy.allowedTools)
+        ? input.policy.allowedTools.filter((tool): tool is string => typeof tool === "string" && tool.trim().length > 0)
+        : [];
+      for (const toolName of allowedTools) {
+        await client.query(
+          `INSERT INTO agent_tool_grants
+            (organization_id, agent_version_id, tool_name, granted_by)
+           VALUES ($1, $2, $3, $4)`,
+          [organizationId, created.rows[0]!.id, toolName.trim(), actorId],
+        );
+      }
       return created.rows[0]!;
     });
   }

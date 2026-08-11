@@ -16,6 +16,7 @@ import { KasitekCoreReadClient } from "../core/client";
 import type { AppConfig } from "../config";
 import { ToolInvocationRepository } from "../db/repositories/tool-invocation-repository";
 import { RunStepRepository } from "../db/repositories/run-step-repository";
+import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -73,6 +74,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const knowledge = new KnowledgeRepository(pool);
   const toolInvocations = new ToolInvocationRepository(pool);
   const runSteps = new RunStepRepository(pool);
+  const toolGrants = new ToolGrantRepository(pool);
   const gateway = options.gateway ?? new ModelGateway();
   const credentials = options.credentials ?? new EnvironmentCredentialResolver();
   const coreClient = options.coreClient ?? (options.config ? new KasitekCoreReadClient(options.config) : undefined);
@@ -84,7 +86,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async executeLoop(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
-      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, runSteps, gateway, credentials, tools);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, runSteps, toolGrants, gateway, credentials, tools);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -111,6 +113,7 @@ async function executeLoopForRun(
   knowledge: KnowledgeRepository,
   toolInvocations: ToolInvocationRepository,
   runSteps: RunStepRepository,
+  toolGrants: ToolGrantRepository,
   gateway: ModelGateway,
   credentials: CredentialResolver,
   tools: ToolRegistry,
@@ -119,9 +122,11 @@ async function executeLoopForRun(
   const provider = (configuration.provider ?? configuration.modelProvider ?? "openrouter") as ModelProvider;
   const model = configuration.model;
   if (typeof model !== "string" || !model) throw new Error("Published agent version has no model configured");
-  const allowedTools = new Set(
+  const policyTools = new Set(
     Array.isArray(run.policy.allowedTools) ? run.policy.allowedTools.filter((value): value is string => typeof value === "string") : [],
   );
+  const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
+  const allowedTools = new Set([...policyTools].filter((toolName) => grantedTools.has(toolName)));
   const credentialReference = typeof configuration.credentialReference === "string" ? configuration.credentialReference : undefined;
   const modelCredentials = await credentials.resolve(provider, credentialReference);
   const currentMessage = typeof run.input.message === "string" ? run.input.message : JSON.stringify(run.input);

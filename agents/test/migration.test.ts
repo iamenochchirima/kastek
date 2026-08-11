@@ -26,5 +26,8 @@ describe("foundation migration", () => {
     const runDurabilitySql = await readFile(new URL("../migrations/006_run_attempts_and_idempotency.sql", import.meta.url), "utf8");
     expect(runDurabilitySql).toContain("run_attempts");
     expect(runDurabilitySql).toContain("idempotency_key");
+    const grantsSql = await readFile(new URL("../migrations/007_tool_grants.sql", import.meta.url), "utf8");
+    expect(grantsSql).toContain("agent_tool_grants");
+    expect(grantsSql).toContain("effective_idx");
   });
 });

@@ -11,6 +11,8 @@
 - [x] Dedicated PostgreSQL migrations 001–005 are applied locally, including tool invocation
   audit records.
 - [x] Migration 006 adds idempotent run starts, durable run attempts, and ordered run steps.
+- [x] Migration 007 adds version- and installation-scoped tool grants with revocation and
+  effective-grant intersection at runtime.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
@@ -188,8 +190,9 @@ The implementation must keep the following concepts separate.
 - [x] `AgentInstallation`: deployment of an agent into a user/organization/business scope.
 - [x] `AgentPrincipal`: machine identity used by an agent to request operations.
 - [x] `ToolDefinition`: versioned input/output and security contract for one capability.
-- [ ] `ToolGrant`: permission for an agent version or installation to request a tool. **The
-  initial policy uses explicit allowed-tool names; a first-class grant record remains pending.**
+- [x] `ToolGrant`: permission for an agent version or installation to request a tool. **Version
+  and installation grants are persisted, revocable, audited, and intersected with policy at
+  execution.**
 - [ ] `ChannelConnection`: verified provider connection and credential reference.
 - [ ] `ChannelBinding`: routing from a channel/account to an agent installation.
 - [x] `Conversation`: durable thread belonging to one agent installation.
@@ -335,7 +338,9 @@ received
 - [ ] Bind an installation to channels and triggers.
 - [x] Apply installation-level settings without mutating the agent version.
 - [ ] Apply installation-level budgets and rate limits.
-- [ ] Resolve an effective configuration deterministically.
+- [x] Resolve an effective configuration deterministically. **Runtime tool access is the
+  intersection of version policy and active version/installation grants. Broader settings and
+  budget precedence remain pending.**
 
 ## 10. Identity, authorization, and policy
 

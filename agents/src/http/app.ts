@@ -13,6 +13,7 @@ import { RunRepository } from "../db/repositories/run-repository";
 import { ConversationRepository } from "../db/repositories/conversation-repository";
 import { RunStepRepository } from "../db/repositories/run-step-repository";
 import { ToolInvocationRepository } from "../db/repositories/tool-invocation-repository";
+import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
@@ -25,6 +26,7 @@ export interface AppDependencies {
   conversations?: ConversationRepository;
   runSteps?: RunStepRepository;
   toolInvocations?: ToolInvocationRepository;
+  toolGrants?: ToolGrantRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -53,6 +55,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const conversations = dependencies.conversations ?? new ConversationRepository(dependencies.pool);
   const runSteps = dependencies.runSteps ?? new RunStepRepository(dependencies.pool);
   const toolInvocations = dependencies.toolInvocations ?? new ToolInvocationRepository(dependencies.pool);
+  const toolGrants = dependencies.toolGrants ?? new ToolGrantRepository(dependencies.pool);
 
   app.setErrorHandler((error, _request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -111,6 +114,48 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.send(version);
     },
   );
+
+  app.post<{ Params: { agentId: string; versionId: string } }>(
+    "/v1/agents/:agentId/versions/:versionId/tools",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      const input = z.object({ toolName: z.string().trim().min(1).max(160) }).parse(request.body);
+      const grant = await toolGrants.grantVersionTool({
+        organizationId: auth.organizationId,
+        agentId: request.params.agentId,
+        versionId: request.params.versionId,
+        toolName: input.toolName,
+        actorId: auth.actorId,
+      });
+      return reply.code(201).send(grant);
+    },
+  );
+
+  app.get<{ Params: { agentId: string; versionId: string } }>(
+    "/v1/agents/:agentId/versions/:versionId/tools",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      return { grants: await toolGrants.listForVersion(auth.organizationId, request.params.versionId) };
+    },
+  );
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/tools", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ toolName: z.string().trim().min(1).max(160) }).parse(request.body);
+    const grant = await toolGrants.grantInstallationTool({
+      organizationId: auth.organizationId,
+      installationId: request.params.installationId,
+      toolName: input.toolName,
+      actorId: auth.actorId,
+    });
+    return reply.code(201).send(grant);
+  });
+
+  app.delete<{ Params: { grantId: string } }>("/v1/tool-grants/:grantId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    await toolGrants.revoke({ organizationId: auth.organizationId, grantId: request.params.grantId, actorId: auth.actorId });
+    return reply.code(204).send();
+  });
 
   app.post<{ Params: { agentId: string; versionId: string } }>(
     "/v1/agents/:agentId/versions/:versionId/rollback",
