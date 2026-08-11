@@ -527,6 +527,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get("/v1/operations/summary", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     const [runsSummary, modelSummary, toolSummary] = await Promise.all([
       runs.operationalSummary(auth.organizationId),
       modelCalls.usageSummary(auth.organizationId),
@@ -543,6 +544,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Querystring: { action?: string; resourceType?: string; limit?: string } }>("/v1/audit", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     const limit = request.query.limit === undefined ? undefined : Number(request.query.limit);
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) throw new Error("Invalid audit limit");
     return { records: await audits.list({ organizationId: auth.organizationId, action: request.query.action, resourceType: request.query.resourceType, limit }) };

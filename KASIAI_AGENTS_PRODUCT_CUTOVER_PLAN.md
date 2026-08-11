@@ -329,8 +329,8 @@ also work for template-created agents.
 
 ### 10.4 Activity and analytics
 
-- [ ] Replace `/agents/activity` legacy bot events with Agent Platform audit records and run status.
-- [ ] Replace `/agents/analytics` legacy counts with Agent Platform run, latency, failure, token,
+- [x] Replace `/agents/activity` legacy bot events with Agent Platform audit records and run status.
+- [x] Replace `/agents/analytics` legacy counts with Agent Platform run, failure, token,
   tool, and estimated-cost aggregates.
 - [ ] Replace workspace `botCount` and bot-attention queries with Agent Platform summary data.
 - [ ] Remove old deployment terminology where it represents n8n provisioning rather than an Agent

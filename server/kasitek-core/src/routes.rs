@@ -41,6 +41,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/agents")
                 .route("", web::get().to(agent_platform::list_agents))
+                .route(
+                    "/operations/summary",
+                    web::get().to(agent_platform::operations_summary),
+                )
+                .route("/audit", web::get().to(agent_platform::list_audit))
                 .route("/templates", web::get().to(agent_platform::list_templates))
                 .route(
                     "/templates/{templateKey}/install",

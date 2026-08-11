@@ -60,6 +60,50 @@ pub async fn list_agents(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn operations_summary(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .operations_summary(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AuditQuery {
+    pub action: Option<String>,
+    #[serde(rename = "resourceType")]
+    pub resource_type: Option<String>,
+    pub limit: Option<u32>,
+}
+
+pub async fn list_audit(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<AuditQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=500).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Audit limit must be between 1 and 500".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .list_audit(
+            &organization_id,
+            &user.id,
+            query.action.as_deref(),
+            query.resource_type.as_deref(),
+            query.limit,
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn list_templates(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

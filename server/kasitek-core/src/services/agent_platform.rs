@@ -100,6 +100,59 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn operations_summary(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/operations/summary",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_audit(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        action: Option<&str>,
+        resource_type: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let mut query = Vec::new();
+        if let Some(action) = action.filter(|value| !value.trim().is_empty()) {
+            query.push(format!("action={}", urlencoding::encode(action)));
+        }
+        if let Some(resource_type) = resource_type.filter(|value| !value.trim().is_empty()) {
+            query.push(format!(
+                "resourceType={}",
+                urlencoding::encode(resource_type)
+            ));
+        }
+        if let Some(limit) = limit {
+            query.push(format!("limit={limit}"));
+        }
+        let path = if query.is_empty() {
+            "/v1/audit".to_string()
+        } else {
+            format!("/v1/audit?{}", query.join("&"))
+        };
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn list_templates(
         &self,
         organization_id: &str,
