@@ -7,7 +7,7 @@ import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
 import { EnvironmentCredentialResolver, type CredentialResolver } from "../model/credentials";
-import type { ModelProvider } from "../model/types";
+import type { ModelPricing, ModelProvider } from "../model/types";
 import { runBoundedAgentLoop } from "../runtime/loop";
 import { buildAgentContext } from "../runtime/context";
 import { retrievalGate } from "../runtime/context";
@@ -25,6 +25,16 @@ export interface ActivityOptions {
   tools?: ToolRegistry;
   coreClient?: KasitekCoreReadClient;
   config?: AppConfig;
+}
+
+function pricingFromConfig(config?: AppConfig): Record<string, ModelPricing> {
+  if (!config?.MODEL_PRICING_JSON) return {};
+  try {
+    const parsed = JSON.parse(config.MODEL_PRICING_JSON) as Record<string, ModelPricing>;
+    return Object.fromEntries(Object.entries(parsed).filter(([, value]) => Number.isFinite(value.inputUsdPerMillion) && Number.isFinite(value.outputUsdPerMillion)));
+  } catch {
+    throw new Error("MODEL_PRICING_JSON must be valid JSON");
+  }
 }
 
 function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegistry {
@@ -77,7 +87,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const runSteps = new RunStepRepository(pool);
   const toolGrants = new ToolGrantRepository(pool);
   const summaries = new SummaryRepository(pool);
-  const gateway = options.gateway ?? new ModelGateway();
+  const gateway = options.gateway ?? new ModelGateway(undefined, { pricing: pricingFromConfig(options.config) });
   const credentials = options.credentials ?? new EnvironmentCredentialResolver();
   const coreClient = options.coreClient ?? (options.config ? new KasitekCoreReadClient(options.config) : undefined);
   const tools = options.tools ?? createDefaultTools(coreClient);

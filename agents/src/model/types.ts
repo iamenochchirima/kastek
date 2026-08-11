@@ -23,6 +23,20 @@ export interface ModelRequest {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  timeoutMs?: number;
+  maxAttempts?: number;
+}
+
+export interface ModelCapabilities {
+  toolCalling: boolean;
+  structuredOutput: boolean;
+  streaming: boolean;
+  vision: boolean;
+}
+
+export interface ModelPricing {
+  inputUsdPerMillion: number;
+  outputUsdPerMillion: number;
 }
 
 export interface ModelToolCall {
@@ -56,6 +70,7 @@ export interface ModelCredentials {
 
 export interface ModelAdapter {
   readonly provider: ModelProvider;
+  readonly capabilities: ModelCapabilities;
   complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse>;
 }
 

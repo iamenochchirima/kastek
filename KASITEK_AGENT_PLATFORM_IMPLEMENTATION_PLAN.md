@@ -20,7 +20,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 30 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 31 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -477,13 +477,15 @@ received
 - [x] Define a provider-neutral messages, tools, usage, and error contract.
 - [x] Implement OpenRouter as the default adapter plus direct OpenAI, Anthropic, and Google
   Gemini adapters in the initial delivery.
-- [ ] Define capability flags so unsupported provider features fail validation instead of
-  silently degrading.
+- [x] Define capability flags so unsupported provider features fail validation instead of
+  silently degrading. **Tool-calling capability checks are enforced by the gateway.**
 - [ ] Add a small/fast model route for gates, classifiers, and summaries.
 - [ ] Add versioned model policies rather than hard-coded model IDs.
 - [ ] Add provider and model fallbacks permitted by data policy.
-- [ ] Add token accounting and estimated cost per model call.
-- [ ] Add request timeouts and retry classification.
+- [x] Add token accounting and estimated cost per model call. **Pricing is deployment-configured
+  through `MODEL_PRICING_JSON`; unknown models report zero rather than inventing a price.**
+- [x] Add request timeouts and retry classification. **Gateway retries bounded retryable provider
+  failures and aborts timed-out requests.**
 - [ ] Add structured-output validation.
 - [ ] Add streaming response support.
 - [ ] Add provider circuit breakers.

@@ -29,6 +29,7 @@ export interface OpenAICompatibleAdapterOptions {
 
 export class OpenAICompatibleAdapter implements ModelAdapter {
   public readonly provider: Extract<ModelProvider, "openrouter" | "openai">;
+  public readonly capabilities = { toolCalling: true, structuredOutput: true, streaming: false, vision: true } as const;
 
   public constructor(private readonly options: OpenAICompatibleAdapterOptions) {
     this.provider = options.provider;

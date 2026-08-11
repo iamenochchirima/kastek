@@ -57,6 +57,7 @@ describe("Tool Gateway and bounded runtime", () => {
     });
     const adapter: ModelAdapter = {
       provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
       complete: async (_request: ModelRequest) => response([{ id: "call-1", name: "platform.publish", arguments: { id: "post-1" } }]),
     };
     const result = await runBoundedAgentLoop({
@@ -88,6 +89,7 @@ describe("Tool Gateway and bounded runtime", () => {
     let calls = 0;
     const adapter: ModelAdapter = {
       provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
       complete: async () => {
         calls += 1;
         return calls === 1 ? response([{ id: "call-1", name: "platform.echo", arguments: {} }]) : response([], "done");

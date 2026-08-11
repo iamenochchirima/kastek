@@ -10,6 +10,7 @@ interface AnthropicResponse {
 
 export class AnthropicAdapter implements ModelAdapter {
   public readonly provider = "anthropic" as const;
+  public readonly capabilities = { toolCalling: true, structuredOutput: true, streaming: false, vision: true } as const;
 
   public async complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse> {
     const startedAt = Date.now();
