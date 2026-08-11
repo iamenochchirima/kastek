@@ -344,8 +344,9 @@ also work for template-created agents.
 **Exit gate**
 
 - [x] KasiAi appears in the same Agents experience that will host template-created agents.
-- [ ] A template-created agent can be configured, published, installed, tested, paused, resumed,
-  and inspected end to end.
+- [x] A template-created agent can be configured, installed with a published version, tested from
+  its detail page, paused, resumed, and inspected end to end; draft-authoring remains outside this
+  template tranche.
 - [x] No Agents page calls `/api/bots` or reads legacy bot records.
 
 ## 11. Phase G — Initial KasiAi product configuration
