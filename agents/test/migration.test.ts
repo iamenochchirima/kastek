@@ -60,5 +60,8 @@ describe("foundation migration", () => {
     const platformChatSql = await readFile(new URL("../migrations/018_platform_chat_delivery.sql", import.meta.url), "utf8");
     expect(platformChatSql).toContain("ADD COLUMN IF NOT EXISTS run_id");
     expect(platformChatSql).toContain("messages_run_direction_idx");
+    const correlationSql = await readFile(new URL("../migrations/019_event_correlation.sql", import.meta.url), "utf8");
+    expect(correlationSql).toContain("ADD COLUMN IF NOT EXISTS correlation_id");
+    expect(correlationSql).toContain("agent_events_correlation_idx");
   });
 });

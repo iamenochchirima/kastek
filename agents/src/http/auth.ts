@@ -5,6 +5,7 @@ import type { AppConfig } from "../config";
 const claimsSchema = z.object({
   organizationId: z.string().min(1),
   actorId: z.string().min(1),
+  correlationId: z.string().uuid().optional(),
   audience: z.string().min(1),
   expiresAt: z.number().int(),
   scopes: z.array(z.string()).default([]),
@@ -14,6 +15,7 @@ export type InternalAuthClaims = z.infer<typeof claimsSchema>;
 export interface AuthContext {
   organizationId: string;
   actorId: string;
+  correlationId?: string;
   scopes: string[];
 }
 
@@ -48,16 +50,16 @@ export function verifyInternalToken(token: string, secret: string, audience: str
   }
   if (claims.audience !== audience) throw new Error("Invalid internal token audience");
   if (claims.expiresAt <= Math.floor(Date.now() / 1000)) throw new Error("Internal token expired");
-  return { organizationId: claims.organizationId, actorId: claims.actorId, scopes: claims.scopes };
+  return { organizationId: claims.organizationId, actorId: claims.actorId, correlationId: claims.correlationId, scopes: claims.scopes };
 }
 
 export function authenticateRequest(
-  headers: { authorization?: string; organizationId?: string; actorId?: string },
+  headers: { authorization?: string; organizationId?: string; actorId?: string; correlationId?: string },
   config: AppConfig,
 ): AuthContext {
   if (config.AUTH_MODE === "headers") {
     if (!headers.organizationId || !headers.actorId) throw Object.assign(new Error("x-organization-id and x-actor-id are required"), { statusCode: 401 });
-    return { organizationId: headers.organizationId, actorId: headers.actorId, scopes: [] };
+    return { organizationId: headers.organizationId, actorId: headers.actorId, correlationId: headers.correlationId, scopes: [] };
   }
   const authorization = headers.authorization;
   if (!authorization?.startsWith("Bearer ")) throw Object.assign(new Error("Bearer internal token required"), { statusCode: 401 });

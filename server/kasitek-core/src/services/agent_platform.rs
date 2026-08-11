@@ -1,5 +1,6 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use hmac::{Hmac, Mac};
+use rand::RngCore;
 use reqwest::{Client, Method, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -11,11 +12,24 @@ use crate::error::AppError;
 
 type HmacSha256 = Hmac<Sha256>;
 
+fn new_correlation_id() -> String {
+    let mut bytes = [0_u8; 16];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+    )
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct InternalClaims<'a> {
     organization_id: &'a str,
     actor_id: &'a str,
+    correlation_id: String,
     audience: &'a str,
     expires_at: u64,
     scopes: &'a [&'a str],
@@ -440,6 +454,7 @@ impl AgentPlatformClient {
         if let Some(after) = after {
             url.push_str(&format!("?after={after}"));
         }
+        let correlation_id = new_correlation_id();
         let response = self
             .client
             .get(url)
@@ -448,11 +463,12 @@ impl AgentPlatformClient {
                 "Authorization",
                 format!(
                     "Bearer {}",
-                    self.token(organization_id, actor_id, &["runs:read"])?
+                    self.token(organization_id, actor_id, &["runs:read"], &correlation_id)?
                 ),
             )
             .header("x-organization-id", organization_id)
             .header("x-actor-id", actor_id)
+            .header("x-correlation-id", &correlation_id)
             .send()
             .await
             .map_err(|error| self.map_request_error(error))?;
@@ -471,14 +487,16 @@ impl AgentPlatformClient {
         scopes: &[&str],
         body: Option<Value>,
     ) -> Result<Value, AppError> {
-        let token = self.token(organization_id, actor_id, scopes)?;
+        let correlation_id = new_correlation_id();
+        let token = self.token(organization_id, actor_id, scopes, &correlation_id)?;
         let mut request = self
             .client
             .request(method, format!("{}{}", self.base_url, path))
             .timeout(self.timeout)
             .header("Authorization", format!("Bearer {token}"))
             .header("x-organization-id", organization_id)
-            .header("x-actor-id", actor_id);
+            .header("x-actor-id", actor_id)
+            .header("x-correlation-id", &correlation_id);
         if let Some(body) = body {
             request = request.json(&body);
         }
@@ -500,6 +518,7 @@ impl AgentPlatformClient {
         organization_id: &str,
         actor_id: &str,
         scopes: &[&str],
+        correlation_id: &str,
     ) -> Result<String, AppError> {
         let expires_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -509,6 +528,7 @@ impl AgentPlatformClient {
         let claims = InternalClaims {
             organization_id,
             actor_id,
+            correlation_id: correlation_id.to_string(),
             audience: &self.audience,
             expires_at,
             scopes,
@@ -565,6 +585,7 @@ mod tests {
         let claims = InternalClaims {
             organization_id: "org-1",
             actor_id: "user-1",
+            correlation_id: "00000000-0000-4000-8000-000000000001".to_string(),
             audience: "kasitek-agents",
             expires_at: 1_900_000_000,
             scopes: &["chat:write"],
@@ -574,6 +595,10 @@ mod tests {
             serde_json::from_slice(&URL_SAFE_NO_PAD.decode(encoded).unwrap()).unwrap();
         assert_eq!(value["organizationId"], "org-1");
         assert_eq!(value["actorId"], "user-1");
+        assert_eq!(
+            value["correlationId"],
+            "00000000-0000-4000-8000-000000000001"
+        );
         assert_eq!(value["scopes"][0], "chat:write");
     }
 }

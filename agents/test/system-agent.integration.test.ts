@@ -89,6 +89,14 @@ describe.skipIf(!runIntegration)("protected system agent installations (integrat
       agent_slug: slug,
       agent_protected: true,
     });
+    const guidance = await pool.query<{ source_count: string; chunk_count: string }>(
+      `SELECT COUNT(DISTINCT ks.id)::text AS source_count, COUNT(kc.id)::text AS chunk_count
+       FROM knowledge_sources ks
+       LEFT JOIN knowledge_chunks kc ON kc.source_id = ks.id
+       WHERE ks.organization_id = $1 AND ks.agent_definition_id = $2 AND ks.installation_id = $3`,
+      [organizationOne, agentId, firstInstallation.id],
+    );
+    expect(guidance.rows[0]).toMatchObject({ source_count: "1", chunk_count: "6" });
 
     expect((await agents.listAgents(organizationOne)).map((agent) => agent.id)).toContain(agentId);
     expect((await agents.listAgents(organizationWithoutInstallation)).map((agent) => agent.id)).not.toContain(agentId);
@@ -121,6 +129,13 @@ describe.skipIf(!runIntegration)("protected system agent installations (integrat
         "DELETE FROM audit_records WHERE organization_id = ANY($1::text[])",
         [[SYSTEM_ORGANIZATION_ID, organizationOne, organizationTwo, organizationWithoutInstallation]],
       );
+      await pool.query(
+        "DELETE FROM knowledge_chunks WHERE source_id IN (SELECT id FROM knowledge_sources WHERE agent_definition_id = $1)",
+        [agentId],
+      );
+      await pool.query("DELETE FROM knowledge_sources WHERE agent_definition_id = $1", [agentId]);
+      await pool.query("DELETE FROM channel_bindings WHERE installation_id IN (SELECT id FROM agent_installations WHERE agent_definition_id = $1)", [agentId]);
+      await pool.query("DELETE FROM channel_connections WHERE installation_id IN (SELECT id FROM agent_installations WHERE agent_definition_id = $1)", [agentId]);
       await pool.query(
         "DELETE FROM agent_principals WHERE installation_id IN (SELECT id FROM agent_installations WHERE agent_definition_id = $1)",
         [agentId],

@@ -46,6 +46,7 @@ export class PlatformChatRepository {
     organizationId: string;
     installationId: string;
     actorId: string;
+    correlationId?: string;
     idempotencyKey: string;
     message: string;
     context?: Record<string, unknown>;
@@ -76,7 +77,7 @@ export class PlatformChatRepository {
         `INSERT INTO agent_runs
           (organization_id, agent_definition_id, agent_version_id, installation_id,
            conversation_id, trigger_type, status, input, correlation_id, created_by, idempotency_key)
-         VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb, gen_random_uuid(), $7, $8)
+         VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb, COALESCE($7::uuid, gen_random_uuid()), $8, $9)
          ON CONFLICT (organization_id, idempotency_key)
          WHERE idempotency_key IS NOT NULL
          DO NOTHING
@@ -88,6 +89,7 @@ export class PlatformChatRepository {
           input.installationId,
           resolved.conversation.id,
           JSON.stringify({ message: input.message, context: input.context ?? {} }),
+          input.correlationId ?? null,
           input.actorId,
           input.idempotencyKey,
         ],
@@ -138,9 +140,9 @@ export class PlatformChatRepository {
       );
       await client.query(
         `INSERT INTO agent_events
-          (organization_id, run_id, installation_id, event_type, payload, actor_id)
-         VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5)`,
-        [input.organizationId, run.id, input.installationId, JSON.stringify({ triggerType: "message" }), input.actorId],
+          (organization_id, run_id, installation_id, event_type, payload, actor_id, correlation_id)
+         VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5, $6)`,
+        [input.organizationId, run.id, input.installationId, JSON.stringify({ triggerType: "message" }), input.actorId, run.correlation_id],
       );
       await client.query("UPDATE conversations SET updated_at = now() WHERE id = $1", [resolved.conversation.id]);
       return { ...resolved, message: createdMessage.rows[0]!, run, created: true };

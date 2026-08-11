@@ -8,6 +8,7 @@ import type {
 import { query, withTransaction } from "../pool";
 import { validateVersionWorkflow } from "../../workflows/graph";
 import { getAgentTemplate, templateVersionInput } from "../../system/templates";
+import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE_VERSION } from "../../system/kasiai-knowledge";
 
 type DbExecutor = Pool | PoolClient;
 
@@ -203,6 +204,20 @@ export class AgentRepository {
         `INSERT INTO agent_principals (installation_id, organization_id)
          VALUES ($1, $2) ON CONFLICT (installation_id) DO NOTHING`,
         [installation.id, input.organizationId],
+      );
+      // Every template installation is immediately addressable through the
+      // authenticated platform channel. External channels still require an
+      // explicit connection and identity pairing.
+      await client.query(
+        `INSERT INTO channel_connections
+          (organization_id, installation_id, channel_type, channel_key, metadata, created_by)
+         VALUES ($1, $2, 'platform', 'sidebar', $3::jsonb, $4)
+         ON CONFLICT (organization_id, channel_type, channel_key) DO UPDATE
+         SET installation_id = EXCLUDED.installation_id,
+             metadata = EXCLUDED.metadata,
+             status = 'active',
+             updated_at = now()`,
+        [input.organizationId, installation.id, JSON.stringify({ managed: true, channel: "authenticated-platform" }), input.actorId],
       );
       if (created) {
         await client.query(
@@ -780,6 +795,17 @@ export class AgentRepository {
          ON CONFLICT (installation_id) DO NOTHING`,
         [installation.id, input.organizationId],
       );
+      await client.query(
+        `INSERT INTO channel_connections
+          (organization_id, installation_id, channel_type, channel_key, metadata, created_by)
+         VALUES ($1, $2, 'platform', 'sidebar', $3::jsonb, $4)
+         ON CONFLICT (organization_id, channel_type, channel_key) DO UPDATE
+         SET installation_id = EXCLUDED.installation_id,
+             metadata = EXCLUDED.metadata,
+             status = 'active',
+             updated_at = now()`,
+        [input.organizationId, installation.id, JSON.stringify({ managed: true, channel: "authenticated-platform" }), input.actorId],
+      );
       if (installation.created_now) {
         await client.query(
           `INSERT INTO audit_records
@@ -793,6 +819,12 @@ export class AgentRepository {
           ],
         );
       }
+      await this.ensureSystemKnowledge(client, {
+        organizationId: input.organizationId,
+        agentDefinitionId: target.agent_definition_id,
+        installationId: installation.id,
+        actorId: input.actorId,
+      });
       return {
         ...installation,
         agent_name: target.name,
@@ -802,6 +834,70 @@ export class AgentRepository {
         created: installation.created_now,
       };
     });
+  }
+
+  private async ensureSystemKnowledge(
+    client: PoolClient,
+    input: { organizationId: string; agentDefinitionId: string; installationId: string; actorId: string },
+  ): Promise<void> {
+    await client.query(
+      `UPDATE knowledge_sources
+       SET status = 'deleted', deleted_at = now(), updated_at = now()
+       WHERE organization_id = $1 AND agent_definition_id = $2 AND installation_id = $3
+         AND status = 'active' AND provenance->>'kind' = 'kasiai-platform-guidance'
+         AND name <> $4`,
+      [input.organizationId, input.agentDefinitionId, input.installationId, KASIAI_KNOWLEDGE_SOURCE_NAME],
+    );
+    const existing = await client.query<{ id: string; revision: number; provenance: Record<string, unknown> }>(
+      `SELECT id, revision, provenance
+       FROM knowledge_sources
+       WHERE organization_id = $1 AND agent_definition_id = $2 AND installation_id = $3
+         AND name = $4 AND status = 'active'
+       LIMIT 1
+       FOR UPDATE`,
+      [input.organizationId, input.agentDefinitionId, input.installationId, KASIAI_KNOWLEDGE_SOURCE_NAME],
+    );
+    const source = existing.rows[0] ?? (await client.query<{ id: string; revision: number }>(
+      `INSERT INTO knowledge_sources
+        (organization_id, agent_definition_id, installation_id, name, source_type, provenance, created_by)
+       VALUES ($1, $2, $3, $4, 'platform', $5::jsonb, $6)
+       RETURNING id, revision`,
+      [
+        input.organizationId,
+        input.agentDefinitionId,
+        input.installationId,
+        KASIAI_KNOWLEDGE_SOURCE_NAME,
+        JSON.stringify({ kind: "kasiai-platform-guidance", version: KASIAI_KNOWLEDGE_VERSION, managedBy: "kasitek" }),
+        input.actorId,
+      ],
+    )).rows[0]!;
+    const revision = KASIAI_KNOWLEDGE_VERSION;
+    for (const [chunkIndex, text] of KASIAI_KNOWLEDGE_CHUNKS.entries()) {
+      await client.query(
+        `INSERT INTO knowledge_chunks
+          (source_id, organization_id, agent_definition_id, installation_id, revision, chunk_index, canonical_text, metadata, provenance)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb)
+         ON CONFLICT (source_id, revision, chunk_index) DO UPDATE
+         SET canonical_text = EXCLUDED.canonical_text,
+             metadata = EXCLUDED.metadata,
+             provenance = EXCLUDED.provenance`,
+        [
+          source.id,
+          input.organizationId,
+          input.agentDefinitionId,
+          input.installationId,
+          revision,
+          chunkIndex,
+          text,
+          JSON.stringify({ managed: true, knowledgeVersion: KASIAI_KNOWLEDGE_VERSION }),
+          JSON.stringify({ source: KASIAI_KNOWLEDGE_SOURCE_NAME, version: KASIAI_KNOWLEDGE_VERSION, chunkIndex }),
+        ],
+      );
+    }
+    await client.query(
+      `UPDATE knowledge_sources SET revision = $2, provenance = $3::jsonb, updated_at = now() WHERE id = $1`,
+      [source.id, revision, JSON.stringify({ kind: "kasiai-platform-guidance", version: KASIAI_KNOWLEDGE_VERSION, managedBy: "kasitek" })],
+    );
   }
 
   public async getSystemInstallation(input: {

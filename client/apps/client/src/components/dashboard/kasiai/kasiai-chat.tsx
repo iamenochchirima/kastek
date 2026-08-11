@@ -20,6 +20,7 @@ import {
   resolvePlatformConversation,
   sendPlatformMessage,
   streamAgentRun,
+  AgentRequestError,
   type AgentConversation,
   type AgentInstallation,
   type AgentMessage,
@@ -55,6 +56,19 @@ function clampPanelWidth(width: number, leftOffset = 0) {
   return Math.min(bounds.max, Math.max(bounds.min, width));
 }
 
+function formatAgentError(cause: unknown, fallback: string): string {
+  if (!(cause instanceof AgentRequestError)) {
+    return cause instanceof Error ? cause.message : fallback;
+  }
+  if (cause.status === 503) return "KasiAi is temporarily unavailable. Check that the Agent Platform and model provider are running, then try again.";
+  if (cause.status === 504) return "KasiAi took too long to respond. You can retry this request.";
+  if (cause.status === 403 && /installation|disabled|paused/i.test(cause.message)) return "KasiAi is paused for this workspace. Resume the installation from Agents to continue.";
+  if (/credential|model provider|api key|authentication/i.test(cause.message)) return "KasiAi's model credentials are not configured. Add the configured provider credentials before sending messages.";
+  if (/budget|limit|quota/i.test(cause.message)) return "This run exceeded the current agent budget. Try a shorter request or contact an administrator.";
+  if (/approval.*(expired|expire)/i.test(cause.message)) return "The approval window expired. Start the request again if it is still needed.";
+  return cause.message || fallback;
+}
+
 export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boolean; onOpenChange: (open: boolean) => void; leftOffset?: number }) {
   const [installation, setInstallation] = useState<AgentInstallation | null>(null);
   const [conversation, setConversation] = useState<AgentConversation | null>(null);
@@ -76,6 +90,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const restoreScroll = useRef<{ height: number; top: number } | null>(null);
   const resizeStart = useRef<{ pointerX: number; width: number } | null>(null);
   const initializationAttempted = useRef(false);
+  const closeButton = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const storedWidth = window.localStorage.getItem(KASIAI_PANEL_WIDTH_KEY);
@@ -129,7 +144,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       setHasMoreMessages(Boolean(response.hasMore));
       setNextBefore(response.nextBefore ?? null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to load earlier messages");
+      setError(formatAgentError(cause, "Unable to load earlier messages"));
     } finally {
       setLoadingOlder(false);
     }
@@ -157,7 +172,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
         setHasMoreMessages(Boolean(resolved.hasMore));
         setNextBefore(resolved.nextBefore ?? null);
       } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : "KasiAi is unavailable");
+        if (!cancelled) setError(formatAgentError(cause, "KasiAi is unavailable"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -166,6 +181,16 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       cancelled = true;
     };
   }, [initializationKey, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    closeButton.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onOpenChange(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onOpenChange, open]);
 
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -238,7 +263,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       await loadConversation(accepted.conversation.id);
     } catch (cause) {
       if (!(cause instanceof DOMException && cause.name === "AbortError")) {
-        setError(cause instanceof Error ? cause.message : "KasiAi could not complete this request");
+        setError(formatAgentError(cause, "KasiAi could not complete this request"));
       }
     } finally {
       streamAbort.current = null;
@@ -252,7 +277,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     try {
       await cancelAgentRun(activeRunId);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to stop the run");
+      setError(formatAgentError(cause, "Unable to stop the run"));
     } finally {
       streamAbort.current?.abort();
       streamAbort.current = null;
@@ -273,7 +298,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       setHasMoreMessages(Boolean(response.hasMore));
       setNextBefore(response.nextBefore ?? null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to start a new conversation");
+      setError(formatAgentError(cause, "Unable to start a new conversation"));
     } finally {
       setLoading(false);
     }
@@ -301,6 +326,8 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       role="dialog"
       aria-modal="false"
       aria-labelledby="kasiai-chat-title"
+      aria-describedby="kasiai-chat-description"
+      tabIndex={-1}
     >
       <div
         className="group absolute inset-y-0 -left-2 z-10 hidden w-4 cursor-ew-resize touch-none items-center justify-center sm:flex"
@@ -336,25 +363,31 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
           </span>
           <div className="min-w-0">
             <h2 id="kasiai-chat-title" className="truncate text-sm font-semibold text-foreground">KasiAi</h2>
-            <p className="text-[11px] text-muted-foreground">Your KasiTek platform guide</p>
+            <p id="kasiai-chat-description" className="text-[11px] text-muted-foreground">Your KasiTek platform guide</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="icon" onClick={() => void startNewConversation()} disabled={!installation || sending || loading} aria-label="Start a new KasiAi conversation" title="New conversation">
             <RotateCcw className="h-4 w-4" />
           </Button>
-          <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Close KasiAi">
+          <Button ref={closeButton} type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Close KasiAi">
             <X className="h-4 w-4" />
           </Button>
         </div>
       </header>
 
-      <div ref={messagesViewport} className="flex-1 overflow-y-auto px-4 py-4" aria-live="polite" aria-busy={loading || sending}>
+      <div ref={messagesViewport} className="flex-1 overflow-y-auto px-4 py-4" aria-busy={loading || sending}>
         {hasMoreMessages ? <div className="mb-3 flex justify-center"><Button type="button" variant="outline" size="sm" onClick={() => void loadOlder()} disabled={loadingOlder}>{loadingOlder ? "Loading earlier…" : "Load earlier messages"}</Button></div> : null}
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
             <LoaderCircle className="h-4 w-4 animate-spin" />
             Preparing KasiAi…
+          </div>
+        ) : null}
+        {!loading && installation && installation.status !== "active" ? (
+          <div className="rounded-xl border border-status-attention/30 bg-status-attention-soft px-4 py-4 text-center" role="status">
+            <p className="text-sm font-medium text-status-attention">KasiAi is {installation.status} for this workspace.</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">Resume the installation from Agents before sending a new message.</p>
           </div>
         ) : null}
         {!loading && !messages.length && !error ? (
@@ -384,6 +417,9 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
             KasiAi is working…
           </div>
         ) : null}
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {loading ? "Preparing KasiAi." : sending ? "KasiAi is working." : error ?? ""}
+        </div>
         <div ref={messagesEnd} />
       </div>
 
@@ -407,7 +443,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
             }}
             placeholder="Ask KasiAi…"
             rows={2}
-            disabled={loading || !installation || Boolean(error && !conversation)}
+            disabled={loading || !installation || installation.status !== "active" || Boolean(error && !conversation)}
             className="max-h-32 min-h-12 w-full resize-none bg-transparent px-1 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground"
             aria-label="Message KasiAi"
           />
@@ -419,7 +455,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
                 Stop
               </Button>
             ) : (
-              <Button type="button" size="sm" onClick={() => void send()} disabled={!draft.trim() || loading || !installation}>
+              <Button type="button" size="sm" onClick={() => void send()} disabled={!draft.trim() || loading || !installation || installation.status !== "active"}>
                 <Send className="h-3.5 w-3.5" />
                 Send
               </Button>

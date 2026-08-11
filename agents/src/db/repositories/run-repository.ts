@@ -100,9 +100,9 @@ export class RunRepository {
         [run.id, organizationId],
       );
       await client.query(
-        `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, actor_id)
-         VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5)`,
-        [organizationId, run.id, input.installationId, JSON.stringify({ triggerType: input.triggerType }), actorId],
+        `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, actor_id, correlation_id)
+         VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5, $6)`,
+        [organizationId, run.id, input.installationId, JSON.stringify({ triggerType: input.triggerType }), actorId, run.correlation_id],
       );
       return { ...run, created: true };
     });
@@ -150,9 +150,9 @@ export class RunRepository {
       );
       await client.query(
         `INSERT INTO agent_events
-          (organization_id, run_id, installation_id, event_type, payload)
-         VALUES ($1, $2, $3, $4, $5::jsonb)`,
-        [run.organization_id, runId, run.installation_id, `run.${nextStatus}`, JSON.stringify(payload)],
+          (organization_id, run_id, installation_id, event_type, payload, correlation_id)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+        [run.organization_id, runId, run.installation_id, `run.${nextStatus}`, JSON.stringify(payload), run.correlation_id],
       );
       if (terminal) {
         const attemptStatus = nextStatus === "cancelled" ? "cancelled" : nextStatus === "failed" ? "failed" : "completed";
@@ -226,9 +226,9 @@ export class RunRepository {
         [runId, JSON.stringify(output)],
       );
       await client.query(
-        `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload)
-         VALUES ($1, $2, $3, 'run.completed', $4::jsonb)`,
-        [run.organization_id, runId, run.installation_id, JSON.stringify(output)],
+        `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, correlation_id)
+         VALUES ($1, $2, $3, 'run.completed', $4::jsonb, $5)`,
+        [run.organization_id, runId, run.installation_id, JSON.stringify(output), run.correlation_id],
       );
       await client.query(
         `UPDATE run_attempts SET status = 'completed', finished_at = now()
@@ -256,9 +256,9 @@ export class RunRepository {
         [runId, status, JSON.stringify(output)],
       );
       await client.query(
-        `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload)
-         VALUES ($1, $2, $3, $4, $5::jsonb)`,
-        [run.organization_id, runId, run.installation_id, `run.${status}`, JSON.stringify(output)],
+        `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, correlation_id)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+        [run.organization_id, runId, run.installation_id, `run.${status}`, JSON.stringify(output), run.correlation_id],
       );
       return updated.rows[0]!;
     });
@@ -303,9 +303,9 @@ export class RunRepository {
         [runId, JSON.stringify(error)],
       );
       await client.query(
-        `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload)
-         VALUES ($1, $2, $3, 'run.failed', $4::jsonb)`,
-        [run.organization_id, runId, run.installation_id, JSON.stringify(error)],
+        `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, correlation_id)
+         VALUES ($1, $2, $3, 'run.failed', $4::jsonb, $5)`,
+        [run.organization_id, runId, run.installation_id, JSON.stringify(error), run.correlation_id],
       );
       await client.query(
         `UPDATE run_attempts SET status = 'failed', error = $2::jsonb, finished_at = now()
@@ -356,8 +356,10 @@ export class RunRepository {
     await query(
       this.pool,
       `INSERT INTO agent_events
-        (organization_id, run_id, installation_id, event_type, payload, spec_version, source, subject, data_content_type)
-       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)`,
+        (organization_id, run_id, installation_id, event_type, payload, spec_version, source, subject, data_content_type, correlation_id)
+       SELECT $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, agent_runs.correlation_id
+       FROM agent_runs
+       WHERE agent_runs.id = $2 AND agent_runs.organization_id = $1`,
       [input.organizationId, input.runId, input.installationId, input.eventType, JSON.stringify(event.data), event.specversion, event.source, event.subject, event.datacontenttype],
     );
   }

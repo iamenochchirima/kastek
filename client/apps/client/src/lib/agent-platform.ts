@@ -44,6 +44,17 @@ type ConversationResponse = {
   nextBefore?: string | null;
 };
 
+export class AgentRequestError extends Error {
+  public constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+  ) {
+    super(message);
+    this.name = "AgentRequestError";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(apiUrl(path), {
     ...init,
@@ -55,13 +66,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     let detail = "";
+    let code: string | undefined;
     try {
-      const body = (await response.json()) as { error?: string };
+      const body = (await response.json()) as { error?: string; code?: string };
       detail = body.error ? `: ${body.error}` : "";
+      code = body.code;
     } catch {
       // Keep the status-only error when the proxy returned a non-JSON response.
     }
-    throw new Error(`Agent request failed (${response.status})${detail}`);
+    throw new AgentRequestError(`Agent request failed (${response.status})${detail}`, response.status, code);
   }
   return response.json() as Promise<T>;
 }
@@ -219,7 +232,7 @@ export async function streamAgentRun(
     headers: { Accept: "text/event-stream" },
   });
   if (!response.ok || !response.body) {
-    throw new Error(`Agent stream failed (${response.status})`);
+    throw new AgentRequestError(`Agent stream failed (${response.status})`, response.status);
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();

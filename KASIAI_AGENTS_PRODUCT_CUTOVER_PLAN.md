@@ -5,6 +5,12 @@
 **Cutover type:** One-way replacement of the legacy bot system  
 **Last updated:** 2026-08-11
 
+**Current implementation evidence:** The local Agent Platform database has migrations 001–019
+applied. The database-backed Agent Platform suite passes 78 tests, including installation,
+knowledge, channel, run, isolation, and platform-chat integration coverage. The client production
+build and `cargo check -p kasitek-core` pass. Production deployment, Temporal Cloud recovery, and
+live provider smoke tests remain deployment-dependent.
+
 ## 1. Outcome
 
 This checklist covers the first complete product delivery on the shared Agent Platform:
@@ -89,11 +95,15 @@ installation/conversation/run contracts instead of creating another KasiAi imple
   before changing the run to `completed`.
 - [x] The SSE stream is connected to the KasiTek client.
 - [x] `kasitek-core` proxies authenticated Agent Platform control-plane and chat calls.
-- [ ] The Agent Platform internal signing secret and URL are not configured across both services.
+- [ ] Configure the Agent Platform internal signing secret and URL in each deployed environment.
+  **The local core/agents environments are configured and verified; production deployment remains
+  pending.**
 - [x] The sidebar has a KasiAi chat surface.
 - [x] `/agents`, `/agents/activity`, and `/agents/analytics` no longer read the legacy `/api/bots`
   system.
-- [ ] The destructive database migration still needs to be applied in each deployed environment;
+- [ ] Apply the destructive database migration in each deployed environment. **The current
+  migration set, including the legacy bot purge, is applied and verified in the local `kasitek`
+  database; deployed databases remain pending.**
   live Rust routes, services, callbacks, and generated models have been removed.
 - [x] A server-owned initial Agent Platform template catalog exists.
 
@@ -143,7 +153,9 @@ The recorded dependency and row-count inventory is in
 - [x] Keep KasiAi's provider credential environment-backed and KasiTek-funded; never store it in
   the definition or Temporal workflow input.
 - [x] Add production startup validation for the selected KasiAi model/provider credential.
-- [ ] Seed or ingest the initial platform-guidance knowledge with explicit provenance and version.
+- [x] Seed or ingest the initial platform-guidance knowledge with explicit provenance and version.
+  **Each KasiAi installation receives the versioned, organization-scoped v1 guidance corpus during
+  idempotent installation reconciliation.**
 - [x] Add a controlled release command that validates and publishes a new protected version while
   recording the prior version for rollback metadata (`pnpm release:kasiai`).
 - [x] Do not automatically move active installations to a new version; `pnpm release:kasiai --rollout`
@@ -231,7 +243,9 @@ also work for template-created agents.
   `kasitek-core` with production startup validation.
 - [x] Reuse the current authenticated session and active organization resolution.
 - [x] Sign short-lived internal claims containing organization, actor, audience, expiry, and scopes.
-- [ ] Add a request correlation ID to the signed claims and propagate it through runs/events.
+- [x] Add a request correlation ID to the signed claims and propagate it through runs/events.
+  **Core signs a UUID correlation claim and header; message runs and Agent Platform events persist
+  the same correlation ID.**
 - [ ] Extend claims for agent/version/installation/run context where required by tool execution.
 - [x] Add a typed Rust Agent Platform client with bounded timeouts and safe error mapping.
 - [x] Add authenticated product endpoints for KasiAi installation, platform conversation/history,
@@ -242,7 +256,8 @@ also work for template-created agents.
   mutations require the capability in `kasitek-core`.
 - [x] Add initial request/response contract tests between Rust and TypeScript for HMAC claim shape
   and sanitized chat payloads.
-- [ ] Add correlation IDs to core logs, Agent Platform events, runs, and tool calls.
+- [x] Add correlation IDs to core logs, Agent Platform events, runs, and tool calls.
+  **Run correlation IDs are persisted on lifecycle events and passed into core tool calls.**
 
 **Exit gate**
 
@@ -260,8 +275,9 @@ also work for template-created agents.
 - [x] Stream status and the final response from the durable SSE endpoint.
 - [x] Support stop/cancel, retry after safe failures, reconnect after network loss, and explicit new
   conversation creation.
-- [ ] Show useful states for unconfigured model credentials, disabled installation, exceeded
-  budget, service unavailable, failed run, and expired approval.
+- [x] Show useful states for unconfigured model credentials, disabled installation, exceeded
+  budget, service unavailable, failed run, and expired approval. **The sidebar maps typed upstream
+  failures and prevents sends while an installation is paused or disabled.**
 - [x] Pass current page context only through the core-sanitized context field. Resource context
   remains intentionally unavailable until a core authorization boundary exists.
 - [x] Render text safely; do not permit arbitrary model-generated HTML.
@@ -328,8 +344,9 @@ also work for template-created agents.
   operations exposed through the authenticated core bridge.
 - [x] Add safe deletion semantics: archive definitions and preserve historical runs; do not hard
   delete active agent history from normal user controls.
-- [ ] Bind the platform channel by default so a newly created template agent can be tested in the
-  product immediately.
+- [x] Bind the platform channel by default so a newly created template agent can be tested in the
+  product immediately. **Template and system installations reconcile an authenticated platform
+  channel connection; external channels still require explicit pairing.**
 - [x] Add a `Test agent` chat surface on the agent detail page using the same generic chat contract.
 - [ ] Make user-provided model credentials optional; use KasiTek-funded credentials where plan and
   policy allow.
@@ -355,7 +372,8 @@ also work for template-created agents.
 
 - [x] Write the initial protected instructions around platform guidance, user intent, uncertainty,
   tool use, data boundaries, and escalation.
-- [ ] Add versioned platform navigation and product-help knowledge.
+- [x] Add versioned platform navigation and product-help knowledge. **KasiAi installation
+  reconciliation seeds the organization-scoped v1 guidance corpus with provenance.**
 - [x] Add the first read-only tool contracts required for useful guidance, including workspace
   connection/status inspection, through the authenticated `kasitek-core` boundary.
 - [x] Grant only the fixed read-only tools required by the first release (`platform.current_time`
@@ -364,7 +382,9 @@ also work for template-created agents.
   changes, billing changes, and other external effects unavailable in the first release.
 - [ ] Add evaluation scenarios for navigation guidance, unavailable features, organization
   isolation, prompt injection, tool denial, refusal of ungranted actions, and correct handoff.
-- [ ] Add a release evaluation gate for every new KasiAi version.
+- [x] Add a release evaluation gate for every new KasiAi version. **`release:kasiai` blocks
+  publication unless the protected instructions, read-only tools, knowledge version, and bounded
+  execution policy pass the static gate.**
 - [ ] Add global and organization kill-switch tests.
 
 **Exit gate**

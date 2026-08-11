@@ -21,12 +21,19 @@ describe.skipIf(!runIntegration)("agent template installation (integration)", ()
     expect(second.installation.id).toBe(first.installation.id);
     expect(second.version.status).toBe("published");
     expect(second.installation.settings).toMatchObject({ templateKey: "lead-intake", templateVersion: 1 });
+    const channels = await pool.query<{ channel_type: string; channel_key: string }>(
+      "SELECT channel_type, channel_key FROM channel_connections WHERE organization_id = $1 AND installation_id = $2",
+      [organizationId, first.installation.id],
+    );
+    expect(channels.rows).toEqual([{ channel_type: "platform", channel_key: "sidebar" }]);
   });
 
   beforeAll(async () => { await pool.query("SELECT 1"); });
 
   afterAll(async () => {
     await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM channel_bindings WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM channel_connections WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_tool_grants WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_principals WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);

@@ -68,6 +68,7 @@ function requireAuth(request: FastifyRequest, config: AppConfig): AuthContext {
       authorization: headerValue(request, "authorization"),
       organizationId: headerValue(request, "x-organization-id"),
       actorId: headerValue(request, "x-actor-id"),
+      correlationId: headerValue(request, "x-correlation-id"),
     },
     config,
   );
@@ -328,6 +329,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         organizationId: auth.organizationId,
         installationId: request.params.installationId,
         actorId: auth.actorId,
+        correlationId: auth.correlationId,
         ...input,
       });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
