@@ -32,6 +32,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     "/operations/summary",
                     web::get().to(agent_platform::operations_summary),
                 )
+                .route(
+                    "/operations/health",
+                    web::get().to(agent_platform::operations_health),
+                )
                 .route("/audit", web::get().to(agent_platform::list_audit))
                 .route("/templates", web::get().to(agent_platform::list_templates))
                 .route(

@@ -82,6 +82,18 @@ pub async fn operations_summary(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn operations_health(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .operations_health(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AuditQuery {
     pub action: Option<String>,

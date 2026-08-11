@@ -6,10 +6,12 @@
 **Last updated:** 2026-08-11
 
 **Current implementation evidence:** The local Agent Platform database has migrations 001–019
-applied. The database-backed Agent Platform suite passes 78 tests, including installation,
+applied. The database-backed Agent Platform suite passes 79 tests, including installation,
 knowledge, channel, run, isolation, and platform-chat integration coverage. The client production
-build and `cargo check -p kasitek-core` pass. Production deployment, Temporal Cloud recovery, and
-live provider smoke tests remain deployment-dependent.
+build and `cargo check -p kasitek-core` pass. Authenticated runtime health is now exposed through
+the Agent Activity page and reports database, Temporal, and model-provider readiness without
+returning credentials. The internal admin fleet surface, production deployment, Temporal Cloud
+recovery, and live provider smoke tests remain deployment-dependent.
 
 ## 1. Outcome
 

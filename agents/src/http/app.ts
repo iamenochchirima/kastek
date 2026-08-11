@@ -580,6 +580,54 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     };
   });
 
+  app.get("/v1/operations/health", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const checkedAt = new Date().toISOString();
+    const startedAt = Date.now();
+    try {
+      await dependencies.pool.query("SELECT 1");
+      const provider = dependencies.config.KASIAI_MODEL_PROVIDER ?? "openrouter";
+      const model = dependencies.config.KASIAI_MODEL ?? "openai/gpt-4o-mini";
+      const credentialKey = {
+        openrouter: "OPENROUTER_API_KEY",
+        openai: "OPENAI_API_KEY",
+        anthropic: "ANTHROPIC_API_KEY",
+        gemini: "GEMINI_API_KEY",
+      }[provider];
+      return {
+        status: "ready",
+        checkedAt,
+        database: { status: "ready", latencyMs: Date.now() - startedAt },
+        temporal: {
+          enabled: dependencies.config.TEMPORAL_ENABLED,
+          mode: dependencies.config.TEMPORAL_MODE,
+          address: dependencies.config.TEMPORAL_ADDRESS,
+          namespace: dependencies.config.TEMPORAL_NAMESPACE,
+          taskQueue: dependencies.config.TEMPORAL_TASK_QUEUE,
+        },
+        model: {
+          provider,
+          model,
+          credentialConfigured: Boolean(process.env[credentialKey]?.trim()),
+        },
+      };
+    } catch (error) {
+      app.log.error(error);
+      return {
+        status: "degraded",
+        checkedAt,
+        database: { status: "unavailable", latencyMs: Date.now() - startedAt },
+        temporal: { enabled: dependencies.config.TEMPORAL_ENABLED, mode: dependencies.config.TEMPORAL_MODE },
+        model: {
+          provider: dependencies.config.KASIAI_MODEL_PROVIDER ?? "openrouter",
+          model: dependencies.config.KASIAI_MODEL ?? "openai/gpt-4o-mini",
+          credentialConfigured: false,
+        },
+      };
+    }
+  });
+
   app.get<{ Querystring: { action?: string; resourceType?: string; limit?: string } }>("/v1/audit", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");

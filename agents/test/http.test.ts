@@ -229,6 +229,20 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("reports dependency health without exposing provider credentials", async () => {
+    const app = buildApp({ config, pool: fakePool });
+    const response = await app.inject({ method: "GET", url: "/v1/operations/health", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "ready",
+      database: { status: "ready" },
+      temporal: { enabled: false },
+      model: { provider: "openrouter", credentialConfigured: false },
+    });
+    expect(JSON.stringify(response.json())).not.toContain("API_KEY");
+    await app.close();
+  });
+
   it("exposes organization-scoped audit records with filters", async () => {
     const app = buildApp({
       config,

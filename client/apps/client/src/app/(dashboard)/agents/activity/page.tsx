@@ -19,12 +19,20 @@ type OperationsSummary = {
   runs: { runsByStatus: Array<{ status: string; count: number }>; oldestQueuedAt: string | null };
 };
 
+type OperationsHealth = {
+  status: string;
+  database: { status: string; latencyMs?: number };
+  temporal: { enabled: boolean; mode?: string; namespace?: string; taskQueue?: string };
+  model: { provider: string; model: string; credentialConfigured: boolean };
+};
+
 export default async function AgentActivityPage() {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
-  const [audit, summary] = await Promise.all([
+  const [audit, summary, health] = await Promise.all([
     fetchRustJson<{ records: AuditRecord[] }>("/api/agents/audit?limit=100").catch(() => ({ records: [] })),
     fetchRustJson<OperationsSummary>("/api/agents/operations/summary").catch(() => ({ runs: { runsByStatus: [], oldestQueuedAt: null } })),
+    fetchRustJson<OperationsHealth>("/api/agents/operations/health").catch((): OperationsHealth => ({ status: "unavailable", database: { status: "unavailable" }, temporal: { enabled: false }, model: { provider: "unknown", model: "unknown", credentialConfigured: false } })),
   ]);
   const totalRuns = summary.runs.runsByStatus.reduce((total, entry) => total + entry.count, 0);
 
@@ -55,6 +63,14 @@ export default async function AgentActivityPage() {
               ))}
             </div>
           )}
+        </section>
+        <section className="mt-6 rounded-xl border border-border bg-card p-6" aria-labelledby="agent-health-heading">
+          <div className="flex items-center justify-between gap-4"><div><h2 id="agent-health-heading" className="text-lg font-semibold text-foreground">Runtime health</h2><p className="mt-1 text-sm text-muted-foreground">Dependency status for the Agent Platform serving this workspace.</p></div><span className="rounded-full border border-border px-2.5 py-1 text-xs font-medium capitalize text-foreground">{health.status}</span></div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-3">
+            <div><p className="text-xs text-muted-foreground">Database</p><p className="mt-1 text-sm font-medium text-foreground">{health.database.status}{health.database.latencyMs !== undefined ? ` · ${health.database.latencyMs}ms` : ""}</p></div>
+            <div><p className="text-xs text-muted-foreground">Temporal</p><p className="mt-1 text-sm font-medium text-foreground">{health.temporal.enabled ? `${health.temporal.mode ?? "configured"} · ${health.temporal.taskQueue ?? "task queue pending"}` : "Disabled locally"}</p></div>
+            <div><p className="text-xs text-muted-foreground">Model provider</p><p className="mt-1 text-sm font-medium text-foreground">{health.model.provider} · {health.model.credentialConfigured ? "credential configured" : "credential missing"}</p></div>
+          </div>
         </section>
       </div>
     </div>
