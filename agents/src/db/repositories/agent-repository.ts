@@ -341,6 +341,68 @@ export class AgentRepository {
     });
   }
 
+  public async releaseSystemVersion(
+    actorId: string,
+    agentId: string,
+    input: CreateVersionInput,
+  ): Promise<AgentVersionRecord> {
+    validateVersionWorkflow(input.configuration);
+    return withTransaction(this.pool, async (client) => {
+      const agent = await client.query<AgentRecord>(
+        `SELECT * FROM agent_definitions
+         WHERE id = $1 AND owner_type = 'system' AND protected = TRUE
+         FOR UPDATE`,
+        [agentId],
+      );
+      if (!agent.rows[0]) throw new Error("Protected system agent not found");
+      const current = await client.query<AgentVersionRecord>(
+        `SELECT * FROM agent_versions WHERE agent_definition_id = $1 AND status = 'published' LIMIT 1 FOR UPDATE`,
+        [agentId],
+      );
+      if (current.rows[0]?.instructions === input.instructions
+        && JSON.stringify(current.rows[0].configuration) === JSON.stringify(input.configuration)
+        && JSON.stringify(current.rows[0].policy) === JSON.stringify(input.policy)) return current.rows[0];
+      const next = await client.query<{ version_number: number }>(
+        `SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number
+         FROM agent_versions WHERE agent_definition_id = $1`,
+        [agentId],
+      );
+      if (current.rows[0]) {
+        await client.query("UPDATE agent_versions SET status = 'retired' WHERE id = $1", [current.rows[0].id]);
+      }
+      const versionNumber = Number(next.rows[0]!.version_number);
+      const created = await client.query<AgentVersionRecord>(
+        `INSERT INTO agent_versions
+          (agent_definition_id, version_number, status, instructions, configuration, policy,
+           checksum, created_by, published_at)
+         VALUES ($1, $2, 'published', $3, $4::jsonb, $5::jsonb, $6, $7, now())
+         RETURNING *`,
+        [agentId, versionNumber, input.instructions, JSON.stringify(input.configuration), JSON.stringify(input.policy), checksumVersion(input, versionNumber), actorId],
+      );
+      const version = created.rows[0]!;
+      const allowedTools = Array.isArray(input.policy.allowedTools)
+        ? input.policy.allowedTools.filter((tool): tool is string => typeof tool === "string" && tool.trim().length > 0)
+        : [];
+      for (const toolName of allowedTools) {
+        await client.query(
+          `INSERT INTO agent_tool_grants
+            (organization_id, agent_version_id, tool_name, granted_by)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
+             WHERE revoked_at IS NULL DO NOTHING`,
+          [agent.rows[0].organization_id, version.id, toolName.trim(), actorId],
+        );
+      }
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'system', $2, 'system_agent_version.released', 'agent_version', $3, $4::jsonb)`,
+        [agent.rows[0].organization_id, actorId, version.id, JSON.stringify({ agentId, previousVersionId: current.rows[0]?.id ?? null })],
+      );
+      return version;
+    });
+  }
+
   public async getAgent(organizationId: string, agentId: string): Promise<AgentRecord | null> {
     const result = await query<AgentRecord>(
       this.pool,

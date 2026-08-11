@@ -6,7 +6,8 @@
 //! query is scoped by that organisation in the service layer.
 
 use actix_web::{web, HttpRequest, HttpResponse};
-use sqlx::PgPool;
+use serde_json::json;
+use sqlx::{PgPool, Row};
 
 use crate::config::AppConfig;
 use crate::error::AppError;
@@ -73,4 +74,39 @@ pub async fn get_customer(
         customer_id
     );
     Ok(HttpResponse::Ok().json(detail))
+}
+
+/// Return the small, non-sensitive workspace snapshot used for platform
+/// guidance. Counts and connection health are scoped by the signed
+/// organization header; credentials and provider payloads never cross this
+/// boundary.
+pub async fn get_workspace_status(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, actor_id) = require_internal_agent(config.get_ref(), &req)?;
+    let rows = sqlx::query(
+        r#"SELECT provider, status::text AS status, COUNT(*)::bigint AS count
+           FROM "ExternalConnection"
+           WHERE "orgId" = $1
+           GROUP BY provider, status
+           ORDER BY provider, status"#,
+    )
+    .bind(&organization_id)
+    .fetch_all(pool.get_ref())
+    .await?;
+    log::info!(
+        "agent core read tool=workspace.status org_id={} actor_id={}",
+        organization_id,
+        actor_id
+    );
+    Ok(HttpResponse::Ok().json(json!({
+        "organizationId": organization_id,
+        "connections": rows.into_iter().map(|row| json!({
+            "provider": row.get::<String, _>("provider"),
+            "status": row.get::<String, _>("status"),
+            "count": row.get::<i64, _>("count"),
+        })).collect::<Vec<_>>(),
+    })))
 }

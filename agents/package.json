@@ -15,6 +15,7 @@
     "start:worker": "node dist/temporal/worker.js",
     "migrate": "tsx src/db/migrate.ts",
     "bootstrap:kasiai": "tsx src/system/bootstrap-kasiai.ts",
+    "release:kasiai": "tsx src/system/release-kasiai.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -44,4 +44,15 @@ describe("kasitek-core read boundary", () => {
     const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents" });
     await expect(new KasitekCoreReadClient(config).getCustomer(context, "cust-1")).rejects.toMatchObject({ code: "CORE_UNAVAILABLE" });
   });
+
+  it("reads a workspace status snapshot through the scoped boundary", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ organizationId: "org-1", connections: [] }), { status: 200 })));
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).getWorkspaceStatus(context)).resolves.toMatchObject({ organizationId: "org-1" });
+    expect(fetch).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/workspace/status", expect.any(Object));
+  });
 });

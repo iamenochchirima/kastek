@@ -15,10 +15,17 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             web::scope("/api/realtime")
                 .route("/whatsapp", web::get().to(realtime::whatsapp_stream)),
         )
-        .service(web::scope("/api/internal/agents/v1").route(
-            "/customers/{id}",
-            web::get().to(agent_internal::get_customer),
-        ))
+        .service(
+            web::scope("/api/internal/agents/v1")
+                .route(
+                    "/customers/{id}",
+                    web::get().to(agent_internal::get_customer),
+                )
+                .route(
+                    "/workspace/status",
+                    web::get().to(agent_internal::get_workspace_status),
+                ),
+        )
         .service(
             web::scope("/api/agents")
                 .route("", web::get().to(agent_platform::list_agents))

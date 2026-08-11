@@ -16,6 +16,11 @@ export interface CoreCustomerDetail {
   agentEvents: unknown[];
 }
 
+export interface CoreWorkspaceStatus {
+  organizationId: string;
+  connections: Array<{ provider: string; status: string; count: number }>;
+}
+
 export class CoreToolError extends Error {
   public constructor(public readonly code: string, message: string) {
     super(message);
@@ -73,6 +78,45 @@ export class KasitekCoreReadClient {
       if (error instanceof DOMException && error.name === "AbortError") {
         throw new CoreToolError("CORE_TIMEOUT", "kasitek-core read timed out");
       }
+      throw new CoreToolError("CORE_REQUEST_FAILED", error instanceof Error ? error.message : "kasitek-core request failed");
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  public async getWorkspaceStatus(context: ToolInvocationContext): Promise<CoreWorkspaceStatus> {
+    return this.getJson<CoreWorkspaceStatus>(context, "/api/internal/agents/v1/workspace/status", "Workspace status");
+  }
+
+  private async getJson<T>(context: ToolInvocationContext, path: string, label: string): Promise<T> {
+    const baseUrl = this.config.KASITEK_CORE_URL?.replace(/\/$/, "");
+    const token = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
+    if (!baseUrl || !token) throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core read boundary is not configured");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.config.KASITEK_CORE_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: "GET",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "x-organization-id": context.organizationId,
+          "x-actor-id": context.actorId ?? "kasitek-agent-platform",
+          "x-agent-run-id": context.runId,
+          "x-correlation-id": context.correlationId,
+          accept: "application/json",
+        },
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) throw new CoreToolError("CORE_UNAUTHORIZED", "kasitek-core rejected the agent credential");
+        throw new CoreToolError("CORE_REQUEST_FAILED", `kasitek-core returned ${response.status}`);
+      }
+      const payload: unknown = await response.json();
+      if (!payload || typeof payload !== "object") throw new CoreToolError("CORE_INVALID_RESPONSE", `kasitek-core returned invalid ${label.toLowerCase()} data`);
+      return payload as T;
+    } catch (error) {
+      if (error instanceof CoreToolError) throw error;
+      if (error instanceof DOMException && error.name === "AbortError") throw new CoreToolError("CORE_TIMEOUT", "kasitek-core read timed out");
       throw new CoreToolError("CORE_REQUEST_FAILED", error instanceof Error ? error.message : "kasitek-core request failed");
     } finally {
       clearTimeout(timeout);

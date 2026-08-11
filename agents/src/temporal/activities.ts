@@ -77,6 +77,25 @@ function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegistry {
       return coreClient.getCustomer(context, String(args.customerId));
     },
   });
+  tools.register({
+    name: "kasitek.core.workspace_status",
+    version: "1.0.0",
+    description: "Read connection providers and health statuses for the current KasiTek workspace.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 12_000,
+    inputSchema: { type: "object", additionalProperties: false },
+    outputSchema: {
+      type: "object",
+      properties: { organizationId: { type: "string" }, connections: { type: "array" } },
+      required: ["organizationId", "connections"],
+      additionalProperties: false,
+    },
+    handler: async (context) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.getWorkspaceStatus(context);
+    },
+  });
   return tools;
 }
 

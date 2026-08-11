@@ -349,8 +349,8 @@ also work for template-created agents.
 - [ ] Write the initial protected instructions around platform guidance, user intent, uncertainty,
   tool use, data boundaries, and escalation.
 - [ ] Add versioned platform navigation and product-help knowledge.
-- [ ] Add the first read-only tool contracts required for useful guidance, such as workspace
-  summary and connection/status inspection, through `kasitek-core` authorization.
+- [x] Add the first read-only tool contracts required for useful guidance, including workspace
+  connection/status inspection, through the authenticated `kasitek-core` boundary.
 - [ ] Grant only the fixed read-only tools required by the first release.
 - [ ] Keep content publishing, campaign sending, customer mutation, booking creation, credential
   changes, billing changes, and other external effects unavailable in the first release.

@@ -31,9 +31,9 @@ export function kasiaiInitialVersion(config: AppConfig) {
       maxWallTimeMs: 45_000,
     },
     policy: {
-      allowedTools: ["platform.current_time"],
+      allowedTools: ["platform.current_time", "kasitek.core.workspace_status"],
       modelPolicy: {
-        version: "kasiai-initial-v1",
+        version: "kasiai-initial-v2",
         primary: {
           provider: config.KASIAI_MODEL_PROVIDER,
           model: config.KASIAI_MODEL,
