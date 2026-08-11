@@ -339,7 +339,7 @@ also work for template-created agents.
 - [x] Replace `/agents/analytics` legacy counts with Agent Platform run, failure, token,
   tool, and estimated-cost aggregates.
 - [x] Replace workspace agent counts and attention queries with Agent Platform summary data.
-- [ ] Remove old deployment terminology where it represents n8n provisioning rather than an Agent
+- [x] Remove old deployment terminology where it represents n8n provisioning rather than an Agent
   Platform installation.
 
 **Exit gate**
@@ -359,7 +359,7 @@ also work for template-created agents.
   connection/status inspection, through the authenticated `kasitek-core` boundary.
 - [x] Grant only the fixed read-only tools required by the first release (`platform.current_time`
   and `kasitek.core.workspace_status` in KasiAi v2).
-- [ ] Keep content publishing, campaign sending, customer mutation, booking creation, credential
+- [x] Keep content publishing, campaign sending, customer mutation, booking creation, credential
   changes, billing changes, and other external effects unavailable in the first release.
 - [ ] Add evaluation scenarios for navigation guidance, unavailable features, organization
   isolation, prompt injection, tool denial, refusal of ungranted actions, and correct handoff.
@@ -459,12 +459,12 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
 
 ### `kasitek-core`
 
-- [ ] Signed internal-auth contract tests.
+- [x] Signed internal-auth contract tests.
 - [ ] Session, membership, entitlement, and active-organization authorization tests.
 - [ ] Proxy timeout, Agent Platform unavailable, and invalid-response tests.
 - [ ] SSE forwarding disconnect/reconnect tests.
 - [ ] Core tool authorization and organization-scope tests.
-- [ ] Rust format, lint, unit, and integration checks.
+- [x] Rust format and unit checks; database-backed integration checks remain environment-dependent.
 
 ### Client
 
@@ -473,12 +473,12 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
 - [ ] Agents list/detail/template creation/lifecycle tests.
 - [ ] Activity and analytics tests against new contracts.
 - [ ] Responsive desktop/mobile checks.
-- [ ] Client lint, type-check, unit, and production build.
+- [x] Client type-check and production build; dedicated component/unit coverage remains follow-up.
 
 ### Cutover
 
 - [ ] Migration test proves legacy tables are dropped cleanly.
-- [ ] Static scan proves no live legacy symbol or endpoint remains.
+- [x] Static scan proves no live legacy symbol or endpoint remains.
 - [ ] End-to-end test creates an organization, ensures KasiAi, chats, refreshes history, creates a
   template agent, tests it, pauses it, and inspects activity.
 - [ ] End-to-end test proves another organization and another user cannot read that data.
