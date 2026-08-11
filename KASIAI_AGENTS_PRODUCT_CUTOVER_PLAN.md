@@ -383,7 +383,8 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
   and callback-oriented copy.
 - [x] Replace or delete all old bot loading skeletons, template metadata, activity mapping, and
   analytics mapping that no longer match the new UI.
-- [ ] Remove stale service-worker/preload assumptions tied to the old pages.
+- [x] Remove stale service-worker/preload assumptions tied to the old pages; no live Agent UI
+  service-worker or preload dependency remains.
 - [x] Verify the client source and generated database client contain no `/api/bots` string.
 
 ### 12.2 `kasitek-core` removal
@@ -408,7 +409,7 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
 - [x] Regenerate Prisma clients and remove generated legacy bot types.
 - [x] Do not rewrite or delete historical migration files already applied to environments.
 - [ ] Test the destructive migration from a production-like schema snapshot.
-- [ ] Verify no runtime query references a dropped table.
+- [x] Verify no runtime query references a dropped table; the live-source scan is clean.
 
 ### 12.4 No-fallback enforcement
 
