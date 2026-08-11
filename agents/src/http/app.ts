@@ -22,6 +22,7 @@ import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/
 import { EvaluationRepository } from "../db/repositories/evaluation-repository";
 import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../evaluations/deterministic";
 import { AuditRepository } from "../db/repositories/audit-repository";
+import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
@@ -282,6 +283,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           providerMessageId: z.string().trim().max(240).optional(),
         })
         .parse(request.body);
+      input.content = parseCanonicalMessageContent(input.messageType, input.content);
       const message = await conversations.appendMessage({
         organizationId: auth.organizationId,
         conversationId: request.params.conversationId,

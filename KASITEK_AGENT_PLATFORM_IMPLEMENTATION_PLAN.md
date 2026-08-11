@@ -28,7 +28,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 55 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 57 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -416,7 +416,8 @@ received
 ### 12.1 Canonical message envelope
 
 - [x] Define a CloudEvents-compatible internal event envelope.
-- [ ] Define canonical text, attachment, reaction, status, command, and system message types.
+- [x] Define canonical text, attachment, reaction, status, command, and system message types.
+  **Canonical schemas reject malformed provider payloads before persistence.**
 - [x] Preserve provider message IDs and timestamps. **Provider message IDs are unique and retained;
   provider timestamps/metadata fields remain an adapter extension.**
 - [x] Preserve channel-specific metadata outside model-visible content. **Connection metadata and
