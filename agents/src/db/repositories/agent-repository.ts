@@ -10,6 +10,8 @@ import { validateVersionWorkflow } from "../../workflows/graph";
 
 type DbExecutor = Pool | PoolClient;
 
+export const SYSTEM_ORGANIZATION_ID = "kasitek-system";
+
 export interface AgentRecord {
   id: string;
   organization_id: string;
@@ -50,6 +52,14 @@ export interface InstallationRecord {
   created_by: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface SystemInstallationRecord extends InstallationRecord {
+  agent_name: string;
+  agent_slug: string;
+  agent_protected: boolean;
+  version_number: number;
+  created: boolean;
 }
 
 function slugify(name: string): string {
@@ -93,7 +103,7 @@ export class AgentRepository {
     actorId: string,
     input: CreateAgentInput & { organizationId?: string },
   ): Promise<AgentRecord> {
-    const organizationId = input.organizationId ?? "kasitek-system";
+    const organizationId = input.organizationId ?? SYSTEM_ORGANIZATION_ID;
     const slug = input.slug ?? slugify(input.name);
     const result = await query<AgentRecord>(
       this.pool,
@@ -106,10 +116,130 @@ export class AgentRepository {
     return result.rows[0]!;
   }
 
+  public async ensureSystemAgent(
+    actorId: string,
+    input: CreateAgentInput & { organizationId?: string },
+  ): Promise<AgentRecord> {
+    const organizationId = input.organizationId ?? SYSTEM_ORGANIZATION_ID;
+    const slug = input.slug ?? slugify(input.name);
+    return withTransaction(this.pool, async (client) => {
+      await client.query(
+        `INSERT INTO agent_definitions
+          (organization_id, owner_type, name, slug, description, protected, created_by)
+         VALUES ($1, 'system', $2, $3, $4, TRUE, $5)
+         ON CONFLICT (organization_id, slug) DO NOTHING`,
+        [organizationId, input.name, slug, input.description ?? null, actorId],
+      );
+      const existing = await client.query<AgentRecord>(
+        `SELECT * FROM agent_definitions
+         WHERE organization_id = $1 AND slug = $2
+         FOR UPDATE`,
+        [organizationId, slug],
+      );
+      const agent = existing.rows[0];
+      if (!agent || agent.owner_type !== "system" || !agent.protected) {
+        throw new Error("System agent slug is occupied by a non-system definition");
+      }
+      const updated = await client.query<AgentRecord>(
+        `UPDATE agent_definitions
+         SET name = $3, description = $4, status = 'active', updated_at = now(), archived_at = NULL
+         WHERE organization_id = $1 AND id = $2
+         RETURNING *`,
+        [organizationId, agent.id, input.name, input.description ?? null],
+      );
+      return updated.rows[0]!;
+    });
+  }
+
+  public async ensureInitialSystemVersion(
+    actorId: string,
+    agentId: string,
+    input: CreateVersionInput,
+  ): Promise<AgentVersionRecord> {
+    validateVersionWorkflow(input.configuration);
+    return withTransaction(this.pool, async (client) => {
+      const agentResult = await client.query<AgentRecord>(
+        `SELECT * FROM agent_definitions
+         WHERE id = $1 AND owner_type = 'system' AND protected = TRUE
+         FOR UPDATE`,
+        [agentId],
+      );
+      const agent = agentResult.rows[0];
+      if (!agent) throw new Error("Protected system agent not found");
+      const published = await client.query<AgentVersionRecord & { content_matches: boolean }>(
+        `SELECT av.*,
+                (av.instructions = $2 AND av.configuration = $3::jsonb AND av.policy = $4::jsonb) AS content_matches
+         FROM agent_versions av
+         WHERE av.agent_definition_id = $1 AND av.status = 'published'
+         LIMIT 1`,
+        [agentId, input.instructions, JSON.stringify(input.configuration), JSON.stringify(input.policy)],
+      );
+      if (published.rows[0]) {
+        if (!published.rows[0].content_matches) {
+          throw new Error("Published system agent version differs; use an explicit release operation");
+        }
+        return published.rows[0];
+      }
+      const versionResult = await client.query<{ version_number: number }>(
+        "SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number FROM agent_versions WHERE agent_definition_id = $1",
+        [agentId],
+      );
+      const versionNumber = Number(versionResult.rows[0]!.version_number);
+      const created = await client.query<AgentVersionRecord>(
+        `INSERT INTO agent_versions
+          (agent_definition_id, version_number, status, instructions, configuration, policy,
+           checksum, created_by, published_at)
+         VALUES ($1, $2, 'published', $3, $4::jsonb, $5::jsonb, $6, $7, now())
+         RETURNING *`,
+        [
+          agentId,
+          versionNumber,
+          input.instructions,
+          JSON.stringify(input.configuration),
+          JSON.stringify(input.policy),
+          checksumVersion(input, versionNumber),
+          actorId,
+        ],
+      );
+      const version = created.rows[0]!;
+      const allowedTools = Array.isArray(input.policy.allowedTools)
+        ? input.policy.allowedTools.filter(
+            (tool): tool is string => typeof tool === "string" && tool.trim().length > 0,
+          )
+        : [];
+      for (const toolName of allowedTools) {
+        await client.query(
+          `INSERT INTO agent_tool_grants
+            (organization_id, agent_version_id, tool_name, granted_by)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
+             WHERE revoked_at IS NULL
+           DO NOTHING`,
+          [agent.organization_id, version.id, toolName.trim(), actorId],
+        );
+      }
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'system', $2, 'system_agent_version.published', 'agent_version', $3, $4::jsonb)`,
+        [agent.organization_id, actorId, version.id, JSON.stringify({ agentId })],
+      );
+      return version;
+    });
+  }
+
   public async getAgent(organizationId: string, agentId: string): Promise<AgentRecord | null> {
     const result = await query<AgentRecord>(
       this.pool,
-      "SELECT * FROM agent_definitions WHERE organization_id = $1 AND id = $2",
+      `SELECT ad.* FROM agent_definitions ad
+       WHERE ad.id = $2 AND (
+         ad.organization_id = $1 OR (
+           ad.owner_type = 'system' AND ad.protected = TRUE AND EXISTS (
+             SELECT 1 FROM agent_installations ai
+             WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
+           )
+         )
+       )`,
       [organizationId, agentId],
     );
     return result.rows[0] ?? null;
@@ -118,8 +248,14 @@ export class AgentRepository {
   public async listAgents(organizationId: string): Promise<AgentRecord[]> {
     const result = await query<AgentRecord>(
       this.pool,
-      `SELECT * FROM agent_definitions
-       WHERE organization_id = $1 ORDER BY created_at DESC`,
+      `SELECT ad.* FROM agent_definitions ad
+       WHERE ad.organization_id = $1 OR (
+         ad.owner_type = 'system' AND ad.protected = TRUE AND EXISTS (
+           SELECT 1 FROM agent_installations ai
+           WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
+         )
+       )
+       ORDER BY ad.protected DESC, ad.created_at DESC`,
       [organizationId],
     );
     return result.rows;
@@ -130,7 +266,14 @@ export class AgentRepository {
       this.pool,
       `SELECT av.* FROM agent_versions av
        JOIN agent_definitions ad ON ad.id = av.agent_definition_id
-       WHERE ad.organization_id = $1 AND ad.id = $2
+       WHERE ad.id = $2 AND (
+         ad.organization_id = $1 OR (
+           ad.owner_type = 'system' AND ad.protected = TRUE AND EXISTS (
+             SELECT 1 FROM agent_installations ai
+             WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
+           )
+         )
+       )
        ORDER BY av.version_number DESC`,
       [organizationId, agentId],
     );
@@ -323,7 +466,14 @@ export class AgentRepository {
       this.pool,
       `SELECT av.* FROM agent_versions av
        JOIN agent_definitions ad ON ad.id = av.agent_definition_id
-       WHERE ad.organization_id = $1 AND av.id = $2`,
+       WHERE av.id = $2 AND (
+         ad.organization_id = $1 OR (
+           ad.owner_type = 'system' AND ad.protected = TRUE AND EXISTS (
+             SELECT 1 FROM agent_installations ai
+             WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
+           )
+         )
+       )`,
       [organizationId, versionId],
     );
     return result.rows[0] ?? null;
@@ -338,7 +488,9 @@ export class AgentRepository {
       const version = await client.query<AgentVersionRecord>(
         `SELECT av.* FROM agent_versions av
          JOIN agent_definitions ad ON ad.id = av.agent_definition_id
-         WHERE ad.organization_id = $1 AND av.id = $2 AND av.status = 'published'`,
+         WHERE av.id = $2 AND av.status = 'published' AND ad.status = 'active' AND (
+           ad.organization_id = $1 OR (ad.owner_type = 'system' AND ad.protected = TRUE)
+         )`,
         [organizationId, input.agentVersionId],
       );
       if (!version.rows[0]) throw new Error("Published agent version not found");
@@ -370,6 +522,103 @@ export class AgentRepository {
       );
       return installation;
     });
+  }
+
+  public async ensureSystemInstallation(input: {
+    organizationId: string;
+    actorId: string;
+    systemSlug: string;
+    scopeType?: "organization" | "user" | "business";
+    scopeId?: string;
+    settings?: Record<string, unknown>;
+  }): Promise<SystemInstallationRecord> {
+    const scopeType = input.scopeType ?? "organization";
+    const scopeId = input.scopeId ?? input.organizationId;
+    return withTransaction(this.pool, async (client) => {
+      const version = await client.query<AgentVersionRecord & { name: string; slug: string }>(
+        `SELECT av.*, ad.name, ad.slug FROM agent_versions av
+         JOIN agent_definitions ad ON ad.id = av.agent_definition_id
+         WHERE ad.organization_id = $1 AND ad.owner_type = 'system' AND ad.protected = TRUE
+           AND ad.status = 'active' AND ad.slug = $2 AND av.status = 'published'
+         LIMIT 1`,
+        [SYSTEM_ORGANIZATION_ID, input.systemSlug],
+      );
+      const target = version.rows[0];
+      if (!target) throw new Error("Published system agent version not found");
+      const created = await client.query<InstallationRecord & { created_now: boolean }>(
+        `INSERT INTO agent_installations
+          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, settings, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+         ON CONFLICT (organization_id, agent_definition_id, scope_type, scope_id)
+         DO UPDATE SET updated_at = agent_installations.updated_at
+         RETURNING *, (xmax = 0) AS created_now`,
+        [
+          target.agent_definition_id,
+          target.id,
+          input.organizationId,
+          scopeType,
+          scopeId,
+          JSON.stringify(input.settings ?? {}),
+          input.actorId,
+        ],
+      );
+      const installation = created.rows[0]!;
+      await client.query(
+        `INSERT INTO agent_principals (installation_id, organization_id)
+         VALUES ($1, $2)
+         ON CONFLICT (installation_id) DO NOTHING`,
+        [installation.id, input.organizationId],
+      );
+      if (installation.created_now) {
+        await client.query(
+          `INSERT INTO audit_records
+            (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+           VALUES ($1, 'human', $2, 'system_agent_installation.created', 'agent_installation', $3, $4::jsonb)`,
+          [
+            input.organizationId,
+            input.actorId,
+            installation.id,
+            JSON.stringify({ agentId: target.agent_definition_id, versionId: target.id, systemSlug: input.systemSlug }),
+          ],
+        );
+      }
+      return {
+        ...installation,
+        agent_name: target.name,
+        agent_slug: target.slug,
+        agent_protected: true,
+        version_number: target.version_number,
+        created: installation.created_now,
+      };
+    });
+  }
+
+  public async getSystemInstallation(input: {
+    organizationId: string;
+    systemSlug: string;
+    scopeType?: "organization" | "user" | "business";
+    scopeId?: string;
+  }): Promise<SystemInstallationRecord | null> {
+    const result = await query<SystemInstallationRecord>(
+      this.pool,
+      `SELECT ai.*, ad.name AS agent_name, ad.slug AS agent_slug,
+              ad.protected AS agent_protected, av.version_number, FALSE AS created
+       FROM agent_installations ai
+       JOIN agent_definitions ad ON ad.id = ai.agent_definition_id
+       JOIN agent_versions av ON av.id = ai.agent_version_id
+       WHERE ai.organization_id = $1 AND ad.organization_id = $2
+         AND ad.owner_type = 'system' AND ad.protected = TRUE AND ad.slug = $3
+         AND ai.scope_type = $4 AND ai.scope_id = $5
+       LIMIT 1`,
+      [
+        input.organizationId,
+        SYSTEM_ORGANIZATION_ID,
+        input.systemSlug,
+        input.scopeType ?? "organization",
+        input.scopeId ?? input.organizationId,
+      ],
+    );
+    return result.rows[0] ?? null;
   }
 
   public async getInstallation(

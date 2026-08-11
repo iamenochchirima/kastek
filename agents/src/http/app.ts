@@ -29,6 +29,7 @@ import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
+import { KASIAI_SLUG } from "../system/kasiai";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -213,6 +214,34 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = createInstallationInputSchema.parse(request.body);
     const installation = await agents.createInstallation(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(installation);
+  });
+
+  app.get("/v1/system-agents/kasiai/installation", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const installation = await agents.getSystemInstallation({
+      organizationId: auth.organizationId,
+      systemSlug: KASIAI_SLUG,
+    });
+    if (!installation) return reply.code(404).send({ error: "kasiai_installation_not_found" });
+    return reply.send(installation);
+  });
+
+  app.post("/v1/system-agents/kasiai/installation", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const settings = z
+      .object({
+        language: z.string().trim().min(2).max(35).optional(),
+        tone: z.enum(["concise", "balanced", "detailed"]).optional(),
+        responseDetail: z.enum(["short", "standard", "expanded"]).optional(),
+      })
+      .parse(request.body ?? {});
+    const installation = await agents.ensureSystemInstallation({
+      organizationId: auth.organizationId,
+      actorId: auth.actorId,
+      systemSlug: KASIAI_SLUG,
+      settings,
+    });
+    return reply.code(installation.created ? 201 : 200).send(installation);
   });
 
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/schedules", async (request, reply) => {

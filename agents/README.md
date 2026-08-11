@@ -10,6 +10,8 @@ actions will go through authenticated internal contracts exposed by `kasitek-cor
 - `pnpm run dev:api` starts the HTTP API.
 - `pnpm run dev:worker` starts the Temporal worker.
 - `pnpm run migrate` applies PostgreSQL migrations.
+- `pnpm run bootstrap:kasiai` idempotently creates the protected KasiAi definition and initial
+  published version after migrations are applied.
 - `pnpm run build` compiles both processes to `dist/`.
 - `RUN_AGENTS_DB_INTEGRATION_TESTS=true AGENTS_DATABASE_URL=... npm test` enables the
   opt-in PostgreSQL isolation/deletion tests; the normal test command never mutates a database.
@@ -22,6 +24,10 @@ must enable Temporal and provide a dedicated namespace/task queue.
 
 Cloud mode requires `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, and `TEMPORAL_API_KEY` in
 `agents/.env` (or the environment used to launch the processes). Never commit the API key.
+
+KasiAi uses `KASIAI_MODEL_PROVIDER` and `KASIAI_MODEL` for its pinned initial model target. The
+matching KasiTek-funded provider key, such as `OPENROUTER_API_KEY`, is resolved only inside worker
+activities and is never stored in an agent definition or workflow input.
 
 For containers, use the checked-in Dockerfile for the API and override the Railway worker start
 command with `node dist/temporal/worker.js`. Run `pnpm run migrate` as a release/deployment step

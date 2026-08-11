@@ -33,6 +33,9 @@ bot-provisioning system. There is no planned runtime fallback or dual-write path
   pause/resume controls.
 - [x] Migration 016 adds scoped global/organization/agent/installation/tool kill switches with
   runtime enforcement and operator controls.
+- [x] Migration 017 adds idempotent definition/scope installation identity; protected global
+  system definitions can now be installed into organizations without weakening installation data
+  isolation.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
@@ -919,7 +922,7 @@ source of truth for KasiTek agent identity, versions, policy, runs, memory, tool
 - Control-plane and conversation routes require explicit organization and actor headers in this
   local foundation. Core-issued internal authentication is still an open production ADR.
 - Verification completed: `pnpm run build` and `AGENTS_DATABASE_URL=... RUN_AGENTS_DB_INTEGRATION_TESTS=true
-  pnpm test` in `agents/` (**63 tests passing**). `cargo fmt --check && cargo check -p kasitek-core`
+  pnpm test` in `agents/` (**65 tests passing**). `cargo fmt --check && cargo check -p kasitek-core`
   also pass.
 - Not yet claimed: Temporal Cloud recovery, live provider model calls, pgvector/hybrid retrieval,
   provider-specific channel transport, OpenTelemetry export, object storage/Redis, sandboxing,

@@ -130,9 +130,20 @@ export class ToolGrantRepository {
   ): Promise<Set<string>> {
     const result = await query<{ tool_name: string }>(
       this.pool,
-      `SELECT DISTINCT tool_name FROM agent_tool_grants
-       WHERE organization_id = $1 AND agent_version_id = $2
-         AND revoked_at IS NULL AND (installation_id IS NULL OR installation_id = $3)`,
+      `SELECT DISTINCT grants.tool_name
+       FROM agent_tool_grants grants
+       JOIN agent_versions version ON version.id = grants.agent_version_id
+       JOIN agent_definitions agent ON agent.id = version.agent_definition_id
+       WHERE grants.agent_version_id = $2 AND grants.revoked_at IS NULL AND (
+         (
+           grants.organization_id = $1
+           AND (grants.installation_id IS NULL OR grants.installation_id = $3)
+         ) OR (
+           agent.owner_type = 'system' AND agent.protected = TRUE
+           AND grants.organization_id = agent.organization_id
+           AND grants.installation_id IS NULL
+         )
+       )`,
       [organizationId, versionId, installationId],
     );
     return new Set(result.rows.map((row) => row.tool_name));

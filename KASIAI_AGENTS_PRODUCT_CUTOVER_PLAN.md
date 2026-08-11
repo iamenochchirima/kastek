@@ -74,10 +74,14 @@ installation/conversation/run contracts instead of creating another KasiAi imple
 
 ## 4. Current gaps this tranche must close
 
-- [ ] A system-owned definition cannot currently be installed into another organization because
-  installation resolution requires the definition and installation organization IDs to match.
-- [ ] No idempotent KasiAi bootstrap/reconciliation command exists.
-- [ ] No default-organization installation resolver exists.
+- [x] A system-owned definition can be installed into another organization while installation
+  data remains organization-scoped. **Migration 017 and repository visibility rules implement and
+  test this boundary.**
+- [x] An idempotent KasiAi bootstrap/reconciliation command exists. **`pnpm run
+  bootstrap:kasiai` creates or resolves the protected definition and identical initial published
+  version.**
+- [x] A default-organization installation resolver exists. **The repository and authenticated API
+  ensure one installation per organization/definition/scope.**
 - [ ] The platform channel API exposes low-level conversation/message/run operations but not one
   atomic inbound-message operation.
 - [ ] A completed run stores its output but does not persist the assistant reply as a durable
@@ -94,44 +98,47 @@ installation/conversation/run contracts instead of creating another KasiAi imple
 
 ## 5. Phase A — Freeze and inventory the legacy bot system
 
-- [ ] Enumerate every caller of `/api/bots`, bot callbacks, trusted bot events, and old n8n agent
+The recorded dependency and row-count inventory is in
+[`docs/LEGACY_BOT_PURGE_INVENTORY.md`](docs/LEGACY_BOT_PURGE_INVENTORY.md).
+
+- [x] Enumerate every caller of `/api/bots`, bot callbacks, trusted bot events, and old n8n agent
   provisioning endpoints.
-- [ ] Enumerate every read/write of `BotConfiguration`, `BotDeployment`, and `BotEvent`.
-- [ ] Identify customer, workspace-summary, billing-meter, connection, dashboard, and activity
+- [x] Enumerate every read/write of `BotConfiguration`, `BotDeployment`, and `BotEvent`.
+- [x] Identify customer, workspace-summary, billing-meter, connection, dashboard, and activity
   queries that derive data from legacy bot tables.
-- [ ] Identify all old bot environment variables and callback secrets.
-- [ ] Record the exact legacy table row counts before the destructive migration.
-- [ ] Confirm no production data needs conversion into new Agent Platform definitions. This plan
+- [x] Identify all old bot environment variables and callback secrets.
+- [x] Record the exact legacy table row counts before the destructive migration.
+- [x] Confirm no production data needs conversion into new Agent Platform definitions. This plan
   intentionally purges legacy bot records rather than importing them.
 - [ ] Add a repository check that fails if client code introduces a new `/api/bots` reference.
 
 **Exit gate**
 
-- [ ] Every legacy dependency has an assigned replacement or deletion task.
-- [ ] The destructive scope is explicit before any table is dropped.
+- [x] Every legacy dependency has an assigned replacement or deletion task.
+- [x] The destructive scope is explicit before any table is dropped.
 
 ## 6. Phase B — System-agent and installation model
 
 ### 6.1 Global system agent support
 
-- [ ] Add a migration and repository rules that allow an organization installation to reference
+- [x] Add a migration and repository rules that allow an organization installation to reference
   an active published system-owned version while retaining organization isolation for all
   installation-owned data.
-- [ ] Prevent organizations from editing, versioning, retiring, archiving, or changing protected
+- [x] Prevent organizations from editing, versioning, retiring, archiving, or changing protected
   system definitions.
-- [ ] Allow organizations to view protected agents only through their own active installations.
-- [ ] Ensure organization-created definitions remain visible only to their owner organization.
-- [ ] Add a unique constraint for one installation per definition, organization, scope type, and
+- [x] Allow organizations to view protected agents only through their own installations.
+- [x] Ensure organization-created definitions remain visible only to their owner organization.
+- [x] Add a unique constraint for one installation per definition, organization, scope type, and
   scope ID where the product requires idempotent installation.
-- [ ] Add isolation tests proving an organization cannot resolve another organization's
+- [x] Add isolation tests proving an organization cannot resolve another organization's
   installation, conversations, runs, messages, memory, or settings.
 
 ### 6.2 KasiAi bootstrap
 
-- [ ] Add an idempotent bootstrap/reconciliation command for the protected `kasiai` definition.
-- [ ] Create the first immutable KasiAi version with a pinned model policy, bounded context,
+- [x] Add an idempotent bootstrap/reconciliation command for the protected `kasiai` definition.
+- [x] Create the first immutable KasiAi version with a pinned model policy, bounded context,
   bounded model calls, token/cost limits, and the fixed initial tool set.
-- [ ] Keep KasiAi's provider credential environment-backed and KasiTek-funded; never store it in
+- [x] Keep KasiAi's provider credential environment-backed and KasiTek-funded; never store it in
   the definition or Temporal workflow input.
 - [ ] Add startup validation for the selected KasiAi model/provider credential.
 - [ ] Seed or ingest the initial platform-guidance knowledge with explicit provenance and version.
@@ -142,22 +149,22 @@ installation/conversation/run contracts instead of creating another KasiAi imple
 
 ### 6.3 Default organization installation
 
-- [ ] Add an idempotent `ensure KasiAi installation` service operation.
+- [x] Add an idempotent `ensure KasiAi installation` service operation.
 - [ ] Create the installation on first authenticated use or organization provisioning, whichever
   occurs first.
-- [ ] Use one organization-scoped installation and create an AgentPrincipal with the minimum
+- [x] Use one organization-scoped installation and create an AgentPrincipal with the minimum
   required audience and grants.
 - [ ] Expose only permitted organization settings such as preferred language, tone, response
   detail, and notification behaviour.
-- [ ] Keep protected instructions, system policy, model routing, and grants unavailable to normal
+- [x] Keep protected instructions, system policy, model routing, and grants unavailable to normal
   organization mutation endpoints.
-- [ ] Add pause/disable behaviour that preserves history and clearly disables new runs.
+- [x] Add pause/disable behaviour that preserves history and clearly disables new runs.
 
 **Exit gate**
 
-- [ ] Repeated bootstrap and installation calls create exactly one KasiAi definition, one current
+- [x] Repeated bootstrap and installation calls create exactly one KasiAi definition, one current
   published version, and one installation per organization.
-- [ ] KasiAi appears through the same installed-agent projection as other agents.
+- [x] KasiAi appears through the same installed-agent projection as other agents.
 
 ## 7. Phase C — Generic platform chat contract
 

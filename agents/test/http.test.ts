@@ -47,6 +47,33 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("ensures the protected KasiAi installation for the authenticated organization", async () => {
+    const agents = {
+      ensureSystemInstallation: async (input: { organizationId: string; actorId: string }) => ({
+        id: "installation-1",
+        organization_id: input.organizationId,
+        created: true,
+        created_by: input.actorId,
+        agent_slug: "kasiai",
+      }),
+    } as unknown as AgentRepository;
+    const app = buildApp({ config, pool: fakePool, agents });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/system-agents/kasiai/installation",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { language: "en", tone: "balanced" },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      id: "installation-1",
+      organization_id: "org-1",
+      created_by: "user-1",
+      agent_slug: "kasiai",
+    });
+    await app.close();
+  });
+
   it("accepts a run and keeps it queued for Temporal when disabled locally", async () => {
     const runs = {
       createRun: async () => ({ id: "run-1", status: "received" }),

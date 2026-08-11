@@ -55,5 +55,7 @@ describe("foundation migration", () => {
     const killSwitchSql = await readFile(new URL("../migrations/016_kill_switches.sql", import.meta.url), "utf8");
     expect(killSwitchSql).toContain("agent_kill_switches");
     expect(killSwitchSql).toContain("scope_type");
+    const systemInstallationsSql = await readFile(new URL("../migrations/017_system_agent_installations.sql", import.meta.url), "utf8");
+    expect(systemInstallationsSql).toContain("agent_installations_definition_scope_unique_idx");
   });
 });

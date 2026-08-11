@@ -20,6 +20,8 @@ const envSchema = z.object({
   TEMPORAL_NAMESPACE: z.string().default("default"),
   TEMPORAL_TASK_QUEUE: z.string().default("kasitek-agents-interactive"),
   TEMPORAL_API_KEY: z.string().optional(),
+  KASIAI_MODEL_PROVIDER: z.enum(["openrouter", "openai", "anthropic", "gemini"]).default("openrouter"),
+  KASIAI_MODEL: z.string().trim().min(1).default("openai/gpt-4o-mini"),
   INTERNAL_AUTH_AUDIENCE: z.string().default("kasitek-agents"),
   AUTH_MODE: z.enum(["headers", "hmac"]).default("headers"),
   INTERNAL_AUTH_SECRET: z.string().optional(),
