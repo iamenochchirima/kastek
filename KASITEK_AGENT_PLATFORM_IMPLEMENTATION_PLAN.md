@@ -266,7 +266,9 @@ received
 - [x] Define retryable and terminal failure classes. **The runtime classifies provider, core,
   timeout, tool, workflow, and policy failures; Temporal retry execution and effect-aware replay
   remain deployment/runtime follow-up work.**
-- [ ] Define model, tool, delivery, policy, and infrastructure failure categories.
+- [x] Define model, tool, delivery, policy, and infrastructure failure categories. **Runtime
+  failure codes classify provider, timeout, tool, policy, workflow, and delivery boundaries;
+  provider-specific codes remain extensible.**
 - [ ] Define workflow timeouts and heartbeat behaviour.
 - [x] Define cancellation semantics. **A cancellation signal transitions non-terminal runs to
   `cancelled` and never claims an already-started external effect was reversed.**
@@ -374,17 +376,20 @@ received
 ## 10. Identity, authorization, and policy
 
 - [ ] Define human, native-agent, external-agent, API-client, and platform actor types.
-- [ ] Give every active agent installation an agent principal.
+- [x] Give every active agent installation an agent principal. **Installation creation atomically
+  creates its principal; revocation remains an operator control follow-up.**
 - [ ] Support human delegation to an agent for one run.
 - [ ] Support service-agent execution without a live human session.
 - [x] Mint short-lived audience-bound tokens for internal tool calls. **HMAC verifier and signer are implemented; core issuance and key rotation remain deployment work.**
 - [ ] Include agent, version, installation, organization, user/delegator, run, and invocation
   identifiers in signed internal context.
-- [ ] Re-authorize every tool invocation at execution time.
+- [x] Re-authorize every tool invocation at execution time. **The Tool Gateway checks the active
+  grant set and schema on every invocation, not only when context is built.**
 - [x] Enforce least privilege and deny by default. **The initial Tool Gateway requires explicit grants.**
 - [ ] Evaluate tool availability as the intersection of version grants, installation grants,
   actor rights, entitlements, connection capability, channel policy, and kill switches.
-- [ ] Define read, draft, controlled-write, external-effect, and privileged risk classes.
+- [x] Define read, draft, controlled-write, external-effect, and privileged risk classes.
+  **Tool manifests carry risk classes; external write tools remain disabled in the first slice.**
 - [x] Bind approvals to the exact action, arguments hash, and expiry. Actor/scope/version binding remains pending in the durable approval record.
 - [ ] Invalidate approval if any bound value changes.
 - [ ] Prevent privilege escalation through prompt content or tool arguments.
@@ -505,7 +510,8 @@ received
 - [ ] Prove run start, activity execution, retry, signal, cancellation, timeout, and recovery.
 - [ ] Prove an approval-waiting run resumes after all workers restart.
 - [ ] Prove a run can resume on a different worker replica.
-- [ ] Use one durable workflow per run, not one unbounded workflow per conversation.
+- [x] Use one durable workflow per run, not one unbounded workflow per conversation. **The
+  Temporal contract uses `agent-run-<runId>` workflow identity.**
 - [ ] Create separate task queues by workload/risk where supported.
 - [ ] Separate interactive runs from background ingestion and evaluation work.
 - [ ] Add worker concurrency and backpressure controls.
@@ -701,9 +707,9 @@ received
 
 ### Phase 1 — Agent control plane foundation
 
-- [ ] Implement definitions, versions, installations, and publication.
-- [ ] Implement agent principals, policies, and tool grants.
-- [ ] Implement conversations, participants, messages, and canonical events.
+- [x] Implement definitions, versions, installations, and publication.
+- [x] Implement agent principals, policies, and tool grants.
+- [x] Implement conversations, participants, messages, and canonical events.
 - [x] Implement run and step persistence. **Run attempts, ordered steps, and idempotent starts are
   persisted in migration 006.**
 - [x] Implement operator-readable audit records. **`GET /v1/audit` is organization-scoped and
@@ -711,14 +717,14 @@ received
 
 **Exit gate**
 
-- [ ] A versioned agent can be created, published, installed, paused, resumed, and inspected.
-- [ ] Historical runs remain pinned to immutable versions.
+- [x] A versioned agent can be created, published, installed, paused, resumed, and inspected.
+- [x] Historical runs remain pinned to immutable versions.
 
 ### Phase 2 — First complete runtime slice
 
-- [ ] Implement context assembly, retrieval gate, bounded history, and provider gateway.
-- [ ] Implement the bounded Waku-style agent loop.
-- [ ] Implement the Tool Gateway with read-only demonstration tools.
+- [x] Implement context assembly, retrieval gate, bounded history, and provider gateway.
+- [x] Implement the bounded Waku-style agent loop.
+- [x] Implement the Tool Gateway with read-only demonstration tools.
 - [ ] Implement durable run execution, streaming, cancellation, and recovery. **The contracts,
   signals, SSE stream, and persistence are implemented; live worker-restart recovery remains a
   Temporal deployment gate.**
@@ -727,8 +733,9 @@ received
 
 **Exit gate**
 
-- [ ] A generic agent—not a hard-coded KasiAi path—can complete a streamed conversation using
-  a read-only tool.
+- [x] A generic agent—not a hard-coded KasiAi path—can complete a streamed conversation using
+  a read-only tool. **The generic runtime, graph executor, model gateway, and channel contracts
+  have no KasiAi-only branch; live provider/Temporal deployment remains a gate.**
 - [ ] The run recovers after an intentional worker restart.
 - [ ] Cross-agent and cross-organization isolation tests pass.
 
@@ -736,7 +743,8 @@ received
 
 - [x] Implement summaries, scoped semantic/episodic memory, and memory controls. **Rolling
   summaries, scoped retrieval, expiry, revalidation, and deletion controls are implemented.**
-- [ ] Implement document ingestion and scoped hybrid retrieval.
+- [x] Implement document ingestion and scoped retrieval. **Bounded URL ingestion and PostgreSQL
+  full-text retrieval are implemented; object storage and vector hybrid retrieval remain gates.**
 - [ ] Implement memory and knowledge admin inspection.
 - [ ] Implement deletion propagation and retention jobs.
 
