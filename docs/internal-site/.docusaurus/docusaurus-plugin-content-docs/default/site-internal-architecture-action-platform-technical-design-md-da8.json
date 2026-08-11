@@ -22,7 +22,7 @@
     "permalink": "/architecture"
   },
   "next": {
-    "title": "Agent Protocol Implementation Plan",
-    "permalink": "/architecture/agent-protocol-implementation-plan"
+    "title": "KasiTek Agent Platform Implementation Plan",
+    "permalink": "/architecture/agent-platform-implementation-plan"
   }
 }

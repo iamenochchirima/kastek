@@ -39,16 +39,21 @@ export default [
   },
   {
     path: '/',
-    component: ComponentCreator('/', '559'),
+    component: ComponentCreator('/', 'a09'),
     routes: [
       {
         path: '/',
-        component: ComponentCreator('/', 'f1a'),
+        component: ComponentCreator('/', '903'),
         routes: [
           {
             path: '/',
-            component: ComponentCreator('/', 'e86'),
+            component: ComponentCreator('/', '3b7'),
             routes: [
+              {
+                path: '/access-control',
+                component: ComponentCreator('/access-control', '8b8'),
+                exact: true
+              },
               {
                 path: '/architecture',
                 component: ComponentCreator('/architecture', '4a4'),
@@ -62,6 +67,11 @@ export default [
                 sidebar: "tutorialSidebar"
               },
               {
+                path: '/architecture/agent-platform-implementation-plan',
+                component: ComponentCreator('/architecture/agent-platform-implementation-plan', 'f36'),
+                exact: true
+              },
+              {
                 path: '/architecture/agent-protocol-implementation-checklist',
                 component: ComponentCreator('/architecture/agent-protocol-implementation-checklist', '825'),
                 exact: true,
@@ -72,6 +82,11 @@ export default [
                 component: ComponentCreator('/architecture/agent-protocol-implementation-plan', 'fc9'),
                 exact: true,
                 sidebar: "tutorialSidebar"
+              },
+              {
+                path: '/architecture/calls-core-consolidation',
+                component: ComponentCreator('/architecture/calls-core-consolidation', '3e6'),
+                exact: true
               },
               {
                 path: '/architecture/project-plan',
@@ -120,6 +135,11 @@ export default [
               {
                 path: '/runbooks/connection-failures',
                 component: ComponentCreator('/runbooks/connection-failures', '191'),
+                exact: true
+              },
+              {
+                path: '/runbooks/instagram-direct-login',
+                component: ComponentCreator('/runbooks/instagram-direct-login', '2d0'),
                 exact: true
               },
               {

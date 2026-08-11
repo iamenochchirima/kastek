@@ -18,8 +18,8 @@
   },
   "sidebar": "tutorialSidebar",
   "previous": {
-    "title": "Action Platform Technical Design",
-    "permalink": "/architecture/action-platform-technical-design"
+    "title": "KasiTek Agent Platform Implementation Plan",
+    "permalink": "/architecture/agent-platform-implementation-plan"
   },
   "next": {
     "title": "Agent Protocol Implementation Checklist",

@@ -1,0 +1,14 @@
+{
+  "id": "access-control",
+  "title": "Workspace access and billing",
+  "description": "Purpose",
+  "source": "@site/../internal/access-control.md",
+  "sourceDirName": ".",
+  "slug": "/access-control",
+  "permalink": "/access-control",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {}
+}

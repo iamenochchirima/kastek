@@ -9,6 +9,7 @@ const sidebars = {
     "execution/client-ready-platform-checklist",
     "architecture/kasitek-technical-blueprint",
     "architecture/action-platform-technical-design",
+    "architecture/agent-platform-implementation-plan",
     "architecture/agent-protocol-implementation-plan",
     "architecture/agent-protocol-implementation-checklist",
   ],

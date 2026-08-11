@@ -11,9 +11,17 @@
           "mainDocId": "README",
           "docs": [
             {
+              "id": "access-control",
+              "path": "/access-control"
+            },
+            {
               "id": "architecture/action-platform-technical-design",
               "path": "/architecture/action-platform-technical-design",
               "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "architecture/agent-platform-implementation-plan",
+              "path": "/architecture/agent-platform-implementation-plan"
             },
             {
               "id": "architecture/agent-protocol-implementation-checklist",
@@ -24,6 +32,10 @@
               "id": "architecture/agent-protocol-implementation-plan",
               "path": "/architecture/agent-protocol-implementation-plan",
               "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "architecture/calls-core-consolidation",
+              "path": "/architecture/calls-core-consolidation"
             },
             {
               "id": "architecture/kasitek-technical-blueprint",
@@ -74,6 +86,10 @@
             {
               "id": "runbooks/connection-failures",
               "path": "/runbooks/connection-failures"
+            },
+            {
+              "id": "runbooks/instagram-direct-login",
+              "path": "/runbooks/instagram-direct-login"
             },
             {
               "id": "strategy/company-strategy",
