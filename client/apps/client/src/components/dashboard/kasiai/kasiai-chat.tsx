@@ -34,7 +34,28 @@ function sortMessages(messages: AgentMessage[]): AgentMessage[] {
   return [...messages].sort((left, right) => Number(left.sequence_number) - Number(right.sequence_number));
 }
 
-export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+const KASIAI_PANEL_WIDTH_KEY = "kasitek:kasiai-panel-width";
+const KASIAI_DEFAULT_WIDTH = 430;
+const KASIAI_MIN_WIDTH = 340;
+const KASIAI_MAX_WIDTH = 1600;
+
+function panelWidthBounds(leftOffset = 0) {
+  if (typeof window === "undefined") {
+    return { min: KASIAI_MIN_WIDTH, max: KASIAI_MAX_WIDTH };
+  }
+  const desktopLeftOffset = window.innerWidth >= 1024 ? leftOffset : 0;
+  return {
+    min: Math.min(KASIAI_MIN_WIDTH, window.innerWidth),
+    max: Math.min(KASIAI_MAX_WIDTH, Math.max(KASIAI_MIN_WIDTH, window.innerWidth - desktopLeftOffset)),
+  };
+}
+
+function clampPanelWidth(width: number, leftOffset = 0) {
+  const bounds = panelWidthBounds(leftOffset);
+  return Math.min(bounds.max, Math.max(bounds.min, width));
+}
+
+export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boolean; onOpenChange: (open: boolean) => void; leftOffset?: number }) {
   const [installation, setInstallation] = useState<AgentInstallation | null>(null);
   const [conversation, setConversation] = useState<AgentConversation | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
@@ -46,10 +67,46 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
   const [sending, setSending] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [panelWidth, setPanelWidth] = useState(KASIAI_DEFAULT_WIDTH);
+  const [resizing, setResizing] = useState(false);
   const streamAbort = useRef<AbortController | null>(null);
   const messagesEnd = useRef<HTMLDivElement | null>(null);
   const messagesViewport = useRef<HTMLDivElement | null>(null);
   const restoreScroll = useRef<{ height: number; top: number } | null>(null);
+  const resizeStart = useRef<{ pointerX: number; width: number } | null>(null);
+
+  useEffect(() => {
+    const storedWidth = window.localStorage.getItem(KASIAI_PANEL_WIDTH_KEY);
+    if (!storedWidth) return;
+    const parsedWidth = Number(storedWidth);
+    if (Number.isFinite(parsedWidth)) setPanelWidth(clampPanelWidth(parsedWidth, leftOffset));
+  }, [leftOffset]);
+
+  useEffect(() => {
+    const handleWindowResize = () => setPanelWidth((width) => clampPanelWidth(width, leftOffset));
+    window.addEventListener("resize", handleWindowResize);
+    return () => window.removeEventListener("resize", handleWindowResize);
+  }, [leftOffset]);
+
+  const beginResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (window.innerWidth < 640) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeStart.current = { pointerX: event.clientX, width: panelWidth };
+    setResizing(true);
+  };
+
+  const updateResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = resizeStart.current;
+    if (!start) return;
+    setPanelWidth(clampPanelWidth(start.width + start.pointerX - event.clientX, leftOffset));
+  };
+
+  const finishResize = () => {
+    if (!resizeStart.current) return;
+    resizeStart.current = null;
+    setResizing(false);
+    window.localStorage.setItem(KASIAI_PANEL_WIDTH_KEY, String(panelWidth));
+  };
 
   const loadConversation = useCallback(async (conversationId: string) => {
     const response = await getPlatformConversation(conversationId);
@@ -219,11 +276,42 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
 
   return (
     <aside
-      className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[430px] flex-col border-l border-border bg-background shadow-2xl"
+      className={cn(
+        "fixed inset-y-0 right-0 z-50 flex max-w-full flex-col border-l border-border bg-background shadow-2xl",
+        resizing ? "select-none" : null,
+      )}
+      style={{ width: `min(${panelWidth}px, 100vw)` }}
       role="dialog"
       aria-modal="false"
       aria-labelledby="kasiai-chat-title"
     >
+      <div
+        className="group absolute inset-y-0 -left-2 z-10 hidden w-4 cursor-ew-resize touch-none items-center justify-center sm:flex"
+        onPointerDown={beginResize}
+        onPointerMove={updateResize}
+        onPointerUp={finishResize}
+        onPointerCancel={finishResize}
+        role="separator"
+        aria-label="Resize KasiAi panel"
+        aria-orientation="vertical"
+        aria-valuemin={panelWidthBounds(leftOffset).min}
+        aria-valuemax={panelWidthBounds(leftOffset).max}
+        aria-valuenow={Math.round(panelWidth)}
+        tabIndex={0}
+        title="Drag to resize KasiAi"
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          const nextWidth = panelWidth + (event.key === "ArrowLeft" ? 24 : -24);
+          const clampedWidth = clampPanelWidth(nextWidth, leftOffset);
+          setPanelWidth(clampedWidth);
+          window.localStorage.setItem(KASIAI_PANEL_WIDTH_KEY, String(clampedWidth));
+        }}
+      >
+        <span className="flex h-16 w-1.5 items-center justify-center rounded-full border border-border/80 bg-card/90 shadow-sm transition-colors group-hover:border-primary/70 group-hover:bg-primary/10 group-focus-visible:border-primary group-focus-visible:ring-2 group-focus-visible:ring-ring">
+          <span className="h-8 w-0.5 rounded-full bg-muted-foreground/60 transition-colors group-hover:bg-primary" />
+        </span>
+      </div>
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">

@@ -590,7 +590,7 @@ export function LayoutShell({
             {children}
           </main>
           <ProductTour status={productTourStatus} />
-          <KasiAiChat open={kasiaiOpen} onOpenChange={setKasiaiOpen} />
+          <KasiAiChat open={kasiaiOpen} onOpenChange={setKasiaiOpen} leftOffset={collapsed ? 72 : 252} />
         </div>
       </>
     </WhatsappRealtimeProvider>
