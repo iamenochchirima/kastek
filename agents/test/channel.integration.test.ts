@@ -39,6 +39,10 @@ describe.skipIf(!runIntegration)("channel routing contracts (integration)", () =
     const message = await conversations.appendMessage({ organizationId, conversationId, participantId: participant.id, direction: "outbound", content: { text: "hello" }, provider: "platform", providerMessageId: "message:test" });
     const attempt = await channels.queueDelivery({ organizationId, conversationId, messageId: message.id, channelType: "platform" });
     expect(attempt.status).toBe("queued");
+    const claimed = await channels.claimDelivery(organizationId, attempt.id);
+    expect(claimed.status).toBe("sending");
+    const delivered = await channels.markDelivered({ organizationId, attemptId: attempt.id, providerMessageId: "provider-message:1" });
+    expect(delivered.status).toBe("sent");
   });
 
   beforeAll(async () => { await pool.query("SELECT 1"); });

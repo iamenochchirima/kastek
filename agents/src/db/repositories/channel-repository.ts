@@ -154,6 +154,42 @@ export class ChannelRepository {
     return result.rows[0]!;
   }
 
+  public async claimDelivery(organizationId: string, attemptId: string): Promise<DeliveryAttemptRecord> {
+    const result = await query<DeliveryAttemptRecord>(
+      this.pool,
+      `UPDATE delivery_attempts SET status = 'sending'
+       WHERE id = $1 AND organization_id = $2 AND status = 'queued'
+       RETURNING *`,
+      [attemptId, organizationId],
+    );
+    if (!result.rows[0]) throw new Error("Delivery attempt is not claimable");
+    return result.rows[0];
+  }
+
+  public async markDelivered(input: { organizationId: string; attemptId: string; providerMessageId?: string }): Promise<DeliveryAttemptRecord> {
+    const result = await query<DeliveryAttemptRecord>(
+      this.pool,
+      `UPDATE delivery_attempts SET status = 'sent', provider_message_id = COALESCE($3, provider_message_id), sent_at = now()
+       WHERE id = $1 AND organization_id = $2 AND status = 'sending'
+       RETURNING *`,
+      [input.attemptId, input.organizationId, input.providerMessageId ?? null],
+    );
+    if (!result.rows[0]) throw new Error("Delivery attempt is not sending");
+    return result.rows[0];
+  }
+
+  public async markDeliveryFailed(input: { organizationId: string; attemptId: string; error: Record<string, unknown> }): Promise<DeliveryAttemptRecord> {
+    const result = await query<DeliveryAttemptRecord>(
+      this.pool,
+      `UPDATE delivery_attempts SET status = 'failed', error = $3::jsonb
+       WHERE id = $1 AND organization_id = $2 AND status IN ('queued', 'sending')
+       RETURNING *`,
+      [input.attemptId, input.organizationId, JSON.stringify(input.error)],
+    );
+    if (!result.rows[0]) throw new Error("Delivery attempt is terminal or missing");
+    return result.rows[0];
+  }
+
   public async issuePairingToken(input: {
     organizationId: string;
     installationId: string;

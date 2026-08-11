@@ -432,8 +432,8 @@ received
 - [x] Preserve channel-specific metadata outside model-visible content. **Connection metadata and
   canonical channel fields are stored separately from message content.**
 - [x] Add idempotent message ingestion. **Provider/message identity uniqueness rejects duplicates.**
-- [x] Add outbound delivery attempts and status events. **Delivery attempt persistence is in
-  migration 009; provider-specific sending remains adapter work.**
+- [x] Add outbound delivery attempts and status events. **Attempts can be claimed, marked sent
+  with a provider ID, or marked failed; provider-specific transport remains adapter work.**
 
 ### 12.2 Channel adapters
 
