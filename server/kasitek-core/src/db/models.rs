@@ -1426,14 +1426,6 @@ pub struct BusinessProfileRow {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ChatRequest {
-    pub message: Option<String>,
-    #[serde(rename = "sessionId")]
-    pub session_id: Option<String>,
-    pub metadata: Option<Value>,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct SocialIdeasRequest {
     pub topic: Option<String>,
     pub objective: Option<String>,

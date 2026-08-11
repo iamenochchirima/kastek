@@ -14,7 +14,6 @@ pub mod auth;
 pub mod billing;
 pub mod bookings;
 pub mod calls;
-pub mod chat;
 pub mod connections;
 pub mod customers;
 pub mod health;

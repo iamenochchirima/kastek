@@ -3,9 +3,8 @@ use actix_web::web;
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
     admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai, auth,
-    billing, bookings, calls, chat, connections, customers, health, inbox, notifications,
-    onboarding, orgs, product_tour, profile, public, realtime, social, whatsapp, whatsapp_calls,
-    workspace,
+    billing, bookings, calls, connections, customers, health, inbox, notifications, onboarding,
+    orgs, product_tour, profile, public, realtime, social, whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -97,7 +96,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::get().to(agent_platform::stream_run),
                 ),
         )
-        .route("/api/chat", web::post().to(chat::post))
         .route("/api/workspace/summary", web::get().to(workspace::summary))
         .service(
             web::scope("/api/calls")

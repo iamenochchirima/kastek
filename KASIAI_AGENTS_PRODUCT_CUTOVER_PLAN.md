@@ -379,7 +379,7 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
 
 - [x] Delete old `/api/bots` calls, legacy bot types, bot creation/action UI, n8n deployment state,
   and callback-oriented copy.
-- [ ] Replace or delete all old bot loading skeletons, template metadata, activity mapping, and
+- [x] Replace or delete all old bot loading skeletons, template metadata, activity mapping, and
   analytics mapping that no longer match the new UI.
 - [ ] Remove stale service-worker/preload assumptions tied to the old pages.
 - [x] Verify the client source and generated database client contain no `/api/bots` string.
@@ -390,8 +390,8 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
 - [x] Remove `services/bots.rs`.
 - [x] Remove the old `services/agents` n8n provisioning client, templates, payloads, and callbacks
   once reference analysis confirms they are exclusively legacy.
-- [ ] Keep the new `agent_internal` tool boundary; rename it if needed to avoid confusing it with
-  deleted n8n provisioning code.
+- [x] Keep the new `agent_internal` tool boundary for read-only platform tools; it is independent
+  of the deleted n8n provisioning code.
 - [x] Remove old bot request/row structs from `db/models.rs`.
 - [x] Remove customer history joins to legacy bot tables and source workspace agent metrics from the Agent Platform.
 - [x] Remove old callback authentication and n8n agent-provisioning environment variables when no
@@ -404,16 +404,16 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
   `BotEvent`, `BotDeployment`, and `BotConfiguration` in dependency-safe order.
 - [x] Remove the legacy models and relations from the Prisma schema.
 - [x] Regenerate Prisma clients and remove generated legacy bot types.
-- [ ] Do not rewrite or delete historical migration files already applied to environments.
+- [x] Do not rewrite or delete historical migration files already applied to environments.
 - [ ] Test the destructive migration from a production-like schema snapshot.
 - [ ] Verify no runtime query references a dropped table.
 
 ### 12.4 No-fallback enforcement
 
 - [x] Make `/api/bots` return 404 because the route no longer exists, not a compatibility response.
-- [ ] Remove all feature flags that switch between old bots and the Agent Platform.
-- [ ] Remove all dual-write, import-on-read, or legacy lookup code.
-- [ ] Remove old n8n agent workflow identifiers and callback URLs from active configuration.
+- [x] Remove all feature flags that switch between old bots and the Agent Platform.
+- [x] Remove all dual-write, import-on-read, or legacy lookup code.
+- [x] Remove old n8n agent workflow identifiers and callback URLs from active configuration.
 - [x] Add static checks for `/api/bots`, `BotConfiguration`, `BotDeployment`, and `BotEvent` in live
   source paths, with explicit exclusions only for historical migrations and this plan.
 
