@@ -2,7 +2,7 @@ import { AnthropicAdapter } from "./anthropic";
 import Ajv from "ajv";
 import { createOpenAIAdapter, createOpenRouterAdapter } from "./openai-compatible";
 import { GeminiAdapter } from "./gemini";
-import { ModelProviderError, type ModelAdapter, type ModelCapabilities, type ModelCredentials, type ModelPricing, type ModelProvider, type ModelRequest, type ModelResponse } from "./types";
+import { ModelProviderError, type ModelAdapter, type ModelCapabilities, type ModelCredentials, type ModelPricing, type ModelProvider, type ModelRequest, type ModelResponse, type ModelStreamDelta, type ModelStreamResult } from "./types";
 
 export class ModelGateway {
   private readonly adapters: Map<ModelProvider, ModelAdapter>;
@@ -72,6 +72,21 @@ export class ModelGateway {
       }
     }
     throw new Error("Model gateway exhausted attempts");
+  }
+
+  public async stream(request: ModelRequest, credentials: ModelCredentials, onDelta: (delta: ModelStreamDelta) => void | Promise<void>): Promise<ModelStreamResult> {
+    const adapter = this.adapters.get(request.provider);
+    if (!adapter) throw new Error(`No model adapter configured for provider ${request.provider}`);
+    if (!adapter.capabilities.streaming || !adapter.stream) {
+      throw new ModelProviderError("Provider does not support streaming", "MODEL_CAPABILITY_UNSUPPORTED", false, request.provider);
+    }
+    if (!credentials.apiKey) throw new Error(`No credential supplied for provider ${request.provider}`);
+    let deltas = 0;
+    const response = await adapter.stream(request, credentials, async (delta) => { deltas += 1; await onDelta(delta); });
+    if (response.usage.estimatedCostUsd === undefined) {
+      response.usage.estimatedCostUsd = this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
+    }
+    return { response, deltas };
   }
 
   public estimateCost(provider: ModelProvider, model: string, inputTokens: number, outputTokens: number): number {

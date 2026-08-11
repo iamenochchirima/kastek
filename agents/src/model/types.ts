@@ -68,6 +68,15 @@ export interface ModelResponse {
   structuredOutput?: unknown;
 }
 
+export type ModelStreamDelta =
+  | { type: "text_delta"; text: string }
+  | { type: "tool_call_delta"; index: number; id?: string; name?: string; argumentsDelta?: string };
+
+export interface ModelStreamResult {
+  response: ModelResponse;
+  deltas: number;
+}
+
 export interface ModelCredentials {
   apiKey: string;
   fundingSource: "kasitek" | "user";
@@ -78,6 +87,7 @@ export interface ModelAdapter {
   readonly provider: ModelProvider;
   readonly capabilities: ModelCapabilities;
   complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse>;
+  stream?(request: ModelRequest, credentials: ModelCredentials, onDelta: (delta: ModelStreamDelta) => void | Promise<void>): Promise<ModelResponse>;
 }
 
 export class ModelProviderError extends Error {

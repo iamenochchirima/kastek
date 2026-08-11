@@ -5,6 +5,7 @@ import type {
   ModelResponse,
   ModelToolCall,
   ModelUsage,
+  ModelStreamDelta,
 } from "./types";
 import { ModelProviderError, type ModelProvider } from "./types";
 
@@ -29,7 +30,7 @@ export interface OpenAICompatibleAdapterOptions {
 
 export class OpenAICompatibleAdapter implements ModelAdapter {
   public readonly provider: Extract<ModelProvider, "openrouter" | "openai">;
-  public readonly capabilities = { toolCalling: true, structuredOutput: true, streaming: false, vision: true } as const;
+  public readonly capabilities = { toolCalling: true, structuredOutput: true, streaming: true, vision: true } as const;
 
   public constructor(private readonly options: OpenAICompatibleAdapterOptions) {
     this.provider = options.provider;
@@ -118,6 +119,73 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       usage,
       latencyMs: Date.now() - startedAt,
     };
+  }
+
+  public async stream(request: ModelRequest, credentials: ModelCredentials, onDelta: (delta: ModelStreamDelta) => void | Promise<void>): Promise<ModelResponse> {
+    const startedAt = Date.now();
+    const response = await fetch(`${this.options.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      signal: request.signal,
+      headers: { "content-type": "application/json", authorization: `Bearer ${credentials.apiKey}`, ...this.options.extraHeaders },
+      body: JSON.stringify({
+        model: request.model,
+        messages: request.messages.map((message) => ({ role: message.role, content: message.content, ...(message.toolCallId ? { tool_call_id: message.toolCallId } : {}), ...(message.name ? { name: message.name } : {}) })),
+        ...(request.tools?.length ? { tools: request.tools.map((tool) => ({ type: "function", function: { name: tool.name, description: tool.description, parameters: tool.inputSchema } })) } : {}),
+        ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+        ...(request.maxTokens === undefined ? {} : { max_tokens: request.maxTokens }),
+        stream: true,
+        stream_options: { include_usage: true },
+      }),
+    });
+    if (!response.ok || !response.body) throw new ModelProviderError(`Streaming provider returned HTTP ${response.status}`, "PROVIDER_STREAM_ERROR", response.status === 408 || response.status === 429 || response.status >= 500, this.provider, response.status);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let content = "";
+    let finishReason: string | null = null;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let deltaCount = 0;
+    const toolCalls: ModelToolCall[] = [];
+    const toolArgumentBuffers = new Map<number, string>();
+    const emitLine = async (line: string): Promise<void> => {
+      if (!line.startsWith("data:")) return;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") return;
+      let chunk: { choices?: Array<{ delta?: { content?: string | null; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> }; finish_reason?: string | null }>; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+      try { chunk = JSON.parse(payload) as typeof chunk; } catch { return; }
+      const choice = chunk.choices?.[0];
+      const text = choice?.delta?.content ?? "";
+      if (text) { content += text; deltaCount += 1; await onDelta({ type: "text_delta", text }); }
+      for (const call of choice?.delta?.tool_calls ?? []) {
+        const index = call.index ?? 0;
+        const current = toolCalls[index] ?? { id: call.id ?? `${this.provider}-tool-${index}`, name: call.function?.name ?? "", arguments: {} };
+        const argumentsText = call.function?.arguments ?? "";
+        if (call.id) current.id = call.id;
+        if (call.function?.name) current.name = call.function.name;
+        if (argumentsText) {
+          const combined = `${toolArgumentBuffers.get(index) ?? ""}${argumentsText}`;
+          toolArgumentBuffers.set(index, combined);
+          try { current.arguments = JSON.parse(combined) as Record<string, unknown>; } catch { /* wait for the final delta */ }
+        }
+        toolCalls[index] = current;
+        deltaCount += 1;
+        await onDelta({ type: "tool_call_delta", index, id: call.id, name: call.function?.name, argumentsDelta: argumentsText });
+      }
+      if (choice?.finish_reason) finishReason = choice.finish_reason;
+      inputTokens = chunk.usage?.prompt_tokens ?? inputTokens;
+      outputTokens = chunk.usage?.completion_tokens ?? outputTokens;
+    };
+    for (;;) {
+      const next = await reader.read();
+      buffer += decoder.decode(next.value ?? new Uint8Array(), { stream: !next.done });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+      for (const line of lines) await emitLine(line);
+      if (next.done) break;
+    }
+    if (buffer) await emitLine(buffer);
+    return { provider: this.provider, model: request.model, message: { role: "assistant", content, ...(toolCalls.length ? { toolCalls } : {}) }, toolCalls, finishReason, usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens }, latencyMs: Date.now() - startedAt };
   }
 }
 

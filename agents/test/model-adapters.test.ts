@@ -71,6 +71,22 @@ describe("provider adapters", () => {
     vi.unstubAllGlobals();
   });
 
+  it("streams OpenAI-compatible text deltas and returns a normalized response", async () => {
+    const body = [
+      'data: {"choices":[{"delta":{"content":"hel"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"lo"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":2}}\n\n',
+      "data: [DONE]\n\n",
+    ].join("");
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode(body)); controller.close(); } });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(stream, { status: 200, headers: { "content-type": "text/event-stream" } })));
+    const adapter = new OpenAICompatibleAdapter({ provider: "openai", baseUrl: "https://example.test/v1" });
+    const deltas: string[] = [];
+    const result = await new ModelGateway([adapter]).stream({ provider: "openai", model: "test", messages: [{ role: "user", content: "hi" }] }, credentials, (delta) => { if (delta.type === "text_delta") deltas.push(delta.text); });
+    expect(deltas).toEqual(["hel", "lo"]);
+    expect(result).toMatchObject({ deltas: 2, response: { message: { content: "hello" }, finishReason: "stop", usage: { totalTokens: 4 } } });
+    vi.unstubAllGlobals();
+  });
+
   it("normalizes Anthropic text and tool blocks", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       content: [
