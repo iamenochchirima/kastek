@@ -32,7 +32,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 62 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 63 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -455,7 +455,8 @@ received
 - [ ] Normalize channel events before dispatching them to agents.
 - [ ] Support channel-specific rate, size, and formatting limits.
 - [ ] Support attachments through signed, scoped object references.
-- [ ] Support revocation of an external identity binding.
+- [x] Support revocation of an external identity binding. **Bindings can be revoked through the
+  organization-scoped control API; provider re-authentication remains adapter work.**
 
 ### 12.3 Conversation semantics
 
@@ -463,7 +464,9 @@ received
 - [x] Support participants with user, customer, staff, agent, and system roles.
 - [x] Keep channel conversation histories separate by default.
 - [ ] Share only explicitly permitted durable memory across conversations.
-- [ ] Support conversation archive, rename, export, and deletion policies.
+- [x] Support conversation archive, rename, export, and deletion policies. **Archive/delete
+  status controls and scoped export via conversation inspection are implemented; rename policy
+  remains a UI refinement.**
 - [ ] Support human handoff without losing agent/run history.
 - [ ] Define how and when an agent resumes after human handoff.
 

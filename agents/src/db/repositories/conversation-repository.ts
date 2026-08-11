@@ -83,6 +83,12 @@ export class ConversationRepository {
     return result.rows[0] ?? null;
   }
 
+  public async setStatus(organizationId: string, conversationId: string, status: "active" | "archived" | "deleted"): Promise<ConversationRecord> {
+    const result = await query<ConversationRecord>(this.pool, `UPDATE conversations SET status = $3, updated_at = now() WHERE organization_id = $1 AND id = $2 RETURNING *`, [organizationId, conversationId, status]);
+    if (!result.rows[0]) throw new Error("Conversation not found");
+    return result.rows[0];
+  }
+
   public async appendMessage(input: {
     organizationId: string;
     conversationId: string;

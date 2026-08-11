@@ -275,6 +275,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(201).send(binding);
   });
 
+  app.delete<{ Params: { bindingId: string } }>("/v1/channel-bindings/:bindingId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    await channels.revokeBinding(auth.organizationId, request.params.bindingId);
+    return reply.code(204).send();
+  });
+
   app.post<{ Params: { installationId: string } }>(
     "/v1/installations/:installationId/conversations",
     async (request, reply) => {
@@ -331,6 +337,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return { conversation, messages, participants };
     },
   );
+
+  app.post<{ Params: { conversationId: string; status: "active" | "archived" | "deleted" } }>("/v1/conversations/:conversationId/status/:status", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    const status = z.enum(["active", "archived", "deleted"]).parse(request.params.status);
+    return conversations.setStatus(auth.organizationId, request.params.conversationId, status);
+  });
 
   app.post<{ Params: { conversationId: string } }>("/v1/conversations/:conversationId/participants", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
