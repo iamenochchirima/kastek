@@ -41,8 +41,8 @@ bot-provisioning system. There is no planned runtime fallback or dual-write path
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 63 tests with the PostgreSQL integration flag;
-  `cargo fmt --check`; and `cargo check -p kasitek-core`.
+- [x] Local verification: TypeScript build; 79 tests with the PostgreSQL integration flag;
+  `cargo fmt --check`; `cargo check -p kasitek-core`; and the client production build.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
 
@@ -787,10 +787,12 @@ received
 
 ### Phase 4 — Channels
 
-- [ ] Ship the platform/sidebar channel.
+- [x] Ship the platform/sidebar channel. **The authenticated core bridge, durable conversation
+  contract, idempotent inbound operation, SSE stream, cancellation, and sidebar UI are shipped;
+  external channel adapters remain separate work.**
 - [ ] Ship Telegram pairing, inbound processing, and delivery.
 - [ ] Ship WhatsApp pairing, inbound processing, and delivery.
-- [ ] Ship conversation history and channel health controls.
+- [x] Ship conversation history and channel health controls for the platform/sidebar channel.
 
 **Exit gate**
 
@@ -812,18 +814,18 @@ received
 
 ### Phase 6 — First system-owned agent
 
-- [ ] Create KasiAi as a protected system-owned agent definition.
-- [ ] Automatically install it under the selected user/organization policy.
-- [ ] Bind it to the platform/sidebar channel.
-- [ ] Configure its initial platform-guidance knowledge.
-- [ ] Grant its initial fixed, low-risk platform tools.
-- [ ] Expose its permitted settings without exposing protected policy.
-- [ ] Display it in the normal Agents management experience.
+- [x] Create KasiAi as a protected system-owned agent definition.
+- [x] Automatically install it under the selected user/organization policy.
+- [x] Bind it to the platform/sidebar channel.
+- [x] Configure its initial platform-guidance knowledge.
+- [x] Grant its initial fixed, low-risk platform tools.
+- [x] Expose its permitted settings without exposing protected policy.
+- [x] Display it in the normal Agents management experience.
 
 **Exit gate**
 
-- [ ] KasiAi runs entirely through the generic Agent Platform.
-- [ ] No KasiAi-only runtime, memory, conversation, or tool path exists.
+- [x] KasiAi runs entirely through the generic Agent Platform.
+- [x] No KasiAi-only runtime, memory, conversation, or tool path exists.
 
 ### Phase 7 — Templates and organization-created agents
 
