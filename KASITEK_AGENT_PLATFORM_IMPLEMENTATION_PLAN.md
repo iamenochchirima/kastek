@@ -547,8 +547,9 @@ received
   carry the funding source and model-call attribution stores only that source and reference.**
 - [ ] Do not fall back from a user-funded key to a KasiTek-funded key unless agent policy
   explicitly permits it.
-- [x] Support credential revocation. **Rotation and provider validation/failure notification
-  remain operational follow-up work.**
+- [x] Support credential rotation and revocation. **Rotation atomically creates a new encrypted
+  record and revokes the prior reference; provider validation and failure notification remain
+  operational follow-up work.**
 - [ ] Prevent secrets from entering prompts or model-visible tool output.
 - [x] Record the actual provider, model, tokens, latency, and finish reason.
 

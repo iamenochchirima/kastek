@@ -400,6 +400,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(204).send();
   });
 
+  app.post<{ Params: { credentialId: string } }>("/v1/credentials/:credentialId/rotate", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ apiKey: z.string().min(1).max(10_000), label: z.string().trim().max(160).optional() }).parse(request.body);
+    const credential = await credentials.rotate({ organizationId: auth.organizationId, credentialId: request.params.credentialId, actorId: auth.actorId, ...input });
+    return reply.code(201).send(credential);
+  });
+
   app.post("/v1/knowledge/sources", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     const input = z.object({

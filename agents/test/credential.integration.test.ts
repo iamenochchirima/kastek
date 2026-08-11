@@ -18,8 +18,11 @@ describe.skipIf(!runIntegration)("credential vault (integration)", () => {
     expect(JSON.stringify(stored)).not.toContain("secret-api-key");
     expect((await vault.resolve(organizationId, "openai", stored.id)).apiKey).toBe("secret-api-key");
     expect((await vault.list(organizationId))[0]?.id).toBe(stored.id);
-    await vault.revoke(organizationId, stored.id);
+    const rotated = await vault.rotate({ organizationId, credentialId: stored.id, apiKey: "rotated-api-key", actorId: "user-1" });
+    credentialId = rotated.id;
+    expect((await vault.resolve(organizationId, "openai", rotated.id)).apiKey).toBe("rotated-api-key");
     await expect(vault.resolve(organizationId, "openai", stored.id)).rejects.toThrow("not found or revoked");
+    await vault.revoke(organizationId, rotated.id);
   });
 
   beforeAll(async () => { await pool.query("SELECT 1"); });

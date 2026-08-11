@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import type { Pool } from "pg";
-import { query } from "../pool";
+import { query, withTransaction } from "../pool";
 import type { ModelProvider, ModelCredentials } from "../../model/types";
 
 export interface CredentialRecord {
@@ -90,5 +90,26 @@ export class CredentialVaultRepository {
       [id, organizationId],
     );
     if (!result.rowCount) throw new Error("Credential not found");
+  }
+
+  public async rotate(input: { organizationId: string; credentialId: string; apiKey: string; label?: string; actorId: string }): Promise<CredentialRecord> {
+    if (!this.encryptionSecret) throw new Error("Credential vault encryption is not configured");
+    if (!input.apiKey.trim()) throw new Error("Credential cannot be empty");
+    return withTransaction(this.pool, async (client) => {
+      const existing = await client.query<{ provider: ModelProvider }>(
+        `SELECT provider FROM credential_vault WHERE id = $1 AND organization_id = $2 AND status = 'active' FOR UPDATE`,
+        [input.credentialId, input.organizationId],
+      );
+      const provider = existing.rows[0]?.provider;
+      if (!provider) throw new Error("Credential not found");
+      const created = await client.query<CredentialRecord>(
+        `INSERT INTO credential_vault (organization_id, provider, label, encrypted_payload, created_by)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, organization_id, provider, label, funding_source, status, created_by, created_at, revoked_at`,
+        [input.organizationId, provider, input.label?.trim() || "provider credential", encrypt(input.apiKey.trim(), this.encryptionSecret!), input.actorId],
+      );
+      await client.query(`UPDATE credential_vault SET status = 'revoked', revoked_at = now() WHERE id = $1`, [input.credentialId]);
+      return created.rows[0]!;
+    });
   }
 }
