@@ -12,6 +12,7 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
   const agents = new AgentRepository(pool);
   const grants = new ToolGrantRepository(pool);
   const organizationId = `lifecycle-test-${randomUUID()}`;
+  const systemOrganizationId = `system-test-${randomUUID()}`;
   let agentId = "";
 
   it("publishes, rolls back, retires, and archives without mutating history", async () => {
@@ -32,6 +33,9 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
     await agents.retireVersion(organizationId, "test-user", agentId, versionOne.id);
     expect((await agents.getVersion(organizationId, versionOne.id))?.status).toBe("retired");
     expect((await agents.archiveAgent(organizationId, "test-user", agentId)).status).toBe("archived");
+    const systemAgent = await agents.createSystemAgent("system-bootstrap", { name: "KasiAi", organizationId: systemOrganizationId, protected: true });
+    expect(systemAgent).toMatchObject({ owner_type: "system", protected: true, organization_id: systemOrganizationId });
+    await expect(agents.archiveAgent(systemOrganizationId, "system-bootstrap", systemAgent.id)).rejects.toThrow("protected");
   });
 
   beforeAll(async () => {
@@ -47,6 +51,7 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
       await pool.query("DELETE FROM agent_versions WHERE agent_definition_id = $1", [agentId]);
       await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
     }
+    await pool.query("DELETE FROM agent_definitions WHERE organization_id = $1", [systemOrganizationId]);
     await pool.end();
   });
 });

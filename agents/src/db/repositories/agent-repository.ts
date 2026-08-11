@@ -89,6 +89,23 @@ export class AgentRepository {
     return result.rows[0]!;
   }
 
+  public async createSystemAgent(
+    actorId: string,
+    input: CreateAgentInput & { organizationId?: string },
+  ): Promise<AgentRecord> {
+    const organizationId = input.organizationId ?? "kasitek-system";
+    const slug = input.slug ?? slugify(input.name);
+    const result = await query<AgentRecord>(
+      this.pool,
+      `INSERT INTO agent_definitions
+        (organization_id, owner_type, name, slug, description, protected, created_by)
+       VALUES ($1, 'system', $2, $3, $4, TRUE, $5)
+       RETURNING *`,
+      [organizationId, input.name, slug, input.description ?? null, actorId],
+    );
+    return result.rows[0]!;
+  }
+
   public async getAgent(organizationId: string, agentId: string): Promise<AgentRecord | null> {
     const result = await query<AgentRecord>(
       this.pool,

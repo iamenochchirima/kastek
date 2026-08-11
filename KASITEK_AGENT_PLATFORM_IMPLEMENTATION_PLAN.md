@@ -351,7 +351,8 @@ received
 - [x] Roll back to an earlier published version.
 - [x] Retire a version without corrupting historical runs.
 - [x] Archive an agent while retaining audit history.
-- [ ] Prevent deletion of protected system-owned agents.
+- [x] Prevent deletion of protected system-owned agents. **System-owned protected definitions are
+  created through the bootstrap repository path and archive/delete operations reject them.**
 - [x] Record who changed and published each version.
 - [x] Compute a checksum over the effective version configuration.
 
