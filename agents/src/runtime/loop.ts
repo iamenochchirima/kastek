@@ -132,11 +132,13 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       await emit(input, { type: "loop.limited", iteration, payload: { reason: "budget" } });
       return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls };
     }
+    const remainingTokens = Math.max(1, limits.maxTotalTokens - usage.totalTokens);
     try {
       const response = await input.gateway.complete({
         ...input.model,
         messages,
         tools: input.tools.list(input.grantedTools),
+        maxTokens: input.model.maxTokens === undefined ? remainingTokens : Math.min(input.model.maxTokens, remainingTokens),
       }, input.credentials);
       await input.onModelResponse?.(response);
       messages.push(response.message);

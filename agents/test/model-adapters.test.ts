@@ -4,10 +4,15 @@ import { GeminiAdapter } from "../src/model/gemini";
 import { OpenAICompatibleAdapter } from "../src/model/openai-compatible";
 import { ModelGateway } from "../src/model/gateway";
 import { ModelProviderError, type ModelAdapter } from "../src/model/types";
+import { resolveModelTarget } from "../src/model/policy";
 
 const credentials = { apiKey: "secret", fundingSource: "kasitek" as const };
 
 describe("provider adapters", () => {
+  it("resolves a versioned primary, fast, and bounded fallback model policy", () => {
+    const target = resolveModelTarget({}, { modelPolicy: { version: "v1", primary: { provider: "openrouter", model: "primary" }, fast: { provider: "openai", model: "fast" }, fallback: [{ provider: "gemini", model: "fallback" }], maxTokensPerRun: 1000 } });
+    expect(target).toMatchObject({ provider: "openrouter", model: "primary", policyVersion: "v1", maxTokensPerRun: 1000, fallback: [{ provider: "gemini", model: "fallback" }] });
+  });
   it("retries retryable provider failures and applies configured pricing", async () => {
     let attempts = 0;
     const adapter: ModelAdapter = {
@@ -45,6 +50,24 @@ describe("provider adapters", () => {
     expect(result.toolCalls[0]).toMatchObject({ id: "call-1", name: "echo", arguments: { value: "ok" } });
     expect(result.message.toolCalls?.[0]?.name).toBe("echo");
     expect(fetchMock).toHaveBeenCalledWith("https://example.test/v1/chat/completions", expect.any(Object));
+    vi.unstubAllGlobals();
+  });
+
+  it("validates structured output against the requested JSON schema", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { role: "assistant", content: '{"answer":"ok"}' }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new OpenAICompatibleAdapter({ provider: "openai", baseUrl: "https://example.test/v1" });
+    const result = await new ModelGateway([adapter]).complete({
+      provider: "openai",
+      model: "test",
+      messages: [{ role: "user", content: "return json" }],
+      responseFormat: { type: "json_schema", name: "answer", schema: { type: "object", required: ["answer"], properties: { answer: { type: "string" } }, additionalProperties: false } },
+    }, credentials);
+    expect(result.structuredOutput).toEqual({ answer: "ok" });
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toContain("json_schema");
     vi.unstubAllGlobals();
   });
 

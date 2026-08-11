@@ -72,6 +72,9 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
           : {}),
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         ...(request.maxTokens === undefined ? {} : { max_tokens: request.maxTokens }),
+        ...(request.responseFormat
+          ? { response_format: { type: "json_schema", json_schema: { name: request.responseFormat.name, strict: true, schema: request.responseFormat.schema } } }
+          : {}),
       }),
     });
     const body = (await response.json()) as OpenAICompatibleResponse;

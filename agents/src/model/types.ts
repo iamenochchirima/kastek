@@ -25,6 +25,11 @@ export interface ModelRequest {
   signal?: AbortSignal;
   timeoutMs?: number;
   maxAttempts?: number;
+  responseFormat?: {
+    type: "json_schema";
+    name: string;
+    schema: Record<string, unknown>;
+  };
 }
 
 export interface ModelCapabilities {
@@ -60,6 +65,7 @@ export interface ModelResponse {
   finishReason: string | null;
   usage: ModelUsage;
   latencyMs: number;
+  structuredOutput?: unknown;
 }
 
 export interface ModelCredentials {

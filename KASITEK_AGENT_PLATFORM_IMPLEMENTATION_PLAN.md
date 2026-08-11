@@ -491,12 +491,17 @@ received
   silently degrading. **Tool-calling capability checks are enforced by the gateway.**
 - [ ] Add a small/fast model route for gates, classifiers, and summaries.
 - [ ] Add versioned model policies rather than hard-coded model IDs.
+- [x] Add versioned model policies rather than hard-coded model IDs. **Published policy can
+  select a primary target, bounded fallbacks, a fast target, funding fallback policy, and run
+  token/cost caps; legacy configuration remains supported for existing drafts.**
 - [ ] Add provider and model fallbacks permitted by data policy.
 - [x] Add token accounting and estimated cost per model call. **Pricing is deployment-configured
   through `MODEL_PRICING_JSON`; unknown models report zero rather than inventing a price.**
 - [x] Add request timeouts and retry classification. **Gateway retries bounded retryable provider
   failures and aborts timed-out requests.**
-- [ ] Add structured-output validation.
+- [x] Add structured-output validation. **OpenAI-compatible adapters send JSON Schema mode and
+  the gateway parses and validates returned JSON with AJV; providers without an implemented
+  contract fail capability validation.**
 - [ ] Add streaming response support.
 - [ ] Add provider circuit breakers.
 - [x] Resolve credentials through opaque references and an explicit precedence policy.

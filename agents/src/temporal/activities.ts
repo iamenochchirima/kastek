@@ -7,7 +7,7 @@ import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
 import { EnvironmentCredentialResolver, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
-import type { ModelPricing, ModelProvider } from "../model/types";
+import type { ModelPricing } from "../model/types";
 import { runBoundedAgentLoop } from "../runtime/loop";
 import { buildAgentContext } from "../runtime/context";
 import { retrievalGate } from "../runtime/context";
@@ -19,6 +19,7 @@ import { RunStepRepository } from "../db/repositories/run-step-repository";
 import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 import { SummaryRepository } from "../db/repositories/summary-repository";
 import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
+import { resolveModelTarget } from "../model/policy";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -135,9 +136,9 @@ async function executeLoopForRun(
   tools: ToolRegistry,
 ) {
   const configuration = run.configuration;
-  const provider = (configuration.provider ?? configuration.modelProvider ?? "openrouter") as ModelProvider;
-  const model = configuration.model;
-  if (typeof model !== "string" || !model) throw new Error("Published agent version has no model configured");
+  const modelTarget = resolveModelTarget(configuration, run.policy);
+  const provider = modelTarget.provider;
+  const model = modelTarget.model;
   const policyTools = new Set(
     Array.isArray(run.policy.allowedTools) ? run.policy.allowedTools.filter((value): value is string => typeof value === "string") : [],
   );
@@ -243,7 +244,8 @@ async function executeLoopForRun(
     limits: {
       maxIterations: typeof configuration.maxIterations === "number" ? configuration.maxIterations : undefined,
       maxToolCalls: typeof configuration.maxToolCalls === "number" ? configuration.maxToolCalls : undefined,
-      maxTotalTokens: typeof configuration.maxTotalTokens === "number" ? configuration.maxTotalTokens : undefined,
+      maxTotalTokens: modelTarget.maxTokensPerRun ?? (typeof configuration.maxTotalTokens === "number" ? configuration.maxTotalTokens : undefined),
+      maxEstimatedCostUsd: modelTarget.maxEstimatedCostUsd,
       maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
     },
     resumeApprovedToolCall,
