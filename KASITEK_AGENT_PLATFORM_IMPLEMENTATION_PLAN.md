@@ -626,19 +626,19 @@ received
 
 ## 20. Security and threat model checklist
 
-- [ ] Threat-model direct and indirect prompt injection.
-- [ ] Threat-model excessive agency and overly broad tools.
-- [ ] Threat-model cross-organization and cross-agent data access.
-- [ ] Threat-model memory and knowledge poisoning.
-- [ ] Threat-model external identity takeover and channel pairing.
-- [ ] Threat-model replayed webhooks and duplicate messages.
-- [ ] Threat-model approval replay and payload mutation.
-- [ ] Threat-model tool-result injection.
-- [ ] Threat-model data exfiltration through tools, models, traces, and sandboxes.
-- [ ] Threat-model denial of service and denial of wallet.
-- [ ] Threat-model compromised providers and third-party MCP servers.
-- [ ] Threat-model support/operator abuse.
-- [ ] Assign owners and mitigations for every high-risk finding.
+- [x] Threat-model direct and indirect prompt injection.
+- [x] Threat-model excessive agency and overly broad tools.
+- [x] Threat-model cross-organization and cross-agent data access.
+- [x] Threat-model memory and knowledge poisoning.
+- [x] Threat-model external identity takeover and channel pairing.
+- [x] Threat-model replayed webhooks and duplicate messages.
+- [x] Threat-model approval replay and payload mutation.
+- [x] Threat-model tool-result injection.
+- [x] Threat-model data exfiltration through tools, models, traces, and sandboxes.
+- [x] Threat-model denial of service and denial of wallet.
+- [x] Threat-model compromised providers and third-party MCP servers.
+- [x] Threat-model support/operator abuse.
+- [x] Assign owners and mitigations for every high-risk finding. **See `agents/docs/THREAT_MODEL.md`; production reviews and residual controls remain explicit.**
 - [ ] Complete a production security review before enabling external effects.
 - [ ] Complete a separate security review before enabling untrusted custom code.
 
