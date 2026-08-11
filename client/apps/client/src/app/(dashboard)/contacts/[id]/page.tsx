@@ -65,7 +65,7 @@ type CustomerDetailResponse = {
     status: string | null;
     responseTimeMs: number | null;
     createdAt: string;
-    botName: string;
+    agentName: string;
   }>;
 };
 
@@ -290,7 +290,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               detail.agentEvents.map((event) => (
                 <div key={event.id} className="flex flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="font-medium text-foreground">{event.botName}</p>
+                    <p className="font-medium text-foreground">{event.agentName}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {label(event.eventType.replace("agent.", "").replaceAll("_", " "))}
                       {event.channel ? ` · ${label(event.channel)}` : ""}
