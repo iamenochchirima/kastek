@@ -138,6 +138,25 @@ pub async fn install_template(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn set_installation_status(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let (installation_id, status) = path.into_inner();
+    if !matches!(status.as_str(), "active" | "paused" | "disabled") {
+        return Err(AppError::BadRequest(
+            "Invalid installation status".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .set_installation_status(&organization_id, &user.id, &installation_id, &status)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn resolve_conversation(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

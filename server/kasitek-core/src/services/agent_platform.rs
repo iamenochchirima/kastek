@@ -187,6 +187,24 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn set_installation_status(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        status: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/status/{status}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
     pub async fn resolve_platform_conversation(
         &self,
         organization_id: &str,

@@ -25,6 +25,9 @@ export interface AgentRecord {
   created_by: string;
   created_at: string;
   updated_at: string;
+  installation_id?: string | null;
+  installation_status?: string | null;
+  version_number?: number | null;
 }
 
 export interface AgentVersionRecord {
@@ -446,7 +449,15 @@ export class AgentRepository {
   public async listAgents(organizationId: string): Promise<AgentRecord[]> {
     const result = await query<AgentRecord>(
       this.pool,
-      `SELECT ad.* FROM agent_definitions ad
+      `SELECT ad.*, ai.id AS installation_id, ai.status AS installation_status,
+              av.version_number
+       FROM agent_definitions ad
+       LEFT JOIN LATERAL (
+         SELECT ai.* FROM agent_installations ai
+         WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
+         ORDER BY ai.updated_at DESC LIMIT 1
+       ) ai ON TRUE
+       LEFT JOIN agent_versions av ON av.id = ai.agent_version_id
        WHERE ad.organization_id = $1 OR (
          ad.owner_type = 'system' AND ad.protected = TRUE AND EXISTS (
            SELECT 1 FROM agent_installations ai

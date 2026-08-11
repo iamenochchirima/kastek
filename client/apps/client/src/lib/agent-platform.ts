@@ -82,6 +82,9 @@ export type AgentDefinition = {
   protected: boolean;
   owner_type: string;
   created_at: string;
+  installation_id?: string | null;
+  installation_status?: string | null;
+  version_number?: number | null;
 };
 
 export function listAgents(): Promise<{ agents: AgentDefinition[] }> {
@@ -103,6 +106,10 @@ export function installAgentTemplate(templateKey: string, settings: Record<strin
     method: "POST",
     body: JSON.stringify({ settings }),
   });
+}
+
+export function setAgentInstallationStatus(installationId: string, status: "active" | "paused" | "disabled"): Promise<unknown> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/status/${status}`, { method: "POST" });
 }
 
 export function resolvePlatformConversation(installationId: string): Promise<ConversationResponse> {

@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Bot, Check, ChevronRight, Info, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ensureKasiAi, installAgentTemplate, type AgentDefinition, type AgentTemplate } from "@/lib/agent-platform";
+import { ensureKasiAi, installAgentTemplate, setAgentInstallationStatus, type AgentDefinition, type AgentTemplate } from "@/lib/agent-platform";
 
 export type AgentListItem = AgentDefinition;
 
@@ -71,7 +71,7 @@ export function AgentsPageClient({
 
         {initialAgents.length ? (
           <section className="grid gap-4 lg:grid-cols-2" aria-label="Installed agents">
-            {initialAgents.map((agent) => <AgentCard key={agent.id} agent={agent} />)}
+            {initialAgents.map((agent) => <AgentCard key={agent.id} agent={agent} onChanged={() => router.refresh()} />)}
           </section>
         ) : (
           <Card>
@@ -92,8 +92,20 @@ export function AgentsPageClient({
   );
 }
 
-function AgentCard({ agent }: { agent: AgentDefinition }) {
+function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: () => void }) {
   const isKasiAi = agent.slug === "kasiai";
+  const [updating, setUpdating] = useState(false);
+  const installationStatus = agent.installation_status ?? "disabled";
+  const toggleStatus = async () => {
+    if (!agent.installation_id || updating) return;
+    setUpdating(true);
+    try {
+      await setAgentInstallationStatus(agent.installation_id, installationStatus === "active" ? "paused" : "active");
+      onChanged();
+    } finally {
+      setUpdating(false);
+    }
+  };
   return (
     <Card>
       <CardContent className="space-y-5 p-5">
@@ -109,18 +121,21 @@ function AgentCard({ agent }: { agent: AgentDefinition }) {
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             {agent.protected ? <Badge className="border-primary/20 bg-primary/10 text-primary">System agent</Badge> : null}
-            <Badge className={statusClass(agent.status)}>{agent.status}</Badge>
+            <Badge className={statusClass(agent.installation_status ?? agent.status)}>{agent.installation_status ?? agent.status}</Badge>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
           <span>Slug: {agent.slug}</span>
           <span>Created {new Date(agent.created_at).toLocaleDateString()}</span>
+          {agent.version_number ? <span>Version {agent.version_number}</span> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {isKasiAi ? (
             <span className="inline-flex items-center gap-1.5 text-xs text-accent"><Check className="h-3.5 w-3.5" />Available from the sidebar</span>
           ) : (
-            <span className="text-xs text-muted-foreground">Installed through the shared Agent Platform</span>
+            <Button type="button" variant="outline" size="sm" disabled={!agent.installation_id || updating} onClick={() => void toggleStatus()}>
+              {updating ? "Updating…" : installationStatus === "active" ? "Pause agent" : "Resume agent"}
+            </Button>
           )}
         </div>
       </CardContent>

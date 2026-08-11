@@ -40,6 +40,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::post().to(agent_platform::install_template),
                 )
                 .route(
+                    "/installations/{installationId}/status/{status}",
+                    web::post().to(agent_platform::set_installation_status),
+                )
+                .route(
                     "/kasiai/ensure",
                     web::post().to(agent_platform::ensure_kasiai),
                 )

@@ -282,9 +282,11 @@ also work for template-created agents.
 
 - [x] Replace the current `/agents` data source with the authenticated Agent Platform bridge.
 - [x] Display KasiAi as protected and system-owned with its installed status and sidebar entry.
-- [ ] Display allowed settings, health, current version,
+- [x] Display installation status and current published version; permitted settings/health detail
+  remains to be expanded.
   last run, and recent activity.
-- [ ] Display organization-created agents with template, status, installation/channel state, last
+- [x] Display organization-created agents with template, status, installation state, and current
+  published version; last-run/failure detail remains to be expanded.
   run, failure state, and current published version.
 - [ ] Add empty, loading, error, paused, disabled, and unavailable states backed by real data.
 - [ ] Add agent detail pages for overview, instructions/settings permitted by template, deployment,
@@ -318,7 +320,8 @@ also work for template-created agents.
 - [x] Replace the old bot creation modal with a template selection flow; unavailable templates are
   visibly disabled rather than routed to legacy provisioning.
 - [ ] Implement template selection, minimal configuration, review, create, and success states.
-- [ ] Support pause/resume, publish a new allowed configuration version, rollback, retire, and
+- [x] Support pause/resume through real Agent Platform installation operations; publish, rollback,
+  retire, and archive controls remain to be expanded.
   archive through real Agent Platform operations.
 - [ ] Add safe deletion semantics: archive definitions and preserve historical runs; do not hard
   delete active agent history from normal user controls.
