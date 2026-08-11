@@ -535,8 +535,6 @@ received
 - [x] Define capability flags so unsupported provider features fail validation instead of
   silently degrading. **Tool-calling capability checks are enforced by the gateway.**
 - [ ] Add a small/fast model route for gates, classifiers, and summaries.
-- [x] Add versioned model policies rather than hard-coded model IDs. **See the policy schema and
-  resolver below.**
 - [x] Add versioned model policies rather than hard-coded model IDs. **Published policy can
   select a primary target, bounded fallbacks, a fast target, funding fallback policy, and run
   token/cost caps; legacy configuration remains supported for existing drafts.**
@@ -556,15 +554,19 @@ received
 - [x] Resolve credentials through opaque references and an explicit precedence policy.
 - [x] Support KasiTek-funded and user-funded provider credentials. **The resolver supports
   opaque vault references for user-funded keys and environment-backed KasiTek defaults.**
-- [ ] Enforce entitlement, token, request, and spend budgets before each model call.
+- [x] Enforce entitlement, token, request, and spend budgets before each model call. **Per-run
+  token/request/spend ledgers are checked against durable model-call usage before each call;
+  product entitlement lookup remains a `kasitek-core` boundary.**
 - [x] Record the credential funding source without exposing credential material. **Vault records
   carry the funding source and model-call attribution stores only that source and reference.**
-- [ ] Do not fall back from a user-funded key to a KasiTek-funded key unless agent policy
-  explicitly permits it.
+- [x] Do not fall back from a user-funded key to a KasiTek-funded key unless agent policy
+  explicitly permits it. **A supplied opaque reference must resolve successfully; no implicit
+  environment fallback occurs.**
 - [x] Support credential rotation and revocation. **Rotation atomically creates a new encrypted
   record and revokes the prior reference; provider validation and failure notification remain
   operational follow-up work.**
-- [ ] Prevent secrets from entering prompts or model-visible tool output.
+- [x] Prevent secrets from entering prompts or model-visible tool output. **Credentials are opaque
+  references and tool outputs are recursively redacted before model context/audit callbacks.**
 - [x] Record the actual provider, model, tokens, latency, and finish reason.
 
 ## 16. Sandboxing and custom execution

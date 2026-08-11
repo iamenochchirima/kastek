@@ -87,4 +87,22 @@ export class ModelCallRepository {
       failedCalls: Number(row.failed_calls),
     };
   }
+
+  public async assertRunBudget(input: { organizationId: string; runId: string; maxTotalTokens?: number; maxEstimatedCostUsd?: number; maxRequests?: number }): Promise<void> {
+    const result = await query<{ requests: string; total_tokens: string; estimated_cost_usd: string }>(
+      this.pool,
+      `SELECT COUNT(*) FILTER (WHERE status = 'completed')::text AS requests,
+              COALESCE(SUM(total_tokens), 0)::text AS total_tokens,
+              COALESCE(SUM(estimated_cost_usd), 0)::text AS estimated_cost_usd
+       FROM model_calls WHERE organization_id = $1 AND run_id = $2`,
+      [input.organizationId, input.runId],
+    );
+    const usage = result.rows[0]!;
+    const requests = Number(usage.requests);
+    const totalTokens = Number(usage.total_tokens);
+    const estimatedCostUsd = Number(usage.estimated_cost_usd);
+    if (input.maxRequests !== undefined && requests >= input.maxRequests) throw new Error("MODEL_REQUEST_BUDGET_EXCEEDED");
+    if (input.maxTotalTokens !== undefined && totalTokens >= input.maxTotalTokens) throw new Error("MODEL_TOKEN_BUDGET_EXCEEDED");
+    if (input.maxEstimatedCostUsd !== undefined && estimatedCostUsd >= input.maxEstimatedCostUsd) throw new Error("MODEL_SPEND_BUDGET_EXCEEDED");
+  }
 }

@@ -254,6 +254,13 @@ async function executeLoopForRun(
       maxEstimatedCostUsd: modelTarget.maxEstimatedCostUsd,
       maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
     },
+    beforeModelCall: () => modelCalls.assertRunBudget({
+      organizationId: run.organization_id,
+      runId: run.id,
+      maxTotalTokens: modelTarget.maxTokensPerRun ?? (typeof configuration.maxTotalTokens === "number" ? configuration.maxTotalTokens : undefined),
+      maxEstimatedCostUsd: modelTarget.maxEstimatedCostUsd,
+      maxRequests: typeof configuration.maxModelCalls === "number" ? configuration.maxModelCalls : undefined,
+    }),
     resumeApprovedToolCall,
     onEvent: (event) => runs.appendEvent({
       organizationId: run.organization_id,

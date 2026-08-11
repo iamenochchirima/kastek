@@ -32,6 +32,7 @@ export interface AgentLoopInput {
   onEvent?: (event: AgentLoopEvent) => Promise<void> | void;
   onModelResponse?: (response: ModelResponse) => Promise<void> | void;
   onModelError?: (error: { code: string; message: string }) => Promise<void> | void;
+  beforeModelCall?: () => Promise<void> | void;
   onToolProposed?: (input: {
     toolCallId: string;
     name: string;
@@ -136,6 +137,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
     }
     const remainingTokens = Math.max(1, limits.maxTotalTokens - usage.totalTokens);
     try {
+      await input.beforeModelCall?.();
       const response = await input.gateway.complete({
         ...input.model,
         messages,
