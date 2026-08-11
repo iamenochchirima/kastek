@@ -79,6 +79,18 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(201).send(agent);
   });
 
+  app.get("/v1/agents", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    return { agents: await agents.listAgents(auth.organizationId) };
+  });
+
+  app.get<{ Params: { agentId: string } }>("/v1/agents/:agentId/versions", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const agent = await agents.getAgent(auth.organizationId, request.params.agentId);
+    if (!agent) return reply.code(404).send({ error: "agent_not_found" });
+    return { versions: await agents.listVersions(auth.organizationId, request.params.agentId) };
+  });
+
   app.post<{ Params: { agentId: string } }>("/v1/agents/:agentId/versions", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     const input = createVersionInputSchema.parse(request.body);
@@ -99,6 +111,27 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.send(version);
     },
   );
+
+  app.post<{ Params: { agentId: string; versionId: string } }>(
+    "/v1/agents/:agentId/versions/:versionId/rollback",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      return agents.rollbackVersion(auth.organizationId, auth.actorId, request.params.agentId, request.params.versionId);
+    },
+  );
+
+  app.post<{ Params: { agentId: string; versionId: string } }>(
+    "/v1/agents/:agentId/versions/:versionId/retire",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      return agents.retireVersion(auth.organizationId, auth.actorId, request.params.agentId, request.params.versionId);
+    },
+  );
+
+  app.post<{ Params: { agentId: string } }>("/v1/agents/:agentId/archive", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    return agents.archiveAgent(auth.organizationId, auth.actorId, request.params.agentId);
+  });
 
   app.post("/v1/installations", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);

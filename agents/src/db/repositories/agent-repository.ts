@@ -74,6 +74,8 @@ export class AgentRepository {
     actorId: string,
     input: CreateAgentInput,
   ): Promise<AgentRecord> {
+    const isProtected = input.protected ?? false;
+    if (isProtected) throw new Error("Only system-owned agents may be protected");
     const slug = input.slug ?? slugify(input.name);
     const result = await query<AgentRecord>(
       this.pool,
@@ -81,7 +83,7 @@ export class AgentRepository {
         (organization_id, owner_type, name, slug, description, protected, created_by)
        VALUES ($1, 'organization', $2, $3, $4, $5, $6)
        RETURNING *`,
-      [organizationId, input.name, slug, input.description ?? null, input.protected, actorId],
+      [organizationId, input.name, slug, input.description ?? null, isProtected, actorId],
     );
     return result.rows[0]!;
   }
@@ -93,6 +95,28 @@ export class AgentRepository {
       [organizationId, agentId],
     );
     return result.rows[0] ?? null;
+  }
+
+  public async listAgents(organizationId: string): Promise<AgentRecord[]> {
+    const result = await query<AgentRecord>(
+      this.pool,
+      `SELECT * FROM agent_definitions
+       WHERE organization_id = $1 ORDER BY created_at DESC`,
+      [organizationId],
+    );
+    return result.rows;
+  }
+
+  public async listVersions(organizationId: string, agentId: string): Promise<AgentVersionRecord[]> {
+    const result = await query<AgentVersionRecord>(
+      this.pool,
+      `SELECT av.* FROM agent_versions av
+       JOIN agent_definitions ad ON ad.id = av.agent_definition_id
+       WHERE ad.organization_id = $1 AND ad.id = $2
+       ORDER BY av.version_number DESC`,
+      [organizationId, agentId],
+    );
+    return result.rows;
   }
 
   public async createVersion(
@@ -168,6 +192,99 @@ export class AgentRepository {
         [organizationId, actorId, versionId, JSON.stringify({ agentId })],
       );
       return published.rows[0]!;
+    });
+  }
+
+  public async rollbackVersion(
+    organizationId: string,
+    actorId: string,
+    agentId: string,
+    versionId: string,
+  ): Promise<AgentVersionRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const agent = await client.query<AgentRecord>(
+        `SELECT * FROM agent_definitions WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
+        [organizationId, agentId],
+      );
+      if (!agent.rows[0]) throw new Error("Agent not found");
+      const target = await client.query<AgentVersionRecord>(
+        `SELECT * FROM agent_versions WHERE id = $1 AND agent_definition_id = $2 FOR UPDATE`,
+        [versionId, agentId],
+      );
+      if (!target.rows[0]) throw new Error("Version not found");
+      if (target.rows[0].status === "published") return target.rows[0];
+      if (target.rows[0].status !== "retired") throw new Error("Only a retired version can be rolled back");
+      await client.query(
+        `UPDATE agent_versions SET status = 'retired', retired_at = now()
+         WHERE agent_definition_id = $1 AND status = 'published'`,
+        [agentId],
+      );
+      const published = await client.query<AgentVersionRecord>(
+        `UPDATE agent_versions SET status = 'published', published_at = now(), retired_at = NULL
+         WHERE id = $1 RETURNING *`,
+        [versionId],
+      );
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent_version.rolled_back', 'agent_version', $3, $4::jsonb)`,
+        [organizationId, actorId, versionId, JSON.stringify({ agentId })],
+      );
+      return published.rows[0]!;
+    });
+  }
+
+  public async retireVersion(
+    organizationId: string,
+    actorId: string,
+    agentId: string,
+    versionId: string,
+  ): Promise<AgentVersionRecord> {
+    const result = await query<AgentVersionRecord>(
+      this.pool,
+      `UPDATE agent_versions av
+       SET status = 'retired', retired_at = now()
+       FROM agent_definitions ad
+       WHERE av.id = $1 AND av.agent_definition_id = $2 AND ad.id = av.agent_definition_id
+         AND ad.organization_id = $3 AND av.status = 'published'
+       RETURNING av.*`,
+      [versionId, agentId, organizationId],
+    );
+    const version = result.rows[0];
+    if (!version) throw new Error("Published version not found");
+    await query(
+      this.pool,
+      `INSERT INTO audit_records
+        (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+       VALUES ($1, 'human', $2, 'agent_version.retired', 'agent_version', $3, $4::jsonb)`,
+      [organizationId, actorId, versionId, JSON.stringify({ agentId })],
+    );
+    return version;
+  }
+
+  public async archiveAgent(organizationId: string, actorId: string, agentId: string): Promise<AgentRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<AgentRecord>(
+        `UPDATE agent_definitions
+         SET status = 'archived', archived_at = COALESCE(archived_at, now()), updated_at = now()
+         WHERE organization_id = $1 AND id = $2 AND protected = FALSE
+         RETURNING *`,
+        [organizationId, agentId],
+      );
+      const agent = result.rows[0];
+      if (!agent) throw new Error("Agent not found or protected");
+      await client.query(
+        `UPDATE agent_installations SET status = 'disabled', updated_at = now()
+         WHERE organization_id = $1 AND agent_definition_id = $2 AND status <> 'disabled'`,
+        [organizationId, agentId],
+      );
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent.archived', 'agent_definition', $3, '{}'::jsonb)`,
+        [organizationId, actorId, agentId],
+      );
+      return agent;
     });
   }
 
