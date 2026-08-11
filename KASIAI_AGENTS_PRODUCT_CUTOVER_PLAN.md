@@ -295,19 +295,20 @@ also work for template-created agents.
 
 - [x] Add an initial client template catalog with stable keys and explicit availability states. Only
   KasiAi is available until the ordinary-agent creation transaction exists.
-- [ ] Move the catalog to a versioned server-owned source with schemas and template policy.
+- [x] Move the catalog to a versioned server-owned source with schemas and template policy.
 - [ ] Start with a small set that the current runtime can honestly support:
   - general website/support assistant;
   - FAQ and knowledge assistant;
   - lead-intake assistant;
   - booking-request intake assistant that collects and hands off details but does not claim to
     create bookings until the booking tool exists.
-- [ ] Define instructions, model policy, allowed tools, required connections, configurable fields,
+- [x] Define instructions, model policy, allowed tools, required connections, configurable fields,
   budgets, and channel compatibility for every template.
-- [ ] Validate template configuration on the server.
-- [ ] Create ordinary organization-owned definition, draft version, published version,
+- [ ] Validate all template configuration fields on the server (the initial tone setting is
+  normalized server-side; stricter schema validation remains before production).
+- [x] Create ordinary organization-owned definition, draft version, published version,
   installation, grants, and default platform conversation from a template transactionally.
-- [ ] Record the source template key/version but permit later version history independent of the
+- [x] Record the source template key/version but permit later version history independent of the
   catalog.
 - [ ] Do not add a custom workflow editor in this tranche.
 
@@ -328,8 +329,7 @@ also work for template-created agents.
 
 ### 10.4 Activity and analytics
 
-- [x] Replace `/agents/activity` legacy bot events with an Agent Platform installation/status view
-  until the run aggregate endpoint is connected.
+- [ ] Replace `/agents/activity` legacy bot events with Agent Platform audit records and run status.
 - [ ] Replace `/agents/analytics` legacy counts with Agent Platform run, latency, failure, token,
   tool, and estimated-cost aggregates.
 - [ ] Replace workspace `botCount` and bot-attention queries with Agent Platform summary data.

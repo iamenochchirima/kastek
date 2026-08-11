@@ -7,6 +7,7 @@ import type {
 } from "../../domain/types";
 import { query, withTransaction } from "../pool";
 import { validateVersionWorkflow } from "../../workflows/graph";
+import { getAgentTemplate, templateVersionInput } from "../../system/templates";
 
 type DbExecutor = Pool | PoolClient;
 
@@ -62,6 +63,15 @@ export interface SystemInstallationRecord extends InstallationRecord {
   created: boolean;
 }
 
+export interface TemplateInstallationRecord {
+  agent: AgentRecord;
+  version: AgentVersionRecord;
+  installation: InstallationRecord;
+  templateKey: string;
+  templateVersion: number;
+  created: boolean;
+}
+
 function slugify(name: string): string {
   return name
     .trim()
@@ -97,6 +107,109 @@ export class AgentRepository {
       [organizationId, input.name, slug, input.description ?? null, isProtected, actorId],
     );
     return result.rows[0]!;
+  }
+
+  public async installTemplate(input: {
+    organizationId: string;
+    actorId: string;
+    templateKey: string;
+    name?: string;
+    settings?: Record<string, unknown>;
+  }): Promise<TemplateInstallationRecord> {
+    const template = getAgentTemplate(input.templateKey);
+    if (!template) throw new Error("Agent template not found");
+    const settings = input.settings ?? {};
+    const versionInput = templateVersionInput(template, settings);
+    validateVersionWorkflow(versionInput.configuration);
+    const name = input.name?.trim() || template.name;
+    return withTransaction(this.pool, async (client) => {
+      await client.query(
+        `INSERT INTO agent_definitions
+          (organization_id, owner_type, name, slug, description, protected, created_by)
+         VALUES ($1, 'organization', $2, $3, $4, FALSE, $5)
+         ON CONFLICT (organization_id, slug) DO NOTHING`,
+        [input.organizationId, name, template.key, template.description, input.actorId],
+      );
+      const agentResult = await client.query<AgentRecord>(
+        `SELECT * FROM agent_definitions
+         WHERE organization_id = $1 AND slug = $2
+         FOR UPDATE`,
+        [input.organizationId, template.key],
+      );
+      const agent = agentResult.rows[0];
+      if (!agent || agent.owner_type !== "organization" || agent.protected) {
+        throw new Error("Agent template slug is occupied by a protected or incompatible agent");
+      }
+      const existingVersion = await client.query<AgentVersionRecord>(
+        `SELECT * FROM agent_versions WHERE agent_definition_id = $1 AND status = 'published' LIMIT 1`,
+        [agent.id],
+      );
+      let version = existingVersion.rows[0];
+      let created = false;
+      if (!version) {
+        const next = await client.query<{ version_number: number }>(
+          `SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number
+           FROM agent_versions WHERE agent_definition_id = $1`,
+          [agent.id],
+        );
+        const versionNumber = Number(next.rows[0]!.version_number);
+        const inserted = await client.query<AgentVersionRecord>(
+          `INSERT INTO agent_versions
+            (agent_definition_id, version_number, status, instructions, configuration, policy,
+             checksum, created_by, published_at)
+           VALUES ($1, $2, 'published', $3, $4::jsonb, $5::jsonb, $6, $7, now())
+           RETURNING *`,
+          [
+            agent.id,
+            versionNumber,
+            versionInput.instructions,
+            JSON.stringify(versionInput.configuration),
+            JSON.stringify(versionInput.policy),
+            checksumVersion(versionInput, versionNumber),
+            input.actorId,
+          ],
+        );
+        version = inserted.rows[0]!;
+        created = true;
+        const allowedTools = Array.isArray(versionInput.policy.allowedTools)
+          ? versionInput.policy.allowedTools.filter((tool): tool is string => typeof tool === "string" && tool.trim().length > 0)
+          : [];
+        for (const toolName of allowedTools) {
+          await client.query(
+            `INSERT INTO agent_tool_grants
+              (organization_id, agent_version_id, tool_name, granted_by)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
+               WHERE revoked_at IS NULL DO NOTHING`,
+            [input.organizationId, version.id, toolName.trim(), input.actorId],
+          );
+        }
+      }
+      const installationResult = await client.query<InstallationRecord>(
+        `INSERT INTO agent_installations
+          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, settings, created_by)
+         VALUES ($1, $2, $3, 'organization', $3, $4::jsonb, $5)
+         ON CONFLICT (organization_id, agent_definition_id, scope_type, scope_id)
+         DO UPDATE SET updated_at = agent_installations.updated_at
+         RETURNING *`,
+        [agent.id, version.id, input.organizationId, JSON.stringify({ ...settings, templateKey: template.key, templateVersion: template.version }), input.actorId],
+      );
+      const installation = installationResult.rows[0]!;
+      await client.query(
+        `INSERT INTO agent_principals (installation_id, organization_id)
+         VALUES ($1, $2) ON CONFLICT (installation_id) DO NOTHING`,
+        [installation.id, input.organizationId],
+      );
+      if (created) {
+        await client.query(
+          `INSERT INTO audit_records
+            (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+           VALUES ($1, 'human', $2, 'agent_template.installed', 'agent_definition', $3, $4::jsonb)`,
+          [input.organizationId, input.actorId, agent.id, JSON.stringify({ templateKey: template.key, templateVersion: template.version, versionId: version.id, installationId: installation.id })],
+        );
+      }
+      return { agent, version, installation, templateKey: template.key, templateVersion: template.version, created };
+    });
   }
 
   public async createSystemAgent(

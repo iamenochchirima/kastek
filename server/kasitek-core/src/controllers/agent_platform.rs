@@ -60,6 +60,40 @@ pub async fn list_agents(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn list_templates(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_templates(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn install_template(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    template_key: web::Path<String>,
+    body: Option<web::Json<Value>>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let body = body
+        .map(|value| value.into_inner())
+        .unwrap_or_else(|| serde_json::json!({}));
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Template installation body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .install_template(&organization_id, &user.id, &template_key, body)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn resolve_conversation(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

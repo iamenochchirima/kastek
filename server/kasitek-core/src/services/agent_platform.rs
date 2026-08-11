@@ -100,6 +100,40 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_templates(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/templates",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn install_template(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        template_key: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/templates/{template_key}/install"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn resolve_platform_conversation(
         &self,
         organization_id: &str,

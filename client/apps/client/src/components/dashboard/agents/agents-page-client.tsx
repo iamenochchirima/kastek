@@ -6,8 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Bot, Check, ChevronRight, Info, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { AgentDefinition } from "@/lib/agent-platform";
-import { apiUrl } from "@/lib/server-api";
+import { ensureKasiAi, installAgentTemplate, type AgentDefinition } from "@/lib/agent-platform";
 
 export type AgentListItem = AgentDefinition;
 
@@ -26,22 +25,28 @@ const templates: AgentTemplate[] = [
     available: true,
   },
   {
-    value: "website_agent",
+    value: "website-support",
     label: "Website enquiry agent",
     description: "Capture website enquiries, collect useful context, and route the next step.",
-    available: false,
+    available: true,
   },
   {
-    value: "whatsapp_agent",
-    label: "WhatsApp enquiry agent",
-    description: "Start with inbound questions, qualification, replies, and team handoff.",
-    available: false,
+    value: "faq-knowledge",
+    label: "FAQ and knowledge assistant",
+    description: "Answer frequently asked questions from connected knowledge sources.",
+    available: true,
   },
   {
-    value: "workflow_agent",
-    label: "Internal workflow agent",
-    description: "Carry out a defined internal process across connected systems and approvals.",
-    available: false,
+    value: "lead-intake",
+    label: "Lead intake assistant",
+    description: "Collect useful lead context and prepare a clear handoff to a person.",
+    available: true,
+  },
+  {
+    value: "booking-intake",
+    label: "Booking request intake",
+    description: "Collect booking details and prepare a request for team confirmation.",
+    available: true,
   },
 ];
 
@@ -147,23 +152,21 @@ function AgentCard({ agent }: { agent: AgentDefinition }) {
 }
 
 function TemplateDialog({ onClose, onInstalled, initialTemplateKey }: { onClose: () => void; onInstalled: () => void; initialTemplateKey?: string }) {
-  const [selected, setSelected] = useState(initialTemplateKey === "kasiai" ? "kasiai" : "");
+  const [selected, setSelected] = useState(initialTemplateKey ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectedTemplate = templates.find((template) => template.value === selected);
 
   const install = async () => {
-    if (!selectedTemplate?.available || selected !== "kasiai") return;
+    if (!selectedTemplate?.available) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(apiUrl("/api/agents/kasiai/ensure"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (!response.ok) throw new Error("KasiAi could not be installed");
+      if (selectedTemplate.value === "kasiai") {
+        await ensureKasiAi();
+      } else {
+        await installAgentTemplate(selectedTemplate.value);
+      }
       onInstalled();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Installation failed");

@@ -31,6 +31,7 @@ import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
 import { PlatformChatRepository } from "../db/repositories/platform-chat-repository";
+import { listAgentTemplates } from "../system/templates";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -127,6 +128,23 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
     return { agents: await agents.listAgents(auth.organizationId) };
+  });
+
+  app.get("/v1/templates", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return { templates: listAgentTemplates() };
+  });
+
+  app.post<{ Params: { templateKey: string } }>("/v1/templates/:templateKey/install", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = z.object({
+      name: z.string().trim().min(1).max(160).optional(),
+      settings: z.record(z.string(), z.unknown()).default({}),
+    }).parse(request.body ?? {});
+    const installed = await agents.installTemplate({ organizationId: auth.organizationId, actorId: auth.actorId, templateKey: request.params.templateKey, ...input });
+    return reply.code(installed.created ? 201 : 200).send(installed);
   });
 
   app.get<{ Params: { agentId: string } }>("/v1/agents/:agentId/versions", async (request, reply) => {

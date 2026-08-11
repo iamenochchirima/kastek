@@ -41,6 +41,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/agents")
                 .route("", web::get().to(agent_platform::list_agents))
+                .route("/templates", web::get().to(agent_platform::list_templates))
+                .route(
+                    "/templates/{templateKey}/install",
+                    web::post().to(agent_platform::install_template),
+                )
                 .route(
                     "/kasiai/ensure",
                     web::post().to(agent_platform::ensure_kasiai),

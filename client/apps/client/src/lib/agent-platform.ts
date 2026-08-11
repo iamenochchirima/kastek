@@ -86,6 +86,22 @@ export function listAgents(): Promise<{ agents: AgentDefinition[] }> {
   return request<{ agents: AgentDefinition[] }>("/api/agents");
 }
 
+export type AgentTemplate = {
+  key: string;
+  version: number;
+  name: string;
+  description: string;
+  requiredConnections: string[];
+  configurableFields: Array<{ key: string; type: string; description: string }>;
+};
+
+export function installAgentTemplate(templateKey: string, settings: Record<string, unknown> = {}): Promise<unknown> {
+  return request(`/api/agents/templates/${encodeURIComponent(templateKey)}/install`, {
+    method: "POST",
+    body: JSON.stringify({ settings }),
+  });
+}
+
 export function resolvePlatformConversation(installationId: string): Promise<ConversationResponse> {
   return request<ConversationResponse>(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/conversation`, {
     method: "POST",
