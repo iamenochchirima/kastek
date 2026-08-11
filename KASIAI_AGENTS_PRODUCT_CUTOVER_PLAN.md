@@ -111,7 +111,8 @@ The recorded dependency and row-count inventory is in
 - [x] Record the exact legacy table row counts before the destructive migration.
 - [x] Confirm no production data needs conversion into new Agent Platform definitions. This plan
   intentionally purges legacy bot records rather than importing them.
-- [ ] Add a repository check that fails if client code introduces a new `/api/bots` reference.
+- [x] Add a repository check that fails if live source introduces a new `/api/bots` or legacy bot
+  table/configuration reference (`scripts/check-no-legacy-bot-references.sh`).
 
 **Exit gate**
 
@@ -407,13 +408,13 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
 - [ ] Remove all feature flags that switch between old bots and the Agent Platform.
 - [ ] Remove all dual-write, import-on-read, or legacy lookup code.
 - [ ] Remove old n8n agent workflow identifiers and callback URLs from active configuration.
-- [ ] Add static checks for `/api/bots`, `BotConfiguration`, `BotDeployment`, and `BotEvent` in live
+- [x] Add static checks for `/api/bots`, `BotConfiguration`, `BotDeployment`, and `BotEvent` in live
   source paths, with explicit exclusions only for historical migrations and this plan.
 
 **Exit gate**
 
-- [ ] Old routes, services, tables, generated models, UI code, callbacks, and active configuration
-  are absent.
+- [ ] Old routes, services, generated models, UI code, callbacks, and active configuration are
+  absent; the destructive table migration still needs to be applied to deployed databases.
 - [ ] The new Agents UI and KasiAi continue to pass end-to-end tests after the purge migration.
 
 ## 13. Phase I — Operations and admin visibility
