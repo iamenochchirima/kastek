@@ -28,6 +28,16 @@ export interface MessageRecord {
   created_at: string;
 }
 
+export interface ParticipantRecord {
+  id: string;
+  conversation_id: string;
+  organization_id: string;
+  participant_type: "user" | "customer" | "staff" | "agent" | "system";
+  external_id: string | null;
+  display_name: string | null;
+  created_at: string;
+}
+
 export class ConversationRepository {
   public constructor(private readonly pool: Pool) {}
 
@@ -91,6 +101,10 @@ export class ConversationRepository {
       if (!conversation.rows[0] || conversation.rows[0].status !== "active") {
         throw new Error("Active conversation not found");
       }
+      if (input.participantId) {
+        const participant = await client.query("SELECT id FROM participants WHERE id = $1 AND conversation_id = $2 AND organization_id = $3", [input.participantId, input.conversationId, input.organizationId]);
+        if (!participant.rows[0]) throw new Error("Participant does not belong to conversation");
+      }
       if (input.provider && input.providerMessageId) {
         const existing = await client.query<MessageRecord>(
           "SELECT * FROM messages WHERE provider = $1 AND provider_message_id = $2",
@@ -129,6 +143,37 @@ export class ConversationRepository {
     const result = await query<MessageRecord>(
       this.pool,
       "SELECT * FROM messages WHERE organization_id = $1 AND conversation_id = $2 ORDER BY sequence_number",
+      [organizationId, conversationId],
+    );
+    return result.rows;
+  }
+
+  public async createParticipant(input: {
+    organizationId: string;
+    conversationId: string;
+    participantType: ParticipantRecord["participant_type"];
+    externalId?: string;
+    displayName?: string;
+  }): Promise<ParticipantRecord> {
+    const result = await query<ParticipantRecord>(
+      this.pool,
+      `INSERT INTO participants
+        (conversation_id, organization_id, participant_type, external_id, display_name)
+       SELECT $1, $2, $3, $4, $5
+       WHERE EXISTS (SELECT 1 FROM conversations WHERE id = $1 AND organization_id = $2)
+       ON CONFLICT (conversation_id, participant_type, external_id) DO UPDATE SET
+         display_name = COALESCE(EXCLUDED.display_name, participants.display_name)
+       RETURNING *`,
+      [input.conversationId, input.organizationId, input.participantType, input.externalId ?? null, input.displayName ?? null],
+    );
+    if (!result.rows[0]) throw new Error("Conversation not found");
+    return result.rows[0];
+  }
+
+  public async listParticipants(organizationId: string, conversationId: string): Promise<ParticipantRecord[]> {
+    const result = await query<ParticipantRecord>(
+      this.pool,
+      `SELECT * FROM participants WHERE organization_id = $1 AND conversation_id = $2 ORDER BY created_at`,
       [organizationId, conversationId],
     );
     return result.rows;

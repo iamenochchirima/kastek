@@ -15,6 +15,7 @@ import { RunStepRepository } from "../db/repositories/run-step-repository";
 import { ToolInvocationRepository } from "../db/repositories/tool-invocation-repository";
 import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 import { ModelCallRepository } from "../db/repositories/model-call-repository";
+import { ChannelRepository } from "../db/repositories/channel-repository";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
@@ -29,6 +30,7 @@ export interface AppDependencies {
   toolInvocations?: ToolInvocationRepository;
   toolGrants?: ToolGrantRepository;
   modelCalls?: ModelCallRepository;
+  channels?: ChannelRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -59,6 +61,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const toolInvocations = dependencies.toolInvocations ?? new ToolInvocationRepository(dependencies.pool);
   const toolGrants = dependencies.toolGrants ?? new ToolGrantRepository(dependencies.pool);
   const modelCalls = dependencies.modelCalls ?? new ModelCallRepository(dependencies.pool);
+  const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
 
   app.setErrorHandler((error, _request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -188,6 +191,34 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(201).send(installation);
   });
 
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/channels", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({
+      channelType: z.string().trim().min(1).max(80),
+      channelKey: z.string().trim().min(1).max(160),
+      credentialReference: z.string().trim().max(240).optional(),
+      metadata: z.record(z.string(), z.unknown()).default({}),
+    }).parse(request.body);
+    const connection = await channels.createConnection({ organizationId: auth.organizationId, installationId: request.params.installationId, ...input, actorId: auth.actorId });
+    return reply.code(201).send(connection);
+  });
+
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/channels", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    const [connections, bindings] = await Promise.all([
+      channels.listConnections(auth.organizationId, request.params.installationId),
+      channels.listBindings(auth.organizationId, request.params.installationId),
+    ]);
+    return { connections, bindings };
+  });
+
+  app.post<{ Params: { installationId: string; connectionId: string } }>("/v1/installations/:installationId/channels/:connectionId/bindings", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ externalIdentity: z.string().trim().min(1).max(240), routingKey: z.string().trim().max(160).default("default") }).parse(request.body);
+    const binding = await channels.bind({ organizationId: auth.organizationId, installationId: request.params.installationId, connectionId: request.params.connectionId, ...input });
+    return reply.code(201).send(binding);
+  });
+
   app.post<{ Params: { installationId: string } }>(
     "/v1/installations/:installationId/conversations",
     async (request, reply) => {
@@ -239,9 +270,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const conversation = await conversations.getConversation(auth.organizationId, request.params.conversationId);
       if (!conversation) return reply.code(404).send({ error: "conversation_not_found" });
       const messages = await conversations.listMessages(auth.organizationId, conversation.id);
-      return { conversation, messages };
+      const participants = await conversations.listParticipants(auth.organizationId, conversation.id);
+      return { conversation, messages, participants };
     },
   );
+
+  app.post<{ Params: { conversationId: string } }>("/v1/conversations/:conversationId/participants", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ participantType: z.enum(["user", "customer", "staff", "agent", "system"]), externalId: z.string().trim().max(240).optional(), displayName: z.string().trim().max(240).optional() }).parse(request.body);
+    const participant = await conversations.createParticipant({ organizationId: auth.organizationId, conversationId: request.params.conversationId, ...input });
+    return reply.code(201).send(participant);
+  });
 
   app.post<{ Params: { installationId: string; status: "active" | "paused" | "disabled" } }>(
     "/v1/installations/:installationId/status/:status",

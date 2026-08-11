@@ -32,5 +32,8 @@ describe("foundation migration", () => {
     const summariesSql = await readFile(new URL("../migrations/008_conversation_summaries.sql", import.meta.url), "utf8");
     expect(summariesSql).toContain("conversation_summaries");
     expect(summariesSql).toContain("last_message_sequence");
+    const channelsSql = await readFile(new URL("../migrations/009_channels_and_delivery.sql", import.meta.url), "utf8");
+    expect(channelsSql).toContain("channel_connections");
+    expect(channelsSql).toContain("delivery_attempts");
   });
 });

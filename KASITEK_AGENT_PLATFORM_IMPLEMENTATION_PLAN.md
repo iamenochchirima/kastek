@@ -15,12 +15,13 @@
   effective-grant intersection at runtime.
 - [x] Migration 008 adds scoped rolling conversation summaries used during context rebuilding;
   deterministic summaries are a safe first implementation until a summary model policy exists.
+- [x] Migration 009 adds channel connections, bindings, participants, and delivery attempts.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 35 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 37 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -195,10 +196,10 @@ The implementation must keep the following concepts separate.
 - [x] `ToolGrant`: permission for an agent version or installation to request a tool. **Version
   and installation grants are persisted, revocable, audited, and intersected with policy at
   execution.**
-- [ ] `ChannelConnection`: verified provider connection and credential reference.
-- [ ] `ChannelBinding`: routing from a channel/account to an agent installation.
+- [x] `ChannelConnection`: verified provider connection and credential reference.
+- [x] `ChannelBinding`: routing from a channel/account to an agent installation.
 - [x] `Conversation`: durable thread belonging to one agent installation.
-- [ ] `Participant`: user, customer, staff member, agent, or system actor in a conversation.
+- [x] `Participant`: user, customer, staff member, agent, or system actor in a conversation.
 - [x] `Message`: immutable inbound or outbound conversation event.
 - [x] `AgentRun`: one durable attempt to process a trigger or message.
 - [x] `RunStep`: ordered retrieval, model, routing, approval, or tool execution step.
@@ -394,12 +395,14 @@ received
 - [ ] Preserve provider message IDs and timestamps.
 - [ ] Preserve channel-specific metadata outside model-visible content.
 - [ ] Add idempotent message ingestion.
-- [ ] Add outbound delivery attempts and status events.
+- [x] Add outbound delivery attempts and status events. **Delivery attempt persistence is in
+  migration 009; provider-specific sending remains adapter work.**
 
 ### 12.2 Channel adapters
 
-- [ ] Define the channel adapter interface.
-- [ ] Implement the authenticated platform/sidebar adapter first.
+- [x] Define the channel adapter interface.
+- [x] Implement the authenticated platform/sidebar adapter first. **The adapter normalizes
+  canonical inbound events; API authentication remains the trust boundary.**
 - [ ] Implement secure Telegram account pairing and message delivery.
 - [ ] Implement secure WhatsApp account pairing and message delivery.
 - [ ] Verify provider webhook signatures and replay windows.
