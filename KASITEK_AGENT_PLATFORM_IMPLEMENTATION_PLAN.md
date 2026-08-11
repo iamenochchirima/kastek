@@ -20,7 +20,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 34 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 35 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -549,11 +549,13 @@ received
 - [ ] Build the agent fleet overview.
 - [ ] Build agent, version, and installation detail views.
 - [ ] Build conversation and run search.
-- [ ] Build the complete run timeline.
+- [x] Build the complete run timeline. **The organization-scoped timeline API joins lifecycle
+  events, run steps, and tool invocation outcomes.**
 - [ ] Build approval inspection and decisions.
 - [ ] Build tool-call and external-effect inspection.
 - [ ] Build memory and knowledge inspection.
-- [ ] Build usage and cost dashboards.
+- [ ] Build usage and cost dashboards. **The underlying organization-scoped operational summary
+  API is implemented; dashboard UI remains pending.**
 - [ ] Build failure grouping and diagnostics.
 - [ ] Build kill-switch controls.
 - [ ] Build version canary, activation, and rollback controls.
@@ -561,7 +563,7 @@ received
 
 ### 17.4 Evaluation platform
 
-- [ ] Create deterministic runtime and tool-policy tests.
+- [x] Create deterministic runtime and tool-policy tests.
 - [ ] Create agent-version scenario datasets.
 - [ ] Add model-judged quality evaluations separately from deterministic tests.
 - [ ] Add adversarial prompt-injection and tool-abuse suites.

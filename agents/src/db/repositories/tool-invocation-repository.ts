@@ -101,4 +101,14 @@ export class ToolInvocationRepository {
     );
     return result.rows as Array<Record<string, unknown>>;
   }
+
+  public async outcomeSummary(organizationId: string): Promise<Array<{ status: string; count: number }>> {
+    const result = await query<{ status: string; count: string }>(
+      this.pool,
+      `SELECT status, COUNT(*)::text AS count FROM tool_invocations
+       WHERE organization_id = $1 GROUP BY status ORDER BY status`,
+      [organizationId],
+    );
+    return result.rows.map((row) => ({ status: row.status, count: Number(row.count) }));
+  }
 }

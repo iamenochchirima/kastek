@@ -124,4 +124,18 @@ describe("Agent Platform HTTP foundation", () => {
     });
     await app.close();
   });
+
+  it("returns an organization-scoped operational summary", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      runs: { operationalSummary: async () => ({ runsByStatus: [{ status: "completed", count: 2 }], oldestQueuedAt: null }) } as never,
+      modelCalls: { usageSummary: async () => ({ inputTokens: 10, outputTokens: 5, totalTokens: 15, estimatedCostUsd: 0.01, failedCalls: 0 }) } as never,
+      toolInvocations: { outcomeSummary: async () => [{ status: "completed", count: 1 }] } as never,
+    });
+    const response = await app.inject({ method: "GET", url: "/v1/operations/summary", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ organizationId: "org-1", runs: { runsByStatus: [{ status: "completed", count: 2 }] }, models: { totalTokens: 15 }, tools: [{ status: "completed", count: 1 }] });
+    await app.close();
+  });
 });

@@ -14,6 +14,7 @@ import { ConversationRepository } from "../db/repositories/conversation-reposito
 import { RunStepRepository } from "../db/repositories/run-step-repository";
 import { ToolInvocationRepository } from "../db/repositories/tool-invocation-repository";
 import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
+import { ModelCallRepository } from "../db/repositories/model-call-repository";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
@@ -27,6 +28,7 @@ export interface AppDependencies {
   runSteps?: RunStepRepository;
   toolInvocations?: ToolInvocationRepository;
   toolGrants?: ToolGrantRepository;
+  modelCalls?: ModelCallRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -56,6 +58,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const runSteps = dependencies.runSteps ?? new RunStepRepository(dependencies.pool);
   const toolInvocations = dependencies.toolInvocations ?? new ToolInvocationRepository(dependencies.pool);
   const toolGrants = dependencies.toolGrants ?? new ToolGrantRepository(dependencies.pool);
+  const modelCalls = dependencies.modelCalls ?? new ModelCallRepository(dependencies.pool);
 
   app.setErrorHandler((error, _request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -285,6 +288,22 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       toolInvocations.list(auth.organizationId, run.id),
     ]);
     return { run, events, steps, toolCalls };
+  });
+
+  app.get("/v1/operations/summary", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    const [runsSummary, modelSummary, toolSummary] = await Promise.all([
+      runs.operationalSummary(auth.organizationId),
+      modelCalls.usageSummary(auth.organizationId),
+      toolInvocations.outcomeSummary(auth.organizationId),
+    ]);
+    return {
+      organizationId: auth.organizationId,
+      generatedAt: new Date().toISOString(),
+      runs: runsSummary,
+      models: modelSummary,
+      tools: toolSummary,
+    };
   });
 
   app.get<{ Params: { runId: string }; Querystring: { after?: string } }>("/v1/runs/:runId/events/stream", async (request, reply) => {

@@ -54,4 +54,37 @@ export class ModelCallRepository {
       [input.organizationId, input.runId ?? null, input.provider, input.model, input.fundingSource, JSON.stringify(input.error)],
     );
   }
+
+  public async usageSummary(organizationId: string): Promise<{
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+    failedCalls: number;
+  }> {
+    const result = await query<{
+      input_tokens: string;
+      output_tokens: string;
+      total_tokens: string;
+      estimated_cost_usd: string | null;
+      failed_calls: string;
+    }>(
+      this.pool,
+      `SELECT COALESCE(SUM(input_tokens), 0)::text AS input_tokens,
+              COALESCE(SUM(output_tokens), 0)::text AS output_tokens,
+              COALESCE(SUM(total_tokens), 0)::text AS total_tokens,
+              COALESCE(SUM(estimated_cost_usd), 0)::text AS estimated_cost_usd,
+              COUNT(*) FILTER (WHERE status = 'failed')::text AS failed_calls
+       FROM model_calls WHERE organization_id = $1`,
+      [organizationId],
+    );
+    const row = result.rows[0]!;
+    return {
+      inputTokens: Number(row.input_tokens),
+      outputTokens: Number(row.output_tokens),
+      totalTokens: Number(row.total_tokens),
+      estimatedCostUsd: Number(row.estimated_cost_usd ?? 0),
+      failedCalls: Number(row.failed_calls),
+    };
+  }
 }

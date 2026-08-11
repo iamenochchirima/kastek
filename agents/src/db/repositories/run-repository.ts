@@ -305,4 +305,26 @@ export class RunRepository {
       [input.organizationId, input.runId, input.installationId, input.eventType, JSON.stringify(event.data), event.specversion, event.source, event.subject, event.datacontenttype],
     );
   }
+
+  public async operationalSummary(organizationId: string): Promise<{
+    runsByStatus: Array<{ status: string; count: number }>;
+    oldestQueuedAt: string | null;
+  }> {
+    const statuses = await query<{ status: string; count: string }>(
+      this.pool,
+      `SELECT status, COUNT(*)::text AS count FROM agent_runs
+       WHERE organization_id = $1 GROUP BY status ORDER BY status`,
+      [organizationId],
+    );
+    const oldest = await query<{ oldest_queued_at: string | null }>(
+      this.pool,
+      `SELECT MIN(created_at) AT TIME ZONE 'UTC' AS oldest_queued_at
+       FROM agent_runs WHERE organization_id = $1 AND status = 'queued'`,
+      [organizationId],
+    );
+    return {
+      runsByStatus: statuses.rows.map((row) => ({ status: row.status, count: Number(row.count) })),
+      oldestQueuedAt: oldest.rows[0]?.oldest_queued_at ?? null,
+    };
+  }
 }
