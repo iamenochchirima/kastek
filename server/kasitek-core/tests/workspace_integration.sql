@@ -1,3 +1,7 @@
+-- Workspace summary integration fixture.
+-- Agent counts and attention now come from the Agent Platform service; this
+-- fixture only verifies that the active organization membership boundary is
+-- preserved in the core database.
 BEGIN;
 
 INSERT INTO "User" (id, email, "createdAt", "updatedAt") VALUES
@@ -16,29 +20,8 @@ INSERT INTO "OrganizationMember" (
   ('workspace-membership-member-a', 'workspace-org-a', 'workspace-member-a', 'MEMBER', NOW(), NOW(), NOW()),
   ('workspace-membership-owner-b', 'workspace-org-b', 'workspace-owner-b', 'OWNER', NOW(), NOW(), NOW());
 
-INSERT INTO "BotConfiguration" (
-  id, "userId", "orgId", name, type, status, "createdAt", "updatedAt"
-) VALUES
-  ('workspace-bot-owner-a', 'workspace-owner-a', 'workspace-org-a', 'Owner-created bot', 'support', 'active', NOW(), NOW()),
-  ('workspace-bot-member-a', 'workspace-member-a', 'workspace-org-a', 'Member-created bot', 'support', 'active', NOW(), NOW()),
-  ('workspace-bot-owner-b', 'workspace-owner-b', 'workspace-org-b', 'Other organization bot', 'support', 'active', NOW(), NOW());
-
 DO $$
 BEGIN
-  IF (
-    SELECT COUNT(*) FROM "BotConfiguration" WHERE "orgId" = 'workspace-org-a'
-  ) <> 2 THEN
-    RAISE EXCEPTION 'workspace summary did not include records created by both organization members';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-    FROM "BotConfiguration"
-    WHERE "orgId" = 'workspace-org-a' AND id = 'workspace-bot-owner-b'
-  ) THEN
-    RAISE EXCEPTION 'workspace summary scope leaked a record from another organization';
-  END IF;
-
   IF EXISTS (
     SELECT 1
     FROM "OrganizationMember"

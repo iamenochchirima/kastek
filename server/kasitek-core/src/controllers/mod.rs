@@ -13,7 +13,6 @@ pub mod ai;
 pub mod auth;
 pub mod billing;
 pub mod bookings;
-pub mod bots;
 pub mod calls;
 pub mod chat;
 pub mod connections;

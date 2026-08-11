@@ -1,12 +1,10 @@
 pub mod agent_platform;
-pub mod agents;
 pub mod ai;
 pub mod auth;
 pub mod billing;
 pub mod billing_provider;
 pub mod bluesky_oauth;
 pub mod bookings;
-pub mod bots;
 pub mod calls;
 pub mod connections;
 pub mod customers;

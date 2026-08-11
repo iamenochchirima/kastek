@@ -1411,36 +1411,6 @@ pub struct ProductWaitlistCreateRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, FromRow)]
-pub struct BotConfigurationRow {
-    pub id: String,
-    #[sqlx(rename = "user_id")]
-    #[serde(rename = "userId")]
-    pub user_id: String,
-    pub name: String,
-    #[serde(rename = "type")]
-    pub bot_type: String,
-    pub status: String,
-    #[sqlx(rename = "greeting_message")]
-    #[serde(rename = "greetingMessage")]
-    pub greeting_message: Option<String>,
-    pub personality: Option<String>,
-    pub language: String,
-    pub capabilities: Option<Value>,
-    #[sqlx(rename = "knowledge_base")]
-    #[serde(rename = "knowledgeBase")]
-    pub knowledge_base: Option<Value>,
-    #[sqlx(rename = "integration_config")]
-    #[serde(rename = "integrationConfig")]
-    pub integration_config: Option<Value>,
-    #[sqlx(rename = "created_at")]
-    #[serde(rename = "createdAt")]
-    pub created_at: DateTime<Utc>,
-    #[sqlx(rename = "updated_at")]
-    #[serde(rename = "updatedAt")]
-    pub updated_at: DateTime<Utc>,
-}
-
 #[derive(Debug, Clone, FromRow)]
 pub struct BusinessProfileRow {
     #[sqlx(rename = "businessName")]
@@ -1453,53 +1423,6 @@ pub struct BusinessProfileRow {
     pub province: Option<String>,
     pub country: String,
     pub website: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BotCreateRequest {
-    pub name: Option<String>,
-    #[serde(rename = "type")]
-    pub bot_type: Option<String>,
-    #[serde(rename = "autoProvision")]
-    pub auto_provision: Option<bool>,
-    pub language: Option<String>,
-    #[serde(rename = "greetingMessage")]
-    pub greeting_message: Option<String>,
-    pub personality: Option<String>,
-    pub capabilities: Option<Value>,
-    #[serde(rename = "integrationConfig")]
-    pub integration_config: Option<Value>,
-    #[serde(rename = "businessDetails")]
-    pub business_details: Option<Value>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BotEventCreateRequest {
-    #[serde(rename = "eventType")]
-    pub event_type: Option<String>,
-    pub channel: Option<String>,
-    pub status: Option<String>,
-    #[serde(rename = "conversationId")]
-    pub conversation_id: Option<String>,
-    #[serde(rename = "customerId")]
-    pub customer_id: Option<String>,
-    #[serde(rename = "responseTimeMs")]
-    pub response_time_ms: Option<i32>,
-    pub metadata: Option<Value>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BotActionRequest {
-    pub action: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BotDeploymentCallbackRequest {
-    pub status: Option<String>,
-    #[serde(rename = "workflowId")]
-    pub workflow_id: Option<String>,
-    pub message: Option<String>,
-    pub payload: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]

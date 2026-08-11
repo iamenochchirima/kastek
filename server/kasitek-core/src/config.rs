@@ -21,11 +21,7 @@ pub struct AppConfig {
     pub resend_api_key: Option<String>,
     pub resend_from_email: String,
     pub zoomconnect_send_url: Option<String>,
-    pub n8n_api_url: Option<String>,
-    pub n8n_api_key: Option<String>,
-    pub n8n_callback_token: Option<String>,
     /// Shared bearer token for the private Agent Platform -> core read boundary.
-    /// This is intentionally separate from user sessions and n8n callbacks.
     pub agents_internal_token: Option<String>,
     /// Private Agent Platform base URL used by authenticated browser-facing proxy routes.
     pub agents_api_url: Option<String>,
@@ -104,9 +100,6 @@ impl AppConfig {
                 "KasiTek <noreply@kasitek.co.za>",
             ),
             zoomconnect_send_url: env_optional("ZOOMCONNECT_SEND_URL"),
-            n8n_api_url: env_optional("N8N_API_URL"),
-            n8n_api_key: env_optional("N8N_API_KEY"),
-            n8n_callback_token: env_optional("N8N_CALLBACK_TOKEN"),
             agents_internal_token: env_optional("KASITEK_AGENTS_INTERNAL_TOKEN"),
             agents_api_url,
             agents_internal_auth_secret,

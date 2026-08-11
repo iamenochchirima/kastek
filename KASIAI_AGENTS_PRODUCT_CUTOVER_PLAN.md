@@ -91,11 +91,11 @@ installation/conversation/run contracts instead of creating another KasiAi imple
 - [ ] `kasitek-core` does not yet proxy authenticated Agent Platform control-plane or chat calls.
 - [ ] The Agent Platform internal signing secret and URL are not configured across both services.
 - [ ] The sidebar has no KasiAi chat surface.
-- [ ] `/agents`, `/agents/activity`, and `/agents/analytics` still read the legacy `/api/bots`
+- [x] `/agents`, `/agents/activity`, and `/agents/analytics` no longer read the legacy `/api/bots`
   system.
-- [ ] The old Rust bot controller, services, n8n provisioning path, callbacks, Prisma models, and
-  database tables remain live.
-- [ ] No initial user-facing Agent Platform template catalog exists.
+- [ ] The destructive database migration still needs to be applied in each deployed environment;
+  live Rust routes, services, callbacks, and generated models have been removed.
+- [x] A server-owned initial Agent Platform template catalog exists.
 
 ## 5. Phase A — Freeze and inventory the legacy bot system
 
@@ -341,7 +341,7 @@ also work for template-created agents.
 - [x] KasiAi appears in the same Agents experience that will host template-created agents.
 - [ ] A template-created agent can be configured, published, installed, tested, paused, resumed,
   and inspected end to end.
-- [ ] No Agents page calls `/api/bots` or reads legacy bot records.
+- [x] No Agents page calls `/api/bots` or reads legacy bot records.
 
 ## 11. Phase G — Initial KasiAi product configuration
 
@@ -370,40 +370,40 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
 
 ### 12.1 Client removal
 
-- [ ] Delete old `/api/bots` calls, legacy bot types, bot creation/action UI, n8n deployment state,
+- [x] Delete old `/api/bots` calls, legacy bot types, bot creation/action UI, n8n deployment state,
   and callback-oriented copy.
 - [ ] Replace or delete all old bot loading skeletons, template metadata, activity mapping, and
   analytics mapping that no longer match the new UI.
 - [ ] Remove stale service-worker/preload assumptions tied to the old pages.
-- [ ] Verify the client bundle contains no `/api/bots` string.
+- [x] Verify the client source and generated database client contain no `/api/bots` string.
 
 ### 12.2 `kasitek-core` removal
 
-- [ ] Remove the `/api/bots` route scope and controller module.
-- [ ] Remove `services/bots.rs`.
-- [ ] Remove the old `services/agents` n8n provisioning client, templates, payloads, and callbacks
+- [x] Remove the `/api/bots` route scope and controller module.
+- [x] Remove `services/bots.rs`.
+- [x] Remove the old `services/agents` n8n provisioning client, templates, payloads, and callbacks
   once reference analysis confirms they are exclusively legacy.
 - [ ] Keep the new `agent_internal` tool boundary; rename it if needed to avoid confusing it with
   deleted n8n provisioning code.
-- [ ] Remove old bot request/row structs from `db/models.rs`.
+- [x] Remove old bot request/row structs from `db/models.rs`.
 - [x] Remove customer history joins to legacy bot tables and source workspace agent metrics from the Agent Platform.
-- [ ] Remove old callback authentication and n8n agent-provisioning environment variables when no
+- [x] Remove old callback authentication and n8n agent-provisioning environment variables when no
   remaining non-agent feature uses them.
 - [ ] Remove old bot-specific billing meter wiring while preserving the current Agents entitlement.
 
 ### 12.3 Database and generated client removal
 
-- [ ] Add a new explicit destructive Prisma/SQL migration that drops foreign keys, indexes, and
+- [x] Add a new explicit destructive Prisma/SQL migration that drops foreign keys, indexes, and
   `BotEvent`, `BotDeployment`, and `BotConfiguration` in dependency-safe order.
-- [ ] Remove the legacy models and relations from the Prisma schema.
-- [ ] Regenerate Prisma clients and remove generated legacy bot types.
+- [x] Remove the legacy models and relations from the Prisma schema.
+- [x] Regenerate Prisma clients and remove generated legacy bot types.
 - [ ] Do not rewrite or delete historical migration files already applied to environments.
 - [ ] Test the destructive migration from a production-like schema snapshot.
 - [ ] Verify no runtime query references a dropped table.
 
 ### 12.4 No-fallback enforcement
 
-- [ ] Make `/api/bots` return 404 because the route no longer exists, not a compatibility response.
+- [x] Make `/api/bots` return 404 because the route no longer exists, not a compatibility response.
 - [ ] Remove all feature flags that switch between old bots and the Agent Platform.
 - [ ] Remove all dual-write, import-on-read, or legacy lookup code.
 - [ ] Remove old n8n agent workflow identifiers and callback URLs from active configuration.

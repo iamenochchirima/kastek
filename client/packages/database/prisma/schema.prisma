@@ -20,9 +20,6 @@ model Organization {
   members     OrganizationMember[]
   invitations OrganizationInvitation[]
 
-  botConfigurations              BotConfiguration[]
-  botEvents                      BotEvent[]
-  botDeployments                 BotDeployment[]
   socialChannelConnections       SocialChannelConnection[]
   socialPosts                    SocialPost[]
   socialPublishJobs              SocialPublishJob[]
@@ -450,9 +447,6 @@ model User {
   sentInvitations    OrganizationInvitation[] @relation("SentInvitations")
 
   businessProfile                BusinessProfile?
-  botConfigurations              BotConfiguration[]
-  botEvents                      BotEvent[]
-  botDeployments                 BotDeployment[]
   conversations                  OnboardingConversation[]
   socialChannelConnections       SocialChannelConnection[]
   socialPosts                    SocialPost[]
@@ -566,90 +560,6 @@ model BusinessProfile {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-model BotConfiguration {
-  id     String        @id @default(cuid())
-  userId String
-  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId  String?
-  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
-
-  name   String
-  type   String
-  status String @default("draft")
-
-  greetingMessage String? @db.Text
-  personality     String?
-  language        String  @default("en")
-
-  capabilities      Json?
-  knowledgeBase     Json?
-  integrationConfig Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  events      BotEvent[]
-  deployments BotDeployment[]
-
-  @@index([userId])
-  @@index([orgId])
-}
-
-model BotEvent {
-  id         String           @id @default(cuid())
-  botId      String
-  bot        BotConfiguration @relation(fields: [botId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId      String?
-  org        Organization?    @relation(fields: [orgId], references: [id], onDelete: SetNull)
-  customerId String?
-  customer   Customer?        @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
-
-  eventType      String
-  channel        String?
-  status         String?
-  conversationId String?
-  responseTimeMs Int?
-  metadata       Json?
-
-  createdAt DateTime @default(now())
-
-  @@index([botId, createdAt])
-  @@index([userId, createdAt])
-  @@index([orgId, createdAt])
-  @@index([customerId, createdAt])
-}
-
-model BotDeployment {
-  id     String           @id @default(cuid())
-  botId  String
-  bot    BotConfiguration @relation(fields: [botId], references: [id], onDelete: Cascade)
-  userId String
-  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId  String?
-  org    Organization?    @relation(fields: [orgId], references: [id], onDelete: SetNull)
-
-  provider        String
-  target          String
-  status          String
-  versionNumber   Int
-  workflowId      String?
-  templateKey     String?
-  configSnapshot  Json?
-  responsePayload Json?
-  errorMessage    String?   @db.Text
-  deployedAt      DateTime?
-  pausedAt        DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([botId, createdAt])
-  @@index([userId, createdAt])
-  @@index([orgId, createdAt])
 }
 
 model OnboardingConversation {
@@ -938,7 +848,6 @@ model Customer {
   identities       CustomerIdentity[]
   conversations    Conversation[]
   whatsappContacts WhatsappContact[]
-  botEvents        BotEvent[]
   bookings         Booking[]
 
   createdAt DateTime @default(now())
@@ -1576,20 +1485,20 @@ model SocialDataDeletionRequest {
 }
 
 model SocialWebhookEvent {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   provider          String
   eventKey          String
   eventType         String
   externalAccountId String?
   payload           Json
-  status            String   @default("RECEIVED")
-  attempts          Int      @default(0)
-  nextAttemptAt     DateTime @default(now())
+  status            String    @default("RECEIVED")
+  attempts          Int       @default(0)
+  nextAttemptAt     DateTime  @default(now())
   errorMessage      String?
-  receivedAt        DateTime @default(now())
+  receivedAt        DateTime  @default(now())
   processedAt       DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@unique([provider, eventKey])
   @@index([provider, status, nextAttemptAt])
@@ -1597,20 +1506,20 @@ model SocialWebhookEvent {
 }
 
 model SocialOAuthAuthorization {
-  id                String   @id @default(cuid())
-  provider          String
-  state             String   @unique
-  userId            String
-  orgId             String
-  handle            String?
-  expectedDid       String
-  pdsUrl            String
-  authorizationUrl  String
-  codeVerifier      String   @db.Text
-  dpopPrivateKey    String   @db.Text
-  dpopNonce         String?
-  createdAt         DateTime @default(now())
-  expiresAt         DateTime
+  id               String   @id @default(cuid())
+  provider         String
+  state            String   @unique
+  userId           String
+  orgId            String
+  handle           String?
+  expectedDid      String
+  pdsUrl           String
+  authorizationUrl String
+  codeVerifier     String   @db.Text
+  dpopPrivateKey   String   @db.Text
+  dpopNonce        String?
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
 
   @@index([provider, expiresAt])
 }

@@ -16,10 +16,6 @@ This is the canonical home for private Kasitek documentation.
 - [Client-Ready Platform Checklist](./execution/client-ready-platform-checklist.md)
 - [Architecture](./architecture/kasitek-technical-blueprint.md)
 
-## Supporting Documents
-
-- [n8n Provisioner Contract](./contracts/n8n-provisioner-contract.md)
-
 ## Structure
 
 - `white-paper/`: top-level thesis and narrative documents
@@ -29,7 +25,6 @@ This is the canonical home for private Kasitek documentation.
 - `architecture/`: active technical blueprint and supporting architecture references
 - `execution/`: implementation trackers used when their work is active
 - `collateral/`: internal-facing polished messaging and sales collateral drafts
-- `contracts/`: internal agreements, service contracts, and integration contracts
 - `operations/`: operational notes, environment procedures, and deployment references
 - `runbooks/`: step-by-step operational playbooks
 

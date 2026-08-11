@@ -3,7 +3,7 @@ use actix_web::web;
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
     admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai, auth,
-    billing, bookings, bots, calls, chat, connections, customers, health, inbox, notifications,
+    billing, bookings, calls, chat, connections, customers, health, inbox, notifications,
     onboarding, orgs, product_tour, profile, public, realtime, social, whatsapp, whatsapp_calls,
     workspace,
 };
@@ -14,25 +14,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/realtime")
                 .route("/whatsapp", web::get().to(realtime::whatsapp_stream)),
-        )
-        .service(
-            web::scope("/api/bots")
-                .route("", web::get().to(bots::list))
-                .route("/activity", web::get().to(bots::activity))
-                .route("", web::post().to(bots::create))
-                .route("/{id}", web::get().to(bots::get))
-                .route("/{id}", web::patch().to(bots::patch))
-                .route("/{id}", web::delete().to(bots::delete))
-                .route("/{id}/actions", web::post().to(bots::action))
-                .route(
-                    "/{id}/deployments/{deploymentId}/callback",
-                    web::post().to(bots::deployment_callback),
-                )
-                .route(
-                    "/{id}/events/trusted",
-                    web::post().to(bots::create_event_trusted),
-                )
-                .route("/{id}/events", web::post().to(bots::create_event)),
         )
         .service(web::scope("/api/internal/agents/v1").route(
             "/customers/{id}",
