@@ -156,4 +156,24 @@ describe("Agent Platform HTTP foundation", () => {
     expect(listed.body).not.toContain("secret-key");
     await app.close();
   });
+
+  it("records a deterministic evaluation run", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      evaluations: {
+        getScenario: async () => ({ id: "scenario-1", assertions: [{ path: "answer", operator: "equals", expected: "ok" }] }),
+        recordRun: async (input: { status: string }) => ({ id: "evaluation-run-1", status: input.status }),
+      } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/evaluations/scenarios/scenario-1/runs",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { actualOutput: { answer: "ok" } },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ id: "evaluation-run-1", status: "passed" });
+    await app.close();
+  });
 });

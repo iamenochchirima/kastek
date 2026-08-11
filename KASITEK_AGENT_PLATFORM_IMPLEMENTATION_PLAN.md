@@ -18,12 +18,13 @@
 - [x] Migration 009 adds channel connections, bindings, participants, and delivery attempts.
 - [x] Migration 010 adds an encrypted credential vault with opaque references, revocation, and
   organization-scoped resolution.
+- [x] Migration 011 adds organization-scoped evaluation scenarios and durable evaluation runs.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 42 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 45 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -574,13 +575,16 @@ received
 ### 17.4 Evaluation platform
 
 - [x] Create deterministic runtime and tool-policy tests.
-- [ ] Create agent-version scenario datasets.
+- [x] Create agent-version scenario datasets. **Scenarios support optional agent ownership,
+  structured inputs, deterministic assertions, tags, and rubrics.**
 - [ ] Add model-judged quality evaluations separately from deterministic tests.
 - [ ] Add adversarial prompt-injection and tool-abuse suites.
 - [ ] Add memory-poisoning and cross-scope retrieval suites.
 - [ ] Add channel delivery and duplicate-message suites.
 - [ ] Define publication gates for agent versions.
-- [ ] Store evaluation version, rubric, result, and reviewed evidence.
+- [x] Store evaluation version, rubric, result, and reviewed evidence. **Evaluation runs persist
+  the evaluator version, scenario rubric, actual output, assertion result, and failure evidence;
+  human review metadata remains an admin-console follow-up.**
 
 ## 18. Railway-first deployment
 

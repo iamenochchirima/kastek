@@ -38,5 +38,8 @@ describe("foundation migration", () => {
     const credentialsSql = await readFile(new URL("../migrations/010_credential_vault.sql", import.meta.url), "utf8");
     expect(credentialsSql).toContain("credential_vault");
     expect(credentialsSql).toContain("encrypted_payload");
+    const evaluationsSql = await readFile(new URL("../migrations/011_evaluations.sql", import.meta.url), "utf8");
+    expect(evaluationsSql).toContain("evaluation_scenarios");
+    expect(evaluationsSql).toContain("evaluation_runs");
   });
 });

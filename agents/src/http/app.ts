@@ -19,6 +19,8 @@ import { ChannelRepository } from "../db/repositories/channel-repository";
 import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
+import { EvaluationRepository } from "../db/repositories/evaluation-repository";
+import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../evaluations/deterministic";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
@@ -36,6 +38,7 @@ export interface AppDependencies {
   channels?: ChannelRepository;
   credentials?: CredentialVaultRepository;
   knowledge?: KnowledgeRepository;
+  evaluations?: EvaluationRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -69,6 +72,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
+  const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
 
   app.setErrorHandler((error, _request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -400,6 +404,42 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       chunks: chunks.map((text, index) => ({ text, metadata: { contentType: document.contentType, bytes: document.bytes }, provenance: { url: document.url, fetchedAt: new Date().toISOString(), chunkIndex: index } })),
     });
     return reply.code(201).send({ sourceId: source.id, revision: source.revision + 1, chunks: stored });
+  });
+
+  app.post("/v1/evaluations/scenarios", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({
+      agentDefinitionId: z.string().uuid().optional(),
+      name: z.string().trim().min(1).max(240),
+      description: z.string().trim().max(2_000).optional(),
+      input: z.record(z.string(), z.unknown()).default({}),
+      assertions: z.array(evaluationAssertionSchema).max(100).default([]),
+      rubric: z.record(z.string(), z.unknown()).default({}),
+      tags: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
+    }).parse(request.body);
+    const scenario = await evaluations.createScenario({ ...input, scenarioInput: input.input, organizationId: auth.organizationId, actorId: auth.actorId });
+    return reply.code(201).send(scenario);
+  });
+
+  app.get("/v1/evaluations/scenarios", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    return { scenarios: await evaluations.listScenarios(auth.organizationId) };
+  });
+
+  app.post<{ Params: { scenarioId: string } }>("/v1/evaluations/scenarios/:scenarioId/runs", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const scenario = await evaluations.getScenario(auth.organizationId, request.params.scenarioId);
+    if (!scenario) return reply.code(404).send({ error: "evaluation_scenario_not_found" });
+    const input = z.object({ agentVersionId: z.string().uuid().optional(), runId: z.string().uuid().optional(), actualOutput: z.unknown(), evaluatorVersion: z.string().trim().min(1).max(80).default("deterministic-v1") }).parse(request.body);
+    const result = evaluateDeterministicAssertions(input.actualOutput, scenario.assertions);
+    const run = await evaluations.recordRun({ organizationId: auth.organizationId, scenarioId: scenario.id, agentVersionId: input.agentVersionId, runId: input.runId, status: result.passed ? "passed" : "failed", evaluatorVersion: input.evaluatorVersion, result: { ...result, actualOutput: input.actualOutput }, actorId: auth.actorId });
+    return reply.code(201).send(run);
+  });
+
+  app.get<{ Querystring: { scenarioId?: string } }>("/v1/evaluations/runs", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    const scenarioId = request.query.scenarioId ? z.string().uuid().parse(request.query.scenarioId) : undefined;
+    return { runs: await evaluations.listRuns(auth.organizationId, scenarioId) };
   });
 
   app.get<{ Params: { runId: string }; Querystring: { after?: string } }>("/v1/runs/:runId/events/stream", async (request, reply) => {
