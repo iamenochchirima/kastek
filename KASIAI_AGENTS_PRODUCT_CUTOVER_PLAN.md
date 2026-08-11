@@ -332,7 +332,7 @@ also work for template-created agents.
 - [x] Replace `/agents/activity` legacy bot events with Agent Platform audit records and run status.
 - [x] Replace `/agents/analytics` legacy counts with Agent Platform run, failure, token,
   tool, and estimated-cost aggregates.
-- [ ] Replace workspace `botCount` and bot-attention queries with Agent Platform summary data.
+- [x] Replace workspace agent counts and attention queries with Agent Platform summary data.
 - [ ] Remove old deployment terminology where it represents n8n provisioning rather than an Agent
   Platform installation.
 
@@ -386,7 +386,7 @@ This phase is deliberately one-way. It must not leave a compatibility layer or f
 - [ ] Keep the new `agent_internal` tool boundary; rename it if needed to avoid confusing it with
   deleted n8n provisioning code.
 - [ ] Remove old bot request/row structs from `db/models.rs`.
-- [ ] Replace customer history and workspace summary queries that join legacy bot tables.
+- [x] Remove customer history joins to legacy bot tables and source workspace agent metrics from the Agent Platform.
 - [ ] Remove old callback authentication and n8n agent-provisioning environment variables when no
   remaining non-agent feature uses them.
 - [ ] Remove old bot-specific billing meter wiring while preserving the current Agents entitlement.

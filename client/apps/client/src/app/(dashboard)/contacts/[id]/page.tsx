@@ -278,8 +278,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <section className="rounded-2xl border border-border bg-card p-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Agent activity</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Events linked by the agent to this customer or their conversation.</p>
+              <h2 className="text-lg font-semibold text-foreground">Agent Platform activity</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Runs linked to this customer or their conversation will appear here.</p>
             </div>
             <Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground">
               Open Agents →
@@ -306,7 +306,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                 </div>
               ))
             ) : (
-              <p className="px-4 py-6 text-sm text-muted-foreground">No agent events have been linked to this customer yet.</p>
+              <p className="px-4 py-6 text-sm text-muted-foreground">No Agent Platform runs have been linked to this customer yet.</p>
             )}
           </div>
         </section>

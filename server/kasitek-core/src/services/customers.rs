@@ -243,7 +243,7 @@ pub async fn link_whatsapp_contact(
     Ok(customer_id)
 }
 
-const CUSTOMER_DETAIL_QUERIES: [&str; 6] = [
+const CUSTOMER_DETAIL_QUERIES: [&str; 5] = [
     r#"
         SELECT id, "displayName" AS display_name, metadata,
                "createdAt" AT TIME ZONE 'UTC' AS created_at,
@@ -302,19 +302,6 @@ const CUSTOMER_DETAIL_QUERIES: [&str; 6] = [
         ORDER BY MAX(recipient."sentAt") DESC NULLS LAST, campaign."updatedAt" DESC
         LIMIT 25
     "#,
-    r#"
-        SELECT event.id, event."eventType" AS event_type, event.channel, event.status,
-               event."conversationId" AS conversation_id,
-               event."responseTimeMs" AS response_time_ms, event.metadata,
-               event."createdAt" AT TIME ZONE 'UTC' AS created_at,
-               bot.name AS bot_name
-        FROM "BotEvent" event
-        JOIN "BotConfiguration" bot
-          ON bot.id = event."botId" AND bot."orgId" = event."orgId"
-        WHERE event."customerId" = $1 AND event."orgId" = $2
-        ORDER BY event."createdAt" DESC
-        LIMIT 25
-    "#,
 ];
 
 pub async fn get_customer_detail(
@@ -331,7 +318,7 @@ pub async fn get_customer_detail(
         return Ok(None);
     };
 
-    let (identities, contacts, conversations, campaigns, agent_events) = tokio::try_join!(
+    let (identities, contacts, conversations, campaigns) = tokio::try_join!(
         sqlx::query(CUSTOMER_DETAIL_QUERIES[1])
             .bind(customer_id)
             .bind(org_id)
@@ -345,10 +332,6 @@ pub async fn get_customer_detail(
             .bind(org_id)
             .fetch_all(pool),
         sqlx::query(CUSTOMER_DETAIL_QUERIES[4])
-            .bind(customer_id)
-            .bind(org_id)
-            .fetch_all(pool),
-        sqlx::query(CUSTOMER_DETAIL_QUERIES[5])
             .bind(customer_id)
             .bind(org_id)
             .fetch_all(pool),
@@ -406,17 +389,7 @@ pub async fn get_customer_detail(
             "lastSentAt": campaign.get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_sent_at"),
         })).collect::<Vec<_>>(),
         "bookings": booking_history,
-        "agentEvents": agent_events.into_iter().map(|event| json!({
-            "id": event.get::<String, _>("id"),
-            "eventType": event.get::<String, _>("event_type"),
-            "channel": event.get::<Option<String>, _>("channel"),
-            "status": event.get::<Option<String>, _>("status"),
-            "conversationId": event.get::<Option<String>, _>("conversation_id"),
-            "responseTimeMs": event.get::<Option<i32>, _>("response_time_ms"),
-            "metadata": event.get::<Option<Value>, _>("metadata"),
-            "createdAt": event.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-            "botName": event.get::<String, _>("bot_name"),
-        })).collect::<Vec<_>>(),
+        "agentEvents": [],
     })))
 }
 

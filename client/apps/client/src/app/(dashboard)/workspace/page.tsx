@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 export const metadata = { title: "Overview | KasiTek" };
 
 type WorkspaceSummary = {
-  botCount: number;
+  agentCount: number;
   socialPostCount: number;
   connections: Array<{
     id: string;
@@ -62,7 +62,7 @@ export default async function WorkspacePage() {
   const billingAttention = billing?.products.filter((product) => !product.hasAccess || product.subscriptionStatus === "PAST_DUE").length || 0;
   const actions = [
     [summary.attention.unreadConversations, "/inbox", "Unread conversations", "Customer replies need a response"],
-    [summary.attention.agentAttention, "/agents", "Agents need attention", "Paused or failed deployments need review"],
+    [summary.attention.agentAttention, "/agents", "Agents need attention", "Failed or waiting runs need review"],
     [summary.attention.campaignFailures, "/campaigns", "Campaign delivery issues", "Failed or blocked campaign recipients"],
     [summary.attention.socialAttention, "/content", "Content needs attention", "Posts failed or await approval"],
     [summary.attention.connectionAttention, "/connections", "Connections need reconnection", "Provider health or credentials need review"],
@@ -94,7 +94,7 @@ export default async function WorkspacePage() {
         <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <OperationalLink href="/inbox" icon={MessageCircle} label="Inbox" detail="Open conversations and customer replies" />
           <OperationalLink href="/templates" icon={FileText} label="Templates" detail={`${summary.templateStatusMap.APPROVED || 0} approved templates`} />
-          <OperationalLink href="/agents" icon={Bot} label="Agents" detail={`${summary.botCount} configured automations`} />
+          <OperationalLink href="/agents" icon={Bot} label="Agents" detail={`${summary.agentCount} installed agents`} />
           <OperationalLink href="/connections" icon={PlugZap} label="Connections" detail={`${summary.connections.length} connected numbers`} />
         </section>
       </div>

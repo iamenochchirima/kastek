@@ -4,11 +4,12 @@ use serde_json::json;
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
 
+use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
+use crate::services::agent_platform::AgentPlatformClient;
 use crate::services::whatsapp;
 
-const BOT_COUNT_SQL: &str = r#"SELECT COUNT(*) FROM "BotConfiguration" WHERE "orgId" = $1"#;
 const SOCIAL_POST_COUNT_SQL: &str = r#"SELECT COUNT(*) FROM "SocialPost" WHERE "orgId" = $1"#;
 const TEMPLATE_STATUS_SQL: &str = r#"
     SELECT status::text AS status, COUNT(*) AS count
@@ -88,9 +89,6 @@ const CAMPAIGN_SENDS_SQL: &str = r#"
 "#;
 const UNREAD_CONVERSATIONS_SQL: &str =
     r#"SELECT COUNT(*) FROM "Conversation" WHERE "orgId" = $1 AND "unreadCount" > 0"#;
-const AGENT_ATTENTION_SQL: &str = r#"
-    SELECT COUNT(*) FROM "BotDeployment" WHERE "orgId" = $1 AND status IN ('error', 'paused')
-"#;
 // Social posts do not have a PENDING_APPROVAL enum state. A draft is the
 // reviewable state before it is scheduled or published.
 const SOCIAL_ATTENTION_SQL: &str =
@@ -101,8 +99,7 @@ const CONNECTION_ATTENTION_SQL: &str = r#"
 "#;
 
 #[cfg(test)]
-const WORKSPACE_SUMMARY_QUERIES: [&str; 16] = [
-    BOT_COUNT_SQL,
+const WORKSPACE_SUMMARY_QUERIES: [&str; 14] = [
     SOCIAL_POST_COUNT_SQL,
     TEMPLATE_STATUS_SQL,
     CAMPAIGN_SUMMARY_SQL,
@@ -115,12 +112,15 @@ const WORKSPACE_SUMMARY_QUERIES: [&str; 16] = [
     REVIEW_QUEUE_SQL,
     CAMPAIGN_SENDS_SQL,
     UNREAD_CONVERSATIONS_SQL,
-    AGENT_ATTENTION_SQL,
     SOCIAL_ATTENTION_SQL,
     CONNECTION_ATTENTION_SQL,
 ];
 
-pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
+pub async fn summary(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
 
@@ -131,7 +131,6 @@ pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRe
     let connections = whatsapp::list_connections(pool.get_ref(), &org_id).await?;
 
     let (
-        bot_count,
         social_post_count,
         template_status_rows,
         campaign_summary_row,
@@ -144,13 +143,9 @@ pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRe
         review_queue_rows,
         campaign_send_rows,
         unread_conversations,
-        agent_attention,
         social_attention,
         connection_attention,
     ) = tokio::try_join!(
-        sqlx::query_scalar::<_, i64>(BOT_COUNT_SQL)
-            .bind(&org_id)
-            .fetch_one(pool.get_ref()),
         sqlx::query_scalar::<_, i64>(SOCIAL_POST_COUNT_SQL)
             .bind(&org_id)
             .fetch_one(pool.get_ref()),
@@ -189,9 +184,6 @@ pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRe
         sqlx::query_scalar::<_, i64>(UNREAD_CONVERSATIONS_SQL)
             .bind(&org_id)
             .fetch_one(pool.get_ref()),
-        sqlx::query_scalar::<_, i64>(AGENT_ATTENTION_SQL)
-            .bind(&org_id)
-            .fetch_one(pool.get_ref()),
         sqlx::query_scalar::<_, i64>(SOCIAL_ATTENTION_SQL)
             .bind(&org_id)
             .fetch_one(pool.get_ref()),
@@ -199,6 +191,58 @@ pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRe
             .bind(&org_id)
             .fetch_one(pool.get_ref()),
     )?;
+
+    let (agent_list, agent_operations) =
+        if let Ok(agent_client) = AgentPlatformClient::from_config(config.get_ref()) {
+            tokio::join!(
+                agent_client.list_agents(&org_id, &user.id),
+                agent_client.operations_summary(&org_id, &user.id),
+            )
+        } else {
+            (
+                Err(AppError::ServiceUnavailable(
+                    "Agent Platform is not configured".to_string(),
+                )),
+                Err(AppError::ServiceUnavailable(
+                    "Agent Platform is not configured".to_string(),
+                )),
+            )
+        };
+    let agent_count = agent_list
+        .ok()
+        .and_then(|value| {
+            value
+                .get("agents")
+                .and_then(serde_json::Value::as_array)
+                .map(Vec::len)
+        })
+        .unwrap_or(0);
+    let agent_attention = agent_operations
+        .ok()
+        .and_then(|value| {
+            value
+                .get("runs")
+                .and_then(|runs| runs.get("runsByStatus"))
+                .and_then(serde_json::Value::as_array)
+                .map(|statuses| {
+                    statuses
+                        .iter()
+                        .filter(|entry| {
+                            matches!(
+                                entry.get("status").and_then(serde_json::Value::as_str),
+                                Some("failed" | "awaiting_approval" | "awaiting_human")
+                            )
+                        })
+                        .map(|entry| {
+                            entry
+                                .get("count")
+                                .and_then(serde_json::Value::as_i64)
+                                .unwrap_or(0)
+                        })
+                        .sum::<i64>()
+                })
+        })
+        .unwrap_or(0);
 
     let template_status_map = template_status_rows
         .into_iter()
@@ -271,7 +315,7 @@ pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRe
 
     Ok(HttpResponse::Ok().json(json!({
         "summary": {
-            "botCount": bot_count,
+            "agentCount": agent_count,
             "socialPostCount": social_post_count,
             "connections": connections,
             "templateStatusMap": template_status_map,
