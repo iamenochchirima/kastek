@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button";
 import {
   Bot,
-  Check,
   RotateCcw,
   LoaderCircle,
   MessageCircle,
@@ -321,9 +320,6 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
             )}
           </div>
         </div>
-        <p className="mt-2 flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
-          <Check className="h-3 w-3" /> Your conversation is saved to KasiTek
-        </p>
       </footer>
     </aside>
   );
