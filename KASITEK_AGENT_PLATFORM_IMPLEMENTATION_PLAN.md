@@ -877,23 +877,27 @@ The implementation should continue to reference primary documentation for:
 Framework and provider documentation may inform adapters, but no external agent framework is the
 source of truth for KasiTek agent identity, versions, policy, runs, memory, tools, or audit history.
 
-## 24. Foundation tranche evidence (2026-08-11)
+## 24. Implementation tranche evidence (2026-08-11)
 
 - `agents/` is a standalone TypeScript service with separate API and Temporal worker entrypoints.
-- `agents/migrations/001_agent_platform_foundation.sql` defines scoped agent, installation,
-  conversation, message, run, event, and audit persistence with immutable-version references.
+- `agents/migrations/001_agent_platform_foundation.sql` through `016_*` define scoped agent,
+  installation, conversation, message, run, event, audit, credential, evaluation, channel,
+  workflow-state, schedule, memory-quarantine, and kill-switch persistence.
 - `agents/src/domain/types.ts` defines the typed run state machine and rejects invalid transitions.
 - `agents/src/temporal/workflows.ts` defines the durable received → queued → running → completed
   workflow boundary; activities invoke the bounded runtime, persist state through repositories,
   and are retry-safe for repeated transitions.
 - `agents/src/model/` contains the provider-neutral contract and OpenRouter, OpenAI, Anthropic,
-  and Gemini adapters. `agents/src/tools/` contains the JSON-Schema Tool Gateway and approval
-  argument hashing. `agents/src/runtime/loop.ts` implements bounded model/tool iterations.
+  and Gemini adapters, structured-output validation, streaming, model policy, budgets, retries,
+  pricing, and circuit breakers. `agents/src/tools/` contains the JSON-Schema Tool Gateway,
+  approval argument hashing, and secret redaction. `agents/src/runtime/loop.ts` implements bounded
+  model/tool iterations.
 - `agents/src/runtime/context.ts` rebuilds bounded context from durable messages, applies the
   retrieval gate, scopes authorized tool manifests, and marks external content as untrusted.
 - `agents/migrations/003_memory_knowledge.sql` and the memory/knowledge repositories provide
-  scoped canonical records, provenance, full-text retrieval, expiry, and deletion jobs. Runtime
-  activities load matches only after the retrieval gate and include them as untrusted context.
+  scoped canonical records, provenance, full-text retrieval, expiry, deletion jobs, bounded URL
+  ingestion, and suspicious-memory quarantine. Runtime activities load matches only after the
+  retrieval gate and include them as untrusted context.
 - `agents/src/events/envelope.ts` defines the canonical CloudEvents-compatible envelope and
   `004_event_envelopes.sql` persists its metadata for operational records.
 - `agents/src/temporal/activities.ts` resolves the pinned version and model credential inside
@@ -902,13 +906,15 @@ source of truth for KasiTek agent identity, versions, policy, runs, memory, tool
 - `agents/src/http/auth.ts` provides the explicit local-header versus signed HMAC internal-auth
   boundary. Production startup rejects header-only authentication; core token issuance and secret
   rotation remain an open deployment decision.
-- Verification completed: the migration runner applied both foundation migrations to a dedicated
-  local `kasitek_agents` database. An HTTP smoke flow created, published, installed, and ran an
-  agent, created a conversation, and confirmed duplicate provider messages return the original
-  message instead of creating a second record.
+- Verification completed: the migration runner applied migrations 001–016 to a dedicated local
+  `kasitek_agents` database. Integration coverage includes lifecycle rollback/archive, encrypted
+  credential rotation/revocation, channel pairing/delivery, memory/knowledge isolation,
+  workflow-state concurrency, kill switches, model budgets, and approval expiry.
 - Control-plane and conversation routes require explicit organization and actor headers in this
   local foundation. Core-issued internal authentication is still an open production ADR.
-- Verification completed: `pnpm run build` and `pnpm test` in `agents/` (21 tests passing with the
-  local PostgreSQL integration database configured).
+- Verification completed: `pnpm run build` and `AGENTS_DATABASE_URL=... RUN_AGENTS_DB_INTEGRATION_TESTS=true
+  pnpm test` in `agents/` (**63 tests passing**). `cargo fmt --check && cargo check -p kasitek-core`
+  also pass.
 - Not yet claimed: Temporal Cloud recovery, live provider model calls, pgvector/hybrid retrieval,
-  channels, or production authentication.
+  provider-specific channel transport, OpenTelemetry export, object storage/Redis, sandboxing,
+  production secrets-manager configuration, production authentication rotation, or admin UI.
