@@ -43,3 +43,8 @@ The initial tool is `kasitek.core.customer_get`. It calls
 correlation headers. Core scopes the query by organization and returns only the read model.
 The Agent Platform never receives core database credentials. Rotate this service token as a
 deployment secret; do not reuse the n8n callback token or a user session token.
+
+User-owned model credentials are stored through `/v1/credentials` as encrypted vault records.
+Set `AGENTS_CREDENTIAL_ENCRYPTION_KEY` to a random 32-byte hex or base64 key in every API and
+worker process. API responses contain only opaque credential IDs; revoke the ID to prevent future
+model calls.

@@ -6,7 +6,7 @@ import { MemoryRepository } from "../db/repositories/memory-repository";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
-import { EnvironmentCredentialResolver, type CredentialResolver } from "../model/credentials";
+import { EnvironmentCredentialResolver, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
 import type { ModelPricing, ModelProvider } from "../model/types";
 import { runBoundedAgentLoop } from "../runtime/loop";
 import { buildAgentContext } from "../runtime/context";
@@ -18,6 +18,7 @@ import { ToolInvocationRepository } from "../db/repositories/tool-invocation-rep
 import { RunStepRepository } from "../db/repositories/run-step-repository";
 import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 import { SummaryRepository } from "../db/repositories/summary-repository";
+import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -88,7 +89,9 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const toolGrants = new ToolGrantRepository(pool);
   const summaries = new SummaryRepository(pool);
   const gateway = options.gateway ?? new ModelGateway(undefined, { pricing: pricingFromConfig(options.config) });
-  const credentials = options.credentials ?? new EnvironmentCredentialResolver();
+  const credentials = options.credentials ?? (options.config
+    ? new VaultCredentialResolver(new CredentialVaultRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY))
+    : new EnvironmentCredentialResolver());
   const coreClient = options.coreClient ?? (options.config ? new KasitekCoreReadClient(options.config) : undefined);
   const tools = options.tools ?? createDefaultTools(coreClient);
   return {
@@ -141,7 +144,7 @@ async function executeLoopForRun(
   const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
   const allowedTools = new Set([...policyTools].filter((toolName) => grantedTools.has(toolName)));
   const credentialReference = typeof configuration.credentialReference === "string" ? configuration.credentialReference : undefined;
-  const modelCredentials = await credentials.resolve(provider, credentialReference);
+  const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
   const currentMessage = typeof run.input.message === "string" ? run.input.message : JSON.stringify(run.input);
   const conversation = run.conversation_id ? await conversations.getConversation(run.organization_id, run.conversation_id) : null;
   const durableMessages = run.conversation_id ? await conversations.listMessages(run.organization_id, run.conversation_id) : [];

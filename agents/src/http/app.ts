@@ -16,6 +16,7 @@ import { ToolInvocationRepository } from "../db/repositories/tool-invocation-rep
 import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 import { ModelCallRepository } from "../db/repositories/model-call-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
+import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
@@ -31,6 +32,7 @@ export interface AppDependencies {
   toolGrants?: ToolGrantRepository;
   modelCalls?: ModelCallRepository;
   channels?: ChannelRepository;
+  credentials?: CredentialVaultRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -62,6 +64,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const toolGrants = dependencies.toolGrants ?? new ToolGrantRepository(dependencies.pool);
   const modelCalls = dependencies.modelCalls ?? new ModelCallRepository(dependencies.pool);
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
+  const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
 
   app.setErrorHandler((error, _request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -343,6 +346,24 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       models: modelSummary,
       tools: toolSummary,
     };
+  });
+
+  app.post("/v1/credentials", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ provider: z.enum(["openrouter", "openai", "anthropic", "gemini"]), apiKey: z.string().min(1).max(10_000), label: z.string().trim().max(160).optional() }).parse(request.body);
+    const credential = await credentials.store({ organizationId: auth.organizationId, actorId: auth.actorId, ...input });
+    return reply.code(201).send(credential);
+  });
+
+  app.get("/v1/credentials", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    return { credentials: await credentials.list(auth.organizationId) };
+  });
+
+  app.delete<{ Params: { credentialId: string } }>("/v1/credentials/:credentialId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    await credentials.revoke(auth.organizationId, request.params.credentialId);
+    return reply.code(204).send();
   });
 
   app.get<{ Params: { runId: string }; Querystring: { after?: string } }>("/v1/runs/:runId/events/stream", async (request, reply) => {

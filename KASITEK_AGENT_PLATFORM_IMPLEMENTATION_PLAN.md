@@ -16,12 +16,14 @@
 - [x] Migration 008 adds scoped rolling conversation summaries used during context rebuilding;
   deterministic summaries are a safe first implementation until a summary model policy exists.
 - [x] Migration 009 adds channel connections, bindings, participants, and delivery attempts.
+- [x] Migration 010 adds an encrypted credential vault with opaque references, revocation, and
+  organization-scoped resolution.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 37 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 39 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -495,12 +497,15 @@ received
 - [ ] Add streaming response support.
 - [ ] Add provider circuit breakers.
 - [x] Resolve credentials through opaque references and an explicit precedence policy.
-- [ ] Support KasiTek-funded and user-funded provider credentials.
+- [x] Support KasiTek-funded and user-funded provider credentials. **The resolver supports
+  opaque vault references for user-funded keys and environment-backed KasiTek defaults.**
 - [ ] Enforce entitlement, token, request, and spend budgets before each model call.
-- [ ] Record the credential funding source without exposing credential material.
+- [x] Record the credential funding source without exposing credential material. **Vault records
+  carry the funding source and model-call attribution stores only that source and reference.**
 - [ ] Do not fall back from a user-funded key to a KasiTek-funded key unless agent policy
   explicitly permits it.
-- [ ] Support credential validation, rotation, revocation, and failure notification.
+- [x] Support credential revocation. **Rotation and provider validation/failure notification
+  remain operational follow-up work.**
 - [ ] Prevent secrets from entering prompts or model-visible tool output.
 - [x] Record the actual provider, model, tokens, latency, and finish reason.
 

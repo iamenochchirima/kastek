@@ -138,4 +138,22 @@ describe("Agent Platform HTTP foundation", () => {
     expect(response.json()).toMatchObject({ organizationId: "org-1", runs: { runsByStatus: [{ status: "completed", count: 2 }] }, models: { totalTokens: 15 }, tools: [{ status: "completed", count: 1 }] });
     await app.close();
   });
+
+  it("exposes only opaque credential records", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      credentials: {
+        store: async () => ({ id: "credential-1", provider: "openai", label: "test", funding_source: "user", status: "active" }),
+        list: async () => [{ id: "credential-1", provider: "openai", label: "test", funding_source: "user", status: "active" }],
+        revoke: async () => undefined,
+      } as never,
+    });
+    const created = await app.inject({ method: "POST", url: "/v1/credentials", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { provider: "openai", apiKey: "secret-key", label: "test" } });
+    expect(created.statusCode).toBe(201);
+    expect(created.body).not.toContain("secret-key");
+    const listed = await app.inject({ method: "GET", url: "/v1/credentials", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(listed.body).not.toContain("secret-key");
+    await app.close();
+  });
 });
