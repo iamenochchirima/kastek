@@ -25,12 +25,14 @@
 - [x] Migration 014 adds quarantine status for suspicious imported/inferred memory.
 - [x] Migration 015 adds organization-scoped agent schedules with durable next-run state and
   pause/resume controls.
+- [x] Migration 016 adds scoped global/organization/agent/installation/tool kill switches with
+  runtime enforcement and operator controls.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 59 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 60 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -397,7 +399,9 @@ received
 - [x] Bind approvals to the exact action, arguments hash, and expiry. Actor/scope/version binding remains pending in the durable approval record.
 - [ ] Invalidate approval if any bound value changes.
 - [ ] Prevent privilege escalation through prompt content or tool arguments.
-- [ ] Add global, organization, agent, channel, and tool kill switches.
+- [x] Add global, organization, agent, channel, and tool kill switches. **Organization operators
+  can manage scoped switches; runtime checks global, organization, agent, installation, and tool
+  scopes before executing a run. Platform-global authorization remains outside org auth.**
 
 ## 11. Tool Gateway
 

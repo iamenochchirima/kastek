@@ -20,6 +20,7 @@ import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 import { SummaryRepository } from "../db/repositories/summary-repository";
 import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
 import { resolveModelTarget } from "../model/policy";
+import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -89,6 +90,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const runSteps = new RunStepRepository(pool);
   const toolGrants = new ToolGrantRepository(pool);
   const summaries = new SummaryRepository(pool);
+  const killSwitches = new KillSwitchRepository(pool);
   const gateway = options.gateway ?? new ModelGateway(undefined, { pricing: pricingFromConfig(options.config) });
   const credentials = options.credentials ?? (options.config
     ? new VaultCredentialResolver(new CredentialVaultRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY))
@@ -102,7 +104,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async executeLoop(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
-      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, runSteps, toolGrants, summaries, gateway, credentials, tools);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, runSteps, toolGrants, summaries, killSwitches, gateway, credentials, tools);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -131,6 +133,7 @@ async function executeLoopForRun(
   runSteps: RunStepRepository,
   toolGrants: ToolGrantRepository,
   summaries: SummaryRepository,
+  killSwitches: KillSwitchRepository,
   gateway: ModelGateway,
   credentials: CredentialResolver,
   tools: ToolRegistry,
@@ -144,6 +147,9 @@ async function executeLoopForRun(
   );
   const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
   const allowedTools = new Set([...policyTools].filter((toolName) => grantedTools.has(toolName)));
+  if (await killSwitches.isBlocked({ organizationId: run.organization_id, agentId: run.agent_definition_id, installationId: run.installation_id, toolNames: [...allowedTools] })) {
+    throw new Error("AGENT_KILL_SWITCH_ACTIVE");
+  }
   const credentialReference = typeof configuration.credentialReference === "string" ? configuration.credentialReference : undefined;
   const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
   const currentMessage = typeof run.input.message === "string" ? run.input.message : JSON.stringify(run.input);

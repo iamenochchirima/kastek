@@ -52,5 +52,8 @@ describe("foundation migration", () => {
     const schedulesSql = await readFile(new URL("../migrations/015_agent_schedules.sql", import.meta.url), "utf8");
     expect(schedulesSql).toContain("agent_schedules");
     expect(schedulesSql).toContain("next_run_at");
+    const killSwitchSql = await readFile(new URL("../migrations/016_kill_switches.sql", import.meta.url), "utf8");
+    expect(killSwitchSql).toContain("agent_kill_switches");
+    expect(killSwitchSql).toContain("scope_type");
   });
 });

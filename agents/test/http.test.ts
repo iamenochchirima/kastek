@@ -205,4 +205,21 @@ describe("Agent Platform HTTP foundation", () => {
     expect(paused.json()).toMatchObject({ id: "schedule-1", status: "paused" });
     await app.close();
   });
+
+  it("supports organization kill-switch controls and rejects global scope from org auth", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      killSwitches: {
+        set: async () => ({ id: "switch-1", scope_type: "agent", enabled: true }),
+        list: async () => [{ id: "switch-1", enabled: true }],
+        disable: async () => undefined,
+      } as never,
+    });
+    const created = await app.inject({ method: "POST", url: "/v1/operations/kill-switches", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { scopeType: "agent", scopeId: "agent-1", reason: "incident" } });
+    expect(created.statusCode).toBe(201);
+    const global = await app.inject({ method: "POST", url: "/v1/operations/kill-switches", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { scopeType: "global", scopeId: "global", reason: "incident" } });
+    expect(global.statusCode).toBe(500);
+    await app.close();
+  });
 });

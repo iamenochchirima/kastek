@@ -23,6 +23,7 @@ import { EvaluationRepository } from "../db/repositories/evaluation-repository";
 import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../evaluations/deterministic";
 import { AuditRepository } from "../db/repositories/audit-repository";
 import { ScheduleRepository } from "../db/repositories/schedule-repository";
+import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
@@ -44,6 +45,7 @@ export interface AppDependencies {
   evaluations?: EvaluationRepository;
   audits?: AuditRepository;
   schedules?: ScheduleRepository;
+  killSwitches?: KillSwitchRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -80,6 +82,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
   const audits = dependencies.audits ?? new AuditRepository(dependencies.pool);
   const schedules = dependencies.schedules ?? new ScheduleRepository(dependencies.pool);
+  const killSwitches = dependencies.killSwitches ?? new KillSwitchRepository(dependencies.pool);
 
   app.setErrorHandler((error, _request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -401,6 +404,25 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const limit = request.query.limit === undefined ? undefined : Number(request.query.limit);
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) throw new Error("Invalid audit limit");
     return { records: await audits.list({ organizationId: auth.organizationId, action: request.query.action, resourceType: request.query.resourceType, limit }) };
+  });
+
+  app.get("/v1/operations/kill-switches", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    return { killSwitches: await killSwitches.list(auth.organizationId) };
+  });
+
+  app.post("/v1/operations/kill-switches", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ scopeType: z.enum(["global", "organization", "agent", "installation", "tool"]), scopeId: z.string().trim().min(1).max(240), reason: z.string().trim().min(1).max(500) }).parse(request.body);
+    if (input.scopeType === "global") throw new Error("Global kill switches require platform operator scope");
+    const record = await killSwitches.set({ organizationId: auth.organizationId, ...input, actorId: auth.actorId });
+    return reply.code(201).send(record);
+  });
+
+  app.delete<{ Params: { switchId: string } }>("/v1/operations/kill-switches/:switchId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    await killSwitches.disable(auth.organizationId, request.params.switchId);
+    return reply.code(204).send();
   });
 
   app.post("/v1/credentials", async (request, reply) => {
