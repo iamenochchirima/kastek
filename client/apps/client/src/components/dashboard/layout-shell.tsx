@@ -55,6 +55,7 @@ import type { BillingSummary, CapabilityKey } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
 import type { ProductTourStatus } from "@/lib/product-tour";
 import { ProductTour } from "@/components/dashboard/product-tour";
+import { KasiAiChat, KasiAiTrigger } from "@/components/dashboard/kasiai/kasiai-chat";
 import {
   applyTheme,
   resolveStoredTheme,
@@ -263,6 +264,7 @@ function SidebarContent({
   orgs = [],
   activeOrgId = null,
   billingSummary = null,
+  onOpenKasiAi,
 }: {
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
@@ -271,6 +273,7 @@ function SidebarContent({
   orgs?: Org[];
   activeOrgId?: string | null;
   billingSummary?: BillingSummary | null;
+  onOpenKasiAi?: () => void;
 }) {
   const pathname = usePathname();
   const liveInboxUnreadCount = useWhatsappInboxUnreadCount();
@@ -318,6 +321,11 @@ function SidebarContent({
         {hasOrgs ? (
           <div className="mb-3.5" data-tour="workspace-switcher">
             <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={collapsed} variant="panel" />
+          </div>
+        ) : null}
+        {onOpenKasiAi ? (
+          <div className="mb-3 border-b border-sidebar-border pb-3">
+            <KasiAiTrigger collapsed={collapsed} onClick={onOpenKasiAi} />
           </div>
         ) : null}
         {navigationGroups.map((group) => (
@@ -507,6 +515,7 @@ export function LayoutShell({
   const [collapsed, setCollapsed] = useState(false);
   const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [kasiaiOpen, setKasiaiOpen] = useState(false);
   const pathname = usePathname();
   const sectionLabel = getSectionLabel(pathname);
 
@@ -535,6 +544,7 @@ export function LayoutShell({
                 orgs={orgs}
                 activeOrgId={activeOrgId}
                 billingSummary={billingSummary}
+                onOpenKasiAi={() => setKasiaiOpen(true)}
               />
             </aside>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
@@ -566,6 +576,10 @@ export function LayoutShell({
                 orgs={orgs}
                 activeOrgId={activeOrgId}
                 billingSummary={billingSummary}
+                onOpenKasiAi={() => {
+                  setMobileSheetOpen(false);
+                  setKasiaiOpen(true);
+                }}
                 onNavigate={() => setMobileSheetOpen(false)}
               />
             </SheetContent>
@@ -576,6 +590,7 @@ export function LayoutShell({
             {children}
           </main>
           <ProductTour status={productTourStatus} />
+          <KasiAiChat open={kasiaiOpen} onOpenChange={setKasiaiOpen} />
         </div>
       </>
     </WhatsappRealtimeProvider>

@@ -84,6 +84,22 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_agents(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/agents",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn resolve_platform_conversation(
         &self,
         organization_id: &str,

@@ -125,6 +125,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get("/v1/agents", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     return { agents: await agents.listAgents(auth.organizationId) };
   });
 

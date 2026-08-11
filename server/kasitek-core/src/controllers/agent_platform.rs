@@ -48,6 +48,18 @@ pub async fn ensure_kasiai(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn list_agents(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_agents(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn resolve_conversation(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

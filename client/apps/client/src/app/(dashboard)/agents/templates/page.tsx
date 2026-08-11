@@ -1,22 +1,29 @@
-import { Bot, Globe2, MessageCircle, Mic, Workflow } from "lucide-react";
+import { Bot, Globe2, MessageCircle, Mic, Sparkles, Workflow } from "lucide-react";
 import Link from "next/link";
 
 export const metadata = { title: "Agent Templates | KasiTek" };
 
 const templates = [
   {
+    name: "KasiAi platform guide",
+    description: "The default KasiTek agent for platform guidance and workspace help.",
+    href: "/agents?template=kasiai",
+    icon: Sparkles,
+    available: true,
+  },
+  {
     name: "WhatsApp enquiry agent",
     description: "Start with inbound questions, qualification and a clear handoff to the team.",
     href: "/agents?template=whatsapp_agent",
     icon: MessageCircle,
-    available: true,
+    available: false,
   },
   {
     name: "Website enquiry agent",
     description: "Capture website enquiries, collect useful context and route the next step.",
     href: "/agents?template=website_agent",
     icon: Globe2,
-    available: true,
+    available: false,
   },
   {
     name: "Instagram response agent",

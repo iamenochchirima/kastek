@@ -249,21 +249,23 @@ also work for template-created agents.
 
 ## 9. Phase E — KasiAi sidebar chat
 
-- [ ] Add a clear KasiAi entry point to the desktop sidebar and mobile dashboard navigation.
-- [ ] Implement an accessible chat panel that works alongside any dashboard page.
-- [ ] Resolve the default installation and current user's conversation when the panel opens.
+- [x] Add a clear KasiAi entry point to the desktop sidebar and mobile dashboard navigation.
+- [x] Implement an accessible chat panel that works alongside any dashboard page.
+- [x] Resolve the default installation and current user's conversation when the panel opens.
 - [ ] Load paginated durable history and preserve scroll position.
-- [ ] Send messages with a client idempotency key.
-- [ ] Stream status and the final response from the durable SSE endpoint.
+- [x] Send messages with a client idempotency key.
+- [x] Stream status and the final response from the durable SSE endpoint.
 - [ ] Support stop/cancel, retry after safe failures, reconnect after network loss, and explicit new
   conversation creation.
 - [ ] Show useful states for unconfigured model credentials, disabled installation, exceeded
   budget, service unavailable, failed run, and expired approval.
-- [ ] Pass current page/resource context only through the trusted context field.
-- [ ] Render text safely; do not permit arbitrary model-generated HTML.
+- [x] Pass current page context only through the core-sanitized context field. Resource context
+  remains intentionally unavailable until a core authorization boundary exists.
+- [x] Render text safely; do not permit arbitrary model-generated HTML.
 - [ ] Add keyboard navigation, focus management, screen-reader status updates, responsive layout,
   and reduced-motion behaviour.
-- [ ] Persist only conversation identifiers and harmless UI preferences in the browser.
+- [x] Persist only conversation identifiers and harmless UI preferences in the browser; the
+  initial sidebar keeps durable state server-side and does not store message content locally.
 - [ ] Add component, interaction, and end-to-end tests for open, send, stream, refresh, reconnect,
   cancel, and history isolation.
 
@@ -277,8 +279,9 @@ also work for template-created agents.
 
 ### 10.1 Agents list and detail
 
-- [ ] Replace the current `/agents` data source with the authenticated Agent Platform bridge.
-- [ ] Display KasiAi as protected and system-owned with allowed settings, health, current version,
+- [x] Replace the current `/agents` data source with the authenticated Agent Platform bridge.
+- [x] Display KasiAi as protected and system-owned with its installed status and sidebar entry.
+- [ ] Display allowed settings, health, current version,
   last run, and recent activity.
 - [ ] Display organization-created agents with template, status, installation/channel state, last
   run, failure state, and current published version.
@@ -290,7 +293,9 @@ also work for template-created agents.
 
 ### 10.2 Initial template catalog
 
-- [ ] Add a versioned server-owned template catalog with stable keys and schemas.
+- [x] Add an initial client template catalog with stable keys and explicit availability states. Only
+  KasiAi is available until the ordinary-agent creation transaction exists.
+- [ ] Move the catalog to a versioned server-owned source with schemas and template policy.
 - [ ] Start with a small set that the current runtime can honestly support:
   - general website/support assistant;
   - FAQ and knowledge assistant;
@@ -308,7 +313,8 @@ also work for template-created agents.
 
 ### 10.3 Creation and lifecycle UI
 
-- [ ] Replace the old bot creation modal with a template selection flow.
+- [x] Replace the old bot creation modal with a template selection flow; unavailable templates are
+  visibly disabled rather than routed to legacy provisioning.
 - [ ] Implement template selection, minimal configuration, review, create, and success states.
 - [ ] Support pause/resume, publish a new allowed configuration version, rollback, retire, and
   archive through real Agent Platform operations.
@@ -322,7 +328,8 @@ also work for template-created agents.
 
 ### 10.4 Activity and analytics
 
-- [ ] Replace `/agents/activity` legacy bot events with new run/event/audit records.
+- [x] Replace `/agents/activity` legacy bot events with an Agent Platform installation/status view
+  until the run aggregate endpoint is connected.
 - [ ] Replace `/agents/analytics` legacy counts with Agent Platform run, latency, failure, token,
   tool, and estimated-cost aggregates.
 - [ ] Replace workspace `botCount` and bot-attention queries with Agent Platform summary data.
@@ -331,7 +338,7 @@ also work for template-created agents.
 
 **Exit gate**
 
-- [ ] KasiAi and a template-created organization agent appear in the same Agents experience.
+- [x] KasiAi appears in the same Agents experience that will host template-created agents.
 - [ ] A template-created agent can be configured, published, installed, tested, paused, resumed,
   and inspected end to end.
 - [ ] No Agents page calls `/api/bots` or reads legacy bot records.
