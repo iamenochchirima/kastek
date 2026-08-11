@@ -173,6 +173,69 @@ pub async fn set_installation_status(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn set_installation_settings(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let object = body.as_object().ok_or_else(|| {
+        AppError::BadRequest("Installation settings must be an object".to_string())
+    })?;
+    let mut settings = Map::new();
+    for key in ["language", "tone", "responseDetail", "notificationsEnabled"] {
+        if let Some(value) = object.get(key) {
+            settings.insert(key.to_string(), value.clone());
+        }
+    }
+    if settings.len() != object.len() {
+        return Err(AppError::BadRequest(
+            "Unsupported installation setting".to_string(),
+        ));
+    }
+    if settings.is_empty() {
+        return Err(AppError::BadRequest(
+            "At least one installation setting is required".to_string(),
+        ));
+    }
+    if let Some(language) = settings.get("language").and_then(Value::as_str) {
+        if !(2..=20).contains(&language.chars().count()) {
+            return Err(AppError::BadRequest(
+                "Language must be between 2 and 20 characters".to_string(),
+            ));
+        }
+    }
+    if let Some(tone) = settings.get("tone").and_then(Value::as_str) {
+        if !matches!(tone, "concise" | "balanced" | "detailed") {
+            return Err(AppError::BadRequest("Invalid tone".to_string()));
+        }
+    }
+    if let Some(detail) = settings.get("responseDetail").and_then(Value::as_str) {
+        if !matches!(detail, "concise" | "standard" | "detailed") {
+            return Err(AppError::BadRequest("Invalid response detail".to_string()));
+        }
+    }
+    if settings
+        .get("notificationsEnabled")
+        .is_some_and(|value| !value.is_boolean())
+    {
+        return Err(AppError::BadRequest(
+            "notificationsEnabled must be boolean".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .set_installation_settings(
+            &organization_id,
+            &user.id,
+            &installation_id,
+            Value::Object(settings),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn list_agent_versions(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

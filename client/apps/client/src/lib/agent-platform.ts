@@ -84,6 +84,7 @@ export type AgentDefinition = {
   created_at: string;
   installation_id?: string | null;
   installation_status?: string | null;
+  installation_settings?: Record<string, unknown> | null;
   version_number?: number | null;
 };
 
@@ -110,6 +111,20 @@ export function installAgentTemplate(templateKey: string, settings: Record<strin
 
 export function setAgentInstallationStatus(installationId: string, status: "active" | "paused" | "disabled"): Promise<unknown> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/status/${status}`, { method: "POST" });
+}
+
+export type AgentInstallationSettings = {
+  language?: string;
+  tone?: "concise" | "balanced" | "detailed";
+  responseDetail?: "concise" | "standard" | "detailed";
+  notificationsEnabled?: boolean;
+};
+
+export function updateAgentInstallationSettings(installationId: string, settings: AgentInstallationSettings): Promise<AgentInstallation> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/settings`, {
+    method: "PATCH",
+    body: JSON.stringify(settings),
+  });
 }
 
 export type AgentVersion = {

@@ -27,6 +27,7 @@ export interface AgentRecord {
   updated_at: string;
   installation_id?: string | null;
   installation_status?: string | null;
+  installation_settings?: Record<string, unknown> | null;
   version_number?: number | null;
 }
 
@@ -450,6 +451,7 @@ export class AgentRepository {
     const result = await query<AgentRecord>(
       this.pool,
       `SELECT ad.*, ai.id AS installation_id, ai.status AS installation_status,
+              ai.settings AS installation_settings,
               av.version_number
        FROM agent_definitions ad
        LEFT JOIN LATERAL (
@@ -865,6 +867,33 @@ export class AgentRepository {
         (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
        VALUES ($1, 'human', $2, $3, 'agent_installation', $4, '{}'::jsonb)`,
       [organizationId, actorId, `agent_installation.${status}`, installationId],
+    );
+    return installation;
+  }
+
+  public async setInstallationSettings(
+    organizationId: string,
+    installationId: string,
+    actorId: string,
+    settings: Record<string, unknown>,
+  ): Promise<InstallationRecord> {
+    const result = await query<InstallationRecord & { protected: boolean }>(
+      this.pool,
+      `UPDATE agent_installations ai
+       SET settings = COALESCE(ai.settings, '{}'::jsonb) || $3::jsonb, updated_at = now()
+       FROM agent_definitions ad
+       WHERE ai.id = $1 AND ai.organization_id = $2 AND ad.id = ai.agent_definition_id
+       RETURNING ai.*, ad.protected`,
+      [installationId, organizationId, JSON.stringify(settings)],
+    );
+    const installation = result.rows[0];
+    if (!installation) throw new Error("Installation not found");
+    await query(
+      this.pool,
+      `INSERT INTO audit_records
+        (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+       VALUES ($1, 'human', $2, 'agent_installation.settings_updated', 'agent_installation', $3, $4::jsonb)`,
+      [organizationId, actorId, installationId, JSON.stringify({ keys: Object.keys(settings), protected: installation.protected })],
     );
     return installation;
   }

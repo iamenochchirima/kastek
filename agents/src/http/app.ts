@@ -509,6 +509,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
+  app.patch<{ Params: { installationId: string } }>("/v1/installations/:installationId/settings", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = z.object({
+      language: z.string().trim().min(2).max(20).optional(),
+      tone: z.enum(["concise", "balanced", "detailed"]).optional(),
+      responseDetail: z.enum(["concise", "standard", "detailed"]).optional(),
+      notificationsEnabled: z.boolean().optional(),
+    }).strict().parse(request.body ?? {});
+    if (!Object.keys(input).length) throw new Error("At least one installation setting is required");
+    return agents.setInstallationSettings(auth.organizationId, request.params.installationId, auth.actorId, input);
+  });
+
   app.post("/v1/runs", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     const input = startRunInputSchema.parse(request.body);

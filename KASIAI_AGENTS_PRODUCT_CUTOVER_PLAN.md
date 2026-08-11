@@ -156,8 +156,8 @@ The recorded dependency and row-count inventory is in
   occurs first.
 - [x] Use one organization-scoped installation and create an AgentPrincipal with the minimum
   required audience and grants.
-- [ ] Expose only permitted organization settings such as preferred language, tone, response
-  detail, and notification behaviour.
+- [x] Expose only permitted organization settings such as preferred language, tone, response
+  detail, and notification behaviour through a strict installation-settings contract.
 - [x] Keep protected instructions, system policy, model routing, and grants unavailable to normal
   organization mutation endpoints.
 - [x] Add pause/disable behaviour that preserves history and clearly disables new runs.

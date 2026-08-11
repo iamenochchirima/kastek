@@ -44,6 +44,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::post().to(agent_platform::set_installation_status),
                 )
                 .route(
+                    "/installations/{installationId}/settings",
+                    web::patch().to(agent_platform::set_installation_settings),
+                )
+                .route(
                     "/{agentId}/versions",
                     web::get().to(agent_platform::list_agent_versions),
                 )

@@ -205,6 +205,24 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn set_installation_settings(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        settings: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::PATCH,
+            &format!("/v1/installations/{installation_id}/settings"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(settings),
+        )
+        .await
+    }
+
     pub async fn list_agent_versions(
         &self,
         organization_id: &str,

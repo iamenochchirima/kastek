@@ -12,6 +12,7 @@ import {
   publishAgentVersion,
   rollbackAgentVersion,
   retireAgentVersion,
+  updateAgentInstallationSettings,
   type AgentDefinition,
   type AgentVersion,
 } from "@/lib/agent-platform";
@@ -27,6 +28,9 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const [versions, setVersions] = useState(initialVersions);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tone, setTone] = useState(String(agent.installation_settings?.tone ?? "balanced"));
+  const [responseDetail, setResponseDetail] = useState(String(agent.installation_settings?.responseDetail ?? "standard"));
+  const [savingSettings, setSavingSettings] = useState(false);
   const protectedAgent = agent.protected;
 
   const mutate = async (action: string, operation: () => Promise<unknown>) => {
@@ -45,6 +49,20 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       setError(cause instanceof Error ? cause.message : "Agent operation failed");
     } finally {
       setBusy(null);
+    }
+  };
+
+  const saveSettings = async () => {
+    if (!agent.installation_id) return;
+    setSavingSettings(true);
+    setError(null);
+    try {
+      await updateAgentInstallationSettings(agent.installation_id, { tone: tone as "concise" | "balanced" | "detailed", responseDetail: responseDetail as "concise" | "standard" | "detailed" });
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to save agent settings");
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -71,6 +89,17 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
               <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Current version</p><p className="mt-1 font-medium text-foreground">{agent.version_number ? `v${agent.version_number}` : "None published"}</p></div>
             </div>
             {protectedAgent ? <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">KasiAi instructions, model policy, and version publishing are controlled by KasiTek releases. Workspace members can use and pause its installation, but cannot mutate the protected definition.</p> : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-4 p-6">
+            <div><h2 className="text-lg font-semibold text-foreground">Workspace preferences</h2><p className="mt-1 text-sm text-muted-foreground">These settings affect this workspace installation only. Protected instructions and tool policy remain unchanged.</p></div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-medium text-foreground">Response tone<select value={tone} onChange={(event) => setTone(event.target.value)} className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="concise">Concise</option><option value="balanced">Balanced</option><option value="detailed">Detailed</option></select></label>
+              <label className="text-sm font-medium text-foreground">Response detail<select value={responseDetail} onChange={(event) => setResponseDetail(event.target.value)} className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="concise">Concise</option><option value="standard">Standard</option><option value="detailed">Detailed</option></select></label>
+            </div>
+            <Button type="button" onClick={() => void saveSettings()} disabled={!agent.installation_id || savingSettings}>{savingSettings ? "Saving…" : "Save preferences"}</Button>
           </CardContent>
         </Card>
 
