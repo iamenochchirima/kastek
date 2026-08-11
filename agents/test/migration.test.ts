@@ -44,5 +44,8 @@ describe("foundation migration", () => {
     const pairingSql = await readFile(new URL("../migrations/012_channel_pairing.sql", import.meta.url), "utf8");
     expect(pairingSql).toContain("channel_pairing_tokens");
     expect(pairingSql).toContain("token_hash");
+    const workflowStateSql = await readFile(new URL("../migrations/013_workflow_state.sql", import.meta.url), "utf8");
+    expect(workflowStateSql).toContain("run_workflow_state");
+    expect(workflowStateSql).toContain("revision");
   });
 });

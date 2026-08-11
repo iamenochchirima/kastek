@@ -93,6 +93,12 @@ export class RunRepository {
         [run.id, organizationId],
       );
       await client.query(
+        `INSERT INTO run_workflow_state (run_id, organization_id, state, revision)
+         VALUES ($1, $2, '{}'::jsonb, 0)
+         ON CONFLICT (run_id) DO NOTHING`,
+        [run.id, organizationId],
+      );
+      await client.query(
         `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, actor_id)
          VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5)`,
         [organizationId, run.id, input.installationId, JSON.stringify({ triggerType: input.triggerType }), actorId],

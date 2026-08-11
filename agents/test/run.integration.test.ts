@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RunRepository } from "../src/db/repositories/run-repository";
 import { RunStepRepository } from "../src/db/repositories/run-step-repository";
+import { WorkflowStateRepository } from "../src/db/repositories/workflow-state-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -11,6 +12,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
   const pool = new Pool({ connectionString: databaseUrl });
   const runs = new RunRepository(pool);
   const steps = new RunStepRepository(pool);
+  const workflowState = new WorkflowStateRepository(pool);
   const organizationId = `run-test-${randomUUID()}`;
   const agentId = randomUUID();
   const versionId = randomUUID();
@@ -35,10 +37,16 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     expect(model.sequence_number).toBe(context.sequence_number + 1);
     await steps.finishStep({ stepId: context.id, status: "completed", output: { ok: true } });
     expect((await steps.listSteps(organizationId, runId)).map((step) => step.status)).toEqual(["completed", "started"]);
+    const initialState = await workflowState.get(organizationId, runId);
+    expect(initialState).toMatchObject({ revision: 0, state: {} });
+    const updatedState = await workflowState.put({ organizationId, runId, expectedRevision: 0, state: { node: "model", attempt: 1 } });
+    expect(updatedState).toMatchObject({ revision: 1, state: { node: "model", attempt: 1 } });
+    await expect(workflowState.put({ organizationId, runId, expectedRevision: 0, state: { node: "stale" } })).rejects.toThrow("revision conflict");
   });
 
   afterAll(async () => {
     await pool.query("DELETE FROM run_steps WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM run_workflow_state WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);

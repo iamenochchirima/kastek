@@ -21,6 +21,7 @@
 - [x] Migration 011 adds organization-scoped evaluation scenarios and durable evaluation runs.
 - [x] Migration 012 adds hashed, expiring, single-use channel pairing tokens and audit-backed
   binding consumption.
+- [x] Migration 013 adds separate optimistic-concurrency workflow state for each run.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
@@ -440,7 +441,9 @@ received
 - [x] Implement semantic facts and preferences.
 - [x] Implement episodic history.
 - [x] Implement procedural skills and workflows through versioned configuration.
-- [ ] Implement operational workflow state separately from semantic memory.
+- [x] Implement operational workflow state separately from semantic memory. **Each run gets a
+  durable `run_workflow_state` record with revision-checked updates; semantic memory remains in
+  the memory tables.**
 - [x] Define `conversation`, `user_private`, `organization_shared`, `agent_private`,
   `customer_agent`, and `system_knowledge` scopes.
 - [x] Enforce namespace predicates before retrieval and ranking.
