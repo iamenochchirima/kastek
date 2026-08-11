@@ -6,6 +6,7 @@ import type {
   CreateVersionInput,
 } from "../../domain/types";
 import { query, withTransaction } from "../pool";
+import { validateVersionWorkflow } from "../../workflows/graph";
 
 type DbExecutor = Pool | PoolClient;
 
@@ -125,6 +126,7 @@ export class AgentRepository {
     agentId: string,
     input: CreateVersionInput,
   ): Promise<AgentVersionRecord> {
+    validateVersionWorkflow(input.configuration);
     return withTransaction(this.pool, async (client) => {
       const agent = await client.query<AgentRecord>(
         "SELECT * FROM agent_definitions WHERE organization_id = $1 AND id = $2 FOR UPDATE",

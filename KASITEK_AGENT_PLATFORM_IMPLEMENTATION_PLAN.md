@@ -20,7 +20,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 31 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 34 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -292,7 +292,8 @@ received
 
 ### 8.3 Graph workflows
 
-- [ ] Define a versioned declarative graph schema.
+- [x] Define a versioned declarative graph schema. **Version 1 supports deterministic, model,
+  loop, tool, route, fan-out/fan-in, approval, and wait node contracts.**
 - [ ] Support deterministic function nodes.
 - [ ] Support one-call model nodes.
 - [ ] Support full bounded agent-loop nodes.
@@ -302,8 +303,9 @@ received
 - [ ] Support bounded cycles.
 - [ ] Support human approval and human handoff nodes.
 - [ ] Support waits for schedules and external events.
-- [ ] Validate graph topology before publication.
-- [ ] Prevent parallel branches from silently overwriting the same state key.
+- [x] Validate graph topology before publication.
+- [x] Prevent parallel branches from silently overwriting the same state key. **Parallel nodes
+  must declare a group and duplicate local writes are rejected.**
 - [ ] Trace the executed path and node outcomes.
 
 ## 9. Agent control plane
