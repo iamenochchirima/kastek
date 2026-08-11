@@ -97,13 +97,6 @@ describe.skipIf(!runIntegration)("protected system agent installations (integrat
       [organizationOne, agentId, firstInstallation.id],
     );
     expect(guidance.rows[0]).toMatchObject({ source_count: "1", chunk_count: "6" });
-    const evaluations = await pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM evaluation_scenarios
-       WHERE organization_id = $1 AND agent_definition_id = $2 AND status = 'active'`,
-      [organizationOne, agentId],
-    );
-    expect(evaluations.rows[0]).toEqual({ count: "6" });
-
     expect((await agents.listAgents(organizationOne)).map((agent) => agent.id)).toContain(agentId);
     expect((await agents.listAgents(organizationWithoutInstallation)).map((agent) => agent.id)).not.toContain(agentId);
     expect(await agents.getAgent(organizationTwo, agentId)).toMatchObject({ id: agentId });

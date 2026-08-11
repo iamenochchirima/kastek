@@ -826,11 +826,13 @@ export class AgentRepository {
         installationId: installation.id,
         actorId: input.actorId,
       });
-      await this.ensureSystemEvaluations(client, {
-        organizationId: input.organizationId,
-        agentDefinitionId: target.agent_definition_id,
-        actorId: input.actorId,
-      });
+      if (input.systemSlug === "kasiai") {
+        await this.ensureSystemEvaluations(client, {
+          organizationId: input.organizationId,
+          agentDefinitionId: target.agent_definition_id,
+          actorId: input.actorId,
+        });
+      }
       return {
         ...installation,
         agent_name: target.name,
