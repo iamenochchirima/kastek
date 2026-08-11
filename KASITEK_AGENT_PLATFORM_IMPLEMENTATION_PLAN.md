@@ -23,12 +23,14 @@
   binding consumption.
 - [x] Migration 013 adds separate optimistic-concurrency workflow state for each run.
 - [x] Migration 014 adds quarantine status for suspicious imported/inferred memory.
+- [x] Migration 015 adds organization-scoped agent schedules with durable next-run state and
+  pause/resume controls.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 58 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 59 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -219,7 +221,9 @@ The implementation must keep the following concepts separate.
   bounded expiry.**
 - [x] `MemoryRecord`: scoped durable fact, preference, episode, or workflow state.
 - [x] `KnowledgeSource`: owned source from which approved chunks can be retrieved.
-- [ ] `AgentSchedule`: durable scheduled trigger for proactive work.
+- [x] `AgentSchedule`: durable scheduled trigger for proactive work. **Schedule records, timezone,
+  input, status, and next-run state are persisted; Temporal trigger polling remains deployment
+  work.**
 - [x] `AgentEvaluation`: versioned deterministic or model-judged assessment. **Deterministic
   scenario assertions and durable evaluation results are implemented; model-judged rubrics remain
   optional.**

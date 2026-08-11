@@ -22,6 +22,7 @@ import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/
 import { EvaluationRepository } from "../db/repositories/evaluation-repository";
 import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../evaluations/deterministic";
 import { AuditRepository } from "../db/repositories/audit-repository";
+import { ScheduleRepository } from "../db/repositories/schedule-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
@@ -42,6 +43,7 @@ export interface AppDependencies {
   knowledge?: KnowledgeRepository;
   evaluations?: EvaluationRepository;
   audits?: AuditRepository;
+  schedules?: ScheduleRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -77,6 +79,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
   const audits = dependencies.audits ?? new AuditRepository(dependencies.pool);
+  const schedules = dependencies.schedules ?? new ScheduleRepository(dependencies.pool);
 
   app.setErrorHandler((error, _request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -204,6 +207,24 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = createInstallationInputSchema.parse(request.body);
     const installation = await agents.createInstallation(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(installation);
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/schedules", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ expression: z.string().trim().min(1).max(240), timezone: z.string().trim().min(1).max(80).default("UTC"), input: z.record(z.string(), z.unknown()).default({}), nextRunAt: z.string().datetime().optional() }).parse(request.body);
+    const schedule = await schedules.create({ organizationId: auth.organizationId, installationId: request.params.installationId, expression: input.expression, timezone: input.timezone, scheduleInput: input.input, nextRunAt: input.nextRunAt, actorId: auth.actorId });
+    return reply.code(201).send(schedule);
+  });
+
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/schedules", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    return { schedules: await schedules.list(auth.organizationId, request.params.installationId) };
+  });
+
+  app.post<{ Params: { scheduleId: string; status: "active" | "paused" | "disabled" } }>("/v1/schedules/:scheduleId/status/:status", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    const status = z.enum(["active", "paused", "disabled"]).parse(request.params.status);
+    return schedules.setStatus(auth.organizationId, request.params.scheduleId, status, auth.actorId);
   });
 
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/channels", async (request, reply) => {

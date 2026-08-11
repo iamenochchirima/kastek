@@ -188,4 +188,21 @@ describe("Agent Platform HTTP foundation", () => {
     expect(response.json()).toMatchObject({ id: "evaluation-run-1", status: "passed" });
     await app.close();
   });
+
+  it("creates and pauses an installation schedule", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      schedules: {
+        create: async () => ({ id: "schedule-1", status: "active" }),
+        setStatus: async (_org: string, _id: string, status: string) => ({ id: "schedule-1", status }),
+        list: async () => [],
+      } as never,
+    });
+    const created = await app.inject({ method: "POST", url: "/v1/installations/install-1/schedules", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { expression: "every 5 minutes" } });
+    expect(created.statusCode).toBe(201);
+    const paused = await app.inject({ method: "POST", url: "/v1/schedules/schedule-1/status/paused", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(paused.json()).toMatchObject({ id: "schedule-1", status: "paused" });
+    await app.close();
+  });
 });
