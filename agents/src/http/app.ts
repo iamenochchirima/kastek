@@ -72,6 +72,13 @@ function requireAuth(request: FastifyRequest, config: AppConfig): AuthContext {
   );
 }
 
+function requireScope(auth: AuthContext, config: AppConfig, scope: string): void {
+  if (config.AUTH_MODE === "headers") return;
+  if (!auth.scopes.includes(scope)) {
+    throw Object.assign(new Error(`Missing internal scope: ${scope}`), { statusCode: 403 });
+  }
+}
+
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const app = Fastify({ logger: { level: dependencies.config.LOG_LEVEL } });
   const agents = dependencies.agents ?? new AgentRepository(dependencies.pool);
@@ -221,6 +228,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get("/v1/system-agents/kasiai/installation", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "kasiai:read");
     const installation = await agents.getSystemInstallation({
       organizationId: auth.organizationId,
       systemSlug: KASIAI_SLUG,
@@ -231,6 +239,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post("/v1/system-agents/kasiai/installation", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "kasiai:write");
     const settings = z
       .object({
         language: z.string().trim().min(2).max(35).optional(),
@@ -251,6 +260,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/installations/:installationId/platform/conversation",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:read");
       const resolved = await platformChat.resolveConversation({
         organizationId: auth.organizationId,
         installationId: request.params.installationId,
@@ -265,6 +275,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/installations/:installationId/platform/messages",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:write");
       const input = z.object({
         message: z.string().trim().min(1).max(20_000),
         idempotencyKey: z.string().trim().min(8).max(240),
@@ -425,6 +436,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/conversations/:conversationId",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:read");
       const conversation = await conversations.getConversation(auth.organizationId, request.params.conversationId);
       if (!conversation) return reply.code(404).send({ error: "conversation_not_found" });
       const messages = await conversations.listMessages(auth.organizationId, conversation.id);
@@ -475,6 +487,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { runId: string } }>("/v1/runs/:runId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "runs:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
     const events = await runs.listEvents(auth.organizationId, run.id);
@@ -668,6 +681,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { runId: string }; Querystring: { after?: string } }>("/v1/runs/:runId/events/stream", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "runs:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
     const parsedAfter = request.query.after === undefined ? 0 : Number(request.query.after);
@@ -729,6 +743,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { runId: string } }>("/v1/runs/:runId/cancel", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "runs:cancel");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
     if (["completed", "failed", "cancelled", "expired"].includes(run.status)) {

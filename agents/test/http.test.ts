@@ -4,6 +4,7 @@ import type { AgentRepository } from "../src/db/repositories/agent-repository";
 import type { RunRepository } from "../src/db/repositories/run-repository";
 import type { AppConfig } from "../src/config";
 import type { PlatformChatRepository } from "../src/db/repositories/platform-chat-repository";
+import { signInternalToken } from "../src/http/auth";
 
 const config: AppConfig = {
   NODE_ENV: "test",
@@ -131,6 +132,24 @@ describe("Agent Platform HTTP foundation", () => {
     expect(accepted.statusCode).toBe(202);
     expect(accepted.json()).toMatchObject({ runId: "run-1", created: true, durable: true });
     expect(started).toEqual(["run-1"]);
+    await app.close();
+  });
+
+  it("enforces scopes on HMAC platform routes", async () => {
+    const agents = {
+      getSystemInstallation: async () => ({ id: "installation-1" }),
+    } as unknown as AgentRepository;
+    const platformChat = {
+      resolveConversation: async () => ({ conversation: { id: "conversation-1" }, userParticipant: {}, agentParticipant: {} }),
+    } as unknown as PlatformChatRepository;
+    const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
+    const readToken = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["chat:read"] }, "test-secret");
+    const noScopeToken = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: [] }, "test-secret");
+    const app = buildApp({ config: hmacConfig, pool: fakePool, agents, platformChat, conversations: { listMessages: async () => [] } as never });
+    const allowed = await app.inject({ method: "POST", url: "/v1/installations/install-1/platform/conversation", headers: { authorization: `Bearer ${readToken}` } });
+    const denied = await app.inject({ method: "POST", url: "/v1/installations/install-1/platform/conversation", headers: { authorization: `Bearer ${noScopeToken}` } });
+    expect(allowed.statusCode).toBe(200);
+    expect(denied.statusCode).toBe(403);
     await app.close();
   });
 

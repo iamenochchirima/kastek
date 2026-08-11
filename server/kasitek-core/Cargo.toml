@@ -21,7 +21,7 @@ bcrypt = "0.15"
 cuid2 = "0.1"
 urlencoding = "2.1"
 
-reqwest = { version = "0.12", features = ["json", "multipart"] }
+reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
 redis = { version = "0.27", features = ["tokio-comp"] }
 
 log.workspace = true

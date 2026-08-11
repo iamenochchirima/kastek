@@ -22,6 +22,26 @@ When the release is ready for public registration, set `KASITEK_ACCESS_MODE=publ
 
 By default, the API server also starts the WhatsApp inbox, WhatsApp marketing, and social publishing workers in the same process.
 
+## Agent Platform bridge
+
+The direct product exposes authenticated KasiAi and platform-agent routes through `kasitek-core`.
+The browser authenticates with the normal user session; core resolves the active organization and
+calls the separately deployed Agent Platform with a short-lived HMAC token. Configure these values
+in the core environment and use the same signing secret in `agents`:
+
+```text
+AGENTS_API_URL=http://localhost:4100
+AGENTS_INTERNAL_AUTH_SECRET=
+AGENTS_INTERNAL_AUTH_AUDIENCE=kasitek-agents
+AGENTS_API_TIMEOUT_MS=15000
+```
+
+In production, `AGENTS_API_URL` and `AGENTS_INTERNAL_AUTH_SECRET` are required. The browser-facing
+routes are under `/api/agents`; they cover KasiAi installation, platform conversation/message
+operations, run inspection/cancellation, and the durable SSE event stream. Core deliberately
+accepts only route and page-title context from the browser; resource-specific context must be
+authorized by a future core read boundary before it is passed to an agent.
+
 If you need to disable embedded workers for a pure API process, set:
 
 ```bash

@@ -27,6 +27,12 @@ pub struct AppConfig {
     /// Shared bearer token for the private Agent Platform -> core read boundary.
     /// This is intentionally separate from user sessions and n8n callbacks.
     pub agents_internal_token: Option<String>,
+    /// Private Agent Platform base URL used by authenticated browser-facing proxy routes.
+    pub agents_api_url: Option<String>,
+    /// HMAC secret shared only by kasitek-core and the Agent Platform API.
+    pub agents_internal_auth_secret: Option<String>,
+    pub agents_internal_auth_audience: String,
+    pub agents_api_timeout_ms: u32,
     pub web_push_vapid_public_key: Option<String>,
     pub web_push_vapid_private_key: Option<String>,
     pub web_push_subject: String,
@@ -65,6 +71,20 @@ impl AppConfig {
         let private_release_mode =
             !env_string_or("KASITEK_ACCESS_MODE", "private").eq_ignore_ascii_case("public");
 
+        let agents_api_url = env_optional("AGENTS_API_URL").map(|value| {
+            normalize_http_origin(&value)
+                .expect("AGENTS_API_URL must be an absolute HTTP(S) origin without a path")
+        });
+        let agents_internal_auth_secret = env_optional("AGENTS_INTERNAL_AUTH_SECRET");
+        if environment.eq_ignore_ascii_case("production") {
+            if agents_api_url.is_none() {
+                return Err(env::VarError::NotPresent);
+            }
+            if agents_internal_auth_secret.is_none() {
+                return Err(env::VarError::NotPresent);
+            }
+        }
+
         Ok(Self {
             port: env_u16_or("PORT", 4000),
             environment,
@@ -88,6 +108,13 @@ impl AppConfig {
             n8n_api_key: env_optional("N8N_API_KEY"),
             n8n_callback_token: env_optional("N8N_CALLBACK_TOKEN"),
             agents_internal_token: env_optional("KASITEK_AGENTS_INTERNAL_TOKEN"),
+            agents_api_url,
+            agents_internal_auth_secret,
+            agents_internal_auth_audience: env_string_or(
+                "AGENTS_INTERNAL_AUTH_AUDIENCE",
+                "kasitek-agents",
+            ),
+            agents_api_timeout_ms: env_u32_or("AGENTS_API_TIMEOUT_MS", 15_000).clamp(500, 120_000),
             web_push_vapid_public_key: env_optional("WEB_PUSH_VAPID_PUBLIC_KEY"),
             web_push_vapid_private_key: env_optional("WEB_PUSH_VAPID_PRIVATE_KEY"),
             web_push_subject: env_string_or("WEB_PUSH_SUBJECT", "mailto:hello@kasitek.co.za"),

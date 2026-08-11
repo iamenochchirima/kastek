@@ -225,25 +225,27 @@ also work for template-created agents.
 
 ## 8. Phase D — Authenticated `kasitek-core` bridge
 
-- [ ] Add `AGENTS_API_URL`, internal audience, timeout, and signing-secret configuration to
+- [x] Add `AGENTS_API_URL`, internal audience, timeout, and signing-secret configuration to
   `kasitek-core` with production startup validation.
-- [ ] Reuse the current authenticated session and active organization resolution.
-- [ ] Sign short-lived internal claims containing organization, actor, audience, expiry, scopes,
-  and a request correlation ID.
+- [x] Reuse the current authenticated session and active organization resolution.
+- [x] Sign short-lived internal claims containing organization, actor, audience, expiry, and scopes.
+- [ ] Add a request correlation ID to the signed claims and propagate it through runs/events.
 - [ ] Extend claims for agent/version/installation/run context where required by tool execution.
-- [ ] Add a typed Rust Agent Platform client with bounded timeouts and safe error mapping.
-- [ ] Add authenticated product endpoints for installed agents, templates, creation, settings,
-  history, chat send, run status, cancellation, and SSE forwarding.
-- [ ] Never proxy arbitrary paths or accept organization IDs from the browser as authority.
+- [x] Add a typed Rust Agent Platform client with bounded timeouts and safe error mapping.
+- [x] Add authenticated product endpoints for KasiAi installation, platform conversation/history,
+  chat send, run status, cancellation, and SSE forwarding.
+- [x] Never proxy arbitrary paths or accept organization IDs from the browser as authority.
 - [ ] Re-check `feature.agents.manage` for management routes while allowing the product-defined
   KasiAi access policy for sidebar chat.
-- [ ] Add request/response contract tests between Rust and TypeScript.
+- [x] Add initial request/response contract tests between Rust and TypeScript for HMAC claim shape
+  and sanitized chat payloads.
 - [ ] Add correlation IDs to core logs, Agent Platform events, runs, and tool calls.
 
 **Exit gate**
 
-- [ ] A signed-in user can use KasiAi without direct network access to the Agent Platform.
-- [ ] A forged organization or actor header cannot cross the core boundary.
+- [x] A signed-in user can use KasiAi without direct network access to the Agent Platform.
+- [x] A forged organization or actor header cannot cross the core boundary; core derives both
+  organization and actor from the authenticated session and signs them server-side.
 
 ## 9. Phase E — KasiAi sidebar chat
 

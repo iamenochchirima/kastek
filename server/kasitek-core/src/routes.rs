@@ -2,9 +2,10 @@ use actix_web::web;
 
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
-    admin_outreach, admin_quotations, admin_web_services, agent_internal, ai, auth, billing,
-    bookings, bots, calls, chat, connections, customers, health, inbox, notifications, onboarding,
-    orgs, product_tour, profile, public, realtime, social, whatsapp, whatsapp_calls, workspace,
+    admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai, auth,
+    billing, bookings, bots, calls, chat, connections, customers, health, inbox, notifications,
+    onboarding, orgs, product_tour, profile, public, realtime, social, whatsapp, whatsapp_calls,
+    workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -37,6 +38,34 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             "/customers/{id}",
             web::get().to(agent_internal::get_customer),
         ))
+        .service(
+            web::scope("/api/agents")
+                .route(
+                    "/kasiai/ensure",
+                    web::post().to(agent_platform::ensure_kasiai),
+                )
+                .route(
+                    "/installations/{installationId}/platform/conversation",
+                    web::post().to(agent_platform::resolve_conversation),
+                )
+                .route(
+                    "/installations/{installationId}/platform/messages",
+                    web::post().to(agent_platform::send_message),
+                )
+                .route(
+                    "/conversations/{conversationId}",
+                    web::get().to(agent_platform::get_conversation),
+                )
+                .route("/runs/{runId}", web::get().to(agent_platform::get_run))
+                .route(
+                    "/runs/{runId}/cancel",
+                    web::post().to(agent_platform::cancel_run),
+                )
+                .route(
+                    "/runs/{runId}/events/stream",
+                    web::get().to(agent_platform::stream_run),
+                ),
+        )
         .route("/api/chat", web::post().to(chat::post))
         .route("/api/workspace/summary", web::get().to(workspace::summary))
         .service(

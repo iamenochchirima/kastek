@@ -1,3 +1,4 @@
+pub mod agent_platform;
 pub mod agents;
 pub mod ai;
 pub mod auth;

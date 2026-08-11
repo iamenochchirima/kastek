@@ -14,6 +14,9 @@ pub enum AppError {
     Forbidden(String),
     NotFound(String),
     Conflict(String),
+    ServiceUnavailable(String),
+    BadGateway(String),
+    GatewayTimeout(String),
     Internal(String),
 }
 
@@ -25,6 +28,9 @@ impl fmt::Display for AppError {
             Self::Forbidden(message) => write!(f, "forbidden: {message}"),
             Self::NotFound(message) => write!(f, "not found: {message}"),
             Self::Conflict(message) => write!(f, "conflict: {message}"),
+            Self::ServiceUnavailable(message) => write!(f, "service unavailable: {message}"),
+            Self::BadGateway(message) => write!(f, "bad gateway: {message}"),
+            Self::GatewayTimeout(message) => write!(f, "gateway timeout: {message}"),
             Self::Internal(message) => write!(f, "internal: {message}"),
         }
     }
@@ -46,6 +52,17 @@ impl ResponseError for AppError {
                 error: message.clone(),
             }),
             Self::Conflict(message) => HttpResponse::Conflict().json(ErrorResponse {
+                error: message.clone(),
+            }),
+            Self::ServiceUnavailable(message) => {
+                HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                    error: message.clone(),
+                })
+            }
+            Self::BadGateway(message) => HttpResponse::BadGateway().json(ErrorResponse {
+                error: message.clone(),
+            }),
+            Self::GatewayTimeout(message) => HttpResponse::GatewayTimeout().json(ErrorResponse {
                 error: message.clone(),
             }),
             Self::Internal(message) => HttpResponse::InternalServerError().json(ErrorResponse {
