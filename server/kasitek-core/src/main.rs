@@ -1,7 +1,7 @@
 use ::config::{env_truthy, environment_allows_loopback_origins, is_loopback_origin};
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
-use dotenv::dotenv;
+use dotenv::{dotenv, from_path};
 use sqlx::postgres::PgPoolOptions;
 use tokio::time::{sleep, Duration};
 
@@ -160,7 +160,11 @@ fn spawn_background_workers(pool: sqlx::PgPool, config: AppConfig) {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    dotenv().ok();
+    // Always load this service's environment file, even when Cargo is launched
+    // from the workspace root rather than `server/kasitek-core`.
+    if from_path(format!("{}/.env", env!("CARGO_MANIFEST_DIR"))).is_err() {
+        dotenv().ok();
+    }
     observability::init("info");
 
     let config = AppConfig::from_env().expect("failed to load config");

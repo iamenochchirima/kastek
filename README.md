@@ -39,12 +39,17 @@ secret values stay in dotenv-vault, not in plain git-tracked files.
 Run these in separate terminals:
 
 ```bash
-cd /home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/server/kasitek-tenants
-cargo run
+# Core API with automatic restart on Rust or server/kasitek-core/.env changes
+./scripts/dev_core_watch.sh
 ```
 
+The watcher reloads environment variables whenever it restarts. Edit
+`server/kasitek-core/.env`, then save it; the API will restart with the new values.
+Changes to the root vault-backed env should be restored to the service env first with
+`./scripts/sync_dotenv_vaults.sh pull`.
+
 ```bash
-cd /home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/server/kasitek-calls
+cd /home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/server/kasitek-tenants
 cargo run
 ```
 
