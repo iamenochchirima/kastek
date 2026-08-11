@@ -39,6 +39,19 @@ describe("provider adapters", () => {
     expect(attempts).toBe(2);
     expect(result.usage.estimatedCostUsd).toBe(4);
   });
+
+  it("opens a provider circuit after repeated terminal provider failures", async () => {
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => { throw new ModelProviderError("down", "PROVIDER_DOWN", false, "openai", 503); },
+    };
+    const gateway = new ModelGateway([adapter], { circuitFailureThreshold: 2, circuitCooldownMs: 60_000 });
+    const request = { provider: "openai" as const, model: "test", messages: [{ role: "user" as const, content: "hi" }] };
+    await expect(gateway.complete(request, credentials)).rejects.toMatchObject({ code: "PROVIDER_DOWN" });
+    await expect(gateway.complete(request, credentials)).rejects.toMatchObject({ code: "PROVIDER_DOWN" });
+    await expect(gateway.complete(request, credentials)).rejects.toMatchObject({ code: "MODEL_CIRCUIT_OPEN" });
+  });
   it("normalizes an OpenAI-compatible tool response", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { role: "assistant", content: "", tool_calls: [{ id: "call-1", function: { name: "echo", arguments: '{"value":"ok"}' } }] }, finish_reason: "tool_calls" }],

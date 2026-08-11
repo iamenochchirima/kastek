@@ -27,7 +27,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 49 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 50 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -514,7 +514,8 @@ received
 - [x] Add streaming response support. **The provider-neutral gateway contract and OpenAI/
   OpenRouter-compatible SSE adapter stream text/tool deltas; unsupported providers fail the
   capability check instead of silently buffering.**
-- [ ] Add provider circuit breakers.
+- [x] Add provider circuit breakers. **The gateway tracks provider/model failures, opens after a
+  bounded threshold, and expires the circuit after a cooldown; open circuits fail fast.**
 - [x] Resolve credentials through opaque references and an explicit precedence policy.
 - [x] Support KasiTek-funded and user-funded provider credentials. **The resolver supports
   opaque vault references for user-funded keys and environment-backed KasiTek defaults.**
