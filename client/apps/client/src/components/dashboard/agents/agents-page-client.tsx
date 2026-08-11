@@ -36,11 +36,13 @@ export function AgentsPageClient({
   kasiaiInstallationId,
   initialTemplates,
   initialTemplateKey,
+  agentsUnavailable = false,
 }: {
   initialAgents: AgentListItem[];
   kasiaiInstallationId: string | null;
   initialTemplates: AgentTemplate[];
   initialTemplateKey?: string;
+  agentsUnavailable?: boolean;
 }) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(Boolean(initialTemplateKey));
@@ -70,7 +72,9 @@ export function AgentsPageClient({
           </div>
         ) : null}
 
-        {initialAgents.length ? (
+        {agentsUnavailable ? (
+          <Card><CardContent className="flex flex-col items-start gap-4 p-8"><Info className="h-7 w-7 text-status-attention" /><div><h2 className="text-xl font-semibold text-foreground">Agents are unavailable</h2><p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">The Agent Platform could not be reached. Your existing installations are unchanged; try refreshing in a moment.</p></div><Button type="button" variant="outline" onClick={() => router.refresh()}>Retry</Button></CardContent></Card>
+        ) : initialAgents.length ? (
           <section className="grid gap-4 lg:grid-cols-2" aria-label="Installed agents">
             {initialAgents.map((agent) => <AgentCard key={agent.id} agent={agent} onChanged={() => router.refresh()} />)}
           </section>

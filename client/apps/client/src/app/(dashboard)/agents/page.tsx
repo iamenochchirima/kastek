@@ -25,7 +25,11 @@ export default async function AgentsPage({
     headers: { "content-type": "application/json" },
     body: JSON.stringify({}),
   }).catch(() => null);
-  const response = await fetchRustJson<{ agents: AgentListItem[] }>("/api/agents").catch(() => ({ agents: [] }));
+  let agentsUnavailable = false;
+  const response = await fetchRustJson<{ agents: AgentListItem[] }>("/api/agents").catch(() => {
+    agentsUnavailable = true;
+    return { agents: [] };
+  });
   const templates = await fetchRustJson<{ templates: AgentTemplate[] }>("/api/agents/templates").catch(() => ({ templates: [] }));
   return (
     <AgentsPageClient
@@ -33,6 +37,7 @@ export default async function AgentsPage({
       kasiaiInstallationId={installation?.id ?? null}
       initialTemplates={templates.templates}
       initialTemplateKey={template}
+      agentsUnavailable={agentsUnavailable}
     />
   );
 }

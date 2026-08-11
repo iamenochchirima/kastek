@@ -289,7 +289,7 @@ also work for template-created agents.
 - [x] Display organization-created agents with template, status, installation state, and current
   published version; last-run/failure detail remains to be expanded.
   run, failure state, and current published version.
-- [ ] Add empty, loading, error, paused, disabled, and unavailable states backed by real data.
+- [x] Add empty, loading, error, paused, disabled, and unavailable states backed by real data.
 - [x] Add an agent detail page for overview, installation state, version history, and available
   lifecycle operations; template settings, conversations, activity, and memory/knowledge detail
   remain follow-up surfaces.
