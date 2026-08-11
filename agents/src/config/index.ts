@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { existsSync } from "node:fs";
+
+// Local development uses agents/.env. Production environments inject variables directly.
+// Node 22.12+ provides this built-in loader, so no dotenv dependency is required.
+if (existsSync(".env")) process.loadEnvFile(".env");
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
