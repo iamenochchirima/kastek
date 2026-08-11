@@ -3,6 +3,7 @@ import { ModelGateway } from "../src/model/gateway";
 import type { ModelAdapter, ModelCredentials, ModelRequest, ModelResponse } from "../src/model/types";
 import { ToolRegistry, hashToolArguments } from "../src/tools/registry";
 import { runBoundedAgentLoop } from "../src/runtime/loop";
+import { redactSensitiveValue } from "../src/tools/redaction";
 
 const credentials: ModelCredentials = { apiKey: "test", fundingSource: "kasitek" };
 
@@ -19,6 +20,9 @@ function response(toolCalls: ModelResponse["toolCalls"], content = ""): ModelRes
 }
 
 describe("Tool Gateway and bounded runtime", () => {
+  it("redacts secret-like tool fields recursively before model-visible output", () => {
+    expect(redactSensitiveValue({ profile: { name: "Ada" }, apiKey: "secret", nested: [{ token: "value" }] })).toEqual({ profile: { name: "Ada" }, apiKey: "[REDACTED]", nested: [{ token: "[REDACTED]" }] });
+  });
   it("validates, grants, and executes a read-only tool", async () => {
     const registry = new ToolRegistry();
     registry.register({

@@ -27,7 +27,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 50 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 51 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -213,11 +213,15 @@ The implementation must keep the following concepts separate.
 - [x] `ToolInvocation`: proposed and executed tool operation with policy evidence. **Migration
   005 records the request, stable argument hash, approval state, outcome, latency, and effect
   identifier.**
-- [ ] `ApprovalRequest`: exact, expiring authorization for a consequential invocation.
-- [ ] `MemoryRecord`: scoped durable fact, preference, episode, or workflow state.
-- [ ] `KnowledgeSource`: owned source from which approved chunks can be retrieved.
+- [x] `ApprovalRequest`: exact, expiring authorization for a consequential invocation. **Tool
+  invocation records persist the pending action, arguments hash, approval decision, actor, and
+  bounded expiry.**
+- [x] `MemoryRecord`: scoped durable fact, preference, episode, or workflow state.
+- [x] `KnowledgeSource`: owned source from which approved chunks can be retrieved.
 - [ ] `AgentSchedule`: durable scheduled trigger for proactive work.
-- [ ] `AgentEvaluation`: versioned deterministic or model-judged assessment.
+- [x] `AgentEvaluation`: versioned deterministic or model-judged assessment. **Deterministic
+  scenario assertions and durable evaluation results are implemented; model-judged rubrics remain
+  optional.**
 - [x] `AgentEvent`: canonical lifecycle and operational event.
 
 ## 6. Runtime invariants
@@ -226,16 +230,20 @@ The implementation must keep the following concepts separate.
 - [x] Every run carries organization, agent, installation, conversation, trigger, and actor
   scope where applicable.
 - [x] Every run has a globally unique run ID and correlation ID.
-- [ ] Every inbound provider message is deduplicated before starting a run.
-- [ ] Messages within one conversation are processed in order.
-- [ ] Different conversations may execute concurrently.
+- [x] Every inbound provider message is deduplicated before starting a run. **Provider/message
+  identity uniqueness and run idempotency keys are persisted.**
+- [x] Messages within one conversation are processed in order. **Sequence numbers are allocated
+  transactionally and unique per conversation.**
+- [x] Different conversations may execute concurrently. **No process-local conversation lock is
+  used; runs are independently durable.**
 - [x] Workers are stateless and interchangeable.
 - [x] Context is rebuilt from durable references for every run.
 - [x] Recent conversation context is bounded.
-- [ ] Older context is summarized or retrieved selectively.
+- [x] Older context is summarized or retrieved selectively.
 - [x] Agent loops have iteration, token, cost, tool-call, and wall-clock limits.
 - [x] Terminal run history is append-only.
-- [ ] Retries create attempt records and do not rewrite history.
+- [x] Retries create attempt records and do not rewrite history. **Run attempts and ordered steps
+  are append-oriented; idempotent starts return the original run.**
 - [x] A paused or approval-waiting run can resume on a different worker.
 - [ ] External effects are idempotent or explicitly reconciled when their outcome is unknown.
 - [ ] Cancellation prevents future work and never pretends an existing external effect was
@@ -277,7 +285,8 @@ received
   as untrusted context.**
 - [ ] Add temporary page/resource context supplied by a trusted KasiTek client.
 - [x] Run the retrieval gate before loading long-term memory.
-- [ ] Load only memory permitted by the current namespace and actor scope. **The retrieval gate is present; long-term memory loading remains pending.**
+- [x] Load only memory permitted by the current namespace and actor scope. **Retrieval applies
+  organization, agent, installation, and conversation predicates before ranking.**
 - [ ] Match procedural skills/workflows relevant to the request.
 - [x] Add only currently authorized tool schemas.
 - [x] Mark customer content, documents, web content, and tool output as untrusted data.
@@ -325,9 +334,9 @@ received
 - [x] Validate the version before publication.
 - [x] Publish an immutable version.
 - [x] Activate a published version.
-- [ ] Roll back to an earlier published version.
-- [ ] Retire a version without corrupting historical runs.
-- [ ] Archive an agent while retaining audit history.
+- [x] Roll back to an earlier published version.
+- [x] Retire a version without corrupting historical runs.
+- [x] Archive an agent while retaining audit history.
 - [ ] Prevent deletion of protected system-owned agents.
 - [x] Record who changed and published each version.
 - [x] Compute a checksum over the effective version configuration.
@@ -388,7 +397,9 @@ received
   read-only customer boundary is implemented; write tools remain disabled.**
 - [x] Pass correlation and causation IDs through every call. **Core read calls carry run and
   correlation headers; durable events retain the run correlation ID.**
-- [ ] Redact secrets and restricted fields from model-visible results.
+- [x] Redact secrets and restricted fields from model-visible results. **Recursive key-based
+  redaction runs before tool output is added to model context or recorded by runtime callbacks;
+  provider-specific field redaction remains a future policy extension.**
 - [x] Record request hash, decision, latency, outcome, and effect identifiers. **Tool
   invocation records are persisted in migration 005.**
 - [ ] Define connector adapters for future MCP tools.
@@ -437,7 +448,7 @@ received
 ### 13.1 Memory types and namespaces
 
 - [x] Implement conversation working context.
-- [ ] Implement rolling conversation summaries.
+- [x] Implement rolling conversation summaries.
 - [x] Implement semantic facts and preferences.
 - [x] Implement episodic history.
 - [x] Implement procedural skills and workflows through versioned configuration.

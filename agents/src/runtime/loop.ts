@@ -4,6 +4,7 @@ import { ModelProviderError } from "../model/types";
 import { ToolPolicyError, type ToolApproval, type ToolInvocationContext } from "../tools/types";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { classifyFailureCode } from "./failures";
+import { redactSensitiveValue } from "../tools/redaction";
 
 export interface AgentLoopLimits {
   maxIterations: number;
@@ -109,9 +110,10 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         approval: resumed.approval,
       });
       messages.push({ role: "assistant", content: "", toolCalls: [{ id: resumed.id, name: resumed.name, arguments: resumed.arguments }] });
-      messages.push({ role: "tool", name: resumed.name, toolCallId: resumed.id, content: JSON.stringify(result.output) });
+      const safeOutput = redactSensitiveValue(result.output);
+      messages.push({ role: "tool", name: resumed.name, toolCallId: resumed.id, content: JSON.stringify(safeOutput) });
       toolCalls += 1;
-      await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, output: result.output, latencyMs: result.latencyMs, approval: resumed.approval });
+      await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, output: safeOutput, latencyMs: result.latencyMs, approval: resumed.approval });
       await emit(input, { type: "tool.completed", iteration: 0, payload: { name: resumed.name, resumed: true, latencyMs: result.latencyMs } });
     } catch (error) {
       const normalized = error instanceof ToolPolicyError
@@ -188,14 +190,15 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             context: input.toolContext,
             grantedTools: input.grantedTools,
           });
+          const safeOutput = redactSensitiveValue(result.output);
           messages.push({
             role: "tool",
             name: toolCall.name,
             toolCallId: toolCall.id,
-            content: JSON.stringify(result.output),
+            content: JSON.stringify(safeOutput),
           });
           await emit(input, { type: "tool.completed", iteration, payload: { name: toolCall.name, latencyMs: result.latencyMs } });
-          await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, output: result.output, latencyMs: result.latencyMs });
+          await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, output: safeOutput, latencyMs: result.latencyMs });
         } catch (error) {
           if (error instanceof ToolPolicyError && error.code === "APPROVAL_REQUIRED") {
             await emit(input, { type: "loop.paused", iteration, payload: { reason: "approval", name: toolCall.name } });
