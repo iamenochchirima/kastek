@@ -230,6 +230,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(201).send(binding);
   });
 
+  app.post<{ Params: { installationId: string; connectionId: string } }>("/v1/installations/:installationId/channels/:connectionId/pairing", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ externalIdentity: z.string().trim().min(1).max(240), ttlSeconds: z.number().int().positive().max(86_400).optional() }).parse(request.body);
+    const pairing = await channels.issuePairingToken({ organizationId: auth.organizationId, installationId: request.params.installationId, connectionId: request.params.connectionId, externalIdentity: input.externalIdentity, ttlSeconds: input.ttlSeconds, actorId: auth.actorId });
+    return reply.code(201).send(pairing);
+  });
+
+  app.post("/v1/channel-pairing/consume", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ token: z.string().trim().min(20).max(200) }).parse(request.body);
+    const binding = await channels.consumePairingToken({ organizationId: auth.organizationId, token: input.token });
+    return reply.code(201).send(binding);
+  });
+
   app.post<{ Params: { installationId: string } }>(
     "/v1/installations/:installationId/conversations",
     async (request, reply) => {

@@ -28,8 +28,11 @@ describe.skipIf(!runIntegration)("channel routing contracts (integration)", () =
     const installation = await agents.createInstallation(organizationId, "test-user", { agentVersionId: version.id, scopeType: "organization", scopeId: organizationId, settings: {} });
     installationId = installation.id;
     const connection = await channels.createConnection({ organizationId, installationId, channelType: "platform", channelKey: "sidebar", actorId: "test-user" });
-    const binding = await channels.bind({ organizationId, installationId, connectionId: connection.id, externalIdentity: "user:test" });
+    const pairing = await channels.issuePairingToken({ organizationId, installationId, connectionId: connection.id, externalIdentity: "user:test", actorId: "test-user" });
+    expect(pairing.token).toBeTruthy();
+    const binding = await channels.consumePairingToken({ organizationId, token: pairing.token! });
     expect(binding.channel_type).toBe("platform");
+    await expect(channels.consumePairingToken({ organizationId, token: pairing.token! })).rejects.toThrow("invalid");
     const conversation = await conversations.createConversation({ organizationId, installationId, channelType: "platform", channelKey: "sidebar", externalConversationId: "conversation:test" });
     conversationId = conversation.id;
     const participant = await conversations.createParticipant({ organizationId, conversationId, participantType: "user", externalId: "user:test", displayName: "Test" });
@@ -41,6 +44,7 @@ describe.skipIf(!runIntegration)("channel routing contracts (integration)", () =
   beforeAll(async () => { await pool.query("SELECT 1"); });
 
   afterAll(async () => {
+    await pool.query("DELETE FROM channel_pairing_tokens WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM delivery_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM channel_bindings WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM channel_connections WHERE organization_id = $1", [organizationId]);

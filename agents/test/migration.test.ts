@@ -41,5 +41,8 @@ describe("foundation migration", () => {
     const evaluationsSql = await readFile(new URL("../migrations/011_evaluations.sql", import.meta.url), "utf8");
     expect(evaluationsSql).toContain("evaluation_scenarios");
     expect(evaluationsSql).toContain("evaluation_runs");
+    const pairingSql = await readFile(new URL("../migrations/012_channel_pairing.sql", import.meta.url), "utf8");
+    expect(pairingSql).toContain("channel_pairing_tokens");
+    expect(pairingSql).toContain("token_hash");
   });
 });

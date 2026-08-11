@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
+import { createPairingToken, hashPairingToken } from "../../channels/pairing";
 
 export interface ChannelConnectionRecord {
   id: string;
@@ -40,6 +41,16 @@ export interface DeliveryAttemptRecord {
   error: Record<string, unknown> | null;
   created_at: string;
   sent_at: string | null;
+}
+
+export interface ChannelPairingResult {
+  id: string;
+  organization_id: string;
+  installation_id: string;
+  connection_id: string;
+  external_identity: string;
+  expires_at: string;
+  token?: string;
 }
 
 export class ChannelRepository {
@@ -141,5 +152,66 @@ export class ChannelRepository {
       [input.organizationId, input.conversationId, input.messageId, input.channelType],
     );
     return result.rows[0]!;
+  }
+
+  public async issuePairingToken(input: {
+    organizationId: string;
+    installationId: string;
+    connectionId: string;
+    externalIdentity: string;
+    actorId: string;
+    ttlSeconds?: number;
+  }): Promise<ChannelPairingResult> {
+    const generated = createPairingToken(input.ttlSeconds);
+    const result = await query<ChannelPairingResult>(
+      this.pool,
+      `INSERT INTO channel_pairing_tokens
+        (organization_id, installation_id, connection_id, token_hash, external_identity, expires_at, created_by)
+       SELECT $1, cc.installation_id, cc.id, $4, $5, $6, $7
+       FROM channel_connections cc
+       WHERE cc.id = $3 AND cc.organization_id = $1 AND cc.installation_id = $2 AND cc.status = 'active'
+       RETURNING id, organization_id, installation_id, connection_id, external_identity, expires_at`,
+      [input.organizationId, input.installationId, input.connectionId, generated.tokenHash, input.externalIdentity, generated.expiresAt, input.actorId],
+    );
+    if (!result.rows[0]) throw new Error("Channel connection not found");
+    return { ...result.rows[0], token: generated.token };
+  }
+
+  public async consumePairingToken(input: {
+    organizationId: string;
+    token: string;
+  }): Promise<ChannelBindingRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const token = await client.query<ChannelPairingResult>(
+        `UPDATE channel_pairing_tokens
+         SET consumed_at = now()
+         WHERE organization_id = $1 AND token_hash = $2 AND consumed_at IS NULL AND expires_at > now()
+         RETURNING id, organization_id, installation_id, connection_id, external_identity, expires_at`,
+        [input.organizationId, hashPairingToken(input.token)],
+      );
+      const pairing = token.rows[0];
+      if (!pairing) throw new Error("Pairing token is invalid, expired, or already consumed");
+      const connection = await client.query<ChannelConnectionRecord>(
+        `SELECT * FROM channel_connections WHERE id = $1 AND organization_id = $2 AND installation_id = $3 AND status = 'active'`,
+        [pairing.connection_id, input.organizationId, pairing.installation_id],
+      );
+      if (!connection.rows[0]) throw new Error("Channel connection not found");
+      const binding = await client.query<ChannelBindingRecord>(
+        `INSERT INTO channel_bindings
+          (organization_id, installation_id, channel_connection_id, channel_type, external_identity, routing_key)
+         VALUES ($1, $2, $3, $4, $5, 'default')
+         ON CONFLICT (organization_id, channel_type, external_identity) DO UPDATE SET
+           installation_id = EXCLUDED.installation_id, channel_connection_id = EXCLUDED.channel_connection_id,
+           routing_key = EXCLUDED.routing_key, status = 'active', updated_at = now()
+         RETURNING *`,
+        [input.organizationId, pairing.installation_id, pairing.connection_id, connection.rows[0].channel_type, pairing.external_identity],
+      );
+      await client.query(
+        `INSERT INTO audit_records (organization_id, actor_type, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'channel', 'channel.pairing_consumed', 'channel_binding', $2, $3::jsonb)`,
+        [input.organizationId, binding.rows[0]!.id, JSON.stringify({ pairingTokenId: pairing.id })],
+      );
+      return binding.rows[0]!;
+    });
   }
 }

@@ -19,6 +19,8 @@
 - [x] Migration 010 adds an encrypted credential vault with opaque references, revocation, and
   organization-scoped resolution.
 - [x] Migration 011 adds organization-scoped evaluation scenarios and durable evaluation runs.
+- [x] Migration 012 adds hashed, expiring, single-use channel pairing tokens and audit-backed
+  binding consumption.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
@@ -137,7 +139,8 @@ This checklist must be updated during implementation:
 - [ ] ADR: Define the first sandbox provider for future untrusted execution.
 - [ ] ADR: Define how declarative workflow definitions are represented and versioned.
 - [x] ADR: Define how the Agent Platform authenticates internal calls to `kasitek-core`.
-- [ ] ADR: Define the external channel identity-pairing protocol.
+- [x] ADR: Define the external channel identity-pairing protocol. **Generic one-time pairing is
+  implemented; provider webhook verification and channel-specific UX remain separate.**
 
 ## 4. System boundaries
 
@@ -344,7 +347,8 @@ received
 
 - [x] Install an agent into an organization/user/business scope.
 - [x] Activate, pause, resume, and disable an installation.
-- [ ] Bind an installation to channels and triggers.
+- [x] Bind an installation to channels and triggers. **Installation/channel bindings and generic
+  one-time pairing are implemented; provider trigger adapters remain pending.**
 - [x] Apply installation-level settings without mutating the agent version.
 - [ ] Apply installation-level budgets and rate limits.
 - [x] Resolve an effective configuration deterministically. **Runtime tool access is the
@@ -395,9 +399,11 @@ received
 
 - [x] Define a CloudEvents-compatible internal event envelope.
 - [ ] Define canonical text, attachment, reaction, status, command, and system message types.
-- [ ] Preserve provider message IDs and timestamps.
-- [ ] Preserve channel-specific metadata outside model-visible content.
-- [ ] Add idempotent message ingestion.
+- [x] Preserve provider message IDs and timestamps. **Provider message IDs are unique and retained;
+  provider timestamps/metadata fields remain an adapter extension.**
+- [x] Preserve channel-specific metadata outside model-visible content. **Connection metadata and
+  canonical channel fields are stored separately from message content.**
+- [x] Add idempotent message ingestion. **Provider/message identity uniqueness rejects duplicates.**
 - [x] Add outbound delivery attempts and status events. **Delivery attempt persistence is in
   migration 009; provider-specific sending remains adapter work.**
 
@@ -417,9 +423,9 @@ received
 
 ### 12.3 Conversation semantics
 
-- [ ] Support multiple conversations per installation.
-- [ ] Support participants with user, customer, staff, agent, and system roles.
-- [ ] Keep channel conversation histories separate by default.
+- [x] Support multiple conversations per installation.
+- [x] Support participants with user, customer, staff, agent, and system roles.
+- [x] Keep channel conversation histories separate by default.
 - [ ] Share only explicitly permitted durable memory across conversations.
 - [ ] Support conversation archive, rename, export, and deletion policies.
 - [ ] Support human handoff without losing agent/run history.
