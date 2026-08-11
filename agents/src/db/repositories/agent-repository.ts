@@ -403,6 +403,29 @@ export class AgentRepository {
     });
   }
 
+  public async rolloutSystemVersion(agentId: string, versionId: string, actorId: string): Promise<number> {
+    return withTransaction(this.pool, async (client) => {
+      const installations = await client.query<{ id: string; organization_id: string }>(
+        `SELECT id, organization_id FROM agent_installations
+         WHERE agent_definition_id = $1 AND status <> 'disabled' FOR UPDATE`,
+        [agentId],
+      );
+      for (const installation of installations.rows) {
+        await client.query(
+          `UPDATE agent_installations SET agent_version_id = $2, updated_at = now() WHERE id = $1`,
+          [installation.id, versionId],
+        );
+        await client.query(
+          `INSERT INTO audit_records
+            (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+           VALUES ($1, 'system', $2, 'system_agent_installation.rolled_out', 'agent_installation', $3, $4::jsonb)`,
+          [installation.organization_id, actorId, installation.id, JSON.stringify({ agentId, versionId })],
+        );
+      }
+      return installations.rowCount ?? 0;
+    });
+  }
+
   public async getAgent(organizationId: string, agentId: string): Promise<AgentRecord | null> {
     const result = await query<AgentRecord>(
       this.pool,

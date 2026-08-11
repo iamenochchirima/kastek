@@ -87,10 +87,10 @@ installation/conversation/run contracts instead of creating another KasiAi imple
   one transaction before workflow dispatch.**
 - [x] A completed conversation run persists the assistant reply as a durable outbound message
   before changing the run to `completed`.
-- [ ] The SSE stream is not connected to the KasiTek client.
-- [ ] `kasitek-core` does not yet proxy authenticated Agent Platform control-plane or chat calls.
+- [x] The SSE stream is connected to the KasiTek client.
+- [x] `kasitek-core` proxies authenticated Agent Platform control-plane and chat calls.
 - [ ] The Agent Platform internal signing secret and URL are not configured across both services.
-- [ ] The sidebar has no KasiAi chat surface.
+- [x] The sidebar has a KasiAi chat surface.
 - [x] `/agents`, `/agents/activity`, and `/agents/analytics` no longer read the legacy `/api/bots`
   system.
 - [ ] The destructive database migration still needs to be applied in each deployed environment;
@@ -144,15 +144,15 @@ The recorded dependency and row-count inventory is in
   the definition or Temporal workflow input.
 - [ ] Add startup validation for the selected KasiAi model/provider credential.
 - [ ] Seed or ingest the initial platform-guidance knowledge with explicit provenance and version.
-- [ ] Add a controlled release command that creates a new draft, validates it, publishes it, and
-  records the prior version for rollback.
-- [ ] Do not automatically move active installations to a new version without an explicit rollout
-  operation and audit record.
+- [x] Add a controlled release command that validates and publishes a new protected version while
+  recording the prior version for rollback metadata (`pnpm release:kasiai`).
+- [x] Do not automatically move active installations to a new version; `pnpm release:kasiai --rollout`
+  performs an explicit audited rollout when requested.
 
 ### 6.3 Default organization installation
 
 - [x] Add an idempotent `ensure KasiAi installation` service operation.
-- [ ] Create the installation on first authenticated use or organization provisioning, whichever
+- [x] Create the installation on first authenticated use or organization provisioning, whichever
   occurs first.
 - [x] Use one organization-scoped installation and create an AgentPrincipal with the minimum
   required audience and grants.
@@ -256,7 +256,7 @@ also work for template-created agents.
 - [ ] Load paginated durable history and preserve scroll position.
 - [x] Send messages with a client idempotency key.
 - [x] Stream status and the final response from the durable SSE endpoint.
-- [ ] Support stop/cancel, retry after safe failures, reconnect after network loss, and explicit new
+- [x] Support stop/cancel, retry after safe failures, reconnect after network loss, and explicit new
   conversation creation.
 - [ ] Show useful states for unconfigured model credentials, disabled installation, exceeded
   budget, service unavailable, failed run, and expired approval.
@@ -272,9 +272,9 @@ also work for template-created agents.
 
 **Exit gate**
 
-- [ ] A user can open KasiAi from any supported dashboard page and complete a durable conversation.
-- [ ] Two users in one organization see separate KasiAi histories.
-- [ ] The sidebar uses no legacy bot or direct provider API.
+- [x] A user can open KasiAi from any supported dashboard page and complete a durable conversation.
+- [x] Two users in one organization see separate KasiAi histories.
+- [x] The sidebar uses no legacy bot or direct provider API.
 
 ## 10. Phase F — New Agents product UI
 
@@ -351,7 +351,8 @@ also work for template-created agents.
 - [ ] Add versioned platform navigation and product-help knowledge.
 - [x] Add the first read-only tool contracts required for useful guidance, including workspace
   connection/status inspection, through the authenticated `kasitek-core` boundary.
-- [ ] Grant only the fixed read-only tools required by the first release.
+- [x] Grant only the fixed read-only tools required by the first release (`platform.current_time`
+  and `kasitek.core.workspace_status` in KasiAi v2).
 - [ ] Keep content publishing, campaign sending, customer mutation, booking creation, credential
   changes, billing changes, and other external effects unavailable in the first release.
 - [ ] Add evaluation scenarios for navigation guidance, unavailable features, organization

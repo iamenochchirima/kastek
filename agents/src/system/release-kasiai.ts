@@ -16,7 +16,10 @@ async function main(): Promise<void> {
       protected: true,
     });
     const version = await agents.releaseSystemVersion(KASIAI_RELEASE_ACTOR, agent.id, kasiaiInitialVersion(config));
-    console.log(JSON.stringify({ agentId: agent.id, versionId: version.id, versionNumber: version.version_number }));
+    const rolledOut = process.argv.includes("--rollout")
+      ? await agents.rolloutSystemVersion(agent.id, version.id, KASIAI_RELEASE_ACTOR)
+      : 0;
+    console.log(JSON.stringify({ agentId: agent.id, versionId: version.id, versionNumber: version.version_number, rolledOut }));
   } finally {
     await pool.end();
   }
