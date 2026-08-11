@@ -6,7 +6,7 @@
 **Last updated:** 2026-08-11
 
 **Current implementation evidence:** The local Agent Platform database has migrations 001–019
-applied. The database-backed Agent Platform suite passes 79 tests, including installation,
+applied. The database-backed Agent Platform suite passes 80 tests, including installation,
 knowledge, channel, run, isolation, and platform-chat integration coverage. The client production
 build and `cargo check -p kasitek-core` pass. Authenticated runtime health is now exposed through
 the Agent Activity page and reports database, Temporal, and model-provider readiness without
@@ -382,8 +382,9 @@ also work for template-created agents.
   and `kasitek.core.workspace_status` in KasiAi v2).
 - [x] Keep content publishing, campaign sending, customer mutation, booking creation, credential
   changes, billing changes, and other external effects unavailable in the first release.
-- [ ] Add evaluation scenarios for navigation guidance, unavailable features, organization
-  isolation, prompt injection, tool denial, refusal of ungranted actions, and correct handoff.
+- [x] Add a versioned, idempotently seeded deterministic scenario catalog covering navigation
+  guidance, unavailable features, organization isolation, prompt injection, tool denial, and
+  permitted read-only tools. Model-judged quality evaluation remains a later layer.
 - [x] Add a release evaluation gate for every new KasiAi version. **`release:kasiai` blocks
   publication unless the protected instructions, read-only tools, knowledge version, and bounded
   execution policy pass the static gate.**

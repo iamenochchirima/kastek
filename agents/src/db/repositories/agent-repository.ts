@@ -9,6 +9,7 @@ import { query, withTransaction } from "../pool";
 import { validateVersionWorkflow } from "../../workflows/graph";
 import { getAgentTemplate, templateVersionInput } from "../../system/templates";
 import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE_VERSION } from "../../system/kasiai-knowledge";
+import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
 
 type DbExecutor = Pool | PoolClient;
 
@@ -825,6 +826,11 @@ export class AgentRepository {
         installationId: installation.id,
         actorId: input.actorId,
       });
+      await this.ensureSystemEvaluations(client, {
+        organizationId: input.organizationId,
+        agentDefinitionId: target.agent_definition_id,
+        actorId: input.actorId,
+      });
       return {
         ...installation,
         agent_name: target.name,
@@ -834,6 +840,37 @@ export class AgentRepository {
         created: installation.created_now,
       };
     });
+  }
+
+  private async ensureSystemEvaluations(
+    client: PoolClient,
+    input: { organizationId: string; agentDefinitionId: string; actorId: string },
+  ): Promise<void> {
+    for (const scenario of KASIAI_EVALUATION_SCENARIOS) {
+      const existing = await client.query<{ id: string }>(
+        `SELECT id FROM evaluation_scenarios
+         WHERE organization_id = $1 AND agent_definition_id = $2 AND name = $3 AND status = 'active'
+         LIMIT 1`,
+        [input.organizationId, input.agentDefinitionId, scenario.name],
+      );
+      if (existing.rows[0]) continue;
+      await client.query(
+        `INSERT INTO evaluation_scenarios
+          (organization_id, agent_definition_id, name, description, input, assertions, rubric, tags, created_by)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9)`,
+        [
+          input.organizationId,
+          input.agentDefinitionId,
+          scenario.name,
+          scenario.description,
+          JSON.stringify({ ...scenario.input, managedBy: "kasitek", evaluationVersion: KASIAI_EVALUATION_VERSION }),
+          JSON.stringify(scenario.assertions),
+          JSON.stringify({ kind: "deterministic-contract", version: KASIAI_EVALUATION_VERSION }),
+          [...scenario.tags, `version:${KASIAI_EVALUATION_VERSION}`],
+          input.actorId,
+        ],
+      );
+    }
   }
 
   private async ensureSystemKnowledge(

@@ -97,6 +97,12 @@ describe.skipIf(!runIntegration)("protected system agent installations (integrat
       [organizationOne, agentId, firstInstallation.id],
     );
     expect(guidance.rows[0]).toMatchObject({ source_count: "1", chunk_count: "6" });
+    const evaluations = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM evaluation_scenarios
+       WHERE organization_id = $1 AND agent_definition_id = $2 AND status = 'active'`,
+      [organizationOne, agentId],
+    );
+    expect(evaluations.rows[0]).toEqual({ count: "6" });
 
     expect((await agents.listAgents(organizationOne)).map((agent) => agent.id)).toContain(agentId);
     expect((await agents.listAgents(organizationWithoutInstallation)).map((agent) => agent.id)).not.toContain(agentId);
@@ -129,6 +135,11 @@ describe.skipIf(!runIntegration)("protected system agent installations (integrat
         "DELETE FROM audit_records WHERE organization_id = ANY($1::text[])",
         [[SYSTEM_ORGANIZATION_ID, organizationOne, organizationTwo, organizationWithoutInstallation]],
       );
+      await pool.query(
+        "DELETE FROM evaluation_runs WHERE scenario_id IN (SELECT id FROM evaluation_scenarios WHERE agent_definition_id = $1)",
+        [agentId],
+      );
+      await pool.query("DELETE FROM evaluation_scenarios WHERE agent_definition_id = $1", [agentId]);
       await pool.query(
         "DELETE FROM knowledge_chunks WHERE source_id IN (SELECT id FROM knowledge_sources WHERE agent_definition_id = $1)",
         [agentId],
