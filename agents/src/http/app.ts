@@ -21,6 +21,7 @@ import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
 import { EvaluationRepository } from "../db/repositories/evaluation-repository";
 import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../evaluations/deterministic";
+import { AuditRepository } from "../db/repositories/audit-repository";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
@@ -39,6 +40,7 @@ export interface AppDependencies {
   credentials?: CredentialVaultRepository;
   knowledge?: KnowledgeRepository;
   evaluations?: EvaluationRepository;
+  audits?: AuditRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -73,6 +75,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
+  const audits = dependencies.audits ?? new AuditRepository(dependencies.pool);
 
   app.setErrorHandler((error, _request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -368,6 +371,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       models: modelSummary,
       tools: toolSummary,
     };
+  });
+
+  app.get<{ Querystring: { action?: string; resourceType?: string; limit?: string } }>("/v1/audit", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    const limit = request.query.limit === undefined ? undefined : Number(request.query.limit);
+    if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) throw new Error("Invalid audit limit");
+    return { records: await audits.list({ organizationId: auth.organizationId, action: request.query.action, resourceType: request.query.resourceType, limit }) };
   });
 
   app.post("/v1/credentials", async (request, reply) => {

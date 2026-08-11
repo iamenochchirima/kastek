@@ -139,6 +139,18 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("exposes organization-scoped audit records with filters", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      audits: { list: async (input: { organizationId: string; action?: string }) => [{ organization_id: input.organizationId, action: input.action ?? "agent.created" }] } as never,
+    });
+    const response = await app.inject({ method: "GET", url: "/v1/audit?action=agent.created", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ records: [{ organization_id: "org-1", action: "agent.created" }] });
+    await app.close();
+  });
+
   it("exposes only opaque credential records", async () => {
     const app = buildApp({
       config,

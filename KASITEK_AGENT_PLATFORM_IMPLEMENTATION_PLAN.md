@@ -27,7 +27,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 53 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 54 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -515,7 +515,8 @@ received
 - [x] Define capability flags so unsupported provider features fail validation instead of
   silently degrading. **Tool-calling capability checks are enforced by the gateway.**
 - [ ] Add a small/fast model route for gates, classifiers, and summaries.
-- [ ] Add versioned model policies rather than hard-coded model IDs.
+- [x] Add versioned model policies rather than hard-coded model IDs. **See the policy schema and
+  resolver below.**
 - [x] Add versioned model policies rather than hard-coded model IDs. **Published policy can
   select a primary target, bounded fallbacks, a fast target, funding fallback policy, and run
   token/cost caps; legacy configuration remains supported for existing drafts.**
@@ -698,7 +699,8 @@ received
 - [ ] Implement conversations, participants, messages, and canonical events.
 - [x] Implement run and step persistence. **Run attempts, ordered steps, and idempotent starts are
   persisted in migration 006.**
-- [ ] Implement operator-readable audit records.
+- [x] Implement operator-readable audit records. **`GET /v1/audit` is organization-scoped and
+  supports action/resource filters; sensitive values remain redacted at write/runtime boundaries.**
 
 **Exit gate**
 
