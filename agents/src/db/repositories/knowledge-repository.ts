@@ -108,6 +108,11 @@ export class KnowledgeRepository {
     return result.rows;
   }
 
+  public async listSources(scope: { organizationId: string; agentId?: string; installationId?: string }, limit = 100): Promise<KnowledgeSourceRecord[]> {
+    const result = await query<KnowledgeSourceRecord>(this.pool, `SELECT * FROM knowledge_sources WHERE organization_id = $1 AND status <> 'deleted' AND ($2::uuid IS NULL OR agent_definition_id = $2) AND ($3::uuid IS NULL OR installation_id = $3) ORDER BY created_at DESC LIMIT $4`, [scope.organizationId, scope.agentId ?? null, scope.installationId ?? null, Math.max(1, Math.min(limit, 500))]);
+    return result.rows;
+  }
+
   public async deleteSource(scope: MemoryScope, sourceId: string, requestedBy: string): Promise<void> {
     await withTransaction(this.pool, async (client) => {
       const result = await client.query<KnowledgeSourceRecord>(

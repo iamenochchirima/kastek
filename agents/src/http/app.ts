@@ -18,6 +18,7 @@ import { ModelCallRepository } from "../db/repositories/model-call-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
+import { MemoryRepository } from "../db/repositories/memory-repository";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
 import { EvaluationRepository } from "../db/repositories/evaluation-repository";
 import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../evaluations/deterministic";
@@ -42,6 +43,7 @@ export interface AppDependencies {
   channels?: ChannelRepository;
   credentials?: CredentialVaultRepository;
   knowledge?: KnowledgeRepository;
+  memory?: MemoryRepository;
   evaluations?: EvaluationRepository;
   audits?: AuditRepository;
   schedules?: ScheduleRepository;
@@ -79,6 +81,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
+  const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
   const audits = dependencies.audits ?? new AuditRepository(dependencies.pool);
   const schedules = dependencies.schedules ?? new ScheduleRepository(dependencies.pool);
@@ -480,6 +483,44 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       chunks: chunks.map((text, index) => ({ text, metadata: { contentType: document.contentType, bytes: document.bytes }, provenance: { url: document.url, fetchedAt: new Date().toISOString(), chunkIndex: index } })),
     });
     return reply.code(201).send({ sourceId: source.id, revision: source.revision + 1, chunks: stored });
+  });
+
+  app.get<{ Querystring: { agentId?: string; installationId?: string; limit?: string } }>("/v1/memory", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    const agentId = z.string().uuid().parse(request.query.agentId);
+    const installationId = request.query.installationId ? z.string().uuid().parse(request.query.installationId) : undefined;
+    const limit = request.query.limit ? Number(request.query.limit) : undefined;
+    if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) throw new Error("Invalid memory limit");
+    return { memories: await memory.listMemory({ organizationId: auth.organizationId, agentId, installationId, actorId: auth.actorId }, limit) };
+  });
+
+  app.delete<{ Params: { memoryId: string } }>("/v1/memory/:memoryId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional() }).parse(request.body);
+    await memory.deleteMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, actorId: auth.actorId }, request.params.memoryId, auth.actorId);
+    return reply.code(204).send();
+  });
+
+  app.post<{ Params: { memoryId: string } }>("/v1/memory/:memoryId/revalidate", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional(), expiresAt: z.string().datetime().nullable() }).parse(request.body);
+    return memory.revalidateMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, actorId: auth.actorId }, request.params.memoryId, input.expiresAt);
+  });
+
+  app.get<{ Querystring: { agentId?: string; installationId?: string; limit?: string } }>("/v1/knowledge/sources", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    const agentId = request.query.agentId ? z.string().uuid().parse(request.query.agentId) : undefined;
+    const installationId = request.query.installationId ? z.string().uuid().parse(request.query.installationId) : undefined;
+    const limit = request.query.limit ? Number(request.query.limit) : undefined;
+    if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) throw new Error("Invalid knowledge limit");
+    return { sources: await knowledge.listSources({ organizationId: auth.organizationId, agentId, installationId }, limit) };
+  });
+
+  app.delete<{ Params: { sourceId: string } }>("/v1/knowledge/sources/:sourceId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional() }).parse(request.body);
+    await knowledge.deleteSource({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId }, request.params.sourceId, auth.actorId);
+    return reply.code(204).send();
   });
 
   app.post("/v1/evaluations/scenarios", async (request, reply) => {

@@ -32,7 +32,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 61 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 62 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -619,7 +619,8 @@ received
   events, run steps, and tool invocation outcomes.**
 - [ ] Build approval inspection and decisions.
 - [ ] Build tool-call and external-effect inspection.
-- [ ] Build memory and knowledge inspection.
+- [x] Build memory and knowledge inspection. **Organization-scoped inspection, deletion, and
+  memory revalidation APIs are implemented; admin UI remains pending.**
 - [ ] Build usage and cost dashboards. **The underlying organization-scoped operational summary
   API is implemented; dashboard UI remains pending.**
 - [ ] Build failure grouping and diagnostics.
@@ -753,7 +754,8 @@ received
   summaries, scoped retrieval, expiry, revalidation, and deletion controls are implemented.**
 - [x] Implement document ingestion and scoped retrieval. **Bounded URL ingestion and PostgreSQL
   full-text retrieval are implemented; object storage and vector hybrid retrieval remain gates.**
-- [ ] Implement memory and knowledge admin inspection.
+- [x] Implement memory and knowledge admin inspection. **The Agent Platform API exposes scoped
+  records and deletion/revalidation controls; UI wiring remains a product-surface task.**
 - [ ] Implement deletion propagation and retention jobs.
 
 **Exit gate**

@@ -222,4 +222,19 @@ describe("Agent Platform HTTP foundation", () => {
     expect(global.statusCode).toBe(500);
     await app.close();
   });
+
+  it("exposes scoped memory and knowledge inspection contracts", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      memory: { listMemory: async () => [{ id: "memory-1" }], deleteMemory: async () => undefined, revalidateMemory: async () => ({ id: "memory-1" }) } as never,
+      knowledge: { listSources: async () => [{ id: "source-1" }] } as never,
+    });
+    const agentId = "11111111-1111-4111-8111-111111111111";
+    const memories = await app.inject({ method: "GET", url: `/v1/memory?agentId=${agentId}`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    const sources = await app.inject({ method: "GET", url: "/v1/knowledge/sources", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(memories.json()).toMatchObject({ memories: [{ id: "memory-1" }] });
+    expect(sources.json()).toMatchObject({ sources: [{ id: "source-1" }] });
+    await app.close();
+  });
 });

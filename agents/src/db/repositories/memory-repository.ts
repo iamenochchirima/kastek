@@ -118,6 +118,20 @@ export class MemoryRepository {
     return result.rows;
   }
 
+  public async listMemory(scope: MemoryScope, limit = 100): Promise<MemoryRecord[]> {
+    const result = await query<MemoryRecord>(
+      this.pool,
+      `SELECT * FROM memory_records
+       WHERE organization_id = $1 AND (agent_definition_id IS NULL OR agent_definition_id = $2)
+         AND (namespace <> 'agent_private' OR installation_id = $3)
+         AND (namespace <> 'conversation' OR conversation_id = $4)
+         AND (namespace <> 'user_private' OR owner_user_id = $5)
+       ORDER BY created_at DESC LIMIT $6`,
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null, Math.max(1, Math.min(limit, 500))],
+    );
+    return result.rows;
+  }
+
   public async deleteMemory(scope: MemoryScope, memoryId: string, requestedBy: string): Promise<void> {
     await withTransaction(this.pool, async (client) => {
       const result = await client.query<MemoryRecord>(
