@@ -1,0 +1,503 @@
+# KasiAi and Agents Product Cutover Plan
+
+**Status:** Ready for implementation  
+**Scope:** Direct KasiTek product (`kasitek-core`, `client/apps/client`, and `agents`)  
+**Cutover type:** One-way replacement of the legacy bot system  
+**Last updated:** 2026-08-11
+
+## 1. Outcome
+
+This checklist covers the first complete product delivery on the shared Agent Platform:
+
+- KasiAi is available as the protected default agent for every KasiTek organization.
+- Users can open KasiAi from the application sidebar, resume their own conversation, send a
+  message, receive a streamed response, and return to durable history later.
+- The `/agents` product area reads and writes the new Agent Platform only.
+- Users can create and operate a small set of template-based agents through the same runtime.
+- The legacy `/api/bots`, old n8n bot provisioning, legacy bot UI, and legacy bot tables are
+  removed. There is no compatibility adapter, fallback, dual write, or hidden old runtime.
+- Custom workflow building remains outside this tranche. Template-created agents are ordinary
+  versioned agents and do not introduce template-specific runtime branches.
+
+This plan is the product-integration tranche of
+[`KASITEK_AGENT_PLATFORM_IMPLEMENTATION_PLAN.md`](KASITEK_AGENT_PLATFORM_IMPLEMENTATION_PLAN.md).
+The shared runtime, storage, Temporal worker, model gateway, memory, tools, and audit system remain
+authoritative.
+
+## 2. Fixed architecture decisions
+
+- [x] KasiAi runs on the shared Agent Platform; it has no separate runtime.
+- [x] Maintain one global, protected, system-owned KasiAi definition and version history.
+- [x] Create one organization-scoped KasiAi installation per KasiTek organization.
+- [x] Give each user a separate durable platform conversation under that organization installation.
+- [x] Keep agent definitions, versions, installations, conversations, runs, memory, and audit data
+  in the Agent Platform database.
+- [x] Keep users, organizations, memberships, entitlements, connected accounts, and product data
+  authoritative in `kasitek-core`.
+- [x] Let the browser call authenticated KasiTek application endpoints; never expose the Agent
+  Platform internal secret or trust browser-supplied organization/actor headers.
+- [x] Use short-lived signed internal calls between `kasitek-core` and the Agent Platform.
+- [x] Use the platform/sidebar channel adapter for KasiAi and the initial template agents.
+- [x] Use PostgreSQL-backed SSE events for initial response streaming.
+- [x] Perform a hard cutover from the legacy bot system with no fallback or dual-write period.
+- [x] Preserve historical migration files, but remove all live legacy bot tables, code, routes,
+  generated models, configuration, and UI references through new destructive migrations and code
+  deletion.
+
+## 3. Target request path
+
+```text
+Dashboard sidebar or Agents UI
+             |
+             v
+   authenticated kasitek-core API
+             |
+     signed internal request
+             v
+      kasitek-agents API
+       |             |
+       v             v
+ Agent PostgreSQL   Temporal Cloud
+                         |
+                         v
+                 shared Agent worker
+                    |          |
+                    v          v
+               Model gateway  Tool gateway
+                                  |
+                                  v
+                             kasitek-core
+```
+
+The sidebar is one input channel. WhatsApp, Telegram, and later channels will resolve the same
+installation/conversation/run contracts instead of creating another KasiAi implementation.
+
+## 4. Current gaps this tranche must close
+
+- [ ] A system-owned definition cannot currently be installed into another organization because
+  installation resolution requires the definition and installation organization IDs to match.
+- [ ] No idempotent KasiAi bootstrap/reconciliation command exists.
+- [ ] No default-organization installation resolver exists.
+- [ ] The platform channel API exposes low-level conversation/message/run operations but not one
+  atomic inbound-message operation.
+- [ ] A completed run stores its output but does not persist the assistant reply as a durable
+  outbound conversation message.
+- [ ] The SSE stream is not connected to the KasiTek client.
+- [ ] `kasitek-core` does not yet proxy authenticated Agent Platform control-plane or chat calls.
+- [ ] The Agent Platform internal signing secret and URL are not configured across both services.
+- [ ] The sidebar has no KasiAi chat surface.
+- [ ] `/agents`, `/agents/activity`, and `/agents/analytics` still read the legacy `/api/bots`
+  system.
+- [ ] The old Rust bot controller, services, n8n provisioning path, callbacks, Prisma models, and
+  database tables remain live.
+- [ ] No initial user-facing Agent Platform template catalog exists.
+
+## 5. Phase A — Freeze and inventory the legacy bot system
+
+- [ ] Enumerate every caller of `/api/bots`, bot callbacks, trusted bot events, and old n8n agent
+  provisioning endpoints.
+- [ ] Enumerate every read/write of `BotConfiguration`, `BotDeployment`, and `BotEvent`.
+- [ ] Identify customer, workspace-summary, billing-meter, connection, dashboard, and activity
+  queries that derive data from legacy bot tables.
+- [ ] Identify all old bot environment variables and callback secrets.
+- [ ] Record the exact legacy table row counts before the destructive migration.
+- [ ] Confirm no production data needs conversion into new Agent Platform definitions. This plan
+  intentionally purges legacy bot records rather than importing them.
+- [ ] Add a repository check that fails if client code introduces a new `/api/bots` reference.
+
+**Exit gate**
+
+- [ ] Every legacy dependency has an assigned replacement or deletion task.
+- [ ] The destructive scope is explicit before any table is dropped.
+
+## 6. Phase B — System-agent and installation model
+
+### 6.1 Global system agent support
+
+- [ ] Add a migration and repository rules that allow an organization installation to reference
+  an active published system-owned version while retaining organization isolation for all
+  installation-owned data.
+- [ ] Prevent organizations from editing, versioning, retiring, archiving, or changing protected
+  system definitions.
+- [ ] Allow organizations to view protected agents only through their own active installations.
+- [ ] Ensure organization-created definitions remain visible only to their owner organization.
+- [ ] Add a unique constraint for one installation per definition, organization, scope type, and
+  scope ID where the product requires idempotent installation.
+- [ ] Add isolation tests proving an organization cannot resolve another organization's
+  installation, conversations, runs, messages, memory, or settings.
+
+### 6.2 KasiAi bootstrap
+
+- [ ] Add an idempotent bootstrap/reconciliation command for the protected `kasiai` definition.
+- [ ] Create the first immutable KasiAi version with a pinned model policy, bounded context,
+  bounded model calls, token/cost limits, and the fixed initial tool set.
+- [ ] Keep KasiAi's provider credential environment-backed and KasiTek-funded; never store it in
+  the definition or Temporal workflow input.
+- [ ] Add startup validation for the selected KasiAi model/provider credential.
+- [ ] Seed or ingest the initial platform-guidance knowledge with explicit provenance and version.
+- [ ] Add a controlled release command that creates a new draft, validates it, publishes it, and
+  records the prior version for rollback.
+- [ ] Do not automatically move active installations to a new version without an explicit rollout
+  operation and audit record.
+
+### 6.3 Default organization installation
+
+- [ ] Add an idempotent `ensure KasiAi installation` service operation.
+- [ ] Create the installation on first authenticated use or organization provisioning, whichever
+  occurs first.
+- [ ] Use one organization-scoped installation and create an AgentPrincipal with the minimum
+  required audience and grants.
+- [ ] Expose only permitted organization settings such as preferred language, tone, response
+  detail, and notification behaviour.
+- [ ] Keep protected instructions, system policy, model routing, and grants unavailable to normal
+  organization mutation endpoints.
+- [ ] Add pause/disable behaviour that preserves history and clearly disables new runs.
+
+**Exit gate**
+
+- [ ] Repeated bootstrap and installation calls create exactly one KasiAi definition, one current
+  published version, and one installation per organization.
+- [ ] KasiAi appears through the same installed-agent projection as other agents.
+
+## 7. Phase C — Generic platform chat contract
+
+The chat path must remain generic. KasiAi selects an installation; the message and run flow should
+also work for template-created agents.
+
+### 7.1 Conversation resolution
+
+- [ ] Add an idempotent platform conversation resolver using the authenticated organization,
+  installation, and user identity.
+- [ ] Use a stable external conversation identity such as `platform:user:<user-id>` without
+  exposing it as authority.
+- [ ] Create the authenticated user participant and agent participant once.
+- [ ] Return durable conversation metadata and ordered history with bounded pagination.
+- [ ] Support starting a new conversation without deleting prior history.
+- [ ] Preserve conversation isolation across users in the same organization.
+
+### 7.2 Atomic inbound message and run start
+
+- [ ] Add one authenticated Agent Platform operation that validates the installation, persists an
+  inbound canonical message, creates an idempotent run, and starts its Temporal workflow.
+- [ ] Accept a client-generated idempotency key and ensure retries return the same message/run.
+- [ ] Accept trusted page context separately from user text: current route, page/resource type,
+  and permitted resource ID.
+- [ ] Re-authorize trusted page/resource context in `kasitek-core` before passing it to the Agent
+  Platform.
+- [ ] Reject disabled installations, archived conversations, oversized content, unsupported
+  message types, and invalid organization/user scope.
+- [ ] Acknowledge only after the inbound message and run are durably stored.
+
+### 7.3 Durable assistant reply
+
+- [ ] Persist the final model response as one outbound conversation message before marking the run
+  complete.
+- [ ] Make outbound persistence idempotent across Temporal activity retries.
+- [ ] Link the outbound message to its run and model-call records.
+- [ ] Persist failure and cancellation events without fabricating an assistant response.
+- [ ] Rebuild the conversation summary only after the new outbound message is durable.
+- [ ] Return the final message through run inspection and conversation history.
+
+### 7.4 Streaming and control
+
+- [ ] Define the sidebar-safe SSE event contract: accepted, queued, running, text/final response,
+  tool status, approval required, completed, failed, and cancelled.
+- [ ] Redact prompts, credentials, hidden policy, internal tool arguments, and unsafe tool output
+  from browser events.
+- [ ] Support stream reconnection using the durable event cursor.
+- [ ] Close the stream reliably on terminal status.
+- [ ] Wire cancellation to the existing Temporal cancellation signal.
+- [ ] Keep approval events in the contract even though the first KasiAi tool set is read-only.
+
+**Exit gate**
+
+- [ ] One request creates exactly one inbound message, one run, and one outbound response.
+- [ ] Refreshing or reconnecting cannot duplicate the run or reply.
+- [ ] Conversation history is complete after API, worker, or browser restarts.
+
+## 8. Phase D — Authenticated `kasitek-core` bridge
+
+- [ ] Add `AGENTS_API_URL`, internal audience, timeout, and signing-secret configuration to
+  `kasitek-core` with production startup validation.
+- [ ] Reuse the current authenticated session and active organization resolution.
+- [ ] Sign short-lived internal claims containing organization, actor, audience, expiry, scopes,
+  and a request correlation ID.
+- [ ] Extend claims for agent/version/installation/run context where required by tool execution.
+- [ ] Add a typed Rust Agent Platform client with bounded timeouts and safe error mapping.
+- [ ] Add authenticated product endpoints for installed agents, templates, creation, settings,
+  history, chat send, run status, cancellation, and SSE forwarding.
+- [ ] Never proxy arbitrary paths or accept organization IDs from the browser as authority.
+- [ ] Re-check `feature.agents.manage` for management routes while allowing the product-defined
+  KasiAi access policy for sidebar chat.
+- [ ] Add request/response contract tests between Rust and TypeScript.
+- [ ] Add correlation IDs to core logs, Agent Platform events, runs, and tool calls.
+
+**Exit gate**
+
+- [ ] A signed-in user can use KasiAi without direct network access to the Agent Platform.
+- [ ] A forged organization or actor header cannot cross the core boundary.
+
+## 9. Phase E — KasiAi sidebar chat
+
+- [ ] Add a clear KasiAi entry point to the desktop sidebar and mobile dashboard navigation.
+- [ ] Implement an accessible chat panel that works alongside any dashboard page.
+- [ ] Resolve the default installation and current user's conversation when the panel opens.
+- [ ] Load paginated durable history and preserve scroll position.
+- [ ] Send messages with a client idempotency key.
+- [ ] Stream status and the final response from the durable SSE endpoint.
+- [ ] Support stop/cancel, retry after safe failures, reconnect after network loss, and explicit new
+  conversation creation.
+- [ ] Show useful states for unconfigured model credentials, disabled installation, exceeded
+  budget, service unavailable, failed run, and expired approval.
+- [ ] Pass current page/resource context only through the trusted context field.
+- [ ] Render text safely; do not permit arbitrary model-generated HTML.
+- [ ] Add keyboard navigation, focus management, screen-reader status updates, responsive layout,
+  and reduced-motion behaviour.
+- [ ] Persist only conversation identifiers and harmless UI preferences in the browser.
+- [ ] Add component, interaction, and end-to-end tests for open, send, stream, refresh, reconnect,
+  cancel, and history isolation.
+
+**Exit gate**
+
+- [ ] A user can open KasiAi from any supported dashboard page and complete a durable conversation.
+- [ ] Two users in one organization see separate KasiAi histories.
+- [ ] The sidebar uses no legacy bot or direct provider API.
+
+## 10. Phase F — New Agents product UI
+
+### 10.1 Agents list and detail
+
+- [ ] Replace the current `/agents` data source with the authenticated Agent Platform bridge.
+- [ ] Display KasiAi as protected and system-owned with allowed settings, health, current version,
+  last run, and recent activity.
+- [ ] Display organization-created agents with template, status, installation/channel state, last
+  run, failure state, and current published version.
+- [ ] Add empty, loading, error, paused, disabled, and unavailable states backed by real data.
+- [ ] Add agent detail pages for overview, instructions/settings permitted by template, deployment,
+  conversations, activity, memory/knowledge, and versions where available.
+- [ ] Prevent protected-agent controls from appearing for KasiAi.
+- [ ] Remove UI controls that are not implemented rather than leaving placeholders.
+
+### 10.2 Initial template catalog
+
+- [ ] Add a versioned server-owned template catalog with stable keys and schemas.
+- [ ] Start with a small set that the current runtime can honestly support:
+  - general website/support assistant;
+  - FAQ and knowledge assistant;
+  - lead-intake assistant;
+  - booking-request intake assistant that collects and hands off details but does not claim to
+    create bookings until the booking tool exists.
+- [ ] Define instructions, model policy, allowed tools, required connections, configurable fields,
+  budgets, and channel compatibility for every template.
+- [ ] Validate template configuration on the server.
+- [ ] Create ordinary organization-owned definition, draft version, published version,
+  installation, grants, and default platform conversation from a template transactionally.
+- [ ] Record the source template key/version but permit later version history independent of the
+  catalog.
+- [ ] Do not add a custom workflow editor in this tranche.
+
+### 10.3 Creation and lifecycle UI
+
+- [ ] Replace the old bot creation modal with a template selection flow.
+- [ ] Implement template selection, minimal configuration, review, create, and success states.
+- [ ] Support pause/resume, publish a new allowed configuration version, rollback, retire, and
+  archive through real Agent Platform operations.
+- [ ] Add safe deletion semantics: archive definitions and preserve historical runs; do not hard
+  delete active agent history from normal user controls.
+- [ ] Bind the platform channel by default so a newly created template agent can be tested in the
+  product immediately.
+- [ ] Add a `Test agent` chat surface on the agent detail page using the same generic chat contract.
+- [ ] Make user-provided model credentials optional; use KasiTek-funded credentials where plan and
+  policy allow.
+
+### 10.4 Activity and analytics
+
+- [ ] Replace `/agents/activity` legacy bot events with new run/event/audit records.
+- [ ] Replace `/agents/analytics` legacy counts with Agent Platform run, latency, failure, token,
+  tool, and estimated-cost aggregates.
+- [ ] Replace workspace `botCount` and bot-attention queries with Agent Platform summary data.
+- [ ] Remove old deployment terminology where it represents n8n provisioning rather than an Agent
+  Platform installation.
+
+**Exit gate**
+
+- [ ] KasiAi and a template-created organization agent appear in the same Agents experience.
+- [ ] A template-created agent can be configured, published, installed, tested, paused, resumed,
+  and inspected end to end.
+- [ ] No Agents page calls `/api/bots` or reads legacy bot records.
+
+## 11. Phase G — Initial KasiAi product configuration
+
+- [ ] Write the initial protected instructions around platform guidance, user intent, uncertainty,
+  tool use, data boundaries, and escalation.
+- [ ] Add versioned platform navigation and product-help knowledge.
+- [ ] Add the first read-only tool contracts required for useful guidance, such as workspace
+  summary and connection/status inspection, through `kasitek-core` authorization.
+- [ ] Grant only the fixed read-only tools required by the first release.
+- [ ] Keep content publishing, campaign sending, customer mutation, booking creation, credential
+  changes, billing changes, and other external effects unavailable in the first release.
+- [ ] Add evaluation scenarios for navigation guidance, unavailable features, organization
+  isolation, prompt injection, tool denial, refusal of ungranted actions, and correct handoff.
+- [ ] Add a release evaluation gate for every new KasiAi version.
+- [ ] Add global and organization kill-switch tests.
+
+**Exit gate**
+
+- [ ] KasiAi answers platform questions using its versioned knowledge and completes permitted
+  read-only calls through the generic Tool Gateway.
+- [ ] KasiAi cannot invoke ungranted platform actions.
+
+## 12. Phase H — Complete legacy bot purge
+
+This phase is deliberately one-way. It must not leave a compatibility layer or fallback.
+
+### 12.1 Client removal
+
+- [ ] Delete old `/api/bots` calls, legacy bot types, bot creation/action UI, n8n deployment state,
+  and callback-oriented copy.
+- [ ] Replace or delete all old bot loading skeletons, template metadata, activity mapping, and
+  analytics mapping that no longer match the new UI.
+- [ ] Remove stale service-worker/preload assumptions tied to the old pages.
+- [ ] Verify the client bundle contains no `/api/bots` string.
+
+### 12.2 `kasitek-core` removal
+
+- [ ] Remove the `/api/bots` route scope and controller module.
+- [ ] Remove `services/bots.rs`.
+- [ ] Remove the old `services/agents` n8n provisioning client, templates, payloads, and callbacks
+  once reference analysis confirms they are exclusively legacy.
+- [ ] Keep the new `agent_internal` tool boundary; rename it if needed to avoid confusing it with
+  deleted n8n provisioning code.
+- [ ] Remove old bot request/row structs from `db/models.rs`.
+- [ ] Replace customer history and workspace summary queries that join legacy bot tables.
+- [ ] Remove old callback authentication and n8n agent-provisioning environment variables when no
+  remaining non-agent feature uses them.
+- [ ] Remove old bot-specific billing meter wiring while preserving the current Agents entitlement.
+
+### 12.3 Database and generated client removal
+
+- [ ] Add a new explicit destructive Prisma/SQL migration that drops foreign keys, indexes, and
+  `BotEvent`, `BotDeployment`, and `BotConfiguration` in dependency-safe order.
+- [ ] Remove the legacy models and relations from the Prisma schema.
+- [ ] Regenerate Prisma clients and remove generated legacy bot types.
+- [ ] Do not rewrite or delete historical migration files already applied to environments.
+- [ ] Test the destructive migration from a production-like schema snapshot.
+- [ ] Verify no runtime query references a dropped table.
+
+### 12.4 No-fallback enforcement
+
+- [ ] Make `/api/bots` return 404 because the route no longer exists, not a compatibility response.
+- [ ] Remove all feature flags that switch between old bots and the Agent Platform.
+- [ ] Remove all dual-write, import-on-read, or legacy lookup code.
+- [ ] Remove old n8n agent workflow identifiers and callback URLs from active configuration.
+- [ ] Add static checks for `/api/bots`, `BotConfiguration`, `BotDeployment`, and `BotEvent` in live
+  source paths, with explicit exclusions only for historical migrations and this plan.
+
+**Exit gate**
+
+- [ ] Old routes, services, tables, generated models, UI code, callbacks, and active configuration
+  are absent.
+- [ ] The new Agents UI and KasiAi continue to pass end-to-end tests after the purge migration.
+
+## 13. Phase I — Operations and admin visibility
+
+- [ ] Add Agent Platform service health, Temporal worker health, task-queue activity, database
+  health, and model-provider status to the internal admin surface.
+- [ ] Add organization/agent/run lookup with redacted timelines.
+- [ ] Add model usage, estimated cost, failure category, latency, queue age, active approvals, and
+  kill-switch visibility.
+- [ ] Add KasiAi installation/version rollout status by organization.
+- [ ] Add controls for global and organization-scoped kill switches with audit records.
+- [ ] Add alerts for workflow failure rate, stuck runs, no active workers, model authentication
+  failure, budget exhaustion, and database/Temporal connectivity.
+- [ ] Prevent admin inspection from exposing credentials, full hidden prompts, or unredacted
+  customer content by default.
+
+**Exit gate**
+
+- [ ] An operator can determine whether a failed sidebar message was caused by client, core,
+  Agent API, Temporal, worker, database, model, policy, or tool failure.
+
+## 14. Verification matrix
+
+### Agent Platform
+
+- [ ] Unit tests for system-agent visibility and protected mutation rules.
+- [ ] Database tests for idempotent organization installation and per-user conversations.
+- [ ] Database tests for cross-organization and cross-user isolation.
+- [ ] Integration test for atomic inbound message/run creation and retry idempotency.
+- [ ] Temporal test for durable outbound message persistence under activity retry.
+- [ ] Temporal Cloud test for worker stop/restart during a KasiAi run.
+- [ ] SSE cursor reconnect and terminal-close tests.
+- [ ] Model-provider live smoke test using the configured KasiTek credential.
+
+### `kasitek-core`
+
+- [ ] Signed internal-auth contract tests.
+- [ ] Session, membership, entitlement, and active-organization authorization tests.
+- [ ] Proxy timeout, Agent Platform unavailable, and invalid-response tests.
+- [ ] SSE forwarding disconnect/reconnect tests.
+- [ ] Core tool authorization and organization-scope tests.
+- [ ] Rust format, lint, unit, and integration checks.
+
+### Client
+
+- [ ] KasiAi sidebar component and accessibility tests.
+- [ ] Sidebar send/stream/history/reconnect/cancel tests.
+- [ ] Agents list/detail/template creation/lifecycle tests.
+- [ ] Activity and analytics tests against new contracts.
+- [ ] Responsive desktop/mobile checks.
+- [ ] Client lint, type-check, unit, and production build.
+
+### Cutover
+
+- [ ] Migration test proves legacy tables are dropped cleanly.
+- [ ] Static scan proves no live legacy symbol or endpoint remains.
+- [ ] End-to-end test creates an organization, ensures KasiAi, chats, refreshes history, creates a
+  template agent, tests it, pauses it, and inspects activity.
+- [ ] End-to-end test proves another organization and another user cannot read that data.
+- [ ] End-to-end suite passes with the old bot routes and tables absent.
+
+## 15. Implementation order and commit boundaries
+
+Implement and commit in this order:
+
+1. **System-agent foundation:** migration, global definition access rules, installation uniqueness,
+   bootstrap, and isolation tests.
+2. **Generic platform chat:** conversation resolution, atomic inbound operation, outbound message
+   persistence, SSE contract, and Temporal tests.
+3. **Core bridge:** configuration, signed client, authenticated proxy routes, authorization, and
+   contract tests.
+4. **KasiAi product seed:** protected version, model policy, knowledge, read-only tools, default
+   installation, and evaluations.
+5. **Sidebar UI:** chat panel, history, streaming, cancellation, error states, and client tests.
+6. **Template control plane:** catalog, transactional create-from-template operation, lifecycle,
+   and tests.
+7. **Agents UI replacement:** list, detail, creation, activity, analytics, and test chat.
+8. **Legacy code purge:** remove client and Rust routes/services/types/config after replacement
+   flows pass.
+9. **Legacy database purge:** apply and verify the destructive drop migration, regenerate clients,
+   and enforce no-fallback static checks.
+10. **Operations and final verification:** admin visibility, live Temporal/model test, complete
+    build suite, and end-to-end cutover test.
+
+Each commit must leave its owned services buildable. Do not combine the destructive database
+migration with the first implementation of its replacement.
+
+## 16. Definition of done
+
+- [ ] KasiAi is automatically available to an eligible organization and uses the shared Agent
+  Platform end to end.
+- [ ] Sidebar messages are durable, idempotent, streamed, auditable, cancellable, and isolated.
+- [ ] The final assistant response is stored in conversation history and survives restarts.
+- [ ] The Agents UI manages new Agent Platform resources only.
+- [ ] At least one basic template-created agent completes a real end-to-end run.
+- [ ] KasiAi and organization agents use the same definitions, versions, installations,
+  conversations, runs, tools, memory, model gateway, and workers.
+- [ ] No browser receives internal service credentials or supplies authoritative organization
+  identity.
+- [ ] No `/api/bots` route, legacy bot runtime, n8n bot provisioning path, legacy bot table,
+  compatibility layer, fallback, or dual write remains.
+- [ ] Agent, core, client, migration, security, and end-to-end verification pass.
+- [ ] The root Agent Platform checklist and current implementation evidence are updated to reflect
+  the completed cutover.
