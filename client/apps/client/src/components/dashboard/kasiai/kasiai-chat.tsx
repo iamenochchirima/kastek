@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Bot,
   Check,
+  RotateCcw,
   LoaderCircle,
   MessageCircle,
   Send,
@@ -14,6 +15,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   cancelAgentRun,
+  createPlatformConversation,
   ensureKasiAi,
   getPlatformConversation,
   resolvePlatformConversation,
@@ -163,6 +165,21 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
     }
   };
 
+  const startNewConversation = async () => {
+    if (!installation || sending) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await createPlatformConversation(installation.id);
+      setConversation(response.conversation);
+      setMessages(sortMessages(response.messages));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to start a new conversation");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -182,9 +199,14 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
             <p className="text-[11px] text-muted-foreground">Your KasiTek platform guide</p>
           </div>
         </div>
-        <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Close KasiAi">
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button type="button" variant="ghost" size="icon" onClick={() => void startNewConversation()} disabled={!installation || sending || loading} aria-label="Start a new KasiAi conversation" title="New conversation">
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+          <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Close KasiAi">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4" aria-live="polite" aria-busy={loading || sending}>

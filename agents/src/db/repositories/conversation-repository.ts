@@ -155,6 +155,30 @@ export class ConversationRepository {
     return result.rows;
   }
 
+  public async listMessagesPage(
+    organizationId: string,
+    conversationId: string,
+    input: { limit?: number; beforeSequence?: string } = {},
+  ): Promise<{ messages: MessageRecord[]; hasMore: boolean; nextBefore: string | null }> {
+    const limit = Math.max(1, Math.min(input.limit ?? 100, 200));
+    const result = await query<MessageRecord>(
+      this.pool,
+      input.beforeSequence
+        ? `SELECT * FROM messages
+           WHERE organization_id = $1 AND conversation_id = $2 AND sequence_number < $3
+           ORDER BY sequence_number DESC LIMIT $4`
+        : `SELECT * FROM messages
+           WHERE organization_id = $1 AND conversation_id = $2
+           ORDER BY sequence_number DESC LIMIT $3`,
+      input.beforeSequence
+        ? [organizationId, conversationId, input.beforeSequence, limit + 1]
+        : [organizationId, conversationId, limit + 1],
+    );
+    const hasMore = result.rows.length > limit;
+    const messages = result.rows.slice(0, limit).reverse();
+    return { messages, hasMore, nextBefore: hasMore ? messages[0]?.sequence_number ?? null : null };
+  }
+
   public async createParticipant(input: {
     organizationId: string;
     conversationId: string;

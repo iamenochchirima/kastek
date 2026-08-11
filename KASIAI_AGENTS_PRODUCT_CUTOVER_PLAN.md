@@ -179,8 +179,8 @@ also work for template-created agents.
 - [x] Use a stable external conversation identity such as `platform:user:<user-id>` without
   exposing it as authority.
 - [x] Create the authenticated user participant and agent participant once.
-- [ ] Return durable conversation metadata and ordered history with bounded pagination.
-- [ ] Support starting a new conversation without deleting prior history.
+- [x] Return durable conversation metadata and ordered history with bounded pagination.
+- [x] Support starting a new conversation without deleting prior history.
 - [x] Preserve conversation isolation across users in the same organization.
 
 ### 7.2 Atomic inbound message and run start

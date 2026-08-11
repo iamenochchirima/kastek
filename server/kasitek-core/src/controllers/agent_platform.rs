@@ -151,6 +151,19 @@ pub async fn resolve_conversation(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn create_conversation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .create_platform_conversation(&organization_id, &user.id, &installation_id)
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
 pub async fn send_message(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

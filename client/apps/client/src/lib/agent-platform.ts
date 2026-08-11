@@ -40,6 +40,8 @@ export type AgentRun = {
 type ConversationResponse = {
   conversation: AgentConversation;
   messages: AgentMessage[];
+  hasMore?: boolean;
+  nextBefore?: string | null;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -105,6 +107,13 @@ export function installAgentTemplate(templateKey: string, settings: Record<strin
 
 export function resolvePlatformConversation(installationId: string): Promise<ConversationResponse> {
   return request<ConversationResponse>(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/conversation`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function createPlatformConversation(installationId: string): Promise<ConversationResponse> {
+  return request<ConversationResponse>(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/conversation/new`, {
     method: "POST",
     body: JSON.stringify({}),
   });

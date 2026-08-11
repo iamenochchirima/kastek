@@ -204,6 +204,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn create_platform_conversation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/platform/conversation/new"),
+            organization_id,
+            actor_id,
+            &["chat:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
     pub async fn send_platform_message(
         &self,
         organization_id: &str,

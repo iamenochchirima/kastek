@@ -285,8 +285,27 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         installationId: request.params.installationId,
         actorId: auth.actorId,
       });
-      const messages = await conversations.listMessages(auth.organizationId, resolved.conversation.id);
-      return reply.send({ ...resolved, messages });
+      const messages = conversations.listMessagesPage
+        ? await conversations.listMessagesPage(auth.organizationId, resolved.conversation.id)
+        : { messages: await conversations.listMessages(auth.organizationId, resolved.conversation.id), hasMore: false, nextBefore: null };
+      return reply.send({ ...resolved, ...messages });
+    },
+  );
+
+  app.post<{ Params: { installationId: string } }>(
+    "/v1/installations/:installationId/platform/conversation/new",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:write");
+      const resolved = await platformChat.createNewConversation({
+        organizationId: auth.organizationId,
+        installationId: request.params.installationId,
+        actorId: auth.actorId,
+      });
+      const messages = conversations.listMessagesPage
+        ? await conversations.listMessagesPage(auth.organizationId, resolved.conversation.id)
+        : { messages: await conversations.listMessages(auth.organizationId, resolved.conversation.id), hasMore: false, nextBefore: null };
+      return reply.code(201).send({ ...resolved, ...messages });
     },
   );
 
@@ -451,16 +470,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
-  app.get<{ Params: { conversationId: string } }>(
+  app.get<{ Params: { conversationId: string }; Querystring: { limit?: string; before?: string } }>(
     "/v1/conversations/:conversationId",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
       requireScope(auth, dependencies.config, "chat:read");
       const conversation = await conversations.getConversation(auth.organizationId, request.params.conversationId);
       if (!conversation) return reply.code(404).send({ error: "conversation_not_found" });
-      const messages = await conversations.listMessages(auth.organizationId, conversation.id);
+      const limit = request.query.limit === undefined ? undefined : Number(request.query.limit);
+      if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 200)) return reply.code(400).send({ error: "invalid_message_limit" });
+      const messages = conversations.listMessagesPage
+        ? await conversations.listMessagesPage(auth.organizationId, conversation.id, { limit, beforeSequence: request.query.before })
+        : { messages: await conversations.listMessages(auth.organizationId, conversation.id), hasMore: false, nextBefore: null };
       const participants = await conversations.listParticipants(auth.organizationId, conversation.id);
-      return { conversation, messages, participants };
+      return { conversation, ...messages, participants };
     },
   );
 

@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { randomUUID } from "node:crypto";
 import { withTransaction } from "../pool";
 import type { ConversationRecord, MessageRecord, ParticipantRecord } from "./conversation-repository";
 import type { RunRecord } from "./run-repository";
@@ -28,8 +29,17 @@ export class PlatformChatRepository {
     organizationId: string;
     installationId: string;
     actorId: string;
+    conversationKey?: string;
   }): Promise<PlatformConversation> {
     return withTransaction(this.pool, (client) => this.resolveConversationInTransaction(client, input));
+  }
+
+  public async createNewConversation(input: {
+    organizationId: string;
+    installationId: string;
+    actorId: string;
+  }): Promise<PlatformConversation> {
+    return this.resolveConversation({ ...input, conversationKey: randomUUID() });
   }
 
   public async acceptMessage(input: {
@@ -139,10 +149,12 @@ export class PlatformChatRepository {
 
   private async resolveConversationInTransaction(
     client: PoolClient,
-    input: { organizationId: string; installationId: string; actorId: string },
+    input: { organizationId: string; installationId: string; actorId: string; conversationKey?: string },
   ): Promise<PlatformConversation> {
     const installation = await this.getActiveInstallation(client, input.organizationId, input.installationId);
-    const externalConversationId = `platform:user:${input.actorId}`;
+    const externalConversationId = input.conversationKey
+      ? `platform:user:${input.actorId}:${input.conversationKey}`
+      : `platform:user:${input.actorId}`;
     const created = await client.query<ConversationRecord>(
       `INSERT INTO conversations
         (installation_id, organization_id, channel_type, channel_key, external_conversation_id, title)
