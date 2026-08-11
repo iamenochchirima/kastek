@@ -48,13 +48,20 @@ export class MemoryRepository {
     ownerUserId?: string;
     expiresAt?: string;
     allowInferred?: boolean;
+    allowProceduralInference?: boolean;
   }): Promise<MemoryRecord> {
     if (input.sourceType === "inferred" && !input.allowInferred) {
       throw new Error("Inferred memory requires an explicit creation policy");
     }
+    if (input.memoryType === "procedural" && input.sourceType === "inferred" && !input.allowProceduralInference) {
+      throw new Error("Procedural memory cannot be inferred without an explicit workflow policy");
+    }
     if (input.namespace === "conversation" && !input.conversationId) throw new Error("Conversation memory requires conversation scope");
     if (input.namespace === "agent_private" && !input.installationId) throw new Error("Agent-private memory requires installation scope");
     if (input.namespace === "user_private" && !input.ownerUserId) throw new Error("User-private memory requires an owner");
+    if (input.namespace === "user_private" && input.actorId && input.ownerUserId !== input.actorId) {
+      throw new Error("User-private memory owner must match the acting user");
+    }
     const result = await query<MemoryRecord>(
       this.pool,
       `INSERT INTO memory_records
@@ -121,5 +128,33 @@ export class MemoryRepository {
         [scope.organizationId, requestedBy, memoryId],
       );
     });
+  }
+
+  public async expireDue(limit = 500): Promise<number> {
+    const result = await query<{ id: string }>(
+      this.pool,
+      `UPDATE memory_records SET status = 'expired', updated_at = now()
+       WHERE id IN (
+         SELECT id FROM memory_records
+         WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= now()
+         ORDER BY expires_at ASC LIMIT $1
+       )
+       RETURNING id`,
+      [limit],
+    );
+    return result.rowCount ?? 0;
+  }
+
+  public async revalidateMemory(scope: MemoryScope, memoryId: string, expiresAt: string | null): Promise<MemoryRecord> {
+    const result = await query<MemoryRecord>(
+      this.pool,
+      `UPDATE memory_records SET expires_at = $4, last_revalidated_at = now(), updated_at = now()
+       WHERE id = $1 AND organization_id = $2 AND status = 'active'
+         AND (agent_definition_id IS NULL OR agent_definition_id = $3)
+       RETURNING *`,
+      [memoryId, scope.organizationId, scope.agentId, expiresAt],
+    );
+    if (!result.rows[0]) throw new Error("Memory not found");
+    return result.rows[0];
   }
 }

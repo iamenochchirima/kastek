@@ -3,6 +3,8 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { KnowledgeRepository } from "../src/db/repositories/knowledge-repository";
 import { MemoryRepository } from "../src/db/repositories/memory-repository";
+import { ConversationRepository } from "../src/db/repositories/conversation-repository";
+import { SummaryRepository } from "../src/db/repositories/summary-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -11,12 +13,15 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
   const pool = new Pool({ connectionString: databaseUrl });
   const memory = new MemoryRepository(pool);
   const knowledge = new KnowledgeRepository(pool);
+  const conversations = new ConversationRepository(pool);
+  const summaries = new SummaryRepository(pool);
   const organizationId = `memory-test-${randomUUID()}`;
   const agentId = randomUUID();
   const versionId = randomUUID();
   const installationId = randomUUID();
   let memoryId = "";
   let sourceId = "";
+  let conversationId = "";
 
   beforeAll(async () => {
     await pool.query("INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, 'Memory test', $3, 'test')", [agentId, organizationId, `memory-${agentId}`]);
@@ -58,8 +63,23 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     expect(await knowledge.search({ organizationId, agentId, installationId }, "scoped knowledge retrieval")).toHaveLength(0);
   });
 
+  it("rebuilds a scoped rolling conversation summary", async () => {
+    const conversation = await conversations.createConversation({ organizationId, installationId, title: "Summary test" });
+    conversationId = conversation.id;
+    await conversations.appendMessage({ organizationId, conversationId, direction: "inbound", content: { text: "I prefer concise updates" } });
+    await conversations.appendMessage({ organizationId, conversationId, direction: "outbound", content: { text: "Understood" } });
+    const summary = await summaries.rebuildFromMessages({ organizationId, conversationId, messages: await conversations.listMessages(organizationId, conversationId) });
+    expect(summary.summary).toContain("concise updates");
+    expect((await summaries.getSummary(organizationId, conversationId))?.last_message_sequence).toBe(2);
+  });
+
   afterAll(async () => {
     await pool.query("DELETE FROM memory_deletion_jobs WHERE organization_id = $1", [organizationId]);
+    if (conversationId) {
+      await pool.query("DELETE FROM conversation_summaries WHERE organization_id = $1", [organizationId]);
+      await pool.query("DELETE FROM messages WHERE organization_id = $1", [organizationId]);
+      await pool.query("DELETE FROM conversations WHERE organization_id = $1", [organizationId]);
+    }
     await pool.query("DELETE FROM knowledge_chunks WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM knowledge_sources WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM memory_records WHERE organization_id = $1", [organizationId]);

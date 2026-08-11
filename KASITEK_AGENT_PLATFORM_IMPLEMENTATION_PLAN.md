@@ -13,12 +13,14 @@
 - [x] Migration 006 adds idempotent run starts, durable run attempts, and ordered run steps.
 - [x] Migration 007 adds version- and installation-scoped tool grants with revocation and
   effective-grant intersection at runtime.
+- [x] Migration 008 adds scoped rolling conversation summaries used during context rebuilding;
+  deterministic summaries are a safe first implementation until a summary model policy exists.
 - [x] Temporal workflow contracts include durable approval and cancellation signals, status
   query support, idempotent terminal handling, and exact argument-hash resume checks.
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 28 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 30 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -263,7 +265,8 @@ received
 - [x] Build context from immutable agent instructions and policies.
 - [x] Add current time, locale, channel, and execution identity.
 - [x] Add bounded recent conversation history.
-- [ ] Add the rolling conversation summary.
+- [x] Add the rolling conversation summary. **Summaries are bounded, durable, scoped, and wrapped
+  as untrusted context.**
 - [ ] Add temporary page/resource context supplied by a trusted KasiTek client.
 - [x] Run the retrieval gate before loading long-term memory.
 - [ ] Load only memory permitted by the current namespace and actor scope. **The retrieval gate is present; long-term memory loading remains pending.**
@@ -435,7 +438,8 @@ received
 - [x] Record whether memory was explicit, imported, or inferred.
 - [x] Add expiry and revalidation policies.
 - [x] Require explicit policy before automatic memory creation.
-- [ ] Prevent untrusted content from becoming procedural instructions.
+- [x] Prevent untrusted content from becoming procedural instructions. **Inferred procedural
+  memory requires a separate explicit policy flag.**
 - [ ] Detect and review suspected memory poisoning.
 - [x] Allow users and operators to inspect, correct, and delete memory. **Repository-level controls are implemented; operator/user UI remains pending.**
 - [x] Propagate deletion to embeddings, summaries, and derived artifacts. **Canonical deletion jobs are recorded; embedding/derived propagation remains limited until those stores exist.**
@@ -666,7 +670,8 @@ received
 
 ### Phase 3 — Memory and knowledge
 
-- [ ] Implement summaries, scoped semantic/episodic memory, and memory controls.
+- [x] Implement summaries, scoped semantic/episodic memory, and memory controls. **Rolling
+  summaries, scoped retrieval, expiry, revalidation, and deletion controls are implemented.**
 - [ ] Implement document ingestion and scoped hybrid retrieval.
 - [ ] Implement memory and knowledge admin inspection.
 - [ ] Implement deletion propagation and retention jobs.

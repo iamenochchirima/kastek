@@ -17,6 +17,7 @@ import type { AppConfig } from "../config";
 import { ToolInvocationRepository } from "../db/repositories/tool-invocation-repository";
 import { RunStepRepository } from "../db/repositories/run-step-repository";
 import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
+import { SummaryRepository } from "../db/repositories/summary-repository";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -75,6 +76,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const toolInvocations = new ToolInvocationRepository(pool);
   const runSteps = new RunStepRepository(pool);
   const toolGrants = new ToolGrantRepository(pool);
+  const summaries = new SummaryRepository(pool);
   const gateway = options.gateway ?? new ModelGateway();
   const credentials = options.credentials ?? new EnvironmentCredentialResolver();
   const coreClient = options.coreClient ?? (options.config ? new KasitekCoreReadClient(options.config) : undefined);
@@ -86,7 +88,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async executeLoop(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
-      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, runSteps, toolGrants, gateway, credentials, tools);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, runSteps, toolGrants, summaries, gateway, credentials, tools);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -114,6 +116,7 @@ async function executeLoopForRun(
   toolInvocations: ToolInvocationRepository,
   runSteps: RunStepRepository,
   toolGrants: ToolGrantRepository,
+  summaries: SummaryRepository,
   gateway: ModelGateway,
   credentials: CredentialResolver,
   tools: ToolRegistry,
@@ -132,6 +135,7 @@ async function executeLoopForRun(
   const currentMessage = typeof run.input.message === "string" ? run.input.message : JSON.stringify(run.input);
   const conversation = run.conversation_id ? await conversations.getConversation(run.organization_id, run.conversation_id) : null;
   const durableMessages = run.conversation_id ? await conversations.listMessages(run.organization_id, run.conversation_id) : [];
+  const conversationSummary = run.conversation_id ? await summaries.getSummary(run.organization_id, run.conversation_id) : null;
   const retrievalRequested = retrievalGate(currentMessage);
   const retrievalScope = {
     organizationId: run.organization_id,
@@ -167,6 +171,7 @@ async function executeLoopForRun(
     actorId: run.created_by,
     channelType: conversation?.channel_type,
     currentMessage,
+    summary: conversationSummary?.summary,
     longTermMemory: longTermMemory || undefined,
     recentMessages: durableMessages.map((message) => ({
       direction: message.direction as "inbound" | "outbound" | "system",
@@ -206,7 +211,7 @@ async function executeLoopForRun(
     },
   });
   const toolSteps = new Map<string, string>();
-  return runBoundedAgentLoop({
+  const loopResult = await runBoundedAgentLoop({
     model: { provider, model, temperature: typeof configuration.temperature === "number" ? configuration.temperature : undefined },
     messages: context.messages,
     credentials: modelCredentials,
@@ -298,4 +303,18 @@ async function executeLoopForRun(
       await runSteps.finishStep({ stepId: step.id, status: "failed", error });
     },
   });
+  if (run.conversation_id) {
+    try {
+      await summaries.rebuildFromMessages({ organizationId: run.organization_id, conversationId: run.conversation_id, messages: durableMessages });
+    } catch (error) {
+      await runs.appendEvent({
+        organizationId: run.organization_id,
+        runId: run.id,
+        installationId: run.installation_id,
+        eventType: "agent.summary.failed",
+        payload: { message: error instanceof Error ? error.message : "Conversation summary failed" },
+      });
+    }
+  }
+  return loopResult;
 }

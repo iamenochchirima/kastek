@@ -29,5 +29,8 @@ describe("foundation migration", () => {
     const grantsSql = await readFile(new URL("../migrations/007_tool_grants.sql", import.meta.url), "utf8");
     expect(grantsSql).toContain("agent_tool_grants");
     expect(grantsSql).toContain("effective_idx");
+    const summariesSql = await readFile(new URL("../migrations/008_conversation_summaries.sql", import.meta.url), "utf8");
+    expect(summariesSql).toContain("conversation_summaries");
+    expect(summariesSql).toContain("last_message_sequence");
   });
 });
