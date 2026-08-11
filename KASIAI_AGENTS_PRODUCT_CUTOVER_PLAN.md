@@ -328,7 +328,7 @@ also work for template-created agents.
   delete active agent history from normal user controls.
 - [ ] Bind the platform channel by default so a newly created template agent can be tested in the
   product immediately.
-- [ ] Add a `Test agent` chat surface on the agent detail page using the same generic chat contract.
+- [x] Add a `Test agent` chat surface on the agent detail page using the same generic chat contract.
 - [ ] Make user-provided model credentials optional; use KasiTek-funded credentials where plan and
   policy allow.
 

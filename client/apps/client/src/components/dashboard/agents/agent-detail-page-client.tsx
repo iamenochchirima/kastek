@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Archive, ArrowLeft, CheckCircle2, History, RotateCcw, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,14 @@ import {
   rollbackAgentVersion,
   retireAgentVersion,
   updateAgentInstallationSettings,
+  getPlatformConversation,
+  resolvePlatformConversation,
+  sendPlatformMessage,
+  streamAgentRun,
   type AgentDefinition,
   type AgentVersion,
+  type AgentMessage,
+  type AgentConversation,
 } from "@/lib/agent-platform";
 
 function versionStatusClass(status: string) {
@@ -103,6 +109,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
           </CardContent>
         </Card>
 
+        {agent.installation_id ? <AgentTestChat installationId={agent.installation_id} active={agent.installation_status === "active"} /> : null}
+
         <section className="space-y-3" aria-labelledby="agent-versions-title">
           <div><h2 id="agent-versions-title" className="text-lg font-semibold text-foreground">Version history</h2><p className="text-sm text-muted-foreground">Published versions are immutable. Drafts can be published; retired versions can be rolled back.</p></div>
           {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
@@ -120,4 +128,50 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       </div>
     </div>
   );
+}
+
+function AgentTestChat({ installationId, active }: { installationId: string; active: boolean }) {
+  const [conversation, setConversation] = useState<AgentConversation | null>(null);
+  const [messages, setMessages] = useState<AgentMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = async (conversationId?: string) => {
+    const response = conversationId ? await getPlatformConversation(conversationId) : await resolvePlatformConversation(installationId);
+    setConversation(response.conversation);
+    setMessages([...response.messages].sort((left, right) => Number(left.sequence_number) - Number(right.sequence_number)));
+  };
+
+  useEffect(() => {
+    void refresh().catch((cause) => setError(cause instanceof Error ? cause.message : "Unable to open test chat")).finally(() => setLoading(false));
+  }, [installationId]);
+
+  const send = async () => {
+    const message = draft.trim();
+    if (!message || sending || !active) return;
+    setDraft("");
+    setSending(true);
+    setError(null);
+    try {
+      const accepted = await sendPlatformMessage(installationId, { message, idempotencyKey: crypto.randomUUID(), context: { route: window.location.pathname, pageTitle: document.title } });
+      await streamAgentRun(accepted.runId, () => undefined, new AbortController().signal);
+      await refresh(accepted.conversation.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Agent test failed");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return <Card><CardContent className="space-y-4 p-6">
+    <div><h2 className="text-lg font-semibold text-foreground">Test agent</h2><p className="mt-1 text-sm text-muted-foreground">Send a real platform message through this installation. Runs and replies remain in durable history.</p></div>
+    {!active ? <p className="rounded-lg bg-status-attention-soft px-3 py-2 text-sm text-status-attention">This installation is not active. Resume it before testing.</p> : null}
+    <div className="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-border bg-secondary/20 p-3" aria-live="polite">
+      {loading ? <p className="text-sm text-muted-foreground">Loading conversation…</p> : messages.length ? messages.map((message) => <div key={message.id} className={`rounded-lg px-3 py-2 text-sm ${message.direction === "outbound" ? "mr-8 bg-card text-foreground" : "ml-8 bg-primary/10 text-foreground"}`}><span className="mr-2 text-[10px] uppercase text-muted-foreground">{message.direction}</span>{typeof message.content?.text === "string" ? message.content.text : ""}</div>) : <p className="text-sm text-muted-foreground">No messages yet. Ask the agent a question.</p>}
+    </div>
+    {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+    <div className="flex gap-2"><input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} disabled={!active || sending} placeholder="Test this agent…" className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm" /><Button type="button" onClick={() => void send()} disabled={!active || sending || !draft.trim()}>{sending ? "Running…" : "Send"}</Button></div>
+  </CardContent></Card>;
 }
