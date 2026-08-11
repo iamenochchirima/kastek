@@ -28,7 +28,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 57 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 58 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -433,7 +433,9 @@ received
   canonical inbound events; API authentication remains the trust boundary.**
 - [ ] Implement secure Telegram account pairing and message delivery.
 - [ ] Implement secure WhatsApp account pairing and message delivery.
-- [ ] Verify provider webhook signatures and replay windows.
+- [x] Verify provider webhook signatures and replay windows. **A provider-neutral timestamped
+  HMAC verifier with constant-time comparison and bounded replay tolerance is implemented;
+  provider-specific secret/signature extraction remains adapter work.**
 - [ ] Acknowledge provider webhooks after durable receipt, before model execution.
 - [ ] Normalize channel events before dispatching them to agents.
 - [ ] Support channel-specific rate, size, and formatting limits.
