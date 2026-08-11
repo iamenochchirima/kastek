@@ -142,7 +142,7 @@ The recorded dependency and row-count inventory is in
   bounded model calls, token/cost limits, and the fixed initial tool set.
 - [x] Keep KasiAi's provider credential environment-backed and KasiTek-funded; never store it in
   the definition or Temporal workflow input.
-- [ ] Add startup validation for the selected KasiAi model/provider credential.
+- [x] Add production startup validation for the selected KasiAi model/provider credential.
 - [ ] Seed or ingest the initial platform-guidance knowledge with explicit provenance and version.
 - [x] Add a controlled release command that validates and publishes a new protected version while
   recording the prior version for rollback metadata (`pnpm release:kasiai`).

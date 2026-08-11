@@ -49,5 +49,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (config.KASITEK_CORE_URL && !config.KASITEK_CORE_INTERNAL_TOKEN) {
     throw new Error("KASITEK_CORE_INTERNAL_TOKEN is required when KASITEK_CORE_URL is configured");
   }
+  if (config.NODE_ENV === "production") {
+    const credentialKey = {
+      openrouter: "OPENROUTER_API_KEY",
+      openai: "OPENAI_API_KEY",
+      anthropic: "ANTHROPIC_API_KEY",
+      gemini: "GEMINI_API_KEY",
+    }[config.KASIAI_MODEL_PROVIDER];
+    if (!env[credentialKey]?.trim()) {
+      throw new Error(`${credentialKey} is required for the configured KasiAi model provider`);
+    }
+  }
   return config;
 }
