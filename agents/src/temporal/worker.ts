@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   const connection = await NativeConnection.connect({
     address: config.TEMPORAL_ADDRESS,
     apiKey: config.TEMPORAL_API_KEY || undefined,
-    tls: config.NODE_ENV === "production" ? {} : undefined,
+    tls: config.TEMPORAL_MODE === "cloud" ? {} : undefined,
   });
   const worker = await Worker.create({
     connection,

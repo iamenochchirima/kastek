@@ -7,6 +7,7 @@ pub mod admin_notifications;
 pub mod admin_outreach;
 pub mod admin_quotations;
 pub mod admin_web_services;
+pub mod agent_internal;
 pub mod ai;
 pub mod auth;
 pub mod billing;

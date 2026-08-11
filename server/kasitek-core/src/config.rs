@@ -24,6 +24,9 @@ pub struct AppConfig {
     pub n8n_api_url: Option<String>,
     pub n8n_api_key: Option<String>,
     pub n8n_callback_token: Option<String>,
+    /// Shared bearer token for the private Agent Platform -> core read boundary.
+    /// This is intentionally separate from user sessions and n8n callbacks.
+    pub agents_internal_token: Option<String>,
     pub web_push_vapid_public_key: Option<String>,
     pub web_push_vapid_private_key: Option<String>,
     pub web_push_subject: String,
@@ -84,6 +87,7 @@ impl AppConfig {
             n8n_api_url: env_optional("N8N_API_URL"),
             n8n_api_key: env_optional("N8N_API_KEY"),
             n8n_callback_token: env_optional("N8N_CALLBACK_TOKEN"),
+            agents_internal_token: env_optional("KASITEK_AGENTS_INTERNAL_TOKEN"),
             web_push_vapid_public_key: env_optional("WEB_PUSH_VAPID_PUBLIC_KEY"),
             web_push_vapid_private_key: env_optional("WEB_PUSH_VAPID_PRIVATE_KEY"),
             web_push_subject: env_string_or("WEB_PUSH_SUBJECT", "mailto:hello@kasitek.co.za"),

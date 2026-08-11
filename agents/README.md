@@ -15,8 +15,13 @@ actions will go through authenticated internal contracts exposed by `kasitek-cor
   opt-in PostgreSQL isolation/deletion tests; the normal test command never mutates a database.
 
 The API and worker are intentionally separate process types so Railway can scale them
-independently. Local development may run the API with `TEMPORAL_ENABLED=false`; production
+independently. The default local-stack mode connects them to a dedicated Temporal Cloud
+development namespace. Set `TEMPORAL_MODE=local`, `TEMPORAL_ADDRESS=localhost:7233`, and
+`TEMPORAL_NAMESPACE=default` when a completely local Temporal Server is needed. Production
 must enable Temporal and provide a dedicated namespace/task queue.
+
+Cloud mode requires `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, and `TEMPORAL_API_KEY` in
+`agents/.env` (or the environment used to launch the processes). Never commit the API key.
 
 For containers, use the checked-in Dockerfile for the API and override the Railway worker start
 command with `node dist/temporal/worker.js`. Run `pnpm run migrate` as a release/deployment step

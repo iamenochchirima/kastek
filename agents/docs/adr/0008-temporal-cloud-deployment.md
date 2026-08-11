@@ -10,6 +10,12 @@ connect with the namespace endpoint, namespace, task queue, API key, and TLS con
 environment variables. The worker remains a separate private process and can be scaled
 independently from the API.
 
+## Local development
+
+The default local stack also connects the Agent API and Worker to a dedicated Temporal Cloud
+development namespace. This keeps local workflow testing close to the first production topology.
+Set `TEMPORAL_MODE=local` to run against a local Temporal Server at `localhost:7233` instead.
+
 ## Operational controls
 
 - Keep the Temporal Cloud trial expiry and billing owner in the deployment runbook.

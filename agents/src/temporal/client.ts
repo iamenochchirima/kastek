@@ -8,7 +8,7 @@ export async function connectTemporal(config: AppConfig): Promise<{ connection: 
   const connection = await Connection.connect({
     address: config.TEMPORAL_ADDRESS,
     apiKey: config.TEMPORAL_API_KEY || undefined,
-    tls: config.NODE_ENV === "production" ? {} : undefined,
+    tls: config.TEMPORAL_MODE === "cloud" ? {} : undefined,
   });
   return { connection, client: new Client({ connection, namespace: config.TEMPORAL_NAMESPACE }) };
 }

@@ -10,6 +10,7 @@ const envSchema = z.object({
     .string()
     .default("false")
     .transform((value) => value.toLowerCase() === "true"),
+  TEMPORAL_MODE: z.enum(["cloud", "local"]).default("cloud"),
   TEMPORAL_ADDRESS: z.string().default("localhost:7233"),
   TEMPORAL_NAMESPACE: z.string().default("default"),
   TEMPORAL_TASK_QUEUE: z.string().default("kasitek-agents-interactive"),
