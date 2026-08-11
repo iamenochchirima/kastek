@@ -10,44 +10,44 @@ datasource db {
 // ─── Organizations ─────────────────────────────────────────
 
 model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  logo        String?
-  ownerId     String
+  id      String  @id @default(cuid())
+  name    String
+  slug    String  @unique
+  logo    String?
+  ownerId String
 
-  owner       User     @relation("OwnedOrganizations", fields: [ownerId], references: [id], onDelete: Restrict)
+  owner       User                     @relation("OwnedOrganizations", fields: [ownerId], references: [id], onDelete: Restrict)
   members     OrganizationMember[]
   invitations OrganizationInvitation[]
 
-  botConfigurations        BotConfiguration[]
-  botEvents                BotEvent[]
-  botDeployments           BotDeployment[]
-  socialChannelConnections SocialChannelConnection[]
-  socialPosts              SocialPost[]
-  socialPublishJobs        SocialPublishJob[]
-  whatsappConnections      WhatsappConnection[]
-  whatsappContacts         WhatsappContact[]
+  botConfigurations              BotConfiguration[]
+  botEvents                      BotEvent[]
+  botDeployments                 BotDeployment[]
+  socialChannelConnections       SocialChannelConnection[]
+  socialPosts                    SocialPost[]
+  socialPublishJobs              SocialPublishJob[]
+  whatsappConnections            WhatsappConnection[]
+  whatsappContacts               WhatsappContact[]
   whatsappContactListMemberships WhatsappContactListMembership[]
-  whatsappTemplates        WhatsappTemplate[]
-  whatsappCampaigns        WhatsappCampaign[]
-  whatsappSendEvents       WhatsappSendEvent[]
-  whatsappCallSessions     WhatsappCallSession[]
-  calls                    CommunicationCall[]
-  externalConnections      ExternalConnection[]
-  customers                Customer[]
-  customerIdentities       CustomerIdentity[]
-  conversations            Conversation[]
-  subscriptions            OrganizationSubscription[]
-  entitlementGrants        OrganizationEntitlementGrant[]
-  usageEvents              UsageEvent[]
-  billingCheckouts         BillingCheckout[]
-  billingInvoices          BillingInvoice[]
-  billingIssues            BillingReconciliationIssue[]
-  bookingServices          BookingService[]
-  bookings                 Booking[]
-  onboardingProfile        OrganizationOnboardingProfile?
-  productTours             UserProductTour[]
+  whatsappTemplates              WhatsappTemplate[]
+  whatsappCampaigns              WhatsappCampaign[]
+  whatsappSendEvents             WhatsappSendEvent[]
+  whatsappCallSessions           WhatsappCallSession[]
+  calls                          CommunicationCall[]
+  externalConnections            ExternalConnection[]
+  customers                      Customer[]
+  customerIdentities             CustomerIdentity[]
+  conversations                  Conversation[]
+  subscriptions                  OrganizationSubscription[]
+  entitlementGrants              OrganizationEntitlementGrant[]
+  usageEvents                    UsageEvent[]
+  billingCheckouts               BillingCheckout[]
+  billingInvoices                BillingInvoice[]
+  billingIssues                  BillingReconciliationIssue[]
+  bookingServices                BookingService[]
+  bookings                       Booking[]
+  onboardingProfile              OrganizationOnboardingProfile?
+  productTours                   UserProductTour[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -56,13 +56,13 @@ model Organization {
 }
 
 model OrganizationMember {
-  id     String @id @default(cuid())
+  id     String  @id @default(cuid())
   orgId  String
   userId String
   role   OrgRole @default(MEMBER)
 
-  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   joinedAt  DateTime @default(now())
   createdAt DateTime @default(now())
@@ -90,21 +90,21 @@ model OrganizationOnboardingProfile {
 }
 
 model OrganizationInvitation {
-  id           String   @id @default(cuid())
-  orgId        String
-  email        String
-  role         OrgRole  @default(MEMBER)
-  tokenHash    String   @unique
-  invitedById  String
-  expiresAt    DateTime
-  acceptedAt   DateTime?
-  revokedAt    DateTime?
+  id          String    @id @default(cuid())
+  orgId       String
+  email       String
+  role        OrgRole   @default(MEMBER)
+  tokenHash   String    @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
 
-  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  invitedBy    User         @relation("SentInvitations", fields: [invitedById], references: [id], onDelete: Cascade)
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invitedBy User         @relation("SentInvitations", fields: [invitedById], references: [id], onDelete: Cascade)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([orgId, email])
   @@index([tokenHash])
@@ -127,31 +127,31 @@ enum ExternalConnectionStatus {
 }
 
 model ExternalConnection {
-  id                String                   @id @default(cuid())
+  id                String                    @id @default(cuid())
   orgId             String
-  org               Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org               Organization              @relation(fields: [orgId], references: [id], onDelete: Cascade)
   provider          String
   sourceType        String
   sourceId          String
   externalAccountId String?
   displayName       String
   handle            String?
-  status            ExternalConnectionStatus @default(NOT_CONNECTED)
+  status            ExternalConnectionStatus  @default(NOT_CONNECTED)
   statusOverride    ExternalConnectionStatus?
-  credentialStatus  String                   @default("UNKNOWN")
-  healthStatus      String                   @default("UNKNOWN")
-  webhookStatus     String                   @default("UNKNOWN")
+  credentialStatus  String                    @default("UNKNOWN")
+  healthStatus      String                    @default("UNKNOWN")
+  webhookStatus     String                    @default("UNKNOWN")
   lastCheckedAt     DateTime?
-  lastError         String?                  @db.Text
+  lastError         String?                   @db.Text
   metadata          Json?
 
-  capabilities      ExternalConnectionCapability[]
-  consumers         ExternalConnectionConsumer[]
-  conversations     Conversation[]
-  calls             CommunicationCall[]
+  capabilities  ExternalConnectionCapability[]
+  consumers     ExternalConnectionConsumer[]
+  conversations Conversation[]
+  calls         CommunicationCall[]
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([orgId, sourceType, sourceId])
   @@index([orgId, status])
@@ -167,8 +167,8 @@ model ExternalConnectionCapability {
   entitlementKey String?
   metadata       Json?
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([connectionId, key])
   @@index([key, enabled])
@@ -180,8 +180,8 @@ model ExternalConnectionConsumer {
   connection   ExternalConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   productKey   String
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([connectionId, productKey])
   @@index([productKey])
@@ -212,36 +212,36 @@ enum EntitlementSource {
 // ─── Product Access and Billing ────────────────────────────
 
 model Product {
-  id          String   @id @default(cuid())
-  key         String   @unique
+  id          String  @id @default(cuid())
+  key         String  @unique
   name        String
   description String?
-  active      Boolean  @default(true)
+  active      Boolean @default(true)
 
-  plans       ProductPlan[]
+  plans ProductPlan[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ProductPlan {
-  id                  String          @id @default(cuid())
-  productId           String
-  product             Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
-  key                 String          @unique
-  name                String
-  interval            BillingInterval @default(MONTHLY)
-  currency            String          @default("ZAR")
-  amountMinor         Int?
-  active              Boolean         @default(false)
-  paystackPlanCode    String?         @unique
+  id               String          @id @default(cuid())
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  key              String          @unique
+  name             String
+  interval         BillingInterval @default(MONTHLY)
+  currency         String          @default("ZAR")
+  amountMinor      Int?
+  active           Boolean         @default(false)
+  paystackPlanCode String?         @unique
 
-  entitlements        PlanEntitlement[]
-  subscriptions       OrganizationSubscription[]
-  billingCheckouts    BillingCheckout[]
+  entitlements     PlanEntitlement[]
+  subscriptions    OrganizationSubscription[]
+  billingCheckouts BillingCheckout[]
 
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([productId, active])
 }
@@ -265,58 +265,58 @@ model UserProductTour {
 }
 
 model PlanEntitlement {
-  id          String      @id @default(cuid())
-  planId      String
-  plan        ProductPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  key         String
-  value       Json
+  id     String      @id @default(cuid())
+  planId String
+  plan   ProductPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  key    String
+  value  Json
 
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([planId, key])
   @@index([key])
 }
 
 model OrganizationSubscription {
-  id                    String                         @id @default(cuid())
-  orgId                 String
-  org                   Organization                   @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  planId                String
-  plan                  ProductPlan                    @relation(fields: [planId], references: [id], onDelete: Restrict)
-  status                OrganizationSubscriptionStatus @default(TRIAL)
-  startedAt             DateTime                       @default(now())
-  currentPeriodStart    DateTime?
-  currentPeriodEnd      DateTime?
-  trialEndsAt           DateTime?
-  cancelAtPeriodEnd     Boolean                        @default(false)
-  cancelledAt           DateTime?
-  provider              String?
-  providerCustomerId    String?
-  providerSubscriptionId String?                       @unique
+  id                     String                         @id @default(cuid())
+  orgId                  String
+  org                    Organization                   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  planId                 String
+  plan                   ProductPlan                    @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status                 OrganizationSubscriptionStatus @default(TRIAL)
+  startedAt              DateTime                       @default(now())
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  trialEndsAt            DateTime?
+  cancelAtPeriodEnd      Boolean                        @default(false)
+  cancelledAt            DateTime?
+  provider               String?
+  providerCustomerId     String?
+  providerSubscriptionId String?                        @unique
   billingInvoices        BillingInvoice[]
 
-  createdAt             DateTime                       @default(now())
-  updatedAt             DateTime                       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([orgId, status])
   @@index([planId, status])
 }
 
 model OrganizationEntitlementGrant {
-  id          String             @id @default(cuid())
+  id          String            @id @default(cuid())
   orgId       String
-  org         Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org         Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   key         String
   value       Json
-  source      EntitlementSource  @default(MANUAL)
-  startsAt    DateTime           @default(now())
+  source      EntitlementSource @default(MANUAL)
+  startsAt    DateTime          @default(now())
   endsAt      DateTime?
   reason      String?
   createdById String?
 
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([orgId, key, startsAt, endsAt])
 }
@@ -334,60 +334,60 @@ model UsageEvent {
   occurredAt     DateTime     @default(now())
   metadata       Json?
 
-  createdAt      DateTime     @default(now())
+  createdAt DateTime @default(now())
 
   @@index([orgId, productKey, metricKey, occurredAt])
 }
 
 model BillingCheckout {
-  id               String       @id @default(cuid())
-  reference        String       @unique
-  idempotencyKey   String?
-  orgId            String
-  planId           String
-  userId           String
-  email             String
-  provider          String
-  status            String       @default("PENDING")
-  authorizationUrl String?
-  providerTransactionId String?
+  id                      String    @id @default(cuid())
+  reference               String    @unique
+  idempotencyKey          String?
+  orgId                   String
+  planId                  String
+  userId                  String
+  email                   String
+  provider                String
+  status                  String    @default("PENDING")
+  authorizationUrl        String?
+  providerTransactionId   String?
   providerAuthorizationId String?
-  providerResponse Json?
-  completedAt      DateTime?
+  providerResponse        Json?
+  completedAt             DateTime?
 
-  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  plan ProductPlan  @relation(fields: [planId], references: [id], onDelete: Restrict)
-  user User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  org     Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  plan    ProductPlan     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Restrict)
   invoice BillingInvoice?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([orgId, provider, idempotencyKey])
   @@index([orgId, status])
   @@index([provider, providerTransactionId])
-  @@unique([orgId, provider, idempotencyKey])
 }
 
 // An organisation-owned billing document. Provider identifiers are retained for
 // reconciliation, while access continues to be derived from subscriptions and
 // entitlements rather than this record.
 model BillingInvoice {
-  id                    String       @id @default(cuid())
-  invoiceNumber         String       @unique
+  id                    String    @id @default(cuid())
+  invoiceNumber         String    @unique
   orgId                 String
-  checkoutId            String       @unique
+  checkoutId            String    @unique
   subscriptionId        String?
   provider              String
   providerInvoiceId     String?
   providerTransactionId String?
-  status                String       @default("PAID")
+  status                String    @default("PAID")
   currency              String
   amountMinor           Int?
-  issuedAt              DateTime     @default(now())
+  issuedAt              DateTime  @default(now())
   paidAt                DateTime?
 
-  org          Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  checkout     BillingCheckout          @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
+  org          Organization              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  checkout     BillingCheckout           @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
   subscription OrganizationSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
@@ -412,20 +412,20 @@ model PaystackWebhookEvent {
 }
 
 model BillingReconciliationIssue {
-  id           String       @id @default(cuid())
-  fingerprint  String       @unique
+  id           String        @id @default(cuid())
+  fingerprint  String        @unique
   orgId        String?
   org          Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   provider     String
   resourceType String
   resourceId   String
   issueType    String
-  status       String       @default("OPEN")
+  status       String        @default("OPEN")
   details      Json
-  detectedAt   DateTime     @default(now())
+  detectedAt   DateTime      @default(now())
   resolvedAt   DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([status, detectedAt])
   @@index([orgId, status])
@@ -442,31 +442,31 @@ model User {
   password      String?
   phone         String?
 
-  accounts      Account[]
-  sessions      Session[]
+  accounts Account[]
+  sessions Session[]
 
-  ownedOrganizations   Organization[]         @relation("OwnedOrganizations")
-  orgMemberships       OrganizationMember[]
-  sentInvitations      OrganizationInvitation[] @relation("SentInvitations")
+  ownedOrganizations Organization[]           @relation("OwnedOrganizations")
+  orgMemberships     OrganizationMember[]
+  sentInvitations    OrganizationInvitation[] @relation("SentInvitations")
 
-  businessProfile   BusinessProfile?
-  botConfigurations BotConfiguration[]
-  botEvents         BotEvent[]
-  botDeployments    BotDeployment[]
-  conversations     OnboardingConversation[]
-  socialChannelConnections SocialChannelConnection[]
-  socialPosts              SocialPost[]
-  socialPublishJobs        SocialPublishJob[]
-  whatsappConnections WhatsappConnection[]
-  whatsappContacts    WhatsappContact[]
+  businessProfile                BusinessProfile?
+  botConfigurations              BotConfiguration[]
+  botEvents                      BotEvent[]
+  botDeployments                 BotDeployment[]
+  conversations                  OnboardingConversation[]
+  socialChannelConnections       SocialChannelConnection[]
+  socialPosts                    SocialPost[]
+  socialPublishJobs              SocialPublishJob[]
+  whatsappConnections            WhatsappConnection[]
+  whatsappContacts               WhatsappContact[]
   whatsappContactListMemberships WhatsappContactListMembership[]
-  whatsappTemplates   WhatsappTemplate[]
-  whatsappCampaigns   WhatsappCampaign[]
-  whatsappSendEvents  WhatsappSendEvent[]
-  whatsappCallSessions WhatsappCallSession[]
-  pushSubscriptions   PushSubscription[]
-  billingCheckouts    BillingCheckout[]
-  productTours        UserProductTour[]
+  whatsappTemplates              WhatsappTemplate[]
+  whatsappCampaigns              WhatsappCampaign[]
+  whatsappSendEvents             WhatsappSendEvent[]
+  whatsappCallSessions           WhatsappCallSession[]
+  pushSubscriptions              PushSubscription[]
+  billingCheckouts               BillingCheckout[]
+  productTours                   UserProductTour[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -527,11 +527,11 @@ model VerificationToken {
 // ─── Admin Users (Separate from Client Users) ─────────────
 
 model AdminUser {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   @default("admin") // superadmin | admin | viewer
+  id       String @id @default(cuid())
+  name     String
+  email    String @unique
+  password String
+  role     String @default("admin") // superadmin | admin | viewer
 
   assignedLeads QuoteRequest[] @relation("AssignedLeads")
 
@@ -546,16 +546,16 @@ model BusinessProfile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  businessName   String
-  businessType   String
-  industry       String?
-  description    String?  @db.Text
+  businessName String
+  businessType String
+  industry     String?
+  description  String? @db.Text
 
   address    String?
   city       String?
   province   String?
   postalCode String?
-  country    String @default("ZA")
+  country    String  @default("ZA")
 
   phone          String?
   whatsappNumber String?
@@ -569,9 +569,9 @@ model BusinessProfile {
 }
 
 model BotConfiguration {
-  id     String @id @default(cuid())
+  id     String        @id @default(cuid())
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   orgId  String?
   org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
@@ -590,7 +590,7 @@ model BotConfiguration {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  events BotEvent[]
+  events      BotEvent[]
   deployments BotDeployment[]
 
   @@index([userId])
@@ -598,15 +598,15 @@ model BotConfiguration {
 }
 
 model BotEvent {
-  id      String @id @default(cuid())
-  botId   String
-  bot     BotConfiguration @relation(fields: [botId], references: [id], onDelete: Cascade)
-  userId  String
-  user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String           @id @default(cuid())
+  botId      String
+  bot        BotConfiguration @relation(fields: [botId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   orgId      String?
-  org        Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  org        Organization?    @relation(fields: [orgId], references: [id], onDelete: SetNull)
   customerId String?
-  customer   Customer? @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
+  customer   Customer?        @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
 
   eventType      String
   channel        String?
@@ -624,25 +624,25 @@ model BotEvent {
 }
 
 model BotDeployment {
-  id     String @id @default(cuid())
+  id     String           @id @default(cuid())
   botId  String
   bot    BotConfiguration @relation(fields: [botId], references: [id], onDelete: Cascade)
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   orgId  String?
-  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  org    Organization?    @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
-  provider         String
-  target           String
-  status           String
-  versionNumber    Int
-  workflowId       String?
-  templateKey      String?
-  configSnapshot   Json?
-  responsePayload  Json?
-  errorMessage     String? @db.Text
-  deployedAt       DateTime?
-  pausedAt         DateTime?
+  provider        String
+  target          String
+  status          String
+  versionNumber   Int
+  workflowId      String?
+  templateKey     String?
+  configSnapshot  Json?
+  responsePayload Json?
+  errorMessage    String?   @db.Text
+  deployedAt      DateTime?
+  pausedAt        DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -681,19 +681,19 @@ model QuoteRequest {
   description   String?  @db.Text
 
   // Lead management fields
-  source        String   @default("website") // website | facebook | linkedin | cold_email | referral | whatsapp | walk_in
-  status        String   @default("new")     // new | contacted | interested | quoted | won | lost
-  quoteAmount   Float?
-  followUpDate  DateTime?
-  notes         Json     @default("[]")      // Array of {text, timestamp, adminUserId, adminUserName}
+  source       String    @default("website") // website | facebook | linkedin | cold_email | referral | whatsapp | walk_in
+  status       String    @default("new") // new | contacted | interested | quoted | won | lost
+  quoteAmount  Float?
+  followUpDate DateTime?
+  notes        Json      @default("[]") // Array of {text, timestamp, adminUserId, adminUserName}
 
-  assignedToId  String?
-  assignedTo    AdminUser? @relation("AssignedLeads", fields: [assignedToId], references: [id])
-  quotations    Quotation[]
-  invoices      Invoice[]
+  assignedToId String?
+  assignedTo   AdminUser?  @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  quotations   Quotation[]
+  invoices     Invoice[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([source])
@@ -712,8 +712,8 @@ model ProductWaitlistEntry {
   source        String   @default("website")
   status        String   @default("new")
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([source])
@@ -745,55 +745,55 @@ model Quotation {
   validityDays          Int      @default(14)
   status                String   @default("draft") // draft | sent | accepted | rejected | expired
 
-  quoteRequestId        String?
-  quoteRequest          QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+  quoteRequestId String?
+  quoteRequest   QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([quoteRequestId])
 }
 
 model Invoice {
-  id                    String   @id @default(cuid())
+  id                    String    @id @default(cuid())
   businessName          String
   contactPerson         String
   contactEmail          String
   contactPhone          String
   date                  DateTime
-  serviceType           String   @default("website_agent")
-  billingMode           String   @default("one_off")
-  recurringActive       Boolean  @default(false)
+  serviceType           String    @default("website_agent")
+  billingMode           String    @default("one_off")
+  recurringActive       Boolean   @default(false)
   billingAnchorDay      Int?
-  reminderDaysAfterDue  Int      @default(3)
+  reminderDaysAfterDue  Int       @default(3)
   lastSentAt            DateTime?
   lastReminderAt        DateTime?
   lastPaidAt            DateTime?
   title                 String
-  introduction          String?  @db.Text
-  scopeOfWork           Json     @default("[]")
-  deliverables          Json     @default("[]")
-  implementationSteps   Json     @default("[]")
-  pricingItems          Json     @default("[]")
-  maintenanceIncludes   Json     @default("[]")
-  termsAndNotes         Json     @default("[]")
-  includedFunctionality Json     @default("[]")
-  knowledgeBaseScope    Json     @default("[]")
-  importantNotes        Json     @default("[]")
-  supportIncludes       Json     @default("[]")
+  introduction          String?   @db.Text
+  scopeOfWork           Json      @default("[]")
+  deliverables          Json      @default("[]")
+  implementationSteps   Json      @default("[]")
+  pricingItems          Json      @default("[]")
+  maintenanceIncludes   Json      @default("[]")
+  termsAndNotes         Json      @default("[]")
+  includedFunctionality Json      @default("[]")
+  knowledgeBaseScope    Json      @default("[]")
+  importantNotes        Json      @default("[]")
+  supportIncludes       Json      @default("[]")
   setupFee              String
   monthlyFee            String
   deliveryTimeline      String?
-  validityDays          Int      @default(14)
-  status                String   @default("draft") // draft | sent | paid | overdue | cancelled
+  validityDays          Int       @default(14)
+  status                String    @default("draft") // draft | sent | paid | overdue | cancelled
 
-  quoteRequestId        String?
-  quoteRequest          QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
-  runs                  InvoiceRun[]
+  quoteRequestId String?
+  quoteRequest   QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+  runs           InvoiceRun[]
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([quoteRequestId])
@@ -801,27 +801,27 @@ model Invoice {
 }
 
 model InvoiceRun {
-  id                    String   @id @default(cuid())
-  invoiceId             String
-  invoice               Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  cycleKey              String
-  issueDate             DateTime
-  periodStart           DateTime
-  periodEnd             DateTime
-  dueDate               DateTime
-  status                String   @default("pending") // pending | sent | reminder_due | reminder_sent | paid | overdue | cancelled
-  sendStatus            String   @default("pending") // pending | sent
-  reminderStatus        String   @default("not_needed") // not_needed | pending | sent
-  sentAt                DateTime?
-  reminderDueAt         DateTime?
-  reminderSentAt        DateTime?
-  paidAt                DateTime?
-  pricingItemsSnapshot  Json     @default("[]")
-  titleSnapshot         String
-  contactEmailSnapshot  String
-  businessNameSnapshot  String
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String    @id @default(cuid())
+  invoiceId            String
+  invoice              Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  cycleKey             String
+  issueDate            DateTime
+  periodStart          DateTime
+  periodEnd            DateTime
+  dueDate              DateTime
+  status               String    @default("pending") // pending | sent | reminder_due | reminder_sent | paid | overdue | cancelled
+  sendStatus           String    @default("pending") // pending | sent
+  reminderStatus       String    @default("not_needed") // not_needed | pending | sent
+  sentAt               DateTime?
+  reminderDueAt        DateTime?
+  reminderSentAt       DateTime?
+  paidAt               DateTime?
+  pricingItemsSnapshot Json      @default("[]")
+  titleSnapshot        String
+  contactEmailSnapshot String
+  businessNameSnapshot String
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@unique([invoiceId, cycleKey])
   @@index([invoiceId, issueDate])
@@ -833,15 +833,15 @@ model InvoiceRun {
 // ─── Outreach / Cold Email Campaigns ─────────────────────────
 
 model OutreachCampaign {
-  id         String   @id @default(cuid())
-  name       String   // e.g. "Restaurants Feb 2026"
-  category   String   // bizbay category slug
-  status     String   @default("draft") // draft | active | paused | completed
-  totalLeads Int      @default(0)
-  emailsSent Int      @default(0)
-  replies    Int      @default(0)
+  id         String @id @default(cuid())
+  name       String // e.g. "Restaurants Feb 2026"
+  category   String // bizbay category slug
+  status     String @default("draft") // draft | active | paused | completed
+  totalLeads Int    @default(0)
+  emailsSent Int    @default(0)
+  replies    Int    @default(0)
 
-  leads OutreachLead[]
+  leads        OutreachLead[]
   deliveryLogs OutreachEmailDeliveryLog[]
 
   createdAt DateTime @default(now())
@@ -859,7 +859,7 @@ model OutreachLead {
   bizbayUrl    String?
   category     String
 
-  phone         String?
+  phone String?
 
   // Email outreach tracking
   emailStatus   String    @default("pending") // pending | sent | replied | interested | not_interested | bounced
@@ -870,7 +870,7 @@ model OutreachLead {
   lastFollowUp  DateTime?
   nextFollowUp  DateTime?
 
-  notes String? @db.Text
+  notes        String?                    @db.Text
   deliveryLogs OutreachEmailDeliveryLog[]
 
   createdAt DateTime @default(now())
@@ -881,16 +881,16 @@ model OutreachLead {
 }
 
 model OutreachEmailDeliveryLog {
-  id         String   @id @default(cuid())
+  id         String            @id @default(cuid())
   campaignId String?
   campaign   OutreachCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   leadId     String?
-  lead       OutreachLead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  isTest     Boolean  @default(false)
+  lead       OutreachLead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  isTest     Boolean           @default(false)
 
   recipient         String
   subject           String
-  status            String   // sent | failed
+  status            String // sent | failed
   provider          String   @default("smtp")
   providerMessageId String?
   providerResponse  String?  @db.Text
@@ -906,7 +906,7 @@ model OutreachEmailDeliveryLog {
 // ─── Web Services Leads (Cold Call) ──────────────────────────
 
 model WebServiceLead {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   businessName String
   website      String?
   address      String?
@@ -915,12 +915,12 @@ model WebServiceLead {
   phone        String?
   email        String?
 
-  callStatus   String   @default("pending") // pending | called | interested | not_interested | no_answer | callback
-  notes        String?  @db.Text
+  callStatus   String    @default("pending") // pending | called | interested | not_interested | no_answer | callback
+  notes        String?   @db.Text
   callbackDate DateTime?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([callStatus])
   @@index([category])
@@ -929,7 +929,7 @@ model WebServiceLead {
 // ─── Chatbot Conversations ───────────────────────────────────
 
 model Customer {
-  id          String @id @default(cuid())
+  id          String       @id @default(cuid())
   orgId       String
   org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   displayName String?
@@ -944,17 +944,17 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([orgId, id])
   @@index([orgId, displayName])
   @@index([orgId, updatedAt])
-  @@unique([orgId, id])
 }
 
 model CustomerIdentity {
-  id          String @id @default(cuid())
-  orgId       String
-  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  customerId  String
-  customer    Customer @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
+  id         String       @id @default(cuid())
+  orgId      String
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer     @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
 
   channel     String
   scopeId     String?
@@ -982,13 +982,13 @@ enum BookingStatus {
 }
 
 model BookingService {
-  id              String   @id @default(cuid())
+  id              String       @id @default(cuid())
   orgId           String
   org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   name            String
-  description     String?  @db.Text
+  description     String?      @db.Text
   durationMinutes Int
-  active          Boolean  @default(true)
+  active          Boolean      @default(true)
   bookings        Booking[]
 
   createdAt DateTime @default(now())
@@ -999,21 +999,21 @@ model BookingService {
 }
 
 model Booking {
-  id              String        @id @default(cuid())
-  orgId           String
-  org             Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  serviceId       String
-  service         BookingService @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  customerId      String?
-  customer        Customer?     @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
-  contactName     String
-  contactPhone    String?
-  scheduledStart  DateTime
-  scheduledEnd    DateTime
-  timezone        String        @default("Africa/Johannesburg")
-  status          BookingStatus @default(SCHEDULED)
-  notes           String?       @db.Text
-  createdById     String?
+  id             String         @id @default(cuid())
+  orgId          String
+  org            Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  serviceId      String
+  service        BookingService @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  customerId     String?
+  customer       Customer?      @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
+  contactName    String
+  contactPhone   String?
+  scheduledStart DateTime
+  scheduledEnd   DateTime
+  timezone       String         @default("Africa/Johannesburg")
+  status         BookingStatus  @default(SCHEDULED)
+  notes          String?        @db.Text
+  createdById    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1025,27 +1025,27 @@ model Booking {
 }
 
 model Conversation {
-  id                 String   @id @default(cuid())
-  channel            String   // whatsapp | website
-  customerIdentifier String   // phone number or session ID
+  id                 String    @id @default(cuid())
+  channel            String // whatsapp | website
+  customerIdentifier String // phone number or session ID
   customerName       String?
-  status             String   @default("active") // active | closed
-  lastMessageAt      DateTime @default(now())
+  status             String    @default("active") // active | closed
+  lastMessageAt      DateTime  @default(now())
   lastReadAt         DateTime?
-  unreadCount        Int      @default(0)
-  starred             Boolean  @default(false)
+  unreadCount        Int       @default(0)
+  starred            Boolean   @default(false)
 
   orgId                String?
   org                  Organization?       @relation(fields: [orgId], references: [id], onDelete: SetNull)
   externalConnectionId String?
   externalConnection   ExternalConnection? @relation(fields: [externalConnectionId], references: [id], onDelete: SetNull)
-  customerId            String?
-  customer              Customer?           @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
+  customerId           String?
+  customer             Customer?           @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
 
   messages      Message[]
   messageEvents MessageEvent[]
   callSessions  WhatsappCallSession[]
-  calls        CommunicationCall[]
+  calls         CommunicationCall[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1059,16 +1059,16 @@ model Conversation {
 }
 
 model CommunicationCall {
-  id                String              @id @default(cuid())
+  id                String               @id @default(cuid())
   orgId             String
-  org               Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org               Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   provider          String
   providerCallId    String?
   connectionId      String?
-  connection        ExternalConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  connection        ExternalConnection?  @relation(fields: [connectionId], references: [id], onDelete: SetNull)
   conversationId    String?
-  conversation      Conversation?       @relation(fields: [conversationId], references: [id], onDelete: SetNull)
-  whatsappSessionId String?             @unique
+  conversation      Conversation?        @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  whatsappSessionId String?              @unique
   whatsappSession   WhatsappCallSession? @relation(fields: [whatsappSessionId], references: [id], onDelete: SetNull)
   direction         String
   status            String
@@ -1080,12 +1080,12 @@ model CommunicationCall {
   endedAt           DateTime?
   durationSeconds   Int?
   errorCode         String?
-  errorMessage      String?             @db.Text
+  errorMessage      String?              @db.Text
   rawPayload        Json?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
-  legs              CommunicationCallLeg[]
+  legs CommunicationCallLeg[]
 
   @@unique([provider, providerCallId])
   @@index([orgId, createdAt])
@@ -1105,7 +1105,7 @@ model CommunicationCallLeg {
   toPhone         String?
   startedAt       DateTime?
   answeredAt      DateTime?
-  endedAt        DateTime?
+  endedAt         DateTime?
   durationSeconds Int?
   errorCode       String?
   errorMessage    String?           @db.Text
@@ -1118,17 +1118,17 @@ model CommunicationCallLeg {
 }
 
 model Message {
-  id             String       @id @default(cuid())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender         String       // customer | bot
-  content        String       @db.Text
-  contentType    String       @default("TEXT")
-  providerMessageId String?
-  providerStatus    String?
-  providerMetadata  Json?
-  whatsappMessageId String?
-  whatsappStatus    String?
+  id                          String       @id @default(cuid())
+  conversationId              String
+  conversation                Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender                      String // customer | bot
+  content                     String       @db.Text
+  contentType                 String       @default("TEXT")
+  providerMessageId           String?
+  providerStatus              String?
+  providerMetadata            Json?
+  whatsappMessageId           String?
+  whatsappStatus              String?
   whatsappConversationId      String?
   whatsappConversationOrigin  String?
   whatsappConversationExpires DateTime?
@@ -1136,17 +1136,17 @@ model Message {
   whatsappPricingCategory     String?
   whatsappPricingModel        String?
   whatsappPricingType         String?
-  errorCode         String?
-  errorMessage      String?   @db.Text
-  editedAt          DateTime?
-  deletedAt         DateTime?
-  timestamp      DateTime     @default(now())
+  errorCode                   String?
+  errorMessage                String?      @db.Text
+  editedAt                    DateTime?
+  deletedAt                   DateTime?
+  timestamp                   DateTime     @default(now())
 
-  attachments MessageAttachment[]
-  reference   MessageReference? @relation("MessageReplyReference")
-  referencedBy MessageReference[] @relation("ReferencedMessage")
-  reactions   MessageReaction[]
-  events      MessageEvent[]
+  attachments  MessageAttachment[]
+  reference    MessageReference?   @relation("MessageReplyReference")
+  referencedBy MessageReference[]  @relation("ReferencedMessage")
+  reactions    MessageReaction[]
+  events       MessageEvent[]
 
   @@unique([conversationId, providerMessageId])
   @@index([conversationId])
@@ -1202,17 +1202,17 @@ model MessageReference {
 }
 
 model MessageReaction {
-  id               String   @id @default(cuid())
-  messageId        String
-  message          Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  actorIdentifier  String
-  emoji            String?
-  providerEventId  String?
-  active           Boolean  @default(true)
-  occurredAt       DateTime @default(now())
-  metadata         Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(cuid())
+  messageId       String
+  message         Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  actorIdentifier String
+  emoji           String?
+  providerEventId String?
+  active          Boolean  @default(true)
+  occurredAt      DateTime @default(now())
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@unique([messageId, actorIdentifier])
   @@index([providerEventId])
@@ -1220,16 +1220,16 @@ model MessageReaction {
 }
 
 model MessageEvent {
-  id              String        @id @default(cuid())
+  id              String       @id @default(cuid())
   conversationId  String
-  conversation    Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   messageId       String?
-  message         Message?      @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  message         Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
   providerEventId String?
   kind            String
-  occurredAt      DateTime      @default(now())
+  occurredAt      DateTime     @default(now())
   metadata        Json?
-  createdAt       DateTime      @default(now())
+  createdAt       DateTime     @default(now())
 
   @@unique([conversationId, providerEventId])
   @@index([messageId, occurredAt])
@@ -1290,7 +1290,7 @@ model NotificationEvent {
 
   notifications Notification[]
 
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([scopeType, scopeId, createdAt])
   @@index([eventType, createdAt])
@@ -1310,10 +1310,10 @@ model Notification {
   failedAt      DateTime?
   errorMessage  String?                   @db.Text
 
-  deliveryLogs  NotificationDeliveryLog[]
+  deliveryLogs NotificationDeliveryLog[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([recipientType, recipientId, channel, createdAt])
   @@index([recipientType, recipientId, channel, readAt])
@@ -1329,8 +1329,8 @@ model NotificationPreference {
   enabled       Boolean                   @default(true)
   frequency     NotificationFrequency     @default(INSTANT)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([recipientType, recipientId, eventType, channel])
   @@index([recipientType, recipientId])
@@ -1347,7 +1347,7 @@ model NotificationDeliveryLog {
   responsePayload   Json?
   errorMessage      String?            @db.Text
 
-  createdAt         DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([notificationId, createdAt])
 }
@@ -1379,6 +1379,8 @@ enum SocialPlatform {
   FACEBOOK
   INSTAGRAM
   THREADS
+  TIKTOK
+  BLUESKY
   LINKEDIN
   X
   WHATSAPP_STATUS
@@ -1449,28 +1451,28 @@ enum WhatsappRecipientStatus {
 }
 
 model WhatsappConnection {
-  id                   String   @id @default(cuid())
-  userId               String
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId                String?
-  org                  Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  id     String        @id @default(cuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
-  phoneNumberId        String   @unique
+  phoneNumberId        String  @unique
   phoneDisplayNumber   String?
-  accessTokenEncrypted String   @db.Text
+  accessTokenEncrypted String  @db.Text
   wabaId               String
 
   currentQualityRating WhatsappConnectionQualityRating @default(UNKNOWN)
   dailyLimitEstimate   Int?
-  verified             Boolean  @default(false)
+  verified             Boolean                         @default(false)
 
-  templates            WhatsappTemplate[]
-  campaigns            WhatsappCampaign[]
-  sendEvents           WhatsappSendEvent[]
-  callSessions         WhatsappCallSession[]
+  templates    WhatsappTemplate[]
+  campaigns    WhatsappCampaign[]
+  sendEvents   WhatsappSendEvent[]
+  callSessions WhatsappCallSession[]
 
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([orgId])
@@ -1478,37 +1480,37 @@ model WhatsappConnection {
 }
 
 model WhatsappCallSession {
-  id             String                @id @default(cuid())
-  userId         String
-  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId          String?
-  org            Organization?         @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  id     String        @id @default(cuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
-  connectionId   String
-  connection     WhatsappConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connectionId String
+  connection   WhatsappConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   conversationId String?
-  conversation   Conversation?         @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
 
-  direction      WhatsappCallDirection
-  status         WhatsappCallStatus    @default(RINGING)
-  waCallId       String?               @unique
-  fromPhone      String
-  toPhone        String
-  agentLabel     String?
-  startedAt      DateTime?
-  answeredAt     DateTime?
-  endedAt        DateTime?
+  direction       WhatsappCallDirection
+  status          WhatsappCallStatus    @default(RINGING)
+  waCallId        String?               @unique
+  fromPhone       String
+  toPhone         String
+  agentLabel      String?
+  startedAt       DateTime?
+  answeredAt      DateTime?
+  endedAt         DateTime?
   durationSeconds Int?
-  errorCode      String?
-  errorMessage   String?               @db.Text
-  rawPayload     Json?
+  errorCode       String?
+  errorMessage    String?               @db.Text
+  rawPayload      Json?
 
-  events         WhatsappCallEvent[]
-  canonicalCall  CommunicationCall?
+  events        WhatsappCallEvent[]
+  canonicalCall CommunicationCall?
 
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, createdAt])
   @@index([orgId, createdAt])
@@ -1518,24 +1520,24 @@ model WhatsappCallSession {
 }
 
 model WhatsappCallEvent {
-  id           String              @id @default(cuid())
-  sessionId    String
-  session      WhatsappCallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  eventType    String
-  status       WhatsappCallStatus?
-  payload      Json?
-  createdAt    DateTime            @default(now())
+  id        String              @id @default(cuid())
+  sessionId String
+  session   WhatsappCallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  eventType String
+  status    WhatsappCallStatus?
+  payload   Json?
+  createdAt DateTime            @default(now())
 
   @@index([sessionId, createdAt])
   @@index([eventType, createdAt])
 }
 
 model SocialChannelConnection {
-  id                String              @id @default(cuid())
-  userId            String
-  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId             String?
-  org               Organization?       @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  id     String        @id @default(cuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   platform          SocialPlatform
   status            SocialChannelStatus @default(CONNECTED)
@@ -1543,16 +1545,16 @@ model SocialChannelConnection {
   handle            String?
   externalAccountId String?
 
-  accessToken       String?             @db.Text
-  refreshToken      String?             @db.Text
-  metadata          Json?
-  lastSyncedAt      DateTime?
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  metadata     Json?
+  lastSyncedAt DateTime?
 
-  posts             SocialPost[]
-  publishJobs       SocialPublishJob[]
+  posts       SocialPost[]
+  publishJobs SocialPublishJob[]
 
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([orgId, platform, externalAccountId])
   @@index([userId, platform])
@@ -1561,30 +1563,82 @@ model SocialChannelConnection {
   @@index([orgId, status])
 }
 
-model SocialPost {
-  id                String             @id @default(cuid())
+model SocialDataDeletionRequest {
+  id               String    @id @default(cuid())
+  provider         String
+  confirmationCode String    @unique
+  status           String    @default("COMPLETED")
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([provider, status])
+}
+
+model SocialWebhookEvent {
+  id                String   @id @default(cuid())
+  provider          String
+  eventKey          String
+  eventType         String
+  externalAccountId String?
+  payload           Json
+  status            String   @default("RECEIVED")
+  attempts          Int      @default(0)
+  nextAttemptAt     DateTime @default(now())
+  errorMessage      String?
+  receivedAt        DateTime @default(now())
+  processedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([provider, eventKey])
+  @@index([provider, status, nextAttemptAt])
+  @@index([receivedAt])
+}
+
+model SocialOAuthAuthorization {
+  id                String   @id @default(cuid())
+  provider          String
+  state             String   @unique
   userId            String
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId             String?
-  org               Organization?      @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  orgId             String
+  handle            String?
+  expectedDid       String
+  pdsUrl            String
+  authorizationUrl  String
+  codeVerifier      String   @db.Text
+  dpopPrivateKey    String   @db.Text
+  dpopNonce         String?
+  createdAt         DateTime @default(now())
+  expiresAt         DateTime
 
-  primaryChannelId  String?
-  primaryChannel    SocialChannelConnection? @relation(fields: [primaryChannelId], references: [id], onDelete: SetNull)
+  @@index([provider, expiresAt])
+}
 
-  title             String?
-  prompt            String?            @db.Text
-  content           String             @db.Text
-  channels          SocialPlatform[]
-  status            SocialPostStatus   @default(DRAFT)
-  scheduledFor      DateTime?
-  publishedAt       DateTime?
-  metadata          Json?
+model SocialPost {
+  id     String        @id @default(cuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
-  variants          SocialPostVariant[]
-  publishJobs       SocialPublishJob[]
+  primaryChannelId String?
+  primaryChannel   SocialChannelConnection? @relation(fields: [primaryChannelId], references: [id], onDelete: SetNull)
 
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  title        String?
+  prompt       String?          @db.Text
+  content      String           @db.Text
+  channels     SocialPlatform[]
+  status       SocialPostStatus @default(DRAFT)
+  scheduledFor DateTime?
+  publishedAt  DateTime?
+  metadata     Json?
+
+  variants    SocialPostVariant[]
+  publishJobs SocialPublishJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, status])
   @@index([orgId, status])
@@ -1593,51 +1647,51 @@ model SocialPost {
 }
 
 model SocialPostVariant {
-  id                String              @id @default(cuid())
-  postId            String
-  post              SocialPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  id     String     @id @default(cuid())
+  postId String
+  post   SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  platform          SocialPlatform
-  content           String              @db.Text
-  status            SocialVariantStatus @default(DRAFT)
-  aiGenerated       Boolean             @default(false)
-  metadata          Json?
+  platform    SocialPlatform
+  content     String              @db.Text
+  status      SocialVariantStatus @default(DRAFT)
+  aiGenerated Boolean             @default(false)
+  metadata    Json?
 
-  publishJobs       SocialPublishJob[]
+  publishJobs SocialPublishJob[]
 
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([postId, platform])
   @@index([platform, status])
 }
 
 model SocialPublishJob {
-  id                String                 @id @default(cuid())
-  userId            String
-  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId             String?
-  org               Organization?          @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  id     String        @id @default(cuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
-  postId            String
-  post              SocialPost             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId String
+  post   SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  variantId         String?
-  variant           SocialPostVariant?     @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantId String?
+  variant   SocialPostVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   channelConnectionId String?
-  channelConnection SocialChannelConnection? @relation(fields: [channelConnectionId], references: [id], onDelete: SetNull)
+  channelConnection   SocialChannelConnection? @relation(fields: [channelConnectionId], references: [id], onDelete: SetNull)
 
-  platform          SocialPlatform
-  status            SocialPublishJobStatus @default(PENDING)
-  scheduledFor      DateTime?
-  publishedAt       DateTime?
-  externalPostId    String?
-  errorMessage      String?                @db.Text
-  metadata          Json?
+  platform       SocialPlatform
+  status         SocialPublishJobStatus @default(PENDING)
+  scheduledFor   DateTime?
+  publishedAt    DateTime?
+  externalPostId String?
+  errorMessage   String?                @db.Text
+  metadata       Json?
 
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, status])
   @@index([orgId, status])
@@ -1648,35 +1702,35 @@ model SocialPublishJob {
 }
 
 model WhatsappContact {
-  id                String   @id @default(cuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId             String?
-  org               Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
-  customerId        String?
-  customer          Customer? @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId      String?
+  org        Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  customerId String?
+  customer   Customer?     @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
 
-  phone             String
-  fullName          String?
-  tags              String[]
-  location          String?
-  listLabel         String   @default("default")
-  metadata          Json?
+  phone     String
+  fullName  String?
+  tags      String[]
+  location  String?
+  listLabel String   @default("default")
+  metadata  Json?
 
-  optIn             Boolean  @default(false)
-  optInSource       String?
-  optInDate         DateTime?
+  optIn       Boolean   @default(false)
+  optInSource String?
+  optInDate   DateTime?
 
   lastMarketingSent DateTime?
-  excluded          Boolean  @default(false)
-  notes             String?  @db.Text
+  excluded          Boolean   @default(false)
+  notes             String?   @db.Text
 
-  listMemberships   WhatsappContactListMembership[]
-  recipients        WhatsappCampaignRecipient[]
-  sendEvents        WhatsappSendEvent[]
+  listMemberships WhatsappContactListMembership[]
+  recipients      WhatsappCampaignRecipient[]
+  sendEvents      WhatsappSendEvent[]
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([orgId, phone])
   @@index([userId, optIn, excluded])
@@ -1687,29 +1741,29 @@ model WhatsappContact {
 }
 
 model WhatsappContactListMembership {
-  id                String   @id @default(cuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId             String?
-  org               Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  id     String        @id @default(cuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
-  contactId         String
-  contact           WhatsappContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contactId String
+  contact   WhatsappContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
-  listLabel         String   @default("default")
-  fullName          String?
-  tags              String[]
-  location          String?
-  metadata          Json?
+  listLabel String   @default("default")
+  fullName  String?
+  tags      String[]
+  location  String?
+  metadata  Json?
 
-  optIn             Boolean  @default(false)
-  optInSource       String?
-  optInDate         DateTime?
-  excluded          Boolean  @default(false)
-  notes             String?  @db.Text
+  optIn       Boolean   @default(false)
+  optInSource String?
+  optInDate   DateTime?
+  excluded    Boolean   @default(false)
+  notes       String?   @db.Text
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([orgId, contactId, listLabel])
   @@index([userId, listLabel])
@@ -1718,14 +1772,14 @@ model WhatsappContactListMembership {
 }
 
 model WhatsappTemplate {
-  id             String                   @id @default(cuid())
-  userId         String
-  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId          String?
-  org            Organization?            @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  id     String        @id @default(cuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
-  connectionId   String?
-  connection     WhatsappConnection?      @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  connectionId String?
+  connection   WhatsappConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
 
   templateName   String
   language       String
@@ -1738,10 +1792,10 @@ model WhatsappTemplate {
   status         WhatsappTemplateStatus   @default(PENDING)
   lastSynced     DateTime?
 
-  campaigns      WhatsappCampaign[]
+  campaigns WhatsappCampaign[]
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([orgId, templateName, language])
   @@index([userId, status, category])
@@ -1749,44 +1803,44 @@ model WhatsappTemplate {
 }
 
 model WhatsappCampaign {
-  id                String                @id @default(cuid())
-  userId            String
-  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId             String?
-  org               Organization?         @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  id     String        @id @default(cuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
-  connectionId      String
-  connection        WhatsappConnection    @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  connectionId String
+  connection   WhatsappConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
 
-  templateId        String?
-  template          WhatsappTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateId String?
+  template   WhatsappTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
-  name              String
-  description       String?               @db.Text
-  templateName      String
-  templateLanguage  String
-  variableMappings  Json?
-  listLabel         String?
-  defaultBatchSize  Int?
+  name             String
+  description      String? @db.Text
+  templateName     String
+  templateLanguage String
+  variableMappings Json?
+  listLabel        String?
+  defaultBatchSize Int?
 
-  status            WhatsappCampaignStatus @default(DRAFT)
-  scheduledAt       DateTime?
-  launchedAt        DateTime?
-  completedAt       DateTime?
+  status      WhatsappCampaignStatus @default(DRAFT)
+  scheduledAt DateTime?
+  launchedAt  DateTime?
+  completedAt DateTime?
 
-  totalRecipients   Int                    @default(0)
-  sentCount         Int                    @default(0)
-  deliveredCount    Int                    @default(0)
-  readCount         Int                    @default(0)
-  failedCount       Int                    @default(0)
-  blockedCount      Int                    @default(0)
-  unsubscribedCount Int                    @default(0)
+  totalRecipients   Int @default(0)
+  sentCount         Int @default(0)
+  deliveredCount    Int @default(0)
+  readCount         Int @default(0)
+  failedCount       Int @default(0)
+  blockedCount      Int @default(0)
+  unsubscribedCount Int @default(0)
 
-  recipients        WhatsappCampaignRecipient[]
-  sendEvents        WhatsappSendEvent[]
+  recipients WhatsappCampaignRecipient[]
+  sendEvents WhatsappSendEvent[]
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, status])
   @@index([orgId, status])
@@ -1797,32 +1851,32 @@ model WhatsappCampaign {
 }
 
 model WhatsappCampaignRecipient {
-  id             String                 @id @default(cuid())
-  campaignId     String
-  campaign       WhatsappCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  id         String           @id @default(cuid())
+  campaignId String
+  campaign   WhatsappCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
-  contactId      String
-  contact        WhatsappContact        @relation(fields: [contactId], references: [id], onDelete: Restrict)
-  snapshotPhone      String?
-  snapshotFullName   String?
-  snapshotLocation   String?
-  snapshotListLabel  String?
-  snapshotMetadata   Json?
+  contactId         String
+  contact           WhatsappContact @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  snapshotPhone     String?
+  snapshotFullName  String?
+  snapshotLocation  String?
+  snapshotListLabel String?
+  snapshotMetadata  Json?
 
-  status         WhatsappRecipientStatus @default(PENDING)
-  waMessageId    String?
+  status      WhatsappRecipientStatus @default(PENDING)
+  waMessageId String?
 
-  sentAt         DateTime?
-  deliveredAt    DateTime?
-  readAt         DateTime?
-  failedAt       DateTime?
-  errorCode      String?
-  errorMessage   String?                @db.Text
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  failedAt     DateTime?
+  errorCode    String?
+  errorMessage String?   @db.Text
 
-  sendEvents     WhatsappSendEvent[]
+  sendEvents WhatsappSendEvent[]
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([campaignId, contactId])
   @@index([campaignId, status])
@@ -1831,28 +1885,28 @@ model WhatsappCampaignRecipient {
 }
 
 model WhatsappSendEvent {
-  id                   String                    @id @default(cuid())
-  userId               String
-  user                 User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId                String?
-  org                  Organization?             @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  id     String        @id @default(cuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
-  connectionId         String
-  connection           WhatsappConnection        @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connectionId String
+  connection   WhatsappConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
-  campaignId           String?
-  campaign             WhatsappCampaign?         @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaignId String?
+  campaign   WhatsappCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
-  recipientId          String?
-  recipient            WhatsappCampaignRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  recipientId String?
+  recipient   WhatsappCampaignRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
 
-  contactId            String?
-  contact              WhatsappContact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contactId String?
+  contact   WhatsappContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
-  phone                String
-  templateName         String
-  status               WhatsappRecipientStatus
-  whatsappMessageId    String?
+  phone                       String
+  templateName                String
+  status                      WhatsappRecipientStatus
+  whatsappMessageId           String?
   whatsappConversationId      String?
   whatsappConversationOrigin  String?
   whatsappConversationExpires DateTime?
@@ -1861,12 +1915,12 @@ model WhatsappSendEvent {
   whatsappPricingModel        String?
   whatsappPricingType         String?
 
-  requestPayload       Json?
-  responsePayload      Json?
-  errorCode            String?
-  errorMessage         String?                   @db.Text
+  requestPayload  Json?
+  responsePayload Json?
+  errorCode       String?
+  errorMessage    String? @db.Text
 
-  createdAt            DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([orgId, createdAt])

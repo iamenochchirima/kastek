@@ -39,6 +39,7 @@ hmac = "0.12"
 sha2 = "0.10"
 sha1 = "0.10"
 hex = "0.4"
+p256 = { version = "0.13", features = ["ecdsa"] }
 config = { path = "../crates/config" }
 crypto-utils = { path = "../crates/crypto-utils" }
 observability = { path = "../crates/observability" }

@@ -2,9 +2,9 @@ use actix_web::web;
 
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
-    admin_outreach, admin_quotations, admin_web_services, ai, auth, billing, bookings, bots, calls,
-    chat, connections, customers, health, inbox, notifications, onboarding, orgs, product_tour,
-    profile, public, realtime, social, whatsapp, whatsapp_calls, workspace,
+    admin_outreach, admin_quotations, admin_web_services, agent_internal, ai, auth, billing,
+    bookings, bots, calls, chat, connections, customers, health, inbox, notifications, onboarding,
+    orgs, product_tour, profile, public, realtime, social, whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -33,6 +33,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 )
                 .route("/{id}/events", web::post().to(bots::create_event)),
         )
+        .service(web::scope("/api/internal/agents/v1").route(
+            "/customers/{id}",
+            web::get().to(agent_internal::get_customer),
+        ))
         .route("/api/chat", web::post().to(chat::post))
         .route("/api/workspace/summary", web::get().to(workspace::summary))
         .service(
@@ -189,6 +193,37 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         .route(
                             "/linkedin/callback",
                             web::get().to(social::linkedin_oauth_callback),
+                        )
+                        .route("/threads/start", web::get().to(social::start_threads_oauth))
+                        .route(
+                            "/threads/callback",
+                            web::get().to(social::threads_oauth_callback),
+                        )
+                        .route(
+                            "/threads/uninstall",
+                            web::post().to(social::threads_uninstall_callback),
+                        )
+                        .route(
+                            "/threads/data-deletion",
+                            web::post().to(social::threads_data_deletion_callback),
+                        )
+                        .route(
+                            "/threads/data-deletion/status/{confirmation_code}",
+                            web::get().to(social::threads_data_deletion_status),
+                        )
+                        .route("/tiktok/start", web::get().to(social::start_tiktok_oauth))
+                        .route(
+                            "/tiktok/callback",
+                            web::get().to(social::tiktok_oauth_callback),
+                        )
+                        .route(
+                            "/bluesky/client-metadata",
+                            web::get().to(social::bluesky_client_metadata),
+                        )
+                        .route("/bluesky/start", web::get().to(social::start_bluesky_oauth))
+                        .route(
+                            "/bluesky/callback",
+                            web::get().to(social::bluesky_oauth_callback),
                         ),
                 )
                 .service(
@@ -200,6 +235,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::scope("/channels")
                         .route("", web::get().to(social::list_channels))
                         .route("", web::post().to(social::create_channel))
+                        .route(
+                            "/{id}/identity",
+                            web::post().to(social::refresh_channel_identity),
+                        )
+                        .route(
+                            "/{id}/tiktok-creator-info",
+                            web::get().to(social::tiktok_creator_info),
+                        )
                         .route("/{id}", web::patch().to(social::update_channel))
                         .route("/{id}", web::delete().to(social::delete_channel)),
                 )
@@ -375,6 +418,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             web::scope("/api/webhooks/meta")
                 .route("", web::get().to(inbox::verify_meta_webhook))
                 .route("", web::post().to(inbox::receive_meta_webhook)),
+        )
+        .route(
+            "/api/webhooks/tiktok",
+            web::post().to(social::receive_tiktok_webhook),
         )
         .service(
             web::scope("/api/webhooks/twilio")

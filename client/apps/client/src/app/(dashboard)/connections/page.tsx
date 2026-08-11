@@ -57,12 +57,18 @@ export default async function ConnectionsPage({
         ) : null}
 
         {params.connected === "instagram" ||
+        params.connected === "threads" ||
+        params.connected === "tiktok" ||
         params.connected === "linkedin" ||
         params.connected === "x" ? (
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
             Your{" "}
             {params.connected === "instagram"
               ? "Instagram"
+              : params.connected === "threads"
+                ? "Threads"
+                : params.connected === "tiktok"
+                  ? "TikTok"
               : params.connected === "linkedin"
                 ? "LinkedIn"
                 : "X"}{" "}

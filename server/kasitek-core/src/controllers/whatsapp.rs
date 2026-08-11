@@ -12,7 +12,7 @@ use crate::db::models::{
 };
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{billing, orgs, whatsapp};
+use crate::services::{billing, inbox, orgs, whatsapp};
 
 async fn require_campaigns_access(
     pool: &PgPool,
@@ -405,9 +405,17 @@ pub async fn verify_webhook(
 pub async fn receive_webhook(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
-    body: web::Json<serde_json::Value>,
+    req: HttpRequest,
+    body: web::Bytes,
 ) -> Result<HttpResponse, AppError> {
-    whatsapp::process_webhook_payload(pool.get_ref(), config.get_ref(), body.into_inner()).await?;
+    let signature = req
+        .headers()
+        .get("X-Hub-Signature-256")
+        .and_then(|value| value.to_str().ok());
+    inbox::verify_meta_webhook_signature(signature, &body)?;
+    let payload: serde_json::Value = serde_json::from_slice(&body)
+        .map_err(|_| AppError::BadRequest("Invalid WhatsApp webhook payload".to_string()))?;
+    whatsapp::process_webhook_payload(pool.get_ref(), config.get_ref(), payload).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "success": true,
         "queued": false

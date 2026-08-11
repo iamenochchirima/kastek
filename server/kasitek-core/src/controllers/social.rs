@@ -8,7 +8,7 @@ use crate::db::models::{
 };
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{billing, connections, orgs, social};
+use crate::services::{billing, bluesky_oauth, connections, orgs, social};
 
 async fn require_social_access(
     pool: &PgPool,
@@ -125,6 +125,17 @@ pub async fn create_channel(
     Ok(HttpResponse::Created().json(serde_json::json!({ "channel": channel })))
 }
 
+pub async fn tiktok_creator_info(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let creator = social::get_tiktok_creator_info(pool.get_ref(), &org_id, &path).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({"creator": creator})))
+}
+
 pub async fn update_channel(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -167,6 +178,17 @@ pub async fn update_channel(
         body.metadata.clone().or(existing.metadata.clone()),
     )
     .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "channel": channel })))
+}
+
+pub async fn refresh_channel_identity(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let channel = social::refresh_social_channel_identity(pool.get_ref(), &org_id, &path).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "channel": channel })))
 }
 
@@ -937,5 +959,338 @@ pub async fn linkedin_oauth_callback(
                 .max_age(actix_web::cookie::time::Duration::seconds(0))
                 .finish(),
         )
+        .finish())
+}
+
+fn oauth_state_cookie(
+    name: &'static str,
+    value: String,
+    secure: bool,
+) -> actix_web::cookie::Cookie<'static> {
+    actix_web::cookie::Cookie::build(name, value)
+        .path("/")
+        .http_only(true)
+        .same_site(actix_web::cookie::SameSite::Lax)
+        .secure(secure)
+        .finish()
+}
+
+fn clear_oauth_cookie(name: &'static str) -> actix_web::cookie::Cookie<'static> {
+    actix_web::cookie::Cookie::build(name, "")
+        .path("/")
+        .max_age(actix_web::cookie::time::Duration::seconds(0))
+        .finish()
+}
+
+pub async fn start_threads_oauth(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let state = social::create_threads_oauth_state();
+    let url = social::build_threads_authorize_url(config.get_ref(), &state)?;
+    Ok(HttpResponse::Found()
+        .append_header(("Location", url))
+        .cookie(oauth_state_cookie(
+            social::THREADS_STATE_COOKIE,
+            state,
+            config.is_production(),
+        ))
+        .finish())
+}
+
+pub async fn threads_oauth_callback(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<social::OAuthCallbackQuery>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    if let Some(error) = query.error.as_ref() {
+        let message = query.error_description.as_ref().unwrap_or(error);
+        return Ok(HttpResponse::Found()
+            .append_header((
+                "Location",
+                format!(
+                    "{}/connections?error={}",
+                    config.auth_url,
+                    urlencoding::encode(message)
+                ),
+            ))
+            .finish());
+    }
+    let state = query
+        .state
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Invalid Threads OAuth state".to_string()))?;
+    if req
+        .cookie(social::THREADS_STATE_COOKIE)
+        .map(|v| v.value() != state)
+        .unwrap_or(true)
+    {
+        return Err(AppError::BadRequest(
+            "Invalid Threads OAuth state".to_string(),
+        ));
+    }
+    let code = query
+        .code
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Threads OAuth code".to_string()))?;
+    let tokens = social::exchange_threads_code_for_token(config.get_ref(), code).await?;
+    let access = tokens
+        .access_token
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Threads access token".to_string()))?;
+    let profile = social::fetch_threads_profile(access).await?;
+    social::upsert_threads_connection_for_org(pool.get_ref(), &user.id, &org_id, &tokens, &profile)
+        .await?;
+    connections::sync_org_connections(pool.get_ref(), &org_id).await?;
+    Ok(HttpResponse::Found()
+        .append_header((
+            "Location",
+            format!("{}/connections?connected=threads", config.auth_url),
+        ))
+        .cookie(clear_oauth_cookie(social::THREADS_STATE_COOKIE))
+        .finish())
+}
+
+#[derive(serde::Deserialize)]
+pub struct ThreadsSignedRequestForm {
+    signed_request: String,
+}
+
+async fn sync_removed_threads_connections(pool: &PgPool, org_ids: Vec<String>) {
+    for org_id in org_ids {
+        if let Err(error) = connections::sync_org_connections(pool, &org_id).await {
+            log::warn!(
+                "failed to sync connections after Threads removal org_id={}: {}",
+                org_id,
+                error
+            );
+        }
+    }
+}
+
+pub async fn threads_uninstall_callback(
+    pool: web::Data<PgPool>,
+    body: web::Form<ThreadsSignedRequestForm>,
+) -> Result<HttpResponse, AppError> {
+    let external_user_id = social::verify_threads_signed_request(&body.signed_request)?;
+    let org_ids =
+        social::remove_threads_connection_data(pool.get_ref(), &external_user_id, None).await?;
+    sync_removed_threads_connections(pool.get_ref(), org_ids).await;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
+}
+
+pub async fn threads_data_deletion_callback(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    body: web::Form<ThreadsSignedRequestForm>,
+) -> Result<HttpResponse, AppError> {
+    let external_user_id = social::verify_threads_signed_request(&body.signed_request)?;
+    let confirmation_code = cuid2::create_id().replace('-', "");
+    let org_ids = social::remove_threads_connection_data(
+        pool.get_ref(),
+        &external_user_id,
+        Some(&confirmation_code),
+    )
+    .await?;
+    sync_removed_threads_connections(pool.get_ref(), org_ids).await;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "url": social::threads_data_deletion_status_url(config.get_ref(), &confirmation_code),
+        "confirmation_code": confirmation_code,
+    })))
+}
+
+pub async fn threads_data_deletion_status(
+    pool: web::Data<PgPool>,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let confirmation_code = path.into_inner();
+    if confirmation_code.len() > 128 {
+        return Ok(HttpResponse::NotFound()
+            .content_type("text/html; charset=utf-8")
+            .body("<!doctype html><title>Deletion request not found</title><h1>Deletion request not found</h1>"));
+    }
+    let Some(status) =
+        social::threads_data_deletion_status(pool.get_ref(), &confirmation_code).await?
+    else {
+        return Ok(HttpResponse::NotFound()
+            .content_type("text/html; charset=utf-8")
+            .body("<!doctype html><title>Deletion request not found</title><h1>Deletion request not found</h1>"));
+    };
+    let message = if status == "COMPLETED" {
+        "Your Threads connection data has been deleted from KasiTek."
+    } else {
+        "Your Threads data deletion request is being processed."
+    };
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(format!(
+            "<!doctype html><title>Threads data deletion</title><h1>Threads data deletion</h1><p>{message}</p>"
+        )))
+}
+
+pub async fn receive_tiktok_webhook(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    body: web::Bytes,
+) -> Result<HttpResponse, AppError> {
+    let signature = req
+        .headers()
+        .get("TikTok-Signature")
+        .and_then(|value| value.to_str().ok());
+    social::verify_tiktok_webhook_signature(signature, &body)?;
+    let payload = social::parse_tiktok_webhook_envelope(&body)?;
+    let inserted = social::record_tiktok_webhook_event(pool.get_ref(), &payload, &body).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "received": true,
+        "duplicate": !inserted,
+    })))
+}
+
+pub async fn start_tiktok_oauth(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let state = social::create_tiktok_oauth_state();
+    let url = social::build_tiktok_authorize_url(config.get_ref(), &state)?;
+    Ok(HttpResponse::Found()
+        .append_header(("Location", url))
+        .cookie(oauth_state_cookie(
+            social::TIKTOK_STATE_COOKIE,
+            state,
+            config.is_production(),
+        ))
+        .finish())
+}
+
+pub async fn tiktok_oauth_callback(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<social::OAuthCallbackQuery>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    if let Some(error) = query.error.as_ref() {
+        let message = query.error_description.as_ref().unwrap_or(error);
+        return Ok(HttpResponse::Found()
+            .append_header((
+                "Location",
+                format!(
+                    "{}/connections?error={}",
+                    config.auth_url,
+                    urlencoding::encode(message)
+                ),
+            ))
+            .finish());
+    }
+    let state = query
+        .state
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Invalid TikTok OAuth state".to_string()))?;
+    if req
+        .cookie(social::TIKTOK_STATE_COOKIE)
+        .map(|v| v.value() != state)
+        .unwrap_or(true)
+    {
+        return Err(AppError::BadRequest(
+            "Invalid TikTok OAuth state".to_string(),
+        ));
+    }
+    let code = query
+        .code
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing TikTok OAuth code".to_string()))?;
+    let tokens = social::exchange_tiktok_code_for_tokens(config.get_ref(), code).await?;
+    let access = tokens
+        .access_token
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing TikTok access token".to_string()))?;
+    let profile = social::fetch_tiktok_profile(access).await?;
+    social::upsert_tiktok_connection_for_org(pool.get_ref(), &user.id, &org_id, &tokens, &profile)
+        .await?;
+    connections::sync_org_connections(pool.get_ref(), &org_id).await?;
+    Ok(HttpResponse::Found()
+        .append_header((
+            "Location",
+            format!("{}/connections?connected=tiktok", config.auth_url),
+        ))
+        .cookie(clear_oauth_cookie(social::TIKTOK_STATE_COOKIE))
+        .finish())
+}
+
+pub async fn bluesky_client_metadata(
+    config: web::Data<AppConfig>,
+) -> Result<HttpResponse, AppError> {
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .json(bluesky_oauth::client_metadata(config.get_ref())?))
+}
+
+pub async fn start_bluesky_oauth(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<social::BlueskyOAuthStartQuery>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let handle = query
+        .handle
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Bluesky handle is required".to_string()))?;
+    let url =
+        bluesky_oauth::start(pool.get_ref(), config.get_ref(), &user.id, &org_id, handle).await?;
+    Ok(HttpResponse::Found()
+        .append_header(("Location", url))
+        .finish())
+}
+
+pub async fn bluesky_oauth_callback(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    query: web::Query<social::OAuthCallbackQuery>,
+) -> Result<HttpResponse, AppError> {
+    if let Some(error) = query.error.as_deref() {
+        return Err(AppError::BadRequest(
+            query
+                .error_description
+                .clone()
+                .unwrap_or_else(|| format!("Bluesky authorization failed: {error}")),
+        ));
+    }
+    let state = query
+        .state
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Bluesky OAuth state".to_string()))?;
+    let code = query
+        .code
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Bluesky OAuth code".to_string()))?;
+    let issuer = query
+        .iss
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Bluesky OAuth issuer".to_string()))?;
+    let authorization =
+        bluesky_oauth::complete(pool.get_ref(), config.get_ref(), state, code, issuer).await?;
+    let org_id = authorization.org_id.clone();
+    social::upsert_bluesky_oauth_connection_for_org(pool.get_ref(), &authorization).await?;
+    connections::sync_org_connections(pool.get_ref(), &org_id).await?;
+    Ok(HttpResponse::Found()
+        .append_header((
+            "Location",
+            format!("{}/connections?connected=bluesky", config.auth_url),
+        ))
         .finish())
 }

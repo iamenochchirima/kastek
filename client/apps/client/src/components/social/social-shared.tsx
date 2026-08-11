@@ -5,6 +5,7 @@ import {
   AtSign,
   CalendarRange,
   CheckCircle2,
+  Cloud,
   Clock3,
   Facebook,
   FileAudio,
@@ -15,6 +16,7 @@ import {
   Layers3,
   Linkedin,
   MessageCircleMore,
+  Music2,
   Send,
   Sparkles,
   X,
@@ -25,6 +27,8 @@ export type SocialPlatform =
   | "FACEBOOK"
   | "INSTAGRAM"
   | "THREADS"
+  | "TIKTOK"
+  | "BLUESKY"
   | "LINKEDIN"
   | "X"
   | "WHATSAPP_STATUS";
@@ -117,6 +121,8 @@ export const SOCIAL_PLATFORM_ORDER: SocialPlatform[] = [
   "FACEBOOK",
   "INSTAGRAM",
   "THREADS",
+  "TIKTOK",
+  "BLUESKY",
   "LINKEDIN",
   "X",
   "WHATSAPP_STATUS",
@@ -145,7 +151,27 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
   },
   THREADS: {
     canPublish: true,
-    supportsManualPublish: false,
+    supportsManualPublish: true,
+    supportsMediaUpload: false,
+    supportsComments: false,
+    supportsDMs: false,
+    supportsAnalytics: false,
+    supportsInbox: false,
+    supportsVariants: true,
+  },
+  TIKTOK: {
+    canPublish: true,
+    supportsManualPublish: true,
+    supportsMediaUpload: true,
+    supportsComments: false,
+    supportsDMs: false,
+    supportsAnalytics: false,
+    supportsInbox: false,
+    supportsVariants: true,
+  },
+  BLUESKY: {
+    canPublish: true,
+    supportsManualPublish: true,
     supportsMediaUpload: false,
     supportsComments: false,
     supportsDMs: false,
@@ -197,6 +223,8 @@ export function getPlatformLabel(platform: SocialPlatform) {
   if (platform === "FACEBOOK") return "Facebook";
   if (platform === "INSTAGRAM") return "Instagram";
   if (platform === "THREADS") return "Threads";
+  if (platform === "TIKTOK") return "TikTok";
+  if (platform === "BLUESKY") return "Bluesky";
   if (platform === "LINKEDIN") return "LinkedIn";
   if (platform === "X") return "X";
   return "WhatsApp Status";
@@ -206,6 +234,8 @@ export function getPlatformDescription(platform: SocialPlatform) {
   if (platform === "FACEBOOK") return "Community updates, offers, and local reach.";
   if (platform === "INSTAGRAM") return "Visual storytelling, reels, and product highlights.";
   if (platform === "THREADS") return "Conversation-led updates, perspective posts, and brand voice.";
+  if (platform === "TIKTOK") return "Short-form video concepts, hooks, and trend-aware storytelling.";
+  if (platform === "BLUESKY") return "Conversational updates and community-led brand discussion.";
   if (platform === "LINKEDIN") return "Professional updates and authority content.";
   if (platform === "X") return "Fast-moving commentary, launches, and live updates.";
   return "Short-form reminders and high-visibility status content.";
@@ -215,6 +245,8 @@ export function getPlatformIcon(platform: SocialPlatform): LucideIcon {
   if (platform === "FACEBOOK") return Facebook;
   if (platform === "INSTAGRAM") return Instagram;
   if (platform === "THREADS") return AtSign;
+  if (platform === "TIKTOK") return Music2;
+  if (platform === "BLUESKY") return Cloud;
   if (platform === "LINKEDIN") return Linkedin;
   if (platform === "X") return X;
   return MessageCircleMore;
@@ -222,7 +254,7 @@ export function getPlatformIcon(platform: SocialPlatform): LucideIcon {
 
 export function getPlatformTone(platform: SocialPlatform) {
   if (platform === "FACEBOOK" || platform === "LINKEDIN") return "border-status-info/30 bg-status-info-soft text-status-info";
-  if (platform === "INSTAGRAM" || platform === "THREADS" || platform === "X") return "border-border bg-secondary text-muted-foreground";
+  if (platform === "INSTAGRAM" || platform === "THREADS" || platform === "TIKTOK" || platform === "BLUESKY" || platform === "X") return "border-border bg-secondary text-muted-foreground";
   return "border-status-success/30 bg-status-success-soft text-status-success";
 }
 

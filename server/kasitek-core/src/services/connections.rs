@@ -188,10 +188,10 @@ async fn sync_capabilities(
                 ('CAMPAIGNS_SEND', 'feature.campaigns.send', ARRAY['WHATSAPP']),
                 ('TEMPLATES_MANAGE', 'feature.templates.manage', ARRAY['WHATSAPP']),
                 ('AGENT_CHANNEL', 'feature.agents.manage', ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM']),
-                ('SOCIAL_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'LINKEDIN', 'X', 'WHATSAPP_STATUS']),
+                ('SOCIAL_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'BLUESKY', 'LINKEDIN', 'X', 'WHATSAPP_STATUS']),
                 ('SOCIAL_ANALYTICS', 'feature.analytics.view', ARRAY['FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'X']),
                 ('COMMENTS_MANAGE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'X']),
-                ('MEDIA_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'X', 'WHATSAPP_STATUS']),
+                ('MEDIA_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'LINKEDIN', 'X', 'WHATSAPP_STATUS']),
                 ('CALLS_INBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_OUTBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_BROWSER', NULL::text, ARRAY['TWILIO'])

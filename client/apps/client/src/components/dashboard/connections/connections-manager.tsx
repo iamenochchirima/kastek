@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { WorkspaceConnection } from "@/lib/connections";
 import { apiUrl } from "@/lib/server-api";
@@ -13,6 +14,7 @@ import {
   Instagram,
   Linkedin,
   MessageCircle,
+  Music2,
   Radio,
   RefreshCw,
   Send,
@@ -48,6 +50,20 @@ const providerDetails = {
   THREADS: {
     label: "Threads",
     availableLabel: "Separate Meta integration",
+    icon: AtSign,
+    connectPath: "/api/social/oauth/threads/start",
+    connectLabel: "Connect",
+  },
+  TIKTOK: {
+    label: "TikTok",
+    availableLabel: "Available to connect",
+    icon: Music2,
+    connectPath: "/api/social/oauth/tiktok/start",
+    connectLabel: "Connect",
+  },
+  BLUESKY: {
+    label: "Bluesky",
+    availableLabel: "Authorize with Bluesky",
     icon: AtSign,
     connectPath: null,
     connectLabel: "Connect",
@@ -112,6 +128,8 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
   const [error, setError] = useState("");
   const [selectedConnection, setSelectedConnection] = useState<WorkspaceConnection | null>(null);
   const [connectionPicker, setConnectionPicker] = useState<"FACEBOOK" | "INSTAGRAM" | null>(null);
+  const [blueskyOpen, setBlueskyOpen] = useState(false);
+  const [blueskyHandle, setBlueskyHandle] = useState("");
   const groupedConnections = Object.entries(providerDetails)
     .map(([provider, detail]) => ({
       provider,
@@ -144,6 +162,13 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
 
   function beginWhatsappEmbeddedSignup() {
     window.dispatchEvent(new Event("kasitek:start-whatsapp-embedded-signup"));
+  }
+
+  function connectBluesky() {
+    setPending("bluesky:connect");
+    setError("");
+    const params = new URLSearchParams({ handle: blueskyHandle.trim().replace(/^@/, "") });
+    window.location.assign(apiUrl(`/api/social/oauth/bluesky/start?${params.toString()}`));
   }
 
   return (
@@ -204,6 +229,10 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       size="sm"
                       onClick={() => setConnectionPicker(provider)}
                     >
+                      {actionLabel}
+                    </Button>
+                  ) : provider === "BLUESKY" ? (
+                    <Button variant={connected > 0 ? "outline" : "default"} size="sm" onClick={() => setBlueskyOpen(true)}>
                       {actionLabel}
                     </Button>
                   ) : canConnect ? (
@@ -355,6 +384,17 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
               )}
             </div>
           ) : null}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={blueskyOpen} onOpenChange={setBlueskyOpen}>
+        <SheetContent side="right" className="w-full max-w-lg overflow-y-auto border-l border-border p-6 sm:w-[30rem]">
+          <div className="space-y-6">
+            <div><p className="text-sm font-medium text-muted-foreground">Connect an account</p><h2 className="mt-1 text-xl font-semibold">Bluesky</h2></div>
+            <p className="text-sm text-muted-foreground">Enter the account handle, then authorize KasiTek on the account provider&apos;s consent screen. Your Bluesky password is never shared with KasiTek.</p>
+            <label className="block space-y-2"><span className="text-sm font-medium">Handle</span><Input value={blueskyHandle} onChange={(event) => setBlueskyHandle(event.target.value)} placeholder="business.bsky.social" autoComplete="username" /></label>
+            <Button className="w-full" disabled={pending !== null || !blueskyHandle.trim()} onClick={connectBluesky}>{pending === "bluesky:connect" ? "Redirecting…" : "Continue to Bluesky"}</Button>
+          </div>
         </SheetContent>
       </Sheet>
 

@@ -1,10 +1,12 @@
-use base64::engine::general_purpose::STANDARD;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE, URL_SAFE_NO_PAD};
 use base64::Engine as _;
 use chrono::{DateTime, Duration, Utc};
 use crypto_utils::{
     decrypt_with_aes256_gcm, encrypt_with_aes256_gcm, generate_token, sha256_base64_url,
 };
+use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Transaction};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,7 +17,7 @@ use crate::db::models::{
     SocialPostVariantInput, SocialPublishJobRow,
 };
 use crate::error::AppError;
-use crate::services::billing;
+use crate::services::{billing, bluesky_oauth, connections};
 
 const X_AUTHORIZE_URL: &str = "https://twitter.com/i/oauth2/authorize";
 const X_TOKEN_URL: &str = "https://api.x.com/2/oauth2/token";
@@ -40,6 +42,20 @@ const LINKEDIN_AUTHORIZE_URL: &str = "https://www.linkedin.com/oauth/v2/authoriz
 const LINKEDIN_TOKEN_URL: &str = "https://www.linkedin.com/oauth/v2/accessToken";
 const LINKEDIN_USERINFO_URL: &str = "https://api.linkedin.com/v2/userinfo";
 const LINKEDIN_UGC_POSTS_URL: &str = "https://api.linkedin.com/v2/ugcPosts";
+const THREADS_AUTHORIZE_URL: &str = "https://threads.net/oauth/authorize";
+const THREADS_TOKEN_URL: &str = "https://graph.threads.net/oauth/access_token";
+const THREADS_GRAPH_BASE: &str = "https://graph.threads.net/v1.0";
+const TIKTOK_AUTHORIZE_URL: &str = "https://www.tiktok.com/v2/auth/authorize/";
+const TIKTOK_TOKEN_URL: &str = "https://open.tiktokapis.com/v2/oauth/token/";
+const TIKTOK_USER_URL: &str = "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,username";
+const TIKTOK_CREATOR_INFO_URL: &str =
+    "https://open.tiktokapis.com/v2/post/publish/creator_info/query/";
+const TIKTOK_PUBLISH_URL: &str = "https://open.tiktokapis.com/v2/post/publish/content/init/";
+const TIKTOK_STATUS_URL: &str = "https://open.tiktokapis.com/v2/post/publish/status/fetch/";
+
+type HmacSha256 = Hmac<Sha256>;
+
+const TIKTOK_WEBHOOK_MAX_AGE_SECONDS: i64 = 300;
 
 pub const X_STATE_COOKIE: &str = "kasitek_social_x_state";
 pub const X_VERIFIER_COOKIE: &str = "kasitek_social_x_verifier";
@@ -47,11 +63,15 @@ pub const META_STATE_COOKIE: &str = "kasitek_social_meta_state";
 pub const META_TARGET_COOKIE: &str = "kasitek_social_meta_target";
 pub const INSTAGRAM_STATE_COOKIE: &str = "kasitek_social_instagram_state";
 pub const LINKEDIN_STATE_COOKIE: &str = "kasitek_social_linkedin_state";
+pub const THREADS_STATE_COOKIE: &str = "kasitek_social_threads_state";
+pub const TIKTOK_STATE_COOKIE: &str = "kasitek_social_tiktok_state";
 
 const SOCIAL_PLATFORMS: &[&str] = &[
     "FACEBOOK",
     "INSTAGRAM",
     "THREADS",
+    "TIKTOK",
+    "BLUESKY",
     "LINKEDIN",
     "X",
     "WHATSAPP_STATUS",
@@ -92,7 +112,27 @@ pub fn platform_capabilities(platform: &str) -> Value {
         }),
         "THREADS" => json!({
             "canPublish": true,
-            "supportsManualPublish": false,
+            "supportsManualPublish": true,
+            "supportsMediaUpload": false,
+            "supportsComments": false,
+            "supportsDMs": false,
+            "supportsAnalytics": false,
+            "supportsInbox": false,
+            "supportsVariants": true,
+        }),
+        "TIKTOK" => json!({
+            "canPublish": true,
+            "supportsManualPublish": true,
+            "supportsMediaUpload": true,
+            "supportsComments": false,
+            "supportsDMs": false,
+            "supportsAnalytics": false,
+            "supportsInbox": false,
+            "supportsVariants": true,
+        }),
+        "BLUESKY" => json!({
+            "canPublish": true,
+            "supportsManualPublish": true,
             "supportsMediaUpload": false,
             "supportsComments": false,
             "supportsDMs": false,
@@ -173,8 +213,14 @@ pub struct XOAuthState {
 pub struct OAuthCallbackQuery {
     pub code: Option<String>,
     pub state: Option<String>,
+    pub iss: Option<String>,
     pub error: Option<String>,
     pub error_description: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct BlueskyOAuthStartQuery {
+    pub handle: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -274,12 +320,186 @@ fn parse_optional_datetime(value: &Option<String>) -> Result<Option<DateTime<Utc
     }
 }
 
+fn token_expires_within(metadata: &Option<Value>, duration: Duration) -> bool {
+    metadata
+        .as_ref()
+        .and_then(|value| value.get("expiresAt"))
+        .and_then(Value::as_str)
+        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+        .map(|expires_at| expires_at.with_timezone(&Utc) <= Utc::now() + duration)
+        .unwrap_or(false)
+}
+
 fn social_app_url(config: &AppConfig) -> String {
     config.auth_url.trim_end_matches('/').to_string()
 }
 
 fn required_env(name: &str) -> Result<String, AppError> {
     std::env::var(name).map_err(|_| AppError::Internal(format!("{name} is required")))
+}
+
+fn decode_threads_signed_request(
+    signed_request: &str,
+    app_secret: &str,
+) -> Result<String, AppError> {
+    let (encoded_signature, encoded_payload) = signed_request
+        .split_once('.')
+        .ok_or_else(|| AppError::BadRequest("Invalid Threads signed request".to_string()))?;
+    if encoded_signature.is_empty() || encoded_payload.is_empty() {
+        return Err(AppError::BadRequest(
+            "Invalid Threads signed request".to_string(),
+        ));
+    }
+
+    let signature = URL_SAFE_NO_PAD
+        .decode(encoded_signature)
+        .or_else(|_| URL_SAFE.decode(encoded_signature))
+        .map_err(|_| AppError::BadRequest("Invalid Threads signed request".to_string()))?;
+    let mut mac = HmacSha256::new_from_slice(app_secret.as_bytes())
+        .map_err(|_| AppError::Internal("Invalid Threads app secret".to_string()))?;
+    mac.update(encoded_payload.as_bytes());
+    mac.verify_slice(&signature)
+        .map_err(|_| AppError::Unauthorized)?;
+
+    let payload_bytes = URL_SAFE_NO_PAD
+        .decode(encoded_payload)
+        .or_else(|_| URL_SAFE.decode(encoded_payload))
+        .map_err(|_| AppError::BadRequest("Invalid Threads signed request".to_string()))?;
+    let payload: Value = serde_json::from_slice(&payload_bytes)
+        .map_err(|_| AppError::BadRequest("Invalid Threads signed request".to_string()))?;
+    let algorithm = payload
+        .get("algorithm")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::BadRequest("Missing Threads signature algorithm".to_string()))?;
+    if !algorithm.eq_ignore_ascii_case("HMAC-SHA256") {
+        return Err(AppError::BadRequest(
+            "Unsupported Threads signature algorithm".to_string(),
+        ));
+    }
+
+    let user_id = match payload.get("user_id") {
+        Some(Value::String(value)) => value.clone(),
+        Some(Value::Number(value)) => value.to_string(),
+        _ => {
+            return Err(AppError::BadRequest(
+                "Missing Threads user identifier".to_string(),
+            ))
+        }
+    };
+    if user_id.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "Missing Threads user identifier".to_string(),
+        ));
+    }
+    Ok(user_id)
+}
+
+pub fn verify_threads_signed_request(signed_request: &str) -> Result<String, AppError> {
+    decode_threads_signed_request(signed_request, &required_env("AUTH_THREADS_APP_SECRET")?)
+}
+
+pub fn threads_data_deletion_status_url(config: &AppConfig, confirmation_code: &str) -> String {
+    format!(
+        "{}/api/social/oauth/threads/data-deletion/status/{}",
+        social_app_url(config),
+        urlencoding::encode(confirmation_code)
+    )
+}
+
+pub fn verify_tiktok_webhook_signature(
+    signature_header: Option<&str>,
+    body: &[u8],
+) -> Result<(), AppError> {
+    let secret = required_env("AUTH_TIKTOK_CLIENT_SECRET")?;
+    let max_age = std::env::var("TIKTOK_WEBHOOK_MAX_AGE_SECONDS")
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(TIKTOK_WEBHOOK_MAX_AGE_SECONDS)
+        .clamp(30, 3600);
+    verify_tiktok_webhook_signature_at(
+        signature_header,
+        body,
+        &secret,
+        Utc::now().timestamp(),
+        max_age,
+    )
+}
+
+fn verify_tiktok_webhook_signature_at(
+    signature_header: Option<&str>,
+    body: &[u8],
+    secret: &str,
+    now_timestamp: i64,
+    max_age: i64,
+) -> Result<(), AppError> {
+    let header = signature_header.ok_or(AppError::Unauthorized)?;
+    let mut timestamp = None;
+    let mut signature = None;
+    for item in header.split(',') {
+        let Some((key, value)) = item.trim().split_once('=') else {
+            continue;
+        };
+        match key.trim() {
+            "t" => timestamp = value.trim().parse::<i64>().ok(),
+            "s" => signature = Some(value.trim()),
+            _ => {}
+        }
+    }
+    let timestamp = timestamp.ok_or(AppError::Unauthorized)?;
+    if (now_timestamp - timestamp).abs() > max_age {
+        return Err(AppError::Unauthorized);
+    }
+    let received = hex::decode(signature.ok_or(AppError::Unauthorized)?)
+        .map_err(|_| AppError::Unauthorized)?;
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|_| AppError::Internal("Invalid TikTok client secret".to_string()))?;
+    mac.update(timestamp.to_string().as_bytes());
+    mac.update(b".");
+    mac.update(body);
+    mac.verify_slice(&received)
+        .map_err(|_| AppError::Unauthorized)
+}
+
+pub fn parse_tiktok_webhook_envelope(body: &[u8]) -> Result<Value, AppError> {
+    let payload: Value = serde_json::from_slice(body)
+        .map_err(|_| AppError::BadRequest("Invalid TikTok webhook payload".to_string()))?;
+    let expected_key = required_env("AUTH_TIKTOK_CLIENT_KEY")?;
+    let client_key = payload
+        .get("client_key")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::BadRequest("TikTok webhook is missing client_key".to_string()))?;
+    if client_key != expected_key {
+        return Err(AppError::Forbidden(
+            "TikTok webhook client key mismatch".to_string(),
+        ));
+    }
+    if payload.get("event").and_then(Value::as_str).is_none() {
+        return Err(AppError::BadRequest(
+            "TikTok webhook is missing event".to_string(),
+        ));
+    }
+    Ok(payload)
+}
+
+pub async fn record_tiktok_webhook_event(
+    pool: &PgPool,
+    payload: &Value,
+    body: &[u8],
+) -> Result<bool, AppError> {
+    let event_key = hex::encode(Sha256::digest(body));
+    let event_type = payload
+        .get("event")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let external_account_id = payload.get("user_openid").and_then(Value::as_str);
+    let result = sqlx::query(r#"
+        INSERT INTO "SocialWebhookEvent" (id, provider, "eventKey", "eventType", "externalAccountId", payload, status, attempts, "nextAttemptAt", "receivedAt", "createdAt", "updatedAt")
+        VALUES ($1, 'TIKTOK', $2, $3, $4, $5, 'RECEIVED', 0, NOW(), NOW(), NOW(), NOW())
+        ON CONFLICT (provider, "eventKey") DO NOTHING
+    "#)
+    .bind(cuid2::create_id()).bind(event_key).bind(event_type).bind(external_account_id).bind(payload)
+    .execute(pool).await?;
+    Ok(result.rows_affected() == 1)
 }
 
 fn encryption_secret() -> Result<String, AppError> {
@@ -345,6 +565,47 @@ pub fn create_meta_oauth_state() -> String {
 
 pub fn create_instagram_oauth_state() -> String {
     cuid2::create_id().replace('-', "")
+}
+
+pub fn create_threads_oauth_state() -> String {
+    cuid2::create_id().replace('-', "")
+}
+pub fn create_tiktok_oauth_state() -> String {
+    cuid2::create_id().replace('-', "")
+}
+
+pub fn build_threads_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
+    let client_id = required_env("AUTH_THREADS_APP_ID")?;
+    let redirect_uri = format!(
+        "{}/api/social/oauth/threads/callback",
+        social_app_url(config)
+    );
+    let scope = std::env::var("AUTH_THREADS_SCOPES")
+        .unwrap_or_else(|_| "threads_basic,threads_content_publish".to_string());
+    Ok(format!(
+        "{THREADS_AUTHORIZE_URL}?client_id={}&redirect_uri={}&scope={}&response_type=code&state={}",
+        urlencoding::encode(&client_id),
+        urlencoding::encode(&redirect_uri),
+        urlencoding::encode(&scope),
+        urlencoding::encode(state)
+    ))
+}
+
+pub fn build_tiktok_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
+    let client_key = required_env("AUTH_TIKTOK_CLIENT_KEY")?;
+    let redirect_uri = format!(
+        "{}/api/social/oauth/tiktok/callback",
+        social_app_url(config)
+    );
+    let scope = std::env::var("AUTH_TIKTOK_SCOPES")
+        .unwrap_or_else(|_| "user.info.basic,video.publish".to_string());
+    Ok(format!(
+        "{TIKTOK_AUTHORIZE_URL}?client_key={}&redirect_uri={}&scope={}&response_type=code&state={}",
+        urlencoding::encode(&client_key),
+        urlencoding::encode(&redirect_uri),
+        urlencoding::encode(&scope),
+        urlencoding::encode(state)
+    ))
 }
 
 pub fn build_linkedin_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
@@ -604,6 +865,140 @@ pub async fn fetch_linkedin_profile(access_token: &str) -> Result<LinkedInProfil
     }
 
     Ok(profile)
+}
+
+#[derive(Clone, serde::Deserialize)]
+pub struct ThreadsTokenResponse {
+    pub access_token: Option<String>,
+    pub expires_in: Option<i64>,
+}
+
+#[derive(Clone, serde::Deserialize)]
+pub struct ThreadsProfile {
+    pub id: String,
+    pub username: Option<String>,
+    pub name: Option<String>,
+    pub threads_profile_picture_url: Option<String>,
+}
+
+pub async fn exchange_threads_code_for_token(
+    config: &AppConfig,
+    code: &str,
+) -> Result<ThreadsTokenResponse, AppError> {
+    let client_id = required_env("AUTH_THREADS_APP_ID")?;
+    let client_secret = required_env("AUTH_THREADS_APP_SECRET")?;
+    let redirect_uri = format!(
+        "{}/api/social/oauth/threads/callback",
+        social_app_url(config)
+    );
+    let short: ThreadsTokenResponse = fetch_json(
+        reqwest::Client::new().post(THREADS_TOKEN_URL).form(&[
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("grant_type", "authorization_code".to_string()),
+            ("redirect_uri", redirect_uri),
+            ("code", code.to_string()),
+        ]),
+        "Threads OAuth exchange failed",
+    )
+    .await?;
+    let access = short.access_token.as_deref().ok_or_else(|| {
+        AppError::BadRequest("Threads did not return an access token".to_string())
+    })?;
+    let long_url = format!("https://graph.threads.net/access_token?grant_type=th_exchange_token&client_secret={}&access_token={}",
+        urlencoding::encode(&required_env("AUTH_THREADS_APP_SECRET")?), urlencoding::encode(access));
+    fetch_json(
+        reqwest::Client::new().get(long_url),
+        "Threads long-lived token exchange failed",
+    )
+    .await
+}
+
+pub async fn fetch_threads_profile(access_token: &str) -> Result<ThreadsProfile, AppError> {
+    fetch_json(
+        reqwest::Client::new()
+            .get(format!(
+                "{THREADS_GRAPH_BASE}/me?fields=id,username,name,threads_profile_picture_url"
+            ))
+            .bearer_auth(access_token),
+        "Failed to fetch Threads profile",
+    )
+    .await
+}
+
+#[derive(Clone, serde::Deserialize)]
+pub struct TikTokTokenResponse {
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
+    pub open_id: Option<String>,
+    pub expires_in: Option<i64>,
+    pub refresh_expires_in: Option<i64>,
+    pub scope: Option<String>,
+}
+
+#[derive(Clone, serde::Deserialize)]
+pub struct TikTokProfile {
+    pub open_id: Option<String>,
+    pub display_name: Option<String>,
+    pub username: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct TikTokUserEnvelope {
+    data: Option<TikTokUserData>,
+    error: Option<Value>,
+}
+#[derive(serde::Deserialize)]
+struct TikTokUserData {
+    user: Option<TikTokProfile>,
+}
+
+pub async fn exchange_tiktok_code_for_tokens(
+    config: &AppConfig,
+    code: &str,
+) -> Result<TikTokTokenResponse, AppError> {
+    let redirect_uri = format!(
+        "{}/api/social/oauth/tiktok/callback",
+        social_app_url(config)
+    );
+    fetch_json(
+        reqwest::Client::new().post(TIKTOK_TOKEN_URL).form(&[
+            ("client_key", required_env("AUTH_TIKTOK_CLIENT_KEY")?),
+            ("client_secret", required_env("AUTH_TIKTOK_CLIENT_SECRET")?),
+            ("code", code.to_string()),
+            ("grant_type", "authorization_code".to_string()),
+            ("redirect_uri", redirect_uri),
+        ]),
+        "TikTok OAuth exchange failed",
+    )
+    .await
+}
+
+pub async fn fetch_tiktok_profile(access_token: &str) -> Result<TikTokProfile, AppError> {
+    let envelope: TikTokUserEnvelope = fetch_json(
+        reqwest::Client::new()
+            .get(TIKTOK_USER_URL)
+            .bearer_auth(access_token),
+        "Failed to fetch TikTok profile",
+    )
+    .await?;
+    if let Some(error) = envelope.error.as_ref() {
+        let code = error.get("code").and_then(Value::as_str).unwrap_or("ok");
+        if code != "ok" {
+            return Err(AppError::BadRequest(
+                error
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or(code)
+                    .to_string(),
+            ));
+        }
+    }
+    envelope
+        .data
+        .and_then(|data| data.user)
+        .ok_or_else(|| AppError::BadRequest("TikTok did not return a user profile".to_string()))
 }
 
 #[derive(Clone, serde::Deserialize)]
@@ -932,6 +1327,34 @@ pub async fn fetch_page_instagram_account(
     Ok(response
         .connected_instagram_account
         .or(response.instagram_business_account))
+}
+
+async fn fetch_meta_page_identity(
+    access_token: &str,
+    page_id: &str,
+) -> Result<MetaPageAccount, AppError> {
+    fetch_json(
+        reqwest::Client::new()
+            .get(format!("{META_GRAPH_BASE}/{page_id}"))
+            .query(&[("fields", "id,name,username,picture{url}")])
+            .bearer_auth(access_token),
+        "Failed to load Facebook Page profile",
+    )
+    .await
+}
+
+async fn fetch_meta_instagram_identity(
+    access_token: &str,
+    instagram_account_id: &str,
+) -> Result<MetaInstagramAccount, AppError> {
+    fetch_json(
+        reqwest::Client::new()
+            .get(format!("{META_GRAPH_BASE}/{instagram_account_id}"))
+            .query(&[("fields", "id,username,name,profile_picture_url")])
+            .bearer_auth(access_token),
+        "Failed to load Instagram profile",
+    )
+    .await
 }
 
 pub async fn subscribe_meta_page_webhooks(
@@ -1553,6 +1976,122 @@ async fn get_social_channel_by_external_account(
         .map_err(AppError::from)
 }
 
+async fn upsert_provider_connection(
+    pool: &PgPool,
+    user_id: &str,
+    org_id: &str,
+    platform: &str,
+    display_name: &str,
+    handle: Option<String>,
+    external_id: &str,
+    access_token: &str,
+    refresh_token: Option<&str>,
+    metadata: Value,
+) -> Result<SocialChannel, AppError> {
+    let access = encrypt_social_secret(access_token)?;
+    let refresh = match refresh_token {
+        Some(value) => Some(encrypt_social_secret(value)?),
+        None => None,
+    };
+    let sql = format!(
+        r#"
+        INSERT INTO "SocialChannelConnection" (id, "userId", "orgId", platform, status, "displayName", handle,
+          "externalAccountId", "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt")
+        VALUES ($1,$2,$3,'{platform}'::"SocialPlatform",'CONNECTED'::"SocialChannelStatus",$4,$5,$6,$7,$8,$9,NOW(),NOW(),NOW())
+        ON CONFLICT ("orgId", platform, "externalAccountId") DO UPDATE SET "userId"=EXCLUDED."userId",
+          status='CONNECTED'::"SocialChannelStatus", "displayName"=EXCLUDED."displayName", handle=EXCLUDED.handle,
+          "accessToken"=EXCLUDED."accessToken", "refreshToken"=EXCLUDED."refreshToken", metadata=EXCLUDED.metadata,
+          "lastSyncedAt"=NOW(), "updatedAt"=NOW()"#
+    );
+    sqlx::query(&sql)
+        .bind(cuid2::create_id())
+        .bind(user_id)
+        .bind(org_id)
+        .bind(display_name)
+        .bind(handle)
+        .bind(external_id)
+        .bind(access)
+        .bind(refresh)
+        .bind(merge_channel_metadata_with_capabilities(
+            platform,
+            Some(metadata),
+        ))
+        .execute(pool)
+        .await?;
+    get_social_channel_by_external_account(pool, org_id, platform, external_id)
+        .await?
+        .ok_or_else(|| AppError::Internal(format!("Failed to load saved {platform} connection")))
+}
+
+pub async fn upsert_threads_connection_for_org(
+    pool: &PgPool,
+    user_id: &str,
+    org_id: &str,
+    tokens: &ThreadsTokenResponse,
+    profile: &ThreadsProfile,
+) -> Result<SocialChannel, AppError> {
+    let access = tokens
+        .access_token
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Threads access token".to_string()))?;
+    upsert_provider_connection(pool, user_id, org_id, "THREADS",
+        profile.name.as_deref().or(profile.username.as_deref()).unwrap_or("Threads account"),
+        profile.username.as_ref().map(|v| format!("@{v}")), &profile.id, access, None,
+        json!({"provider":"threads","expiresAt":tokens.expires_in.map(|s|(Utc::now()+Duration::seconds(s)).to_rfc3339()),"avatarUrl":profile.threads_profile_picture_url})).await
+}
+
+pub async fn upsert_tiktok_connection_for_org(
+    pool: &PgPool,
+    user_id: &str,
+    org_id: &str,
+    tokens: &TikTokTokenResponse,
+    profile: &TikTokProfile,
+) -> Result<SocialChannel, AppError> {
+    let access = tokens
+        .access_token
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing TikTok access token".to_string()))?;
+    let open_id = profile
+        .open_id
+        .as_deref()
+        .or(tokens.open_id.as_deref())
+        .ok_or_else(|| {
+            AppError::BadRequest("TikTok did not return an account identifier".to_string())
+        })?;
+    upsert_provider_connection(pool, user_id, org_id, "TIKTOK",
+        profile.display_name.as_deref().or(profile.username.as_deref()).unwrap_or("TikTok account"),
+        profile.username.as_ref().map(|v| format!("@{v}")), open_id, access, tokens.refresh_token.as_deref(),
+        json!({"provider":"tiktok","scope":tokens.scope,"expiresAt":tokens.expires_in.map(|s|(Utc::now()+Duration::seconds(s)).to_rfc3339()),"refreshExpiresAt":tokens.refresh_expires_in.map(|s|(Utc::now()+Duration::seconds(s)).to_rfc3339()),"avatarUrl":profile.avatar_url})).await
+}
+
+pub async fn upsert_bluesky_oauth_connection_for_org(
+    pool: &PgPool,
+    authorization: &crate::services::bluesky_oauth::CompletedAuthorization,
+) -> Result<SocialChannel, AppError> {
+    upsert_provider_connection(
+        pool,
+        &authorization.user_id,
+        &authorization.org_id,
+        "BLUESKY",
+        &authorization.handle,
+        Some(format!("@{}", authorization.handle)),
+        &authorization.did,
+        &authorization.access_token,
+        Some(&authorization.refresh_token),
+        json!({
+            "provider":"bluesky",
+            "authMethod":"oauth",
+            "pds":authorization.pds_url,
+            "authorizationServer":authorization.authorization_url,
+            "dpopPrivateKey":encrypt_social_secret(&authorization.dpop_private_key)?,
+            "dpopAuthorizationNonce":authorization.authorization_nonce,
+            "scope":authorization.scope,
+            "expiresAt":authorization.expires_in.map(|seconds|(Utc::now()+Duration::seconds(seconds)).to_rfc3339())
+        }),
+    )
+    .await
+}
+
 pub async fn list_social_channels(
     pool: &PgPool,
     org_id: &str,
@@ -1593,6 +2132,160 @@ pub async fn get_social_channel(
     .fetch_optional(pool)
     .await
     .map_err(AppError::from)
+}
+
+async fn get_social_channel_private_by_id(
+    pool: &PgPool,
+    org_id: &str,
+    id: &str,
+) -> Result<Option<SocialChannelPrivate>, AppError> {
+    sqlx::query_as::<_, SocialChannelPrivate>(
+        r#"
+        SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
+               "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
+               "accessToken" AS access_token, "refreshToken" AS refresh_token,
+               metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "SocialChannelConnection"
+        WHERE id = $1 AND "orgId" = $2
+        LIMIT 1
+        "#,
+    )
+    .bind(id)
+    .bind(org_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+pub async fn refresh_social_channel_identity(
+    pool: &PgPool,
+    org_id: &str,
+    channel_id: &str,
+) -> Result<SocialChannel, AppError> {
+    let channel = get_social_channel_private_by_id(pool, org_id, channel_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
+    let encrypted_access_token = channel.access_token.as_deref().ok_or_else(|| {
+        AppError::BadRequest("Reconnect this account to refresh its profile image".to_string())
+    })?;
+    let access_token = decrypt_social_secret(encrypted_access_token)?;
+    let external_account_id = channel.external_account_id.as_deref().ok_or_else(|| {
+        AppError::BadRequest(
+            "This account does not have a provider identity to refresh".to_string(),
+        )
+    })?;
+
+    let mut display_name = channel.display_name.clone();
+    let mut handle = channel.handle.clone();
+    let mut metadata = channel.metadata.clone().unwrap_or_else(|| json!({}));
+    if !metadata.is_object() {
+        metadata = json!({});
+    }
+
+    let (avatar_key, avatar_url) = match channel.platform.as_str() {
+        "FACEBOOK" => {
+            let profile = fetch_meta_page_identity(&access_token, external_account_id).await?;
+            if let Some(name) = profile.name.filter(|value| !value.trim().is_empty()) {
+                display_name = name;
+            }
+            handle = profile
+                .username
+                .filter(|value| !value.trim().is_empty())
+                .map(|value| format!("@{value}"));
+            (
+                "pictureUrl",
+                profile
+                    .picture
+                    .and_then(|picture| picture.data)
+                    .and_then(|data| data.url),
+            )
+        }
+        "INSTAGRAM" => {
+            let uses_instagram_login = channel
+                .metadata
+                .as_ref()
+                .and_then(|value| value.get("authMethod"))
+                .and_then(Value::as_str)
+                == Some("instagram_login");
+            if uses_instagram_login {
+                let profile = fetch_instagram_profile(&access_token).await?;
+                if let Some(name) = profile.name.filter(|value| !value.trim().is_empty()) {
+                    display_name = name;
+                }
+                handle = profile
+                    .username
+                    .filter(|value| !value.trim().is_empty())
+                    .map(|value| format!("@{value}"));
+                ("profilePictureUrl", profile.profile_picture_url)
+            } else {
+                let profile =
+                    fetch_meta_instagram_identity(&access_token, external_account_id).await?;
+                if let Some(name) = profile.name.filter(|value| !value.trim().is_empty()) {
+                    display_name = name;
+                }
+                handle = profile
+                    .username
+                    .filter(|value| !value.trim().is_empty())
+                    .map(|value| format!("@{value}"));
+                ("profilePictureUrl", profile.profile_picture_url)
+            }
+        }
+        "X" => {
+            let profile = fetch_x_me(&access_token).await?;
+            if let Some(name) = profile.name.filter(|value| !value.trim().is_empty()) {
+                display_name = name;
+            }
+            handle = profile
+                .username
+                .filter(|value| !value.trim().is_empty())
+                .map(|value| format!("@{value}"));
+            ("avatarUrl", profile.profile_image_url)
+        }
+        "LINKEDIN" => {
+            let profile = fetch_linkedin_profile(&access_token).await?;
+            if let Some(name) = profile.name.filter(|value| !value.trim().is_empty()) {
+                display_name = name;
+            }
+            ("picture", profile.picture)
+        }
+        _ => {
+            return Err(AppError::BadRequest(
+                "This connection does not provide a profile image".to_string(),
+            ));
+        }
+    };
+
+    if let Some(avatar_url) = avatar_url.filter(|value| !value.trim().is_empty()) {
+        metadata
+            .as_object_mut()
+            .expect("metadata object is ensured above")
+            .insert(avatar_key.to_string(), Value::String(avatar_url));
+    }
+
+    let metadata = merge_channel_metadata_with_capabilities(&channel.platform, Some(metadata));
+    sqlx::query(
+        r#"
+        UPDATE "SocialChannelConnection"
+        SET "displayName" = $1,
+            handle = $2,
+            metadata = $3,
+            "lastSyncedAt" = NOW(),
+            "updatedAt" = NOW()
+        WHERE id = $4 AND "orgId" = $5
+        "#,
+    )
+    .bind(display_name)
+    .bind(handle)
+    .bind(metadata)
+    .bind(channel_id)
+    .bind(org_id)
+    .execute(pool)
+    .await?;
+
+    get_social_channel(pool, org_id, channel_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Failed to load refreshed social account".to_string()))
 }
 
 pub async fn create_social_channel(
@@ -1695,6 +2388,401 @@ pub async fn delete_social_channel(
             .execute(pool)
             .await?;
     Ok(result.rows_affected() == 1)
+}
+
+pub async fn remove_threads_connection_data(
+    pool: &PgPool,
+    external_user_id: &str,
+    confirmation_code: Option<&str>,
+) -> Result<Vec<String>, AppError> {
+    let mut tx = pool.begin().await?;
+    let org_ids = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT DISTINCT "orgId"
+        FROM "SocialChannelConnection"
+        WHERE platform = 'THREADS'::"SocialPlatform"
+          AND "externalAccountId" = $1
+          AND "orgId" IS NOT NULL
+        "#,
+    )
+    .bind(external_user_id)
+    .fetch_all(tx.as_mut())
+    .await?;
+
+    // Keep user-authored Content records, but remove identifiers and metadata returned by Threads.
+    sqlx::query(
+        r#"
+        UPDATE "SocialPost"
+        SET "primaryChannelId" = CASE
+                WHEN "primaryChannelId" IN (
+                    SELECT id
+                    FROM "SocialChannelConnection"
+                    WHERE platform = 'THREADS'::"SocialPlatform"
+                      AND "externalAccountId" = $1
+                ) THEN NULL
+                ELSE "primaryChannelId"
+            END,
+            metadata = CASE
+                WHEN metadata->>'latestPublishedPlatform' = 'THREADS'
+                    THEN metadata - 'latestPublishedPostId' - 'latestPublishedPlatform'
+                ELSE metadata
+            END,
+            "updatedAt" = NOW()
+        WHERE "primaryChannelId" IN (
+                  SELECT id
+                  FROM "SocialChannelConnection"
+                  WHERE platform = 'THREADS'::"SocialPlatform"
+                    AND "externalAccountId" = $1
+              )
+           OR id IN (
+                  SELECT job."postId"
+                  FROM "SocialPublishJob" job
+                  JOIN "SocialChannelConnection" channel
+                    ON channel.id = job."channelConnectionId"
+                  WHERE channel.platform = 'THREADS'::"SocialPlatform"
+                    AND channel."externalAccountId" = $1
+              )
+        "#,
+    )
+    .bind(external_user_id)
+    .execute(tx.as_mut())
+    .await?;
+
+    sqlx::query(
+        r#"
+        UPDATE "SocialPublishJob"
+        SET "externalPostId" = NULL,
+            metadata = NULL,
+            "channelConnectionId" = NULL,
+            "updatedAt" = NOW()
+        WHERE "channelConnectionId" IN (
+            SELECT id
+            FROM "SocialChannelConnection"
+            WHERE platform = 'THREADS'::"SocialPlatform"
+              AND "externalAccountId" = $1
+        )
+        "#,
+    )
+    .bind(external_user_id)
+    .execute(tx.as_mut())
+    .await?;
+
+    sqlx::query(
+        r#"
+        DELETE FROM "SocialChannelConnection"
+        WHERE platform = 'THREADS'::"SocialPlatform"
+          AND "externalAccountId" = $1
+        "#,
+    )
+    .bind(external_user_id)
+    .execute(tx.as_mut())
+    .await?;
+
+    if let Some(code) = confirmation_code {
+        sqlx::query(
+            r#"
+            INSERT INTO "SocialDataDeletionRequest"
+                (id, provider, "confirmationCode", status, "completedAt", "createdAt", "updatedAt")
+            VALUES ($1, 'THREADS', $2, 'COMPLETED', NOW(), NOW(), NOW())
+            "#,
+        )
+        .bind(cuid2::create_id())
+        .bind(code)
+        .execute(tx.as_mut())
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(org_ids)
+}
+
+pub async fn threads_data_deletion_status(
+    pool: &PgPool,
+    confirmation_code: &str,
+) -> Result<Option<String>, AppError> {
+    sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT status
+        FROM "SocialDataDeletionRequest"
+        WHERE provider = 'THREADS' AND "confirmationCode" = $1
+        LIMIT 1
+        "#,
+    )
+    .bind(confirmation_code)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+#[derive(sqlx::FromRow)]
+struct SocialWebhookEventRow {
+    id: String,
+    event_type: String,
+    external_account_id: Option<String>,
+    payload: Value,
+    attempts: i32,
+}
+
+#[derive(sqlx::FromRow)]
+struct TikTokWebhookJob {
+    id: String,
+    org_id: String,
+    external_post_id: Option<String>,
+}
+
+async fn claim_tiktok_webhook_event(
+    pool: &PgPool,
+) -> Result<Option<SocialWebhookEventRow>, AppError> {
+    sqlx::query_as::<_, SocialWebhookEventRow>(r#"
+        UPDATE "SocialWebhookEvent"
+        SET status = 'PROCESSING', attempts = attempts + 1, "updatedAt" = NOW()
+        WHERE id = (
+            SELECT id FROM "SocialWebhookEvent"
+            WHERE provider = 'TIKTOK'
+              AND ((status IN ('RECEIVED', 'FAILED') AND "nextAttemptAt" <= NOW())
+                OR (status = 'PROCESSING' AND "updatedAt" < NOW() - INTERVAL '5 minutes'))
+            ORDER BY "receivedAt" ASC
+            FOR UPDATE SKIP LOCKED
+            LIMIT 1
+        )
+        RETURNING id, "eventType" AS event_type, "externalAccountId" AS external_account_id, payload, attempts
+    "#).fetch_optional(pool).await.map_err(AppError::from)
+}
+
+async fn finish_tiktok_webhook_event(
+    pool: &PgPool,
+    id: &str,
+    status: &str,
+    error: Option<&str>,
+    retry: bool,
+) -> Result<(), AppError> {
+    sqlx::query(r#"
+        UPDATE "SocialWebhookEvent"
+        SET status = $2,
+            "errorMessage" = $3,
+            "processedAt" = CASE WHEN $2 IN ('PROCESSED', 'IGNORED') THEN NOW() ELSE NULL END,
+            "nextAttemptAt" = CASE WHEN $4 THEN NOW() + INTERVAL '30 seconds' ELSE "nextAttemptAt" END,
+            "updatedAt" = NOW()
+        WHERE id = $1
+    "#).bind(id).bind(status).bind(error).bind(retry).execute(pool).await?;
+    Ok(())
+}
+
+async fn find_tiktok_webhook_job(
+    pool: &PgPool,
+    publish_id: &str,
+    user_openid: Option<&str>,
+) -> Result<Option<TikTokWebhookJob>, AppError> {
+    sqlx::query_as::<_, TikTokWebhookJob>(
+        r#"
+        SELECT job.id, job."orgId" AS org_id,
+               job."externalPostId" AS external_post_id
+        FROM "SocialPublishJob" job
+        JOIN "SocialChannelConnection" channel ON channel.id = job."channelConnectionId"
+        WHERE job.platform = 'TIKTOK'::"SocialPlatform"
+          AND (job."externalPostId" = $1 OR job.metadata->>'publishId' = $1)
+          AND ($2::text IS NULL OR channel."externalAccountId" = $2)
+          AND job."orgId" IS NOT NULL
+        ORDER BY job."updatedAt" DESC
+        LIMIT 1
+    "#,
+    )
+    .bind(publish_id)
+    .bind(user_openid)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn complete_tiktok_job_from_webhook(
+    pool: &PgPool,
+    job: &TikTokWebhookJob,
+    public_post_id: Option<&str>,
+    event_type: &str,
+    event_content: &Value,
+) -> Result<bool, AppError> {
+    let mut tx = pool.begin().await?;
+    let final_post_id = public_post_id.or(job.external_post_id.as_deref());
+    let updated = sqlx::query_scalar::<_, String>(
+        r#"
+        UPDATE "SocialPublishJob"
+        SET status = 'PUBLISHED'::"SocialPublishJobStatus", "publishedAt" = NOW(),
+            "externalPostId" = COALESCE($2, "externalPostId"), "errorMessage" = NULL,
+            metadata = COALESCE(metadata, '{}'::jsonb) || $3, "updatedAt" = NOW()
+        WHERE id = $1 AND status = 'PROCESSING'::"SocialPublishJobStatus"
+        RETURNING "postId"
+    "#,
+    )
+    .bind(&job.id)
+    .bind(public_post_id)
+    .bind(json!({"tiktokWebhookEvent": event_type, "tiktokWebhookContent": event_content}))
+    .fetch_optional(tx.as_mut())
+    .await?;
+    let Some(post_id) = updated else {
+        tx.commit().await?;
+        return Ok(false);
+    };
+    sqlx::query(r#"
+        UPDATE "SocialPost"
+        SET status = 'PUBLISHED'::"SocialPostStatus", "publishedAt" = NOW(),
+            metadata = COALESCE(metadata, '{}'::jsonb) || $1, "updatedAt" = NOW()
+        WHERE id = $2
+    "#).bind(json!({"latestPublishedPostId": final_post_id, "latestPublishedPlatform":"TIKTOK", "tiktokWebhookEvent":event_type}))
+        .bind(&post_id).execute(tx.as_mut()).await?;
+    tx.commit().await?;
+    billing::record_meter_usage(
+        pool,
+        &job.org_id,
+        billing::meters::SOCIAL_PUBLISHES,
+        1,
+        "social_publish_job",
+        &job.id,
+        &format!("social-publish:{}", job.id),
+    )
+    .await?;
+    Ok(true)
+}
+
+async fn fail_tiktok_job_from_webhook(
+    pool: &PgPool,
+    job: &TikTokWebhookJob,
+    reason: &str,
+    event_content: &Value,
+) -> Result<bool, AppError> {
+    let mut tx = pool.begin().await?;
+    let updated = sqlx::query_scalar::<_, String>(
+        r#"
+        UPDATE "SocialPublishJob"
+        SET status = 'FAILED'::"SocialPublishJobStatus", "errorMessage" = $2,
+            metadata = COALESCE(metadata, '{}'::jsonb) || $3, "updatedAt" = NOW()
+        WHERE id = $1 AND status = 'PROCESSING'::"SocialPublishJobStatus"
+        RETURNING "postId"
+    "#,
+    )
+    .bind(&job.id)
+    .bind(reason)
+    .bind(json!({"tiktokWebhookEvent":"post.publish.failed", "tiktokWebhookContent":event_content}))
+    .fetch_optional(tx.as_mut())
+    .await?;
+    let Some(post_id) = updated else {
+        tx.commit().await?;
+        return Ok(false);
+    };
+    sqlx::query(
+        r#"UPDATE "SocialPost" SET status='FAILED'::"SocialPostStatus",
+        metadata=COALESCE(metadata, '{}'::jsonb)||$1, "updatedAt"=NOW() WHERE id=$2"#,
+    )
+    .bind(json!({"failedAt":Utc::now().to_rfc3339(),"failureReason":reason}))
+    .bind(post_id)
+    .execute(tx.as_mut())
+    .await?;
+    tx.commit().await?;
+    Ok(true)
+}
+
+async fn process_tiktok_webhook_event(
+    pool: &PgPool,
+    event: &SocialWebhookEventRow,
+) -> Result<bool, AppError> {
+    let content = event
+        .payload
+        .get("content")
+        .and_then(Value::as_str)
+        .map(|value| serde_json::from_str::<Value>(value).unwrap_or_else(|_| json!({"raw": value})))
+        .unwrap_or(Value::Null);
+    match event.event_type.as_str() {
+        "post.publish.complete" | "post.publish.publicly_available" => {
+            let publish_id = content
+                .get("publish_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    AppError::BadRequest("TikTok publish webhook is missing publish_id".to_string())
+                })?;
+            let job =
+                find_tiktok_webhook_job(pool, publish_id, event.external_account_id.as_deref())
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::NotFound("TikTok publish job was not found".to_string())
+                    })?;
+            let public_post_id = content.get("post_id").and_then(Value::as_str);
+            complete_tiktok_job_from_webhook(
+                pool,
+                &job,
+                public_post_id,
+                &event.event_type,
+                &content,
+            )
+            .await
+        }
+        "post.publish.failed" => {
+            let publish_id = content
+                .get("publish_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    AppError::BadRequest("TikTok publish webhook is missing publish_id".to_string())
+                })?;
+            let job =
+                find_tiktok_webhook_job(pool, publish_id, event.external_account_id.as_deref())
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::NotFound("TikTok publish job was not found".to_string())
+                    })?;
+            let reason = content
+                .get("reason")
+                .and_then(Value::as_str)
+                .unwrap_or("TikTok rejected the post");
+            fail_tiktok_job_from_webhook(pool, &job, reason, &content).await
+        }
+        "post.publish.no_longer_publicaly_available" | "post.publish.inbox_delivered" => Ok(false),
+        "authorization.removed" => {
+            let Some(open_id) = event.external_account_id.as_deref() else {
+                return Ok(false);
+            };
+            let org_ids = sqlx::query_scalar::<_, String>(r#"
+                UPDATE "SocialChannelConnection" SET status='NEEDS_REAUTH'::"SocialChannelStatus",
+                    "accessToken"=NULL, "refreshToken"=NULL,
+                    metadata=COALESCE(metadata, '{}'::jsonb)||$1, "updatedAt"=NOW()
+                WHERE platform='TIKTOK'::"SocialPlatform" AND "externalAccountId"=$2 AND "orgId" IS NOT NULL
+                RETURNING "orgId"
+            "#).bind(json!({"tiktokAuthorizationRemovedAt":Utc::now().to_rfc3339()})).bind(open_id)
+                .fetch_all(pool).await?;
+            for org_id in org_ids {
+                connections::sync_org_connections(pool, &org_id).await?;
+            }
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
+pub async fn process_tiktok_webhook_events(pool: &PgPool, limit: i64) -> Result<i64, AppError> {
+    let mut processed = 0;
+    for _ in 0..limit.max(1) {
+        let Some(event) = claim_tiktok_webhook_event(pool).await? else {
+            break;
+        };
+        match process_tiktok_webhook_event(pool, &event).await {
+            Ok(true) => {
+                finish_tiktok_webhook_event(pool, &event.id, "PROCESSED", None, false).await?
+            }
+            Ok(false) => {
+                finish_tiktok_webhook_event(pool, &event.id, "IGNORED", None, false).await?
+            }
+            Err(error) => {
+                let retry = event.attempts < 8;
+                finish_tiktok_webhook_event(
+                    pool,
+                    &event.id,
+                    "FAILED",
+                    Some(&error.to_string()),
+                    retry,
+                )
+                .await?;
+            }
+        }
+        processed += 1;
+    }
+    Ok(processed)
 }
 
 fn normalize_variants(
@@ -2068,7 +3156,6 @@ pub async fn create_social_post(
     .bind(&request.metadata)
     .execute(tx.as_mut())
     .await?;
-
     create_variants_and_jobs(
         &mut tx,
         user_id,
@@ -2384,6 +3471,274 @@ async fn publish_post_to_linkedin(
     Ok((external_post_id, text.to_string()))
 }
 
+async fn save_rotated_tokens(
+    pool: &PgPool,
+    channel_id: &str,
+    access: &str,
+    refresh: Option<&str>,
+    expires_in: Option<i64>,
+) -> Result<(), AppError> {
+    let encrypted_access = encrypt_social_secret(access)?;
+    let encrypted_refresh = match refresh {
+        Some(value) => Some(encrypt_social_secret(value)?),
+        None => None,
+    };
+    let expires_at =
+        expires_in.map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
+    sqlx::query(
+        r#"UPDATE "SocialChannelConnection" SET "accessToken"=$1,
+        "refreshToken"=COALESCE($2,"refreshToken"), metadata=COALESCE(metadata,'{}'::jsonb) || $3,
+        "lastSyncedAt"=NOW(), "updatedAt"=NOW() WHERE id=$4"#,
+    )
+    .bind(encrypted_access)
+    .bind(encrypted_refresh)
+    .bind(json!({"expiresAt": expires_at}))
+    .bind(channel_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn publish_post_to_threads(
+    access_token_encrypted: &str,
+    user_id: &str,
+    text: &str,
+) -> Result<(String, String), AppError> {
+    if text.chars().count() > 500 {
+        return Err(AppError::BadRequest(
+            "Threads posts are limited to 500 characters".to_string(),
+        ));
+    }
+    let access = decrypt_social_secret(access_token_encrypted)?;
+    let create: Value = fetch_json(
+        reqwest::Client::new()
+            .post(format!("{THREADS_GRAPH_BASE}/{user_id}/threads"))
+            .bearer_auth(&access)
+            .form(&[("media_type", "TEXT"), ("text", text)]),
+        "Failed to create Threads post",
+    )
+    .await?;
+    let creation_id = create
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::BadRequest("Threads did not return a creation id".to_string()))?;
+    let publish: Value = fetch_json(
+        reqwest::Client::new()
+            .post(format!("{THREADS_GRAPH_BASE}/{user_id}/threads_publish"))
+            .bearer_auth(access)
+            .form(&[("creation_id", creation_id)]),
+        "Failed to publish Threads post",
+    )
+    .await?;
+    let id = publish
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::BadRequest("Threads did not return a post id".to_string()))?;
+    Ok((id.to_string(), text.to_string()))
+}
+
+async fn refresh_threads_token(access_encrypted: &str) -> Result<ThreadsTokenResponse, AppError> {
+    let access = decrypt_social_secret(access_encrypted)?;
+    let url = format!("https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token={}", urlencoding::encode(&access));
+    fetch_json(
+        reqwest::Client::new().get(url),
+        "Threads token refresh failed",
+    )
+    .await
+}
+
+async fn refresh_tiktok_token(refresh_encrypted: &str) -> Result<TikTokTokenResponse, AppError> {
+    let refresh = decrypt_social_secret(refresh_encrypted)?;
+    fetch_json(
+        reqwest::Client::new().post(TIKTOK_TOKEN_URL).form(&[
+            ("client_key", required_env("AUTH_TIKTOK_CLIENT_KEY")?),
+            ("client_secret", required_env("AUTH_TIKTOK_CLIENT_SECRET")?),
+            ("grant_type", "refresh_token".to_string()),
+            ("refresh_token", refresh),
+        ]),
+        "TikTok token refresh failed",
+    )
+    .await
+}
+
+pub async fn get_tiktok_creator_info(
+    pool: &PgPool,
+    org_id: &str,
+    channel_id: &str,
+) -> Result<Value, AppError> {
+    let channel = resolve_connected_channel_for_platform(
+        pool,
+        org_id,
+        "TIKTOK",
+        &Some(channel_id.to_string()),
+    )
+    .await?;
+    let access = if token_expires_within(&channel.metadata, Duration::minutes(5)) {
+        let refresh = channel.refresh_token.as_deref().ok_or_else(|| {
+            AppError::BadRequest("Reconnect TikTok to refresh creator settings".to_string())
+        })?;
+        let tokens = refresh_tiktok_token(refresh).await?;
+        let access = tokens.access_token.as_deref().ok_or_else(|| {
+            AppError::BadRequest("TikTok refresh did not return an access token".to_string())
+        })?;
+        save_rotated_tokens(
+            pool,
+            &channel.id,
+            access,
+            tokens.refresh_token.as_deref(),
+            tokens.expires_in,
+        )
+        .await?;
+        access.to_string()
+    } else {
+        decrypt_social_secret(channel.access_token.as_deref().ok_or_else(|| {
+            AppError::BadRequest("Reconnect TikTok to load creator settings".to_string())
+        })?)?
+    };
+    let result: Value = fetch_json(
+        reqwest::Client::new()
+            .post(TIKTOK_CREATOR_INFO_URL)
+            .bearer_auth(&access)
+            .header("Content-Type", "application/json")
+            .json(&json!({})),
+        "Failed to query TikTok creator settings",
+    )
+    .await?;
+    let code = result
+        .get("error")
+        .and_then(|v| v.get("code"))
+        .and_then(Value::as_str)
+        .unwrap_or("ok");
+    if code != "ok" {
+        return Err(AppError::BadRequest(
+            result
+                .get("error")
+                .and_then(|v| v.get("message"))
+                .and_then(Value::as_str)
+                .unwrap_or(code)
+                .to_string(),
+        ));
+    }
+    result
+        .get("data")
+        .cloned()
+        .ok_or_else(|| AppError::BadRequest("TikTok did not return creator settings".to_string()))
+}
+
+async fn publish_post_to_tiktok(
+    access_token: &str,
+    metadata: &Option<Value>,
+    text: &str,
+) -> Result<(String, String), AppError> {
+    let consented = metadata
+        .as_ref()
+        .and_then(|v| v.get("tiktokConsent"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if !consented {
+        return Err(AppError::BadRequest(
+            "TikTok publishing consent is required".to_string(),
+        ));
+    }
+    let media_url = metadata
+        .as_ref()
+        .and_then(|v| v.get("tiktokMediaUrl"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| {
+            AppError::BadRequest("Add a public HTTPS TikTok video or image URL".to_string())
+        })?;
+    if !media_url.starts_with("https://") {
+        return Err(AppError::BadRequest(
+            "TikTok media URL must use HTTPS".to_string(),
+        ));
+    }
+    let media_type = metadata
+        .as_ref()
+        .and_then(|v| v.get("tiktokMediaType"))
+        .and_then(Value::as_str)
+        .unwrap_or("VIDEO");
+    if media_type == "VIDEO" && text.encode_utf16().count() > 2200 {
+        return Err(AppError::BadRequest(
+            "TikTok video captions are limited to 2200 UTF-16 characters".to_string(),
+        ));
+    }
+    if media_type == "PHOTO" && text.encode_utf16().count() > 4000 {
+        return Err(AppError::BadRequest(
+            "TikTok photo descriptions are limited to 4000 UTF-16 characters".to_string(),
+        ));
+    }
+    let requested_privacy = metadata
+        .as_ref()
+        .and_then(|v| v.get("tiktokPrivacyLevel"))
+        .and_then(Value::as_str)
+        .unwrap_or("SELF_ONLY");
+    let creator: Value = fetch_json(
+        reqwest::Client::new()
+            .post(TIKTOK_CREATOR_INFO_URL)
+            .bearer_auth(access_token)
+            .header("Content-Type", "application/json")
+            .json(&json!({})),
+        "Failed to query TikTok creator settings",
+    )
+    .await?;
+    let allowed = creator
+        .get("data")
+        .and_then(|v| v.get("privacy_level_options"))
+        .and_then(Value::as_array)
+        .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>())
+        .unwrap_or_default();
+    if !allowed.contains(&requested_privacy) {
+        return Err(AppError::BadRequest(format!(
+            "TikTok privacy level {requested_privacy} is not available for this account"
+        )));
+    }
+    let (url, payload) = if media_type == "PHOTO" {
+        (
+            TIKTOK_PUBLISH_URL,
+            json!({"post_info":{"title":text.chars().take(90).collect::<String>(),"description":text,"privacy_level":requested_privacy},
+            "source_info":{"source":"PULL_FROM_URL","photo_cover_index":1,"photo_images":[media_url]},"post_mode":"DIRECT_POST","media_type":"PHOTO"}),
+        )
+    } else {
+        (
+            "https://open.tiktokapis.com/v2/post/publish/video/init/",
+            json!({"post_info":{"title":text,"privacy_level":requested_privacy},
+            "source_info":{"source":"PULL_FROM_URL","video_url":media_url}}),
+        )
+    };
+    let result: Value = fetch_json(
+        reqwest::Client::new()
+            .post(url)
+            .bearer_auth(access_token)
+            .header("Content-Type", "application/json")
+            .json(&payload),
+        "Failed to publish to TikTok",
+    )
+    .await?;
+    let code = result
+        .get("error")
+        .and_then(|v| v.get("code"))
+        .and_then(Value::as_str)
+        .unwrap_or("ok");
+    if code != "ok" {
+        return Err(AppError::BadRequest(
+            result
+                .get("error")
+                .and_then(|v| v.get("message"))
+                .and_then(Value::as_str)
+                .unwrap_or(code)
+                .to_string(),
+        ));
+    }
+    let id = result
+        .get("data")
+        .and_then(|v| v.get("publish_id"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::BadRequest("TikTok did not return a publish id".to_string()))?;
+    Ok((id.to_string(), text.to_string()))
+}
+
 async fn publish_post_to_facebook(
     access_token_encrypted: &str,
     external_account_id: &Option<String>,
@@ -2476,17 +3831,26 @@ async fn mark_job_failed(
     message: &str,
 ) -> Result<(), AppError> {
     let mut tx = pool.begin().await?;
-    sqlx::query(
+    let result = sqlx::query(
         r#"
         UPDATE "SocialPublishJob"
         SET status = 'FAILED'::"SocialPublishJobStatus", "errorMessage" = $1, "updatedAt" = NOW()
         WHERE id = $2
+          AND status IN (
+              'PENDING'::"SocialPublishJobStatus",
+              'QUEUED'::"SocialPublishJobStatus",
+              'PROCESSING'::"SocialPublishJobStatus"
+          )
         "#,
     )
     .bind(message)
     .bind(job_id)
     .execute(tx.as_mut())
     .await?;
+    if result.rows_affected() == 0 {
+        tx.commit().await?;
+        return Ok(());
+    }
     sqlx::query(
         r#"
         UPDATE "SocialPost"
@@ -2654,9 +4018,135 @@ pub async fn execute_social_publish_job(
                 published_text,
             ))
         } else if job.platform == "THREADS" {
-            return Err(AppError::BadRequest(
-                "Threads publishing is planned but not wired yet.".to_string(),
-            ));
+            let channel = resolve_connected_channel_for_platform(
+                pool,
+                org_id,
+                "THREADS",
+                &job.channel_connection_id,
+            )
+            .await?;
+            let access = channel.access_token.as_deref().ok_or_else(|| {
+                AppError::BadRequest("Connect a Threads account before publishing".to_string())
+            })?;
+            let publish_access = if token_expires_within(&channel.metadata, Duration::days(7)) {
+                let refreshed = refresh_threads_token(access).await?;
+                let refreshed_access = refreshed.access_token.as_deref().ok_or_else(|| {
+                    AppError::BadRequest(
+                        "Threads refresh did not return an access token".to_string(),
+                    )
+                })?;
+                save_rotated_tokens(
+                    pool,
+                    &channel.id,
+                    refreshed_access,
+                    None,
+                    refreshed.expires_in,
+                )
+                .await?;
+                encrypt_social_secret(refreshed_access)?
+            } else {
+                access.to_string()
+            };
+            let user_id = channel.external_account_id.as_deref().ok_or_else(|| {
+                AppError::BadRequest(
+                    "Threads connection is missing its account identifier".to_string(),
+                )
+            })?;
+            let (external_post_id, published_text) =
+                publish_post_to_threads(&publish_access, user_id, &publish_text).await?;
+            Ok((
+                channel.id,
+                Some(external_post_id),
+                "threads".to_string(),
+                published_text,
+            ))
+        } else if job.platform == "TIKTOK" {
+            let channel = resolve_connected_channel_for_platform(
+                pool,
+                org_id,
+                "TIKTOK",
+                &job.channel_connection_id,
+            )
+            .await?;
+            let access = if token_expires_within(&channel.metadata, Duration::minutes(5)) {
+                let refresh = channel.refresh_token.as_deref().ok_or_else(|| {
+                    AppError::BadRequest(
+                        "Reconnect TikTok to refresh publishing access".to_string(),
+                    )
+                })?;
+                let tokens = refresh_tiktok_token(refresh).await?;
+                let access = tokens.access_token.as_deref().ok_or_else(|| {
+                    AppError::BadRequest(
+                        "TikTok refresh did not return an access token".to_string(),
+                    )
+                })?;
+                save_rotated_tokens(
+                    pool,
+                    &channel.id,
+                    access,
+                    tokens.refresh_token.as_deref(),
+                    tokens.expires_in,
+                )
+                .await?;
+                access.to_string()
+            } else {
+                decrypt_social_secret(channel.access_token.as_deref().ok_or_else(|| {
+                    AppError::BadRequest("Connect a TikTok account before publishing".to_string())
+                })?)?
+            };
+            let (external_post_id, published_text) =
+                publish_post_to_tiktok(&access, &job.post_metadata, &publish_text).await?;
+            Ok((
+                channel.id,
+                Some(external_post_id),
+                "tiktok".to_string(),
+                published_text,
+            ))
+        } else if job.platform == "BLUESKY" {
+            if publish_text.chars().count() > 300 {
+                return Err(AppError::BadRequest("Bluesky posts are limited to 300 characters".to_string()));
+            }
+            let channel = resolve_connected_channel_for_platform(
+                pool,
+                org_id,
+                "BLUESKY",
+                &job.channel_connection_id,
+            )
+            .await?;
+            let metadata=channel.metadata.as_ref().ok_or_else(||AppError::BadRequest("Reconnect Bluesky using OAuth before publishing".to_string()))?;
+            if metadata.get("authMethod").and_then(Value::as_str)!=Some("oauth") {
+                return Err(AppError::BadRequest("Reconnect Bluesky using the new authorization flow".to_string()));
+            }
+            let refresh = decrypt_social_secret(channel.refresh_token.as_deref().ok_or_else(|| {
+                AppError::BadRequest("Reconnect Bluesky to refresh publishing access".to_string())
+            })?)?;
+            let pds=metadata.get("pds").and_then(Value::as_str).ok_or_else(||AppError::BadRequest("Bluesky connection is missing its PDS".to_string()))?;
+            let authorization_server=metadata.get("authorizationServer").and_then(Value::as_str).ok_or_else(||AppError::BadRequest("Bluesky connection is missing its authorization server".to_string()))?;
+            let dpop_private_key=decrypt_social_secret(metadata.get("dpopPrivateKey").and_then(Value::as_str).ok_or_else(||AppError::BadRequest("Bluesky connection is missing its DPoP key".to_string()))?)?;
+            let auth_nonce=metadata.get("dpopAuthorizationNonce").and_then(Value::as_str);
+            let config=AppConfig::from_env().map_err(|_|AppError::Internal("Failed to load Bluesky OAuth configuration".to_string()))?;
+            let session = bluesky_oauth::refresh(&config,&refresh,authorization_server,&dpop_private_key,auth_nonce).await?;
+            save_rotated_tokens(
+                pool,
+                &channel.id,
+                &session.access_token,
+                Some(&session.refresh_token),
+                session.expires_in,
+            )
+            .await?;
+            let did = channel.external_account_id.as_deref().ok_or_else(|| {
+                AppError::BadRequest("Bluesky connection is missing its DID".to_string())
+            })?;
+            let resource_nonce=metadata.get("dpopResourceNonce").and_then(Value::as_str);
+            let (external_post_id,resource_nonce)=bluesky_oauth::create_post(pds,did,&publish_text,&session.access_token,&dpop_private_key,resource_nonce).await?;
+            sqlx::query(r#"UPDATE "SocialChannelConnection" SET metadata=COALESCE(metadata,'{}'::jsonb)||$1,"updatedAt"=NOW() WHERE id=$2"#)
+                .bind(json!({"dpopAuthorizationNonce":session.authorization_nonce,"dpopResourceNonce":resource_nonce})).bind(&channel.id).execute(pool).await?;
+            Ok((
+                channel.id,
+                Some(external_post_id),
+                "bluesky".to_string(),
+                publish_text,
+            ))
         } else if job.platform == "X" {
             if publish_text.chars().count() > 280 {
                 return Err(AppError::BadRequest(
@@ -2721,6 +4211,22 @@ pub async fn execute_social_publish_job(
 
     match result {
         Ok((connection_id, external_post_id, provider, published_text)) => {
+            if provider == "tiktok" {
+                sqlx::query(r#"UPDATE "SocialPublishJob" SET status='PROCESSING'::"SocialPublishJobStatus",
+                    "externalPostId"=$1, "channelConnectionId"=$2, metadata=$3, "updatedAt"=NOW() WHERE id=$4"#)
+                    .bind(&external_post_id).bind(&connection_id)
+                    .bind(json!({"provider":"tiktok","publishId":external_post_id,"submittedText":published_text}))
+                    .bind(&job.id).execute(pool).await?;
+                sqlx::query(r#"UPDATE "SocialPost" SET status='PROCESSING'::"SocialPostStatus", "updatedAt"=NOW() WHERE id=$1"#)
+                    .bind(&job.post_id).execute(pool).await?;
+                return Ok(PublishExecutionResult {
+                    job_id: job.id,
+                    post_id: job.post_id,
+                    platform: job.platform,
+                    status: "PROCESSING".to_string(),
+                    external_post_id,
+                });
+            }
             let now = Utc::now();
             let mut tx = pool.begin().await?;
             sqlx::query(
@@ -2798,6 +4304,8 @@ pub async fn execute_social_publish_job(
 
 #[allow(dead_code)]
 pub async fn process_due_social_publish_jobs(pool: &PgPool, limit: i64) -> Result<i64, AppError> {
+    let webhook_events = process_tiktok_webhook_events(pool, limit).await?;
+    let reconciled = reconcile_tiktok_publish_jobs(pool, limit).await?;
     let due_jobs = sqlx::query_scalar::<_, String>(
         r#"
         SELECT id
@@ -2821,12 +4329,138 @@ pub async fn process_due_social_publish_jobs(pool: &PgPool, limit: i64) -> Resul
         processed += 1;
     }
 
-    Ok(processed)
+    Ok(processed + reconciled + webhook_events)
+}
+
+#[derive(sqlx::FromRow)]
+struct TikTokPendingJob {
+    id: String,
+    post_id: String,
+    org_id: String,
+    channel_connection_id: String,
+    publish_id: String,
+}
+
+async fn reconcile_tiktok_publish_jobs(pool: &PgPool, limit: i64) -> Result<i64, AppError> {
+    let jobs = sqlx::query_as::<_, TikTokPendingJob>(r#"
+        SELECT job.id, job."postId" AS post_id, job."orgId" AS org_id,
+               job."channelConnectionId" AS channel_connection_id, job."externalPostId" AS publish_id
+        FROM "SocialPublishJob" job
+        WHERE job.status='PROCESSING'::"SocialPublishJobStatus" AND job.platform='TIKTOK'::"SocialPlatform"
+          AND job."externalPostId" IS NOT NULL AND job."channelConnectionId" IS NOT NULL AND job."orgId" IS NOT NULL
+        ORDER BY job."updatedAt" ASC LIMIT $1"#)
+        .bind(limit.max(1)).fetch_all(pool).await?;
+    let mut handled = 0;
+    for job in jobs {
+        let channel = resolve_connected_channel_for_platform(
+            pool,
+            &job.org_id,
+            "TIKTOK",
+            &Some(job.channel_connection_id.clone()),
+        )
+        .await?;
+        let access = if token_expires_within(&channel.metadata, Duration::minutes(5)) {
+            let refresh = channel.refresh_token.as_deref().ok_or_else(|| {
+                AppError::BadRequest("Reconnect TikTok to check publish status".to_string())
+            })?;
+            let tokens = refresh_tiktok_token(refresh).await?;
+            let access = tokens.access_token.as_deref().ok_or_else(|| {
+                AppError::BadRequest("TikTok refresh did not return an access token".to_string())
+            })?;
+            save_rotated_tokens(
+                pool,
+                &channel.id,
+                access,
+                tokens.refresh_token.as_deref(),
+                tokens.expires_in,
+            )
+            .await?;
+            access.to_string()
+        } else {
+            decrypt_social_secret(channel.access_token.as_deref().ok_or_else(|| {
+                AppError::BadRequest("Reconnect TikTok to check publish status".to_string())
+            })?)?
+        };
+        let result: Value = fetch_json(
+            reqwest::Client::new()
+                .post(TIKTOK_STATUS_URL)
+                .bearer_auth(&access)
+                .json(&json!({"publish_id":job.publish_id})),
+            "Failed to check TikTok publish status",
+        )
+        .await?;
+        let code = result
+            .get("error")
+            .and_then(|v| v.get("code"))
+            .and_then(Value::as_str)
+            .unwrap_or("ok");
+        if code != "ok" {
+            continue;
+        }
+        let data = result.get("data").cloned().unwrap_or(Value::Null);
+        match data
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("PROCESSING")
+        {
+            "PUBLISH_COMPLETE" => {
+                let post_id = data
+                    .get("publicaly_available_post_id")
+                    .and_then(Value::as_array)
+                    .and_then(|ids| ids.first())
+                    .and_then(Value::as_str)
+                    .unwrap_or(&job.publish_id);
+                let now = Utc::now();
+                let mut tx = pool.begin().await?;
+                let updated = sqlx::query(r#"UPDATE "SocialPublishJob" SET status='PUBLISHED'::"SocialPublishJobStatus",
+                    "publishedAt"=$1,"externalPostId"=$2,metadata=COALESCE(metadata,'{}'::jsonb)||$3,"updatedAt"=NOW()
+                    WHERE id=$4 AND status='PROCESSING'::"SocialPublishJobStatus""#)
+                    .bind(now).bind(post_id).bind(json!({"tiktokStatus":data})).bind(&job.id)
+                    .execute(tx.as_mut()).await?;
+                if updated.rows_affected() == 0 {
+                    tx.commit().await?;
+                    continue;
+                }
+                sqlx::query(r#"UPDATE "SocialPost" SET status='PUBLISHED'::"SocialPostStatus","publishedAt"=$1,
+                    metadata=COALESCE(metadata,'{}'::jsonb)||$2,"updatedAt"=NOW() WHERE id=$3"#)
+                    .bind(now).bind(json!({"latestPublishedPostId":post_id,"latestPublishedPlatform":"TIKTOK"})).bind(&job.post_id).execute(tx.as_mut()).await?;
+                tx.commit().await?;
+                billing::record_meter_usage(
+                    pool,
+                    &job.org_id,
+                    billing::meters::SOCIAL_PUBLISHES,
+                    1,
+                    "social_publish_job",
+                    &job.id,
+                    &format!("social-publish:{}", job.id),
+                )
+                .await?;
+                handled += 1;
+            }
+            "FAILED" => {
+                let reason = data
+                    .get("fail_reason")
+                    .and_then(Value::as_str)
+                    .unwrap_or("TikTok rejected the post");
+                mark_job_failed(pool, &job.id, &job.post_id, reason).await?;
+                handled += 1;
+            }
+            _ => {}
+        }
+    }
+    Ok(handled)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{InstagramProfile, Value};
+    use super::{
+        decode_threads_signed_request, verify_tiktok_webhook_signature_at, HmacSha256,
+        InstagramProfile, Value,
+    };
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use base64::Engine as _;
+    use hmac::Mac;
+    use serde_json::json;
 
     fn profile(id: Option<&str>, user_id: Option<Value>) -> InstagramProfile {
         InstagramProfile {
@@ -2867,5 +4501,106 @@ mod tests {
         let profile = profile(Some("app-scoped-id"), None);
 
         assert_eq!(profile.account_id().as_deref(), Some("app-scoped-id"));
+    }
+
+    fn threads_signed_request(payload: Value, secret: &str) -> String {
+        let encoded_payload = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
+        let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
+        mac.update(encoded_payload.as_bytes());
+        let signature = URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
+        format!("{signature}.{encoded_payload}")
+    }
+
+    #[test]
+    fn threads_signed_request_verifies_and_returns_user_id() {
+        let secret = "test-threads-secret";
+        let request = threads_signed_request(
+            json!({"algorithm":"HMAC-SHA256","user_id":"2415783455549474"}),
+            secret,
+        );
+
+        assert_eq!(
+            decode_threads_signed_request(&request, secret).unwrap(),
+            "2415783455549474"
+        );
+    }
+
+    #[test]
+    fn threads_signed_request_accepts_numeric_user_id() {
+        let secret = "test-threads-secret";
+        let request = threads_signed_request(
+            json!({"algorithm":"HMAC-SHA256","user_id":2415783455549474_u64}),
+            secret,
+        );
+
+        assert_eq!(
+            decode_threads_signed_request(&request, secret).unwrap(),
+            "2415783455549474"
+        );
+    }
+
+    #[test]
+    fn threads_signed_request_rejects_tampering() {
+        let secret = "test-threads-secret";
+        let request = threads_signed_request(
+            json!({"algorithm":"HMAC-SHA256","user_id":"original-user"}),
+            secret,
+        );
+        let tampered = format!("{request}A");
+
+        assert!(decode_threads_signed_request(&tampered, secret).is_err());
+    }
+
+    fn tiktok_signature(timestamp: i64, body: &[u8], secret: &str) -> String {
+        let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
+        mac.update(timestamp.to_string().as_bytes());
+        mac.update(b".");
+        mac.update(body);
+        format!(
+            "t={timestamp},s={}",
+            hex::encode(mac.finalize().into_bytes())
+        )
+    }
+
+    #[test]
+    fn tiktok_webhook_signature_verifies_the_raw_body() {
+        let secret = "test-tiktok-secret";
+        let timestamp = 1_700_000_000;
+        let body = br#"{\"event\":\"post.publish.complete\"}"#;
+        let signature = tiktok_signature(timestamp, body, secret);
+
+        assert!(verify_tiktok_webhook_signature_at(
+            Some(&signature),
+            body,
+            secret,
+            timestamp + 60,
+            300,
+        )
+        .is_ok());
+        assert!(verify_tiktok_webhook_signature_at(
+            Some(&signature),
+            br#"{\"event\":\"post.publish.failed\"}"#,
+            secret,
+            timestamp + 60,
+            300,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn tiktok_webhook_signature_rejects_stale_events() {
+        let secret = "test-tiktok-secret";
+        let timestamp = 1_700_000_000;
+        let body = br#"{}"#;
+        let signature = tiktok_signature(timestamp, body, secret);
+
+        assert!(verify_tiktok_webhook_signature_at(
+            Some(&signature),
+            body,
+            secret,
+            timestamp + 301,
+            300,
+        )
+        .is_err());
     }
 }

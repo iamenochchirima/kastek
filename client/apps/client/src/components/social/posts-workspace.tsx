@@ -2,11 +2,12 @@
 
 import { apiUrl } from "@/lib/server-api";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BarChart3, CalendarDays, CalendarClock, Check, CircleAlert, FileClock, Pencil, Plus, RotateCcw, Search, Sparkles, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,6 +49,10 @@ type ComposerState = {
   primaryChannelId: string;
   channelSelections: Partial<Record<SocialPlatform, string>>;
   instagramImageUrl: string;
+  tiktokMediaUrl: string;
+  tiktokMediaType: "VIDEO" | "PHOTO";
+  tiktokPrivacyLevel: "SELF_ONLY" | "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR";
+  tiktokConsent: boolean;
   variants: ComposerVariant[];
 };
 
@@ -61,7 +66,7 @@ type GeneratedIdea = {
   suggestedChannels?: SocialPlatform[];
 };
 
-const defaultChannels: SocialPlatform[] = ["FACEBOOK", "INSTAGRAM", "THREADS", "LINKEDIN", "X"];
+const defaultChannels: SocialPlatform[] = ["FACEBOOK", "INSTAGRAM", "THREADS", "TIKTOK", "BLUESKY", "LINKEDIN", "X"];
 const COMPOSER_DRAFT_STORAGE_KEY = "kasitek:content-composer";
 const supportedManualPublishPlatforms: SocialPlatform[] = SOCIAL_PLATFORM_ORDER.filter((platform) =>
   getPlatformCapabilities(platform).supportsManualPublish,
@@ -78,6 +83,10 @@ const emptyComposer: ComposerState = {
   primaryChannelId: "",
   channelSelections: {},
   instagramImageUrl: "",
+  tiktokMediaUrl: "",
+  tiktokMediaType: "VIDEO",
+  tiktokPrivacyLevel: "SELF_ONLY",
+  tiktokConsent: false,
   variants: defaultChannels.map((platform) => ({
     platform,
     content: "",
@@ -85,6 +94,27 @@ const emptyComposer: ComposerState = {
     aiGenerated: false,
   })),
 };
+
+function channelAvatarUrl(channel: SocialChannelConnection) {
+  const metadata = channel.metadata;
+  if (!metadata) return null;
+
+  for (const key of ["profilePictureUrl", "pictureUrl", "avatarUrl", "picture"]) {
+    const value = metadata[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+
+  return null;
+}
+
+function channelLabel(channel: SocialChannelConnection) {
+  return channel.displayName?.trim() || channel.handle?.replace(/^@/, "") || `${getPlatformLabel(channel.platform)} account`;
+}
+
+function channelInitials(channel: SocialChannelConnection) {
+  const label = channelLabel(channel).trim();
+  return label.slice(0, 2).toUpperCase();
+}
 
 function buildComposerVariants(channels: SocialPlatform[], variants?: SocialPostVariant[], fallbackContent = "") {
   return channels.map((platform) => {
@@ -131,10 +161,30 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [isIdeasOpen, setIsIdeasOpen] = useState(false);
   const [activeVariantPlatform, setActiveVariantPlatform] = useState<SocialPlatform>("FACEBOOK");
   const [composerStep, setComposerStep] = useState<ComposerStep>(1);
+  const [tiktokPrivacyOptions, setTiktokPrivacyOptions] = useState<ComposerState["tiktokPrivacyLevel"][]>([]);
+  const refreshedChannelIdentities = useRef(new Set<string>());
 
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    const channelId = composer.channelSelections.TIKTOK;
+    if (!channelId) { setTiktokPrivacyOptions([]); return; }
+    let cancelled = false;
+    void fetch(apiUrl(`/api/social/channels/${channelId}/tiktok-creator-info`), { credentials: "include", cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json() as { creator?: { privacy_level_options?: string[] }; error?: string };
+        if (!response.ok) throw new Error(payload.error || "Failed to load TikTok creator settings");
+        const options = (payload.creator?.privacy_level_options || []) as ComposerState["tiktokPrivacyLevel"][];
+        if (!cancelled) {
+          setTiktokPrivacyOptions(options);
+          setComposer((current) => options.includes(current.tiktokPrivacyLevel) ? current : { ...current, tiktokPrivacyLevel: options[0] || "SELF_ONLY", tiktokConsent: false });
+        }
+      })
+      .catch((caught) => { if (!cancelled) setError(caught instanceof Error ? caught.message : "Failed to load TikTok creator settings"); });
+    return () => { cancelled = true; };
+  }, [composer.channelSelections.TIKTOK]);
 
   useEffect(() => {
     const saved = window.sessionStorage.getItem(COMPOSER_DRAFT_STORAGE_KEY);
@@ -213,6 +263,42 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     [channels],
   );
 
+  useEffect(() => {
+    const missingProfileImages = connectedChannels.filter((channel) => {
+      if (channel.platform === "THREADS" || channelAvatarUrl(channel)) return false;
+      if (refreshedChannelIdentities.current.has(channel.id)) return false;
+      refreshedChannelIdentities.current.add(channel.id);
+      return true;
+    });
+    if (!missingProfileImages.length) return;
+
+    let cancelled = false;
+    void Promise.all(
+      missingProfileImages.map(async (channel) => {
+        try {
+          const response = await fetch(apiUrl(`/api/social/channels/${channel.id}/identity`), {
+            method: "POST",
+            credentials: "include",
+          });
+          if (!response.ok) return null;
+          const payload = (await response.json()) as { channel?: SocialChannelConnection };
+          return payload.channel || null;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((refreshed) => {
+      if (cancelled) return;
+      const byId = new Map(refreshed.filter((channel): channel is SocialChannelConnection => Boolean(channel)).map((channel) => [channel.id, channel]));
+      if (!byId.size) return;
+      setChannels((current) => current.map((channel) => byId.get(channel.id) || channel));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connectedChannels]);
+
   const connectedChannelsByPlatform = useMemo(() => {
     const grouped = new Map<SocialPlatform, SocialChannelConnection[]>();
     for (const channel of connectedChannels) {
@@ -252,6 +338,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       primaryChannelId: "",
       channelSelections: {},
       instagramImageUrl: "",
+      tiktokMediaUrl: "",
+      tiktokMediaType: "VIDEO",
+      tiktokPrivacyLevel: "SELF_ONLY",
+      tiktokConsent: false,
       variants: nextVariants.map((variant) => ({
         ...variant,
         status: variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT",
@@ -280,6 +370,11 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         typeof post.metadata?.instagramImageUrl === "string"
           ? post.metadata.instagramImageUrl
           : "",
+      tiktokMediaUrl: typeof post.metadata?.tiktokMediaUrl === "string" ? post.metadata.tiktokMediaUrl : "",
+      tiktokMediaType: post.metadata?.tiktokMediaType === "PHOTO" ? "PHOTO" : "VIDEO",
+      tiktokPrivacyLevel: typeof post.metadata?.tiktokPrivacyLevel === "string"
+        ? post.metadata.tiktokPrivacyLevel as ComposerState["tiktokPrivacyLevel"] : "SELF_ONLY",
+      tiktokConsent: post.metadata?.tiktokConsent === true,
       variants: buildComposerVariants(post.channels, post.variants, post.content),
     });
     setActiveVariantPlatform(post.channels[0] || "FACEBOOK");
@@ -337,6 +432,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     const endpoint: Partial<Record<SocialPlatform, string>> = {
       FACEBOOK: "/api/social/oauth/meta/start?target=facebook",
       INSTAGRAM: "/api/social/oauth/instagram/start",
+      THREADS: "/api/social/oauth/threads/start",
+      TIKTOK: "/api/social/oauth/tiktok/start",
+      BLUESKY: "/connections",
       LINKEDIN: "/api/social/oauth/linkedin/start",
       X: "/api/social/oauth/x/start",
     };
@@ -348,7 +446,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       step: composerStep,
       activeVariantPlatform,
     }));
-    window.location.assign(apiUrl(href));
+    window.location.assign(platform === "BLUESKY" ? href : apiUrl(href));
   }
 
   function updateVariant(platform: SocialPlatform, patch: Partial<ComposerVariant>) {
@@ -484,6 +582,11 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       setError("Add a master post summary before saving.");
       return;
     }
+    if (composer.channels.includes("TIKTOK") && (!composer.tiktokMediaUrl.trim() || !composer.tiktokConsent)) {
+      setError("TikTok requires a verified media URL and explicit publishing consent.");
+      setComposerStep(2);
+      return;
+    }
 
     const activeVariants = composer.variants.filter((variant) =>
       composer.channels.includes(variant.platform),
@@ -518,6 +621,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
               createdFrom: "social-posts-workspace",
               aiAssistUsed: activeVariants.some((variant) => variant.aiGenerated),
               instagramImageUrl: composer.instagramImageUrl.trim() || null,
+              tiktokMediaUrl: composer.tiktokMediaUrl.trim() || null,
+              tiktokMediaType: composer.tiktokMediaType,
+              tiktokPrivacyLevel: composer.tiktokPrivacyLevel,
+              tiktokConsent: composer.tiktokConsent,
             },
           }),
         },
@@ -988,34 +1095,41 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                       const selectedId = composer.channelSelections[platform];
                       const selected = composer.channels.includes(platform);
                       return (
-                        <div key={platform} className={`rounded-xl border p-4 ${selected ? "border-primary/40 bg-primary/5" : "border-border"}`}>
+                        <div key={platform} className={`rounded-xl border px-4 py-3.5 ${selected ? "border-primary/40 bg-primary/5" : "border-border"}`}>
                           <div className="flex items-center gap-3">
                             <div className={`rounded-md border p-2 ${getPlatformTone(platform)}`}><Icon className="h-4 w-4" /></div>
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-foreground">{getPlatformLabel(platform)}</p>
                               <p className="text-sm text-muted-foreground">{options.length ? `${options.length} connected` : "Not connected"}</p>
                             </div>
-                            {selected ? <Button variant="ghost" size="sm" onClick={() => removeChannel(platform)}>Remove</Button> : null}
+                            {getPlatformCapabilities(platform).supportsManualPublish ? (
+                              <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs" onClick={() => beginConnection(platform)}>
+                                <Plus className="h-3.5 w-3.5" />
+                                {options.length ? "Connect another" : "Connect"}
+                              </Button>
+                            ) : null}
+                            {selected ? <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs" onClick={() => removeChannel(platform)}>Remove</Button> : null}
                           </div>
                           {options.length ? (
-                            <div className="mt-3 grid gap-2">
+                            <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(190px,240px))] gap-2">
                               {options.map((channel) => {
                                 const isSelected = selectedId === channel.id;
                                 return (
-                                  <button type="button" key={channel.id} onClick={() => selectChannel(channel)} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition-colors ${isSelected ? "border-primary bg-primary/10 text-foreground" : "border-border bg-background hover:border-primary/50"}`}>
-                                    <span className="min-w-0"><span className="block truncate font-medium">{channel.displayName}</span>{channel.handle ? <span className="block truncate text-xs text-muted-foreground">@{channel.handle.replace(/^@/, "")}</span> : null}</span>
-                                    {isSelected ? <Check className="ml-3 h-4 w-4 shrink-0 text-primary" /> : null}
+                                  <button type="button" key={channel.id} onClick={() => selectChannel(channel)} className={`flex min-w-0 items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors ${isSelected ? "border-primary bg-primary/10 text-foreground" : "border-border bg-background hover:border-primary/50"}`}>
+                                    <Avatar className="h-8 w-8 border border-border bg-muted">
+                                      <AvatarImage src={channelAvatarUrl(channel) || undefined} alt="" referrerPolicy="no-referrer" />
+                                      <AvatarFallback className="text-[10px] font-semibold text-muted-foreground">{channelInitials(channel)}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="min-w-0 flex-1"><span className="block truncate font-medium">{channelLabel(channel)}</span>{channel.handle ? <span className="block truncate text-xs text-muted-foreground">@{channel.handle.replace(/^@/, "")}</span> : null}</span>
+                                    {isSelected ? <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"><Check className="h-3 w-3" /></span> : null}
                                   </button>
                                 );
                               })}
                             </div>
-                          ) : platform === "THREADS" ? (
-                            <p className="mt-3 text-sm text-muted-foreground">Connection is not available yet.</p>
+                          ) : !getPlatformCapabilities(platform).supportsManualPublish ? (
+                            <p className="mt-3 text-sm text-muted-foreground">Account connection is not available yet.</p>
                           ) : (
-                            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-secondary/40 px-3 py-2">
-                              <span className="text-sm text-muted-foreground">Connect an account to use this platform.</span>
-                              <Button size="sm" variant="outline" onClick={() => beginConnection(platform)}>Connect</Button>
-                            </div>
+                            <p className="mt-3 text-sm text-muted-foreground">No accounts connected yet.</p>
                           )}
                         </div>
                       );
@@ -1031,6 +1145,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                   <label className="block space-y-2"><span className="text-sm text-muted-foreground">Post copy</span><textarea value={composer.content} onChange={(event) => setComposer((current) => ({ ...current, content: event.target.value }))} placeholder="Write your post..." className="min-h-[180px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary" /></label>
                   <div className="rounded-xl border border-border bg-secondary/20 p-4"><label className="block space-y-2"><span className="text-sm font-medium text-foreground">Generate a draft</span><textarea value={composer.prompt} onChange={(event) => setComposer((current) => ({ ...current, prompt: event.target.value }))} placeholder="Optional prompt" className="min-h-[86px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" /></label><Button variant="outline" className="mt-3 gap-2" disabled={generatingCaption} onClick={() => void generateWithAi()}><Sparkles className="h-4 w-4" />{generatingCaption ? "Generating..." : "Generate versions"}</Button></div>
                   {composer.channels.includes("INSTAGRAM") ? <label className="block space-y-2"><span className="text-sm text-muted-foreground">Instagram image URL</span><Input type="url" value={composer.instagramImageUrl} onChange={(event) => setComposer((current) => ({ ...current, instagramImageUrl: event.target.value }))} placeholder="https://example.com/image.jpg" /><span className="block text-xs text-muted-foreground">Required when publishing to Instagram.</span></label> : null}
+                  {composer.channels.includes("TIKTOK") ? <div className="space-y-3 rounded-xl border border-border p-4"><p className="text-sm font-medium">TikTok media</p><label className="block space-y-2"><span className="text-sm text-muted-foreground">Verified media URL</span><Input type="url" value={composer.tiktokMediaUrl} onChange={(event) => setComposer((current) => ({ ...current, tiktokMediaUrl: event.target.value, tiktokConsent: false }))} placeholder="https://media.your-domain.com/post.mp4" /><span className="block text-xs text-muted-foreground">Must be HTTPS, not redirect, and use a domain or URL prefix verified in TikTok.</span></label><div className="grid gap-3 sm:grid-cols-2"><label className="block space-y-2"><span className="text-sm text-muted-foreground">Media type</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={composer.tiktokMediaType} onChange={(event) => setComposer((current) => ({ ...current, tiktokMediaType: event.target.value as ComposerState["tiktokMediaType"], tiktokConsent: false }))}><option value="VIDEO">Video</option><option value="PHOTO">Photo</option></select></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Privacy</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={composer.tiktokPrivacyLevel} disabled={!tiktokPrivacyOptions.length} onChange={(event) => setComposer((current) => ({ ...current, tiktokPrivacyLevel: event.target.value as ComposerState["tiktokPrivacyLevel"], tiktokConsent: false }))}>{tiktokPrivacyOptions.map((option) => <option key={option} value={option}>{option === "SELF_ONLY" ? "Only me" : option === "PUBLIC_TO_EVERYONE" ? "Public" : option === "MUTUAL_FOLLOW_FRIENDS" ? "Friends" : "Followers"}</option>)}</select><span className="block text-xs text-muted-foreground">Options are loaded from the connected TikTok creator account.</span></label></div><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={composer.tiktokConsent} onChange={(event) => setComposer((current) => ({ ...current, tiktokConsent: event.target.checked }))} /><span>I consent to send this media and caption to TikTok for direct publishing.</span></label></div> : null}
                 </section>
               ) : null}
 
