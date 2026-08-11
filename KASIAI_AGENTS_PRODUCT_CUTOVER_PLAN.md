@@ -237,8 +237,9 @@ also work for template-created agents.
 - [x] Add authenticated product endpoints for KasiAi installation, platform conversation/history,
   chat send, run status, cancellation, and SSE forwarding.
 - [x] Never proxy arbitrary paths or accept organization IDs from the browser as authority.
-- [ ] Re-check `feature.agents.manage` for management routes while allowing the product-defined
-  KasiAi access policy for sidebar chat.
+- [x] Re-check `feature.agents.manage` for management routes while allowing the product-defined
+  KasiAi access policy for sidebar chat; template installation and installation/lifecycle
+  mutations require the capability in `kasitek-core`.
 - [x] Add initial request/response contract tests between Rust and TypeScript for HMAC claim shape
   and sanitized chat payloads.
 - [ ] Add correlation IDs to core logs, Agent Platform events, runs, and tool calls.

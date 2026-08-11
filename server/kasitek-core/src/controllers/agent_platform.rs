@@ -139,7 +139,7 @@ pub async fn install_template(
     template_key: web::Path<String>,
     body: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, AppError> {
-    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
     let body = body
         .map(|value| value.into_inner())
         .unwrap_or_else(|| serde_json::json!({}));
