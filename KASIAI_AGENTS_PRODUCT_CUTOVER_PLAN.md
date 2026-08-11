@@ -253,7 +253,7 @@ also work for template-created agents.
 - [x] Add a clear KasiAi entry point to the desktop sidebar and mobile dashboard navigation.
 - [x] Implement an accessible chat panel that works alongside any dashboard page.
 - [x] Resolve the default installation and current user's conversation when the panel opens.
-- [ ] Load paginated durable history and preserve scroll position.
+- [x] Load paginated durable history and preserve scroll position while prepending earlier messages.
 - [x] Send messages with a client idempotency key.
 - [x] Stream status and the final response from the durable SSE endpoint.
 - [x] Support stop/cancel, retry after safe failures, reconnect after network loss, and explicit new

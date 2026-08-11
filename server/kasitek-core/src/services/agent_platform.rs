@@ -350,10 +350,24 @@ impl AgentPlatformClient {
         organization_id: &str,
         actor_id: &str,
         conversation_id: &str,
+        limit: Option<u32>,
+        before: Option<&str>,
     ) -> Result<Value, AppError> {
+        let mut query = Vec::new();
+        if let Some(limit) = limit {
+            query.push(format!("limit={limit}"));
+        }
+        if let Some(before) = before.filter(|value| !value.trim().is_empty()) {
+            query.push(format!("before={}", urlencoding::encode(before)));
+        }
+        let path = if query.is_empty() {
+            format!("/v1/conversations/{conversation_id}")
+        } else {
+            format!("/v1/conversations/{conversation_id}?{}", query.join("&"))
+        };
         self.request_json(
             Method::GET,
-            &format!("/v1/conversations/{conversation_id}"),
+            &path,
             organization_id,
             actor_id,
             &["chat:read"],

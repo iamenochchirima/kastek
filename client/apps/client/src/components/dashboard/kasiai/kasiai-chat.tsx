@@ -39,6 +39,9 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
   const [installation, setInstallation] = useState<AgentInstallation | null>(null);
   const [conversation, setConversation] = useState<AgentConversation | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [nextBefore, setNextBefore] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -46,12 +49,33 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
   const [error, setError] = useState<string | null>(null);
   const streamAbort = useRef<AbortController | null>(null);
   const messagesEnd = useRef<HTMLDivElement | null>(null);
+  const messagesViewport = useRef<HTMLDivElement | null>(null);
+  const restoreScroll = useRef<{ height: number; top: number } | null>(null);
 
   const loadConversation = useCallback(async (conversationId: string) => {
     const response = await getPlatformConversation(conversationId);
     setConversation(response.conversation);
     setMessages(sortMessages(response.messages));
+    setHasMoreMessages(Boolean(response.hasMore));
+    setNextBefore(response.nextBefore ?? null);
   }, []);
+
+  const loadOlder = async () => {
+    if (!conversation || !hasMoreMessages || !nextBefore || loadingOlder) return;
+    const viewport = messagesViewport.current;
+    if (viewport) restoreScroll.current = { height: viewport.scrollHeight, top: viewport.scrollTop };
+    setLoadingOlder(true);
+    try {
+      const response = await getPlatformConversation(conversation.id, { limit: 50, before: nextBefore });
+      setMessages((current) => sortMessages([...response.messages, ...current.filter((message) => !response.messages.some((older) => older.id === message.id))]));
+      setHasMoreMessages(Boolean(response.hasMore));
+      setNextBefore(response.nextBefore ?? null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load earlier messages");
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   useEffect(() => {
     if (!open || conversation || loading) return;
@@ -67,6 +91,8 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
         if (cancelled) return;
         setConversation(resolved.conversation);
         setMessages(sortMessages(resolved.messages));
+        setHasMoreMessages(Boolean(resolved.hasMore));
+        setNextBefore(resolved.nextBefore ?? null);
       } catch (cause) {
         if (!cancelled) setError(cause instanceof Error ? cause.message : "KasiAi is unavailable");
       } finally {
@@ -81,6 +107,14 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, sending]);
+
+  useEffect(() => {
+    const previous = restoreScroll.current;
+    const viewport = messagesViewport.current;
+    if (!previous || !viewport) return;
+    viewport.scrollTop = viewport.scrollHeight - previous.height + previous.top;
+    restoreScroll.current = null;
+  }, [messages]);
 
   useEffect(() => () => streamAbort.current?.abort(), []);
 
@@ -173,6 +207,8 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
       const response = await createPlatformConversation(installation.id);
       setConversation(response.conversation);
       setMessages(sortMessages(response.messages));
+      setHasMoreMessages(Boolean(response.hasMore));
+      setNextBefore(response.nextBefore ?? null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to start a new conversation");
     } finally {
@@ -209,7 +245,8 @@ export function KasiAiChat({ open, onOpenChange }: { open: boolean; onOpenChange
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4" aria-live="polite" aria-busy={loading || sending}>
+      <div ref={messagesViewport} className="flex-1 overflow-y-auto px-4 py-4" aria-live="polite" aria-busy={loading || sending}>
+        {hasMoreMessages ? <div className="mb-3 flex justify-center"><Button type="button" variant="outline" size="sm" onClick={() => void loadOlder()} disabled={loadingOlder}>{loadingOlder ? "Loading earlier…" : "Load earlier messages"}</Button></div> : null}
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
             <LoaderCircle className="h-4 w-4 animate-spin" />

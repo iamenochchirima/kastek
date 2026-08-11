@@ -169,8 +169,12 @@ export function sendPlatformMessage(
   });
 }
 
-export function getPlatformConversation(conversationId: string): Promise<ConversationResponse> {
-  return request<ConversationResponse>(`/api/agents/conversations/${encodeURIComponent(conversationId)}`);
+export function getPlatformConversation(conversationId: string, options: { limit?: number; before?: string } = {}): Promise<ConversationResponse> {
+  const query = new URLSearchParams();
+  if (options.limit) query.set("limit", String(options.limit));
+  if (options.before) query.set("before", options.before);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<ConversationResponse>(`/api/agents/conversations/${encodeURIComponent(conversationId)}${suffix}`);
 }
 
 export function cancelAgentRun(runId: string, reason = "Stopped by user"): Promise<{ runId: string; status: string }> {

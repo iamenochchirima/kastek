@@ -90,6 +90,12 @@ pub struct AuditQuery {
     pub limit: Option<u32>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ConversationQuery {
+    pub limit: Option<u32>,
+    pub before: Option<String>,
+}
+
 pub async fn list_audit(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -327,10 +333,31 @@ pub async fn get_conversation(
     config: web::Data<AppConfig>,
     req: HttpRequest,
     conversation_id: web::Path<String>,
+    query: web::Query<ConversationQuery>,
 ) -> Result<HttpResponse, AppError> {
     let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=200).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Conversation message limit must be between 1 and 200".to_string(),
+        ));
+    }
+    if query
+        .before
+        .as_ref()
+        .is_some_and(|before| before.parse::<u64>().is_err())
+    {
+        return Err(AppError::BadRequest(
+            "Conversation cursor is invalid".to_string(),
+        ));
+    }
     let response = client(config.get_ref())?
-        .get_conversation(&organization_id, &user.id, &conversation_id)
+        .get_conversation(
+            &organization_id,
+            &user.id,
+            &conversation_id,
+            query.limit,
+            query.before.as_deref(),
+        )
         .await?;
     Ok(HttpResponse::Ok().json(response))
 }
