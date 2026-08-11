@@ -82,13 +82,18 @@ export class ToolInvocationRepository {
     decision: "approved" | "rejected";
     approval: unknown;
   }): Promise<void> {
-    await query(
+    const approval = input.approval as { argumentsHash?: string; expiresAt?: string };
+    if (!approval.argumentsHash || !approval.expiresAt) throw new Error("Approval must include arguments hash and expiry");
+    if (new Date(approval.expiresAt).getTime() <= Date.now()) throw new Error("Approval has expired");
+    const result = await query(
       this.pool,
       `UPDATE tool_invocations
        SET status = $3, approval = $4::jsonb
-       WHERE run_id = $1 AND provider_tool_call_id = $2`,
-      [input.runId, input.providerToolCallId, input.decision, JSON.stringify(input.approval)],
+       WHERE run_id = $1 AND provider_tool_call_id = $2 AND status = 'awaiting_approval'
+         AND arguments_hash = $5`,
+      [input.runId, input.providerToolCallId, input.decision, JSON.stringify(input.approval), approval.argumentsHash],
     );
+    if (!result.rowCount) throw new Error("Approval action is stale, mutated, or not awaiting approval");
   }
 
   public async list(organizationId: string, runId: string): Promise<Array<Record<string, unknown>>> {

@@ -396,8 +396,10 @@ received
   actor rights, entitlements, connection capability, channel policy, and kill switches.
 - [x] Define read, draft, controlled-write, external-effect, and privileged risk classes.
   **Tool manifests carry risk classes; external write tools remain disabled in the first slice.**
-- [x] Bind approvals to the exact action, arguments hash, and expiry. Actor/scope/version binding remains pending in the durable approval record.
-- [ ] Invalidate approval if any bound value changes.
+- [x] Bind approvals to the exact action, arguments hash, and expiry. **Durable decision updates
+  require the pending status, exact arguments hash, and unexpired approval payload.**
+- [x] Invalidate approval if any bound value changes. **A changed hash or already-decided action
+  is rejected as stale.**
 - [ ] Prevent privilege escalation through prompt content or tool arguments.
 - [x] Add global, organization, agent, channel, and tool kill switches. **Organization operators
   can manage scoped switches; runtime checks global, organization, agent, installation, and tool

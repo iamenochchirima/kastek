@@ -5,6 +5,7 @@ import { RunRepository } from "../src/db/repositories/run-repository";
 import { RunStepRepository } from "../src/db/repositories/run-step-repository";
 import { WorkflowStateRepository } from "../src/db/repositories/workflow-state-repository";
 import { ModelCallRepository } from "../src/db/repositories/model-call-repository";
+import { ToolInvocationRepository } from "../src/db/repositories/tool-invocation-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -15,6 +16,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
   const steps = new RunStepRepository(pool);
   const workflowState = new WorkflowStateRepository(pool);
   const modelCalls = new ModelCallRepository(pool);
+  const toolInvocations = new ToolInvocationRepository(pool);
   const organizationId = `run-test-${randomUUID()}`;
   const agentId = randomUUID();
   const versionId = randomUUID();
@@ -46,12 +48,17 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     await expect(workflowState.put({ organizationId, runId, expectedRevision: 0, state: { node: "stale" } })).rejects.toThrow("revision conflict");
     await pool.query("INSERT INTO model_calls (organization_id, run_id, provider, model, funding_source, total_tokens, estimated_cost_usd, status) VALUES ($1, $2, 'openai', 'test', 'kasitek', 10, 0.25, 'completed')", [organizationId, runId]);
     await expect(modelCalls.assertRunBudget({ organizationId, runId, maxRequests: 1 })).rejects.toThrow("REQUEST_BUDGET");
+    const argumentsHash = "a".repeat(64);
+    await pool.query("INSERT INTO tool_invocations (run_id, organization_id, provider_tool_call_id, sequence_number, tool_name, tool_version, risk_class, arguments_hash, status) VALUES ($1, $2, 'approval-call', 1, 'test.tool', '1.0.0', 'external-effect', $3, 'awaiting_approval')", [runId, organizationId, argumentsHash]);
+    await toolInvocations.recordApprovalDecision({ runId, providerToolCallId: "approval-call", decision: "approved", approval: { argumentsHash, approvedBy: "user-1", expiresAt: new Date(Date.now() + 60_000).toISOString() } });
+    await expect(toolInvocations.recordApprovalDecision({ runId, providerToolCallId: "approval-call", decision: "approved", approval: { argumentsHash, approvedBy: "user-1", expiresAt: new Date(Date.now() + 60_000).toISOString() } })).rejects.toThrow("stale");
   });
 
   afterAll(async () => {
     await pool.query("DELETE FROM run_steps WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_workflow_state WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM model_calls WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM tool_invocations WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
