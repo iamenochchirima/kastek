@@ -191,8 +191,8 @@ also work for template-created agents.
 - [x] Accept a client-generated idempotency key and ensure retries return the same message/run.
 - [x] Accept trusted page context separately from user text: current route, page/resource type,
   and permitted resource ID.
-- [ ] Re-authorize trusted page/resource context in `kasitek-core` before passing it to the Agent
-  Platform.
+- [x] Re-authorize trusted page/resource context in `kasitek-core` before passing it to the Agent
+  Platform; only bounded route/title context is accepted and resource identifiers are excluded.
 - [x] Reject disabled installations, archived conversations, oversized content, unsupported
   message types, and invalid organization/user scope.
 - [x] Acknowledge only after the inbound message and run are durably stored.
@@ -202,7 +202,8 @@ also work for template-created agents.
 - [x] Persist the final model response as one outbound conversation message before marking the run
   complete.
 - [x] Make outbound persistence idempotent across Temporal activity retries.
-- [ ] Link the outbound message to its run and model-call records.
+- [x] Link the outbound message to its run; model-call records share the same run identifier for
+  audit correlation.
 - [x] Persist failure and cancellation events without fabricating an assistant response.
 - [x] Rebuild the conversation summary only after the new outbound message is durable.
 - [x] Return the final message through run inspection and conversation history.
@@ -351,7 +352,7 @@ also work for template-created agents.
 
 ## 11. Phase G — Initial KasiAi product configuration
 
-- [ ] Write the initial protected instructions around platform guidance, user intent, uncertainty,
+- [x] Write the initial protected instructions around platform guidance, user intent, uncertainty,
   tool use, data boundaries, and escalation.
 - [ ] Add versioned platform navigation and product-help knowledge.
 - [x] Add the first read-only tool contracts required for useful guidance, including workspace
@@ -369,7 +370,8 @@ also work for template-created agents.
 
 - [ ] KasiAi answers platform questions using its versioned knowledge and completes permitted
   read-only calls through the generic Tool Gateway.
-- [ ] KasiAi cannot invoke ungranted platform actions.
+- [x] KasiAi cannot invoke ungranted platform actions; runtime grants are resolved per version and
+  installation before tool execution.
 
 ## 12. Phase H — Complete legacy bot purge
 
