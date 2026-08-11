@@ -27,7 +27,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 51 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 53 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -311,19 +311,24 @@ received
 
 - [x] Define a versioned declarative graph schema. **Version 1 supports deterministic, model,
   loop, tool, route, fan-out/fan-in, approval, and wait node contracts.**
-- [ ] Support deterministic function nodes.
-- [ ] Support one-call model nodes.
-- [ ] Support full bounded agent-loop nodes.
-- [ ] Support tool nodes.
-- [ ] Support routing nodes whose final control decision is deterministic code.
-- [ ] Support fan-out and fan-in.
-- [ ] Support bounded cycles.
-- [ ] Support human approval and human handoff nodes.
-- [ ] Support waits for schedules and external events.
+- [x] Support deterministic function nodes.
+- [x] Support one-call model nodes. **The executor injects the model implementation so graph
+  definitions remain provider-neutral.**
+- [x] Support full bounded agent-loop nodes. **The executor injects the existing bounded loop.**
+- [x] Support tool nodes.
+- [x] Support routing nodes whose final control decision is deterministic code.
+- [x] Support fan-out and fan-in. **Fan-out executes branches concurrently against isolated state
+  snapshots and merges completed branch state.**
+- [x] Support bounded cycles. **Node iteration limits are enforced at execution; graph validation
+  rejects unbounded cycles.**
+- [x] Support human approval and human handoff nodes. **Approval nodes durably return a pause
+  result; handoff signaling remains a channel/control-plane integration.**
+- [x] Support waits for schedules and external events. **Wait nodes durably return an external
+  event pause result.**
 - [x] Validate graph topology before publication.
 - [x] Prevent parallel branches from silently overwriting the same state key. **Parallel nodes
   must declare a group and duplicate local writes are rejected.**
-- [ ] Trace the executed path and node outcomes.
+- [x] Trace the executed path and node outcomes.
 
 ## 9. Agent control plane
 
