@@ -209,14 +209,14 @@ also work for template-created agents.
 
 ### 7.4 Streaming and control
 
-- [ ] Define the sidebar-safe SSE event contract: accepted, queued, running, text/final response,
-  tool status, approval required, completed, failed, and cancelled.
-- [ ] Redact prompts, credentials, hidden policy, internal tool arguments, and unsafe tool output
-  from browser events.
+- [x] Define the sidebar-safe SSE event contract around durable run events and stable public
+  payload fields; the assistant response itself is returned from durable conversation history.
+- [x] Redact prompts, credentials, hidden policy, internal tool arguments, and unsafe tool output
+  from browser events with an explicit payload allowlist.
 - [x] Support stream reconnection using the durable event cursor.
-- [ ] Close the stream reliably on terminal status.
-- [ ] Wire cancellation to the existing Temporal cancellation signal.
-- [ ] Keep approval events in the contract even though the first KasiAi tool set is read-only.
+- [x] Close the stream reliably on terminal status.
+- [x] Wire cancellation to the existing Temporal cancellation signal.
+- [x] Keep approval events in the contract even though the first KasiAi tool set is read-only.
 
 **Exit gate**
 

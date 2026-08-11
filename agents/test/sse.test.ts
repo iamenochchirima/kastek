@@ -3,8 +3,8 @@ import { formatSseComment, formatSseEvent } from "../src/http/sse";
 
 describe("run event SSE formatting", () => {
   it("emits resumable event IDs and JSON data", () => {
-    expect(formatSseEvent({ sequence_number: "12", event_type: "run.running", ok: true })).toBe(
-      'id: 12\nevent: run.running\ndata: {"sequence_number":"12","event_type":"run.running","ok":true}\n\n',
+    expect(formatSseEvent({ sequence_number: "12", event_type: "run.running", ok: true, payload: { status: "running", prompt: "hidden" }, created_at: "2026-08-11T00:00:00.000Z", organization_id: "private" })).toBe(
+      'id: 12\nevent: run.running\ndata: {"sequence_number":"12","event_type":"run.running","payload":{"status":"running"},"created_at":"2026-08-11T00:00:00.000Z"}\n\n',
     );
   });
 
