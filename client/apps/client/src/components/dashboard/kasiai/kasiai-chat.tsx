@@ -67,6 +67,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const [sending, setSending] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [initializationKey, setInitializationKey] = useState(0);
   const [panelWidth, setPanelWidth] = useState(KASIAI_DEFAULT_WIDTH);
   const [resizing, setResizing] = useState(false);
   const streamAbort = useRef<AbortController | null>(null);
@@ -74,6 +75,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const messagesViewport = useRef<HTMLDivElement | null>(null);
   const restoreScroll = useRef<{ height: number; top: number } | null>(null);
   const resizeStart = useRef<{ pointerX: number; width: number } | null>(null);
+  const initializationAttempted = useRef(false);
 
   useEffect(() => {
     const storedWidth = window.localStorage.getItem(KASIAI_PANEL_WIDTH_KEY);
@@ -134,7 +136,12 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   };
 
   useEffect(() => {
-    if (!open || conversation || loading) return;
+    if (!open) {
+      initializationAttempted.current = false;
+      return;
+    }
+    if (initializationAttempted.current) return;
+    initializationAttempted.current = true;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -158,7 +165,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     return () => {
       cancelled = true;
     };
-  }, [conversation, installation, loading, open]);
+  }, [initializationKey, open]);
 
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -272,6 +279,16 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     }
   };
 
+  const retryInitialization = () => {
+    initializationAttempted.current = false;
+    setConversation(null);
+    setInstallation(null);
+    setMessages([]);
+    setError(null);
+    setLoading(false);
+    setInitializationKey((key) => key + 1);
+  };
+
   if (!open) return null;
 
   return (
@@ -373,6 +390,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       {error ? (
         <div className="mx-4 mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-5 text-destructive" role="alert">
           {error}
+          <Button type="button" variant="outline" size="sm" className="mt-2 h-7 border-destructive/30 text-destructive hover:bg-destructive/10" onClick={retryInitialization}>Retry</Button>
         </div>
       ) : null}
 
