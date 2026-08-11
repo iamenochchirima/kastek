@@ -143,7 +143,9 @@ This checklist must be updated during implementation:
 - [ ] ADR: Define message-stream delivery: SSE initially, WebSocket, or both.
 - [ ] ADR: Define audit retention, trace retention, content redaction, and support access.
 - [ ] ADR: Define the first sandbox provider for future untrusted execution.
-- [ ] ADR: Define how declarative workflow definitions are represented and versioned.
+- [x] ADR: Define how declarative workflow definitions are represented and versioned. **Version 1
+  is a validated immutable graph embedded in the agent version configuration; execution is
+  provider-neutral and traced.**
 - [x] ADR: Define how the Agent Platform authenticates internal calls to `kasitek-core`.
 - [x] ADR: Define the external channel identity-pairing protocol. **Generic one-time pairing is
   implemented; provider webhook verification and channel-specific UX remain separate.**
