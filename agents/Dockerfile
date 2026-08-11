@@ -1,16 +1,18 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY tsconfig.json vitest.config.ts ./
 COPY src ./src
-RUN npm run build
+RUN pnpm run build
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
 COPY --from=build /app/dist ./dist
 COPY migrations ./migrations
 EXPOSE 4100

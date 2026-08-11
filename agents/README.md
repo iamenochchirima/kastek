@@ -7,16 +7,21 @@ actions will go through authenticated internal contracts exposed by `kasitek-cor
 
 ## Processes
 
-- `npm run dev:api` starts the HTTP API.
-- `npm run dev:worker` starts the Temporal worker.
-- `npm run migrate` applies PostgreSQL migrations.
-- `npm run build` compiles both processes to `dist/`.
+- `pnpm run dev:api` starts the HTTP API.
+- `pnpm run dev:worker` starts the Temporal worker.
+- `pnpm run migrate` applies PostgreSQL migrations.
+- `pnpm run build` compiles both processes to `dist/`.
 - `RUN_AGENTS_DB_INTEGRATION_TESTS=true AGENTS_DATABASE_URL=... npm test` enables the
   opt-in PostgreSQL isolation/deletion tests; the normal test command never mutates a database.
 
 The API and worker are intentionally separate process types so Railway can scale them
 independently. Local development may run the API with `TEMPORAL_ENABLED=false`; production
 must enable Temporal and provide a dedicated namespace/task queue.
+
+For containers, use the checked-in Dockerfile for the API and override the Railway worker start
+command with `node dist/temporal/worker.js`. Run `pnpm run migrate` as a release/deployment step
+against the Agent Platform database before routing traffic. The worker should use private
+networking and the API should expose `/health/live` and `/health/ready`.
 
 Run requests may include an `idempotencyKey`; retries within an organization return the original
 run and do not start a second Temporal workflow. Run inspection is available at

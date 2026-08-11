@@ -110,7 +110,7 @@ This checklist must be updated during implementation:
   service framework and package boundaries.
 - [x] ADR: Record Temporal as the confirmed durable execution engine and document the
   workflow/activity boundary.
-- [ ] ADR: Record Temporal Cloud as the initial deployment, including the trial deadline,
+- [x] ADR: Record Temporal Cloud as the initial deployment, including the trial deadline,
   spend alerts, self-hosted Railway exit plan, and active-workflow cutover procedure.
 - [x] ADR: Record the confirmed dedicated Agent Platform PostgreSQL service, database ownership,
   backup policy, connection limits, and prohibition on cross-database coupling to core tables.
@@ -574,8 +574,10 @@ received
 
 ## 18. Railway-first deployment
 
-- [ ] Add Dockerfiles for Agent Platform process types.
-- [ ] Make process mode configurable through start commands.
+- [x] Add Dockerfiles for Agent Platform process types. **The Dockerfile uses the committed pnpm
+  lockfile and builds reproducibly.**
+- [x] Make process mode configurable through start commands. **Railway can run the API and worker
+  from the same image with separate commands.**
 - [ ] Deploy `kasitek-agents-api` as a Railway service.
 - [ ] Deploy `kasitek-agents-worker` as a separate Railway service.
 - [ ] Keep the worker private through Railway private networking.
@@ -584,7 +586,7 @@ received
 - [ ] Provision Redis if selected by ADR.
 - [ ] Connect to managed durable workflow infrastructure.
 - [ ] Configure object storage outside container filesystems.
-- [ ] Configure health, readiness, and liveness endpoints.
+- [x] Configure health, readiness, and liveness endpoints.
 - [ ] Configure zero-downtime-compatible migrations.
 - [ ] Configure backups and prove restoration.
 - [ ] Configure horizontal worker replicas.
