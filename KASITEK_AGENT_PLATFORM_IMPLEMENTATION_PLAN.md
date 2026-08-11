@@ -23,7 +23,7 @@
 - [x] Run events are available through a replica-safe PostgreSQL-polled SSE stream.
 - [x] `kasitek-core` exposes an authenticated, organization-scoped read-only customer boundary;
   the initial `kasitek.core.customer_get` tool uses it without database access.
-- [x] Local verification: TypeScript build; 39 tests with the PostgreSQL integration flag;
+- [x] Local verification: TypeScript build; 42 tests with the PostgreSQL integration flag;
   `cargo fmt --check`; and `cargo check -p kasitek-core`.
 - [ ] Temporal Cloud execution, worker restart recovery, and multi-replica failover still need
   a live namespace and deployment credentials.
@@ -455,7 +455,9 @@ received
 
 - [x] Define knowledge collections and source ownership.
 - [x] Support explicit document upload. **Canonical source/chunk persistence is implemented; object storage/upload transport remains pending.**
-- [ ] Support explicit URL ingestion with bounded fetching.
+- [x] Support explicit URL ingestion with bounded fetching. **HTTP(S)-only fetches enforce
+  redirect, credential, content-type, timeout, declared-length, and streaming byte limits;
+  deterministic text chunking preserves URL and fetch provenance.**
 - [ ] Store original files in object storage.
 - [ ] Scan files before parsing.
 - [ ] Separate fetch, extract, chunk, embed, index, and publish steps.

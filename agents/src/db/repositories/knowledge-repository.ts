@@ -52,6 +52,16 @@ export class KnowledgeRepository {
     return result.rows[0]!;
   }
 
+  public async getSource(scope: { organizationId: string; agentId?: string; installationId?: string }, sourceId: string): Promise<KnowledgeSourceRecord | null> {
+    const result = await query<KnowledgeSourceRecord>(
+      this.pool,
+      `SELECT * FROM knowledge_sources
+       WHERE id = $1 AND organization_id = $2 AND status = 'active'`,
+      [sourceId, scope.organizationId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   public async addChunks(input: {
     sourceId: string;
     scope: MemoryScope;

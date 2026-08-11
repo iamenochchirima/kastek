@@ -17,6 +17,8 @@ import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 import { ModelCallRepository } from "../db/repositories/model-call-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
+import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
+import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent } from "./sse";
@@ -33,6 +35,7 @@ export interface AppDependencies {
   modelCalls?: ModelCallRepository;
   channels?: ChannelRepository;
   credentials?: CredentialVaultRepository;
+  knowledge?: KnowledgeRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -65,6 +68,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const modelCalls = dependencies.modelCalls ?? new ModelCallRepository(dependencies.pool);
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
+  const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
 
   app.setErrorHandler((error, _request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -364,6 +368,38 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     await credentials.revoke(auth.organizationId, request.params.credentialId);
     return reply.code(204).send();
+  });
+
+  app.post("/v1/knowledge/sources", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({
+      name: z.string().trim().min(1).max(240),
+      sourceType: z.enum(["upload", "url", "platform", "manual"]),
+      sourceUri: z.string().url().max(2_000).optional(),
+      agentId: z.string().uuid(),
+      installationId: z.string().uuid().optional(),
+      provenance: z.record(z.string(), z.unknown()).default({}),
+    }).parse(request.body);
+    const source = await knowledge.createSource({ ...input, organizationId: auth.organizationId, actorId: auth.actorId });
+    return reply.code(201).send(source);
+  });
+
+  app.post<{ Params: { sourceId: string } }>("/v1/knowledge/sources/:sourceId/ingest-url", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const input = z.object({ url: z.string().url().max(2_000), maxBytes: z.number().int().positive().max(10_000_000).optional(), timeoutMs: z.number().int().positive().max(60_000).optional() }).parse(request.body);
+    const source = await knowledge.getSource({ organizationId: auth.organizationId }, request.params.sourceId);
+    if (!source) return reply.code(404).send({ error: "knowledge_source_not_found" });
+    if (!source.agent_definition_id) return reply.code(422).send({ error: "knowledge_source_agent_scope_required" });
+    const document = await fetchBoundedKnowledgeDocument(input.url, { maxBytes: input.maxBytes, timeoutMs: input.timeoutMs });
+    const chunks = chunkKnowledgeText(document.text);
+    if (!chunks.length) return reply.code(422).send({ error: "knowledge_document_empty" });
+    const stored = await knowledge.addChunks({
+      sourceId: source.id,
+      scope: { organizationId: auth.organizationId, agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined },
+      revision: source.revision + 1,
+      chunks: chunks.map((text, index) => ({ text, metadata: { contentType: document.contentType, bytes: document.bytes }, provenance: { url: document.url, fetchedAt: new Date().toISOString(), chunkIndex: index } })),
+    });
+    return reply.code(201).send({ sourceId: source.id, revision: source.revision + 1, chunks: stored });
   });
 
   app.get<{ Params: { runId: string }; Querystring: { after?: string } }>("/v1/runs/:runId/events/stream", async (request, reply) => {
