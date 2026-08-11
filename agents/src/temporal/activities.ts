@@ -80,6 +80,11 @@ function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegistry {
   return tools;
 }
 
+function restrictiveLimit(...values: unknown[]): number | undefined {
+  const numbers = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0);
+  return numbers.length ? Math.min(...numbers) : undefined;
+}
+
 export function createActivities(pool: Pool, options: ActivityOptions = {}): AgentRunActivities {
   const runs = new RunRepository(pool);
   const modelCalls = new ModelCallRepository(pool);
@@ -139,6 +144,7 @@ async function executeLoopForRun(
   tools: ToolRegistry,
 ) {
   const configuration = run.configuration;
+  const installationSettings = run.installation_settings ?? {};
   const modelTarget = resolveModelTarget(configuration, run.policy);
   const provider = modelTarget.provider;
   const model = modelTarget.model;
@@ -201,8 +207,8 @@ async function executeLoopForRun(
     })),
     authorizedTools: tools.list(allowedTools),
     budget: {
-      maxMessages: typeof configuration.maxContextMessages === "number" ? configuration.maxContextMessages : undefined,
-      maxContextTokens: typeof configuration.maxContextTokens === "number" ? configuration.maxContextTokens : undefined,
+      maxMessages: restrictiveLimit(configuration.maxContextMessages, installationSettings.maxContextMessages),
+      maxContextTokens: restrictiveLimit(configuration.maxContextTokens, installationSettings.maxContextTokens),
     },
   });
   const contextStep = await runSteps.startStep({
@@ -250,16 +256,16 @@ async function executeLoopForRun(
     limits: {
       maxIterations: typeof configuration.maxIterations === "number" ? configuration.maxIterations : undefined,
       maxToolCalls: typeof configuration.maxToolCalls === "number" ? configuration.maxToolCalls : undefined,
-      maxTotalTokens: modelTarget.maxTokensPerRun ?? (typeof configuration.maxTotalTokens === "number" ? configuration.maxTotalTokens : undefined),
-      maxEstimatedCostUsd: modelTarget.maxEstimatedCostUsd,
+      maxTotalTokens: restrictiveLimit(modelTarget.maxTokensPerRun, configuration.maxTotalTokens, installationSettings.maxTotalTokens),
+      maxEstimatedCostUsd: restrictiveLimit(modelTarget.maxEstimatedCostUsd, installationSettings.maxEstimatedCostUsd),
       maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
     },
     beforeModelCall: () => modelCalls.assertRunBudget({
       organizationId: run.organization_id,
       runId: run.id,
-      maxTotalTokens: modelTarget.maxTokensPerRun ?? (typeof configuration.maxTotalTokens === "number" ? configuration.maxTotalTokens : undefined),
-      maxEstimatedCostUsd: modelTarget.maxEstimatedCostUsd,
-      maxRequests: typeof configuration.maxModelCalls === "number" ? configuration.maxModelCalls : undefined,
+      maxTotalTokens: restrictiveLimit(modelTarget.maxTokensPerRun, configuration.maxTotalTokens, installationSettings.maxTotalTokens),
+      maxEstimatedCostUsd: restrictiveLimit(modelTarget.maxEstimatedCostUsd, installationSettings.maxEstimatedCostUsd),
+      maxRequests: restrictiveLimit(configuration.maxModelCalls, installationSettings.maxModelCalls),
     }),
     resumeApprovedToolCall,
     onEvent: (event) => runs.appendEvent({

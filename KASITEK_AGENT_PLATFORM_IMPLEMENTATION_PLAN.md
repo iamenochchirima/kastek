@@ -375,10 +375,12 @@ received
 - [x] Bind an installation to channels and triggers. **Installation/channel bindings and generic
   one-time pairing are implemented; provider trigger adapters remain pending.**
 - [x] Apply installation-level settings without mutating the agent version.
-- [ ] Apply installation-level budgets and rate limits.
+- [x] Apply installation-level budgets and rate limits. **Installation settings cap context,
+  model calls, tokens, and spend; distributed request rate limiting remains a Redis/deployment
+  concern.**
 - [x] Resolve an effective configuration deterministically. **Runtime tool access is the
-  intersection of version policy and active version/installation grants. Broader settings and
-  budget precedence remain pending.**
+  intersection of version policy and active version/installation grants; installation settings
+  apply restrictive context and model budgets without mutating the immutable version.**
 
 ## 10. Identity, authorization, and policy
 

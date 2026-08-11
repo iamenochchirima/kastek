@@ -30,6 +30,7 @@ export interface RuntimeRunRecord extends RunRecord {
   instructions: string;
   configuration: Record<string, unknown>;
   policy: Record<string, unknown>;
+  installation_settings: Record<string, unknown>;
 }
 
 export class RunRepository {
@@ -219,9 +220,10 @@ export class RunRepository {
   public async getRuntimeRun(organizationId: string, runId: string): Promise<RuntimeRunRecord | null> {
     const result = await query<RuntimeRunRecord>(
       this.pool,
-      `SELECT ar.*, av.instructions, av.configuration, av.policy
+      `SELECT ar.*, av.instructions, av.configuration, av.policy, ai.settings AS installation_settings
        FROM agent_runs ar
        JOIN agent_versions av ON av.id = ar.agent_version_id
+       JOIN agent_installations ai ON ai.id = ar.installation_id
        WHERE ar.organization_id = $1 AND ar.id = $2`,
       [organizationId, runId],
     );
@@ -231,9 +233,10 @@ export class RunRepository {
   public async getRuntimeRunById(runId: string): Promise<RuntimeRunRecord | null> {
     const result = await query<RuntimeRunRecord>(
       this.pool,
-      `SELECT ar.*, av.instructions, av.configuration, av.policy
+      `SELECT ar.*, av.instructions, av.configuration, av.policy, ai.settings AS installation_settings
        FROM agent_runs ar
        JOIN agent_versions av ON av.id = ar.agent_version_id
+       JOIN agent_installations ai ON ai.id = ar.installation_id
        WHERE ar.id = $1`,
       [runId],
     );
