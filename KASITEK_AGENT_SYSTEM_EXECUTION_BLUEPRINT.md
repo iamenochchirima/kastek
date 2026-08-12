@@ -56,7 +56,7 @@ Browser / channel / hosted agent       External MCP client
        short-lived signed delegation
                  |
                  v
-      shared core application/domain services <── public `/v1` module
+         shared core domain operations <── `api::public_v1`
                  |                                      ^
                  v                                      |
  business state · authorization · effects       apps/services/agents
@@ -71,7 +71,7 @@ The initial deployment has four relevant processes. The public API is a module, 
 
 | Deployment | Language | Owns |
 | --- | --- | --- |
-| `kasitek-core` | Rust | Existing product endpoints, modular public `/v1`, shared application/domain services, final authorization, data, and provider effects. |
+| `kasitek-core` | Rust | Existing product endpoints, modular public `/v1`, shared domain commands/queries, final authorization, data, and provider effects. |
 | `agents-api` | TypeScript | Agent control plane, installations, conversations, runs, approvals, capability policy, and internal capability API. |
 | `agents-worker` | TypeScript | Temporal workflows, model/tool activities, schedules, and durable recovery. |
 | `agent-gateway` | TypeScript | Public MCP transport, authentication adaptation, discovery, protocol mapping, rate limits, and health only. |
@@ -80,16 +80,79 @@ Required module boundaries:
 
 ```text
 server/kasitek-core/src/
-├── public_api/             # independently managed /v1 subsystem
-│   ├── routes/             # versioned resource/action routes
-│   ├── auth/               # API keys, service accounts, OAuth, agent principals
-│   ├── contracts/          # public request/response DTOs
-│   ├── middleware/         # scope, rate, idempotency, request/audit context
-│   ├── openapi/            # core-owned OpenAPI 3.1
-│   ├── webhooks/           # public subscriptions and deliveries
-│   └── metrics/            # public API usage, latency, and errors
-├── application/            # reusable business use cases
-└── domain/                 # business rules/types where applicable
+├── main.rs                     # process selection and server startup only
+├── lib.rs                      # testable application composition root
+├── bootstrap/
+│   ├── app.rs                  # Actix application assembly
+│   ├── state.rs                # AppState: pool, config, clients, registries
+│   └── routes.rs               # mounts each API surface without business logic
+├── api/
+│   ├── product/                # existing direct-product /api/* adapters
+│   ├── admin/                  # protected /api/admin/* adapters
+│   ├── public_v1/              # independently managed /v1 subsystem
+│   │   ├── auth/               # API keys, service accounts, OAuth, agent principals
+│   │   ├── contracts/          # versioned public request/response DTOs
+│   │   ├── middleware/         # scope, rate, idempotency, request/audit context
+│   │   ├── routes/             # typed resource/action routes
+│   │   ├── openapi/            # core-owned OpenAPI 3.1
+│   │   ├── webhooks/           # public subscriptions and deliveries
+│   │   └── metrics/            # usage, latency, errors, and availability
+│   ├── internal/               # private /api/internal/* service adapters
+│   ├── provider_webhooks/      # Meta, TikTok, WhatsApp, Twilio, Paystack
+│   └── website/                # anonymous quote/waitlist endpoints; not public /v1
+├── identity/
+│   ├── principal.rs            # normalized human and machine principal types
+│   ├── request_context.rs      # actor, organization, grants, correlation, idempotency
+│   ├── product_session.rs
+│   ├── admin_session.rs
+│   ├── api_key.rs
+│   ├── service_account.rs
+│   └── internal_delegation.rs
+├── domains/                    # reusable vertical business modules
+│   ├── bookings/
+│   │   ├── model.rs
+│   │   ├── commands.rs
+│   │   ├── queries.rs
+│   │   ├── policy.rs
+│   │   └── postgres.rs
+│   ├── content/
+│   ├── campaigns/
+│   ├── contacts/
+│   ├── conversations/
+│   ├── connections/
+│   ├── social/
+│   │   ├── channels/
+│   │   ├── posts/
+│   │   ├── publishing/
+│   │   ├── oauth/
+│   │   ├── webhooks/
+│   │   └── providers/          # Meta, Instagram, Threads, TikTok, Bluesky, X, LinkedIn
+│   ├── whatsapp/
+│   │   ├── connections/
+│   │   ├── contacts/
+│   │   ├── templates/
+│   │   ├── campaigns/
+│   │   ├── inbox/
+│   │   ├── calls/
+│   │   └── delivery/
+│   ├── billing/
+│   └── organizations/
+├── capabilities/
+│   ├── catalog.rs              # core action definitions and registrations
+│   ├── handlers.rs             # typed action-to-domain dispatch
+│   └── core_adapter.rs          # execution/delegation integration
+├── infrastructure/
+│   ├── database.rs
+│   ├── crypto.rs
+│   ├── http.rs
+│   ├── email.rs
+│   └── realtime.rs
+├── workers/
+│   ├── social_publishing.rs
+│   ├── whatsapp_inbox.rs
+│   ├── whatsapp_campaigns.rs
+│   └── billing_reconciliation.rs
+└── error.rs
 
 agents/src/
 ├── capabilities/           # agent manifests, policy, and invocation adapter
@@ -101,11 +164,61 @@ agents/src/
     └── health.ts
 ```
 
-The exact Rust file split may follow existing conventions, but the ownership boundary is mandatory:
-existing `/api/*` controllers, public `/v1` controllers, and private agent-delegation handlers reuse
-application/domain services. They do not call one another as HTTP clients or duplicate database and
-provider logic. `agent-gateway` does not own a database or call `kasitek-core` directly; it calls the
-Agent Platform's internal capability boundary.
+This is a modular-monolith structure inside the existing `kasitek-core` binary, not a request to
+create more Rust services. API modules are inbound adapters. Domain commands and queries own
+business behavior and final resource authorization. Infrastructure modules implement database and
+provider access. Repository traits are introduced only where substitution or transaction testing is
+valuable; simple Postgres queries may remain concrete inside a domain's `postgres.rs`.
+
+Existing `/api/*`, admin, public `/v1`, provider webhook, and private agent-delegation handlers all
+reuse the same domain commands and queries. They do not call one another as HTTP clients or
+duplicate database/provider logic. Transport DTOs do not live in the database model module, and
+domain operations do not inspect cookies, bearer headers, or Actix request types. `agent-gateway`
+does not own a database or call `kasitek-core` directly; it calls the Agent Platform's internal
+capability boundary.
+
+The shared invocation path is:
+
+```text
+surface-specific HTTP/MCP contract
+              |
+              v
+authenticated RequestContext
+              |
+              v
+domain command or query <---- capability/action adapter
+              |
+              v
+business policy and final resource authorization
+              |
+              v
+Postgres/provider effect, audit, usage, and receipt
+```
+
+### Current core baseline and migration constraints
+
+The August 2026 core is a working starting point, not the target boundary:
+
+- `src/routes.rs` centrally mounts product, admin, agent, internal, webhook, and anonymous website
+  routes.
+- `src/db/models.rs` mixes SQL row models with product request and response DTOs.
+- `services/social.rs`, `services/whatsapp.rs`, `services/inbox.rs`, and `services/billing.rs` are
+  large transaction-script modules containing database, provider, and business behavior.
+- several controllers, especially auth, admin, profile, and workspace, issue SQL directly.
+- `middleware/mod.rs` resolves browser/admin sessions but does not represent all approved public
+  and machine principal types as one normalized request context.
+- `controllers/agent_internal.rs` is a narrow initial service boundary, but its shared static token
+  and direct SQL must be replaced by typed delegation and shared domain operations.
+- `server/crates/actions` and `server/crates/execution` already define action, actor, scope, risk,
+  approval, idempotency, and execution primitives. Core must integrate these crates rather than
+  create a competing capability model.
+- the current `controllers/public.rs` and `services/public.rs` are anonymous website quote/waitlist
+  handlers. They become `api/website`; the name `public_v1` is reserved for the general developer
+  API.
+
+Migration is incremental. Existing URLs and response contracts remain stable while handlers are
+moved behind shared domain operations. Moving files without removing transport, SQL, policy, and
+provider coupling does not complete the reorganization.
 
 ### The 14 agreed architecture layers
 
@@ -117,7 +230,7 @@ Agent Platform's internal capability boundary.
 | 4. Capability catalog | One versioned JSON-Schema manifest registry generates agent tools, MCP, UI metadata, agent documentation, and audit descriptions. Core owns public REST/OpenAPI contracts; overlapping schemas and outcomes are contract-tested. |
 | 5. Action safety | Reads and drafts may run directly; real external effects require exact, single-use approvals initially. Mutations require idempotency, receipts, reconciliation, and execution-time authorization. |
 | 6. Core boundary | Core owns product data, business authorization, transactional effects, and provider idempotency. Agent Platform uses short-lived asymmetric per-invocation delegation. |
-| 7. MCP and REST | A separate TypeScript gateway hosts MCP at `agents.kasitek.co.za/mcp`. A modular Rust subsystem inside core hosts the general public REST API at `api.kasitek.co.za/v1/*`. Equivalent operations converge on shared core application services. |
+| 7. MCP and REST | A separate TypeScript gateway hosts MCP at `agents.kasitek.co.za/mcp`. The independently managed `api::public_v1` Rust module inside core hosts the general public REST API at `api.kasitek.co.za/v1/*`. Equivalent operations converge on shared domain commands and queries. |
 | 8. Runtime durability | One AgentRun model across agent entry points; Temporal handles durable agent work, retries, approvals, schedules, cancellation, and recovery. General REST uses core API/action execution records and links runs when applicable. |
 | 9. Conversations and channels | Personal conversations are user-owned; business conversations are customer/thread-owned. Channel adapters are thin and never silently merge unrelated chats. |
 | 10. Context and memory | Reviewed product knowledge, bounded recent history plus summaries, scoped memory namespaces, provenance, consent, deletion, and strict trusted/untrusted boundaries. |
@@ -128,9 +241,10 @@ Agent Platform's internal capability boundary.
 
 ### Initial delivery choices
 
-- Content/social is the first complete capability domain.
-- Contacts/inbox, bookings, campaigns, automations/agent administration, and reporting follow using
-  the same contracts.
+- Bookings is the small structural pilot for the core module pattern; this does not make it the
+  first complete external agent-capability release.
+- Content/social is the first complete capability domain. Contacts/inbox, full bookings exposure,
+  campaigns, automations/agent administration, and reporting follow using the same contracts.
 - Controlled test workspaces behave as fully entitled while usage is still measured from day one.
 - Real external effects always use approval during initial testing.
 - Hosted agent creation starts with guided forms and templates. The visual workflow builder is a
@@ -148,7 +262,7 @@ Agent Platform's internal capability boundary.
 
 - Work through the slices in order unless a task is explicitly independent.
 - Do not duplicate business logic across MCP, public REST, product controllers, or private agent
-  handlers. Extend the shared application/domain operations and their contracts.
+  handlers. Extend the shared domain commands/queries and their contracts.
 - Do not mark a checkbox complete based only on code presence. Run the required verification.
 - Every database change needs a migration, rollback/recovery consideration, and migration test.
 - Every public or internal API change needs typed contracts and authorization tests.
@@ -185,7 +299,110 @@ Agent Platform's internal capability boundary.
 **Complete when:** the team has a verified baseline, every remaining item maps to this blueprint,
 and agents can implement without relying on a superseded checklist.
 
-## Slice 1 — Shared contracts, installations, and identity
+## Slice 1 — Core modular-monolith foundation
+
+**Layers covered:** prerequisite for 3, 4, 6, 7, 12, and 13
+
+This slice reorganizes `kasitek-core` before the permanent public and agent surfaces expand. It is
+an incremental responsibility migration, not a big-bang rewrite. Bookings is the pilot because its
+current controller/service flow is small but exercises reads, writes, organization scope, admin
+policy, customer references, validation, conflicts, and database effects. Content/social remains
+the first complete agent-capability domain in Slice 5.
+
+### Application shell and route surfaces
+
+- [ ] Add `src/lib.rs` and a testable composition root without changing the production binary name,
+  process commands, health endpoints, or deployment topology.
+- [ ] Introduce `bootstrap::state::AppState` for the pool, configuration, HTTP/provider clients,
+  action registry, and execution dependencies; avoid adding unrelated global state.
+- [ ] Move Actix assembly and route mounting from `main.rs` and the monolithic `routes.rs` into
+  `bootstrap`, keeping `main.rs` responsible for environment loading, process selection, startup,
+  and shutdown only.
+- [ ] Split route registration into `api::product`, `api::admin`, `api::internal`,
+  `api::provider_webhooks`, and `api::website` modules while preserving every existing URL, method,
+  middleware requirement, status code, and response contract.
+- [ ] Rename the current anonymous quote/waitlist `public` concept to `website` before creating
+  `api::public_v1`; do not expose those handlers as developer API operations.
+- [ ] Move social publishing, WhatsApp inbox/campaign, and billing reconciliation loops from
+  `main.rs` into `workers/*` modules while preserving `KASITEK_PROCESS` behavior and independent
+  worker deployment support.
+
+### Identity and request context
+
+- [ ] Define normalized principal types for direct users, admins, workspace API keys, service
+  accounts, OAuth users/applications, agent installations, and trusted internal services.
+- [ ] Define `RequestContext` with principal, identity realm, organization, optional user/client or
+  installation, effective grants, correlation/causation IDs, idempotency key, and request metadata.
+- [ ] Make product-session, admin-session, public credential, and internal-delegation adapters build
+  `RequestContext`; domain operations must not inspect Actix requests, cookies, or raw headers.
+- [ ] Preserve the active-organization cookie only as a product-session preference and continue to
+  verify organization membership from durable state.
+- [ ] Add negative tests for wrong organization, wrong realm, missing membership, wrong principal
+  kind, revoked/suspended machine identity, and attempts to supply organization scope through an
+  untrusted body or header.
+
+### Pilot domain: bookings
+
+- [ ] Create `domains/bookings/{model,commands,queries,policy,postgres}.rs` (or equivalent module
+  files) and move booking business behavior there without changing the existing product API.
+- [ ] Move booking request/response DTOs out of `db/models.rs`; keep transport contracts distinct
+  from persistence rows and domain inputs/results.
+- [ ] Implement shared booking queries and commands for service listing/creation/update and booking
+  listing/creation/update using `RequestContext` and typed inputs.
+- [ ] Move organization/resource authorization, admin requirements, customer ownership, scheduling
+  validation, overlap checks, status transitions, and conflict/not-found behavior into the shared
+  booking operation boundary.
+- [ ] Keep SQL in `domains/bookings/postgres.rs` initially; introduce repository traits only where
+  transaction control, substitution, or isolated policy testing requires them.
+- [ ] Adapt the existing `/api/bookings/*` handlers to the new operations with response-parity tests.
+- [ ] Expose one typed internal booking capability through the same operations to prove a second
+  adapter does not duplicate SQL, validation, or authorization.
+
+### Capability and execution integration
+
+- [ ] Add the existing workspace `actions` and `execution` crates as `kasitek-core` dependencies.
+- [ ] Create `capabilities::catalog`, `capabilities::handlers`, and `capabilities::core_adapter` and
+  register the pilot booking actions using the existing `ActionDefinition`, actor, scope, risk,
+  approval, idempotency, and execution primitives.
+- [ ] Map capability handlers to domain commands/queries; do not implement business behavior inside
+  the registry or capability transport.
+- [ ] Establish typed conversion between `actions::Actor`/`Scope` and core `RequestContext`, with
+  explicit rejection of realm, runtime, organization, and client-scope mismatches.
+- [ ] Establish a repeatable domain migration template covering models, commands, queries, policy,
+  Postgres/provider adapters, product adapter, internal capability adapter, tests, and evidence.
+
+### Large-domain decomposition order
+
+- [ ] Record the migration order after the bookings pilot: contacts/customers, connections,
+  content/social posts, campaigns, conversations/inbox, social providers/publishing, WhatsApp,
+  billing, then auth/admin; change the order only with documented dependency evidence.
+- [ ] Split social into channels, posts, publishing, OAuth, webhooks, and per-provider adapters rather
+  than moving the existing `services/social.rs` unchanged.
+- [ ] Split WhatsApp into connections, contacts, templates, campaigns, inbox transport, provider
+  webhooks, calls, and delivery workers rather than moving `services/whatsapp.rs` unchanged.
+- [ ] Remove migrated request DTOs and row types from the global `db/models.rs`, and remove obsolete
+  controller/service functions only after callers and parity tests have moved.
+
+### Verification
+
+- [ ] Run `cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core` after
+  each coherent migration step.
+- [ ] Add route-inventory tests proving all pre-existing routes remain mounted during the structural
+  migration and that `/v1` is not accidentally served by product or website modules.
+- [ ] Add booking unit tests for normalization, validation, policy, status, overlap, and organization
+  isolation plus database integration tests for transactional outcomes.
+- [ ] Add product-versus-internal booking parity tests proving both adapters invoke the same business
+  behavior while preserving their distinct authentication and response envelopes.
+- [ ] Run existing workspace, customer, connection, and billing database suites to detect unrelated
+  regressions caused by application-state or route restructuring.
+- [ ] Record the changed paths, preserved contracts, test commands, and commit for the slice.
+
+**Complete when:** `kasitek-core` has testable composition, separately mounted API surfaces, a
+normalized identity boundary, one real domain shared by product and capability adapters, and a
+repeatable migration pattern; no public `/v1` or agent operation needs to call a legacy controller
+or duplicate booking SQL/business rules.
+
+## Slice 2 — Shared contracts, installations, and identity
 
 **Layers covered:** 1, 2, 3, and 4
 
@@ -220,7 +437,7 @@ and agents can implement without relying on a superseded checklist.
 **Complete when:** each agent installation has an independent non-human identity and can be safely
 authenticated, scoped, audited, suspended, and revoked without a human browser session.
 
-## Slice 2 — Capability registry and core authorization boundary
+## Slice 3 — Capability registry and core authorization boundary
 
 **Layers covered:** 3, 4, and 6
 
@@ -248,15 +465,15 @@ authenticated, scoped, audited, suspended, and revoked without a human browser s
 - [ ] Add policy matrix tests covering allowed, narrowed, denied, unavailable, approval-required,
   rate-limited, and cross-resource invocations.
 - [ ] Add delegation signature, issuer, audience, expiry, replay, rotation, and confused-deputy tests.
-- [ ] Contract-test each initial core application operation through its product, public REST, and
+- [ ] Contract-test each initial core domain operation through its product, public REST, and
   private delegated adapters where those surfaces exist.
 - [ ] Run TypeScript and Rust unit/integration suites, typecheck, formatting, and builds.
 
 **Complete when:** every agent entry point reaches product operations through the same manifest,
 policy, delegation, and typed core handler, while product and public REST adapters reach the same
-application use cases with no direct database or special-agent bypass.
+domain commands and queries with no direct database or special-agent bypass.
 
-## Slice 3 — Durable runtime, model gateway, and run lifecycle
+## Slice 4 — Durable runtime, model gateway, and run lifecycle
 
 **Layers covered:** 5 and 8
 
@@ -290,7 +507,7 @@ application use cases with no direct database or special-agent bypass.
 **Complete when:** a run survives process/connection failures without losing state, duplicating
 effects, leaking credentials, or leaving the UI unable to determine its true status.
 
-## Slice 4 — First complete capability domain: content and social
+## Slice 5 — First complete capability domain: content and social
 
 **Layers covered:** 4, 5, 6, 8, and 12
 
@@ -323,7 +540,7 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
 **Complete when:** one approved content action can travel end to end from any supported agent entry
 point to the provider and back to a durable, auditable result with no duplicate effect.
 
-## Slice 5 — Grounded KasiAi
+## Slice 6 — Grounded KasiAi
 
 **Layers covered:** 9, 10, and 11
 
@@ -357,7 +574,7 @@ point to the provider and back to a durable, auditable result with no duplicate 
 **Complete when:** KasiAi accurately describes and operates the implemented KasiTek product using
 real capabilities, preserves independent chats, and never invents platform features or results.
 
-## Slice 6 — Public REST API and external MCP gateway
+## Slice 7 — Public REST API and external MCP gateway
 
 **Layers covered:** 2, 3, 4, 6, 7, 12, and 13
 
@@ -371,13 +588,17 @@ real capabilities, preserves independent chats, and never invents platform featu
   structured results/errors, cancellation, and filtered discovery over the Agent Platform
   Capability Gateway. Keep the gateway stateless initially and give it no direct core/database
   access or ownership of runs, approvals, definitions, or product data.
-- [ ] Create a separately managed Rust `public_api` module inside `kasitek-core` and mount it only at
-  `/v1`; keep existing `/api/*` product routes and private `/api/internal/*` routes distinct.
+- [ ] Create the separately managed Rust `api::public_v1` module inside `kasitek-core` and mount it
+  only at `/v1`; keep existing `/api/*` product routes, `/api/admin/*`, anonymous website routes,
+  provider webhooks, and private `/api/internal/*` routes distinct.
 - [ ] Serve `/v1` from the existing `kasitek-core` process and route `api.kasitek.co.za/v1/*` to it;
   do not create a separate public API deployment during the initial implementation.
 - [ ] Give `/v1` dedicated routes, authentication, contracts, middleware, OpenAPI, webhooks,
   metering, rate limits, flags, metrics, versioning, deprecation, and tests while reusing shared core
-  application/domain services.
+  domain commands and queries.
+- [ ] Require each `/v1` operation to enter through normalized `RequestContext`; no public handler
+  may call a legacy product controller, inspect product session cookies, or duplicate domain SQL,
+  provider calls, authorization, validation, or idempotency behavior.
 - [ ] Support the approved public API principals—workspace API keys, service accounts, OAuth
   user/application grants, and agent installations—through explicit scopes and resource policy.
 - [ ] Publish typed public resource/action endpoints and only add a generic versioned action route
@@ -402,7 +623,7 @@ real capabilities, preserves independent chats, and never invents platform featu
 - [ ] Add REST/OpenAPI conformance tests for every principal type, scope/resource authorization,
   pagination, validation, idempotency, rate limits, metering, webhooks, versioning, and deprecation.
 - [ ] Add behavior-parity tests proving equivalent MCP and REST operations converge on the same core
-  application use case and compatible authorization, approval, idempotency, effect, receipt, and
+  domain command/query and compatible authorization, approval, idempotency, effect, receipt, and
   audit outcomes without requiring identical protocol envelopes.
 - [ ] Verify real Codex, Claude Code, and one generic MCP client.
 - [ ] Verify n8n and one plain TypeScript or Python REST client.
@@ -412,7 +633,7 @@ real capabilities, preserves independent chats, and never invents platform featu
 agents can use the separately deployed MCP gateway, agent installations can also authenticate to
 REST where permitted, and equivalent operations share business behavior without duplicated logic.
 
-## Slice 7 — KasiTek-hosted user agents and external connectors
+## Slice 8 — KasiTek-hosted user agents and external connectors
 
 **Layers covered:** 1, 8, 10, and 11
 
@@ -447,7 +668,7 @@ REST where permitted, and equivalent operations share business behavior without 
 **Complete when:** a user can create, test, publish, observe, pause, update, and roll back a hosted
 agent that safely combines KasiTek capabilities with approved external services.
 
-## Slice 8 — Conversations, channels, knowledge, and memory
+## Slice 9 — Conversations, channels, knowledge, and memory
 
 **Layers covered:** 9 and 10
 
@@ -482,7 +703,7 @@ agent that safely combines KasiTek capabilities with approved external services.
 **Complete when:** every supported channel reaches the same durable agent runtime while identity,
 conversation history, delivery, knowledge, and memory remain correctly scoped and recoverable.
 
-## Slice 9 — Approvals, effects, and operational recovery
+## Slice 10 — Approvals, effects, and operational recovery
 
 **Layers covered:** 5, 8, and 12
 
@@ -513,7 +734,7 @@ conversation history, delivery, knowledge, and memory remain correctly scoped an
 **Complete when:** no real external effect can execute outside its exact current authorization and
 every success, denial, failure, or ambiguous outcome has a durable operator-visible resolution path.
 
-## Slice 10 — Shared Agents product experience
+## Slice 11 — Shared Agents product experience
 
 **Layers covered:** 11
 
@@ -543,7 +764,7 @@ every success, denial, failure, or ambiguous outcome has a durable operator-visi
 **Complete when:** users can understand, create, connect, operate, inspect, and safely stop every
 agent type from one consistent product area.
 
-## Slice 11 — KasiTek admin operations console
+## Slice 12 — KasiTek admin operations console
 
 **Layers covered:** 11, 12, 13, and 14
 
@@ -581,7 +802,7 @@ agent type from one consistent product area.
 **Complete when:** an authorized KasiTek operator can trace organization → installation → run →
 model/tool → approval → effect → delivery and perform only safe, attributable, auditable recovery.
 
-## Slice 12 — Security, observability, expansion, and production release
+## Slice 13 — Security, observability, expansion, and production release
 
 **Layers covered:** 12, 13, and 14
 
