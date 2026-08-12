@@ -80,4 +80,9 @@ export class EffectReceiptRepository {
     const result = await query<EffectReceipt>(this.pool, `SELECT * FROM agent_effect_receipts WHERE organization_id = $1 AND reconciliation_required = true ORDER BY updated_at ASC LIMIT $2`, [organizationId, Math.max(1, Math.min(limit, 500))]);
     return result.rows;
   }
+
+  public async countPendingReconciliation(organizationId: string): Promise<number> {
+    const result = await query<{ count: string }>(this.pool, `SELECT COUNT(*)::text AS count FROM agent_effect_receipts WHERE organization_id = $1 AND reconciliation_required = true`, [organizationId]);
+    return Number(result.rows[0]?.count ?? 0);
+  }
 }

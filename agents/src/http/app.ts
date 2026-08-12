@@ -43,6 +43,7 @@ import { KasitekCoreReadClient } from "../core/client";
 import { ToolRegistry } from "../tools/registry";
 import { randomUUID } from "node:crypto";
 import { ConnectorRegistry } from "../connectors";
+import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -61,6 +62,7 @@ export interface AppDependencies {
   installationGrants?: InstallationGrantRepository;
   toolRegistry?: ToolRegistry;
   connectorRegistry?: ConnectorRegistry;
+  effectReceipts?: EffectReceiptRepository;
   knowledge?: KnowledgeRepository;
   memory?: MemoryRepository;
   evaluations?: EvaluationRepository;
@@ -113,6 +115,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
   const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config));
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
+  const effectReceipts = dependencies.effectReceipts ?? new EffectReceiptRepository(dependencies.pool);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
   const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
@@ -1009,10 +1012,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get("/v1/operations/summary", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    const [runsSummary, modelSummary, toolSummary] = await Promise.all([
+    const [runsSummary, modelSummary, toolSummary, pendingReconciliation] = await Promise.all([
       runs.operationalSummary(auth.organizationId),
       modelCalls.usageSummary(auth.organizationId),
       toolInvocations.outcomeSummary(auth.organizationId),
+      effectReceipts.countPendingReconciliation(auth.organizationId),
     ]);
     return {
       organizationId: auth.organizationId,
@@ -1020,6 +1024,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       runs: runsSummary,
       models: modelSummary,
       tools: toolSummary,
+      effects: { pendingReconciliation },
     };
   });
 
