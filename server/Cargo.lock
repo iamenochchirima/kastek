@@ -2225,6 +2225,7 @@ dependencies = [
 name = "kasitek-core"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "actix-cors",
  "actix-multipart",
  "actix-web",
@@ -2239,6 +2240,7 @@ dependencies = [
  "csv",
  "cuid2",
  "dotenv",
+ "execution",
  "futures-util",
  "hex",
  "hmac",
