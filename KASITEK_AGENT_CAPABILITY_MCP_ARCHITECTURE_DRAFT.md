@@ -13,20 +13,27 @@ KasiAi is the first consumer of this standard. It must not rely on generic model
 database access. It should learn current workspace facts and take actions only through the same
 typed capability contracts available to every appropriately installed agent.
 
-The externally connectable product surface will be a hosted KasiTek MCP server. MCP is the
-interoperability transport and discovery protocol; it is not the source of business authorization.
-The internal Capability Gateway remains the authority for scopes, plans, resource limits, approvals,
-idempotency, and auditing.
+The externally connectable product surfaces will be a hosted KasiTek MCP server and a strong,
+versioned REST API. MCP provides agent-native discovery and invocation. REST supports deterministic
+automations, n8n, scripts, SDKs, webhooks, and custom applications. Both are adapters over the same
+capability contracts and neither is the source of business authorization. The internal Capability
+Gateway remains the authority for scopes, plans, resource limits, approvals, idempotency, and audit.
 
 ```text
-KasiAi                    ┐
-KasiTek template agents   ├─ Agent Installation Credential
-Customer-created agents   │          ↓
-External connected agents ┘   Capability Gateway / MCP
-                                         ↓
-                        scoped KasiTek platform capabilities
-                                         ↓
-                                  kasitek-core
+KasiAi / KasiTek-hosted agents ───────────────┐
+                                              │
+External agents and integrations              │
+        ↓                                     │
+Agent Installation Credential                 │
+        ↓                                     │
+MCP Server or REST API                        │
+        └─────────────────────────────────────┤
+                                              ↓
+                                    Capability Gateway
+                                              ↓
+                              scoped KasiTek capabilities
+                                              ↓
+                                         kasitek-core
 ```
 
 ## Current evidence and non-goals
@@ -64,6 +71,8 @@ checklist we will complete together before work starts.
 - Read, draft, controlled-write, external-effect, and privileged capabilities have distinct policy.
 - Every consequential request is idempotent, auditable, and returns a durable effect receipt.
 - MCP is an adapter over the exact same capability contracts that KasiAi uses internally.
+- REST is an equally supported adapter over those contracts; MCP and REST must not diverge in
+  permissions, schemas, effects, or audit behavior.
 - External channels are thin message adapters; they do not create separate agent runtimes.
 - Agents never receive direct core database access or raw provider credentials.
 
@@ -247,10 +256,10 @@ approval rule · effect/undo semantics · audit classification · availability p
 - [ ] Agents cannot read or mutate core tables directly.
 - [ ] Core independently rejects an action that is not authorized for the installation.
 
-## Layer 7 — Hosted MCP server
+## Layer 7 — Hosted MCP server and Agent REST API
 
-**Goal:** Expose approved capabilities to interoperable clients such as Codex, Claude Code, and
-customer-built MCP clients.
+**Goal:** Expose approved capabilities through both agent-native MCP and a stable REST API for
+Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 
 ### Required MCP responsibilities
 
@@ -261,6 +270,15 @@ customer-built MCP clients.
 - progress, cancellation, and action approval handoff;
 - resources for safe contextual data only where needed.
 
+### Required REST responsibilities
+
+- versioned `/v1` agent-facing endpoints with OpenAPI documentation;
+- capability discovery plus direct typed business-capability invocation;
+- consistent cursor pagination, filtering, validation, errors, and structured receipts;
+- mandatory idempotency keys for mutations and durable status endpoints for asynchronous work;
+- webhook/event subscriptions with signing, replay protection, delivery attempts, and recovery;
+- generated SDK compatibility without making an SDK the authoritative contract.
+
 ### Decisions to make
 
 - [ ] Initial endpoint and transport: remote Streamable HTTP only, or additional transports?
@@ -268,11 +286,18 @@ customer-built MCP clients.
 - [ ] Whether every capability is exposed in MCP v1 or whether some remain internal initially.
 - [ ] Tool naming, pagination, resource URI policy, and MCP version support policy.
 - [ ] Public documentation, test server, and compatibility suite.
+- [ ] REST resource/operation layout and the boundary between business-friendly endpoints and the
+  generic capability invocation endpoint.
+- [ ] OpenAPI source-of-truth generation and client SDK targets.
+- [ ] Webhook/event catalog, signing algorithm, retry schedule, replay window, and delivery logs.
+- [ ] Parity tests proving equivalent MCP and REST invocations reach the same capability handler.
 
 ### Exit criteria
 
-- [ ] A third-party MCP client can authenticate as an installation and discover only permitted tools.
-- [ ] Tool calls yield the same authorization, approval, audit, and receipts as KasiAi calls.
+- [ ] Third-party MCP and REST clients authenticate as installations and discover/use only permitted
+  capabilities.
+- [ ] MCP and REST calls yield the same authorization, approval, audit, idempotency, and receipts as
+  KasiAi calls.
 
 ## Layer 8 — Runtime execution and durability
 

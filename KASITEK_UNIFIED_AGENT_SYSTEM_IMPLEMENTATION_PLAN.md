@@ -51,7 +51,12 @@ platform data/access contract.
   those agents may do.
 - [x] Treat external agents as non-human installation identities that can operate without a human
   session.
-- [x] Make the hosted KasiTek MCP server the standard interoperable surface for external agents.
+- [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
+  surfaces for external agents and integrations.
+- [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
+  scripts, SDKs, webhooks, and custom applications.
+- [x] Generate both surfaces from the same capability contracts; neither adapter owns separate
+  permissions or business handlers.
 - [x] Keep the Capability Gateway as the business authorization authority; MCP is an adapter over
   it, never a bypass.
 - [x] Keep `kasitek-core` authoritative for product data and final business action execution.
@@ -77,7 +82,7 @@ The following workstreams can run in parallel only after the shared contracts in
 | B. Capability Gateway | manifests, delegated calls, receipts, core contracts | Phase 0 |
 | C. KasiAi | grounded context, real tools, platform UI | A + B |
 | D. Hosted user agents | builder, templates, connectors, channels, workflows | A + B |
-| E. External MCP | remote MCP transport, auth, discovery, compatibility | A + B |
+| E. External APIs | remote MCP, REST/OpenAPI, webhooks, auth, SDKs, compatibility | A + B |
 | F. Governance | audit, usage, approval, operational/admin views | A + B |
 | G. Validation | contract/e2e/security/eval suite and release gates | all workstreams |
 
@@ -93,7 +98,7 @@ No team implements product-domain tools before this phase is agreed and checked 
 - [ ] Define a versioned `CapabilityManifest` with schema, risk, idempotency, output/error, and
   effect-receipt fields.
 - [ ] Define a common `CapabilityInvocation` / `CapabilityResult` envelope used internally and by
-  the MCP adapter.
+  the MCP and REST adapters.
 - [ ] Define durable action receipts: invocation ID, run ID, installation ID, effect ID, status,
   idempotency key, timestamps, and safe result summary.
 - [ ] Define a standard external inbound/outbound channel envelope.
@@ -248,7 +253,7 @@ the guided form.
 - [ ] Define import/export and template-sharing policy only after secret/resource references can be
   safely separated from workflow definitions.
 
-## 9. Phase 5 — External connected agents and hosted MCP server
+## 9. Phase 5 — External connected agents, MCP, and REST API
 
 ### A. MCP server
 
@@ -262,20 +267,39 @@ the guided form.
 - [ ] Support installation credential token exchange for unattended clients.
 - [ ] Provide a connection flow/instructions for Codex, Claude Code, n8n, and custom MCP clients.
 
-### B. External client experience
+### B. Agent REST API and webhooks
+
+- [ ] Publish a versioned `/v1` REST API backed by the same Capability Gateway handlers.
+- [ ] Expose capability discovery and direct typed endpoints for core business operations; avoid
+  forcing deterministic integrations through an opaque generic tool-call endpoint only.
+- [ ] Publish an OpenAPI contract generated from or validated against capability schemas.
+- [ ] Standardize request IDs, idempotency keys, cursor pagination, filters, validation errors,
+  authorization errors, asynchronous operation status, and effect receipts.
+- [ ] Support the same installation short-lived access token used by MCP.
+- [ ] Add signed webhook/event subscriptions for run, approval, content, campaign, inbox, booking,
+  and delivery lifecycle events where relevant.
+- [ ] Add webhook verification, replay protection, exponential retry, disable/re-enable policy,
+  delivery logs, and manual redelivery.
+- [ ] Add initial TypeScript and Python SDK generation only after the REST/OpenAPI contract is stable.
+- [ ] Add REST/MCP parity contract tests proving both adapters invoke the same manifest version,
+  policy evaluator, handler, and receipt logic.
+
+### C. External client experience
 
 - [ ] Add “Connect external agent” from the Agents area.
 - [ ] Create named external-connected installations with visible grants, credentials, health,
   latest token use, activity, suspend, rotate, and revoke controls.
 - [ ] Provide copy-once credential instructions and sample configuration without exposing secrets
   in later UI/API responses.
-- [ ] Provide MCP discovery diagnostics and a sandbox/test workspace option.
+- [ ] Provide MCP discovery diagnostics, REST credential examples, webhook diagnostics, and a
+  sandbox/test workspace option.
 - [ ] Verify a real Codex client, a real Claude Code client, and one generic MCP client against
   compatibility tests.
+- [ ] Verify n8n and one plain TypeScript/Python REST client against the published OpenAPI behavior.
 
-**Exit gate:** an external agent authenticates as an installation, sees only its allowed tools,
-calls a real capability, receives a structured receipt, and appears in the same audit UI as a
-KasiTek-hosted agent.
+**Exit gate:** external MCP and REST clients authenticate as installations, see/use only permitted
+capabilities, call the same real handler, receive equivalent structured receipts, and appear in the
+same audit UI as a KasiTek-hosted agent.
 
 ## 10. Phase 6 — Action safety, approvals, and operations
 
@@ -311,6 +335,7 @@ operation.
 - [ ] Contract-test every capability manifest against its core handler.
 - [ ] Add idempotency/retry/restart/Temporal recovery tests for every mutating tool.
 - [ ] Add MCP protocol and client compatibility tests.
+- [ ] Add REST/OpenAPI conformance, SDK smoke, webhook signature/retry, and MCP/REST parity tests.
 - [ ] Add agent evaluations for grounded answers, correct tool selection, policy adherence, and
   action preview accuracy.
 - [ ] Add end-to-end fixtures for browser, WhatsApp, Telegram, Discord, hosted agent, and external
