@@ -1036,6 +1036,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { effects: await effectReceipts.pendingReconciliation(auth.organizationId, limit) };
   });
 
+  app.post<{ Params: { effectId: string } }>("/v1/operations/effects/:effectId/reconcile", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = z.object({ outcome: z.enum(["succeeded", "failed"]), providerReceipt: z.record(z.string(), z.unknown()).optional(), error: z.record(z.string(), z.unknown()).optional() }).parse(request.body ?? {});
+    await effectReceipts.reconcile({ organizationId: auth.organizationId, effectId: request.params.effectId, ...input });
+    return reply.code(202).send({ effectId: request.params.effectId, status: "reconciled", outcome: input.outcome });
+  });
+
   app.get("/v1/operations/health", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");

@@ -76,6 +76,11 @@ export class EffectReceiptRepository {
     await query(this.pool, `UPDATE agent_effect_receipts SET status = 'unknown', error = $2::jsonb, reconciliation_required = true, updated_at = now() WHERE id = $1 AND status IN ('reserved', 'executing')`, [id, JSON.stringify(error ?? {})]);
   }
 
+  public async reconcile(input: { organizationId: string; effectId: string; outcome: "succeeded" | "failed"; providerReceipt?: unknown; error?: unknown }): Promise<void> {
+    const result = await query(this.pool, `UPDATE agent_effect_receipts SET status = $3, provider_receipt = CASE WHEN $4::jsonb = '{}'::jsonb THEN provider_receipt ELSE $4::jsonb END, error = CASE WHEN $5::jsonb = '{}'::jsonb THEN error ELSE $5::jsonb END, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND id = $2 AND status = 'unknown'`, [input.organizationId, input.effectId, input.outcome, JSON.stringify(input.providerReceipt ?? {}), JSON.stringify(input.error ?? {})]);
+    if (!result.rowCount) throw new Error("Effect is not pending reconciliation or is outside the organization");
+  }
+
   public async pendingReconciliation(organizationId: string, limit = 100): Promise<EffectReceipt[]> {
     const result = await query<EffectReceipt>(this.pool, `SELECT * FROM agent_effect_receipts WHERE organization_id = $1 AND reconciliation_required = true ORDER BY updated_at ASC LIMIT $2`, [organizationId, Math.max(1, Math.min(limit, 500))]);
     return result.rows;
