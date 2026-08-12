@@ -435,7 +435,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
                   ? "rounded-bl-sm border border-border bg-card text-foreground"
                   : "rounded-br-sm bg-primary text-primary-foreground",
               )}>
-                {message.direction === "outbound" ? messageText(message) : <SafeMarkdown>{messageText(message)}</SafeMarkdown>}
+                {message.direction === "outbound" ? <SafeMarkdown>{messageText(message)}</SafeMarkdown> : messageText(message)}
               </div>
             </div>
           ))}
