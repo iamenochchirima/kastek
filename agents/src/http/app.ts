@@ -1028,6 +1028,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     };
   });
 
+  app.get<{ Querystring: { limit?: string } }>("/v1/operations/effects/reconciliation", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid reconciliation limit");
+    return { effects: await effectReceipts.pendingReconciliation(auth.organizationId, limit) };
+  });
+
   app.get("/v1/operations/health", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
