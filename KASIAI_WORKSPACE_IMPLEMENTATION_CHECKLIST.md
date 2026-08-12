@@ -72,7 +72,7 @@ manage channel connections, and see external-channel activity in the same durabl
 - [x] Add HTTP and core bridge authorization tests.
 - [x] Add focused client interaction tests where the existing test setup supports them.
 - [x] Apply migrations locally and verify Agent Platform build/tests, core checks/tests, and client build.
-- [ ] Commit coherent implementation sections without including unrelated worktree changes.
+- [x] Commit coherent implementation sections without including unrelated worktree changes.
 
 ## Completion rule
 

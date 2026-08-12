@@ -39,6 +39,14 @@ export type AgentConversation = {
   owner_actor_id?: string | null;
   is_primary?: boolean;
   archived_at?: string | null;
+  title_source?: "fallback" | "ai" | "manual";
+  title_generated_at?: string | null;
+  title_locked?: boolean;
+  pinned?: boolean;
+  last_opened_at?: string | null;
+  last_read_at?: string | null;
+  model_provider?: "openrouter" | "openai" | "anthropic" | "gemini" | null;
+  model?: string | null;
   updated_at: string;
 };
 
@@ -168,6 +176,34 @@ export type AgentInstallationSettings = {
   notificationsEnabled?: boolean;
 };
 
+export type KasiAiModel = {
+  provider: "openrouter" | "openai" | "anthropic" | "gemini";
+  model: string;
+  label: string;
+  description: string;
+  tier: "fast" | "balanced" | "advanced";
+};
+
+export type KasiAiPreferences = {
+  language?: string | null;
+  tone?: "concise" | "balanced" | "detailed" | null;
+  response_detail?: "concise" | "standard" | "detailed" | null;
+  notifications_enabled?: boolean;
+  use_saved_preferences?: boolean;
+  reference_previous_chats?: boolean;
+  default_model_provider?: "openrouter" | "openai" | "anthropic" | "gemini" | null;
+  default_model?: string | null;
+};
+
+export type KasiAiHome = {
+  installation: AgentInstallation;
+  conversations: AgentConversation[];
+  archivedConversations: AgentConversation[];
+  channelDefaultConversationId: string | null;
+  preferences: KasiAiPreferences | null;
+  models: KasiAiModel[];
+};
+
 export function updateAgentInstallationSettings(installationId: string, settings: AgentInstallationSettings): Promise<AgentInstallation> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/settings`, {
     method: "PATCH",
@@ -215,6 +251,54 @@ export function resolvePlatformConversation(installationId: string): Promise<Con
   });
 }
 
+export function getKasiAiHome(installationId: string): Promise<KasiAiHome> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/kasiai/home`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function updateKasiAiPreferences(installationId: string, preferences: {
+  language?: string;
+  tone?: "concise" | "balanced" | "detailed";
+  responseDetail?: "concise" | "standard" | "detailed";
+  notificationsEnabled?: boolean;
+  useSavedPreferences?: boolean;
+  referencePreviousChats?: boolean;
+  defaultModelProvider?: KasiAiModel["provider"];
+  defaultModel?: string;
+}): Promise<{ preferences: KasiAiPreferences }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/kasiai/preferences`, {
+    method: "PATCH",
+    body: JSON.stringify(preferences),
+  });
+}
+
+export function updateKasiAiConversation(conversationId: string, body: {
+  title?: string;
+  pinned?: boolean;
+  modelProvider?: KasiAiModel["provider"] | null;
+  model?: string | null;
+  clearModel?: boolean;
+}): Promise<AgentConversation> {
+  return request(`/api/agents/conversations/${encodeURIComponent(conversationId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function setKasiAiChannelDefault(conversationId: string): Promise<AgentConversation> {
+  return request(`/api/agents/conversations/${encodeURIComponent(conversationId)}/channel-default`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export function setKasiAiConversationStatus(conversationId: string, status: "archived" | "deleted"): Promise<AgentConversation> {
+  return request(`/api/agents/conversations/${encodeURIComponent(conversationId)}/status/${status}`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export function restoreKasiAiConversation(conversationId: string): Promise<AgentConversation> {
+  return request(`/api/agents/conversations/${encodeURIComponent(conversationId)}/restore`, { method: "POST", body: JSON.stringify({}) });
+}
+
 export function createPlatformConversation(installationId: string): Promise<ConversationResponse> {
   return request<ConversationResponse>(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/conversation/new`, {
     method: "POST",
@@ -251,7 +335,7 @@ export function listWhatsappConnectionOptions(): Promise<{ connections: Whatsapp
 
 export function sendPlatformMessage(
   installationId: string,
-  body: { message: string; idempotencyKey: string; context?: { route?: string; pageTitle?: string } },
+  body: { message: string; idempotencyKey: string; conversationId?: string; createNew?: boolean; modelProvider?: KasiAiModel["provider"]; model?: string; context?: { route?: string; pageTitle?: string } },
 ): Promise<{ conversation: AgentConversation; message: AgentMessage; runId: string; status: string }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/messages`, {
     method: "POST",
