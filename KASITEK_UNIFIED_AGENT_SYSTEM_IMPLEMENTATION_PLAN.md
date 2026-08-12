@@ -100,6 +100,9 @@ platform data/access contract.
 - [x] Establish trusted/untrusted context boundaries, minimal dynamic context, reviewed product
   knowledge, scoped namespaces, selective memory, lifecycle/export/support controls, injection evals,
   and provider-privacy attribution.
+- [x] Define one shared Agents UX with guided hosted creation, external MCP/REST connection, detail
+  workspaces, approval inbox, safe activity, usage tracking, credential controls, kill switches, and
+  personal/business conversation visibility.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -307,6 +310,9 @@ confirmed actions through common capability contracts.
 - [ ] Add immutable versioning, draft/publish/rollback, and safe installation updates.
 - [ ] Build agent detail pages for configuration, activity, runs, memory, credentials, channels,
   schedules, and health.
+- [ ] Build common installation detail tabs: Overview, Configuration, Capabilities, Connections,
+  Channels, Conversations, Activity/Runs, Approvals, Memory/Knowledge, Schedules/Workflows,
+  applicable Credentials, and Usage.
 
 ### B. External connector provider layer
 
@@ -404,6 +410,20 @@ the guided form.
 - [ ] Verify a real Codex client, a real Claude Code client, and one generic MCP client against
   compatibility tests.
 - [ ] Verify n8n and one plain TypeScript/Python REST client against the published OpenAPI behavior.
+
+### D. Shared Agents experience and governance UI
+
+- [ ] Build `/agents` overview for KasiAi, hosted agents, external agents, templates, activity, and
+  approvals, showing type/status/mode/connections/last run/model/usage.
+- [ ] Build the guided hosted-agent form and external connection wizard with visible testing grants,
+  copy-once credentials, capability review, setup snippets, test connection, and activation.
+- [ ] Build approval inbox/previews/receipts/reconciliation and safe activity/run details without
+  chain-of-thought exposure.
+- [ ] Build usage-tracking views and clearly label testing access as unbilled while retaining real
+  meter data.
+- [ ] Build credential list/rotate/revoke/suspend/last-used UX and agent/workspace kill-switch UI.
+- [ ] Enforce personal KasiAi privacy, business-agent staff visibility/assignment, workspace-owned
+  configuration controls, and concrete empty/onboarding states.
 
 **Exit gate:** external MCP and REST clients authenticate as installations, see/use only permitted
 capabilities, call the same real handler, receive equivalent structured receipts, and appear in the

@@ -622,16 +622,46 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 
 **Goal:** Make agent installations understandable and controllable.
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] Installation wizard, grant picker, credential creation, and copy-once recovery UX.
-- [ ] Agent detail view: grants, resources, credentials, budgets, schedules, health, runs, and activity.
-- [ ] Approval inbox and action-preview UX.
-- [ ] KasiAi-specific settings versus common agent installation settings.
-- [ ] Agent connection instructions for Codex, Claude Code, n8n, and custom runtimes.
+- [x] Use one `/agents` product area for KasiAi, hosted user agents, external connected agents,
+  templates, activity, and approvals. KasiAi remains accessible from the sidebar while its full
+  settings/activity is available in the shared area.
+- [x] Show name/type, lifecycle/attention status, execution mode, channels/key connections, recent
+  activity/last run, model, and usage snapshot in agent lists; reserve technical internals for
+  authorized detail views.
+- [x] Provide distinct paths for protected KasiAi, guided hosted-agent creation, and external-agent
+  connection. The guided flow covers name, purpose/instructions, model, KasiTek capabilities,
+  external connections, channels, memory/knowledge, schedules/workflows, review, and activation.
+  Broad test access is visible rather than hidden.
+- [x] Give every installation Overview, Configuration, Capabilities, Connections, Channels,
+  Conversations, Activity/Runs, Approvals, Memory/Knowledge, Schedules/Workflows, Credentials where
+  applicable, and Usage. Protect KasiAi instructions while exposing meaningful settings and history.
+- [x] Connect external agents through named installation creation, MCP/REST selection, visible
+  capability review, copy-once credential generation, setup snippets, connection test, activation,
+  and last-used health. Include Codex, Claude Code, n8n, TypeScript, and Python instructions.
+- [x] Provide a dedicated approval inbox showing requested effect, exact preview, agent/install,
+  resource/account, reason, cost/recipient impact, expiry, decision controls, receipts, delivery,
+  and reconciliation state.
+- [x] Provide unified activity/runs without exposing raw model chain-of-thought. Show trigger,
+  concise agent summary, model usage, tool calls, approval, receipt, delivery, retries/failures,
+  cost, and correlation/run ID.
+- [x] Display usage from day one—runs, tokens/cost, tools, effects, delivery, connector use, storage,
+  and schedules—labelled as tracking while billing is not enforced during testing.
+- [x] Show credential names, creation/last use/expiry/status, copy secret once, rotate/revoke/suspend
+  controls, and external-runtime warnings without requiring hosting-location knowledge.
+- [x] Provide installation pause/suspend immediately and workspace-level kill switches to admins,
+  showing actor/reason/time/cancelled work/resume path.
+- [x] Keep personal KasiAi chats private to their owning user. Show business-agent conversations to
+  appropriately authorized/assigned staff. Keep configurations workspace-owned/admin-editable and
+  defer shared/linked personal chats to a later explicit feature.
+- [x] Use concrete onboarding/empty states and capability/page-aware KasiAi suggestions; avoid generic
+  “AI magic” language and invented feature advice.
 
 ### Exit criteria
 
+- [x] Shared agent UX, creation/connection, detail, approval, activity, usage, credential, safety,
+  visibility, and onboarding design is approved for implementation.
 - [ ] An administrator can safely install, inspect, constrain, rotate, suspend, and revoke an agent.
 
 ## Layer 12 — Observability and governance
@@ -707,7 +737,7 @@ an undecided earlier layer.
 - [x] 8. Runtime execution and durability rules
 - [x] 9. Conversation and channel gateway policy
 - [x] 10. Context, knowledge, and memory policy
-- [ ] 11. User/admin UX
+- [x] 11. User and administrator experience
 - [ ] 12. Observability/governance
 - [ ] 13. Security review
 - [ ] 14. Rollout and verification plan
