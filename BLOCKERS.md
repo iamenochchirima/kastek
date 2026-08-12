@@ -62,3 +62,15 @@ verified or completed. Work on independent items continues.
   those edits are committed or explicitly handed over.
 - **Next action:** Rebase the route split on the completed social/OAuth change,
   preserving its endpoint additions and response contracts.
+
+## B-006 — Admin operator policy is not yet defined
+
+- **Blueprint:** Slice 12 operator roles, support access, dual-control actions, and core-to-Agent
+  operator delegation.
+- **Evidence:** The current admin application exposes existing product-admin session roles, but the
+  blueprint does not specify the operator role-to-scope mapping, support-access grant record, or
+  dual-control policy needed for the new agent operations surface.
+- **Impact:** I can continue implementing redacted operational read models and recovery primitives,
+  but I will not invent privileged role semantics or expose customer-content support actions.
+- **Next action:** Select and document the operator role matrix and support-grant policy, then wire
+  the protected admin API and end-to-end authorization tests.
