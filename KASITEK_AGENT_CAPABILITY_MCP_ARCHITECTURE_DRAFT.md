@@ -86,6 +86,19 @@ checklist we will complete together before work starts.
   currently logged-in human.
 - [x] KasiAi is a protected system definition installed per organization and uses the shared
   capability standard.
+- [x] Support all execution modes in the shared model: `system_hosted` for KasiAi,
+  `kasitek_hosted` for KasiTek-run user agents, and `external_connected` for runtimes such as
+  Codex, Claude Code, n8n, or a customer deployment.
+- [x] External connected agents are visible Agent Installations with their own identity,
+  activity, credentials, grants, health, suspension, and revocation controls.
+- [x] Agent installations belong to the workspace, not the person who created them; creator and
+  subsequent changes remain audit metadata.
+- [x] Plan for a single delivery that includes KasiAi, hosted user agents, and external connected
+  agents; implementation tracks may proceed in parallel but share the same contracts.
+- [x] During the controlled testing phase, provide broad enabled capability access to test
+  installations. Preserve organization isolation, credentials, audit records, idempotency, core
+  authorization, and action receipts from the first implementation; subscription limits and
+  granular commercial restrictions are deferred to the entitlement phase.
 - [ ] Who can install, modify, suspend, and delete an agent installation in a workspace?
 - [ ] Which plans may create agents, connect external agents, use scheduled runs, or invoke
   high-risk capabilities?
