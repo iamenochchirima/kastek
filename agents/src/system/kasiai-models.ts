@@ -148,12 +148,6 @@ function configuredDefault(config: AppConfig, models: KasiAiModelOption[]): Kasi
   };
 }
 
-/**
- * Waku's approach is the right one here: fetch the provider's authoritative
- * catalog, cache it briefly, and keep a small resilient fallback when the
- * provider is unreachable. OpenRouter is one credential across many labs, so
- * its whole text catalog is returned rather than being hand-curated in code.
- */
 export async function getKasiAiModelCatalog(config: AppConfig): Promise<KasiAiModelCatalog> {
   const openRouter = hasProviderCredential("openrouter") ? await listOpenRouterModels() : null;
   const models = [
