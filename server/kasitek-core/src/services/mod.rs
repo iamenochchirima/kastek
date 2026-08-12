@@ -4,7 +4,6 @@ pub mod auth;
 pub mod billing;
 pub mod billing_provider;
 pub mod bluesky_oauth;
-pub mod bookings;
 pub mod calls;
 pub mod connections;
 pub mod customers;

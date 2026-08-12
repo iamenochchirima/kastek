@@ -1,8 +1,8 @@
 use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 
+use crate::domains::bookings::postgres;
 use crate::error::AppError;
-use crate::services::bookings;
 
 pub fn whatsapp_identity_key(phone: &str) -> String {
     format!("whatsapp:{}", phone.trim())
@@ -336,7 +336,7 @@ pub async fn get_customer_detail(
             .bind(org_id)
             .fetch_all(pool),
     )?;
-    let booking_history = bookings::list_bookings_for_customer(pool, org_id, customer_id).await?;
+    let booking_history = postgres::list_bookings_for_customer(pool, org_id, customer_id).await?;
 
     Ok(Some(json!({
         "customer": {

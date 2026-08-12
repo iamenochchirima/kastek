@@ -2,13 +2,48 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 
-use crate::db::models::{
-    BookingCreateRequest, BookingServiceCreateRequest, BookingServiceUpdateRequest,
-    BookingUpdateRequest,
-};
+use crate::domains::bookings::{commands, model, queries};
 use crate::error::AppError;
-use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{bookings, orgs};
+use crate::identity::{product_session, request_context::RequestContext};
+
+#[derive(Debug, serde::Deserialize)]
+pub struct BookingServiceCreateRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    #[serde(rename = "durationMinutes")]
+    pub duration_minutes: Option<i32>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct BookingServiceUpdateRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    #[serde(rename = "durationMinutes")]
+    pub duration_minutes: Option<i32>,
+    pub active: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct BookingCreateRequest {
+    #[serde(rename = "serviceId")]
+    pub service_id: Option<String>,
+    #[serde(rename = "customerId")]
+    pub customer_id: Option<String>,
+    #[serde(rename = "contactName")]
+    pub contact_name: Option<String>,
+    #[serde(rename = "contactPhone")]
+    pub contact_phone: Option<String>,
+    #[serde(rename = "scheduledStart")]
+    pub scheduled_start: Option<String>,
+    pub timezone: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct BookingUpdateRequest {
+    pub status: Option<String>,
+    pub notes: Option<String>,
+}
 
 const VALID_BOOKING_STATUSES: [&str; 5] = [
     "SCHEDULED",
@@ -28,18 +63,16 @@ fn required_trimmed(value: Option<&String>, label: &str) -> Result<String, AppEr
     optional_trimmed(value).ok_or_else(|| AppError::BadRequest(format!("{label} is required")))
 }
 
-async fn request_scope(pool: &PgPool, req: &HttpRequest) -> Result<(String, String), AppError> {
-    let user = extract_user(req, pool).await?;
-    let org_id = resolve_active_org_id(req, pool, &user.id).await?;
-    Ok((user.id, org_id))
+async fn request_scope(pool: &PgPool, req: &HttpRequest) -> Result<RequestContext, AppError> {
+    product_session::resolve(req, pool).await
 }
 
 pub async fn list_services(
     pool: web::Data<PgPool>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
-    let (_, org_id) = request_scope(pool.get_ref(), &req).await?;
-    let services = bookings::list_services(pool.get_ref(), &org_id).await?;
+    let context = request_scope(pool.get_ref(), &req).await?;
+    let services = queries::list_services(pool.get_ref(), &context).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "services": services })))
 }
 
@@ -48,8 +81,7 @@ pub async fn create_service(
     req: HttpRequest,
     body: web::Json<BookingServiceCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
-    let (user_id, org_id) = request_scope(pool.get_ref(), &req).await?;
-    orgs::require_admin(pool.get_ref(), &org_id, &user_id).await?;
+    let context = request_scope(pool.get_ref(), &req).await?;
     let name = required_trimmed(body.name.as_ref(), "Service name")?;
     let duration_minutes = body
         .duration_minutes
@@ -58,12 +90,14 @@ pub async fn create_service(
             AppError::BadRequest("Duration must be between 5 and 1440 minutes".to_string())
         })?;
     let description = optional_trimmed(body.description.as_ref());
-    let service = bookings::create_service(
+    let service = commands::create_service(
         pool.get_ref(),
-        &org_id,
-        &name,
-        description.as_deref(),
-        duration_minutes,
+        &context,
+        model::CreateServiceInput {
+            name,
+            description,
+            duration_minutes,
+        },
     )
     .await?;
     Ok(HttpResponse::Created().json(serde_json::json!({ "service": service })))
@@ -75,8 +109,7 @@ pub async fn update_service(
     path: web::Path<String>,
     body: web::Json<BookingServiceUpdateRequest>,
 ) -> Result<HttpResponse, AppError> {
-    let (user_id, org_id) = request_scope(pool.get_ref(), &req).await?;
-    orgs::require_admin(pool.get_ref(), &org_id, &user_id).await?;
+    let context = request_scope(pool.get_ref(), &req).await?;
     if body
         .duration_minutes
         .is_some_and(|value| !(5..=1_440).contains(&value))
@@ -93,17 +126,18 @@ pub async fn update_service(
         .description
         .as_ref()
         .map(|value| optional_trimmed(Some(value)));
-    let service = bookings::update_service(
+    let service = commands::update_service(
         pool.get_ref(),
-        &org_id,
+        &context,
         &path,
-        name.as_deref(),
-        description.as_ref().map(|value| value.as_deref()),
-        body.duration_minutes,
-        body.active,
+        model::UpdateServiceInput {
+            name,
+            description,
+            duration_minutes: body.duration_minutes,
+            active: body.active,
+        },
     )
-    .await?
-    .ok_or_else(|| AppError::NotFound("Booking service not found".to_string()))?;
+    .await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "service": service })))
 }
 
@@ -111,8 +145,8 @@ pub async fn list_bookings(
     pool: web::Data<PgPool>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
-    let (_, org_id) = request_scope(pool.get_ref(), &req).await?;
-    let bookings = bookings::list_bookings(pool.get_ref(), &org_id).await?;
+    let context = request_scope(pool.get_ref(), &req).await?;
+    let bookings = queries::list_bookings(pool.get_ref(), &context).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "bookings": bookings })))
 }
 
@@ -121,7 +155,7 @@ pub async fn create_booking(
     req: HttpRequest,
     body: web::Json<BookingCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
-    let (user_id, org_id) = request_scope(pool.get_ref(), &req).await?;
+    let context = request_scope(pool.get_ref(), &req).await?;
     let service_id = required_trimmed(body.service_id.as_ref(), "Service")?;
     let contact_name = required_trimmed(body.contact_name.as_ref(), "Contact name")?;
     let scheduled_start = required_trimmed(body.scheduled_start.as_ref(), "Start time")?
@@ -139,17 +173,18 @@ pub async fn create_booking(
     let customer_id = optional_trimmed(body.customer_id.as_ref());
     let contact_phone = optional_trimmed(body.contact_phone.as_ref());
     let notes = optional_trimmed(body.notes.as_ref());
-    let booking = bookings::create_booking(
+    let booking = commands::create_booking(
         pool.get_ref(),
-        &org_id,
-        &user_id,
-        &service_id,
-        customer_id.as_deref(),
-        &contact_name,
-        contact_phone.as_deref(),
-        scheduled_start,
-        &timezone,
-        notes.as_deref(),
+        &context,
+        model::CreateBookingInput {
+            service_id,
+            customer_id,
+            contact_name,
+            contact_phone,
+            scheduled_start,
+            timezone,
+            notes,
+        },
     )
     .await?;
     Ok(HttpResponse::Created().json(serde_json::json!({ "booking": booking })))
@@ -161,7 +196,7 @@ pub async fn update_booking(
     path: web::Path<String>,
     body: web::Json<BookingUpdateRequest>,
 ) -> Result<HttpResponse, AppError> {
-    let (_, org_id) = request_scope(pool.get_ref(), &req).await?;
+    let context = request_scope(pool.get_ref(), &req).await?;
     let status = optional_trimmed(body.status.as_ref()).map(|value| value.to_ascii_uppercase());
     if status
         .as_deref()
@@ -173,14 +208,12 @@ pub async fn update_booking(
         .notes
         .as_ref()
         .map(|value| optional_trimmed(Some(value)));
-    let booking = bookings::update_booking(
+    let booking = commands::update_booking(
         pool.get_ref(),
-        &org_id,
+        &context,
         &path,
-        status.as_deref(),
-        notes.as_ref().map(|value| value.as_deref()),
+        model::UpdateBookingInput { status, notes },
     )
-    .await?
-    .ok_or_else(|| AppError::NotFound("Booking not found".to_string()))?;
+    .await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "booking": booking })))
 }
