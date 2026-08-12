@@ -58,12 +58,13 @@ the same transaction that completes the run. Clients can read durable history fr
 
 ## kasitek-core read boundary
 
-The worker can expose explicitly granted read-only core tools when both of these settings are
-present:
+The worker can expose explicitly granted read-only core tools when the core URL and one of these
+authentication modes are present:
 
 - `KASITEK_CORE_URL` — the private base URL of `kasitek-core`.
 - `KASITEK_CORE_INTERNAL_TOKEN` — a dedicated bearer token configured in core as
   `KASITEK_AGENTS_INTERNAL_TOKEN`.
+- `KASITEK_CORE_DELEGATION_PRIVATE_KEY` — an ES256 private key for per-invocation delegation.
 
 The initial tool is `kasitek.core.customer_get`. It calls
 `GET /api/internal/agents/v1/customers/:id` with `x-organization-id`, `x-actor-id`, run, and
