@@ -37,16 +37,15 @@ verified or completed. Work on independent items continues.
   credentials and databases, then run migration, authenticated health, and
   end-to-end smoke checks.
 
-## B-004 — Client production build cannot run in this sandbox
+## B-004 — Client production build cannot run in this sandbox (resolved)
 
 - **Blueprint:** Slice 0 direct-client production build baseline.
 - **Evidence:** `pnpm build:client` reaches `next build` but Turbopack fails
   while processing `globals.css`: creating a subprocess that binds a port is
   not permitted by the sandbox (`os error 1`).
-- **Impact:** This is an execution-environment limitation in addition to B-001;
-  it does not establish a product build failure.
-- **Next action:** Rerun after B-001 in an environment that permits Next.js
-  build worker process creation.
+- **Resolution:** After the Agents page lint fix, `pnpm build:client` completed
+  successfully in this environment. Prisma-generated verification output was
+  restored because it was a command artifact and not part of this task's changes.
 
 ## B-005 — Core route-surface migration overlaps active unrelated edits
 
