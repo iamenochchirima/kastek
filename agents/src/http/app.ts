@@ -42,6 +42,7 @@ import { createDefaultTools } from "../temporal/activities";
 import { KasitekCoreReadClient } from "../core/client";
 import { ToolRegistry } from "../tools/registry";
 import { randomUUID } from "node:crypto";
+import { ConnectorRegistry } from "../connectors";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -59,6 +60,7 @@ export interface AppDependencies {
   installationCredentials?: InstallationCredentialRepository;
   installationGrants?: InstallationGrantRepository;
   toolRegistry?: ToolRegistry;
+  connectorRegistry?: ConnectorRegistry;
   knowledge?: KnowledgeRepository;
   memory?: MemoryRepository;
   evaluations?: EvaluationRepository;
@@ -110,6 +112,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
   const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config));
+  const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
   const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
@@ -378,6 +381,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/grants", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     return installationGrants.effective(auth.organizationId, request.params.installationId);
+  });
+
+  app.get("/v1/connectors", async (request) => {
+    requireScope(requireAuth(request, dependencies.config), dependencies.config, "agents:read");
+    return { connectors: connectorRegistry.list() };
+  });
+
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/connectors", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const grants = await installationGrants.effective(auth.organizationId, installation.id);
+    return { installationId: installation.id, connectors: grants.connectors.map((id) => connectorRegistry.get(id)).filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)) };
   });
 
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/grants/resources", async (request, reply) => {
