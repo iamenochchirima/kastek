@@ -19,6 +19,7 @@ import { ModelCallRepository } from "../db/repositories/model-call-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
 import { InstallationCredentialRepository } from "../db/repositories/installation-credential-repository";
+import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
@@ -52,6 +53,7 @@ export interface AppDependencies {
   channels?: ChannelRepository;
   credentials?: CredentialVaultRepository;
   installationCredentials?: InstallationCredentialRepository;
+  installationGrants?: InstallationGrantRepository;
   knowledge?: KnowledgeRepository;
   memory?: MemoryRepository;
   evaluations?: EvaluationRepository;
@@ -101,6 +103,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
+  const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
   const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
@@ -304,6 +307,27 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       credentialId: request.params.credentialId,
       actorId: auth.actorId,
     });
+    return reply.code(204).send();
+  });
+
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/grants", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    return installationGrants.effective(auth.organizationId, request.params.installationId);
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/grants/resources", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = z.object({ resourceType: z.string().trim().min(1).max(120), resourceId: z.string().trim().min(1).max(240) }).parse(request.body);
+    await installationGrants.grantResource({ organizationId: auth.organizationId, installationId: request.params.installationId, actorId: auth.actorId, ...input });
+    return reply.code(204).send();
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/grants/connectors", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = z.object({ connectorId: z.string().trim().min(1).max(240) }).parse(request.body);
+    await installationGrants.grantConnector({ organizationId: auth.organizationId, installationId: request.params.installationId, actorId: auth.actorId, ...input });
     return reply.code(204).send();
   });
 
