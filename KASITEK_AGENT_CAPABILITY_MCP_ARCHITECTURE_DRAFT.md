@@ -520,16 +520,55 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 
 **Goal:** Keep Waku-style thin gateways while preserving production conversation isolation.
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] Standard inbound/outbound envelope for browser, WhatsApp, Telegram, Discord, and future channels.
-- [ ] External identity and external-conversation mapping rules.
-- [ ] Which channel is a personal-agent channel versus a business/customer agent channel.
-- [ ] Delivery status, retries, provider webhooks, opt-out, and human handoff requirements.
-- [ ] Cross-channel conversation visibility and privacy rules in the KasiAi UI.
+- [x] Normalize every inbound/outbound message to one durable envelope containing message,
+  organization, installation, conversation, direction, source channel, binding, external identity/
+  conversation, provider event/message IDs, type/content/attachments, timestamps, deduplication,
+  and delivery state.
+- [x] Treat organization as the workspace isolation boundary, not the specific participant identity.
+  A conversation belongs to an installation and has either a user owner or an external customer/
+  thread identity within that organization.
+- [x] Personal agents such as KasiAi use user-owned conversations. A browser new chat creates its
+  own conversation ID only when first sent; it never falls back to a channel-default thread. A
+  verified member's external personal channel maps to that member's channel-default KasiAi
+  conversation. Other workspace members cannot see it unless deliberate sharing is added later.
+- [x] Business agents use customer/thread-owned conversations. Stable external identity plus channel
+  binding plus external conversation/thread ID resolves a dedicated conversation. The same customer
+  is not automatically merged across channels; future merge is an explicit audited action. Staff
+  access follows workspace role, assignment, and handoff policy.
+- [x] External connected agents have invocation/run activity by default and receive conversations
+  only when they deliberately use KasiTek conversation/channel capabilities.
+- [x] Different installations never share a conversation merely because they share a customer or
+  organization.
+- [x] Keep gateways thin: verify/normalize/deduplicate/resolve conversation/start-or-attach run/
+  deliver reply. Gateways contain no agent prompt, memory, tool, or direct product logic.
+- [x] Keep browser and WhatsApp active; add Telegram, then Discord, then email. Voice follows later
+  with speech/media policy. All use the common envelope and delivery contract.
+- [x] A channel binding selects channel connection/account, agent installation, optional identity
+  constraints, inbound/outbound routing policies, and handoff/default behavior. Start with one
+  primary agent per binding; add explicit rule-based multi-agent routing later.
+- [x] Persist an agent reply before outbound delivery. Track durable delivery attempts/provider IDs/
+  status webhooks. Preserve failed reply content without rerunning the agent automatically; allow
+  manual staff takeover/send where available.
+- [x] Enforce channel-specific provider policy, opt-out, and consent before proactive sends. Store
+  consent/opt-out against the relevant external identity. Human handoff pauses the agent with audit
+  history and preserves context; staff resume explicitly.
+- [x] Keep initial approvals in the web UI. Channel messages may initiate an action but plain-text
+  channel confirmation cannot approve it. Add signed interactive channel approvals later.
+- [x] Normalize attachments into secure object references, scan/validate before model/tool use,
+  enforce channel size/type limits, and retain source metadata. Treat OCR/transcription as scoped
+  derived data with retention controls.
+- [x] Validate every provider webhook signature/challenge, retain raw payloads briefly and with
+  restricted access, deduplicate provider IDs, rate-limit endpoints, acknowledge quickly, dispatch
+  durable work, and dead-letter malformed/repeated failures with operator visibility.
+- [x] Show safe channel, identity, binding, conversation, run, delivery, provider, handoff, and
+  error state in activity views without exposing tokens or raw sensitive provider payloads.
 
 ### Exit criteria
 
+- [x] Channel identity, ownership, gateway, routing, delivery, consent, attachment, webhook, and
+  observability architecture is approved for implementation.
 - [ ] Each gateway reuses the shared runtime rather than creating a parallel agent system.
 
 ## Layer 10 — Context, knowledge, and memory
@@ -636,7 +675,7 @@ an undecided earlier layer.
 - [x] 6. Core delegated authorization boundary
 - [x] 7. MCP and public REST API contract and connection UX
 - [x] 8. Runtime execution and durability rules
-- [ ] 9. Channels and conversation policy
+- [x] 9. Conversation and channel gateway policy
 - [ ] 10. Context/knowledge/memory policy
 - [ ] 11. User/admin UX
 - [ ] 12. Observability/governance

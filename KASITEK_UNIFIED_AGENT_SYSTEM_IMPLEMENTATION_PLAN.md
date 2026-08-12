@@ -93,6 +93,10 @@ platform data/access contract.
 - [x] Use one durable AgentRun/Temporal model for all agent entry points, stable idempotency-derived
   workflows, bounded synchronous calls, durable effects/approvals/schedules, safe cancellation,
   ordered events, workload task queues, and object-storage media references.
+- [x] Use user-owned personal-agent conversations and separate customer/thread-owned business-agent
+  conversations within organization isolation; do not auto-merge channels or installations.
+- [x] Keep channel gateways thin and standardize delivery, provider webhook, consent/opt-out, human
+  handoff, attachment, and safe activity behavior across channels.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -299,7 +303,15 @@ confirmed actions through common capability contracts.
 
 - [ ] Reuse the standard channel envelope for browser, WhatsApp, Telegram, Discord, and future
   providers.
+- [ ] Encode personal user-owned versus business customer/thread-owned conversation identity and
+  access rules; keep external-agent conversations opt-in while always recording their runs.
+- [ ] Prevent browser new chats from falling back to external channel-default chats and prohibit
+  automatic cross-channel/customer or cross-installation conversation merging.
 - [ ] Complete Telegram and Discord adapters as thin channel adapters over the shared runtime.
+- [ ] Add email after Telegram/Discord, and defer voice until speech/media policy is ready.
+- [ ] Persist reply-before-delivery, delivery attempts/provider IDs/status webhooks, manual recovery,
+  channel consent/opt-out, audited human handoff/pause/resume, secure attachment normalization, and
+  verified/deduplicated fast-ack webhooks.
 - [ ] Add workflow/schedule triggers and Temporal durability to hosted user agents.
 - [ ] Add deterministic human handoff/escalation routing where a template requires it.
 
