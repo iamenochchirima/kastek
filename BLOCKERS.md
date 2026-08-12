@@ -3,17 +3,16 @@
 This file records only issues that prevent a specific blueprint item from being
 verified or completed. Work on independent items continues.
 
-## B-001 — Direct client lint baseline failure
+## B-001 — Direct client lint baseline failure (resolved)
 
 - **Blueprint:** Slice 0 verification; client lint/typecheck/build baseline.
 - **Evidence:** `pnpm --filter client lint` fails in the unmodified
   `client/apps/client/src/app/(dashboard)/agents/page.tsx:30` with
   `react-hooks/immutability`: `agentsUnavailable` is reassigned from an async
   callback after rendering.
-- **Impact:** The direct-client baseline and any slice whose completion requires
-  a clean client lint remain unverified until this pre-existing error is fixed.
-- **Next action:** Repair the page without changing its Agents availability
-  semantics, then rerun the client lint and production build.
+- **Resolution:** Reworked the async result into an immutable success/unavailable
+  value. `pnpm --filter client lint` now passes with one existing non-blocking
+  `<img>` warning; client TypeScript checking also passes.
 
 ## B-002 — Admin lint command has no ESLint flat configuration
 

@@ -5,7 +5,7 @@ import {
   AgentsPageClient,
   type AgentListItem,
 } from "@/components/dashboard/agents/agents-page-client";
-import type { AgentTemplate } from "@/lib/agent-platform";
+import type { AgentOperationsSummary, AgentTemplate } from "@/lib/agent-platform";
 
 export const metadata = {
   title: "Agents | KasiTek",
@@ -25,19 +25,19 @@ export default async function AgentsPage({
     headers: { "content-type": "application/json" },
     body: JSON.stringify({}),
   }).catch(() => null);
-  let agentsUnavailable = false;
-  const response = await fetchRustJson<{ agents: AgentListItem[] }>("/api/agents").catch(() => {
-    agentsUnavailable = true;
-    return { agents: [] };
-  });
+  const agentResult = await fetchRustJson<{ agents: AgentListItem[] }>("/api/agents")
+    .then((value) => ({ value, unavailable: false }))
+    .catch(() => ({ value: { agents: [] as AgentListItem[] }, unavailable: true }));
   const templates = await fetchRustJson<{ templates: AgentTemplate[] }>("/api/agents/templates").catch(() => ({ templates: [] }));
+  const operations = await fetchRustJson<AgentOperationsSummary>("/api/agents/operations/summary").catch(() => null);
   return (
     <AgentsPageClient
-      initialAgents={response.agents}
+      initialAgents={agentResult.value.agents}
       kasiaiInstallationId={installation?.id ?? null}
       initialTemplates={templates.templates}
       initialTemplateKey={template}
-      agentsUnavailable={agentsUnavailable}
+      agentsUnavailable={agentResult.unavailable}
+      initialOperations={operations}
     />
   );
 }

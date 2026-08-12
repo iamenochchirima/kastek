@@ -57,6 +57,19 @@ export type AgentRun = {
   error?: { message?: string; [key: string]: unknown } | null;
 };
 
+export type AgentOperationsSummary = {
+  organizationId: string;
+  generatedAt: string;
+  runs: Array<{ status: string; count: number }>;
+  models: Array<Record<string, unknown>>;
+  tools: Array<{ status: string; count: number }>;
+  effects: { pendingReconciliation: number };
+};
+
+export function getAgentOperationsSummary(): Promise<AgentOperationsSummary> {
+  return request<AgentOperationsSummary>("/api/agents/operations/summary");
+}
+
 export function getAgentRun(runId: string): Promise<{ run: AgentRun; events: AgentStreamEvent[] }> {
   return request(`/api/agents/runs/${encodeURIComponent(runId)}`);
 }

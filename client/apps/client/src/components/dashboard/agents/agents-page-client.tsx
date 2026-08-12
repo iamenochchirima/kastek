@@ -7,7 +7,7 @@ import { Bot, Check, ChevronRight, Info, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ensureKasiAi, installAgentTemplate, setAgentInstallationStatus, type AgentDefinition, type AgentTemplate } from "@/lib/agent-platform";
+import { ensureKasiAi, installAgentTemplate, setAgentInstallationStatus, type AgentDefinition, type AgentOperationsSummary, type AgentTemplate } from "@/lib/agent-platform";
 
 export type AgentListItem = AgentDefinition;
 
@@ -37,12 +37,14 @@ export function AgentsPageClient({
   initialTemplates,
   initialTemplateKey,
   agentsUnavailable = false,
+  initialOperations = null,
 }: {
   initialAgents: AgentListItem[];
   kasiaiInstallationId: string | null;
   initialTemplates: AgentTemplate[];
   initialTemplateKey?: string;
   agentsUnavailable?: boolean;
+  initialOperations?: AgentOperationsSummary | null;
 }) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(Boolean(initialTemplateKey));
@@ -72,6 +74,8 @@ export function AgentsPageClient({
           </div>
         ) : null}
 
+        {initialOperations ? <OperationsSummary summary={initialOperations} /> : null}
+
         {agentsUnavailable ? (
           <Card><CardContent className="flex flex-col items-start gap-4 p-8"><Info className="h-7 w-7 text-status-attention" /><div><h2 className="text-xl font-semibold text-foreground">Agents are unavailable</h2><p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">The Agent Platform could not be reached. Your existing installations are unchanged; try refreshing in a moment.</p></div><Button type="button" variant="outline" onClick={() => router.refresh()}>Retry</Button></CardContent></Card>
         ) : initialAgents.length ? (
@@ -95,6 +99,16 @@ export function AgentsPageClient({
       {createOpen ? <TemplateDialog templates={templates} onClose={() => setCreateOpen(false)} onInstalled={() => { setCreateOpen(false); router.refresh(); }} initialTemplateKey={initialTemplateKey} /> : null}
     </div>
   );
+}
+
+function OperationsSummary({ summary }: { summary: AgentOperationsSummary }) {
+  const runCount = summary.runs.reduce((total, entry) => total + Number(entry.count || 0), 0);
+  const activeCount = summary.runs.filter((entry) => ["received", "queued", "running", "awaiting_approval", "awaiting_human", "awaiting_external_event"].includes(entry.status)).reduce((total, entry) => total + Number(entry.count || 0), 0);
+  return <section aria-label="Agent operations summary" className="grid gap-3 sm:grid-cols-3">
+    <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Runs</p><p className="mt-1 text-2xl font-semibold text-foreground">{runCount}</p><p className="mt-1 text-xs text-muted-foreground">{activeCount} active or waiting</p></CardContent></Card>
+    <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Tool outcomes</p><p className="mt-1 text-2xl font-semibold text-foreground">{summary.tools.reduce((total, entry) => total + Number(entry.count || 0), 0)}</p><p className="mt-1 text-xs text-muted-foreground">Durable tool invocations</p></CardContent></Card>
+    <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Reconciliation</p><p className={`mt-1 text-2xl font-semibold ${summary.effects.pendingReconciliation ? "text-status-attention" : "text-foreground"}`}>{summary.effects.pendingReconciliation}</p><p className="mt-1 text-xs text-muted-foreground">Effects needing operator review</p></CardContent></Card>
+  </section>;
 }
 
 function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: () => void }) {
