@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ModelGateway } from "../src/model/gateway";
 import type { ModelAdapter, ModelCredentials, ModelRequest, ModelResponse } from "../src/model/types";
-import { ToolRegistry, hashToolArguments } from "../src/tools/registry";
+import { ToolRegistry, effectIdForInvocation, hashToolArguments } from "../src/tools/registry";
 import { runBoundedAgentLoop } from "../src/runtime/loop";
 import { redactSensitiveValue } from "../src/tools/redaction";
 
@@ -43,6 +43,7 @@ describe("Tool Gateway and bounded runtime", () => {
       context: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
     });
     expect(result.output).toEqual({ value: "hello" });
+    expect(result.effectId).toBeUndefined();
     expect(hashToolArguments({ b: 2, a: 1 })).toBe(hashToolArguments({ a: 1, b: 2 }));
   });
 
@@ -75,6 +76,7 @@ describe("Tool Gateway and bounded runtime", () => {
     });
     expect(result.status).toBe("awaiting_approval");
     expect(result.pendingToolCalls?.[0]?.name).toBe("platform.publish");
+    expect(effectIdForInvocation({ runId: "run" }, "platform.publish", hashToolArguments({ id: "post-1" }))).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it("continues after a tool result and completes without a tool call", async () => {
