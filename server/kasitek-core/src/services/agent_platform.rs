@@ -410,6 +410,114 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn ingest_channel_message(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/channels/inbound",
+            organization_id,
+            actor_id,
+            &["channels:ingest"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn update_channel_delivery_status(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/channels/delivery-status",
+            organization_id,
+            actor_id,
+            &["channels:ingest"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn consume_channel_pairing(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        token: &str,
+        external_identity: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/channel-pairing/consume",
+            organization_id,
+            actor_id,
+            &["channels:ingest"],
+            Some(json!({
+                "token": token,
+                "externalIdentity": external_identity,
+            })),
+        )
+        .await
+    }
+
+    pub async fn list_installation_channels(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/installations/{installation_id}/channels"),
+            organization_id,
+            actor_id,
+            &["channels:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn ensure_channel_connection(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/channels"),
+            organization_id,
+            actor_id,
+            &["channels:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn issue_channel_pairing(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        connection_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/channels/{connection_id}/pairing"),
+            organization_id,
+            actor_id,
+            &["channels:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
     pub async fn get_conversation(
         &self,
         organization_id: &str,

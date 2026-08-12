@@ -18,6 +18,7 @@ use crate::db::models::{
     WhatsappTemplateRow,
 };
 use crate::error::AppError;
+use crate::services::agent_platform::AgentPlatformClient;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
 use crate::services::realtime;
 use crate::services::social::{decrypt_social_secret, encrypt_social_secret};
@@ -4678,6 +4679,43 @@ async fn handle_incoming_messages(
         if text.is_none() && media.is_none() {
             continue;
         }
+        if let Some(pairing_token) = text.as_deref().map(str::trim).filter(|value| {
+            value.starts_with("kasiai_pair_") && !value.chars().any(char::is_whitespace)
+        }) {
+            let paired = if let Ok(agent_client) = AgentPlatformClient::from_config(config) {
+                agent_client
+                    .consume_channel_pairing(
+                        org_id,
+                        &connection.user_id,
+                        pairing_token,
+                        &normalized_phone,
+                    )
+                    .await
+                    .is_ok()
+            } else {
+                false
+            };
+            let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
+            let acknowledgement = if paired {
+                "WhatsApp is now connected to your KasiAi conversation."
+            } else {
+                "That KasiAi pairing code is invalid or expired. Create a new code in KasiTek and try again."
+            };
+            if let Err(error) = send_text_message(
+                &connection.phone_number_id,
+                &access_token,
+                &normalized_phone,
+                acknowledgement,
+                message.get("id").and_then(Value::as_str),
+            )
+            .await
+            {
+                log::warn!("KasiAi WhatsApp pairing acknowledgement failed: {}", error);
+            }
+            // Pairing tokens are credentials. Never persist them in the business
+            // Inbox or forward them into model-visible conversation history.
+            continue;
+        }
         let profile_name = contacts
             .iter()
             .find(|contact| contact.get("wa_id").and_then(|v| v.as_str()) == Some(from))
@@ -4785,6 +4823,31 @@ async fn handle_incoming_messages(
         .await?;
         publish_message_created(pool, &connection.user_id, &message_id).await?;
         publish_conversation_updated(pool, &connection.user_id, &conversation_id).await?;
+        if let (Some(inbound_text), Some(provider_message_id)) = (text.as_deref(), wa_message_id) {
+            if let Ok(agent_client) = AgentPlatformClient::from_config(config) {
+                let payload = json!({
+                    "channelType": "whatsapp",
+                    "provider": "meta-whatsapp",
+                    "providerEventId": provider_message_id,
+                    "providerMessageId": provider_message_id,
+                    "externalIdentity": normalized_phone,
+                    "externalConversationId": conversation_id,
+                    "messageType": "text",
+                    "content": { "text": inbound_text },
+                    "displayName": profile_name,
+                });
+                if let Err(error) = agent_client
+                    .ingest_channel_message(org_id, &connection.user_id, payload)
+                    .await
+                {
+                    log::debug!(
+                        "WhatsApp message was not routed to KasiAi conversation_id={}: {}",
+                        conversation_id,
+                        error
+                    );
+                }
+            }
+        }
         if let Err(error) = send_push_notification_to_user(
             pool,
             config,
@@ -4887,6 +4950,55 @@ pub async fn process_webhook_payload(
                 .unwrap_or_default();
             for status in statuses {
                 handle_status(pool, &status).await?;
+                let phone_number_id = value
+                    .get("metadata")
+                    .and_then(|metadata| metadata.get("phone_number_id"))
+                    .and_then(Value::as_str);
+                let provider_message_id = status.get("id").and_then(Value::as_str);
+                let provider_status = status.get("status").and_then(Value::as_str);
+                if let (Some(phone_number_id), Some(provider_message_id), Some(provider_status)) =
+                    (phone_number_id, provider_message_id, provider_status)
+                {
+                    let connection_scope = sqlx::query_as::<_, (String, String)>(
+                        r#"SELECT "orgId", "userId" FROM "WhatsappConnection"
+                           WHERE "phoneNumberId" = $1 AND "orgId" IS NOT NULL LIMIT 1"#,
+                    )
+                    .bind(phone_number_id)
+                    .fetch_optional(pool)
+                    .await?;
+                    if let Some((org_id, user_id)) = connection_scope {
+                        if let Ok(agent_client) = AgentPlatformClient::from_config(config) {
+                            let normalized_status =
+                                match provider_status.to_ascii_lowercase().as_str() {
+                                    "sent" => "sent",
+                                    "delivered" => "delivered",
+                                    "read" => "read",
+                                    "failed" => "failed",
+                                    _ => "unknown",
+                                };
+                            let (failure_code, failure_message) =
+                                parse_status_failure_details(&status);
+                            let mut payload = json!({
+                                "providerMessageId": provider_message_id,
+                                "status": normalized_status,
+                            });
+                            if normalized_status == "failed" {
+                                payload["error"] =
+                                    json!({ "code": failure_code, "message": failure_message });
+                            }
+                            if let Err(error) = agent_client
+                                .update_channel_delivery_status(&org_id, &user_id, payload)
+                                .await
+                            {
+                                log::debug!(
+                                    "WhatsApp status did not map to a KasiAi delivery message_id={}: {}",
+                                    provider_message_id,
+                                    error
+                                );
+                            }
+                        }
+                    }
+                }
             }
             whatsapp_calls::ingest_webhook_calls(pool, config, &value).await?;
             handle_incoming_messages(pool, config, &value).await?;
@@ -5302,6 +5414,39 @@ async fn send_text_message(
             )
         })?;
     Ok((message_id.to_string(), raw))
+}
+
+/// Deliver a KasiAi reply through an existing, organization-scoped WhatsApp
+/// inbox conversation. The Agent Platform owns the canonical agent message;
+/// this boundary only resolves the connected account and performs transport.
+pub async fn deliver_agent_message(
+    pool: &PgPool,
+    org_id: &str,
+    conversation_id: &str,
+    text: &str,
+) -> Result<Value, AppError> {
+    let conversation = scoped_conversation(pool, org_id, conversation_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("WhatsApp conversation not found".to_string()))?;
+    let (connection_id, phone) =
+        parse_conversation_identifier(&conversation.customer_identifier)
+            .ok_or_else(|| AppError::BadRequest("Invalid WhatsApp conversation".to_string()))?;
+    let connection = get_connection_row_for_org(pool, org_id, &connection_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("WhatsApp connection not found".to_string()))?;
+    let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
+    let (provider_message_id, _) = send_text_message(
+        &connection.phone_number_id,
+        &access_token,
+        &phone,
+        text,
+        None,
+    )
+    .await?;
+    Ok(json!({
+        "providerMessageId": provider_message_id,
+        "status": "sent",
+    }))
 }
 
 async fn upload_whatsapp_media(

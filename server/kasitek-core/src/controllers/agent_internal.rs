@@ -1,17 +1,19 @@
-//! Private, read-only boundary used by the standalone Agent Platform service.
+//! Private, narrow boundary used by the standalone Agent Platform service.
 //!
 //! This deliberately does not reuse browser session authentication. Agent
 //! workers are service principals, so they authenticate with a dedicated
 //! bearer token and must provide the organisation they are acting for. Every
-//! query is scoped by that organisation in the service layer.
+//! operation is scoped by that organisation in the service layer. Read tools
+//! and the explicit channel-delivery transport are the only exposed actions.
 
 use actix_web::{web, HttpRequest, HttpResponse};
+use serde::Deserialize;
 use serde_json::json;
 use sqlx::{PgPool, Row};
 
 use crate::config::AppConfig;
 use crate::error::AppError;
-use crate::services::customers;
+use crate::services::{customers, whatsapp};
 
 fn require_internal_agent(
     config: &AppConfig,
@@ -109,4 +111,54 @@ pub async fn get_workspace_status(
             "count": row.get::<i64, _>("count"),
         })).collect::<Vec<_>>(),
     })))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentChannelDeliveryRequest {
+    pub channel_type: String,
+    pub external_conversation_id: String,
+    pub text: String,
+}
+
+/// Write-capable transport boundary for a reply that has already been
+/// persisted by the Agent Platform. It accepts no credentials or arbitrary
+/// provider URL; core resolves the organization-scoped connection itself.
+pub async fn deliver_channel_message(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<AgentChannelDeliveryRequest>,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, actor_id) = require_internal_agent(config.get_ref(), &req)?;
+    let channel_type = body.channel_type.trim().to_ascii_lowercase();
+    let text = body.text.trim();
+    if text.is_empty() || text.len() > 20_000 {
+        return Err(AppError::BadRequest(
+            "Agent reply text is invalid".to_string(),
+        ));
+    }
+    let result = match channel_type.as_str() {
+        "whatsapp" => {
+            whatsapp::deliver_agent_message(
+                pool.get_ref(),
+                &organization_id,
+                body.external_conversation_id.trim(),
+                text,
+            )
+            .await?
+        }
+        _ => {
+            return Err(AppError::BadRequest(format!(
+                "Agent delivery channel is not supported: {channel_type}"
+            )))
+        }
+    };
+    log::info!(
+        "agent channel delivery channel={} org_id={} actor_id={}",
+        channel_type,
+        organization_id,
+        actor_id
+    );
+    Ok(HttpResponse::Ok().json(result))
 }

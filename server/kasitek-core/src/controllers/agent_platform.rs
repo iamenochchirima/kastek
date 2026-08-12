@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{agent_platform::AgentPlatformClient, billing};
+use crate::services::{agent_platform::AgentPlatformClient, billing, whatsapp};
 
 #[derive(Debug, Deserialize)]
 pub struct StreamQuery {
@@ -119,6 +119,82 @@ pub async fn list_conversations(
         .list_conversations(&organization_id, &user.id, &installation_id)
         .await?;
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_channels(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_installation_channels(&organization_id, &user.id, &installation_id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhatsappPairingRequest {
+    pub connection_id: String,
+}
+
+pub async fn issue_kasiai_whatsapp_pairing(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<WhatsappPairingRequest>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let connection_id = body.connection_id.trim();
+    let whatsapp_connections = whatsapp::list_connections(pool.get_ref(), &organization_id).await?;
+    if !whatsapp_connections
+        .iter()
+        .any(|connection| connection.id == connection_id)
+    {
+        return Err(AppError::NotFound(
+            "WhatsApp connection not found".to_string(),
+        ));
+    }
+    let agent_client = client(config.get_ref())?;
+    let installation = agent_client
+        .ensure_kasiai(&organization_id, &user.id, Value::Object(Map::new()))
+        .await?;
+    let installation_id = installation
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::Internal("KasiAi installation response is invalid".to_string()))?;
+    let channel = agent_client
+        .ensure_channel_connection(
+            &organization_id,
+            &user.id,
+            installation_id,
+            serde_json::json!({
+                "channelType": "whatsapp",
+                "channelKey": connection_id,
+                "metadata": { "coreConnectionId": connection_id },
+            }),
+        )
+        .await?;
+    let agent_connection_id = channel
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::Internal("Agent channel response is invalid".to_string()))?;
+    let pairing = agent_client
+        .issue_channel_pairing(
+            &organization_id,
+            &user.id,
+            installation_id,
+            agent_connection_id,
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(serde_json::json!({
+        "installationId": installation_id,
+        "channel": channel,
+        "pairing": pairing,
+        "instruction": "Send the one-time pairing code as a WhatsApp message to the connected KasiTek number.",
+    })))
 }
 
 pub async fn list_audit(

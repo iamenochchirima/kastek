@@ -23,6 +23,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route(
                     "/workspace/status",
                     web::get().to(agent_internal::get_workspace_status),
+                )
+                .route(
+                    "/channels/deliver",
+                    web::post().to(agent_internal::deliver_channel_message),
                 ),
         )
         .service(
@@ -85,6 +89,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route(
                     "/installations/{installationId}/conversations",
                     web::get().to(agent_platform::list_conversations),
+                )
+                .route(
+                    "/installations/{installationId}/channels",
+                    web::get().to(agent_platform::list_channels),
+                )
+                .route(
+                    "/kasiai/channels/whatsapp/pairing",
+                    web::post().to(agent_platform::issue_kasiai_whatsapp_pairing),
                 )
                 .route(
                     "/installations/{installationId}/platform/messages",

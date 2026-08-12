@@ -3,6 +3,8 @@
 import { Button } from "@/components/ui/button";
 import {
   Bot,
+  Check,
+  Copy,
   RotateCcw,
   LoaderCircle,
   MessageCircle,
@@ -19,14 +21,19 @@ import {
   createPlatformConversation,
   ensureKasiAi,
   getPlatformConversation,
+  issueKasiAiWhatsappPairing,
   listAgentConversations,
+  listKasiAiChannels,
+  listWhatsappConnectionOptions,
   resolvePlatformConversation,
   sendPlatformMessage,
   streamAgentRun,
   AgentRequestError,
   type AgentConversation,
+  type AgentChannelBinding,
   type AgentInstallation,
   type AgentMessage,
+  type WhatsappConnectionOption,
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
 
@@ -120,6 +127,12 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const [conversationHistory, setConversationHistory] = useState<AgentConversation[]>([]);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [channelFilter, setChannelFilter] = useState("all");
+  const [channelBindings, setChannelBindings] = useState<AgentChannelBinding[]>([]);
+  const [whatsappConnections, setWhatsappConnections] = useState<WhatsappConnectionOption[]>([]);
+  const [selectedWhatsappConnection, setSelectedWhatsappConnection] = useState("");
+  const [pairing, setPairing] = useState<{ token: string; expiresAt: string } | null>(null);
+  const [pairingBusy, setPairingBusy] = useState(false);
+  const [pairingCopied, setPairingCopied] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -185,6 +198,16 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     setConversationHistory(response.conversations);
   }, []);
 
+  const refreshChannels = useCallback(async (installationId: string) => {
+    const [channels, whatsapp] = await Promise.all([
+      listKasiAiChannels(installationId),
+      listWhatsappConnectionOptions().catch(() => ({ connections: [] })),
+    ]);
+    setChannelBindings(channels.bindings);
+    setWhatsappConnections(whatsapp.connections);
+    setSelectedWhatsappConnection((current) => current || whatsapp.connections[0]?.id || "");
+  }, []);
+
   const loadOlder = async () => {
     if (!conversation || !hasMoreMessages || !nextBefore || loadingOlder) return;
     const viewport = messagesViewport.current;
@@ -223,7 +246,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
         setMessages(sortMessages(resolved.messages));
         setHasMoreMessages(Boolean(resolved.hasMore));
         setNextBefore(resolved.nextBefore ?? null);
-        await refreshConversationHistory(installed.id);
+        await Promise.all([refreshConversationHistory(installed.id), refreshChannels(installed.id)]);
       } catch (cause) {
         if (!cancelled) setError(formatAgentError(cause, "KasiAi is unavailable"));
       } finally {
@@ -233,7 +256,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     return () => {
       cancelled = true;
     };
-  }, [initializationKey, open, refreshConversationHistory]);
+  }, [initializationKey, open, refreshChannels, refreshConversationHistory]);
 
   useEffect(() => {
     if (!open || !conversation?.is_primary || document.visibilityState === "hidden") return;
@@ -241,16 +264,34 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       void getPlatformConversation(conversation.id, { limit: 100 })
         .then((response) => {
           setConversation(response.conversation);
-          setMessages((current) => sortMessages([
-            ...current,
-            ...response.messages.filter((incoming) => !current.some((message) => message.id === incoming.id)),
-          ]));
+          setMessages((current) => {
+            const incoming = new Map(response.messages.map((message) => [message.id, message]));
+            return sortMessages([
+              ...current.map((message) => incoming.get(message.id) ?? message),
+              ...response.messages.filter((message) => !current.some((existing) => existing.id === message.id)),
+            ]);
+          });
           setHasMoreMessages((current) => current || Boolean(response.hasMore));
         })
         .catch(() => undefined);
     }, 4_000);
     return () => window.clearInterval(interval);
   }, [conversation?.id, conversation?.is_primary, open]);
+
+  useEffect(() => {
+    if (!open || !installation || !pairing) return;
+    const interval = window.setInterval(() => {
+      void refreshChannels(installation.id).then(() => undefined).catch(() => undefined);
+    }, 3_000);
+    return () => window.clearInterval(interval);
+  }, [installation, open, pairing, refreshChannels]);
+
+  useEffect(() => {
+    if (pairing && channelBindings.some((binding) => binding.channel_type === "whatsapp" && binding.status === "active")) {
+      setPairing(null);
+      setPairingCopied(false);
+    }
+  }, [channelBindings, pairing]);
 
   useEffect(() => {
     if (!open) return;
@@ -377,7 +418,34 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     }
   };
 
-  const availableChannels = useMemo(() => Array.from(new Set(messages.map(messageChannel))).sort(), [messages]);
+  const beginWhatsappPairing = async () => {
+    if (!selectedWhatsappConnection || pairingBusy) return;
+    setPairingBusy(true);
+    setPairingCopied(false);
+    setError(null);
+    try {
+      const response = await issueKasiAiWhatsappPairing(selectedWhatsappConnection);
+      setPairing({ token: response.pairing.token, expiresAt: response.pairing.expires_at });
+    } catch (cause) {
+      setError(formatAgentError(cause, "Unable to create a WhatsApp pairing code"));
+    } finally {
+      setPairingBusy(false);
+    }
+  };
+
+  const copyPairingCode = async () => {
+    if (!pairing) return;
+    await navigator.clipboard.writeText(pairing.token);
+    setPairingCopied(true);
+  };
+
+  const availableChannels = useMemo(
+    () => Array.from(new Set([
+      ...messages.map(messageChannel),
+      ...channelBindings.filter((binding) => binding.status === "active").map((binding) => binding.channel_type),
+    ])).sort(),
+    [channelBindings, messages],
+  );
   const visibleMessages = useMemo(
     () => channelFilter === "all" ? messages : messages.filter((message) => messageChannel(message) === channelFilter),
     [channelFilter, messages],
@@ -489,6 +557,39 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
               </Button>
             ))}
           </div>
+        </div>
+      ) : null}
+
+      {installation && whatsappConnections.length && !channelBindings.some((binding) => binding.channel_type === "whatsapp" && binding.status === "active") ? (
+        <div className="border-b border-border bg-muted/20 px-4 py-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={selectedWhatsappConnection}
+              onChange={(event) => setSelectedWhatsappConnection(event.target.value)}
+              className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1.5 text-foreground"
+              aria-label="WhatsApp number for KasiAi"
+            >
+              {whatsappConnections.map((connection) => (
+                <option key={connection.id} value={connection.id}>{connection.phoneDisplayNumber || connection.phoneNumberId}</option>
+              ))}
+            </select>
+            <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => void beginWhatsappPairing()} disabled={pairingBusy || !selectedWhatsappConnection}>
+              {pairingBusy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
+              Connect WhatsApp
+            </Button>
+          </div>
+          {pairing ? (
+            <div className="mt-2 rounded-md border border-border bg-card p-2">
+              <p className="text-muted-foreground">Send this one-time code as a WhatsApp message to the selected KasiTek number:</p>
+              <div className="mt-1 flex items-center gap-2">
+                <code className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap rounded bg-muted px-2 py-1 text-[11px]">{pairing.token}</code>
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => void copyPairingCode()} aria-label="Copy WhatsApp pairing code">
+                  {pairingCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                </Button>
+              </div>
+              <p className="mt-1 text-[10px] text-muted-foreground">Expires {new Date(pairing.expiresAt).toLocaleTimeString()}.</p>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

@@ -49,6 +49,29 @@ export type AgentRun = {
   error?: { message?: string; [key: string]: unknown } | null;
 };
 
+export type AgentChannelConnection = {
+  id: string;
+  installation_id: string;
+  channel_type: string;
+  channel_key: string;
+  metadata: Record<string, unknown>;
+  status: string;
+};
+
+export type AgentChannelBinding = {
+  id: string;
+  installation_id: string;
+  channel_type: string;
+  external_identity: string;
+  status: string;
+};
+
+export type WhatsappConnectionOption = {
+  id: string;
+  phoneDisplayNumber?: string | null;
+  phoneNumberId: string;
+};
+
 type ConversationResponse = {
   conversation: AgentConversation;
   messages: AgentMessage[];
@@ -201,6 +224,25 @@ export function createPlatformConversation(installationId: string): Promise<Conv
 
 export function listAgentConversations(installationId: string): Promise<{ conversations: AgentConversation[] }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/conversations`);
+}
+
+export function listKasiAiChannels(installationId: string): Promise<{ connections: AgentChannelConnection[]; bindings: AgentChannelBinding[] }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels`);
+}
+
+export function issueKasiAiWhatsappPairing(connectionId: string): Promise<{
+  installationId: string;
+  pairing: { token: string; expires_at: string };
+  instruction: string;
+}> {
+  return request("/api/agents/kasiai/channels/whatsapp/pairing", {
+    method: "POST",
+    body: JSON.stringify({ connectionId }),
+  });
+}
+
+export function listWhatsappConnectionOptions(): Promise<{ connections: WhatsappConnectionOption[] }> {
+  return request("/api/whatsapp/connections");
 }
 
 export function sendPlatformMessage(
