@@ -46,11 +46,13 @@ export interface AgentLoopInput {
   onToolCompleted?: (input: {
     toolCallId: string;
     name: string;
+    argumentsHash: string;
     output: unknown;
     latencyMs: number;
+    effectId?: string;
     approval?: ToolApproval;
   }) => Promise<void> | void;
-  onToolFailed?: (input: { toolCallId: string; name: string; error: { code: string; message: string } }) => Promise<void> | void;
+  onToolFailed?: (input: { toolCallId: string; name: string; argumentsHash?: string; error: { code: string; message: string } }) => Promise<void> | void;
   resumeApprovedToolCall?: {
     id: string;
     name: string;
@@ -114,14 +116,14 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       const safeOutput = redactSensitiveValue(result.output);
       messages.push({ role: "tool", name: resumed.name, toolCallId: resumed.id, content: JSON.stringify(safeOutput) });
       toolCalls += 1;
-      await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, output: safeOutput, latencyMs: result.latencyMs, approval: resumed.approval });
+      await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: hashToolArguments(resumed.arguments), output: safeOutput, latencyMs: result.latencyMs, effectId: result.effectId, approval: resumed.approval });
       await emit(input, { type: "tool.completed", iteration: 0, payload: { name: resumed.name, resumed: true, latencyMs: result.latencyMs } });
     } catch (error) {
       const normalized = error instanceof ToolPolicyError
         ? { code: error.code, message: error.message, failureClass: classifyFailureCode(error.code) }
         : { code: "APPROVED_TOOL_FAILED", message: error instanceof Error ? error.message : "Approved tool failed", failureClass: "terminal" as const };
       await emit(input, { type: "loop.failed", iteration: 0, payload: normalized });
-      await input.onToolFailed?.({ toolCallId: input.resumeApprovedToolCall.id, name: input.resumeApprovedToolCall.name, error: normalized });
+      await input.onToolFailed?.({ toolCallId: input.resumeApprovedToolCall.id, name: input.resumeApprovedToolCall.name, argumentsHash: hashToolArguments(input.resumeApprovedToolCall.arguments), error: normalized });
       return { status: "failed", messages, usage, iterations: 0, toolCalls, error: normalized };
     }
   }
@@ -200,7 +202,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             content: JSON.stringify(safeOutput),
           });
           await emit(input, { type: "tool.completed", iteration, payload: { name: toolCall.name, latencyMs: result.latencyMs } });
-          await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, output: safeOutput, latencyMs: result.latencyMs });
+          await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, output: safeOutput, latencyMs: result.latencyMs, effectId: result.effectId });
         } catch (error) {
           if (error instanceof ToolPolicyError && error.code === "APPROVAL_REQUIRED") {
             await emit(input, { type: "loop.paused", iteration, payload: { reason: "approval", name: toolCall.name } });
@@ -217,7 +219,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           const normalized = error instanceof ToolPolicyError
             ? { code: error.code, message: error.message }
             : { code: "TOOL_FAILED", message: error instanceof Error ? error.message : "Tool failed" };
-          await input.onToolFailed?.({ toolCallId: toolCall.id, name: toolCall.name, error: normalized });
+          await input.onToolFailed?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, error: normalized });
           throw error;
         }
       }

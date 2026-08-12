@@ -78,5 +78,8 @@ describe("foundation migration", () => {
     expect(workspaceSql).toContain("title_source");
     expect(workspaceSql).toContain("kasiai_user_preferences");
     expect(workspaceSql).toContain("resolved_model_provider");
+    const effectsSql = await readFile(new URL("../migrations/028_effect_receipts.sql", import.meta.url), "utf8");
+    expect(effectsSql).toContain("agent_effect_receipts");
+    expect(effectsSql).toContain("reconciliation_required");
   });
 });

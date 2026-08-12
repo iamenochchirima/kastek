@@ -21,6 +21,10 @@ export function hashToolArguments(argumentsValue: Record<string, unknown>): stri
   return createHash("sha256").update(JSON.stringify(stableValue(argumentsValue))).digest("hex");
 }
 
+export function effectIdForInvocation(context: { runId: string }, toolName: string, argumentsHash: string): string {
+  return createHash("sha256").update(`${context.runId}:${toolName}:${argumentsHash}`).digest("hex");
+}
+
 interface RegisteredTool extends ToolDefinition {
   validateInput: ValidateFunction;
   validateOutput: ValidateFunction;
@@ -101,6 +105,7 @@ export class ToolRegistry {
       version: tool.version,
       argumentsHash,
       output,
+      effectId: tool.riskClass === "external-effect" ? effectIdForInvocation(request.context, tool.name, argumentsHash) : undefined,
       latencyMs: Date.now() - startedAt,
     };
   }

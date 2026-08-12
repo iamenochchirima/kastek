@@ -23,6 +23,7 @@ import { resolveModelTarget } from "../model/policy";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
+import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -122,6 +123,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const killSwitches = new KillSwitchRepository(pool);
   const channels = new ChannelRepository(pool);
   const kasiaiPreferences = new KasiAiPreferenceRepository(pool);
+  const effectReceipts = new EffectReceiptRepository(pool);
   const gateway = options.gateway ?? new ModelGateway(undefined, { pricing: pricingFromConfig(options.config) });
   const credentials = options.credentials ?? (options.config
     ? new VaultCredentialResolver(new CredentialVaultRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY))
@@ -135,7 +137,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async executeLoop(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
-      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, runSteps, toolGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, effectReceipts, runSteps, toolGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -278,6 +280,7 @@ async function executeLoopForRun(
   memory: MemoryRepository,
   knowledge: KnowledgeRepository,
   toolInvocations: ToolInvocationRepository,
+  effectReceipts: EffectReceiptRepository,
   runSteps: RunStepRepository,
   toolGrants: ToolGrantRepository,
   summaries: SummaryRepository,
@@ -445,6 +448,19 @@ async function executeLoopForRun(
         arguments: proposal.arguments,
         requiresApproval: proposal.requiresApproval,
       });
+      if (proposal.riskClass === "external-effect") {
+        await effectReceipts.reserve({
+          organizationId: run.organization_id,
+          installationId: run.installation_id,
+          runId: run.id,
+          providerToolCallId: proposal.toolCallId,
+          capability: proposal.name,
+          capabilityVersion: proposal.version,
+          argumentsHash: proposal.argumentsHash,
+          idempotencyKey: `${run.id}:${proposal.name}:${proposal.argumentsHash}`,
+        });
+        await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${proposal.name}:${proposal.argumentsHash}`);
+      }
       const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "tool", input: { toolCallId: proposal.toolCallId, name: proposal.name, argumentsHash: proposal.argumentsHash } });
       toolSteps.set(proposal.toolCallId, step.id);
     },
@@ -454,8 +470,10 @@ async function executeLoopForRun(
         providerToolCallId: result.toolCallId,
         output: result.output,
         latencyMs: result.latencyMs,
+        effectId: result.effectId,
         approval: result.approval,
       });
+      if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${result.name}:${result.argumentsHash}`, result.output);
       const stepId = toolSteps.get(result.toolCallId);
       if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
     },
@@ -465,6 +483,10 @@ async function executeLoopForRun(
         providerToolCallId: failure.toolCallId,
         error: failure.error,
       });
+      const failedTool = tools.get(failure.name);
+      if (failedTool?.riskClass === "external-effect" && failure.argumentsHash) {
+        await effectReceipts.markFailedByKey(run.organization_id, `${run.id}:${failure.name}:${failure.argumentsHash}`, failure.error, true);
+      }
       const stepId = toolSteps.get(failure.toolCallId);
       if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: failure.error });
     },
