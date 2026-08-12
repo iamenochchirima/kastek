@@ -6,6 +6,7 @@
 //! is incrementally moved behind domain commands and queries.
 
 pub mod bootstrap;
+pub mod capabilities;
 pub mod config;
 pub mod controllers;
 pub mod db;

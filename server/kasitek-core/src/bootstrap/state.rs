@@ -18,7 +18,13 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(pool: PgPool, config: AppConfig) -> Self {
-        let action_registry = initial_registry().expect("built-in action catalog must be valid");
+        let mut action_registry =
+            initial_registry().expect("built-in action catalog must be valid");
+        for definition in crate::capabilities::catalog::definitions() {
+            action_registry
+                .register(definition)
+                .expect("built-in core action catalog must be valid");
+        }
         Self {
             pool,
             config,
