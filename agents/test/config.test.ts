@@ -18,4 +18,15 @@ describe("agent runtime configuration", () => {
   it("validates the selected provider credential rather than unrelated keys", () => {
     expect(() => loadConfig({ ...required, KASIAI_MODEL_PROVIDER: "anthropic", OPENROUTER_API_KEY: "key" })).toThrow("ANTHROPIC_API_KEY");
   });
+
+  it("allows delegation-only core authentication", () => {
+    const config = loadConfig({
+      ...required,
+      OPENROUTER_API_KEY: "key",
+      INSTALLATION_TOKEN_PRIVATE_KEY: "test-key",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_DELEGATION_PRIVATE_KEY: "delegation-key",
+    });
+    expect(config.KASITEK_CORE_INTERNAL_TOKEN).toBeUndefined();
+  });
 });

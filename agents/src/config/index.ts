@@ -51,8 +51,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (config.AUTH_MODE === "hmac" && !config.INTERNAL_AUTH_SECRET) {
     throw new Error("INTERNAL_AUTH_SECRET is required when AUTH_MODE=hmac");
   }
-  if (config.KASITEK_CORE_URL && !config.KASITEK_CORE_INTERNAL_TOKEN) {
-    throw new Error("KASITEK_CORE_INTERNAL_TOKEN is required when KASITEK_CORE_URL is configured");
+  if (config.KASITEK_CORE_URL && !config.KASITEK_CORE_INTERNAL_TOKEN && !config.KASITEK_CORE_DELEGATION_PRIVATE_KEY) {
+    throw new Error("KASITEK_CORE_INTERNAL_TOKEN or KASITEK_CORE_DELEGATION_PRIVATE_KEY is required when KASITEK_CORE_URL is configured");
   }
   if (config.NODE_ENV === "production") {
     const credentialKey = {
