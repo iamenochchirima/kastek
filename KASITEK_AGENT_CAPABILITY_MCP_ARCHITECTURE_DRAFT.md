@@ -413,21 +413,53 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 - webhook/event subscriptions with signing, replay protection, delivery attempts, and recovery;
 - generated SDK compatibility without making an SDK the authoritative contract.
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] Initial endpoint and transport: remote Streamable HTTP only, or additional transports?
-- [ ] Authentication UX for Codex/Claude Code and non-interactive server agents.
-- [ ] Whether every capability is exposed in MCP v1 or whether some remain internal initially.
-- [ ] Tool naming, pagination, resource URI policy, and MCP version support policy.
-- [ ] Public documentation, test server, and compatibility suite.
-- [ ] REST resource/operation layout and the boundary between business-friendly endpoints and the
-  generic capability invocation endpoint.
-- [ ] OpenAPI source-of-truth generation and client SDK targets.
-- [ ] Webhook/event catalog, signing algorithm, retry schedule, replay window, and delivery logs.
-- [ ] Parity tests proving equivalent MCP and REST invocations reach the same capability handler.
+- [x] Publish the normal public REST API at `https://api.kasitek.co.za/v1/*` and publish the
+  separately deployed hosted MCP endpoint at `https://agents.kasitek.co.za/mcp`. Use Railway private
+  networking for core internal endpoints where available; internal contracts are not public API.
+- [x] Use remote MCP Streamable HTTP as the initial hosted MCP transport, supporting initialization,
+  discovery, calls, structured results, progress, cancellation, pagination, and capability-change
+  notifications.
+- [x] Add a local stdio bridge/proxy later for MCP clients that only support local stdio. Consider
+  legacy HTTP+SSE only when a meaningful compatible client requires it. Treat WebSocket or another
+  persistent real-time transport as a future UX optimization, not a correctness dependency.
+- [x] All transports are adapters over the same capability contracts, installation identity,
+  Capability Gateway, approval model, and audit trail.
+- [x] Let external agents authenticate as installation principals through the Layer 2 token exchange.
+  Add interactive OAuth installation UX for third-party applications later. Accept tokens only in
+  the `Authorization` header and validate the MCP/REST audience.
+- [x] Filter MCP discovery to granted capabilities. Show granted-but-unavailable capabilities with
+  safe availability reason/setup metadata; keep ungranted capabilities invisible.
+- [x] Publish normal typed business REST endpoints and a generic advanced capability invocation
+  endpoint. Both invoke the exact same manifest, policy evaluator, and handler.
+- [x] Publish OpenAPI 3.1 generated from or contract-tested against the capability registry,
+  including examples, authentication, errors, receipts, pagination, idempotency, and webhooks.
+  Generate TypeScript and Python SDKs only once the contract is stable.
+- [x] Require REST `Idempotency-Key` headers and mutation-tool idempotency input. Return
+  `APPROVAL_REQUIRED` for external effects; long operations return a run/status/approval reference
+  that clients may poll or receive through webhooks.
+- [x] Provide selected installation webhook subscriptions. Sign deliveries with HMAC-SHA256 and a
+  copy-once webhook secret; include event ID/type/version, organization/installation, timestamp,
+  safe effect data, and delivery attempt. Enforce timestamp/replay protection, exponential retries,
+  delivery logs, manual redelivery, and disable/re-enable behavior after repeated failure.
+- [x] Use generous but finite and measured rate limits by installation, credential, capability,
+  organization, and expensive provider operation; return standard headers and `RATE_LIMITED` errors.
+- [x] Publish agent-readable integration documentation at `https://agents.kasitek.co.za/docs/agent.md`
+  and a machine-readable OpenAPI document at `https://api.kasitek.co.za/openapi.json`. Documentation
+  is instructional, not executable authority.
+- [x] Release only after real compatibility tests for Codex, Claude Code, a generic MCP inspector,
+  n8n via REST, TypeScript and Python REST clients, and a webhook receiver reference application.
+- [x] Version public REST with `/v1`, capability manifests semantically, and expose supported/deprecated
+  version metadata. Provide at least six months' notice before removing a generally available REST
+  major version; clearly mark beta capability compatibility separately.
+- [x] Require MCP/REST parity tests proving equivalent calls use the same manifest version, policy,
+  handler, idempotency, authorization, approval, receipt, and audit behavior.
 
 ### Exit criteria
 
+- [x] Public REST/MCP endpoint, transport, authentication, discovery, documentation, webhook,
+  compatibility, versioning, and parity design is approved for implementation.
 - [ ] Third-party MCP and REST clients authenticate as installations and discover/use only permitted
   capabilities.
 - [ ] MCP and REST calls yield the same authorization, approval, audit, idempotency, and receipts as
@@ -568,7 +600,7 @@ an undecided earlier layer.
 - [x] 4. First capability catalog and contract design
 - [x] 5. Action safety and approvals
 - [x] 6. Core delegated authorization boundary
-- [ ] 7. MCP server contract and connection UX
+- [x] 7. MCP and public REST API contract and connection UX
 - [ ] 8. Runtime execution rules
 - [ ] 9. Channels and conversation policy
 - [ ] 10. Context/knowledge/memory policy

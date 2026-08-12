@@ -84,6 +84,12 @@ platform data/access contract.
   approver authority, business preconditions, and core-owned effect idempotency.
 - [x] Use transactional outbox/action records for provider effects, signed versioned lifecycle
   events back to Agent Platform, and reconciliation before ambiguous retries.
+- [x] Publish normal public REST at `api.kasitek.co.za/v1/*` and hosted MCP at
+  `agents.kasitek.co.za/mcp`; keep core internal routes private where deployment permits.
+- [x] Use remote Streamable HTTP initially, add a local stdio bridge later, and add legacy SSE or
+  WebSocket transports only for demonstrated client compatibility or UX needs.
+- [x] Define typed REST plus advanced generic invocation, OpenAPI 3.1, parity, installation
+  webhooks, agent-readable documentation, and real MCP/REST client compatibility gates.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -327,13 +333,20 @@ the guided form.
 - [ ] Serve OAuth protected-resource metadata and implement compatible authorization discovery.
 - [ ] Support installation credential token exchange for unattended clients.
 - [ ] Provide a connection flow/instructions for Codex, Claude Code, n8n, and custom MCP clients.
+- [ ] Later, implement/test a local stdio bridge to the hosted MCP service for local-only MCP
+  clients; do not duplicate capability logic in the bridge.
+- [ ] Add legacy HTTP+SSE or persistent real-time transports only after a concrete compatibility or
+  UX requirement is accepted.
 
 ### B. Agent REST API and webhooks
 
-- [ ] Publish a versioned `/v1` REST API backed by the same Capability Gateway handlers.
+- [ ] Publish normal public `https://api.kasitek.co.za/v1/*` REST API backed by the same Capability
+  Gateway handlers; do not create duplicate `/agent/v1` business APIs.
 - [ ] Expose capability discovery and direct typed endpoints for core business operations; avoid
   forcing deterministic integrations through an opaque generic tool-call endpoint only.
 - [ ] Publish an OpenAPI contract generated from or validated against capability schemas.
+- [ ] Serve OpenAPI at `https://api.kasitek.co.za/openapi.json` and agent integration guidance at
+  `https://agents.kasitek.co.za/docs/agent.md`.
 - [ ] Standardize request IDs, idempotency keys, cursor pagination, filters, validation errors,
   authorization errors, asynchronous operation status, and effect receipts.
 - [ ] Support the same installation short-lived access token used by MCP.
