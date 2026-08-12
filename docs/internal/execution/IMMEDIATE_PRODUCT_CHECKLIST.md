@@ -1,3 +1,8 @@
+---
+title: Immediate Product Checklist
+slug: /execution/immediate-product-checklist
+---
+
 # Immediate Product Checklist
 
 Temporary working document for deciding what to build next. The goal is to get a new workspace to a working customer-conversation system as quickly as possible.

@@ -1,3 +1,8 @@
+---
+title: Messaging Completeness Implementation Checklist
+slug: /execution/temp-messaging-implementation-checklist
+---
+
 # Messaging completeness implementation checklist
 
 Status: temporary implementation plan  

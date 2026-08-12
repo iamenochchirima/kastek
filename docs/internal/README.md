@@ -32,4 +32,5 @@ This is the canonical home for private Kasitek documentation.
 
 - Product Features, the White Paper, Product Roadmap, the Founding Partner Launch Plan, the Client-Ready Platform Checklist, and Architecture are active documents in the internal site navigation.
 - Supporting documents remain in the repository and are surfaced again when the relevant work begins.
-- Root `PROJECT_PLAN.md` and `TENANT_PLATFORM_EXECUTION_PLAN.md` remain available for normal repo usage.
+- Root `PROJECT_PLAN.md` remains the repository-level product direction. The active tenant execution
+  plan is maintained under `./execution/TENANT_PLATFORM_EXECUTION_PLAN.md`.

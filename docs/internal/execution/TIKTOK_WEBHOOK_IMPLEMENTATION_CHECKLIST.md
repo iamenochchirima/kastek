@@ -1,3 +1,8 @@
+---
+title: TikTok Webhook Implementation Checklist
+slug: /execution/tiktok-webhook-implementation-checklist
+---
+
 # TikTok webhook and webhook-hardening implementation checklist
 
 Status: planned  
