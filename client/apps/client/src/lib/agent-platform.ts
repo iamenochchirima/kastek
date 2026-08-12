@@ -182,6 +182,13 @@ export type KasiAiModel = {
   label: string;
   description: string;
   tier: "fast" | "balanced" | "advanced";
+  isWorkspaceDefault?: boolean;
+  isFree?: boolean;
+  supportsTools?: boolean;
+  supportsReasoning?: boolean;
+  contextWindow?: number;
+  inputUsdPerMillion?: number;
+  outputUsdPerMillion?: number;
 };
 
 export type KasiAiPreferences = {
@@ -202,6 +209,7 @@ export type KasiAiHome = {
   channelDefaultConversationId: string | null;
   preferences: KasiAiPreferences | null;
   models: KasiAiModel[];
+  modelCatalog?: { source: "live" | "fallback"; fetchedAt: string; error?: string };
 };
 
 export function updateAgentInstallationSettings(installationId: string, settings: AgentInstallationSettings): Promise<AgentInstallation> {

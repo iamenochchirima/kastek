@@ -33,7 +33,7 @@ import { KASIAI_SLUG } from "../system/kasiai";
 import { PlatformChatRepository } from "../db/repositories/platform-chat-repository";
 import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
-import { availableKasiAiModels, isAllowedKasiAiModel } from "../system/kasiai-models";
+import { availableKasiAiModels, getKasiAiModelCatalog, isAllowedKasiAiModel } from "../system/kasiai-models";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -288,9 +288,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       requireScope(auth, dependencies.config, "kasiai:read");
       const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
       if (!installation || installation.status !== "active") return reply.code(404).send({ error: "kasiai_installation_not_found" });
-      const [allConversations, preferences] = await Promise.all([
+      const [allConversations, preferences, modelCatalog] = await Promise.all([
         conversations.listOwnerConversations(auth.organizationId, request.params.installationId, auth.actorId),
         kasiaiPreferences.get(auth.organizationId, request.params.installationId, auth.actorId),
+        getKasiAiModelCatalog(dependencies.config),
       ]);
       const activeConversations = allConversations.filter((conversation) => conversation.status === "active");
       return {
@@ -299,7 +300,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         archivedConversations: allConversations.filter((conversation) => conversation.status === "archived"),
         channelDefaultConversationId: activeConversations.find((conversation) => conversation.is_primary)?.id ?? null,
         preferences,
-        models: availableKasiAiModels(dependencies.config),
+        models: modelCatalog.models,
+        modelCatalog: { source: modelCatalog.source, fetchedAt: modelCatalog.fetchedAt, error: modelCatalog.error },
       };
     },
   );
@@ -311,7 +313,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       requireScope(auth, dependencies.config, "kasiai:read");
       const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
       if (!installation || installation.status !== "active") throw Object.assign(new Error("KasiAi installation not found"), { statusCode: 404 });
-      return { models: availableKasiAiModels(dependencies.config) };
+      return { models: await availableKasiAiModels(dependencies.config) };
     },
   );
 
@@ -347,7 +349,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       if (Boolean(input.defaultModelProvider) !== Boolean(input.defaultModel)) {
         throw Object.assign(new Error("Model provider and model must be changed together"), { statusCode: 400 });
       }
-      if (input.defaultModelProvider && input.defaultModel && !isAllowedKasiAiModel(dependencies.config, input.defaultModelProvider, input.defaultModel)) {
+      if (input.defaultModelProvider && input.defaultModel && !await isAllowedKasiAiModel(dependencies.config, input.defaultModelProvider, input.defaultModel)) {
         throw Object.assign(new Error("Selected model is not available for this workspace"), { statusCode: 403 });
       }
       const preferences = await kasiaiPreferences.upsert(auth.organizationId, request.params.installationId, auth.actorId, {
@@ -464,7 +466,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const hasProvider = input.modelProvider !== undefined;
     const hasModel = input.model !== undefined;
     if (!input.clearModel && hasProvider !== hasModel) throw Object.assign(new Error("Model provider and model must be changed together"), { statusCode: 400 });
-    if (input.modelProvider && input.model && !isAllowedKasiAiModel(dependencies.config, input.modelProvider, input.model)) {
+    if (input.modelProvider && input.model && !await isAllowedKasiAiModel(dependencies.config, input.modelProvider, input.model)) {
       throw Object.assign(new Error("Selected model is not available for this workspace"), { statusCode: 403 });
     }
     return conversations.updateOwnedConversation({
@@ -526,7 +528,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       if (Boolean(input.modelProvider) !== Boolean(input.model)) {
         return reply.code(400).send({ error: "Model provider and model must be changed together" });
       }
-      if (input.modelProvider && input.model && !isAllowedKasiAiModel(dependencies.config, input.modelProvider, input.model)) {
+      if (input.modelProvider && input.model && !await isAllowedKasiAiModel(dependencies.config, input.modelProvider, input.model)) {
         return reply.code(403).send({ error: "Selected model is not available for this workspace" });
       }
       const accepted = await platformChat.acceptMessage({
