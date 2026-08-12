@@ -174,12 +174,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post("/mcp", async (request, reply) => {
     const body = z.object({
       jsonrpc: z.literal("2.0"),
-      id: z.union([z.string(), z.number(), z.null()]),
+      id: z.union([z.string(), z.number(), z.null()]).optional(),
       method: z.string().min(1).max(120),
       params: z.record(z.string(), z.unknown()).optional(),
     }).parse(request.body);
-    const respond = (result: unknown) => reply.send({ jsonrpc: "2.0", id: body.id, result });
-    const failure = (code: number, message: string, data?: unknown) => reply.send({ jsonrpc: "2.0", id: body.id, error: { code, message, ...(data === undefined ? {} : { data }) } });
+    const respond = (result: unknown) => body.id === undefined ? reply.code(204).send() : reply.send({ jsonrpc: "2.0", id: body.id, result });
+    const failure = (code: number, message: string, data?: unknown) => body.id === undefined ? reply.code(204).send() : reply.send({ jsonrpc: "2.0", id: body.id, error: { code, message, ...(data === undefined ? {} : { data }) } });
     if (dependencies.config.AGENT_GATEWAY_SHARED_SECRET && request.headers["x-agent-gateway-secret"] !== dependencies.config.AGENT_GATEWAY_SHARED_SECRET) {
       return failure(-32003, "gateway_authentication_required");
     }

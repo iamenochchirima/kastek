@@ -53,6 +53,14 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("accepts JSON-RPC notifications without emitting a response body", async () => {
+    const app = buildApp({ config, pool: fakePool });
+    const response = await app.inject({ method: "POST", url: "/mcp", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { jsonrpc: "2.0", method: "notifications/initialized" } });
+    expect(response.statusCode).toBe(204);
+    expect(response.body).toBe("");
+    await app.close();
+  });
+
   it("filters MCP tools by the installation grant set", async () => {
     const app = buildApp({
       config,
