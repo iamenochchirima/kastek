@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
   ModelAdapter,
   ModelCredentials,
@@ -28,6 +29,35 @@ export interface OpenAICompatibleAdapterOptions {
   extraHeaders?: Record<string, string>;
 }
 
+const PROVIDER_FUNCTION_NAME = /^[a-zA-Z0-9_-]{1,64}$/;
+
+/**
+ * OpenAI-compatible providers commonly reject dots in function names, while
+ * KasiTek keeps dotted canonical namespaces internally. Use an alias solely
+ * at the provider boundary and translate it back before tool execution.
+ */
+function providerToolName(name: string): string {
+  if (PROVIDER_FUNCTION_NAME.test(name)) return name;
+  return `kasitek_${createHash("sha256").update(name).digest("hex").slice(0, 32)}`;
+}
+
+function toolNameMaps(tools: ModelRequest["tools"]): {
+  toProvider: (name: string) => string;
+  toCanonical: (name: string) => string;
+} {
+  const canonicalToProvider = new Map<string, string>();
+  const providerToCanonical = new Map<string, string>();
+  for (const tool of tools ?? []) {
+    const providerName = providerToolName(tool.name);
+    canonicalToProvider.set(tool.name, providerName);
+    providerToCanonical.set(providerName, tool.name);
+  }
+  return {
+    toProvider: (name) => canonicalToProvider.get(name) ?? providerToolName(name),
+    toCanonical: (name) => providerToCanonical.get(name) ?? name,
+  };
+}
+
 export class OpenAICompatibleAdapter implements ModelAdapter {
   public readonly provider: Extract<ModelProvider, "openrouter" | "openai">;
   public readonly capabilities = { toolCalling: true, structuredOutput: true, streaming: true, vision: true } as const;
@@ -38,6 +68,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
 
   public async complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse> {
     const startedAt = Date.now();
+    const names = toolNameMaps(request.tools);
     const response = await fetch(`${this.options.baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       signal: request.signal,
@@ -52,13 +83,13 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
           role: message.role,
           content: message.content,
           ...(message.toolCallId ? { tool_call_id: message.toolCallId } : {}),
-          ...(message.name ? { name: message.name } : {}),
+          ...(message.name ? { name: names.toProvider(message.name) } : {}),
           ...(message.toolCalls?.length
             ? {
                 tool_calls: message.toolCalls.map((toolCall) => ({
                   id: toolCall.id,
                   type: "function",
-                  function: { name: toolCall.name, arguments: JSON.stringify(toolCall.arguments) },
+                  function: { name: names.toProvider(toolCall.name), arguments: JSON.stringify(toolCall.arguments) },
                 })),
               }
             : {}),
@@ -67,7 +98,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
           ? {
               tools: request.tools.map((tool) => ({
                 type: "function",
-                function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
+                function: { name: names.toProvider(tool.name), description: tool.description, parameters: tool.inputSchema },
               })),
             }
           : {}),
@@ -101,7 +132,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       }
       return {
         id: toolCall.id ?? `${this.provider}-tool-${index}`,
-        name: toolCall.function?.name ?? "",
+        name: names.toCanonical(toolCall.function?.name ?? ""),
         arguments: args,
       };
     });
@@ -123,14 +154,27 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
 
   public async stream(request: ModelRequest, credentials: ModelCredentials, onDelta: (delta: ModelStreamDelta) => void | Promise<void>): Promise<ModelResponse> {
     const startedAt = Date.now();
+    const names = toolNameMaps(request.tools);
     const response = await fetch(`${this.options.baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       signal: request.signal,
       headers: { "content-type": "application/json", authorization: `Bearer ${credentials.apiKey}`, ...this.options.extraHeaders },
       body: JSON.stringify({
         model: request.model,
-        messages: request.messages.map((message) => ({ role: message.role, content: message.content, ...(message.toolCallId ? { tool_call_id: message.toolCallId } : {}), ...(message.name ? { name: message.name } : {}) })),
-        ...(request.tools?.length ? { tools: request.tools.map((tool) => ({ type: "function", function: { name: tool.name, description: tool.description, parameters: tool.inputSchema } })) } : {}),
+        messages: request.messages.map((message) => ({
+          role: message.role,
+          content: message.content,
+          ...(message.toolCallId ? { tool_call_id: message.toolCallId } : {}),
+          ...(message.name ? { name: names.toProvider(message.name) } : {}),
+          ...(message.toolCalls?.length ? {
+            tool_calls: message.toolCalls.map((toolCall) => ({
+              id: toolCall.id,
+              type: "function",
+              function: { name: names.toProvider(toolCall.name), arguments: JSON.stringify(toolCall.arguments) },
+            })),
+          } : {}),
+        })),
+        ...(request.tools?.length ? { tools: request.tools.map((tool) => ({ type: "function", function: { name: names.toProvider(tool.name), description: tool.description, parameters: tool.inputSchema } })) } : {}),
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         ...(request.maxTokens === undefined ? {} : { max_tokens: request.maxTokens }),
         stream: true,
@@ -159,10 +203,10 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       if (text) { content += text; deltaCount += 1; await onDelta({ type: "text_delta", text }); }
       for (const call of choice?.delta?.tool_calls ?? []) {
         const index = call.index ?? 0;
-        const current = toolCalls[index] ?? { id: call.id ?? `${this.provider}-tool-${index}`, name: call.function?.name ?? "", arguments: {} };
+        const current = toolCalls[index] ?? { id: call.id ?? `${this.provider}-tool-${index}`, name: names.toCanonical(call.function?.name ?? ""), arguments: {} };
         const argumentsText = call.function?.arguments ?? "";
         if (call.id) current.id = call.id;
-        if (call.function?.name) current.name = call.function.name;
+        if (call.function?.name) current.name = names.toCanonical(call.function.name);
         if (argumentsText) {
           const combined = `${toolArgumentBuffers.get(index) ?? ""}${argumentsText}`;
           toolArgumentBuffers.set(index, combined);
@@ -170,7 +214,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
         }
         toolCalls[index] = current;
         deltaCount += 1;
-        await onDelta({ type: "tool_call_delta", index, id: call.id, name: call.function?.name, argumentsDelta: argumentsText });
+        await onDelta({ type: "tool_call_delta", index, id: call.id, name: call.function?.name ? names.toCanonical(call.function.name) : undefined, argumentsDelta: argumentsText });
       }
       if (choice?.finish_reason) finishReason = choice.finish_reason;
       inputTokens = chunk.usage?.prompt_tokens ?? inputTokens;

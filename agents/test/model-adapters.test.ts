@@ -66,6 +66,38 @@ describe("provider adapters", () => {
     vi.unstubAllGlobals();
   });
 
+  it("uses provider-safe aliases for dotted canonical tool names and restores them", async () => {
+    let requestBody: Record<string, unknown> | undefined;
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, options: RequestInit) => {
+      requestBody = JSON.parse(String(options.body)) as Record<string, unknown>;
+      const tool = (requestBody.tools as Array<{ function: { name: string } }>)[0]!;
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: "assistant",
+            content: "",
+            tool_calls: [{ id: "call-time", function: { name: tool.function.name, arguments: "{}" } }],
+          },
+          finish_reason: "tool_calls",
+        }],
+        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new OpenAICompatibleAdapter({ provider: "openrouter", baseUrl: "https://example.test/v1" });
+    const result = await adapter.complete({
+      provider: "openrouter",
+      model: "test",
+      messages: [{ role: "user", content: "What time is it?" }],
+      tools: [{ name: "platform.current_time", description: "Get time", inputSchema: { type: "object" } }],
+    }, credentials);
+    const sentToolName = ((requestBody!.tools as Array<{ function: { name: string } }>)[0]!).function.name;
+    expect(sentToolName).toMatch(/^[a-zA-Z0-9_-]{1,64}$/);
+    expect(sentToolName).not.toContain(".");
+    expect(result.toolCalls[0]).toMatchObject({ name: "platform.current_time", arguments: {} });
+    vi.unstubAllGlobals();
+  });
+
   it("validates structured output against the requested JSON schema", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { role: "assistant", content: '{"answer":"ok"}' }, finish_reason: "stop" }],
