@@ -4,12 +4,18 @@ use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
     admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai, auth,
     billing, bookings, calls, connections, customers, health, inbox, notifications, onboarding,
-    orgs, product_tour, profile, public, realtime, social, whatsapp, whatsapp_calls, workspace,
+    orgs, product_tour, profile, public, public_v1, realtime, social, whatsapp, whatsapp_calls,
+    workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/", web::get().to(health::root))
         .route("/health", web::get().to(health::health_check))
+        .service(
+            web::scope("/v1")
+                .route("/health", web::get().to(public_v1::health))
+                .route("/capabilities", web::get().to(public_v1::capabilities)),
+        )
         .service(
             web::scope("/api/realtime")
                 .route("/whatsapp", web::get().to(realtime::whatsapp_stream)),
