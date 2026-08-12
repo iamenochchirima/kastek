@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config";
 import type { ToolInvocationContext } from "../tools/types";
+import { issueCoreDelegation } from "./delegation";
 
 export interface CoreCustomerDetail {
   customer: {
@@ -26,7 +27,7 @@ export interface CoreChannelDeliveryResult {
   status: "sent" | "unknown";
 }
 
-type CoreRequestContext = Pick<ToolInvocationContext, "organizationId" | "actorId" | "runId" | "correlationId">;
+type CoreRequestContext = Pick<ToolInvocationContext, "organizationId" | "actorId" | "installationId" | "runId" | "correlationId">;
 
 export class CoreToolError extends Error {
   public constructor(public readonly code: string, message: string) {
@@ -49,8 +50,8 @@ export class KasitekCoreReadClient {
     customerId: string,
   ): Promise<CoreCustomerDetail> {
     const baseUrl = this.config.KASITEK_CORE_URL?.replace(/\/$/, "");
-    const token = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
-    if (!baseUrl || !token) {
+    const staticToken = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
+    if (!baseUrl || (!staticToken && !this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY)) {
       throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core read boundary is not configured");
     }
 
@@ -60,7 +61,7 @@ export class KasitekCoreReadClient {
       const response = await fetch(`${baseUrl}/api/internal/agents/v1/customers/${encodeURIComponent(customerId)}`, {
         method: "GET",
         headers: {
-          authorization: `Bearer ${token}`,
+          authorization: `Bearer ${this.token(context, "kasitek.core.customer_get", "1.0.0")}`,
           "x-organization-id": context.organizationId,
           "x-actor-id": context.actorId ?? "kasitek-agent-platform",
           "x-agent-run-id": context.runId,
@@ -97,6 +98,7 @@ export class KasitekCoreReadClient {
 
   public async deliverChannelMessage(input: {
     organizationId: string;
+    installationId: string;
     actorId: string;
     runId: string;
     correlationId: string;
@@ -107,6 +109,7 @@ export class KasitekCoreReadClient {
     return this.requestJson<CoreChannelDeliveryResult>(
       {
         organizationId: input.organizationId,
+        installationId: input.installationId,
         actorId: input.actorId,
         runId: input.runId,
         correlationId: input.correlationId,
@@ -135,15 +138,15 @@ export class KasitekCoreReadClient {
     init: RequestInit,
   ): Promise<T> {
     const baseUrl = this.config.KASITEK_CORE_URL?.replace(/\/$/, "");
-    const token = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
-    if (!baseUrl || !token) throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core read boundary is not configured");
+    const staticToken = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
+    if (!baseUrl || (!staticToken && !this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY)) throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core read boundary is not configured");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.KASITEK_CORE_TIMEOUT_MS);
     try {
       const response = await fetch(`${baseUrl}${path}`, {
         ...init,
         headers: {
-          authorization: `Bearer ${token}`,
+          authorization: `Bearer ${this.token(context, path.includes("workspace") ? "kasitek.core.workspace_status" : "kasitek.core.channel_deliver", "1.0.0")}`,
           "x-organization-id": context.organizationId,
           "x-actor-id": context.actorId ?? "kasitek-agent-platform",
           "x-agent-run-id": context.runId,
@@ -168,5 +171,24 @@ export class KasitekCoreReadClient {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private token(context: CoreRequestContext, capability: string, version: string): string {
+    if (this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY) {
+      return issueCoreDelegation({
+        privateKeyPem: this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY,
+        issuer: this.config.KASITEK_CORE_DELEGATION_ISSUER,
+        subject: context.actorId ?? "kasitek-agent-platform",
+        organizationId: context.organizationId,
+        installationId: context.installationId,
+        capability,
+        capabilityVersion: version,
+        runId: context.runId,
+        invocationId: `${context.runId}:${capability}`,
+        correlationId: context.correlationId,
+        audience: this.config.KASITEK_CORE_DELEGATION_AUDIENCE,
+      });
+    }
+    return this.config.KASITEK_CORE_INTERNAL_TOKEN!.trim();
   }
 }

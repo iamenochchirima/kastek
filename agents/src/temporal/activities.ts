@@ -223,6 +223,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         if (!text) throw new Error("External channel reply has no text content");
         const result = await coreClient.deliverChannelMessage({
           organizationId: pending.organization_id,
+          installationId: pending.installation_id,
           actorId: pending.actor_id,
           runId: pending.run_id,
           correlationId: pending.correlation_id,

@@ -32,6 +32,9 @@ const envSchema = z.object({
   AGENTS_CREDENTIAL_ENCRYPTION_KEY: z.string().optional(),
   INSTALLATION_TOKEN_PRIVATE_KEY: z.string().optional(),
   INSTALLATION_TOKEN_ISSUER: z.string().default("kasitek-agents"),
+  KASITEK_CORE_DELEGATION_PRIVATE_KEY: z.string().optional(),
+  KASITEK_CORE_DELEGATION_ISSUER: z.string().default("kasitek-agents"),
+  KASITEK_CORE_DELEGATION_AUDIENCE: z.string().default("kasitek-core-internal"),
   LOG_LEVEL: z.string().default("info"),
 });
 
