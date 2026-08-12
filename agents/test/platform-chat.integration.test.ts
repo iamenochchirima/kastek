@@ -147,6 +147,21 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     await runs.completeRun(second.run.id, { message: "Second reply" });
   });
 
+  it("keeps greeting-only chat titles neutral until a meaningful title exists", async () => {
+    const accepted = await platformChat.acceptMessage({
+      organizationId,
+      installationId,
+      actorId: "greeting-title-owner",
+      idempotencyKey: "greeting-title-message",
+      message: "Hi",
+      createNew: true,
+    });
+    expect(accepted.conversation).toMatchObject({ title: "New chat", title_source: "fallback" });
+    await runs.transitionRun(accepted.run.id, "received", "queued");
+    await runs.transitionRun(accepted.run.id, "queued", "running");
+    await runs.completeRun(accepted.run.id, { message: "Hello! How can I help?" });
+  });
+
   it("keeps KasiAi preferences scoped to the owner and installation", async () => {
     const one = await preferences.upsert(organizationId, installationId, "user-1", {
       tone: "concise",

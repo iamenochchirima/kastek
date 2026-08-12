@@ -187,7 +187,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           .replace(/^[-#*\s\"']+|[-#*\s\"']+$/g, "")
           .trim()
           .slice(0, 120);
-        if (!title) return;
+        if (!title || /^(?:hi|hello|hey|yo|new chat)(?:[!,.?\s]+)?$/i.test(title)) return;
         const updated = await conversations.setGeneratedTitle({
           organizationId: run.organization_id,
           conversationId: run.conversation_id,

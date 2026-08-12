@@ -29,6 +29,7 @@ interface ActiveInstallation {
 function fallbackConversationTitle(message: string): string {
   const normalized = message.replace(/\s+/g, " ").trim();
   if (!normalized) return "New chat";
+  if (/^(?:hi|hello|hey|yo|howzit|good\s+(?:morning|afternoon|evening))(?:[!,.?\s]+)?$/i.test(normalized)) return "New chat";
   const words = normalized.split(" ").slice(0, 7).join(" ");
   return words.length > 72 ? `${words.slice(0, 69).trimEnd()}…` : words;
 }
