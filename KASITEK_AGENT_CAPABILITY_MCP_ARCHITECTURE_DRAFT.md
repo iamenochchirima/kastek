@@ -244,16 +244,46 @@ approval rule · effect/undo semantics · audit classification · availability p
 - bookings;
 - automations and agent administration.
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] First read-only tool set for grounded KasiAi.
-- [ ] First draft/action set and the product domain owners for each capability.
-- [ ] Tool granularity: business intentions such as `campaign.launch` rather than raw CRUD.
-- [ ] Canonical result/error/effect receipt schema and pagination conventions.
-- [ ] Compatibility/version deprecation policy.
+- [x] Maintain one authoritative versioned capability registry used to produce internal agent
+  tools, MCP tools, REST/OpenAPI operations, permission UI, documentation, audit descriptions, and
+  future SDK types. Adapters do not redefine capabilities or business handlers.
+- [x] Use JSON Schema as the interoperable input/output contract. TypeScript helpers may author or
+  consume schemas, while checked-in/generated schemas remain usable by MCP, OpenAPI, Rust, UI form
+  generation, and contract tests.
+- [x] Model small, recognizable business operations instead of database CRUD, broad `write/admin`
+  tools, or a single generic execution tool.
+- [x] Use content/social as the first complete reference domain, beginning with:
+  `connections.list`, `connections.get_health`, `content.list`, `content.get`,
+  `content.draft.create`, `content.draft.update`, `content.draft.delete`, `content.schedule`,
+  `content.unschedule`, `content.publish`, `content.publish_status`, `social.accounts.list`,
+  `social.account.get`, `social.account.capabilities`, `social.posts.list`, `social.post.get`,
+  `social.comments.list`, and `social.comment.reply`.
+- [x] Expand domains in this order: content/social; contacts/inbox; bookings; campaigns;
+  automations/agent administration; workspace/reporting.
+- [x] Require every manifest to declare name, semantic version, title/description, owning service,
+  required scope, risk class, input/output schemas, resource selector, immediate/durable execution,
+  timeout, idempotency, approval, availability, effect semantics, and audit/redaction classification.
+  Compensation is optional because some effects cannot be undone.
+- [x] Standardize successful results around `data`, capability/version/request/correlation metadata,
+  and a durable invocation/run/effect receipt for mutations. Reads may omit effect receipts.
+- [x] Standardize safe machine-readable errors: `INVALID_INPUT`, `NOT_FOUND`, `NOT_AUTHORIZED`,
+  `CAPABILITY_NOT_GRANTED`, `RESOURCE_NOT_GRANTED`, `APPROVAL_REQUIRED`, `CONFLICT`,
+  `RATE_LIMITED`, `PROVIDER_UNAVAILABLE`, `TEMPORARILY_UNAVAILABLE`, and `EFFECT_FAILED`.
+  Include request ID, retryability, and optional field violations without secrets or stack traces.
+- [x] Use cursor pagination, stable ordering, bounded page sizes, explicit filters, summary-first list
+  results, and separate detail retrieval. Do not expose unbounded list tools.
+- [x] Use semantic capability versions. Additive optional changes remain compatible; breaking schema
+  or behavior changes require a new major version. Installations may pin a supported major, and
+  discovery reports deprecation metadata. MCP and REST expose the same active version.
+- [x] Discovery distinguishes not granted, granted but not configured, configured but unhealthy,
+  and available capabilities, with a safe reason and setup link where applicable.
 
 ### Exit criteria
 
+- [x] The shared registry, manifest, schema, result/error, pagination, availability, and versioning
+  design is approved for implementation.
 - [ ] Every first-release tool maps to one real core contract and authorization owner.
 - [ ] KasiAi has no ungrounded claims about unsupported product features.
 
@@ -473,7 +503,7 @@ an undecided earlier layer.
 - [ ] 1. Product contract and installation lifecycle
 - [x] 2. Installation credential and token lifecycle
 - [x] 3. Scope taxonomy, subscriptions, and resource constraints
-- [ ] 4. First capability catalog and core ownership
+- [x] 4. First capability catalog and contract design
 - [ ] 5. Action safety and approvals
 - [ ] 6. Core delegated authorization boundary
 - [ ] 7. MCP server contract and connection UX

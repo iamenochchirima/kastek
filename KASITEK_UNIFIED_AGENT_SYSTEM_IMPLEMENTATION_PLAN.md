@@ -65,6 +65,12 @@ platform data/access contract.
   policy/audit bypass operations.
 - [x] Keep external connector grants separately selected even when product capabilities are broadly
   enabled for testing.
+- [x] Use one JSON-Schema-based capability registry as the source for internal tools, MCP, REST and
+  OpenAPI, permission UI, documentation, audit descriptions, and future SDKs.
+- [x] Use content/social as the first reference catalog, then contacts/inbox, bookings, campaigns,
+  automations/agent administration, and workspace/reporting.
+- [x] Standardize manifest metadata, cursor pagination, success/error envelopes, mutation receipts,
+  semantic versioning, and capability availability states before domain implementation.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -172,6 +178,8 @@ credential rotation or installation suspension.
 
 - [ ] Extend the existing Agent Platform `ToolRegistry` into the authoritative platform capability
   registry without losing JSON-schema validation and tool invocation audit records.
+- [ ] Generate or validate MCP definitions, REST/OpenAPI operations, permission UI metadata, and
+  documentation from the shared registry.
 - [ ] Add `requiredScopes`, resource selector validation, availability/entitlement predicates,
   effect semantics, and capability owner metadata to manifests.
 - [ ] Provide a filtered discovery API based on the requesting installation identity.
@@ -193,14 +201,21 @@ credential rotation or installation suspension.
 
 ### C. First real capability catalog
 
-- [ ] Workspace/connection: status, connection listing, connection health.
-- [ ] Content/social read: accounts, posts/content items, drafts, provider availability.
+- [ ] Workspace/connection: `connections.list`, `connections.get_health`.
+- [ ] Content/social read: `content.list`, `content.get`, `content.publish_status`,
+  `social.accounts.list`, `social.account.get`, `social.account.capabilities`, `social.posts.list`,
+  `social.post.get`, and `social.comments.list`.
 - [ ] Campaign read: campaigns, status, audiences, estimates.
 - [ ] Contacts/inbox read: contact search/detail, conversation/message listing.
 - [ ] Bookings read: services, availability, booking listing/detail.
 - [ ] Automation/agent read: installations, runs, schedules, activity.
-- [ ] Draft tools: content drafts, campaign drafts, inbox reply drafts, booking proposals.
-- [ ] Action tools: publish/send/reply/create/confirm only after the approval contract is proven.
+- [ ] Content draft tools: `content.draft.create`, `content.draft.update`, and
+  `content.draft.delete`.
+- [ ] Content/social action tools: `content.schedule`, `content.unschedule`, `content.publish`, and
+  `social.comment.reply`, enabled only after the approval contract is proven.
+- [ ] Later-domain draft tools: campaign drafts, inbox reply drafts, and booking proposals.
+- [ ] Later-domain action tools: send/reply/create/confirm only after the approval contract is
+  proven.
 
 **Exit gate:** every first capability has a typed manifest, a core owner, an independent core
 authorization check, contract tests, and an audit/effect receipt.
