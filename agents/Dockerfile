@@ -15,5 +15,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod
 COPY --from=build /app/dist ./dist
 COPY migrations ./migrations
-EXPOSE 4100
+# Railway API uses 4100; the stateless MCP gateway uses 4200 when this image is
+# deployed as a separate service with `node dist/gateway/server.js`.
+EXPOSE 4100 4200
 CMD ["node", "dist/http/server.js"]
