@@ -1,4 +1,8 @@
-use std::collections::HashSet;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Mutex, OnceLock},
+    time::{Duration, Instant},
+};
 
 use actix_web::HttpRequest;
 use jwt_simple::{
@@ -37,6 +41,22 @@ pub struct DelegationClaims {
     pub arguments_hash: Option<String>,
 }
 
+static SEEN_DELEGATIONS: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+
+fn accept_jti(jti: &str) -> bool {
+    let cache = SEEN_DELEGATIONS.get_or_init(|| Mutex::new(HashMap::new()));
+    let Ok(mut cache) = cache.lock() else {
+        return false;
+    };
+    let now = Instant::now();
+    cache.retain(|_, seen_at| now.duration_since(*seen_at) < Duration::from_secs(120));
+    if cache.contains_key(jti) {
+        return false;
+    }
+    cache.insert(jti.to_string(), now);
+    true
+}
+
 pub fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestContext, AppError> {
     let token = req
         .headers()
@@ -67,6 +87,10 @@ pub fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestContext, 
         .verify_token::<DelegationClaims>(token, Some(options))
         .map_err(|_| AppError::Unauthorized)?;
     let subject = claims.subject.clone().ok_or(AppError::Unauthorized)?;
+    let jti = claims.jwt_id.clone().ok_or(AppError::Unauthorized)?;
+    if !accept_jti(&jti) {
+        return Err(AppError::Unauthorized);
+    }
     let correlation_id = claims.custom.correlation_id.clone();
     if claims.custom.organization_id.trim().is_empty()
         || claims.custom.installation_id.trim().is_empty()
