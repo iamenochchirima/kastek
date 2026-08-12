@@ -103,6 +103,9 @@ platform data/access contract.
 - [x] Define one shared Agents UX with guided hosted creation, external MCP/REST connection, detail
   workspaces, approval inbox, safe activity, usage tracking, credential controls, kill switches, and
   personal/business conversation visibility.
+- [x] Define immutable audit, separate traces/metrics/logs, scoped visibility/support access,
+  retention, usage attribution, health/alerts, hierarchical kill switches, exports/redaction, safe
+  admin operations, and release evaluation governance.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -494,6 +497,22 @@ operation.
   action preview accuracy.
 - [ ] Add end-to-end fixtures for browser, WhatsApp, Telegram, Discord, hosted agent, and external
   MCP agent flows.
+
+### Observability and governance
+
+- [ ] Implement immutable redacted audit events for actors/installations/credentials/capabilities/
+  resources/approvals/results/effects/public API metadata and link them to correlation/run IDs.
+- [ ] Separate and retain audits (24 months), run traces (90 days), debug logs (30 days), raw webhook
+  payloads (7 days), aggregate metrics/usage (24 months), and conversations/memory per deletion
+  policy; add later configurable/legal-hold variants.
+- [ ] Attribute usage/cost across organization, installation, definition/version, credential,
+  model/provider/funding source, capability/connector/channel, and invocation/run.
+- [ ] Monitor and alert on installation/credential/model/Temporal/API/tool/provider/delivery/
+  approval/cost/connector/kill-switch health with scoped operator/admin notifications.
+- [ ] Implement the global/organization/definition/installation/capability/connector kill-switch
+  hierarchy with audited changes and visible reason/state.
+- [ ] Build scoped exports, sensitive-field manifest redaction, safe operator health/recovery/audit/
+  support-access tooling, and release evaluations/gates.
 
 ### Rollout
 

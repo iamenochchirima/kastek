@@ -668,17 +668,48 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 
 **Goal:** Make every decision and effect explainable to customers and operators.
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] Required audit records: principal, installation, scope, resource, input hash, approval,
-  tool/version, model, cost, result, effect ID, and correlation/trace ID.
-- [ ] Customer activity views versus internal operator access.
-- [ ] Trace/audit retention, redaction, export, support access, and legal hold behavior.
-- [ ] Usage/cost attribution, quotas, alerts, and billing events.
-- [ ] Kill-switch hierarchy and incident response procedures.
+- [x] Record immutable audit events for security-relevant decisions/actions with timestamp,
+  organization, user/agent/system/support actor, installation/credential, capability/version,
+  resource, request/correlation/run/invocation/effect identifiers, argument hash/redacted summary,
+  approval, result/error, provider/delivery IDs, and public API IP/user-agent data where applicable.
+  Exclude secrets, full sensitive payloads, and chain-of-thought.
+- [x] Keep audit evidence, operational run traces, aggregate metrics, and diagnostic logs distinct,
+  linked by IDs but retained/stored under separate policies.
+- [x] Let workspace users view only their organization/authorized activity; let admins view all
+  workspace configuration, credential metadata, activity/audit, and usage. Give KasiTek operators
+  aggregate health by default, with time-bound/audited/minimized support content access only.
+- [x] Start retention with audit events and metrics aggregates for 24 months, runs/traces for 90 days,
+  debug logs for 30 days, webhook raw payloads for 7 days, usage for 24 months, and conversations/
+  memory under user/admin deletion policy. Add configurable plan/region/legal-hold policy later.
+- [x] Attribute every unit of usage/cost to organization, installation, definition/version, external
+  credential when relevant, model/provider/funding source, capability/connector/channel, and
+  run/invocation.
+- [x] Monitor installation state, credential use/auth failures, model/provider health, Temporal
+  queues/failures, MCP/REST latency/errors, tool/core/provider outcomes, delivery, approvals,
+  cost/token anomalies, connector expiry, and kill-switch state.
+- [x] Alert operators on service/queue/provider/auth/webhook/retry/cost anomalies. Notify workspace
+  admins of their disconnected connections, repeated agent failures, approvals, credentials, rate
+  limits, and later budgets; do not alert on ordinary model reasoning steps.
+- [x] Use an audited global → organization → agent definition → installation → capability →
+  connector/channel kill-switch hierarchy, where every applicable active switch blocks the action.
+- [x] Provide organization-scoped usage/run/effect/approval/audit exports and APIs. Use aggregate,
+  minimized/anonymized data for operator reporting.
+- [x] Define sensitive fields per capability manifest and redact before audit/event/trace/log/
+  analytics storage. Use hashes/metadata where enough, continuously test redaction, and retain raw
+  business content only in authorized source systems.
+- [x] Provide internal admin views for system health, queue/workers, provider health, correlation
+  search, stuck-run recovery, switches, manifests, audit, usage anomalies, and support approval;
+  never make it an unbounded customer-content browser.
+- [x] Version evaluation sets with agent/capability releases and gate releases on correctness,
+  hallucination, unsafe tool selection, denials, approvals, latency, and cost; retain sampled
+  consent-safe evaluation evidence.
 
 ### Exit criteria
 
+- [x] Audit, telemetry, visibility, retention, attribution, health, alerting, kill-switch, export,
+  redaction, admin, and evaluation governance is approved for implementation.
 - [ ] Every action can be attributed, explained, and revoked from the product UI.
 
 ## Layer 13 — Security and abuse resistance
@@ -738,7 +769,7 @@ an undecided earlier layer.
 - [x] 9. Conversation and channel gateway policy
 - [x] 10. Context, knowledge, and memory policy
 - [x] 11. User and administrator experience
-- [ ] 12. Observability/governance
+- [x] 12. Observability and governance
 - [ ] 13. Security review
 - [ ] 14. Rollout and verification plan
 
