@@ -525,6 +525,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           resourceId: z.string().trim().max(240).optional(),
         }).strict().optional(),
       }).parse(request.body);
+      if (Boolean(input.conversationId) === Boolean(input.createNew)) {
+        return reply.code(400).send({ error: "Choose either conversationId or createNew=true", code: "conversation_target_required" });
+      }
       if (Boolean(input.modelProvider) !== Boolean(input.model)) {
         return reply.code(400).send({ error: "Model provider and model must be changed together" });
       }

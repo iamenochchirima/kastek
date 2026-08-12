@@ -125,7 +125,7 @@ export class ConversationRepository {
        WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
          AND status <> 'deleted'
          AND ($5::text IS NULL OR title ILIKE '%' || $5 || '%')
-       ORDER BY pinned DESC, is_primary DESC, updated_at DESC
+       ORDER BY pinned DESC, updated_at DESC
        LIMIT $4`,
       [organizationId, installationId, ownerActorId, Math.max(1, Math.min(limit, 200)), search?.trim() || null],
     );

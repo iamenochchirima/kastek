@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Archive, ArrowLeft, CheckCircle2, History, RotateCcw, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,15 +138,15 @@ function AgentTestChat({ installationId, active }: { installationId: string; act
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = async (conversationId?: string) => {
+  const refresh = useCallback(async (conversationId?: string) => {
     const response = conversationId ? await getPlatformConversation(conversationId) : await resolvePlatformConversation(installationId);
     setConversation(response.conversation);
     setMessages([...response.messages].sort((left, right) => Number(left.sequence_number) - Number(right.sequence_number)));
-  };
+  }, [installationId]);
 
   useEffect(() => {
     void refresh().catch((cause) => setError(cause instanceof Error ? cause.message : "Unable to open test chat")).finally(() => setLoading(false));
-  }, [installationId]);
+  }, [refresh]);
 
   const send = async () => {
     const message = draft.trim();
@@ -155,7 +155,8 @@ function AgentTestChat({ installationId, active }: { installationId: string; act
     setSending(true);
     setError(null);
     try {
-      const accepted = await sendPlatformMessage(installationId, { message, idempotencyKey: crypto.randomUUID(), context: { route: window.location.pathname, pageTitle: document.title } });
+      if (!conversation) throw new Error("Conversation is not ready");
+      const accepted = await sendPlatformMessage(installationId, { message, idempotencyKey: crypto.randomUUID(), conversationId: conversation.id, context: { route: window.location.pathname, pageTitle: document.title } });
       await streamAgentRun(accepted.runId, () => undefined, new AbortController().signal);
       await refresh(accepted.conversation.id);
     } catch (cause) {

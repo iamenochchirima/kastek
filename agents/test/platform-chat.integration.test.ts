@@ -52,6 +52,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       actorId: "user-1",
       idempotencyKey: "client-message-1",
       message: "Where do I create a campaign?",
+      createNew: true,
       context: { route: "/campaigns" },
     });
     const retry = await platformChat.acceptMessage({
@@ -60,6 +61,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       actorId: "user-1",
       idempotencyKey: "client-message-1",
       message: "This retry payload must not replace the original.",
+      createNew: true,
     });
     expect(first.created).toBe(true);
     expect(retry.created).toBe(false);
@@ -86,13 +88,13 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     expect(generatedTitle).toMatchObject({ title: "Create a campaign", title_source: "ai", title_locked: false });
   });
 
-  it("creates another active chat while moving the channel-default pointer", async () => {
+  it("creates another active chat without moving the channel-default pointer", async () => {
     const previous = await platformChat.resolveConversation({ organizationId, installationId, actorId: "user-1" });
     const current = await platformChat.createNewConversation({ organizationId, installationId, actorId: "user-1" });
     expect(current.conversation.id).not.toBe(previous.conversation.id);
-    expect(current.conversation.is_primary).toBe(true);
+    expect(current.conversation.is_primary).toBe(false);
     const previousActive = await conversations.getOwnedConversation(organizationId, previous.conversation.id, "user-1");
-    expect(previousActive).toMatchObject({ status: "active", is_primary: false });
+    expect(previousActive).toMatchObject({ status: "active", is_primary: true });
     const history = await conversations.listOwnerConversations(organizationId, installationId, "user-1");
     expect(history[0]?.id).toBe(current.conversation.id);
     expect(history.some((conversation) => conversation.id === previous.conversation.id && conversation.status === "active")).toBe(true);
@@ -111,6 +113,38 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     expect(archived.status).toBe("archived");
     const restored = await conversations.restoreOwnedConversation(organizationId, current.conversation.id, "user-1");
     expect(restored).toMatchObject({ status: "active", is_primary: false });
+  });
+
+  it("keeps a new web chat independent while another chat is still running", async () => {
+    const first = await platformChat.acceptMessage({
+      organizationId,
+      installationId,
+      actorId: "parallel-chat-owner",
+      idempotencyKey: "parallel-chat-first",
+      message: "First conversation",
+      createNew: true,
+    });
+    const second = await platformChat.acceptMessage({
+      organizationId,
+      installationId,
+      actorId: "parallel-chat-owner",
+      idempotencyKey: "parallel-chat-second",
+      message: "Independent conversation",
+      createNew: true,
+    });
+    expect(second.conversation.id).not.toBe(first.conversation.id);
+    expect(second.run.conversation_id).toBe(second.conversation.id);
+    expect(first.run.status).toBe("received");
+    const firstMessages = await conversations.listMessages(organizationId, first.conversation.id);
+    const secondMessages = await conversations.listMessages(organizationId, second.conversation.id);
+    expect(firstMessages.map((message) => message.content.text)).toEqual(["First conversation"]);
+    expect(secondMessages.map((message) => message.content.text)).toEqual(["Independent conversation"]);
+    await runs.transitionRun(first.run.id, "received", "queued");
+    await runs.transitionRun(first.run.id, "queued", "running");
+    await runs.completeRun(first.run.id, { message: "First reply" });
+    await runs.transitionRun(second.run.id, "received", "queued");
+    await runs.transitionRun(second.run.id, "queued", "running");
+    await runs.completeRun(second.run.id, { message: "Second reply" });
   });
 
   it("keeps KasiAi preferences scoped to the owner and installation", async () => {
@@ -177,6 +211,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       actorId: "user-1",
       idempotencyKey: "overlapping-sidebar-message",
       message: "This must not cross the WhatsApp reply",
+      conversationId: current.conversation.id,
     })).rejects.toMatchObject({ statusCode: 409, code: "conversation_busy" });
     await runs.transitionRun(accepted.run.id, "received", "queued");
     await runs.transitionRun(accepted.run.id, "queued", "running");

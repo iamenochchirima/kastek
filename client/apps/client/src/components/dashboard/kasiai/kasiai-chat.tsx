@@ -27,8 +27,10 @@ type SettingsSection = "general" | "model" | "connections" | "memory";
 const PANEL_WIDTH_KEY = "kasitek:kasiai-panel-width";
 const LAST_CHAT_KEY = "kasitek:kasiai:last-conversation";
 const DRAFT_KEY = "kasitek:kasiai:draft";
+const CHAT_URL_KEY = "kasiai-chat";
 const MIN_WIDTH = 360;
 const MAX_WIDTH = 1500;
+const EMPTY_MODELS: KasiAiModel[] = [];
 
 const markdownComponents: Components = {
   h1: ({ children }) => <h3 className="mt-3 text-base font-semibold first:mt-0">{children}</h3>,
@@ -70,6 +72,18 @@ function panelBounds(leftOffset: number) {
   return { min: Math.min(MIN_WIDTH, window.innerWidth), max: Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, window.innerWidth - (window.innerWidth >= 1024 ? leftOffset : 0))) };
 }
 
+function conversationFromUrl(): string | null {
+  const value = new URL(window.location.href).searchParams.get(CHAT_URL_KEY);
+  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : null;
+}
+
+function setConversationUrl(conversationId?: string) {
+  const url = new URL(window.location.href);
+  if (conversationId) url.searchParams.set(CHAT_URL_KEY, conversationId);
+  else url.searchParams.delete(CHAT_URL_KEY);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boolean; onOpenChange: (open: boolean) => void; leftOffset?: number }) {
   const [installation, setInstallation] = useState<AgentInstallation | null>(null);
   const [home, setHome] = useState<KasiAiHome | null>(null);
@@ -101,10 +115,9 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const resizeStart = useRef<{ x: number; width: number } | null>(null);
   const conversationSelection = useRef(0);
 
-  const models = home?.models ?? [];
+  const models = home?.models ?? EMPTY_MODELS;
   const activeConversations = home?.conversations ?? [];
   const archivedConversations = home?.archivedConversations ?? [];
-  const isNewChat = !conversation;
   const isArchivedChat = conversation?.status === "archived";
   const effectiveModel = useMemo(() => {
     if (conversation?.model_provider && conversation.model) return { provider: conversation.model_provider, model: conversation.model };
@@ -126,11 +139,18 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
 
   const loadConversation = useCallback(async (id: string) => {
     const selection = ++conversationSelection.current;
+    streamAbort.current?.abort(); streamAbort.current = null;
+    setSending(false); setActiveRunId(null); setError(null);
     const result = await getPlatformConversation(id);
     if (selection !== conversationSelection.current) return;
     setConversation(result.conversation); setMessages(sorted(result.messages)); setHasMore(Boolean(result.hasMore)); setNextBefore(result.nextBefore ?? null);
-    setChannelFilter("all"); setView("chat"); window.localStorage.setItem(LAST_CHAT_KEY, id);
+    setChannelFilter("all"); setView("chat"); window.localStorage.setItem(LAST_CHAT_KEY, id); setConversationUrl(id);
   }, []);
+
+  useEffect(() => {
+    if (open || !conversationFromUrl()) return;
+    onOpenChange(true);
+  }, [onOpenChange, open]);
 
   useEffect(() => {
     if (!open || initialised) return;
@@ -143,9 +163,13 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
         setInstallation(installed);
         await refreshHome(installed.id);
         if (cancelled) return;
-        conversationSelection.current += 1;
-        setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setChannelFilter("all");
-        window.localStorage.removeItem(LAST_CHAT_KEY);
+        const linkedConversation = conversationFromUrl();
+        if (linkedConversation) await loadConversation(linkedConversation);
+        else {
+          conversationSelection.current += 1;
+          setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setChannelFilter("all");
+          window.localStorage.removeItem(LAST_CHAT_KEY);
+        }
         setDraft(window.localStorage.getItem(DRAFT_KEY) ?? ""); setInitialised(true);
       } catch (cause) { if (!cancelled) setError(formatError(cause, "Unable to open KasiAi")); }
       finally { if (!cancelled) setLoading(false); }
@@ -173,10 +197,11 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   }, [installation, pairing, refreshHome]);
   useEffect(() => { window.localStorage.setItem(DRAFT_KEY, draft); }, [draft]);
   useEffect(() => { messagesEnd.current?.scrollIntoView({ behavior: sending ? "smooth" : "auto", block: "end" }); }, [messages, sending]);
+  const polledConversationId = conversation?.id;
   useEffect(() => {
-    if (!open || !conversation || document.visibilityState === "hidden") return;
+    if (!open || !polledConversationId || document.visibilityState === "hidden") return;
     let cancelled = false;
-    const conversationId = conversation.id;
+    const conversationId = polledConversationId;
     const selection = conversationSelection.current;
     const timer = window.setInterval(() => void getPlatformConversation(conversationId, { limit: 100 }).then((result) => {
       if (cancelled || selection !== conversationSelection.current) return;
@@ -184,26 +209,34 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       setMessages((current) => sorted([...current.map((item) => result.messages.find((next) => next.id === item.id) ?? item), ...result.messages.filter((item) => !current.some((existing) => existing.id === item.id))]));
     }).catch(() => undefined), 4_000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [conversation?.id, open]);
+  }, [open, polledConversationId]);
   useEffect(() => {
     const saved = Number(window.localStorage.getItem(PANEL_WIDTH_KEY));
     if (Number.isFinite(saved)) { const bounds = panelBounds(leftOffset); setWidth(Math.min(bounds.max, Math.max(bounds.min, saved))); }
   }, [leftOffset]);
 
-  const newChat = () => { conversationSelection.current += 1; setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setDraft(""); setChannelFilter("all"); setView("chat"); window.localStorage.removeItem(LAST_CHAT_KEY); };
+  const newChat = () => {
+    conversationSelection.current += 1; streamAbort.current?.abort(); streamAbort.current = null;
+    setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setDraft(""); setChannelFilter("all"); setView("chat");
+    setSending(false); setActiveRunId(null); setError(null); window.localStorage.removeItem(LAST_CHAT_KEY); setConversationUrl();
+  };
+  const close = () => { newChat(); setInitialised(false); onOpenChange(false); };
   const send = async (suggestion?: string) => {
     const text = (suggestion ?? draft).trim();
     if (!text || !installation || sending) return;
+    const selection = conversationSelection.current;
+    const targetConversation = conversation;
     setDraft(""); setError(null); setSending(true);
-    const optimistic: AgentMessage = { id: `optimistic-${crypto.randomUUID()}`, conversation_id: conversation?.id ?? "new", direction: "inbound", message_type: "text", content: { text }, sequence_number: Number.MAX_SAFE_INTEGER, created_at: new Date().toISOString() };
+    const optimistic: AgentMessage = { id: `optimistic-${crypto.randomUUID()}`, conversation_id: targetConversation?.id ?? "new", direction: "inbound", message_type: "text", content: { text }, sequence_number: Number.MAX_SAFE_INTEGER, created_at: new Date().toISOString() };
     setMessages((items) => [...items, optimistic]);
     try {
       const accepted = await sendPlatformMessage(installation.id, {
-        message: text, idempotencyKey: crypto.randomUUID(), conversationId: conversation?.id,
-        createNew: !conversation, modelProvider: !conversation ? effectiveModel?.provider : undefined, model: !conversation ? effectiveModel?.model : undefined,
+        message: text, idempotencyKey: crypto.randomUUID(), conversationId: targetConversation?.id,
+        createNew: !targetConversation, modelProvider: !targetConversation ? effectiveModel?.provider : undefined, model: !targetConversation ? effectiveModel?.model : undefined,
         context: { route: window.location.pathname, pageTitle: document.title },
       });
-      setConversation(accepted.conversation); window.localStorage.setItem(LAST_CHAT_KEY, accepted.conversation.id);
+      if (selection !== conversationSelection.current) return;
+      setConversation(accepted.conversation); window.localStorage.setItem(LAST_CHAT_KEY, accepted.conversation.id); setConversationUrl(accepted.conversation.id);
       setActiveRunId(accepted.runId);
       const controller = new AbortController(); streamAbort.current = controller; let cursor = 0; let terminal = false;
       for (let attempt = 0; attempt < 3 && !terminal; attempt += 1) {
@@ -214,10 +247,14 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
         cursor = streamed.lastSequence; terminal = streamed.terminal;
       }
       if (!terminal) throw new Error("The run did not complete. Please try again.");
-      await Promise.all([loadConversation(accepted.conversation.id), refreshHome(installation.id)]);
+      const [result] = await Promise.all([getPlatformConversation(accepted.conversation.id), refreshHome(installation.id)]);
+      if (selection !== conversationSelection.current) return;
+      setConversation(result.conversation); setMessages(sorted(result.messages)); setHasMore(Boolean(result.hasMore)); setNextBefore(result.nextBefore ?? null);
     } catch (cause) {
-      if (!(cause instanceof DOMException && cause.name === "AbortError")) setError(formatError(cause, "KasiAi could not complete this request"));
-    } finally { streamAbort.current = null; setActiveRunId(null); setSending(false); }
+      if (selection === conversationSelection.current && !(cause instanceof DOMException && cause.name === "AbortError")) setError(formatError(cause, "KasiAi could not complete this request"));
+    } finally {
+      if (selection === conversationSelection.current) { streamAbort.current = null; setActiveRunId(null); setSending(false); }
+    }
   };
   const stop = async () => { if (!activeRunId) return; await cancelAgentRun(activeRunId).catch(() => undefined); streamAbort.current?.abort(); setSending(false); setActiveRunId(null); };
   const changeModel = async (value: string) => {
@@ -245,7 +282,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     <div className="absolute inset-y-0 -left-2 z-10 hidden w-4 cursor-ew-resize sm:block" onPointerDown={beginResize} onPointerMove={moveResize} onPointerUp={finishResize} onPointerCancel={finishResize} aria-label="Resize KasiAi" role="separator" />
     <header className="flex h-16 items-center justify-between border-b border-border px-4">
       <div className="flex min-w-0 items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10 text-primary"><Sparkles className="h-4 w-4" /></span><div className="min-w-0"><h2 className="truncate text-sm font-semibold">{conversation?.title ?? "New chat"}</h2><p className="truncate text-[11px] text-muted-foreground">{conversation?.is_primary ? "Connected channels use this chat" : "Your platform agent"}</p></div></div>
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange(false)} aria-label="Close KasiAi"><X className="h-4 w-4" /></Button>
+      <div className="flex items-center gap-1">{conversation ? <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void navigator.clipboard.writeText(window.location.href)} aria-label="Copy chat link" title="Copy chat link"><Copy className="h-4 w-4" /></Button> : null}<Button variant="ghost" size="icon" className="h-8 w-8" onClick={close} aria-label="Close KasiAi"><X className="h-4 w-4" /></Button></div>
     </header>
     <div className="flex min-h-0 flex-1">
     <KasiAiNavigation expanded={navigationExpanded} view={view} conversations={activeConversations} selectedId={conversation?.id} onToggle={() => setNavigationExpanded((current) => !current)} onNew={newChat} onChats={() => setView("library")} onSettings={() => setView("settings")} onOpen={(item) => void loadConversation(item.id)} />
@@ -276,8 +313,8 @@ function KasiAiNavigation({ expanded, view, conversations, selectedId, onToggle,
 function ComposerModelPicker({ model, models, disabled, onSelect }: { model?: KasiAiModel; models: KasiAiModel[]; disabled: boolean; onSelect: (value: string) => void }) {
   const [open, setOpen] = useState(false);
   const selected = model ? `${model.provider}:${model.model}` : "";
-  useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
-  return <div className="relative min-w-0"><button type="button" disabled={disabled} onClick={() => setOpen((value) => !value)} className="flex max-w-[14rem] items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60" aria-haspopup="listbox" aria-expanded={open}><span className="truncate">{model?.label ?? "Workspace default"}</span><ChevronDown className="h-3.5 w-3.5 shrink-0" /></button>{open ? <><button type="button" className="fixed inset-0 z-10 cursor-default" onClick={() => setOpen(false)} aria-label="Close model picker" /><div className="absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border border-border bg-popover shadow-xl" role="listbox" aria-label="Choose this chat's model"><div className="border-b border-border px-3 py-2 text-[10px] text-muted-foreground">Choose a model for this chat</div><div className="max-h-64 overflow-y-auto p-1">{models.map((item) => { const value = `${item.provider}:${item.model}`; const active = value === selected; return <button type="button" key={value} role="option" aria-selected={active} onClick={() => { onSelect(value); setOpen(false); }} className={cn("w-full rounded-md px-2.5 py-2 text-left transition-colors", active ? "bg-primary/10 text-primary" : "hover:bg-muted")}><div className="flex items-center justify-between gap-2"><span className="truncate text-xs font-medium">{item.label}</span><span className="shrink-0 text-[10px] text-muted-foreground">{item.isFree ? "free" : item.tier}</span></div><p className="mt-0.5 truncate text-[10px] text-muted-foreground">{item.provider} · {item.model}</p></button>; })}</div></div></> : null}</div>;
+  const visible = open && !disabled;
+  return <div className="relative min-w-0"><button type="button" disabled={disabled} onClick={() => setOpen((value) => !value)} className="flex max-w-[14rem] items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60" aria-haspopup="listbox" aria-expanded={visible}><span className="truncate">{model?.label ?? "Workspace default"}</span><ChevronDown className="h-3.5 w-3.5 shrink-0" /></button>{visible ? <><button type="button" className="fixed inset-0 z-10 cursor-default" onClick={() => setOpen(false)} aria-label="Close model picker" /><div className="absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border border-border bg-popover shadow-xl" role="listbox" aria-label="Choose this chat's model"><div className="border-b border-border px-3 py-2 text-[10px] text-muted-foreground">Choose a model for this chat</div><div className="max-h-64 overflow-y-auto p-1">{models.map((item) => { const value = `${item.provider}:${item.model}`; const active = value === selected; return <button type="button" key={value} role="option" aria-selected={active} onClick={() => { onSelect(value); setOpen(false); }} className={cn("w-full rounded-md px-2.5 py-2 text-left transition-colors", active ? "bg-primary/10 text-primary" : "hover:bg-muted")}><div className="flex items-center justify-between gap-2"><span className="truncate text-xs font-medium">{item.label}</span><span className="shrink-0 text-[10px] text-muted-foreground">{item.isFree ? "free" : item.tier}</span></div><p className="mt-0.5 truncate text-[10px] text-muted-foreground">{item.provider} · {item.model}</p></button>; })}</div></div></> : null}</div>;
 }
 
 function ConversationLibrary({ conversations, archived, selectedId, search, onSearch, onBack, onNew, onOpen, onRename, onPin, onArchive, onDelete, onRestore }: { conversations: AgentConversation[]; archived: AgentConversation[]; selectedId?: string; search: string; onSearch: (value: string) => void; onBack: () => void; onNew: () => void; onOpen: (item: AgentConversation) => void; onRename: (item: AgentConversation) => void; onPin: (item: AgentConversation) => void; onArchive: (item: AgentConversation) => void; onDelete: (item: AgentConversation) => void; onRestore: (item: AgentConversation) => void }) {

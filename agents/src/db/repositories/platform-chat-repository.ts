@@ -70,18 +70,6 @@ export class PlatformChatRepository {
     model?: string;
   }): Promise<AcceptedPlatformMessage> {
     return withTransaction(this.pool, async (client) => {
-      const resolved = input.conversationId
-        ? await this.resolveOwnedConversationInTransaction(client, input)
-        : input.createNew
-          ? await this.createNewConversationInTransaction(client, {
-            organizationId: input.organizationId,
-            installationId: input.installationId,
-            actorId: input.actorId,
-            title: fallbackConversationTitle(input.message),
-            modelProvider: input.modelProvider,
-            model: input.model,
-          })
-          : await this.resolveConversationInTransaction(client, input);
       const existing = await client.query<RunRecord>(
         `SELECT * FROM agent_runs
          WHERE organization_id = $1 AND idempotency_key = $2
@@ -90,9 +78,20 @@ export class PlatformChatRepository {
       );
       if (existing.rows[0]) {
         const run = existing.rows[0];
-        if (run.installation_id !== input.installationId || run.conversation_id !== resolved.conversation.id) {
+        if (
+          run.installation_id !== input.installationId
+          || run.created_by !== input.actorId
+          || !run.conversation_id
+          || (input.conversationId && run.conversation_id !== input.conversationId)
+        ) {
           throw new Error("Idempotency key already belongs to another request");
         }
+        const resolved = await this.resolveOwnedConversationInTransaction(client, {
+          organizationId: input.organizationId,
+          installationId: input.installationId,
+          actorId: input.actorId,
+          conversationId: run.conversation_id,
+        });
         const message = await client.query<MessageRecord>(
           `SELECT * FROM messages WHERE run_id = $1 AND direction = 'inbound' LIMIT 1`,
           [run.id],
@@ -100,6 +99,23 @@ export class PlatformChatRepository {
         if (!message.rows[0]) throw new Error("Idempotent platform message is incomplete");
         return { ...resolved, message: message.rows[0], run, created: false };
       }
+
+      if (Boolean(input.conversationId) === Boolean(input.createNew)) {
+        throw Object.assign(new Error("Choose either a conversationId or createNew=true"), {
+          statusCode: 400,
+          code: "conversation_target_required",
+        });
+      }
+      const resolved = input.conversationId
+        ? await this.resolveOwnedConversationInTransaction(client, input)
+        : await this.createNewConversationInTransaction(client, {
+          organizationId: input.organizationId,
+          installationId: input.installationId,
+          actorId: input.actorId,
+          title: fallbackConversationTitle(input.message),
+          modelProvider: input.modelProvider,
+          model: input.model,
+        });
 
       const openRun = await client.query<{ id: string }>(
         `SELECT id FROM agent_runs
@@ -396,7 +412,7 @@ export class PlatformChatRepository {
         );
         conversation = promoted.rows[0]!;
       } else {
-        conversation = await this.insertPrimaryConversation(client, {
+        conversation = await this.insertConversation(client, {
           organizationId: input.organizationId,
           installationId: input.installationId,
           actorId: input.actorId,
@@ -404,6 +420,7 @@ export class PlatformChatRepository {
             ? `kasiai:user:${input.actorId}:${input.conversationKey}`
             : `kasiai:user:${input.actorId}:${randomUUID()}`,
           title: installation.agent_name,
+          isPrimary: true,
         });
       }
     }
@@ -440,13 +457,14 @@ export class PlatformChatRepository {
   ): Promise<PlatformConversation> {
     const installation = await this.getActiveInstallation(client, input.organizationId, input.installationId);
     await client.query("SELECT id FROM agent_installations WHERE id = $1 FOR UPDATE", [input.installationId]);
-    await client.query(
-      `UPDATE conversations SET is_primary = false, updated_at = now()
+    const channelDefault = await client.query<{ id: string }>(
+      `SELECT id FROM conversations
        WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
-         AND is_primary = true AND status = 'active'`,
+         AND is_primary = true AND status = 'active'
+       LIMIT 1`,
       [input.organizationId, input.installationId, input.actorId],
     );
-    const conversation = await this.insertPrimaryConversation(client, {
+    const conversation = await this.insertConversation(client, {
       organizationId: input.organizationId,
       installationId: input.installationId,
       actorId: input.actorId,
@@ -454,11 +472,12 @@ export class PlatformChatRepository {
       title: input.title ?? "New chat",
       modelProvider: input.modelProvider,
       model: input.model,
+      isPrimary: !channelDefault.rows[0],
     });
     return this.ensureParticipants(client, conversation, installation, input.organizationId, input.actorId);
   }
 
-  private async insertPrimaryConversation(
+  private async insertConversation(
     client: PoolClient,
     input: {
       organizationId: string;
@@ -468,18 +487,16 @@ export class PlatformChatRepository {
       title: string;
       modelProvider?: string;
       model?: string;
+      isPrimary: boolean;
     },
   ): Promise<ConversationRecord> {
     const created = await client.query<ConversationRecord>(
       `INSERT INTO conversations
         (installation_id, organization_id, channel_type, channel_key, external_conversation_id,
          title, owner_actor_id, is_primary, model_provider, model, title_source, last_opened_at)
-       VALUES ($1, $2, 'unified', 'kasiai', $3, $4, $5, true, $6, $7, 'fallback', now())
-       ON CONFLICT (installation_id, owner_actor_id)
-       WHERE is_primary = true AND status = 'active' AND owner_actor_id IS NOT NULL
-       DO UPDATE SET updated_at = now()
+       VALUES ($1, $2, 'unified', 'kasiai', $3, $4, $5, $8, $6, $7, 'fallback', now())
        RETURNING *`,
-      [input.installationId, input.organizationId, input.externalConversationId, input.title, input.actorId, input.modelProvider ?? null, input.model ?? null],
+      [input.installationId, input.organizationId, input.externalConversationId, input.title, input.actorId, input.modelProvider ?? null, input.model ?? null, input.isPrimary],
     );
     return created.rows[0]!;
   }

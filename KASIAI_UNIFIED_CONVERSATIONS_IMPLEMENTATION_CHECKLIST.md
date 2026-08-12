@@ -1,14 +1,15 @@
 # KasiAi Unified Conversations Implementation Checklist
 
-**Status:** Unified platform and WhatsApp path implemented; Telegram/Discord and production operations remain
+**Status:** Unified channel routing implemented; browser chats now use independent explicit identities
 **Scope:** Direct KasiTek product (`agents`, `server/kasitek-core`, `client/apps/client`)  
 **Last updated:** 2026-08-12
 
 ## 1. Outcome
 
-KasiAi has one current, durable conversation for each authenticated KasiTek user. The dashboard
-sidebar, WhatsApp, Telegram, Discord, and future verified personal channels append to that same
-conversation. The sidebar is the canonical place where the user can observe the combined history.
+KasiAi supports multiple durable conversations for each authenticated KasiTek user. Browser chat
+requests address one conversation explicitly. WhatsApp, Telegram, Discord, and future verified
+personal channels append to the user's designated channel-default conversation, which remains
+observable from the KasiAi workspace.
 Each message retains its origin, external identity, provider identifiers, delivery state, and reply
 route.
 
@@ -19,10 +20,10 @@ become separate KasiAi implementations.
 ## 2. Fixed product and architecture decisions
 
 - [x] Use the shared Agent Platform for KasiAi conversations, memory, runs, and delivery.
-- [x] Maintain one organization-scoped KasiAi installation and one current primary conversation
-  per authenticated user inside it.
-- [x] Resolve platform, WhatsApp, Telegram, Discord, and future verified personal channels into the
-  current primary conversation.
+- [x] Maintain one organization-scoped KasiAi installation, multiple owner-scoped conversations,
+  and at most one channel-default conversation per authenticated user.
+- [x] Resolve browser messages by explicit conversation ID while verified external channels resolve
+  to the designated channel-default conversation.
 - [x] Preserve `source_channel` and source-provider metadata on every message.
 - [x] Send an automatic reply back through the channel that triggered the run.
 - [x] Show the unified history in the sidebar with source-channel badges and filters.
@@ -46,15 +47,13 @@ organization-scoped KasiAi installation
 authenticated KasiTek user (conversation owner)
         |
         v
-current primary conversation
-  |          |          |          |
-sidebar   WhatsApp   Telegram    Discord
-  |          |          |          |
-  +----------+----------+----------+
-             |
-       ordered messages
-             |
-       one durable run queue
+owner conversations
+  |-- browser chat A (conversation ID A, independent run scope)
+  |-- browser chat B (conversation ID B, independent run scope)
+  `-- channel-default chat
+        |-- WhatsApp
+        |-- Telegram
+        `-- Discord
 ```
 
 - The authenticated platform actor owns the primary conversation.
@@ -149,7 +148,8 @@ sidebar   WhatsApp   Telegram    Discord
 
 ## 10. Phase G — KasiAi sidebar experience
 
-- [x] Load the user's current primary conversation rather than a platform-only conversation.
+- [x] Open on a non-persisted new-chat draft unless a specific owner-scoped conversation ID is
+  present in the URL.
 - [x] Render all channel messages in one ordered timeline.
 - [x] Show compact source badges for Sidebar, WhatsApp, Telegram, Discord, and unknown adapters.
 - [x] Add All/Sidebar/WhatsApp/Telegram/Discord filtering without changing model context.
@@ -213,8 +213,9 @@ sidebar   WhatsApp   Telegram    Discord
 
 ## 14. Completion rule
 
-The implementation is complete when the sidebar is a durable unified view of the authenticated
-user's KasiAi conversation, verified external channels route into it safely, replies return through
-the triggering channel, context remains bounded, concurrency cannot cross responses, and the
-verification gates pass. Provider sandbox checks may remain credential-dependent, but no provider-
-independent storage, routing, security, API, UI, or test work may remain unfinished.
+The implementation is complete when the KasiAi workspace provides independent owner-scoped browser
+conversations, the designated channel-default conversation remains observable there, verified
+external channels route into that default safely, replies return through the triggering channel,
+context remains bounded, concurrency cannot cross responses, and the verification gates pass.
+Provider sandbox checks may remain credential-dependent, but no provider-independent storage,
+routing, security, API, UI, or test work may remain unfinished.

@@ -16,6 +16,10 @@ manage channel connections, and see external-channel activity in the same durabl
 - [x] Allow multiple active conversations per authenticated user.
 - [x] Treat the currently viewed chat, a draft new chat, and the external-channel default chat as
   separate concepts.
+- [x] Require every browser send to explicitly create a chat or name an existing conversation ID;
+  browser sends never fall back to the channel-default conversation.
+- [x] Keep the stable conversation ID in the browser URL so reopening a linked chat resolves that
+  exact owner-scoped record.
 - [x] Create a database conversation only when the user sends the first message from a draft chat.
 - [x] Keep WhatsApp and future external messages routed to an explicit channel-default conversation.
 - [x] Generate a concise AI title after the first completed assistant response; manual titles win.
@@ -36,6 +40,8 @@ manage channel connections, and see external-channel activity in the same durabl
 
 - [x] Resolve a home payload without creating a conversation.
 - [x] Create a conversation only on first message submission.
+- [x] Make first-message creation and message persistence one idempotent transaction so retries do
+  not create empty or duplicate chats.
 - [x] Add owner-scoped list, search, rename, pin, archive, unarchive, delete, and channel-default APIs.
 - [x] Add user-scoped settings and a server-managed model catalog API.
 - [x] Enforce model entitlement, provider credentials, and safe defaults at the API boundary.
@@ -71,6 +77,8 @@ manage channel connections, and see external-channel activity in the same durabl
   preferences, model authorization, and user isolation.
 - [x] Add HTTP and core bridge authorization tests.
 - [x] Add focused client interaction tests where the existing test setup supports them.
+- [x] Add a database regression test proving a new chat can run while another conversation has an
+  unfinished run.
 - [x] Apply migrations locally and verify Agent Platform build/tests, core checks/tests, and client build.
 - [x] Commit coherent implementation sections without including unrelated worktree changes.
 

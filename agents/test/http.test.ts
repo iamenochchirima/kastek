@@ -157,7 +157,7 @@ describe("Agent Platform HTTP foundation", () => {
       method: "POST",
       url: "/v1/installations/install-1/platform/messages",
       headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
-      payload: { message: "Hello", idempotencyKey: "message-key-1", context: { route: "/dashboard" } },
+      payload: { message: "Hello", idempotencyKey: "message-key-1", createNew: true, context: { route: "/dashboard" } },
     });
     expect(resolved.statusCode).toBe(200);
     expect(resolved.json()).toMatchObject({ conversation: { id: "conversation-1" }, messages: [] });

@@ -753,6 +753,55 @@ fn sanitize_message_body(body: Value) -> Result<Value, AppError> {
         "idempotencyKey".to_string(),
         Value::String(idempotency_key.to_string()),
     );
+    let conversation_id = object
+        .get("conversationId")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let create_new = object
+        .get("createNew")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if conversation_id.is_some() == create_new {
+        return Err(AppError::BadRequest(
+            "Choose either conversationId or createNew=true".to_string(),
+        ));
+    }
+    if let Some(conversation_id) = conversation_id {
+        if conversation_id.len() > 64 {
+            return Err(AppError::BadRequest(
+                "Conversation id is invalid".to_string(),
+            ));
+        }
+        sanitized.insert(
+            "conversationId".to_string(),
+            Value::String(conversation_id.to_string()),
+        );
+    } else {
+        sanitized.insert("createNew".to_string(), Value::Bool(true));
+    }
+    let model_provider = object.get("modelProvider").and_then(Value::as_str);
+    let model = object.get("model").and_then(Value::as_str);
+    if model_provider.is_some() != model.is_some() {
+        return Err(AppError::BadRequest(
+            "Model provider and model must be changed together".to_string(),
+        ));
+    }
+    if let (Some(provider), Some(model)) = (model_provider, model) {
+        if !matches!(provider, "openrouter" | "openai" | "anthropic" | "gemini")
+            || model.trim().is_empty()
+            || model.len() > 240
+        {
+            return Err(AppError::BadRequest(
+                "Selected model is invalid".to_string(),
+            ));
+        }
+        sanitized.insert(
+            "modelProvider".to_string(),
+            Value::String(provider.to_string()),
+        );
+        sanitized.insert("model".to_string(), Value::String(model.to_string()));
+    }
     if let Some(context) = object.get("context") {
         let context = context
             .as_object()
@@ -782,6 +831,9 @@ mod tests {
         let value = sanitize_message_body(serde_json::json!({
             "message": "  hello  ",
             "idempotencyKey": "message-123",
+            "createNew": true,
+            "modelProvider": "openrouter",
+            "model": "openai/gpt-oss-20b:free",
             "context": {
                 "route": "/agents",
                 "pageTitle": "Agents",
@@ -790,6 +842,9 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(value["message"], "hello");
+        assert_eq!(value["createNew"], true);
+        assert_eq!(value["modelProvider"], "openrouter");
+        assert_eq!(value["model"], "openai/gpt-oss-20b:free");
         assert_eq!(value["context"]["route"], "/agents");
         assert!(value["context"].get("resourceId").is_none());
     }
@@ -797,5 +852,18 @@ mod tests {
     #[test]
     fn message_sanitization_rejects_missing_idempotency() {
         assert!(sanitize_message_body(serde_json::json!({"message": "hello"})).is_err());
+    }
+
+    #[test]
+    fn message_sanitization_requires_an_explicit_conversation_target() {
+        let base = serde_json::json!({"message": "hello", "idempotencyKey": "message-123"});
+        assert!(sanitize_message_body(base).is_err());
+        assert!(sanitize_message_body(serde_json::json!({
+            "message": "hello",
+            "idempotencyKey": "message-123",
+            "conversationId": "3b5db9dd-06ec-41f1-bdaf-b7c33f36284c",
+            "createNew": true
+        }))
+        .is_err());
     }
 }
