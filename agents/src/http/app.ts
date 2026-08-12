@@ -38,6 +38,9 @@ import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { availableKasiAiModels, getKasiAiModelCatalog, isAllowedKasiAiModel } from "../system/kasiai-models";
 import { installationTokenJwks, issueInstallationToken } from "../auth/installation-token";
+import { createDefaultTools } from "../temporal/activities";
+import { KasitekCoreReadClient } from "../core/client";
+import { ToolRegistry } from "../tools/registry";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -54,6 +57,7 @@ export interface AppDependencies {
   credentials?: CredentialVaultRepository;
   installationCredentials?: InstallationCredentialRepository;
   installationGrants?: InstallationGrantRepository;
+  toolRegistry?: ToolRegistry;
   knowledge?: KnowledgeRepository;
   memory?: MemoryRepository;
   evaluations?: EvaluationRepository;
@@ -104,6 +108,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
+  const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config));
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
   const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
@@ -278,6 +283,18 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = createInstallationInputSchema.parse(request.body);
     const installation = await agents.createInstallation(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(installation);
+  });
+
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/capabilities", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
+    const capabilities = toolRegistry.manifests().map((manifest) => ({
+      ...manifest,
+      availability: granted.has(manifest.name) ? (manifest.manifest?.availability ?? "available") : "not_granted",
+    }));
+    return { installationId: installation.id, capabilities };
   });
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/credentials", async (request) => {

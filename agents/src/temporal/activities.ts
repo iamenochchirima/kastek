@@ -42,7 +42,7 @@ function pricingFromConfig(config?: AppConfig): Record<string, ModelPricing> {
   }
 }
 
-function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegistry {
+export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegistry {
   const tools = new ToolRegistry();
   tools.register({
     name: "platform.current_time",
