@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import type { AppConfig } from "../config";
 import {
   createAgentInputSchema,
+  createInstallationCredentialInputSchema,
   createInstallationInputSchema,
   createVersionInputSchema,
   startRunInputSchema,
@@ -17,6 +18,7 @@ import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 import { ModelCallRepository } from "../db/repositories/model-call-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
+import { InstallationCredentialRepository } from "../db/repositories/installation-credential-repository";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
@@ -48,6 +50,7 @@ export interface AppDependencies {
   modelCalls?: ModelCallRepository;
   channels?: ChannelRepository;
   credentials?: CredentialVaultRepository;
+  installationCredentials?: InstallationCredentialRepository;
   knowledge?: KnowledgeRepository;
   memory?: MemoryRepository;
   evaluations?: EvaluationRepository;
@@ -96,6 +99,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const modelCalls = dependencies.modelCalls ?? new ModelCallRepository(dependencies.pool);
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
+  const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
   const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
@@ -249,6 +253,36 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = createInstallationInputSchema.parse(request.body);
     const installation = await agents.createInstallation(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(installation);
+  });
+
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/credentials", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    return { credentials: await installationCredentials.list(auth.organizationId, request.params.installationId) };
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/credentials", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = createInstallationCredentialInputSchema.parse(request.body);
+    const created = await installationCredentials.create({
+      organizationId: auth.organizationId,
+      installationId: request.params.installationId,
+      actorId: auth.actorId,
+      ...input,
+    });
+    return reply.code(201).send(created);
+  });
+
+  app.delete<{ Params: { installationId: string; credentialId: string } }>("/v1/installations/:installationId/credentials/:credentialId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    await installationCredentials.revoke({
+      organizationId: auth.organizationId,
+      installationId: request.params.installationId,
+      credentialId: request.params.credentialId,
+      actorId: auth.actorId,
+    });
+    return reply.code(204).send();
   });
 
   app.get("/v1/system-agents/kasiai/installation", async (request, reply) => {

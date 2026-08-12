@@ -79,6 +79,11 @@ export const createInstallationInputSchema = z.object({
 });
 export type CreateInstallationInput = z.infer<typeof createInstallationInputSchema>;
 
+export const createInstallationCredentialInputSchema = z.object({
+  label: z.string().trim().min(1).max(160),
+  expiresAt: z.string().datetime().optional(),
+});
+
 export const startRunInputSchema = z.object({
   installationId: z.string().uuid(),
   conversationId: z.string().uuid().optional(),
