@@ -10,8 +10,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev:api": "tsx watch src/http/server.ts",
+    "dev:gateway": "tsx watch src/gateway/server.ts",
     "dev:worker": "tsx watch src/temporal/worker.ts",
     "start:api": "node dist/http/server.js",
+    "start:gateway": "node dist/gateway/server.js",
     "start:worker": "node dist/temporal/worker.js",
     "migrate": "tsx src/db/migrate.ts",
     "bootstrap:kasiai": "tsx src/system/bootstrap-kasiai.ts",
