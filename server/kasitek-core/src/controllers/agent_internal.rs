@@ -19,9 +19,15 @@ use crate::services::{customers, whatsapp};
 fn require_internal_agent(
     config: &AppConfig,
     req: &HttpRequest,
+    required_capability: &str,
 ) -> Result<(String, String), AppError> {
     if config.agents_delegation_public_key.is_some() {
         let context = internal_delegation::resolve(config, req)?;
+        if !context.has_grant(required_capability) {
+            return Err(AppError::Forbidden(format!(
+                "Missing delegated capability: {required_capability}"
+            )));
+        }
         return Ok((context.organization_id, context.principal.id));
     }
     if config.environment.eq_ignore_ascii_case("production") {
@@ -71,7 +77,8 @@ pub async fn get_customer(
     req: HttpRequest,
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
-    let (organization_id, actor_id) = require_internal_agent(config.get_ref(), &req)?;
+    let (organization_id, actor_id) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.customer_get")?;
     let customer_id = path.into_inner();
     let detail = customers::get_customer_detail(pool.get_ref(), &organization_id, &customer_id)
         .await?
@@ -95,7 +102,8 @@ pub async fn get_workspace_status(
     config: web::Data<AppConfig>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
-    let (organization_id, actor_id) = require_internal_agent(config.get_ref(), &req)?;
+    let (organization_id, actor_id) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.workspace_status")?;
     let rows = sqlx::query(
         r#"SELECT provider, status::text AS status, COUNT(*)::bigint AS count
            FROM "ExternalConnection"
@@ -138,7 +146,8 @@ pub async fn deliver_channel_message(
     req: HttpRequest,
     body: web::Json<AgentChannelDeliveryRequest>,
 ) -> Result<HttpResponse, AppError> {
-    let (organization_id, actor_id) = require_internal_agent(config.get_ref(), &req)?;
+    let (organization_id, actor_id) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.channel_deliver")?;
     let channel_type = body.channel_type.trim().to_ascii_lowercase();
     let text = body.text.trim();
     if text.is_empty() || text.len() > 20_000 {
