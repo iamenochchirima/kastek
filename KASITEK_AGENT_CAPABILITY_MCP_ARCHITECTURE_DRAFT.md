@@ -346,17 +346,48 @@ approval rule · effect/undo semantics · audit classification · availability p
 
 **Goal:** Keep `kasitek-core` the authority for business data and final execution.
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] Internal delegated token/header contract between Agent Platform and core.
-- [ ] How core verifies installation principal, scopes, constraints, and correlation identifiers.
-- [ ] Domain-by-domain internal endpoints or an internal capability dispatcher.
-- [ ] Transactionality, outbox/event behavior, and idempotency ownership.
-- [ ] How core returns safe, typed errors and effect receipts.
+- [x] Issue a short-lived signed delegation token per capability invocation, valid for approximately
+  one to two minutes and containing organization, installation/principal, capability/version,
+  resource constraints, invocation/run IDs, idempotency key, arguments hash, approval/approver when
+  applicable, issue/expiry, audience, and unique token ID.
+- [x] Use asymmetric signing such as ES256. `kasitek-core` receives public keys through trusted JWKS
+  discovery/configuration and cannot mint delegations. Support rotation with overlapping current and
+  previous public keys.
+- [x] Never pass external installation/MCP/REST tokens to core. The Agent Platform validates the
+  external token and policy, then mints a separately audience-bound internal delegation.
+- [x] Expose typed internal domain endpoints in core, with shared delegation middleware and
+  domain-owned controllers/services. Do not build one arbitrary JSON capability dispatcher in core.
+- [x] Core performs final authorization: organization/resource ownership, capability/resource match,
+  provider availability, arguments/approval hash, approver authority, business preconditions, and
+  idempotency. Resource or organization identity is never trusted from request bodies alone.
+- [x] Agent Platform checks installation/credential state before delegation. Suspension blocks new
+  delegations immediately; delegation expiry limits stale authority. Propagate kill-switch/revocation
+  events to core caches and use internal introspection for highly consequential actions when needed.
+- [x] Core owns final business-effect idempotency and persists organization, capability,
+  idempotency key, arguments hash, status, business/effect ID, provider outcome, and receipt. Agent
+  Platform tool-invocation records are an additional orchestration/audit layer, not the sole guard.
+- [x] Commit internal state and durable outbox/action records atomically. Process provider effects
+  from the outbox, update durable effect state, emit lifecycle events, and reconcile ambiguous
+  outcomes before retry.
+- [x] Return the shared Layer 4 result/receipt/meta envelope and stable safe error codes without
+  database, provider-secret, or stack-trace leakage.
+- [x] Emit signed, versioned events such as `content.published`, `content.publish_failed`,
+  `campaign.launched`, `message.delivered`, `booking.confirmed`, and
+  `effect.reconciliation_required`. Agent Platform consumes idempotently; polling is a recovery path.
+- [x] Use private service networking where available and TLS everywhere. Signed delegation remains
+  mandatory on private networks. Rate-limit by installation/capability and preserve correlation IDs;
+  consider mTLS later if operational needs justify it.
+- [x] Keep direct and white-label product authority separate. `kasitek-core` implements direct-product
+  capabilities; future `kasitek-tenants` handlers implement the same contracts without Agent Platform
+  database coupling or collapsed identity models.
 
 ### Exit criteria
 
-- [ ] Agents cannot read or mutate core tables directly.
+- [x] Delegation, typed endpoint, final authorization, idempotency/outbox, event, response, network,
+  and future tenant-boundary architecture is approved for implementation.
+- [ ] Agents cannot read or mutate core tables directly in every implemented capability.
 - [ ] Core independently rejects an action that is not authorized for the installation.
 
 ## Layer 7 — Hosted MCP server and Agent REST API
@@ -536,7 +567,7 @@ an undecided earlier layer.
 - [x] 3. Scope taxonomy, subscriptions, and resource constraints
 - [x] 4. First capability catalog and contract design
 - [x] 5. Action safety and approvals
-- [ ] 6. Core delegated authorization boundary
+- [x] 6. Core delegated authorization boundary
 - [ ] 7. MCP server contract and connection UX
 - [ ] 8. Runtime execution rules
 - [ ] 9. Channels and conversation policy

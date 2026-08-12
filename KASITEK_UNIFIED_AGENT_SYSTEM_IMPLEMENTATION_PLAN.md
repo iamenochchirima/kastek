@@ -78,6 +78,12 @@ platform data/access contract.
 - [x] Require mutation idempotency, provider reconciliation after ambiguous outcomes, item-level
   batch results, audited compensation, execution-time approver reauthorization, and kill-switch
   cancellation.
+- [x] Use asymmetric one-to-two-minute, per-invocation delegation tokens from Agent Platform to
+  core; external tokens never pass through to core.
+- [x] Keep typed domain endpoints and final authorization in core, including resource ownership,
+  approver authority, business preconditions, and core-owned effect idempotency.
+- [x] Use transactional outbox/action records for provider effects, signed versioned lifecycle
+  events back to Agent Platform, and reconciliation before ambiguous retries.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -196,15 +202,24 @@ credential rotation or installation suspension.
 
 ### B. Core boundary
 
-- [ ] Define signed/delegated internal requests from agents to `kasitek-core` containing the
+- [ ] Implement signed/delegated internal requests from agents to `kasitek-core` containing the
   installation principal, organization, capability, constrained resource, invocation/run ID,
   idempotency key, and correlation ID.
+- [ ] Add one-to-two-minute asymmetric delegation tokens, ES256/JWKS key discovery, audience
+  validation, token-ID replay controls where needed, and overlapping key rotation.
+- [ ] Reject external installation access tokens at core endpoints.
 - [ ] Make core independently validate the delegated authority before any business operation.
 - [ ] Add typed core capability handlers rather than agent access to core tables.
 - [ ] Add a shared error taxonomy: validation, not found, denied, unavailable, conflict,
   confirmation-required, and effect-failed.
 - [ ] Make each mutating core handler accept and enforce an idempotency key.
 - [ ] Return durable effect receipts and provider delivery identifiers where relevant.
+- [ ] Commit core state and outbox/action records atomically; process external effects durably and
+  reconcile unknown provider outcomes.
+- [ ] Emit signed, versioned capability/effect lifecycle events and consume them idempotently in the
+  Agent Platform with polling as recovery.
+- [ ] Propagate suspension/revocation/kill-switch state to core authorization caches and introspect
+  highly consequential actions where required.
 
 ### C. First real capability catalog
 
