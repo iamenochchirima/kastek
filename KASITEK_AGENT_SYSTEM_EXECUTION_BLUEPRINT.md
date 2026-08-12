@@ -455,7 +455,9 @@ authenticated, scoped, audited, suspended, and revoked without a human browser s
   contract-testing overlapping business/action schemas.
 - [ ] Implement central policy evaluation using installation grants, credential restrictions,
   resource scope, availability, approval, and limits with structured denial reasons.
-- [ ] Implement filtered capability discovery for the authenticated installation.
+- [x] Implement filtered capability discovery for the authenticated installation. Evidence:
+  Agent Platform `/v1/installations/:installationId/capabilities` applies effective installation
+  grants and is covered by `capability-discovery.test.ts`.
 - [ ] Replace static internal core authentication with one-to-two-minute ES256 per-invocation
   delegation, JWKS publication/rotation, audience checks, and replay protection.
 - [ ] Add typed internal core handlers that independently validate organization, agent principal,
