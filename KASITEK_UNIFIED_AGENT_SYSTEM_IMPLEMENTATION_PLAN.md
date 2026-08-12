@@ -71,6 +71,13 @@ platform data/access contract.
   automations/agent administration, and workspace/reporting.
 - [x] Standardize manifest metadata, cursor pagination, success/error envelopes, mutation receipts,
   semantic versioning, and capability availability states before domain implementation.
+- [x] Use exact, single-use, 30-minute approvals for initial external effects, bound to immutable
+  previews, capability version, arguments, resources, approver, installation, and organization.
+- [x] Start with authenticated web approvals and durable polling/webhook/wait behavior; defer secure
+  channel-native and standing approvals until individual approval is proven.
+- [x] Require mutation idempotency, provider reconciliation after ambiguous outcomes, item-level
+  batch results, audited compensation, execution-time approver reauthorization, and kill-switch
+  cancellation.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -343,11 +350,19 @@ same audit UI as a KasiTek-hosted agent.
 ## 10. Phase 6 — Action safety, approvals, and operations
 
 - [ ] Connect existing tool argument-hash approval records to product approval UX.
+- [ ] Add immutable, domain-specific preview revisions and bind them to organization, installation,
+  capability/version, normalized arguments, resources, approver, expiry, and one logical effect.
+- [ ] Default approval expiry to 30 minutes and support cancellation and immutable scheduled-action
+  approvals.
 - [ ] Define web approval, asynchronous approval, and channel-specific confirmation flows.
+- [ ] Return structured `APPROVAL_REQUIRED` responses with approval ID/URL, polling status, webhook
+  notification, and Temporal wait/resume behavior.
 - [ ] Add action previews for publishing, campaigns, external replies, bookings, and destructive
   contact changes.
 - [ ] Add invocation cancellation, retry status, external delivery status, and compensation where
   the domain supports it.
+- [ ] Add `reconciliation_required` for ambiguous provider outcomes and prohibit blind effect retry.
+- [ ] Re-authorize the approving user at execution and prevent agent self-approval.
 - [ ] Build admin/customer activity views: run, model, tool, input hash, result, effect,
   approval, delivery, cost, and trace correlation.
 - [ ] Add audit retention, redaction, export, and support-access policy.

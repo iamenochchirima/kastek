@@ -299,17 +299,48 @@ approval rule · effect/undo semantics · audit classification · availability p
 - `external-effect`: sends, publishes, confirms, schedules, or contacts an external party.
 - `privileged`: sensitive administration; unavailable or restricted to explicit administrators.
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] Which risk classes require confirmation in the first release?
-- [ ] Approval UX by channel: web, WhatsApp, Telegram, Discord, scheduled/unattended agents.
-- [ ] Exact preview fields per domain (recipients, cost, connected account, time, content, etc.).
-- [ ] Approval expiration, argument-hash binding, cancellation, retry, and compensation rules.
-- [ ] Which actions can be pre-authorized by policy versus always requiring approval?
+- [x] Execute reads and drafts immediately. Execute reversible controlled writes according to
+  policy and store undo information. Require exact approval for external effects. Restrict
+  privileged actions to authorized administrators or make them unavailable to agents entirely.
+- [x] Bind approval to organization, installation, capability name/version, normalized argument
+  hash, selected resources, immutable preview revision, approving actor, expiry, and exactly one
+  logical effect. Any material change invalidates approval.
+- [x] Use a 30-minute default approval expiry. Approvals are single-use and cancellable. Scheduled
+  actions bind approval to a specific immutable scheduled revision; risk/domain-specific lifetimes
+  may be configured later.
+- [x] Use KasiTek's authenticated web UI as the initial approval interface. External clients and
+  channel agents receive `APPROVAL_REQUIRED` with an approval ID/URL and may poll, receive a webhook,
+  or durably wait. A plain chat message such as “yes” is not sufficient authorization.
+- [x] Define domain-specific previews. Content shows exact content/media, target accounts, schedule,
+  transformations, and post count. Campaigns show revision, frozen/constrained audience, channels,
+  schedule, estimated sends, and cost. Bookings show customer, service/provider, timezone, price,
+  and notifications. Inbox replies show destination, sending account, exact content, and attachments.
+- [x] Bind approval to immutable revisions/snapshots. Changed content, audience, schedule, resource,
+  booking time, or message requires new approval.
+- [x] Defer standing approvals until individual approval is proven. Later standing policies must
+  constrain capability, resource/account, rate, schedule, cost/value, content/safety rules, expiry,
+  and revocation.
+- [x] Require idempotency keys for mutations. One approval authorizes one logical effect; retries
+  cannot duplicate it. Reconcile provider state after ambiguous timeouts and report
+  `reconciliation_required` instead of blindly retrying.
+- [x] Store undo/compensation information for reversible internal changes. Never promise reversal
+  for irreversible provider effects. Return item-level batch outcomes and perform compensation as a
+  new audited action.
+- [x] Users may approve only actions they themselves are authorized to perform; workspace-wide or
+  privileged actions require an administrator. Agents cannot self-approve, and approver authority
+  is rechecked at execution. During controlled testing, workspace owners/admins may approve all
+  enabled test actions.
+- [x] Audit proposal, preview, arguments hash, decision, approver, execution, provider result,
+  receipt, retry/reconciliation, and compensation. Suspension or a kill switch cancels pending
+  approvals and blocks execution.
 
 ### Exit criteria
 
-- [ ] Every mutating capability has a review, approval, idempotency, and failure contract.
+- [x] Approval classes, binding, expiry, initial UX, previews, revisions, retry/reconciliation,
+  compensation, roles, and emergency behavior are approved for implementation.
+- [ ] Every mutating capability has a tested review, approval, idempotency, and failure contract.
 
 ## Layer 6 — Core integration boundary
 
@@ -504,7 +535,7 @@ an undecided earlier layer.
 - [x] 2. Installation credential and token lifecycle
 - [x] 3. Scope taxonomy, subscriptions, and resource constraints
 - [x] 4. First capability catalog and contract design
-- [ ] 5. Action safety and approvals
+- [x] 5. Action safety and approvals
 - [ ] 6. Core delegated authorization boundary
 - [ ] 7. MCP server contract and connection UX
 - [ ] 8. Runtime execution rules
