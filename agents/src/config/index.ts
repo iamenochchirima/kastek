@@ -61,6 +61,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     if (!env[credentialKey]?.trim()) {
       throw new Error(`${credentialKey} is required for the configured KasiAi model provider`);
     }
+    if (!config.INSTALLATION_TOKEN_PRIVATE_KEY) {
+      throw new Error("INSTALLATION_TOKEN_PRIVATE_KEY is required in production");
+    }
   }
   return config;
 }

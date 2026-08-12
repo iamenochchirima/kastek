@@ -12,7 +12,7 @@ const required = {
 describe("agent runtime configuration", () => {
   it("requires the credential for the selected KasiAi provider in production", () => {
     expect(() => loadConfig(required)).toThrow("OPENROUTER_API_KEY");
-    expect(loadConfig({ ...required, OPENROUTER_API_KEY: "key" }).KASIAI_MODEL_PROVIDER).toBe("openrouter");
+    expect(loadConfig({ ...required, OPENROUTER_API_KEY: "key", INSTALLATION_TOKEN_PRIVATE_KEY: "test-key" }).KASIAI_MODEL_PROVIDER).toBe("openrouter");
   });
 
   it("validates the selected provider credential rather than unrelated keys", () => {
