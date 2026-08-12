@@ -9,6 +9,14 @@ export interface ConversationRecord {
   channel_key: string;
   external_conversation_id: string | null;
   title: string | null;
+  title_source: "fallback" | "ai" | "manual";
+  title_generated_at: string | null;
+  title_locked: boolean;
+  pinned: boolean;
+  last_opened_at: string | null;
+  last_read_at: string | null;
+  model_provider: string | null;
+  model: string | null;
   status: string;
   owner_actor_id: string | null;
   is_primary: boolean;
@@ -108,16 +116,18 @@ export class ConversationRepository {
     organizationId: string,
     installationId: string,
     ownerActorId: string,
-    limit = 50,
+    limit = 100,
+    search?: string,
   ): Promise<ConversationRecord[]> {
     const result = await query<ConversationRecord>(
       this.pool,
       `SELECT * FROM conversations
        WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
          AND status <> 'deleted'
-       ORDER BY is_primary DESC, updated_at DESC
+         AND ($5::text IS NULL OR title ILIKE '%' || $5 || '%')
+       ORDER BY pinned DESC, is_primary DESC, updated_at DESC
        LIMIT $4`,
-      [organizationId, installationId, ownerActorId, Math.max(1, Math.min(limit, 100))],
+      [organizationId, installationId, ownerActorId, Math.max(1, Math.min(limit, 200)), search?.trim() || null],
     );
     return result.rows;
   }
@@ -154,6 +164,117 @@ export class ConversationRepository {
       }
       return result.rows[0];
     });
+  }
+
+  public async restoreOwnedConversation(organizationId: string, conversationId: string, ownerActorId: string): Promise<ConversationRecord> {
+    const result = await query<ConversationRecord>(
+      this.pool,
+      `UPDATE conversations
+       SET status = 'active', archived_at = NULL, is_primary = false, updated_at = now()
+       WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3 AND status = 'archived'
+       RETURNING *`,
+      [organizationId, conversationId, ownerActorId],
+    );
+    if (!result.rows[0]) throw new Error("Archived conversation not found");
+    return result.rows[0];
+  }
+
+  public async updateOwnedConversation(input: {
+    organizationId: string;
+    conversationId: string;
+    ownerActorId: string;
+    title?: string;
+    pinned?: boolean;
+    modelProvider?: string | null;
+    model?: string | null;
+    clearModel?: boolean;
+  }): Promise<ConversationRecord> {
+    const result = await query<ConversationRecord>(
+      this.pool,
+      `UPDATE conversations
+       SET title = CASE WHEN $4::text IS NULL THEN title ELSE $4 END,
+           title_source = CASE WHEN $4::text IS NULL THEN title_source ELSE 'manual' END,
+           title_locked = CASE WHEN $4::text IS NULL THEN title_locked ELSE true END,
+           pinned = COALESCE($5, pinned),
+           model_provider = CASE WHEN $8 THEN NULL WHEN $6::text IS NULL THEN model_provider ELSE $6 END,
+           model = CASE WHEN $8 THEN NULL WHEN $7::text IS NULL THEN model ELSE $7 END,
+           updated_at = now()
+       WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3 AND status = 'active'
+       RETURNING *`,
+      [input.organizationId, input.conversationId, input.ownerActorId, input.title ?? null, input.pinned ?? null, input.modelProvider ?? null, input.model ?? null, input.clearModel ?? false],
+    );
+    if (!result.rows[0]) throw new Error("Conversation not found");
+    return result.rows[0];
+  }
+
+  public async setChannelDefault(organizationId: string, installationId: string, ownerActorId: string, conversationId: string): Promise<ConversationRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const target = await client.query<ConversationRecord>(
+        `SELECT * FROM conversations
+         WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
+           AND id = $4 AND status = 'active'
+         FOR UPDATE`,
+        [organizationId, installationId, ownerActorId, conversationId],
+      );
+      if (!target.rows[0]) throw new Error("Conversation not found");
+      await client.query(
+        `UPDATE conversations SET is_primary = false, updated_at = now()
+         WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
+           AND is_primary = true AND id <> $4`,
+        [organizationId, installationId, ownerActorId, conversationId],
+      );
+      const updated = await client.query<ConversationRecord>(
+        `UPDATE conversations SET is_primary = true, updated_at = now()
+         WHERE id = $1 RETURNING *`,
+        [conversationId],
+      );
+      return updated.rows[0]!;
+    });
+  }
+
+  public async markOpened(organizationId: string, conversationId: string, ownerActorId: string): Promise<void> {
+    await query(
+      this.pool,
+      `UPDATE conversations SET last_opened_at = now(), last_read_at = now()
+       WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3`,
+      [organizationId, conversationId, ownerActorId],
+    );
+  }
+
+  public async setGeneratedTitle(input: {
+    organizationId: string;
+    conversationId: string;
+    title: string;
+  }): Promise<ConversationRecord | null> {
+    const result = await query<ConversationRecord>(
+      this.pool,
+      `UPDATE conversations
+       SET title = $3, title_source = 'ai', title_generated_at = now(), updated_at = now()
+       WHERE organization_id = $1 AND id = $2 AND status = 'active'
+         AND title_locked = false AND title_source = 'fallback'
+       RETURNING *`,
+      [input.organizationId, input.conversationId, input.title],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  public async getTitleCandidate(organizationId: string, conversationId: string): Promise<{ title: string; title_source: string; title_locked: boolean; first_message: string | null } | null> {
+    const result = await query<{
+      title: string;
+      title_source: string;
+      title_locked: boolean;
+      first_message: string | null;
+    }>(
+      this.pool,
+      `SELECT c.title, c.title_source, c.title_locked,
+              (SELECT m.content->>'text' FROM messages m
+               WHERE m.conversation_id = c.id AND m.direction = 'inbound'
+               ORDER BY m.sequence_number ASC LIMIT 1) AS first_message
+       FROM conversations c
+       WHERE c.organization_id = $1 AND c.id = $2 AND c.status = 'active'`,
+      [organizationId, conversationId],
+    );
+    return result.rows[0] ?? null;
   }
 
   public async appendMessage(input: {

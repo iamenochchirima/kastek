@@ -74,5 +74,9 @@ describe("foundation migration", () => {
     expect(verifiedPairingSql).toContain("external_identity DROP NOT NULL");
     const providerIdentitySql = await readFile(new URL("../migrations/023_scope_provider_message_identity.sql", import.meta.url), "utf8");
     expect(providerIdentitySql).toContain("organization_id, provider, provider_message_id");
+    const workspaceSql = await readFile(new URL("../migrations/024_kasiai_workspace.sql", import.meta.url), "utf8");
+    expect(workspaceSql).toContain("title_source");
+    expect(workspaceSql).toContain("kasiai_user_preferences");
+    expect(workspaceSql).toContain("resolved_model_provider");
   });
 });

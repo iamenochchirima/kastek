@@ -26,6 +26,13 @@ interface ActiveInstallation {
   agent_name: string;
 }
 
+function fallbackConversationTitle(message: string): string {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (!normalized) return "New chat";
+  const words = normalized.split(" ").slice(0, 7).join(" ");
+  return words.length > 72 ? `${words.slice(0, 69).trimEnd()}…` : words;
+}
+
 export class PlatformChatRepository {
   public constructor(private readonly pool: Pool) {}
 
@@ -42,28 +49,11 @@ export class PlatformChatRepository {
     organizationId: string;
     installationId: string;
     actorId: string;
+    title?: string;
+    modelProvider?: string;
+    model?: string;
   }): Promise<PlatformConversation> {
-    return withTransaction(this.pool, async (client) => {
-      const installation = await this.getActiveInstallation(client, input.organizationId, input.installationId);
-      await client.query("SELECT id FROM agent_installations WHERE id = $1 FOR UPDATE", [input.installationId]);
-      const previous = await client.query<ConversationRecord>(
-        `UPDATE conversations
-         SET status = 'archived', is_primary = false, archived_at = now(), updated_at = now()
-         WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
-           AND is_primary = true AND status = 'active'
-         RETURNING *`,
-        [input.organizationId, input.installationId, input.actorId],
-      );
-      const conversation = await this.insertPrimaryConversation(client, {
-        organizationId: input.organizationId,
-        installationId: input.installationId,
-        actorId: input.actorId,
-        externalConversationId: `kasiai:user:${input.actorId}:${randomUUID()}`,
-        title: installation.agent_name,
-        rotatedFromId: previous.rows[0]?.id,
-      });
-      return this.ensureParticipants(client, conversation, installation, input.organizationId, input.actorId);
-    });
+    return withTransaction(this.pool, (client) => this.createNewConversationInTransaction(client, input));
   }
 
   public async acceptMessage(input: {
@@ -74,9 +64,24 @@ export class PlatformChatRepository {
     idempotencyKey: string;
     message: string;
     context?: Record<string, unknown>;
+    conversationId?: string;
+    createNew?: boolean;
+    modelProvider?: string;
+    model?: string;
   }): Promise<AcceptedPlatformMessage> {
     return withTransaction(this.pool, async (client) => {
-      const resolved = await this.resolveConversationInTransaction(client, input);
+      const resolved = input.conversationId
+        ? await this.resolveOwnedConversationInTransaction(client, input)
+        : input.createNew
+          ? await this.createNewConversationInTransaction(client, {
+            organizationId: input.organizationId,
+            installationId: input.installationId,
+            actorId: input.actorId,
+            title: fallbackConversationTitle(input.message),
+            modelProvider: input.modelProvider,
+            model: input.model,
+          })
+          : await this.resolveConversationInTransaction(client, input);
       const existing = await client.query<RunRecord>(
         `SELECT * FROM agent_runs
          WHERE organization_id = $1 AND idempotency_key = $2
@@ -115,8 +120,8 @@ export class PlatformChatRepository {
         `INSERT INTO agent_runs
           (organization_id, agent_definition_id, agent_version_id, installation_id,
            conversation_id, trigger_type, status, input, correlation_id, created_by, idempotency_key,
-           reply_channel_type)
-         VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb, COALESCE($7::uuid, gen_random_uuid()), $8, $9, 'platform')
+           reply_channel_type, resolved_model_provider, resolved_model)
+         VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb, COALESCE($7::uuid, gen_random_uuid()), $8, $9, 'platform', $10, $11)
          ON CONFLICT (organization_id, idempotency_key)
          WHERE idempotency_key IS NOT NULL
          DO NOTHING
@@ -131,6 +136,8 @@ export class PlatformChatRepository {
           input.correlationId ?? null,
           input.actorId,
           input.idempotencyKey,
+          resolved.conversation.model_provider,
+          resolved.conversation.model,
         ],
       );
       if (!createdRun.rows[0]) {
@@ -275,9 +282,9 @@ export class PlatformChatRepository {
         `INSERT INTO agent_runs
           (organization_id, agent_definition_id, agent_version_id, installation_id,
            conversation_id, trigger_type, status, input, correlation_id, created_by,
-           idempotency_key, reply_channel_type, reply_binding_id)
+           idempotency_key, reply_channel_type, reply_binding_id, resolved_model_provider, resolved_model)
          VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb,
-                 COALESCE($7::uuid, gen_random_uuid()), $8, $9, $10, $11)
+                 COALESCE($7::uuid, gen_random_uuid()), $8, $9, $10, $11, $12, $13)
          ON CONFLICT (organization_id, idempotency_key)
          WHERE idempotency_key IS NOT NULL
          DO NOTHING
@@ -294,6 +301,8 @@ export class PlatformChatRepository {
           idempotencyKey,
           input.channelType,
           route.id,
+          resolved.conversation.model_provider,
+          resolved.conversation.model,
         ],
       );
       const run = runResult.rows[0];
@@ -366,16 +375,86 @@ export class PlatformChatRepository {
        LIMIT 1`,
       [input.organizationId, input.installationId, input.actorId],
     );
-    const conversation = existing.rows[0] ?? await this.insertPrimaryConversation(client, {
+    let conversation = existing.rows[0];
+    if (!conversation) {
+      // A restored/legacy conversation can be active without currently being
+      // the channel default. Prefer it over creating a second durable thread.
+      const reusable = await client.query<ConversationRecord>(
+        `SELECT * FROM conversations
+         WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
+           AND status = 'active'
+         ORDER BY pinned DESC, updated_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [input.organizationId, input.installationId, input.actorId],
+      );
+      if (reusable.rows[0]) {
+        const promoted = await client.query<ConversationRecord>(
+          `UPDATE conversations SET is_primary = true, updated_at = now()
+           WHERE id = $1 RETURNING *`,
+          [reusable.rows[0].id],
+        );
+        conversation = promoted.rows[0]!;
+      } else {
+        conversation = await this.insertPrimaryConversation(client, {
+          organizationId: input.organizationId,
+          installationId: input.installationId,
+          actorId: input.actorId,
+          externalConversationId: input.conversationKey
+            ? `kasiai:user:${input.actorId}:${input.conversationKey}`
+            : `kasiai:user:${input.actorId}:${randomUUID()}`,
+          title: installation.agent_name,
+        });
+      }
+    }
+    if (conversation.status !== "active") throw new Error("Platform conversation is not active");
+    return this.ensureParticipants(client, conversation, installation, input.organizationId, input.actorId);
+  }
+
+  private async resolveOwnedConversationInTransaction(
+    client: PoolClient,
+    input: { organizationId: string; installationId: string; actorId: string; conversationId?: string },
+  ): Promise<PlatformConversation> {
+    const installation = await this.getActiveInstallation(client, input.organizationId, input.installationId);
+    const existing = await client.query<ConversationRecord>(
+      `SELECT * FROM conversations
+       WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
+         AND id = $4 AND status = 'active'
+       FOR UPDATE`,
+      [input.organizationId, input.installationId, input.actorId, input.conversationId],
+    );
+    if (!existing.rows[0]) throw Object.assign(new Error("Conversation not found"), { statusCode: 404 });
+    return this.ensureParticipants(client, existing.rows[0], installation, input.organizationId, input.actorId);
+  }
+
+  private async createNewConversationInTransaction(
+    client: PoolClient,
+    input: {
+      organizationId: string;
+      installationId: string;
+      actorId: string;
+      title?: string;
+      modelProvider?: string;
+      model?: string;
+    },
+  ): Promise<PlatformConversation> {
+    const installation = await this.getActiveInstallation(client, input.organizationId, input.installationId);
+    await client.query("SELECT id FROM agent_installations WHERE id = $1 FOR UPDATE", [input.installationId]);
+    await client.query(
+      `UPDATE conversations SET is_primary = false, updated_at = now()
+       WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
+         AND is_primary = true AND status = 'active'`,
+      [input.organizationId, input.installationId, input.actorId],
+    );
+    const conversation = await this.insertPrimaryConversation(client, {
       organizationId: input.organizationId,
       installationId: input.installationId,
       actorId: input.actorId,
-      externalConversationId: input.conversationKey
-        ? `kasiai:user:${input.actorId}:${input.conversationKey}`
-        : `kasiai:user:${input.actorId}:primary`,
-      title: installation.agent_name,
+      externalConversationId: `kasiai:user:${input.actorId}:${randomUUID()}`,
+      title: input.title ?? "New chat",
+      modelProvider: input.modelProvider,
+      model: input.model,
     });
-    if (conversation.status !== "active") throw new Error("Platform conversation is not active");
     return this.ensureParticipants(client, conversation, installation, input.organizationId, input.actorId);
   }
 
@@ -387,19 +466,20 @@ export class PlatformChatRepository {
       actorId: string;
       externalConversationId: string;
       title: string;
-      rotatedFromId?: string;
+      modelProvider?: string;
+      model?: string;
     },
   ): Promise<ConversationRecord> {
     const created = await client.query<ConversationRecord>(
       `INSERT INTO conversations
         (installation_id, organization_id, channel_type, channel_key, external_conversation_id,
-         title, owner_actor_id, is_primary, rotated_from_id)
-       VALUES ($1, $2, 'unified', 'kasiai', $3, $4, $5, true, $6)
+         title, owner_actor_id, is_primary, model_provider, model, title_source, last_opened_at)
+       VALUES ($1, $2, 'unified', 'kasiai', $3, $4, $5, true, $6, $7, 'fallback', now())
        ON CONFLICT (installation_id, owner_actor_id)
        WHERE is_primary = true AND status = 'active' AND owner_actor_id IS NOT NULL
        DO UPDATE SET updated_at = now()
        RETURNING *`,
-      [input.installationId, input.organizationId, input.externalConversationId, input.title, input.actorId, input.rotatedFromId ?? null],
+      [input.installationId, input.organizationId, input.externalConversationId, input.title, input.actorId, input.modelProvider ?? null, input.model ?? null],
     );
     return created.rows[0]!;
   }

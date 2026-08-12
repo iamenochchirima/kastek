@@ -25,6 +25,8 @@ export interface RunRecord {
   idempotency_key?: string | null;
   reply_channel_type?: string | null;
   reply_binding_id?: string | null;
+  resolved_model_provider?: string | null;
+  resolved_model?: string | null;
   created?: boolean;
 }
 

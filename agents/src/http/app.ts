@@ -32,6 +32,8 @@ import { formatSseComment, formatSseEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
 import { PlatformChatRepository } from "../db/repositories/platform-chat-repository";
 import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
+import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
+import { availableKasiAiModels, isAllowedKasiAiModel } from "../system/kasiai-models";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -52,6 +54,7 @@ export interface AppDependencies {
   audits?: AuditRepository;
   schedules?: ScheduleRepository;
   killSwitches?: KillSwitchRepository;
+  kasiaiPreferences?: KasiAiPreferenceRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -99,6 +102,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const audits = dependencies.audits ?? new AuditRepository(dependencies.pool);
   const schedules = dependencies.schedules ?? new ScheduleRepository(dependencies.pool);
   const killSwitches = dependencies.killSwitches ?? new KillSwitchRepository(dependencies.pool);
+  const kasiaiPreferences = dependencies.kasiaiPreferences ?? new KasiAiPreferenceRepository(dependencies.pool);
 
   app.setErrorHandler((error, _request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -278,6 +282,89 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   });
 
   app.post<{ Params: { installationId: string } }>(
+    "/v1/installations/:installationId/kasiai/home",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "kasiai:read");
+      const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+      if (!installation || installation.status !== "active") return reply.code(404).send({ error: "kasiai_installation_not_found" });
+      const [allConversations, preferences] = await Promise.all([
+        conversations.listOwnerConversations(auth.organizationId, request.params.installationId, auth.actorId),
+        kasiaiPreferences.get(auth.organizationId, request.params.installationId, auth.actorId),
+      ]);
+      const activeConversations = allConversations.filter((conversation) => conversation.status === "active");
+      return {
+        installation,
+        conversations: activeConversations,
+        archivedConversations: allConversations.filter((conversation) => conversation.status === "archived"),
+        channelDefaultConversationId: activeConversations.find((conversation) => conversation.is_primary)?.id ?? null,
+        preferences,
+        models: availableKasiAiModels(dependencies.config),
+      };
+    },
+  );
+
+  app.get<{ Params: { installationId: string }; Querystring: { search?: string } }>(
+    "/v1/installations/:installationId/kasiai/models",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "kasiai:read");
+      const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+      if (!installation || installation.status !== "active") throw Object.assign(new Error("KasiAi installation not found"), { statusCode: 404 });
+      return { models: availableKasiAiModels(dependencies.config) };
+    },
+  );
+
+  app.get<{ Params: { installationId: string }; Querystring: { search?: string } }>(
+    "/v1/installations/:installationId/kasiai/preferences",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "kasiai:read");
+      const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+      if (!installation || installation.status !== "active") throw Object.assign(new Error("KasiAi installation not found"), { statusCode: 404 });
+      return { preferences: await kasiaiPreferences.get(auth.organizationId, request.params.installationId, auth.actorId) };
+    },
+  );
+
+  app.patch<{ Params: { installationId: string } }>(
+    "/v1/installations/:installationId/kasiai/preferences",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "kasiai:write");
+      const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+      if (!installation || installation.status !== "active") throw Object.assign(new Error("KasiAi installation not found"), { statusCode: 404 });
+      const input = z.object({
+        language: z.string().trim().min(2).max(35).optional(),
+        tone: z.enum(["concise", "balanced", "detailed"]).optional(),
+        responseDetail: z.enum(["concise", "standard", "detailed"]).optional(),
+        notificationsEnabled: z.boolean().optional(),
+        useSavedPreferences: z.boolean().optional(),
+        referencePreviousChats: z.boolean().optional(),
+        defaultModelProvider: z.enum(["openrouter", "openai", "anthropic", "gemini"]).optional(),
+        defaultModel: z.string().trim().min(1).max(240).optional(),
+      }).strict().parse(request.body ?? {});
+      if (!Object.keys(input).length) throw Object.assign(new Error("At least one preference is required"), { statusCode: 400 });
+      if (Boolean(input.defaultModelProvider) !== Boolean(input.defaultModel)) {
+        throw Object.assign(new Error("Model provider and model must be changed together"), { statusCode: 400 });
+      }
+      if (input.defaultModelProvider && input.defaultModel && !isAllowedKasiAiModel(dependencies.config, input.defaultModelProvider, input.defaultModel)) {
+        throw Object.assign(new Error("Selected model is not available for this workspace"), { statusCode: 403 });
+      }
+      const preferences = await kasiaiPreferences.upsert(auth.organizationId, request.params.installationId, auth.actorId, {
+        language: input.language,
+        tone: input.tone,
+        response_detail: input.responseDetail,
+        notifications_enabled: input.notificationsEnabled,
+        use_saved_preferences: input.useSavedPreferences,
+        reference_previous_chats: input.referencePreviousChats,
+        default_model_provider: input.defaultModelProvider,
+        default_model: input.defaultModel,
+      });
+      return { preferences };
+    },
+  );
+
+  app.post<{ Params: { installationId: string } }>(
     "/v1/installations/:installationId/platform/conversation",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
@@ -346,7 +433,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
-  app.get<{ Params: { installationId: string } }>(
+  app.get<{ Params: { installationId: string }; Querystring: { search?: string } }>(
     "/v1/installations/:installationId/conversations",
     async (request) => {
       const auth = requireAuth(request, dependencies.config);
@@ -356,10 +443,49 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           auth.organizationId,
           request.params.installationId,
           auth.actorId,
+          200,
+          request.query.search,
         ),
       };
     },
   );
+
+  app.patch<{ Params: { conversationId: string } }>("/v1/conversations/:conversationId", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "chat:write");
+    const input = z.object({
+      title: z.string().trim().min(1).max(120).optional(),
+      pinned: z.boolean().optional(),
+      modelProvider: z.enum(["openrouter", "openai", "anthropic", "gemini"]).nullable().optional(),
+      model: z.string().trim().min(1).max(240).nullable().optional(),
+      clearModel: z.boolean().optional(),
+    }).strict().parse(request.body ?? {});
+    if (!Object.keys(input).length) throw Object.assign(new Error("At least one conversation change is required"), { statusCode: 400 });
+    const hasProvider = input.modelProvider !== undefined;
+    const hasModel = input.model !== undefined;
+    if (!input.clearModel && hasProvider !== hasModel) throw Object.assign(new Error("Model provider and model must be changed together"), { statusCode: 400 });
+    if (input.modelProvider && input.model && !isAllowedKasiAiModel(dependencies.config, input.modelProvider, input.model)) {
+      throw Object.assign(new Error("Selected model is not available for this workspace"), { statusCode: 403 });
+    }
+    return conversations.updateOwnedConversation({
+      organizationId: auth.organizationId,
+      conversationId: request.params.conversationId,
+      ownerActorId: auth.actorId,
+      title: input.title,
+      pinned: input.pinned,
+      modelProvider: input.modelProvider,
+      model: input.model,
+      clearModel: input.clearModel,
+    });
+  });
+
+  app.post<{ Params: { conversationId: string } }>("/v1/conversations/:conversationId/channel-default", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "chat:write");
+    const owned = await conversations.getOwnedConversation(auth.organizationId, request.params.conversationId, auth.actorId);
+    if (!owned) throw Object.assign(new Error("Conversation not found"), { statusCode: 404 });
+    return conversations.setChannelDefault(auth.organizationId, owned.installation_id, auth.actorId, owned.id);
+  });
 
   app.post<{ Params: { installationId: string } }>(
     "/v1/installations/:installationId/platform/conversation/new",
@@ -386,6 +512,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const input = z.object({
         message: z.string().trim().min(1).max(20_000),
         idempotencyKey: z.string().trim().min(8).max(240),
+        conversationId: z.string().uuid().optional(),
+        createNew: z.boolean().optional(),
+        modelProvider: z.enum(["openrouter", "openai", "anthropic", "gemini"]).optional(),
+        model: z.string().trim().min(1).max(240).optional(),
         context: z.object({
           route: z.string().trim().max(500).optional(),
           pageTitle: z.string().trim().max(240).optional(),
@@ -393,6 +523,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           resourceId: z.string().trim().max(240).optional(),
         }).strict().optional(),
       }).parse(request.body);
+      if (Boolean(input.modelProvider) !== Boolean(input.model)) {
+        return reply.code(400).send({ error: "Model provider and model must be changed together" });
+      }
+      if (input.modelProvider && input.model && !isAllowedKasiAiModel(dependencies.config, input.modelProvider, input.model)) {
+        return reply.code(403).send({ error: "Selected model is not available for this workspace" });
+      }
       const accepted = await platformChat.acceptMessage({
         organizationId: auth.organizationId,
         installationId: request.params.installationId,
@@ -612,6 +748,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       requireScope(auth, dependencies.config, "chat:read");
       const conversation = await conversations.getOwnedConversation(auth.organizationId, request.params.conversationId, auth.actorId);
       if (!conversation) return reply.code(404).send({ error: "conversation_not_found" });
+      await conversations.markOpened(auth.organizationId, conversation.id, auth.actorId);
       const limit = request.query.limit === undefined ? undefined : Number(request.query.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 200)) return reply.code(400).send({ error: "invalid_message_limit" });
       const messages = conversations.listMessagesPage
@@ -627,6 +764,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "chat:write");
     const status = z.enum(["archived", "deleted"]).parse(request.params.status);
     return conversations.setOwnedStatus(auth.organizationId, request.params.conversationId, auth.actorId, status);
+  });
+
+  app.post<{ Params: { conversationId: string } }>("/v1/conversations/:conversationId/restore", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "chat:write");
+    return conversations.restoreOwnedConversation(auth.organizationId, request.params.conversationId, auth.actorId);
   });
 
   app.post<{ Params: { conversationId: string } }>("/v1/conversations/:conversationId/participants", async (request, reply) => {

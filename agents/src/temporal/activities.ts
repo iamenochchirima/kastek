@@ -22,6 +22,7 @@ import { CredentialVaultRepository } from "../db/repositories/credential-vault-r
 import { resolveModelTarget } from "../model/policy";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
+import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -117,6 +118,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const summaries = new SummaryRepository(pool);
   const killSwitches = new KillSwitchRepository(pool);
   const channels = new ChannelRepository(pool);
+  const kasiaiPreferences = new KasiAiPreferenceRepository(pool);
   const gateway = options.gateway ?? new ModelGateway(undefined, { pricing: pricingFromConfig(options.config) });
   const credentials = options.credentials ?? (options.config
     ? new VaultCredentialResolver(new CredentialVaultRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY))
@@ -130,7 +132,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async executeLoop(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
-      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, runSteps, toolGrants, summaries, killSwitches, gateway, credentials, tools);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, runSteps, toolGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -154,6 +156,56 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             payload: { message: error instanceof Error ? error.message : "Conversation summary failed" },
           });
         }
+      }
+    },
+    async generateConversationTitle(input) {
+      try {
+        const run = await runs.getRuntimeRunById(input.runId);
+        if (!run?.conversation_id) return;
+        const candidate = await conversations.getTitleCandidate(run.organization_id, run.conversation_id);
+        if (!candidate || candidate.title_locked || candidate.title_source !== "fallback" || !candidate.first_message) return;
+        const configuration = run.configuration;
+        const target = resolveModelTarget(configuration, run.policy);
+        const provider = (run.resolved_model_provider ?? target.provider) as typeof target.provider;
+        const model = run.resolved_model ?? target.model;
+        const credentialReference = typeof configuration.credentialReference === "string" ? configuration.credentialReference : undefined;
+        const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
+        const response = await gateway.complete({
+          provider,
+          model,
+          temperature: 0,
+          maxTokens: 24,
+          timeoutMs: 12_000,
+          maxAttempts: 1,
+          messages: [
+            { role: "system", content: "Create a concise 3 to 7 word chat title. Return only the title, no quotes, punctuation, Markdown, or explanation." },
+            { role: "user", content: candidate.first_message.slice(0, 1_000) },
+          ],
+        }, modelCredentials);
+        const title = response.message.content
+          .replace(/[\r\n]+/g, " ")
+          .replace(/^[-#*\s\"']+|[-#*\s\"']+$/g, "")
+          .trim()
+          .slice(0, 120);
+        if (!title) return;
+        const updated = await conversations.setGeneratedTitle({
+          organizationId: run.organization_id,
+          conversationId: run.conversation_id,
+          title,
+        });
+        if (updated) {
+          await runs.appendEvent({
+            organizationId: run.organization_id,
+            runId: run.id,
+            installationId: run.installation_id,
+            eventType: "conversation.title.generated",
+            payload: { conversationId: run.conversation_id },
+          });
+        }
+      } catch (error) {
+        // A conversation title is decorative metadata. Never fail or retry the
+        // completed user run because a provider cannot generate one.
+        void error;
       }
     },
     async deliverRunReply(input) {
@@ -226,6 +278,7 @@ async function executeLoopForRun(
   toolGrants: ToolGrantRepository,
   summaries: SummaryRepository,
   killSwitches: KillSwitchRepository,
+  kasiaiPreferences: KasiAiPreferenceRepository,
   gateway: ModelGateway,
   credentials: CredentialResolver,
   tools: ToolRegistry,
@@ -233,8 +286,8 @@ async function executeLoopForRun(
   const configuration = run.configuration;
   const installationSettings = run.installation_settings ?? {};
   const modelTarget = resolveModelTarget(configuration, run.policy);
-  const provider = modelTarget.provider;
-  const model = modelTarget.model;
+  const provider = (run.resolved_model_provider ?? modelTarget.provider) as typeof modelTarget.provider;
+  const model = run.resolved_model ?? modelTarget.model;
   const policyTools = new Set(
     Array.isArray(run.policy.allowedTools) ? run.policy.allowedTools.filter((value): value is string => typeof value === "string") : [],
   );
@@ -247,6 +300,14 @@ async function executeLoopForRun(
   const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
   const currentMessage = typeof run.input.message === "string" ? run.input.message : JSON.stringify(run.input);
   const conversation = run.conversation_id ? await conversations.getConversation(run.organization_id, run.conversation_id) : null;
+  const preference = await kasiaiPreferences.get(run.organization_id, run.installation_id, run.created_by);
+  const preferenceInstruction = preference?.use_saved_preferences
+    ? [
+      preference.language ? `Reply in ${preference.language} unless the user asks for another language.` : null,
+      preference.tone ? `Use a ${preference.tone} communication style.` : null,
+      preference.response_detail ? `Aim for ${preference.response_detail} response detail.` : null,
+    ].filter((value): value is string => Boolean(value)).join(" ")
+    : "";
   const durableMessages = run.conversation_id
     ? (await conversations.listMessages(run.organization_id, run.conversation_id)).filter((message) => message.run_id !== run.id)
     : [];
@@ -277,7 +338,7 @@ async function executeLoopForRun(
     ...knowledgeMatches.map((entry) => `[knowledge:${entry.source_id}:${entry.chunk_index}] ${entry.canonical_text}`),
   ].join("\n");
   const context = buildAgentContext({
-    instructions: run.instructions,
+    instructions: [run.instructions, preferenceInstruction].filter(Boolean).join("\n\n"),
     organizationId: run.organization_id,
     agentId: run.agent_definition_id,
     agentVersionId: run.agent_version_id,

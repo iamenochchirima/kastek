@@ -121,6 +121,125 @@ pub async fn list_conversations(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn kasiai_home(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .kasiai_home(&organization_id, &user.id, installation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn kasiai_preferences(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .kasiai_preferences(&organization_id, &user.id, installation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn update_kasiai_preferences(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "KasiAi preferences must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .update_kasiai_preferences(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn update_conversation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    conversation_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Conversation update must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .update_conversation(
+            &organization_id,
+            &user.id,
+            conversation_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn set_channel_default_conversation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    conversation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .set_channel_default_conversation(&organization_id, &user.id, conversation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn set_conversation_status(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let (conversation_id, status) = path.into_inner();
+    if status != "archived" && status != "deleted" {
+        return Err(AppError::BadRequest(
+            "Unsupported conversation status".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .set_conversation_status(&organization_id, &user.id, &conversation_id, &status)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn restore_conversation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    conversation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .restore_conversation(&organization_id, &user.id, conversation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn list_channels(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

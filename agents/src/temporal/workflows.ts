@@ -126,6 +126,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         },
       });
       status = "completed";
+      await activities.generateConversationTitle({ runId: input.runId });
       await activities.deliverRunReply({ runId: input.runId });
       return;
     }

@@ -91,6 +91,34 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::get().to(agent_platform::list_conversations),
                 )
                 .route(
+                    "/installations/{installationId}/kasiai/home",
+                    web::post().to(agent_platform::kasiai_home),
+                )
+                .route(
+                    "/installations/{installationId}/kasiai/preferences",
+                    web::get().to(agent_platform::kasiai_preferences),
+                )
+                .route(
+                    "/installations/{installationId}/kasiai/preferences",
+                    web::patch().to(agent_platform::update_kasiai_preferences),
+                )
+                .route(
+                    "/conversations/{conversationId}",
+                    web::patch().to(agent_platform::update_conversation),
+                )
+                .route(
+                    "/conversations/{conversationId}/channel-default",
+                    web::post().to(agent_platform::set_channel_default_conversation),
+                )
+                .route(
+                    "/conversations/{conversationId}/status/{status}",
+                    web::post().to(agent_platform::set_conversation_status),
+                )
+                .route(
+                    "/conversations/{conversationId}/restore",
+                    web::post().to(agent_platform::restore_conversation),
+                )
+                .route(
                     "/installations/{installationId}/channels",
                     web::get().to(agent_platform::list_channels),
                 )

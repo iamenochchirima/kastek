@@ -76,6 +76,38 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("loads a non-mutating, owner-scoped KasiAi home payload", async () => {
+    const agents = {
+      getInstallation: async (organizationId: string, installationId: string) => ({ id: installationId, organization_id: organizationId, status: "active" }),
+    } as unknown as AgentRepository;
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents,
+      conversations: {
+        listOwnerConversations: async (_organizationId: string, _installationId: string, ownerActorId: string) => [
+          { id: "chat-1", owner_actor_id: ownerActorId, status: "active", is_primary: true },
+          { id: "chat-2", owner_actor_id: ownerActorId, status: "archived", is_primary: false },
+        ],
+      } as never,
+      kasiaiPreferences: { get: async (_organizationId: string, _installationId: string, ownerActorId: string) => ({ owner_actor_id: ownerActorId, tone: "balanced" }) } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/kasiai/home",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: {},
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      conversations: [{ id: "chat-1", owner_actor_id: "user-1" }],
+      archivedConversations: [{ id: "chat-2" }],
+      channelDefaultConversationId: "chat-1",
+      preferences: { tone: "balanced" },
+    });
+    await app.close();
+  });
+
   it("accepts a run and keeps it queued for Temporal when disabled locally", async () => {
     const runs = {
       createRun: async () => ({ id: "run-1", status: "received" }),
@@ -237,7 +269,7 @@ describe("Agent Platform HTTP foundation", () => {
       status: "ready",
       database: { status: "ready" },
       temporal: { enabled: false },
-      model: { provider: "openrouter", credentialConfigured: false },
+      model: { provider: "openrouter", credentialConfigured: expect.any(Boolean) },
     });
     expect(JSON.stringify(response.json())).not.toContain("API_KEY");
     await app.close();

@@ -6,6 +6,7 @@ import { ConversationRepository } from "../src/db/repositories/conversation-repo
 import { PlatformChatRepository } from "../src/db/repositories/platform-chat-repository";
 import { RunRepository } from "../src/db/repositories/run-repository";
 import { ChannelRepository } from "../src/db/repositories/channel-repository";
+import { KasiAiPreferenceRepository } from "../src/db/repositories/kasiai-preference-repository";
 import { createActivities } from "../src/temporal/activities";
 import type { KasitekCoreReadClient } from "../src/core/client";
 
@@ -19,6 +20,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
   const platformChat = new PlatformChatRepository(pool);
   const runs = new RunRepository(pool);
   const channels = new ChannelRepository(pool);
+  const preferences = new KasiAiPreferenceRepository(pool);
   const organizationId = `platform-chat-${randomUUID()}`;
   let agentId = "";
   let versionId = "";
@@ -76,18 +78,52 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     ]);
     expect(messages.every((message) => message.source_channel === "platform")).toBe(true);
     expect((await runs.getRun(organizationId, first.run.id))?.status).toBe("completed");
+    const generatedTitle = await conversations.setGeneratedTitle({
+      organizationId,
+      conversationId: first.conversation.id,
+      title: "Create a campaign",
+    });
+    expect(generatedTitle).toMatchObject({ title: "Create a campaign", title_source: "ai", title_locked: false });
   });
 
-  it("rotates the primary thread without deleting history", async () => {
+  it("creates another active chat while moving the channel-default pointer", async () => {
     const previous = await platformChat.resolveConversation({ organizationId, installationId, actorId: "user-1" });
     const current = await platformChat.createNewConversation({ organizationId, installationId, actorId: "user-1" });
     expect(current.conversation.id).not.toBe(previous.conversation.id);
     expect(current.conversation.is_primary).toBe(true);
-    const archived = await conversations.getOwnedConversation(organizationId, previous.conversation.id, "user-1");
-    expect(archived).toMatchObject({ status: "archived", is_primary: false });
+    const previousActive = await conversations.getOwnedConversation(organizationId, previous.conversation.id, "user-1");
+    expect(previousActive).toMatchObject({ status: "active", is_primary: false });
     const history = await conversations.listOwnerConversations(organizationId, installationId, "user-1");
     expect(history[0]?.id).toBe(current.conversation.id);
-    expect(history.some((conversation) => conversation.id === previous.conversation.id)).toBe(true);
+    expect(history.some((conversation) => conversation.id === previous.conversation.id && conversation.status === "active")).toBe(true);
+    const renamed = await conversations.updateOwnedConversation({
+      organizationId,
+      conversationId: current.conversation.id,
+      ownerActorId: "user-1",
+      title: "Campaign planning",
+      pinned: true,
+      modelProvider: "openrouter",
+      model: "openai/gpt-4o-mini",
+    });
+    expect(renamed).toMatchObject({ title: "Campaign planning", title_source: "manual", title_locked: true, pinned: true, model: "openai/gpt-4o-mini" });
+    expect(await conversations.setGeneratedTitle({ organizationId, conversationId: current.conversation.id, title: "Ignored title" })).toBeNull();
+    const archived = await conversations.setOwnedStatus(organizationId, current.conversation.id, "user-1", "archived");
+    expect(archived.status).toBe("archived");
+    const restored = await conversations.restoreOwnedConversation(organizationId, current.conversation.id, "user-1");
+    expect(restored).toMatchObject({ status: "active", is_primary: false });
+  });
+
+  it("keeps KasiAi preferences scoped to the owner and installation", async () => {
+    const one = await preferences.upsert(organizationId, installationId, "user-1", {
+      tone: "concise",
+      response_detail: "detailed",
+      default_model_provider: "openrouter",
+      default_model: "openai/gpt-4o-mini",
+    });
+    expect(one).toMatchObject({ owner_actor_id: "user-1", tone: "concise", response_detail: "detailed" });
+    expect(await preferences.get(organizationId, installationId, "user-2")).toBeNull();
+    const updated = await preferences.upsert(organizationId, installationId, "user-1", { use_saved_preferences: false });
+    expect(updated).toMatchObject({ tone: "concise", use_saved_preferences: false });
   });
 
   it("routes a paired external identity into the owner's current thread", async () => {
@@ -235,6 +271,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
   });
 
   afterAll(async () => {
+    await pool.query("DELETE FROM kasiai_user_preferences WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM conversation_summaries WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM delivery_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM channel_pairing_tokens WHERE organization_id = $1", [organizationId]);

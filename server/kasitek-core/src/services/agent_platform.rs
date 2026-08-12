@@ -392,6 +392,128 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn kasiai_home(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/kasiai/home"),
+            organization_id,
+            actor_id,
+            &["kasiai:read"],
+            Some(json!({})),
+        )
+        .await
+    }
+
+    pub async fn kasiai_preferences(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/installations/{installation_id}/kasiai/preferences"),
+            organization_id,
+            actor_id,
+            &["kasiai:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn update_kasiai_preferences(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::PATCH,
+            &format!("/v1/installations/{installation_id}/kasiai/preferences"),
+            organization_id,
+            actor_id,
+            &["kasiai:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn update_conversation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        conversation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::PATCH,
+            &format!("/v1/conversations/{conversation_id}"),
+            organization_id,
+            actor_id,
+            &["chat:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn set_channel_default_conversation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        conversation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/conversations/{conversation_id}/channel-default"),
+            organization_id,
+            actor_id,
+            &["chat:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
+    pub async fn set_conversation_status(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        conversation_id: &str,
+        status: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/conversations/{conversation_id}/status/{status}"),
+            organization_id,
+            actor_id,
+            &["chat:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
+    pub async fn restore_conversation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        conversation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/conversations/{conversation_id}/restore"),
+            organization_id,
+            actor_id,
+            &["chat:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
     pub async fn send_platform_message(
         &self,
         organization_id: &str,
