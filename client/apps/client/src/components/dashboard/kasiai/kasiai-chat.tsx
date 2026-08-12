@@ -137,14 +137,10 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
         const installed = await ensureKasiAi();
         if (cancelled) return;
         setInstallation(installed);
-        const result = await refreshHome(installed.id);
+        await refreshHome(installed.id);
         if (cancelled) return;
-        const last = window.localStorage.getItem(LAST_CHAT_KEY);
-        const selected = result.conversations.find((item) => item.id === last)
-          ?? result.conversations.find((item) => item.id === result.channelDefaultConversationId)
-          ?? result.conversations[0];
-        if (selected) await loadConversation(selected.id);
-        else { setConversation(null); setMessages([]); }
+        setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setChannelFilter("all");
+        window.localStorage.removeItem(LAST_CHAT_KEY);
         setDraft(window.localStorage.getItem(DRAFT_KEY) ?? ""); setInitialised(true);
       } catch (cause) { if (!cancelled) setError(formatError(cause, "Unable to open KasiAi")); }
       finally { if (!cancelled) setLoading(false); }
@@ -152,7 +148,11 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     return () => { cancelled = true; };
   }, [initialised, loadConversation, open, refreshHome]);
 
-  useEffect(() => { if (!open) { setInitialised(false); streamAbort.current?.abort(); } }, [open]);
+  useEffect(() => {
+    if (open) return;
+    setInitialised(false); streamAbort.current?.abort();
+    setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setChannelFilter("all");
+  }, [open]);
   useEffect(() => {
     if (!pairing || !installation) return;
     const timer = window.setInterval(() => {
