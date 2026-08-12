@@ -44,6 +44,8 @@ config = { path = "../crates/config" }
 crypto-utils = { path = "../crates/crypto-utils" }
 observability = { path = "../crates/observability" }
 types = { path = "../crates/types" }
+actions = { path = "../crates/actions" }
+execution = { path = "../crates/execution" }
 
 [[bin]]
 name = "server"
