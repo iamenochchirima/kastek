@@ -28,6 +28,9 @@ pub struct AppConfig {
     /// HMAC secret shared only by kasitek-core and the Agent Platform API.
     pub agents_internal_auth_secret: Option<String>,
     pub agents_internal_auth_audience: String,
+    pub agents_delegation_public_key: Option<String>,
+    pub agents_delegation_issuer: String,
+    pub agents_delegation_audience: String,
     pub agents_api_timeout_ms: u32,
     pub web_push_vapid_public_key: Option<String>,
     pub web_push_vapid_private_key: Option<String>,
@@ -106,6 +109,12 @@ impl AppConfig {
             agents_internal_auth_audience: env_string_or(
                 "AGENTS_INTERNAL_AUTH_AUDIENCE",
                 "kasitek-agents",
+            ),
+            agents_delegation_public_key: env_optional("AGENTS_DELEGATION_PUBLIC_KEY"),
+            agents_delegation_issuer: env_string_or("AGENTS_DELEGATION_ISSUER", "kasitek-agents"),
+            agents_delegation_audience: env_string_or(
+                "AGENTS_DELEGATION_AUDIENCE",
+                "kasitek-core-internal",
             ),
             agents_api_timeout_ms: env_u32_or("AGENTS_API_TIMEOUT_MS", 15_000).clamp(500, 120_000),
             web_push_vapid_public_key: env_optional("WEB_PUSH_VAPID_PUBLIC_KEY"),

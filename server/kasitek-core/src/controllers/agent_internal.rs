@@ -13,12 +13,20 @@ use sqlx::{PgPool, Row};
 
 use crate::config::AppConfig;
 use crate::error::AppError;
+use crate::identity::internal_delegation;
 use crate::services::{customers, whatsapp};
 
 fn require_internal_agent(
     config: &AppConfig,
     req: &HttpRequest,
 ) -> Result<(String, String), AppError> {
+    if config.agents_delegation_public_key.is_some() {
+        let context = internal_delegation::resolve(config, req)?;
+        return Ok((context.organization_id, context.principal.id));
+    }
+    if config.environment.eq_ignore_ascii_case("production") {
+        return Err(AppError::Unauthorized);
+    }
     let expected = config
         .agents_internal_token
         .as_deref()

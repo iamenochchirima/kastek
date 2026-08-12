@@ -47,6 +47,7 @@ types = { path = "../crates/types" }
 actions = { path = "../crates/actions" }
 execution = { path = "../crates/execution" }
 semver.workspace = true
+jwt-simple = "0.11"
 
 [[bin]]
 name = "server"
