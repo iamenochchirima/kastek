@@ -1,14 +1,14 @@
 # KasiTek Agent Platform Implementation Plan
 
-**Status:** Active planning and implementation checklist  
+**Status:** Archived — superseded by the unified agent-system plan
 **Initial product scope:** Direct KasiTek platform  
 **Deployment target:** Railway first, portable to AWS, Google Cloud, Azure, or Kubernetes  
 **Last updated:** 2026-08-11
 
 ## Current implementation evidence
 
-The active direct-product integration and one-way legacy bot cutover are tracked in
-[`KASIAI_AGENTS_PRODUCT_CUTOVER_PLAN.md`](KASIAI_AGENTS_PRODUCT_CUTOVER_PLAN.md). That checklist
+The active direct-product integration and one-way legacy bot cutover are now tracked in
+[`KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md`](../../../KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md). The historical cutover checklist
 owns the detailed work for the platform/sidebar channel, the first protected KasiAi deployment,
 template-created agents, the new Agents UI, and complete removal of the old `/api/bots` and n8n
 bot-provisioning system. There is no planned runtime fallback or dual-write path.

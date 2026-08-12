@@ -1,6 +1,6 @@
 # KasiAi and Agents Product Cutover Plan
 
-**Status:** Ready for implementation  
+**Status:** Archived — superseded by the unified agent-system and admin-operations plans
 **Scope:** Direct KasiTek product (`kasitek-core`, `client/apps/client`, and `agents`)  
 **Cutover type:** One-way replacement of the legacy bot system  
 **Last updated:** 2026-08-11
@@ -27,8 +27,8 @@ This checklist covers the first complete product delivery on the shared Agent Pl
 - Custom workflow building remains outside this tranche. Template-created agents are ordinary
   versioned agents and do not introduce template-specific runtime branches.
 
-This plan is the product-integration tranche of
-[`KASITEK_AGENT_PLATFORM_IMPLEMENTATION_PLAN.md`](KASITEK_AGENT_PLATFORM_IMPLEMENTATION_PLAN.md).
+This plan is the historical product-integration tranche of
+[`KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md`](../../../KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md).
 The shared runtime, storage, Temporal worker, model gateway, memory, tools, and audit system remain
 authoritative.
 
