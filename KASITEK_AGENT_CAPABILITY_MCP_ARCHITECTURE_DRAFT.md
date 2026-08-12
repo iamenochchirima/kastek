@@ -15,26 +15,21 @@ database access. It should learn current workspace facts and take actions only t
 typed capability contracts available to every appropriately installed agent.
 
 The externally connectable product surfaces will be a hosted KasiTek MCP server and a strong,
-versioned REST API. MCP provides agent-native discovery and invocation. REST supports deterministic
-automations, n8n, scripts, SDKs, webhooks, and custom applications. Both are adapters over the same
-capability contracts and neither is the source of business authorization. The internal Capability
-Gateway remains the authority for scopes, plans, resource limits, approvals, idempotency, and audit.
+versioned public REST API. MCP provides agent-native discovery and invocation. REST is the general
+KasiTek platform API for applications, service accounts, OAuth clients, agents, n8n, scripts, SDKs,
+webhooks, and other integrations. The public REST API is not owned by the agent system.
+
+The public `/v1` API is a separately managed Rust module inside `kasitek-core` and directly adapts
+shared core application services. MCP is a separately deployed TypeScript gateway in the `agents`
+codebase and adapts the Agent Platform Capability Gateway. Both ultimately reach the same core
+business operations, authorization rules, idempotency records, and effect handling without sharing
+an HTTP implementation or duplicating business logic.
 
 ```text
-KasiAi / KasiTek-hosted agents ───────────────┐
-                                              │
-External agents and integrations              │
-        ↓                                     │
-Agent Installation Credential                 │
-        ↓                                     │
-MCP Server or REST API                        │
-        └─────────────────────────────────────┤
-                                              ↓
-                                    Capability Gateway
-                                              ↓
-                              scoped KasiTek capabilities
-                                              ↓
-                                         kasitek-core
+KasiAi / hosted agents ───────────┐
+External agents → MCP gateway ────┴→ Agent Platform Capability Gateway ─┐
+                                                                       ├→ core application/domain services
+Apps/services/agents → public `/v1` API in core ───────────────────────┘
 ```
 
 ## Current evidence and non-goals
@@ -57,8 +52,8 @@ Not yet implemented:
 - grounded KasiAi read/action tooling beyond time and workspace connection status;
 - Telegram and Discord provider adapters.
 
-This document does **not** authorize implementation. It is the decision record and execution
-checklist we will complete together before work starts.
+This document is the approved decision record. Implementation and completion evidence are tracked
+in [`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md).
 
 ## Shared principles
 
@@ -72,8 +67,9 @@ checklist we will complete together before work starts.
 - Read, draft, controlled-write, external-effect, and privileged capabilities have distinct policy.
 - Every consequential request is idempotent, auditable, and returns a durable effect receipt.
 - MCP is an adapter over the exact same capability contracts that KasiAi uses internally.
-- REST is an equally supported adapter over those contracts; MCP and REST must not diverge in
-  permissions, schemas, effects, or audit behavior.
+- Public REST is a general core-owned API, not an agent protocol adapter. Equivalent REST and MCP
+  operations must converge on the same core application service, business authorization,
+  idempotency/effect handling, and safe result semantics.
 - External channels are thin message adapters; they do not create separate agent runtimes.
 - Agents never receive direct core database access or raw provider credentials.
 
@@ -155,9 +151,12 @@ can be suspended, revoked, rotated, and audited without relying on a human sessi
   rotate or revoke each credential independently.
 - [x] Credentials initially inherit their installation's effective permissions. Later, a credential
   may be narrowed but can never exceed the installation's grants.
-- [x] Use the same installation identity and credential flow for MCP and REST.
-- [x] Audience-bind external tokens to the Agent Platform/API. Never accept an external installation
-  token directly at `kasitek-core`; core receives separately issued delegated internal authority.
+- [x] Allow one agent installation identity to use MCP and, when granted, public REST. Use distinct
+  token audiences and validate MCP credentials in Agent Platform while the core public API validates
+  REST principals and current authority.
+- [x] Audience-bind external tokens to their target. Never accept an MCP token at `kasitek-core`;
+  private core agent endpoints receive separately delegated authority. REST-audience tokens terminate
+  only at the core `public_api` module and are rejected by private internal routes.
 - [x] Keep credentials out of prompts, conversations, workflow history, logs, traces, audit payloads,
   and all UI/API responses after initial creation.
 - [x] Add registered public keys and signed client assertions before broad production availability,
@@ -277,7 +276,8 @@ approval rule · effect/undo semantics · audit classification · availability p
   results, and separate detail retrieval. Do not expose unbounded list tools.
 - [x] Use semantic capability versions. Additive optional changes remain compatible; breaking schema
   or behavior changes require a new major version. Installations may pin a supported major, and
-  discovery reports deprecation metadata. MCP and REST expose the same active version.
+  discovery reports deprecation metadata. Public REST has its own `/v1` lifecycle; overlapping
+  operation schemas are compatibility-tested.
 - [x] Discovery distinguishes not granted, granted but not configured, configured but unhealthy,
   and available capabilities, with a safe reason and setup link where applicable.
 
@@ -356,8 +356,9 @@ approval rule · effect/undo semantics · audit classification · availability p
 - [x] Use asymmetric signing such as ES256. `kasitek-core` receives public keys through trusted JWKS
   discovery/configuration and cannot mint delegations. Support rotation with overlapping current and
   previous public keys.
-- [x] Never pass external installation/MCP/REST tokens to core. The Agent Platform validates the
-  external token and policy, then mints a separately audience-bound internal delegation.
+- [x] Never pass MCP access tokens to private core capability endpoints. Agent Platform validates
+  MCP identity and policy, then mints a separately audience-bound internal delegation. Public REST
+  tokens terminate at the core `public_api` module and are never accepted by private routes.
 - [x] Expose typed internal domain endpoints in core, with shared delegation middleware and
   domain-owned controllers/services. Do not build one arbitrary JSON capability dispatcher in core.
 - [x] Core performs final authorization: organization/resource ownership, capability/resource match,
@@ -383,6 +384,10 @@ approval rule · effect/undo semantics · audit classification · availability p
 - [x] Keep direct and white-label product authority separate. `kasitek-core` implements direct-product
   capabilities; future `kasitek-tenants` handlers implement the same contracts without Agent Platform
   database coupling or collapsed identity models.
+- [x] Put reusable business use cases below HTTP transport modules in core. Existing product
+  controllers, public `/v1` controllers, and private agent-delegation handlers call shared
+  application/domain services rather than calling one another over HTTP or duplicating SQL/provider
+  logic.
 
 ### Exit criteria
 
@@ -391,10 +396,10 @@ approval rule · effect/undo semantics · audit classification · availability p
 - [ ] Agents cannot read or mutate core tables directly in every implemented capability.
 - [ ] Core independently rejects an action that is not authorized for the installation.
 
-## Layer 7 — Hosted MCP server and Agent REST API
+## Layer 7 — Hosted MCP server and public REST API
 
-**Goal:** Expose approved capabilities through both agent-native MCP and a stable REST API for
-Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
+**Goal:** Provide an agent-native MCP surface and a general, stable public KasiTek REST API while
+keeping their protocol ownership separate and their underlying business behavior consistent.
 
 ### Required MCP responsibilities
 
@@ -407,8 +412,10 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 
 ### Required REST responsibilities
 
-- versioned `/v1` agent-facing endpoints with OpenAPI documentation;
-- capability discovery plus direct typed business-capability invocation;
+- versioned `/v1` platform endpoints with OpenAPI documentation;
+- typed business-resource and action endpoints for applications, integrations, and agents;
+- authentication for workspace API keys, service accounts, OAuth user/application grants, and
+  agent installations where appropriate;
 - consistent cursor pagination, filtering, validation, errors, and structured receipts;
 - mandatory idempotency keys for mutations and durable status endpoints for asynchronous work;
 - webhook/event subscriptions with signing, replay protection, delivery attempts, and recovery;
@@ -416,36 +423,53 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 
 ### Confirmed decisions
 
-- [x] Publish the normal public REST API at `https://api.kasitek.co.za/v1/*` and publish the
-  separately deployed hosted MCP endpoint at `https://agents.kasitek.co.za/mcp`. Use Railway private
-  networking for core internal endpoints where available; internal contracts are not public API.
+- [x] Publish the normal public REST API at `https://api.kasitek.co.za/v1/*` from a separately
+  managed `public_api` module inside the existing `kasitek-core` deployment. Publish MCP from a
+  separately deployed TypeScript gateway at `https://agents.kasitek.co.za/mcp` using the existing
+  `agents` codebase. Use Railway private networking for internal calls where available.
+- [x] Keep `/v1` independently versioned, authenticated, documented, metered, rate-limited,
+  feature-flagged, monitored, and testable. Organize its routes, middleware, contracts, OpenAPI,
+  webhooks, and metrics so it can be extracted later without moving business logic.
+- [x] Do not extract the public API into another service initially. Reconsider only when public
+  traffic, uptime, release cadence, ownership, security, or regional deployment requires independent
+  scaling or isolation.
+- [x] Treat agent installation as one supported public API principal, not the definition of the
+  REST API. Public API authorization also supports the approved workspace, service-account, and
+  OAuth principal types.
 - [x] Use remote MCP Streamable HTTP as the initial hosted MCP transport, supporting initialization,
   discovery, calls, structured results, progress, cancellation, pagination, and capability-change
   notifications.
 - [x] Add a local stdio bridge/proxy later for MCP clients that only support local stdio. Consider
   legacy HTTP+SSE only when a meaningful compatible client requires it. Treat WebSocket or another
   persistent real-time transport as a future UX optimization, not a correctness dependency.
-- [x] All transports are adapters over the same capability contracts, installation identity,
-  Capability Gateway, approval model, and audit trail.
-- [x] Let external agents authenticate as installation principals through the Layer 2 token exchange.
-  Add interactive OAuth installation UX for third-party applications later. Accept tokens only in
-  the `Authorization` header and validate the MCP/REST audience.
+- [x] MCP transports are adapters over the same capability contracts, installation identity,
+  Capability Gateway, approval model, and agent audit trail. The MCP gateway owns no business data,
+  agent definitions, approvals, runs, or direct core/database access.
+- [x] Let MCP clients authenticate as installation principals through the Layer 2 token exchange.
+  Public REST authenticates through its core-owned principal framework, which may include agent
+  installation tokens with a REST-specific audience. Accept bearer tokens only in the
+  `Authorization` header.
 - [x] Filter MCP discovery to granted capabilities. Show granted-but-unavailable capabilities with
   safe availability reason/setup metadata; keep ungranted capabilities invisible.
-- [x] Publish normal typed business REST endpoints and a generic advanced capability invocation
-  endpoint. Both invoke the exact same manifest, policy evaluator, and handler.
-- [x] Publish OpenAPI 3.1 generated from or contract-tested against the capability registry,
+- [x] Publish normal typed business REST endpoints and, only where useful, a generic versioned
+  action-invocation endpoint. Public REST controllers call shared core application services; MCP
+  tools call the Agent Platform Capability Gateway and private delegated core handlers. Equivalent
+  operations converge below the transport layer.
+- [x] Publish core-owned OpenAPI 3.1 generated from or contract-tested against the public `/v1`
+  contracts. Validate overlapping MCP tool schemas against the same shared business/action schemas,
   including examples, authentication, errors, receipts, pagination, idempotency, and webhooks.
   Generate TypeScript and Python SDKs only once the contract is stable.
 - [x] Require REST `Idempotency-Key` headers and mutation-tool idempotency input. Return
   `APPROVAL_REQUIRED` for external effects; long operations return a run/status/approval reference
   that clients may poll or receive through webhooks.
-- [x] Provide selected installation webhook subscriptions. Sign deliveries with HMAC-SHA256 and a
-  copy-once webhook secret; include event ID/type/version, organization/installation, timestamp,
-  safe effect data, and delivery attempt. Enforce timestamp/replay protection, exponential retries,
-  delivery logs, manual redelivery, and disable/re-enable behavior after repeated failure.
-- [x] Use generous but finite and measured rate limits by installation, credential, capability,
-  organization, and expensive provider operation; return standard headers and `RATE_LIMITED` errors.
+- [x] Provide selected public API and installation webhook subscriptions with explicit event scope.
+  Sign deliveries with HMAC-SHA256 and a copy-once webhook secret; include event ID/type/version,
+  principal, organization/installation when applicable, timestamp, safe effect data, and delivery
+  attempt. Enforce timestamp/replay protection, exponential retries, delivery logs, manual
+  redelivery, and disable/re-enable behavior after repeated failure.
+- [x] Use generous but finite and measured rate limits by public principal or installation,
+  credential, operation/capability, organization, and expensive provider operation; return standard
+  headers and `RATE_LIMITED` errors.
 - [x] Publish agent-readable integration documentation at `https://agents.kasitek.co.za/docs/agent.md`
   and a machine-readable OpenAPI document at `https://api.kasitek.co.za/openapi.json`. Documentation
   is instructional, not executable authority.
@@ -454,17 +478,18 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 - [x] Version public REST with `/v1`, capability manifests semantically, and expose supported/deprecated
   version metadata. Provide at least six months' notice before removing a generally available REST
   major version; clearly mark beta capability compatibility separately.
-- [x] Require MCP/REST parity tests proving equivalent calls use the same manifest version, policy,
-  handler, idempotency, authorization, approval, receipt, and audit behavior.
+- [x] Require MCP/REST behavior-parity tests proving equivalent operations reach the same core
+  application use case and produce compatible authorization, approval, idempotency, receipt, effect,
+  and audit outcomes. Protocol-specific identity and envelope details may differ.
 
 ### Exit criteria
 
 - [x] Public REST/MCP endpoint, transport, authentication, discovery, documentation, webhook,
   compatibility, versioning, and parity design is approved for implementation.
-- [ ] Third-party MCP and REST clients authenticate as installations and discover/use only permitted
-  capabilities.
-- [ ] MCP and REST calls yield the same authorization, approval, audit, idempotency, and receipts as
-  KasiAi calls.
+- [ ] Third-party MCP clients authenticate as installations and discover/use only permitted
+  capabilities; REST clients authenticate as one of the explicitly supported public API principals.
+- [ ] Equivalent MCP, REST, and KasiAi operations yield compatible business authorization,
+  approval, idempotency, effect, receipt, and audit outcomes through shared core use cases.
 
 ## Layer 8 — Runtime execution and durability
 
@@ -476,9 +501,11 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
   local draft changes to complete synchronously. Route model work, approvals, schedules, external
   effects, uploads, provider polling, and multi-step work through durable Temporal runs. Return a
   run reference rather than holding a client connection beyond the synchronous budget.
-- [x] Use one durable `AgentRun` model for MCP, REST, KasiAi, hosted agents, external channels, and
+- [x] Use one durable `AgentRun` model for MCP, KasiAi, hosted agents, external channels, and
   schedules. Persist installation/principal, trigger, conversation/invocation linkage, idempotency,
-  status/attempts, steps/events, model/tool/provider usage, approval state, and receipts.
+  status/attempts, steps/events, model/tool/provider usage, approval state, and receipts. General
+  public REST requests use core API/action execution records and link an AgentRun only when an agent
+  workflow initiated them.
 - [x] Require stable idempotency keys. Derive Temporal workflow identity from organization,
   installation, and logical operation/idempotency key. Duplicate submissions attach to the existing
   run; changed payloads require a new key.
@@ -733,8 +760,10 @@ malicious instructions.
 - [x] Use token IDs/expiry, mutation idempotency, replay rejection for high-risk operations where
   needed, webhook nonce/timestamp validation, and later private-key proof-of-possession/client
   assertions.
-- [x] Enforce authorization at public MCP/REST edge, Capability Gateway policy/resource/approval
-  enforcement, and independent core final business authorization/idempotency/preconditions.
+- [x] Enforce authorization at the MCP edge and Agent Platform Capability Gateway before private
+  core invocation. Independently enforce public REST principal/scope/resource policy in the core
+  `public_api` module and final business authorization/idempotency/preconditions in shared core
+  application/domain services.
 - [x] Require organization scope on queries; user ownership for personal-agent work; installation plus
   customer/thread identity for business conversations; core resource verification; SQL namespace
   filtering before vector ranking; and cross-org/user/installation tests for every capability.

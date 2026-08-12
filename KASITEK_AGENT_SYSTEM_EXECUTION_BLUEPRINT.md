@@ -33,34 +33,79 @@ Hosted user agent      kasitek_hosted      general agent run by KasiTek
 External agent         external_connected  Codex, Claude, n8n, or customer runtime
 ```
 
-All three use the same installation identity, capability policy, run records, approvals, audit,
-and core business boundary. KasiAi does not receive a private shortcut into `kasitek-core`.
+All three use the same installation identity, capability policy, approvals, audit attribution, and
+core business boundary. Agent workflows use shared run records; a direct general REST request uses
+core API/action records and links to an AgentRun only when a workflow initiated it. KasiAi does not
+receive a private shortcut into `kasitek-core`.
 
 Hosted agents may call both KasiTek capabilities and separately granted external connectors.
 External agents call KasiTek through the public REST API or MCP server using installation
 credentials; they do not need a logged-in human session.
 
+The public REST API is broader than agents. Applications, workspace integrations, service
+accounts, OAuth clients, scripts, and n8n may use it through their appropriate principal type.
+
 ### Service boundary
 
 ```text
-Browser / channel / hosted agent / external MCP or REST client
-                              |
-                              v
-                    Agent Platform service
-        identity · policy · runtime · memory · audit · approvals
-                              |
-                              v
-                     Capability Gateway
-                              |
-                 short-lived signed delegation
-                              |
-                              v
-                        kasitek-core
-         final authorization · business state · provider effects
+Browser / channel / hosted agent       External MCP client
+                 |                              |
+                 v                              v
+             Agent Platform <────── TypeScript MCP gateway
+                 |
+       short-lived signed delegation
+                 |
+                 v
+      shared core application/domain services <── public `/v1` module
+                 |                                      ^
+                 v                                      |
+ business state · authorization · effects       apps/services/agents
 ```
 
 Temporal owns durable execution, retries, waiting, schedules, and recovery. PostgreSQL owns durable
 agent records. Redis may support realtime delivery and caching but is not a source of truth.
+
+### Deployment and code placement
+
+The initial deployment has four relevant processes. The public API is a module, not a fifth service:
+
+| Deployment | Language | Owns |
+| --- | --- | --- |
+| `kasitek-core` | Rust | Existing product endpoints, modular public `/v1`, shared application/domain services, final authorization, data, and provider effects. |
+| `agents-api` | TypeScript | Agent control plane, installations, conversations, runs, approvals, capability policy, and internal capability API. |
+| `agents-worker` | TypeScript | Temporal workflows, model/tool activities, schedules, and durable recovery. |
+| `agent-gateway` | TypeScript | Public MCP transport, authentication adaptation, discovery, protocol mapping, rate limits, and health only. |
+
+Required module boundaries:
+
+```text
+server/kasitek-core/src/
+├── public_api/             # independently managed /v1 subsystem
+│   ├── routes/             # versioned resource/action routes
+│   ├── auth/               # API keys, service accounts, OAuth, agent principals
+│   ├── contracts/          # public request/response DTOs
+│   ├── middleware/         # scope, rate, idempotency, request/audit context
+│   ├── openapi/            # core-owned OpenAPI 3.1
+│   ├── webhooks/           # public subscriptions and deliveries
+│   └── metrics/            # public API usage, latency, and errors
+├── application/            # reusable business use cases
+└── domain/                 # business rules/types where applicable
+
+agents/src/
+├── capabilities/           # agent manifests, policy, and invocation adapter
+└── gateway/                # separately deployed TypeScript MCP process
+    ├── server.ts
+    ├── mcp.ts
+    ├── authentication.ts
+    ├── capability-adapter.ts
+    └── health.ts
+```
+
+The exact Rust file split may follow existing conventions, but the ownership boundary is mandatory:
+existing `/api/*` controllers, public `/v1` controllers, and private agent-delegation handlers reuse
+application/domain services. They do not call one another as HTTP clients or duplicate database and
+provider logic. `agent-gateway` does not own a database or call `kasitek-core` directly; it calls the
+Agent Platform's internal capability boundary.
 
 ### The 14 agreed architecture layers
 
@@ -69,11 +114,11 @@ agent records. Redis may support realtime delivery and caching but is not a sour
 | 1. Product and installation | Versioned definitions installed into a workspace; each installation has a non-human principal and one of the three execution modes. |
 | 2. Identity and credentials | Multiple named copy-once secrets, hashed at rest, exchanged for one-hour audience-bound tokens; immediate suspend/revoke checks; public-key assertions before broad production. |
 | 3. Permissions and resources | Effective authority is the intersection of grants, credential restrictions, workspace/resource scope, availability, approval, and limits. Controlled testing uses an explicit broad-access profile with hard exclusions. |
-| 4. Capability catalog | One versioned JSON-Schema manifest registry generates internal tools, MCP, REST/OpenAPI, UI metadata, documentation, audit descriptions, and future SDK types. |
+| 4. Capability catalog | One versioned JSON-Schema manifest registry generates agent tools, MCP, UI metadata, agent documentation, and audit descriptions. Core owns public REST/OpenAPI contracts; overlapping schemas and outcomes are contract-tested. |
 | 5. Action safety | Reads and drafts may run directly; real external effects require exact, single-use approvals initially. Mutations require idempotency, receipts, reconciliation, and execution-time authorization. |
 | 6. Core boundary | Core owns product data, business authorization, transactional effects, and provider idempotency. Agent Platform uses short-lived asymmetric per-invocation delegation. |
-| 7. MCP and REST | MCP is hosted at `agents.kasitek.co.za/mcp`; public REST uses `api.kasitek.co.za/v1/*`. Both adapt the same capability handlers. |
-| 8. Runtime durability | One AgentRun model across all entry points; Temporal handles durable work, retries, approvals, schedules, cancellation, and recovery with bounded concurrency. |
+| 7. MCP and REST | A separate TypeScript gateway hosts MCP at `agents.kasitek.co.za/mcp`. A modular Rust subsystem inside core hosts the general public REST API at `api.kasitek.co.za/v1/*`. Equivalent operations converge on shared core application services. |
+| 8. Runtime durability | One AgentRun model across agent entry points; Temporal handles durable agent work, retries, approvals, schedules, cancellation, and recovery. General REST uses core API/action execution records and links runs when applicable. |
 | 9. Conversations and channels | Personal conversations are user-owned; business conversations are customer/thread-owned. Channel adapters are thin and never silently merge unrelated chats. |
 | 10. Context and memory | Reviewed product knowledge, bounded recent history plus summaries, scoped memory namespaces, provenance, consent, deletion, and strict trusted/untrusted boundaries. |
 | 11. Product experience | One Agents area for KasiAi, hosted agents, external connections, templates, activity, approvals, usage, credentials, channels, and settings. |
@@ -94,12 +139,16 @@ agent records. Redis may support realtime delivery and caching but is not a sour
   adapters remain part of the shared model gateway.
 - KasiTek internal administration is implemented in `client/apps/admin` through a protected core
   operator API; the browser never accesses Agent Platform storage or Temporal directly.
+- The public API remains in the `kasitek-core` deployment initially but is modularized for
+  independent versioning, authentication, documentation, metering, flags, monitoring, tests, and
+  possible later extraction.
+- The MCP gateway is a separately deployed TypeScript process built from the `agents` codebase.
 
 ## 3. Working rules
 
 - Work through the slices in order unless a task is explicitly independent.
-- Do not create a second implementation for MCP, REST, KasiAi, or a channel. Extend the shared
-  contracts and runtime.
+- Do not duplicate business logic across MCP, public REST, product controllers, or private agent
+  handlers. Extend the shared application/domain operations and their contracts.
 - Do not mark a checkbox complete based only on code presence. Run the required verification.
 - Every database change needs a migration, rollback/recovery consideration, and migration test.
 - Every public or internal API change needs typed contracts and authorization tests.
@@ -180,8 +229,9 @@ authenticated, scoped, audited, suspended, and revoked without a human browser s
 - [ ] Make one versioned `CapabilityManifest` registry authoritative for schemas, scopes, resources,
   risk, approval policy, idempotency, availability, errors, receipts, and redaction metadata.
 - [ ] Define common invocation, result, error, pagination, batch-result, and effect-receipt envelopes.
-- [ ] Generate or validate internal tool definitions, MCP tools, REST/OpenAPI operations, UI
-  permission metadata, audit descriptions, and documentation from the same manifests.
+- [ ] Generate internal tools, MCP tools, permission UI, audit descriptions, and agent documentation
+  from capability manifests. Keep public REST/OpenAPI contracts core-owned, while sharing or
+  contract-testing overlapping business/action schemas.
 - [ ] Implement central policy evaluation using installation grants, credential restrictions,
   resource scope, availability, approval, and limits with structured denial reasons.
 - [ ] Implement filtered capability discovery for the authenticated installation.
@@ -198,11 +248,13 @@ authenticated, scoped, audited, suspended, and revoked without a human browser s
 - [ ] Add policy matrix tests covering allowed, narrowed, denied, unavailable, approval-required,
   rate-limited, and cross-resource invocations.
 - [ ] Add delegation signature, issuer, audience, expiry, replay, rotation, and confused-deputy tests.
-- [ ] Contract-test each initial core handler against its manifest and error/receipt schema.
+- [ ] Contract-test each initial core application operation through its product, public REST, and
+  private delegated adapters where those surfaces exist.
 - [ ] Run TypeScript and Rust unit/integration suites, typecheck, formatting, and builds.
 
-**Complete when:** every entry point reaches product operations through the same manifest, policy,
-delegation, and typed core handler with no direct database or special-agent bypass.
+**Complete when:** every agent entry point reaches product operations through the same manifest,
+policy, delegation, and typed core handler, while product and public REST adapters reach the same
+application use cases with no direct database or special-agent bypass.
 
 ## Slice 3 — Durable runtime, model gateway, and run lifecycle
 
@@ -211,7 +263,8 @@ delegation, and typed core handler with no direct database or special-agent bypa
 ### Deliverables
 
 - [ ] Use one AgentRun, attempt, ordered-event, tool-call, model-call, approval, and effect model for
-  browser, channels, hosted agents, MCP, REST, schedules, and webhooks.
+  browser, channels, hosted agents, MCP, schedules, and agent webhooks. Link core API/action records
+  when an AgentRun invokes a public or private core operation.
 - [ ] Route model work, multi-step workflows, waits, approvals, schedules, provider effects,
   polling, and recovery through Temporal with stable idempotency-derived workflow IDs.
 - [ ] Enforce per-conversation, installation, provider, recipient, and effect concurrency rules.
@@ -304,20 +357,38 @@ point to the provider and back to a durable, auditable result with no duplicate 
 **Complete when:** KasiAi accurately describes and operates the implemented KasiTek product using
 real capabilities, preserves independent chats, and never invents platform features or results.
 
-## Slice 6 — External agents through MCP and REST
+## Slice 6 — Public REST API and external MCP gateway
 
-**Layers covered:** 2, 3, 4, and 7
+**Layers covered:** 2, 3, 4, 6, 7, 12, and 13
 
 ### Deliverables
 
+- [ ] Create a separately deployed TypeScript `agent-gateway` process inside the `agents` package;
+  give it independent configuration, health, logs, rate limits, tests, scaling, and kill switch.
+- [ ] Add `dev:gateway` and `start:gateway` package commands and a Railway service using the latter;
+  route `agents.kasitek.co.za/mcp` to this process without routing `/v1` through it.
 - [ ] Implement remote MCP Streamable HTTP initialization, negotiation, `tools/list`, `tools/call`,
-  structured results/errors, cancellation, and filtered discovery over the Capability Gateway.
-- [ ] Publish versioned public REST under `api.kasitek.co.za/v1/*` with typed domain endpoints and an
-  advanced generic invocation route backed by the same handlers.
-- [ ] Publish OpenAPI 3.1 and agent-readable integration documentation generated from or validated
-  against the capability registry.
-- [ ] Use the installation token exchange for both MCP and REST and publish compatible protected
-  resource/auth discovery metadata.
+  structured results/errors, cancellation, and filtered discovery over the Agent Platform
+  Capability Gateway. Keep the gateway stateless initially and give it no direct core/database
+  access or ownership of runs, approvals, definitions, or product data.
+- [ ] Create a separately managed Rust `public_api` module inside `kasitek-core` and mount it only at
+  `/v1`; keep existing `/api/*` product routes and private `/api/internal/*` routes distinct.
+- [ ] Serve `/v1` from the existing `kasitek-core` process and route `api.kasitek.co.za/v1/*` to it;
+  do not create a separate public API deployment during the initial implementation.
+- [ ] Give `/v1` dedicated routes, authentication, contracts, middleware, OpenAPI, webhooks,
+  metering, rate limits, flags, metrics, versioning, deprecation, and tests while reusing shared core
+  application/domain services.
+- [ ] Support the approved public API principals—workspace API keys, service accounts, OAuth
+  user/application grants, and agent installations—through explicit scopes and resource policy.
+- [ ] Publish typed public resource/action endpoints and only add a generic versioned action route
+  where it benefits non-agent API consumers. A direct REST call does not automatically create an
+  `AgentRun`; it always creates API/action audit and usage records and links an AgentRun when one
+  actually initiated the call.
+- [ ] Publish core-owned OpenAPI 3.1 for `/v1` and agent-readable MCP integration documentation;
+  validate overlapping MCP schemas and outcomes against the shared business/action contracts.
+- [ ] Use installation token exchange and protected-resource metadata for MCP. When an installation
+  uses REST, issue/validate a REST-audience token through the public API principal framework rather
+  than routing the request through MCP.
 - [ ] Implement signed outbound webhooks with subscription scope, delivery records, exponential
   retry, replay protection, disable/re-enable policy, and diagnostics.
 - [ ] Add an external-agent connection wizard with named credentials, copy-once setup, grants,
@@ -326,15 +397,20 @@ real capabilities, preserves independent chats, and never invents platform featu
 
 ### Verification
 
-- [ ] Add MCP protocol, authentication, discovery filtering, cancellation, error, and parity tests.
-- [ ] Add REST/OpenAPI conformance, auth, pagination, idempotency, webhook signature/retry, and parity
-  tests proving MCP and REST invoke the same manifest versions and handlers.
+- [ ] Add MCP protocol, authentication, discovery filtering, cancellation, error, instance-isolation,
+  stateless scaling, and Agent Platform adapter tests.
+- [ ] Add REST/OpenAPI conformance tests for every principal type, scope/resource authorization,
+  pagination, validation, idempotency, rate limits, metering, webhooks, versioning, and deprecation.
+- [ ] Add behavior-parity tests proving equivalent MCP and REST operations converge on the same core
+  application use case and compatible authorization, approval, idempotency, effect, receipt, and
+  audit outcomes without requiring identical protocol envelopes.
 - [ ] Verify real Codex, Claude Code, and one generic MCP client.
 - [ ] Verify n8n and one plain TypeScript or Python REST client.
 - [ ] Run typechecks, lint, builds, security checks, and externally hosted smoke tests.
 
-**Complete when:** an external runtime can connect unattended, discover only its grants, invoke real
-KasiTek capabilities through MCP or REST, receive durable results, and be revoked immediately.
+**Complete when:** general integrations can use the independently managed core `/v1` API, external
+agents can use the separately deployed MCP gateway, agent installations can also authenticate to
+REST where permitted, and equivalent operations share business behavior without duplicated logic.
 
 ## Slice 7 — KasiTek-hosted user agents and external connectors
 
