@@ -57,6 +57,10 @@ export type AgentRun = {
   error?: { message?: string; [key: string]: unknown } | null;
 };
 
+export function getAgentRun(runId: string): Promise<{ run: AgentRun; events: AgentStreamEvent[] }> {
+  return request(`/api/agents/runs/${encodeURIComponent(runId)}`);
+}
+
 export type AgentChannelConnection = {
   id: string;
   installation_id: string;

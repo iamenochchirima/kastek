@@ -11,7 +11,7 @@ import remarkGfm from "remark-gfm";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelAgentRun, disconnectKasiAiChannel, ensureKasiAi, getKasiAiHome,
-  getPlatformConversation, issueKasiAiWhatsappPairing, listKasiAiChannels,
+  getAgentRun, getPlatformConversation, issueKasiAiWhatsappPairing, listKasiAiChannels,
   listWhatsappConnectionOptions, restoreKasiAiConversation, sendPlatformMessage,
   setKasiAiChannelDefault, setKasiAiConversationStatus, streamAgentRun,
   updateKasiAiConversation, updateKasiAiPreferences, AgentRequestError,
@@ -92,6 +92,31 @@ function setConversationUrl(conversationId?: string) {
   if (conversationId) url.searchParams.set(CHAT_URL_KEY, conversationId);
   else url.searchParams.delete(CHAT_URL_KEY);
   window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+const terminalRunStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
+
+function pauseForRunPoll(signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
+    const abort = () => { window.clearTimeout(timer); reject(new DOMException("Aborted", "AbortError")); };
+    const timer = window.setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, 800);
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
+async function waitForRunTerminal(runId: string, signal: AbortSignal): Promise<Awaited<ReturnType<typeof getAgentRun>>["run"] | null> {
+  for (let attempt = 0; attempt < 75; attempt += 1) {
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    try {
+      const { run } = await getAgentRun(runId);
+      if (terminalRunStatuses.has(run.status)) return run;
+    } catch {
+      // The run remains durable server-side; keep polling instead of treating a transport blip as a failed chat.
+    }
+    await pauseForRunPoll(signal);
+  }
+  return null;
 }
 
 export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boolean; onOpenChange: (open: boolean) => void; leftOffset?: number }) {
@@ -253,16 +278,27 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       setActiveRunId(accepted.runId);
       const controller = new AbortController(); streamAbort.current = controller; let cursor = 0; let terminal = false;
       for (let attempt = 0; attempt < 3 && !terminal; attempt += 1) {
-        const streamed = await streamAgentRun(accepted.runId, (event) => {
-          const sequence = Number(event.data.sequence_number); if (Number.isSafeInteger(sequence)) cursor = Math.max(cursor, sequence);
-          if (["run.failed", "agent.stream_error"].includes(event.event)) setError(String((event.data.payload as { message?: string } | undefined)?.message ?? "KasiAi could not complete this request"));
-        }, controller.signal, cursor);
-        cursor = streamed.lastSequence; terminal = streamed.terminal;
+        try {
+          const streamed = await streamAgentRun(accepted.runId, (event) => {
+            const sequence = Number(event.data.sequence_number); if (Number.isSafeInteger(sequence)) cursor = Math.max(cursor, sequence);
+          }, controller.signal, cursor);
+          cursor = streamed.lastSequence; terminal = streamed.terminal;
+        } catch (streamError) {
+          if (streamError instanceof DOMException && streamError.name === "AbortError") throw streamError;
+          break;
+        }
       }
-      if (!terminal) throw new Error("The run did not complete. Please try again.");
-      const [result] = await Promise.all([getPlatformConversation(accepted.conversation.id), refreshHome(installation.id)]);
-      if (selection !== conversationSelection.current) return;
-      setConversation(result.conversation); setMessages((current) => mergeMessages(current, result.messages)); setHasMore(Boolean(result.hasMore)); setNextBefore(result.nextBefore ?? null);
+      let terminalRun: Awaited<ReturnType<typeof getAgentRun>>["run"] | null = null;
+      try { terminalRun = terminal ? (await getAgentRun(accepted.runId)).run : await waitForRunTerminal(accepted.runId, controller.signal); }
+      catch (cause) { if (cause instanceof DOMException && cause.name === "AbortError") throw cause; }
+      if (terminalRun && terminalRun.status !== "completed") throw new Error(terminalRun.error?.message || "KasiAi could not complete this request");
+      try {
+        const [result] = await Promise.all([getPlatformConversation(accepted.conversation.id), refreshHome(installation.id)]);
+        if (selection !== conversationSelection.current) return;
+        setConversation(result.conversation); setMessages((current) => mergeMessages(current, result.messages)); setHasMore(Boolean(result.hasMore)); setNextBefore(result.nextBefore ?? null);
+      } catch {
+        // Conversation polling will reconcile a completed response once the connection is available again.
+      }
     } catch (cause) {
       if (selection === conversationSelection.current) {
         setMessages((current) => current.filter((message) => message.id !== optimistic.id));
