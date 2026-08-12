@@ -71,7 +71,10 @@ pub fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestContext, 
     if claims.custom.organization_id.trim().is_empty()
         || claims.custom.installation_id.trim().is_empty()
         || claims.custom.capability.trim().is_empty()
+        || claims.custom.capability_version.trim().is_empty()
+        || claims.custom.run_id.trim().is_empty()
         || claims.custom.invocation_id.trim().is_empty()
+        || claims.custom.correlation_id.trim().is_empty()
     {
         return Err(AppError::Unauthorized);
     }
