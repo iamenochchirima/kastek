@@ -119,3 +119,15 @@ pub fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestContext, 
         idempotency_key: claims.custom.idempotency_key,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::accept_jti;
+
+    #[test]
+    fn delegation_jti_is_single_use_within_the_replay_window() {
+        let jti = "test-jti-replay";
+        assert!(accept_jti(&jti));
+        assert!(!accept_jti(&jti));
+    }
+}
