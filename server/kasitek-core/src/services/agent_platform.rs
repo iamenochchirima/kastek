@@ -375,6 +375,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_conversations(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/installations/{installation_id}/conversations"),
+            organization_id,
+            actor_id,
+            &["chat:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn send_platform_message(
         &self,
         organization_id: &str,

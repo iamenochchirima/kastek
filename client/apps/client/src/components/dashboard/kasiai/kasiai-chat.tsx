@@ -13,12 +13,13 @@ import {
 } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelAgentRun,
   createPlatformConversation,
   ensureKasiAi,
   getPlatformConversation,
+  listAgentConversations,
   resolvePlatformConversation,
   sendPlatformMessage,
   streamAgentRun,
@@ -64,6 +65,21 @@ function sortMessages(messages: AgentMessage[]): AgentMessage[] {
   return [...messages].sort((left, right) => Number(left.sequence_number) - Number(right.sequence_number));
 }
 
+const channelLabels: Record<string, string> = {
+  platform: "Sidebar",
+  whatsapp: "WhatsApp",
+  telegram: "Telegram",
+  discord: "Discord",
+};
+
+function messageChannel(message: AgentMessage): string {
+  return (message.source_channel || message.provider || "platform").toLowerCase();
+}
+
+function channelLabel(channel: string): string {
+  return channelLabels[channel] ?? channel.charAt(0).toUpperCase() + channel.slice(1);
+}
+
 const KASIAI_PANEL_WIDTH_KEY = "kasitek:kasiai-panel-width";
 const KASIAI_DEFAULT_WIDTH = 430;
 const KASIAI_MIN_WIDTH = 340;
@@ -101,7 +117,9 @@ function formatAgentError(cause: unknown, fallback: string): string {
 export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boolean; onOpenChange: (open: boolean) => void; leftOffset?: number }) {
   const [installation, setInstallation] = useState<AgentInstallation | null>(null);
   const [conversation, setConversation] = useState<AgentConversation | null>(null);
+  const [conversationHistory, setConversationHistory] = useState<AgentConversation[]>([]);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
+  const [channelFilter, setChannelFilter] = useState("all");
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -162,6 +180,11 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     setNextBefore(response.nextBefore ?? null);
   }, []);
 
+  const refreshConversationHistory = useCallback(async (installationId: string) => {
+    const response = await listAgentConversations(installationId);
+    setConversationHistory(response.conversations);
+  }, []);
+
   const loadOlder = async () => {
     if (!conversation || !hasMoreMessages || !nextBefore || loadingOlder) return;
     const viewport = messagesViewport.current;
@@ -200,6 +223,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
         setMessages(sortMessages(resolved.messages));
         setHasMoreMessages(Boolean(resolved.hasMore));
         setNextBefore(resolved.nextBefore ?? null);
+        await refreshConversationHistory(installed.id);
       } catch (cause) {
         if (!cancelled) setError(formatAgentError(cause, "KasiAi is unavailable"));
       } finally {
@@ -209,7 +233,24 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     return () => {
       cancelled = true;
     };
-  }, [initializationKey, open]);
+  }, [initializationKey, open, refreshConversationHistory]);
+
+  useEffect(() => {
+    if (!open || !conversation?.is_primary || document.visibilityState === "hidden") return;
+    const interval = window.setInterval(() => {
+      void getPlatformConversation(conversation.id, { limit: 100 })
+        .then((response) => {
+          setConversation(response.conversation);
+          setMessages((current) => sortMessages([
+            ...current,
+            ...response.messages.filter((incoming) => !current.some((message) => message.id === incoming.id)),
+          ]));
+          setHasMoreMessages((current) => current || Boolean(response.hasMore));
+        })
+        .catch(() => undefined);
+    }, 4_000);
+    return () => window.clearInterval(interval);
+  }, [conversation?.id, conversation?.is_primary, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -318,6 +359,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
 
   const startNewConversation = async () => {
     if (!installation || sending) return;
+    if (messages.length && !window.confirm("Reset this KasiAi conversation? The current thread will be archived and remain available in history. Saved preferences and long-term memory will not be erased.")) return;
     setLoading(true);
     setError(null);
     try {
@@ -326,12 +368,24 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       setMessages(sortMessages(response.messages));
       setHasMoreMessages(Boolean(response.hasMore));
       setNextBefore(response.nextBefore ?? null);
+      setChannelFilter("all");
+      await refreshConversationHistory(installation.id);
     } catch (cause) {
       setError(formatAgentError(cause, "Unable to start a new conversation"));
     } finally {
       setLoading(false);
     }
   };
+
+  const availableChannels = useMemo(() => Array.from(new Set(messages.map(messageChannel))).sort(), [messages]);
+  const visibleMessages = useMemo(
+    () => channelFilter === "all" ? messages : messages.filter((message) => messageChannel(message) === channelFilter),
+    [channelFilter, messages],
+  );
+
+  useEffect(() => {
+    if (channelFilter !== "all" && !availableChannels.includes(channelFilter)) setChannelFilter("all");
+  }, [availableChannels, channelFilter]);
 
   const retryInitialization = () => {
     initializationAttempted.current = false;
@@ -405,6 +459,39 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
         </div>
       </header>
 
+      {installation && conversationHistory.length ? (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
+          <label className="sr-only" htmlFor="kasiai-conversation-history">KasiAi conversation</label>
+          <select
+            id="kasiai-conversation-history"
+            value={conversation?.id ?? ""}
+            onChange={(event) => void loadConversation(event.target.value)}
+            className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring"
+          >
+            {conversationHistory.map((item, index) => (
+              <option key={item.id} value={item.id}>
+                {item.is_primary ? "Current conversation" : `Previous conversation ${conversationHistory.length - index}`} · {new Date(item.updated_at).toLocaleDateString()}
+              </option>
+            ))}
+          </select>
+          <div className="flex max-w-full gap-1 overflow-x-auto" aria-label="Filter messages by channel">
+            {["all", ...availableChannels].map((channel) => (
+              <Button
+                key={channel}
+                type="button"
+                variant={channelFilter === channel ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 px-2 text-[11px]"
+                onClick={() => setChannelFilter(channel)}
+                aria-pressed={channelFilter === channel}
+              >
+                {channel === "all" ? "All" : channelLabel(channel)}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div ref={messagesViewport} className="flex-1 overflow-y-auto px-4 py-4" aria-busy={loading || sending}>
         {hasMoreMessages ? <div className="mb-3 flex justify-center"><Button type="button" variant="outline" size="sm" onClick={() => void loadOlder()} disabled={loadingOlder}>{loadingOlder ? "Loading earlier…" : "Load earlier messages"}</Button></div> : null}
         {loading ? (
@@ -427,15 +514,21 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
           </div>
         ) : null}
         <div className="space-y-3">
-          {messages.map((message) => (
+          {visibleMessages.map((message) => (
             <div key={message.id} className={cn("flex", message.direction === "outbound" ? "justify-start" : "justify-end")}>
-              <div className={cn(
-                "max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-6",
-                message.direction === "outbound"
-                  ? "rounded-bl-sm border border-border bg-card text-foreground"
-                  : "rounded-br-sm bg-primary text-primary-foreground",
-              )}>
-                {message.direction === "outbound" ? <SafeMarkdown>{messageText(message)}</SafeMarkdown> : messageText(message)}
+              <div className="max-w-[88%]">
+                <div className={cn("mb-1 flex items-center gap-1.5 text-[10px] text-muted-foreground", message.direction === "outbound" ? "justify-start" : "justify-end")}>
+                  <span>{channelLabel(messageChannel(message))}</span>
+                  {message.direction === "outbound" && message.delivery_status && message.delivery_status !== "local" ? <span>· {message.delivery_status}</span> : null}
+                </div>
+                <div className={cn(
+                  "rounded-2xl px-3.5 py-2.5 text-sm leading-6",
+                  message.direction === "outbound"
+                    ? "rounded-bl-sm border border-border bg-card text-foreground"
+                    : "rounded-br-sm bg-primary text-primary-foreground",
+                )}>
+                  {message.direction === "outbound" ? <SafeMarkdown>{messageText(message)}</SafeMarkdown> : messageText(message)}
+                </div>
               </div>
             </div>
           ))}
@@ -472,7 +565,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
             }}
             placeholder="Ask KasiAi…"
             rows={2}
-            disabled={loading || !installation || installation.status !== "active" || Boolean(error && !conversation)}
+            disabled={loading || !installation || installation.status !== "active" || conversation?.status !== "active" || !conversation?.is_primary || Boolean(error && !conversation)}
             className="max-h-32 min-h-12 w-full resize-none bg-transparent px-1 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground"
             aria-label="Message KasiAi"
           />
@@ -484,7 +577,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
                 Stop
               </Button>
             ) : (
-              <Button type="button" size="sm" onClick={() => void send()} disabled={!draft.trim() || loading || !installation || installation.status !== "active"}>
+              <Button type="button" size="sm" onClick={() => void send()} disabled={!draft.trim() || loading || !installation || installation.status !== "active" || conversation?.status !== "active" || !conversation?.is_primary}>
                 <Send className="h-3.5 w-3.5" />
                 Send
               </Button>

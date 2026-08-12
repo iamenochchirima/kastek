@@ -108,6 +108,19 @@ pub struct ConversationQuery {
     pub before: Option<String>,
 }
 
+pub async fn list_conversations(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_conversations(&organization_id, &user.id, &installation_id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn list_audit(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

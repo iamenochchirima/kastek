@@ -83,6 +83,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::post().to(agent_platform::create_conversation),
                 )
                 .route(
+                    "/installations/{installationId}/conversations",
+                    web::get().to(agent_platform::list_conversations),
+                )
+                .route(
                     "/installations/{installationId}/platform/messages",
                     web::post().to(agent_platform::send_message),
                 )

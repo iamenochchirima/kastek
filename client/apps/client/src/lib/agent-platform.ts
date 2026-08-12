@@ -18,6 +18,14 @@ export type AgentMessage = {
   sequence_number: string | number;
   created_at: string;
   run_id?: string | null;
+  provider?: string | null;
+  provider_message_id?: string | null;
+  source_channel?: string;
+  source_connection_id?: string | null;
+  source_binding_id?: string | null;
+  external_conversation_id?: string | null;
+  occurred_at?: string;
+  delivery_status?: "local" | "queued" | "sending" | "sent" | "delivered" | "read" | "failed" | "unknown" | null;
 };
 
 export type AgentConversation = {
@@ -27,6 +35,10 @@ export type AgentConversation = {
   channel_type: string;
   channel_key: string;
   status: string;
+  title?: string | null;
+  owner_actor_id?: string | null;
+  is_primary?: boolean;
+  archived_at?: string | null;
   updated_at: string;
 };
 
@@ -185,6 +197,10 @@ export function createPlatformConversation(installationId: string): Promise<Conv
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+export function listAgentConversations(installationId: string): Promise<{ conversations: AgentConversation[] }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/conversations`);
 }
 
 export function sendPlatformMessage(
