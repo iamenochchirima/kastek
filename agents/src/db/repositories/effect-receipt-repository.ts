@@ -96,4 +96,9 @@ export class EffectReceiptRepository {
     const result = await query<{ count: string }>(this.pool, `SELECT COUNT(*)::text AS count FROM agent_effect_receipts WHERE organization_id = $1 AND reconciliation_required = true`, [organizationId]);
     return Number(result.rows[0]?.count ?? 0);
   }
+
+  public async listForRun(organizationId: string, runId: string): Promise<EffectReceipt[]> {
+    const result = await query<EffectReceipt>(this.pool, `SELECT * FROM agent_effect_receipts WHERE organization_id = $1 AND run_id = $2 ORDER BY created_at ASC`, [organizationId, runId]);
+    return result.rows;
+  }
 }

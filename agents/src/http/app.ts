@@ -1012,12 +1012,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
-    const [events, steps, toolCalls] = await Promise.all([
+    const [events, steps, toolCalls, effects] = await Promise.all([
       runs.listEvents(auth.organizationId, run.id),
       runSteps.listSteps(auth.organizationId, run.id),
       toolInvocations.list(auth.organizationId, run.id),
+      effectReceipts.listForRun(auth.organizationId, run.id),
     ]);
-    return { run, events, steps, toolCalls };
+    return { run, events, steps, toolCalls, effects };
   });
 
   app.get("/v1/operations/summary", async (request) => {
