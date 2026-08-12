@@ -58,6 +58,13 @@ platform data/access contract.
 - [x] Audience-bind external tokens to the Agent Platform and use separate delegated internal
   authority for `kasitek-core`.
 - [x] Add registered public-key client assertions before broad production availability.
+- [x] Treat all controlled-test workspaces as highest-entitlement workspaces while recording complete
+  usage and cost data from the first implementation.
+- [x] Use an explicit `development_full_access` profile for implemented product capabilities, with
+  hard exclusions for credentials, billing, organization privilege, workspace deletion, and all
+  policy/audit bypass operations.
+- [x] Keep external connector grants separately selected even when product capabilities are broadly
+  enabled for testing.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -129,6 +136,12 @@ MCP code; no duplicate capability definitions.
 - [ ] Add installation grants and resource constraints independent of agent-version grants.
 - [ ] Add budgets, rate/concurrency values, and feature flags at installation level, initially with
   broad testing defaults.
+- [ ] Persist usage counters/events for runs, models/tokens/cost, tools, external effects,
+  connectors, channels/delivery, schedules, storage, failures, latency, and concurrency.
+- [ ] Add the `development_full_access` profile with environment/operator gating and immutable hard
+  exclusions.
+- [ ] Add resource constraints and separate external-connection grants; default product resource
+  constraints to the current workspace during controlled testing.
 - [ ] Add authenticated APIs to create, list, view, update, suspend, resume, revoke, and archive
   installations.
 - [ ] Add an Agent detail payload that combines definition, policy, credentials metadata, health,

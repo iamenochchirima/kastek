@@ -185,18 +185,42 @@ effective capability = installation grant
                      ∩ action approval policy
 ```
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] Scope naming convention: `content.read`, `content.draft.create`, `content.publish`, etc.
-- [ ] Resource constraints: whole workspace, selected connection, content account, campaign,
-  booking service, inbox/channel, contact segment, or object IDs.
-- [ ] Scope escalation and re-consent flow when an agent needs more access.
-- [ ] Budget, rate, concurrency, schedule, and provider-cost limits per installation.
-- [ ] Admin-only and permanently unavailable capabilities.
+- [x] Use business-domain scope names such as `content.read`, `content.draft.create`,
+  `content.publish`, `campaigns.launch`, `inbox.reply`, and `bookings.create`; avoid broad generic
+  scopes such as `write` or `admin`.
+- [x] Create an explicit, visibly labelled `development_full_access` test grant profile containing
+  all implemented product capabilities. It is unavailable in production unless deliberately enabled
+  by an operator.
+- [x] Exclude raw credential/token reads, billing mutation, organization ownership/role changes,
+  workspace deletion, credential privilege escalation, approval bypass, and audit bypass from all
+  broad test profiles.
+- [x] Model resource constraints from the start for selected connections, social accounts,
+  WhatsApp/inbox accounts, booking services/calendars, contact segments, campaigns/brands, and
+  object identifiers. During controlled testing, product capabilities default to all resources in
+  the installation's own workspace.
+- [x] Keep external connector grants separate from KasiTek capability grants. Users explicitly
+  select which external connections an agent may use, including during broad testing.
+- [x] Use generous testing quotas while retaining bounded concurrency, tool calls, run wall time,
+  external-effect approvals, and installation/workspace kill switches.
+- [x] Collect complete usage data from the first implementation: runs, model/provider/token usage,
+  estimated cost, tool calls, external effects, connector usage, channel delivery, storage,
+  schedules, concurrency, failures, and latency.
+- [x] During the current testing phase, product access behaves as though every workspace has the
+  highest paid entitlement. Billing enforcement and commercial plan limits are deferred; metering
+  is not deferred.
+- [x] Capability escalation is an explicit, audited request approved by a workspace owner/admin.
+  Agents cannot self-grant, and an already-started run cannot silently acquire new authority.
+- [x] Effective authorization is the intersection of installation grants, credential restrictions,
+  workspace boundary, resource/connection constraints, product availability, action approval, and
+  operational limits. Subscription entitlement will join this intersection when enforced.
 
 ### Exit criteria
 
-- [ ] Scope taxonomy and role/plan interaction matrix are approved.
+- [x] Testing scope taxonomy, broad-access policy, resource/connector constraints, escalation, and
+  metering requirements are approved for implementation.
+- [ ] Production role/plan interaction matrix is approved before billing enforcement.
 - [ ] An authorization decision can be explained and audited for every denied/allowed request.
 
 ## Layer 4 — Capability catalog and tool contract
@@ -448,7 +472,7 @@ an undecided earlier layer.
 
 - [ ] 1. Product contract and installation lifecycle
 - [x] 2. Installation credential and token lifecycle
-- [ ] 3. Scope taxonomy, subscriptions, and resource constraints
+- [x] 3. Scope taxonomy, subscriptions, and resource constraints
 - [ ] 4. First capability catalog and core ownership
 - [ ] 5. Action safety and approvals
 - [ ] 6. Core delegated authorization boundary
