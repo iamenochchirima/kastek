@@ -202,13 +202,18 @@ export class RunRepository {
            FROM messages WHERE conversation_id = $1`,
           [run.conversation_id],
         );
+        const inboundRoute = await client.query<{ external_conversation_id: string | null }>(
+          `SELECT external_conversation_id FROM messages
+           WHERE run_id = $1 AND direction = 'inbound' LIMIT 1`,
+          [run.id],
+        );
         const outbound = await client.query<{ id: string }>(
           `INSERT INTO messages
             (conversation_id, organization_id, participant_id, direction, message_type, content,
              provider, provider_message_id, sequence_number, run_id, source_channel,
-             source_binding_id, occurred_at, delivery_status)
+             source_binding_id, external_conversation_id, occurred_at, delivery_status)
            VALUES ($1, $2, $3, 'outbound', 'text', $4::jsonb, COALESCE($8, 'platform'), $5, $6, $7,
-                   COALESCE($8, 'platform'), $9, now(),
+                   COALESCE($8, 'platform'), $9, $10, now(),
                    CASE WHEN COALESCE($8, 'platform') = 'platform' THEN 'local' ELSE 'queued' END)
            ON CONFLICT (run_id, direction)
            WHERE run_id IS NOT NULL AND direction IN ('inbound', 'outbound')
@@ -224,6 +229,7 @@ export class RunRepository {
             run.id,
             run.reply_channel_type ?? "platform",
             run.reply_binding_id ?? null,
+            inboundRoute.rows[0]?.external_conversation_id ?? null,
           ],
         );
         if (outbound.rows[0] && run.reply_channel_type && run.reply_channel_type !== "platform") {

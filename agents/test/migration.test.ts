@@ -68,5 +68,11 @@ describe("foundation migration", () => {
     expect(unifiedConversationsSql).toContain("conversations_current_owner_idx");
     expect(unifiedConversationsSql).toContain("source_channel");
     expect(unifiedConversationsSql).toContain("reply_binding_id");
+    const primaryHistorySql = await readFile(new URL("../migrations/021_normalize_primary_conversation_history.sql", import.meta.url), "utf8");
+    expect(primaryHistorySql).toContain("is_primary = FALSE");
+    const verifiedPairingSql = await readFile(new URL("../migrations/022_provider_verified_channel_pairing.sql", import.meta.url), "utf8");
+    expect(verifiedPairingSql).toContain("external_identity DROP NOT NULL");
+    const providerIdentitySql = await readFile(new URL("../migrations/023_scope_provider_message_identity.sql", import.meta.url), "utf8");
+    expect(providerIdentitySql).toContain("organization_id, provider, provider_message_id");
   });
 });

@@ -122,10 +122,38 @@ export class ConversationRepository {
     return result.rows;
   }
 
-  public async setStatus(organizationId: string, conversationId: string, status: "active" | "archived" | "deleted"): Promise<ConversationRecord> {
-    const result = await query<ConversationRecord>(this.pool, `UPDATE conversations SET status = $3, updated_at = now() WHERE organization_id = $1 AND id = $2 RETURNING *`, [organizationId, conversationId, status]);
-    if (!result.rows[0]) throw new Error("Conversation not found");
-    return result.rows[0];
+  public async setOwnedStatus(
+    organizationId: string,
+    conversationId: string,
+    ownerActorId: string,
+    status: "archived" | "deleted",
+  ): Promise<ConversationRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<ConversationRecord>(
+        `UPDATE conversations
+         SET status = $4, is_primary = false,
+             archived_at = CASE WHEN $4 = 'archived' THEN COALESCE(archived_at, now()) ELSE archived_at END,
+             updated_at = now()
+         WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3
+           AND status <> 'deleted'
+         RETURNING *`,
+        [organizationId, conversationId, ownerActorId, status],
+      );
+      if (!result.rows[0]) throw new Error("Conversation not found");
+      if (status === "deleted") {
+        await client.query(
+          `UPDATE memory_records
+           SET status = 'deleted', deleted_at = COALESCE(deleted_at, now()), updated_at = now()
+           WHERE organization_id = $1 AND conversation_id = $2 AND status <> 'deleted'`,
+          [organizationId, conversationId],
+        );
+        await client.query(
+          "DELETE FROM conversation_summaries WHERE organization_id = $1 AND conversation_id = $2",
+          [organizationId, conversationId],
+        );
+      }
+      return result.rows[0];
+    });
   }
 
   public async appendMessage(input: {
@@ -158,8 +186,9 @@ export class ConversationRepository {
       }
       if (input.provider && input.providerMessageId) {
         const existing = await client.query<MessageRecord>(
-          "SELECT * FROM messages WHERE provider = $1 AND provider_message_id = $2",
-          [input.provider, input.providerMessageId],
+          `SELECT * FROM messages
+           WHERE organization_id = $1 AND provider = $2 AND provider_message_id = $3`,
+          [input.organizationId, input.provider, input.providerMessageId],
         );
         if (existing.rows[0]) return existing.rows[0];
       }

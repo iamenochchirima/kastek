@@ -21,6 +21,13 @@ export interface CoreWorkspaceStatus {
   connections: Array<{ provider: string; status: string; count: number }>;
 }
 
+export interface CoreChannelDeliveryResult {
+  providerMessageId?: string;
+  status: "sent" | "unknown";
+}
+
+type CoreRequestContext = Pick<ToolInvocationContext, "organizationId" | "actorId" | "runId" | "correlationId">;
+
 export class CoreToolError extends Error {
   public constructor(public readonly code: string, message: string) {
     super(message);
@@ -38,7 +45,7 @@ export class KasitekCoreReadClient {
   public constructor(private readonly config: AppConfig) {}
 
   public async getCustomer(
-    context: ToolInvocationContext,
+    context: CoreRequestContext,
     customerId: string,
   ): Promise<CoreCustomerDetail> {
     const baseUrl = this.config.KASITEK_CORE_URL?.replace(/\/$/, "");
@@ -88,7 +95,45 @@ export class KasitekCoreReadClient {
     return this.getJson<CoreWorkspaceStatus>(context, "/api/internal/agents/v1/workspace/status", "Workspace status");
   }
 
+  public async deliverChannelMessage(input: {
+    organizationId: string;
+    actorId: string;
+    runId: string;
+    correlationId: string;
+    channelType: string;
+    externalConversationId: string;
+    text: string;
+  }): Promise<CoreChannelDeliveryResult> {
+    return this.requestJson<CoreChannelDeliveryResult>(
+      {
+        organizationId: input.organizationId,
+        actorId: input.actorId,
+        runId: input.runId,
+        correlationId: input.correlationId,
+      },
+      "/api/internal/agents/v1/channels/deliver",
+      "Channel delivery",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          channelType: input.channelType,
+          externalConversationId: input.externalConversationId,
+          text: input.text,
+        }),
+      },
+    );
+  }
+
   private async getJson<T>(context: ToolInvocationContext, path: string, label: string): Promise<T> {
+    return this.requestJson<T>(context, path, label, { method: "GET" });
+  }
+
+  private async requestJson<T>(
+    context: CoreRequestContext,
+    path: string,
+    label: string,
+    init: RequestInit,
+  ): Promise<T> {
     const baseUrl = this.config.KASITEK_CORE_URL?.replace(/\/$/, "");
     const token = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
     if (!baseUrl || !token) throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core read boundary is not configured");
@@ -96,7 +141,7 @@ export class KasitekCoreReadClient {
     const timeout = setTimeout(() => controller.abort(), this.config.KASITEK_CORE_TIMEOUT_MS);
     try {
       const response = await fetch(`${baseUrl}${path}`, {
-        method: "GET",
+        ...init,
         headers: {
           authorization: `Bearer ${token}`,
           "x-organization-id": context.organizationId,
@@ -104,6 +149,8 @@ export class KasitekCoreReadClient {
           "x-agent-run-id": context.runId,
           "x-correlation-id": context.correlationId,
           accept: "application/json",
+          ...(init.body ? { "content-type": "application/json" } : {}),
+          ...(init.headers ?? {}),
         },
         signal: controller.signal,
       });

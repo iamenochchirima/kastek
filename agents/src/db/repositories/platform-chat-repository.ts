@@ -192,7 +192,7 @@ export class PlatformChatRepository {
 
   public async acceptExternalMessage(input: {
     organizationId: string;
-    installationId: string;
+    installationId?: string;
     channelType: string;
     provider: string;
     providerEventId: string;
@@ -210,15 +210,17 @@ export class PlatformChatRepository {
         id: string;
         owner_actor_id: string | null;
         channel_connection_id: string;
+        installation_id: string;
       }>(
-        `SELECT cb.id, cb.owner_actor_id, cb.channel_connection_id
+        `SELECT cb.id, cb.owner_actor_id, cb.channel_connection_id, cb.installation_id
          FROM channel_bindings cb
          JOIN channel_connections cc ON cc.id = cb.channel_connection_id
-         WHERE cb.organization_id = $1 AND cb.installation_id = $2
+         WHERE cb.organization_id = $1
+           AND ($2::uuid IS NULL OR cb.installation_id = $2)
            AND cb.channel_type = $3 AND cb.external_identity = $4
            AND cb.status = 'active' AND cc.status = 'active'
          LIMIT 1`,
-        [input.organizationId, input.installationId, input.channelType, input.externalIdentity],
+        [input.organizationId, input.installationId ?? null, input.channelType, input.externalIdentity],
       );
       const route = binding.rows[0];
       if (!route?.owner_actor_id) {
@@ -230,7 +232,7 @@ export class PlatformChatRepository {
 
       const resolved = await this.resolveConversationInTransaction(client, {
         organizationId: input.organizationId,
-        installationId: input.installationId,
+        installationId: route.installation_id,
         actorId: route.owner_actor_id,
       });
       const sourceParticipant = await this.upsertParticipant(client, {
@@ -242,8 +244,10 @@ export class PlatformChatRepository {
       });
 
       const duplicate = await client.query<MessageRecord>(
-        `SELECT * FROM messages WHERE provider = $1 AND provider_message_id = $2 LIMIT 1`,
-        [input.provider, input.providerMessageId],
+        `SELECT * FROM messages
+         WHERE organization_id = $1 AND provider = $2 AND provider_message_id = $3
+         LIMIT 1`,
+        [input.organizationId, input.provider, input.providerMessageId],
       );
       if (duplicate.rows[0]) {
         const existingRun = await client.query<RunRecord>("SELECT * FROM agent_runs WHERE id = $1", [duplicate.rows[0].run_id]);
@@ -265,7 +269,7 @@ export class PlatformChatRepository {
         });
       }
 
-      const installation = await this.getActiveInstallation(client, input.organizationId, input.installationId);
+      const installation = await this.getActiveInstallation(client, input.organizationId, route.installation_id);
       const idempotencyKey = `channel:${input.provider}:${input.providerEventId}`;
       const runResult = await client.query<RunRecord>(
         `INSERT INTO agent_runs
@@ -282,11 +286,11 @@ export class PlatformChatRepository {
           input.organizationId,
           installation.agent_definition_id,
           installation.agent_version_id,
-          input.installationId,
+          route.installation_id,
           resolved.conversation.id,
           JSON.stringify({ message: input.content.text ?? input.content, context: { sourceChannel: input.channelType } }),
           input.correlationId ?? null,
-          `channel:${input.channelType}:${input.externalIdentity}`,
+          route.owner_actor_id,
           idempotencyKey,
           input.channelType,
           route.id,
@@ -338,7 +342,7 @@ export class PlatformChatRepository {
         [
           input.organizationId,
           run.id,
-          input.installationId,
+          route.installation_id,
           JSON.stringify({ triggerType: "message", sourceChannel: input.channelType }),
           route.owner_actor_id,
           run.correlation_id,

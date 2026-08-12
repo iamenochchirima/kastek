@@ -21,6 +21,7 @@ import { SummaryRepository } from "../db/repositories/summary-repository";
 import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
 import { resolveModelTarget } from "../model/policy";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
+import { ChannelRepository } from "../db/repositories/channel-repository";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -115,6 +116,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const toolGrants = new ToolGrantRepository(pool);
   const summaries = new SummaryRepository(pool);
   const killSwitches = new KillSwitchRepository(pool);
+  const channels = new ChannelRepository(pool);
   const gateway = options.gateway ?? new ModelGateway(undefined, { pricing: pricingFromConfig(options.config) });
   const credentials = options.credentials ?? (options.config
     ? new VaultCredentialResolver(new CredentialVaultRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY))
@@ -152,6 +154,54 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             payload: { message: error instanceof Error ? error.message : "Conversation summary failed" },
           });
         }
+      }
+    },
+    async deliverRunReply(input) {
+      const pending = await channels.getRunReplyDelivery(input.runId);
+      if (!pending) return;
+      let claimed = false;
+      try {
+        await channels.claimDelivery(pending.organization_id, pending.attempt_id);
+        claimed = true;
+        if (!coreClient) throw new Error("kasitek-core channel delivery boundary is not configured");
+        const text = typeof pending.content.text === "string" ? pending.content.text.trim() : "";
+        if (!text) throw new Error("External channel reply has no text content");
+        const result = await coreClient.deliverChannelMessage({
+          organizationId: pending.organization_id,
+          actorId: pending.actor_id,
+          runId: pending.run_id,
+          correlationId: pending.correlation_id,
+          channelType: pending.channel_type,
+          externalConversationId: pending.external_conversation_id,
+          text,
+        });
+        await channels.markDelivered({
+          organizationId: pending.organization_id,
+          attemptId: pending.attempt_id,
+          providerMessageId: result.providerMessageId,
+        });
+        await runs.appendEvent({
+          organizationId: pending.organization_id,
+          runId: pending.run_id,
+          installationId: pending.installation_id,
+          eventType: "agent.reply.delivered",
+          payload: { channelType: pending.channel_type, status: result.status },
+        });
+      } catch (error) {
+        if (claimed) {
+          await channels.markDeliveryFailed({
+            organizationId: pending.organization_id,
+            attemptId: pending.attempt_id,
+            error: { code: "CHANNEL_DELIVERY_FAILED", message: error instanceof Error ? error.message : "Channel delivery failed" },
+          });
+        }
+        await runs.appendEvent({
+          organizationId: pending.organization_id,
+          runId: pending.run_id,
+          installationId: pending.installation_id,
+          eventType: "agent.reply.delivery_failed",
+          payload: { channelType: pending.channel_type, message: error instanceof Error ? error.message : "Channel delivery failed" },
+        });
       }
     },
     async failRun(input) {

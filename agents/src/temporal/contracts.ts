@@ -35,6 +35,7 @@ export interface AgentRunActivities {
   executeLoop(input: DurableRunInput): Promise<AgentLoopResult>;
   pauseRun(input: { runId: string; status: "awaiting_approval" | "awaiting_human" | "awaiting_external_event"; output: Record<string, unknown> }): Promise<void>;
   completeRun(input: { runId: string; output: Record<string, unknown> }): Promise<void>;
+  deliverRunReply(input: { runId: string }): Promise<void>;
   failRun(input: { runId: string; error: Record<string, unknown> }): Promise<void>;
   recordApprovalDecision(input: {
     runId: string;

@@ -6,6 +6,8 @@ import { ConversationRepository } from "../src/db/repositories/conversation-repo
 import { PlatformChatRepository } from "../src/db/repositories/platform-chat-repository";
 import { RunRepository } from "../src/db/repositories/run-repository";
 import { ChannelRepository } from "../src/db/repositories/channel-repository";
+import { createActivities } from "../src/temporal/activities";
+import type { KasitekCoreReadClient } from "../src/core/client";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -97,7 +99,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       channelKey: "kasiai-personal",
       actorId: "user-1",
     });
-    await channels.bind({
+    const binding = await channels.bind({
       organizationId,
       installationId,
       connectionId: connection.id,
@@ -118,6 +120,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     });
     expect(accepted.conversation.id).toBe(current.conversation.id);
     expect(accepted.message).toMatchObject({ source_channel: "whatsapp", external_conversation_id: "wa-thread-1" });
+    expect(accepted.run.created_by).toBe("user-1");
     const duplicate = await platformChat.acceptExternalMessage({
       organizationId,
       installationId,
@@ -148,6 +151,39 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     const attempts = await pool.query("SELECT * FROM delivery_attempts WHERE message_id = $1", [reply!.id]);
     expect(attempts.rows).toHaveLength(1);
     expect(attempts.rows[0]).toMatchObject({ channel_type: "whatsapp", status: "queued" });
+    const deliveries: Array<{ channelType: string; externalConversationId: string; text: string }> = [];
+    const activities = createActivities(pool, {
+      coreClient: {
+        deliverChannelMessage: async (input: { channelType: string; externalConversationId: string; text: string }) => {
+          deliveries.push(input);
+          return { providerMessageId: "wamid-reply-1", status: "sent" as const };
+        },
+      } as unknown as KasitekCoreReadClient,
+    });
+    await activities.deliverRunReply({ runId: accepted.run.id });
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]).toMatchObject({
+      channelType: "whatsapp",
+      externalConversationId: "wa-thread-1",
+      text: "Here is your workspace update.",
+    });
+    const deliveredReply = (await conversations.listMessages(organizationId, current.conversation.id))
+      .find((message) => message.id === reply!.id);
+    expect(deliveredReply).toMatchObject({ delivery_status: "sent", provider_message_id: "wamid-reply-1" });
+    await channels.revokeBinding(organizationId, binding.id);
+    await expect(platformChat.acceptExternalMessage({
+      organizationId,
+      channelType: "whatsapp",
+      provider: "meta-whatsapp",
+      providerEventId: "event-after-disconnect",
+      providerMessageId: "wamid-after-disconnect",
+      externalIdentity: "+27820000001",
+      externalConversationId: "wa-thread-1",
+      messageType: "text",
+      content: { text: "This must not enter the conversation." },
+    })).rejects.toMatchObject({ statusCode: 403, code: "channel_identity_not_paired" });
+    expect((await conversations.listMessages(organizationId, current.conversation.id))
+      .some((message) => message.provider_message_id === "wamid-after-disconnect")).toBe(false);
   });
 
   it("keeps each platform user in a separate conversation", async () => {
@@ -163,6 +199,41 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     })).rejects.toThrow("Active installation not found");
   });
 
+  it("owner-scopes lifecycle changes and removes conversation-derived state on deletion", async () => {
+    const current = await platformChat.resolveConversation({ organizationId, installationId, actorId: "lifecycle-owner" });
+    await pool.query(
+      `INSERT INTO conversation_summaries
+        (conversation_id, organization_id, summary, last_message_sequence)
+       VALUES ($1, $2, 'derived summary', 0)`,
+      [current.conversation.id, organizationId],
+    );
+    await pool.query(
+      `INSERT INTO memory_records
+        (organization_id, installation_id, conversation_id, owner_user_id, namespace, memory_type,
+         canonical_text, source_type, created_by)
+       VALUES ($1, $2, $3, $4, 'conversation', 'working', 'temporary context', 'inferred', $4)`,
+      [organizationId, installationId, current.conversation.id, "lifecycle-owner"],
+    );
+    await expect(conversations.setOwnedStatus(
+      organizationId,
+      current.conversation.id,
+      "another-user",
+      "deleted",
+    )).rejects.toThrow("Conversation not found");
+    const deleted = await conversations.setOwnedStatus(
+      organizationId,
+      current.conversation.id,
+      "lifecycle-owner",
+      "deleted",
+    );
+    expect(deleted).toMatchObject({ status: "deleted", is_primary: false });
+    const summary = await pool.query("SELECT 1 FROM conversation_summaries WHERE conversation_id = $1", [current.conversation.id]);
+    expect(summary.rows).toHaveLength(0);
+    const memory = await pool.query("SELECT status, deleted_at FROM memory_records WHERE conversation_id = $1", [current.conversation.id]);
+    expect(memory.rows[0].status).toBe("deleted");
+    expect(memory.rows[0].deleted_at).toBeTruthy();
+  });
+
   afterAll(async () => {
     await pool.query("DELETE FROM conversation_summaries WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM delivery_attempts WHERE organization_id = $1", [organizationId]);
@@ -173,6 +244,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     await pool.query("DELETE FROM run_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM memory_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM conversations WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM channel_bindings WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM channel_connections WHERE organization_id = $1", [organizationId]);

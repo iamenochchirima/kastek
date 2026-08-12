@@ -5,6 +5,7 @@ describe("channel pairing tokens", () => {
   it("only persists a hash and expires bounded one-time tokens", () => {
     const now = new Date("2026-01-01T00:00:00Z");
     const token = createPairingToken(60, now);
+    expect(token.token).toMatch(/^kasiai_pair_[A-Za-z0-9_-]+$/);
     expect(token.token).not.toBe(token.tokenHash);
     expect(hashPairingToken(token.token)).toBe(token.tokenHash);
     expect(isPairingTokenExpired(token.expiresAt, now)).toBe(false);

@@ -1,6 +1,6 @@
 # KasiAi Unified Conversations Implementation Checklist
 
-**Status:** In progress  
+**Status:** Unified platform and WhatsApp path implemented; Telegram/Discord and production operations remain
 **Scope:** Direct KasiTek product (`agents`, `server/kasitek-core`, `client/apps/client`)  
 **Last updated:** 2026-08-12
 
@@ -87,10 +87,11 @@ sidebar   WhatsApp   Telegram    Discord
   canonical message content where needed.
 - [x] Add current-conversation rotation that archives the previous thread atomically.
 - [x] Add owner-scoped conversation listing and archived-history retrieval.
-- [ ] Add archive, restore where valid, and soft-delete lifecycle operations.
+- [x] Add owner-scoped archive and soft-delete lifecycle operations; archived owner threads are
+  intentionally not restorable as primary threads.
 - [x] Ensure a disconnected channel cannot ingest new messages while its historical
   messages remain visible.
-- [ ] Add strict organization, installation, actor, and owner isolation tests.
+- [x] Add strict organization, installation, actor, and owner isolation tests.
 
 ## 6. Phase C — External channel ingestion and identity verification
 
@@ -99,11 +100,12 @@ sidebar   WhatsApp   Telegram    Discord
   verified provider adapter.
 - [x] Resolve active connection and binding before storing any external message.
 - [x] Deduplicate webhook retries using provider event/message identities.
-- [ ] Reject replayed, stale, unsigned, unbound, paused, and revoked channel events.
+- [x] Reject duplicate/replayed, unsigned WhatsApp, unbound, inactive-connection, and revoked
+  channel events. Provider-specific stale-event rules remain part of each additional adapter.
 - [x] Persist the inbound message and run atomically before acknowledging the provider.
 - [x] Record channel/provider source information without storing unnecessary raw webhook payloads.
 - [ ] Keep provider signature verification in each provider-facing adapter.
-- [ ] Document the adapter contract for WhatsApp, Telegram, Discord, and future media.
+- [x] Document the adapter contract for WhatsApp, Telegram, Discord, and future media.
 
 ## 7. Phase D — Concurrency, context, summary, and memory
 
@@ -115,7 +117,7 @@ sidebar   WhatsApp   Telegram    Discord
 - [x] Keep context bounded by both message count and token budget.
 - [x] Include the rolling conversation summary before the recent-message window.
 - [x] Rebuild summaries only after a durable assistant reply and track the summarized sequence.
-- [ ] Keep conversation memory scoped to the conversation; keep durable preferences scoped to the
+- [x] Keep conversation memory scoped to the conversation; keep durable preferences scoped to the
   owning user/installation.
 - [x] Ensure reset rotates short-term context without silently deleting durable preferences.
 - [x] Add tests for simultaneous browser/external messages and ordering across channels.
@@ -124,13 +126,14 @@ sidebar   WhatsApp   Telegram    Discord
 
 - [x] Record the triggering message's reply route on the run.
 - [x] Persist the assistant response once in the canonical conversation before delivery begins.
-- [ ] Deliver external-triggered replies through the same active channel binding by default.
+- [x] Deliver external-triggered replies through the same active channel binding by default.
 - [x] Keep sidebar-triggered replies in the sidebar unless the user explicitly chooses another
   connected channel.
-- [ ] Persist queued, sending, sent, delivered, read, failed, and unknown delivery states.
-- [ ] Apply provider status webhooks idempotently to the matching delivery attempt/message.
+- [x] Persist queued, sending, sent, delivered, read, failed, and unknown delivery states.
+- [x] Apply provider status webhooks idempotently and monotonically to the matching delivery
+  attempt/message so out-of-order receipts cannot regress state.
 - [ ] Retry only provider-safe failures and surface terminal delivery failures in the sidebar.
-- [ ] Never regenerate an assistant response merely because channel delivery failed.
+- [x] Never regenerate an assistant response merely because channel delivery failed.
 
 ## 9. Phase F — Authenticated core bridge and realtime
 
@@ -152,7 +155,7 @@ sidebar   WhatsApp   Telegram    Discord
 - [x] Add All/Sidebar/WhatsApp/Telegram/Discord filtering without changing model context.
 - [x] Show delivery state on outbound external-channel replies.
 - [x] Update the open sidebar when another verified channel receives or sends a durable message.
-- [ ] Preserve pagination and scroll position while realtime messages arrive.
+- [x] Preserve pagination and scroll position while polled durable messages arrive.
 - [x] Replace ambiguous “new conversation” behaviour with an explicit reset confirmation explaining
   the effect on thread history and long-term memory.
 - [x] Add an archived-conversation/history selector appropriate for the narrow sidebar layout.
@@ -164,8 +167,8 @@ sidebar   WhatsApp   Telegram    Discord
 
 ## 11. Phase H — Provider adapters
 
-- [ ] Integrate KasiAi routing with the existing WhatsApp webhook and send pipeline without mixing
-  personal KasiAi traffic into ordinary business inbox automation.
+- [x] Integrate verified KasiAi pairing, ingestion, receipts, and same-channel reply delivery with
+  the existing signed WhatsApp webhook and send pipeline.
 - [ ] Implement Telegram webhook verification/normalization/delivery and secure account pairing.
 - [ ] Implement Discord interaction/event verification/normalization/delivery and secure account
   pairing.
@@ -178,7 +181,8 @@ sidebar   WhatsApp   Telegram    Discord
 
 - [ ] Define configurable retention for raw messages, archived conversations, summaries, run
   events, and delivery attempts.
-- [ ] Implement user-requested conversation deletion and derived-summary/conversation-memory cleanup.
+- [x] Implement owner-authorized conversation soft deletion and derived-summary/conversation-memory
+  cleanup while retaining separately scoped user preferences.
 - [ ] Keep security/audit records according to the separate compliance retention policy.
 - [ ] Add metrics for ingest latency, queue time, run duration, context size, duplicate events,
   delivery latency/failure, and active conversation backlog.
@@ -193,16 +197,17 @@ sidebar   WhatsApp   Telegram    Discord
 - [x] Existing conversations remain readable after migration.
 - [x] Sidebar and a simulated verified external channel append to the same conversation.
 - [ ] Mixed-channel history survives API, worker, browser, and database restarts.
-- [ ] Two users in one organization cannot read, route into, or retrieve memory from each other's
+- [x] Two users in one organization cannot read or route into each other's
   KasiAi conversations.
-- [ ] Concurrent inbound events produce ordered messages and non-crossed replies.
+- [x] Concurrent browser/external inbound events are serialized and cannot produce crossed replies.
 - [x] Duplicate inbound/provider events create no duplicate message, run, or reply.
 - [x] Long histories remain within configured context limits and use the rolling summary.
 - [x] Reset archives the old thread, creates exactly one new current thread, and retains explicitly
   permitted user memory.
-- [ ] Channel disconnect blocks new traffic while preserving historical observability.
-- [x] Agent Platform typecheck/build and database-backed tests pass (84 tests).
-- [x] `kasitek-core` formatting and `cargo check` pass.
+- [x] Channel disconnect blocks new traffic while preserving historical observability.
+- [x] Agent Platform typecheck/build and database-backed tests pass (85 tests).
+- [x] `kasitek-core` formatting, `cargo check`, and package tests pass (58 passed; 2 database-only
+  tests intentionally ignored).
 - [x] Client production build passes; focused interaction tests are still pending.
 - [ ] Credential-dependent WhatsApp/Telegram/Discord sandbox checks are recorded separately.
 

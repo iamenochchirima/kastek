@@ -28,12 +28,12 @@ describe.skipIf(!runIntegration)("channel routing contracts (integration)", () =
     const installation = await agents.createInstallation(organizationId, "test-user", { agentVersionId: version.id, scopeType: "organization", scopeId: organizationId, settings: {} });
     installationId = installation.id;
     const connection = await channels.createConnection({ organizationId, installationId, channelType: "platform", channelKey: "sidebar", actorId: "test-user" });
-    const pairing = await channels.issuePairingToken({ organizationId, installationId, connectionId: connection.id, externalIdentity: "user:test", actorId: "test-user" });
+    const pairing = await channels.issuePairingToken({ organizationId, installationId, connectionId: connection.id, actorId: "test-user" });
     expect(pairing.token).toBeTruthy();
-    const binding = await channels.consumePairingToken({ organizationId, token: pairing.token! });
+    const binding = await channels.consumePairingToken({ organizationId, token: pairing.token!, externalIdentity: "user:test" });
     expect(binding.channel_type).toBe("platform");
     expect(binding.owner_actor_id).toBe("test-user");
-    await expect(channels.consumePairingToken({ organizationId, token: pairing.token! })).rejects.toThrow("invalid");
+    await expect(channels.consumePairingToken({ organizationId, token: pairing.token!, externalIdentity: "user:test" })).rejects.toThrow("invalid");
     const conversation = await conversations.createConversation({ organizationId, installationId, channelType: "platform", channelKey: "sidebar", externalConversationId: "conversation:test" });
     conversationId = conversation.id;
     const participant = await conversations.createParticipant({ organizationId, conversationId, participantType: "user", externalId: "user:test", displayName: "Test" });
@@ -44,6 +44,22 @@ describe.skipIf(!runIntegration)("channel routing contracts (integration)", () =
     expect(claimed.status).toBe("sending");
     const delivered = await channels.markDelivered({ organizationId, attemptId: attempt.id, providerMessageId: "provider-message:1" });
     expect(delivered.status).toBe("sent");
+    expect((await conversations.listMessages(organizationId, conversationId))[0]).toMatchObject({
+      delivery_status: "sent",
+      provider_message_id: "provider-message:1",
+    });
+    const receipt = await channels.updateProviderDeliveryStatus({
+      organizationId,
+      providerMessageId: "provider-message:1",
+      status: "read",
+    });
+    expect(receipt.delivery_status).toBe("read");
+    const staleReceipt = await channels.updateProviderDeliveryStatus({
+      organizationId,
+      providerMessageId: "provider-message:1",
+      status: "sent",
+    });
+    expect(staleReceipt.delivery_status).toBe("read");
   });
 
   beforeAll(async () => { await pool.query("SELECT 1"); });

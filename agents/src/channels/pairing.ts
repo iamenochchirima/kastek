@@ -7,7 +7,7 @@ export interface PairingToken {
 }
 
 export function createPairingToken(ttlSeconds = 600, now = new Date()): PairingToken {
-  const token = randomBytes(24).toString("base64url");
+  const token = `kasiai_pair_${randomBytes(24).toString("base64url")}`;
   const expiresAt = new Date(now.getTime() + Math.max(60, Math.min(ttlSeconds, 86_400)) * 1000);
   return { token, tokenHash: hashPairingToken(token), expiresAt };
 }

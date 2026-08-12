@@ -294,6 +294,58 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
+  app.post(
+    "/v1/channels/inbound",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "channels:ingest");
+      const input = z.object({
+        channelType: z.string().trim().min(1).max(80),
+        provider: z.string().trim().min(1).max(80),
+        providerEventId: z.string().trim().min(1).max(240),
+        providerMessageId: z.string().trim().min(1).max(240),
+        externalIdentity: z.string().trim().min(1).max(240),
+        externalConversationId: z.string().trim().min(1).max(240),
+        messageType: z.string().trim().min(1).max(80).default("text"),
+        content: z.record(z.string(), z.unknown()),
+        occurredAt: z.string().datetime().optional(),
+        displayName: z.string().trim().max(240).optional(),
+      }).parse(request.body);
+      input.content = parseCanonicalMessageContent(input.messageType, input.content);
+      const accepted = await platformChat.acceptExternalMessage({
+        organizationId: auth.organizationId,
+        correlationId: auth.correlationId,
+        ...input,
+      });
+      const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
+      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run.status === "received") {
+        try {
+          await dependencies.startWorkflow(accepted.run.id);
+        } catch (error) {
+          await runs.appendEvent({
+            organizationId: auth.organizationId,
+            runId: accepted.run.id,
+            installationId: accepted.run.installation_id,
+            eventType: "run.dispatch_failed",
+            payload: {
+              message: error instanceof Error ? error.message : "Unable to dispatch workflow",
+              retryable: true,
+            },
+          });
+          throw error;
+        }
+      }
+      return reply.code(accepted.created ? 202 : 200).send({
+        conversation: accepted.conversation,
+        message: accepted.message,
+        runId: accepted.run.id,
+        status: accepted.run.status,
+        created: accepted.created,
+        durable: workflowEnabled,
+      });
+    },
+  );
+
   app.get<{ Params: { installationId: string } }>(
     "/v1/installations/:installationId/conversations",
     async (request) => {
@@ -447,6 +499,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/channels", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "channels:write");
     const input = z.object({
       channelType: z.string().trim().min(1).max(80),
       channelKey: z.string().trim().min(1).max(160),
@@ -459,15 +512,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/channels", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "channels:read");
     const [connections, bindings] = await Promise.all([
       channels.listConnections(auth.organizationId, request.params.installationId),
-      channels.listBindings(auth.organizationId, request.params.installationId),
+      channels.listOwnerBindings(auth.organizationId, request.params.installationId, auth.actorId),
     ]);
-    return { connections, bindings };
+    return {
+      connections: connections.map(({ credential_reference: _credentialReference, ...connection }) => connection),
+      bindings,
+    };
   });
 
   app.post<{ Params: { installationId: string; connectionId: string } }>("/v1/installations/:installationId/channels/:connectionId/bindings", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "channels:write");
     const input = z.object({ externalIdentity: z.string().trim().min(1).max(240), routingKey: z.string().trim().max(160).default("default") }).parse(request.body);
     const binding = await channels.bind({ organizationId: auth.organizationId, installationId: request.params.installationId, connectionId: request.params.connectionId, ...input, ownerActorId: auth.actorId });
     return reply.code(201).send(binding);
@@ -475,20 +533,26 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { installationId: string; connectionId: string } }>("/v1/installations/:installationId/channels/:connectionId/pairing", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
-    const input = z.object({ externalIdentity: z.string().trim().min(1).max(240), ttlSeconds: z.number().int().positive().max(86_400).optional() }).parse(request.body);
-    const pairing = await channels.issuePairingToken({ organizationId: auth.organizationId, installationId: request.params.installationId, connectionId: request.params.connectionId, externalIdentity: input.externalIdentity, ttlSeconds: input.ttlSeconds, actorId: auth.actorId });
+    requireScope(auth, dependencies.config, "channels:write");
+    const input = z.object({ ttlSeconds: z.number().int().positive().max(86_400).optional() }).parse(request.body);
+    const pairing = await channels.issuePairingToken({ organizationId: auth.organizationId, installationId: request.params.installationId, connectionId: request.params.connectionId, ttlSeconds: input.ttlSeconds, actorId: auth.actorId });
     return reply.code(201).send(pairing);
   });
 
   app.post("/v1/channel-pairing/consume", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
-    const input = z.object({ token: z.string().trim().min(20).max(200) }).parse(request.body);
-    const binding = await channels.consumePairingToken({ organizationId: auth.organizationId, token: input.token });
+    requireScope(auth, dependencies.config, "channels:ingest");
+    const input = z.object({
+      token: z.string().trim().min(20).max(200),
+      externalIdentity: z.string().trim().min(1).max(240),
+    }).parse(request.body);
+    const binding = await channels.consumePairingToken({ organizationId: auth.organizationId, ...input });
     return reply.code(201).send(binding);
   });
 
   app.delete<{ Params: { bindingId: string } }>("/v1/channel-bindings/:bindingId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "channels:write");
     await channels.revokeBinding(auth.organizationId, request.params.bindingId);
     return reply.code(204).send();
   });
@@ -513,6 +577,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.code(201).send(conversation);
     },
   );
+
+  app.post("/v1/channels/delivery-status", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "channels:ingest");
+    const input = z.object({
+      providerMessageId: z.string().trim().min(1).max(240),
+      status: z.enum(["sent", "delivered", "read", "failed", "unknown"]),
+      error: z.record(z.string(), z.unknown()).optional(),
+    }).parse(request.body);
+    return channels.updateProviderDeliveryStatus({ organizationId: auth.organizationId, ...input });
+  });
 
   app.post<{ Params: { conversationId: string } }>(
     "/v1/conversations/:conversationId/messages",
@@ -555,10 +630,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
-  app.post<{ Params: { conversationId: string; status: "active" | "archived" | "deleted" } }>("/v1/conversations/:conversationId/status/:status", async (request) => {
+  app.post<{ Params: { conversationId: string; status: "archived" | "deleted" } }>("/v1/conversations/:conversationId/status/:status", async (request) => {
     const auth = requireAuth(request, dependencies.config);
-    const status = z.enum(["active", "archived", "deleted"]).parse(request.params.status);
-    return conversations.setStatus(auth.organizationId, request.params.conversationId, status);
+    requireScope(auth, dependencies.config, "chat:write");
+    const status = z.enum(["archived", "deleted"]).parse(request.params.status);
+    return conversations.setOwnedStatus(auth.organizationId, request.params.conversationId, auth.actorId, status);
   });
 
   app.post<{ Params: { conversationId: string } }>("/v1/conversations/:conversationId/participants", async (request, reply) => {
