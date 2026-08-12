@@ -53,8 +53,9 @@ verified or completed. Work on independent items continues.
 
 - **Blueprint:** Slice 1 application shell and route-surface split.
 - **Evidence:** `server/kasitek-core/src/routes.rs` has active uncommitted
-  social/OAuth route changes outside this programme. The route table is the
-  shared target for splitting `api::product`, `api::admin`, `api::internal`,
+  social/OAuth route changes outside this programme. A minimal `/v1/health` and
+  `/v1/capabilities` mount was staged independently; the route table remains
+  the shared target for splitting `api::product`, `api::admin`, `api::internal`,
   `api::provider_webhooks`, and `api::website`.
 - **Impact:** I can add the shell and independently migrate domains, but cannot
   safely replace the central route table or claim route-surface parity until
