@@ -84,5 +84,8 @@ describe("foundation migration", () => {
     const approvalsSql = await readFile(new URL("../migrations/029_approval_records.sql", import.meta.url), "utf8");
     expect(approvalsSql).toContain("agent_approval_records");
     expect(approvalsSql).toContain("preview_revision");
+    const attachmentsSql = await readFile(new URL("../migrations/030_attachment_references.sql", import.meta.url), "utf8");
+    expect(attachmentsSql).toContain("agent_attachment_references");
+    expect(attachmentsSql).toContain("scan_status");
   });
 });
