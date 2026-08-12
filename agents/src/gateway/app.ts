@@ -3,6 +3,12 @@ import Fastify, { type FastifyInstance } from "fastify";
 export function buildGateway(input: { agentPlatformUrl: string; sharedSecret?: string }): FastifyInstance {
   const app = Fastify({ logger: false });
   app.get("/health", async () => ({ status: "ok", service: "agent-gateway" }));
+  app.get("/.well-known/oauth-protected-resource", async () => ({
+    resource: "/mcp",
+    authorization_servers: [],
+    scopes_supported: ["mcp:read", "mcp:write"],
+    bearer_methods_supported: ["header"],
+  }));
   app.post("/mcp", async (request, reply) => {
     const headers: Record<string, string> = { "content-type": "application/json", accept: "application/json" };
     if (typeof request.headers.authorization === "string") headers.authorization = request.headers.authorization;
