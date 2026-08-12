@@ -81,5 +81,8 @@ describe("foundation migration", () => {
     const effectsSql = await readFile(new URL("../migrations/028_effect_receipts.sql", import.meta.url), "utf8");
     expect(effectsSql).toContain("agent_effect_receipts");
     expect(effectsSql).toContain("reconciliation_required");
+    const approvalsSql = await readFile(new URL("../migrations/029_approval_records.sql", import.meta.url), "utf8");
+    expect(approvalsSql).toContain("agent_approval_records");
+    expect(approvalsSql).toContain("preview_revision");
   });
 });
