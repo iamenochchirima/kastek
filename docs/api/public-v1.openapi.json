@@ -1,0 +1,23 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KasiTek Public API",
+    "version": "1.0.0",
+    "description": "Versioned public core contracts. Business handlers reuse the shared action catalog and normalized request context."
+  },
+  "servers": [{ "url": "https://api.kasitek.co.za/v1" }],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getApiHealth",
+        "responses": { "200": { "description": "Service health" } }
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "operationId": "listCapabilities",
+        "responses": { "200": { "description": "Discoverable action catalog" } }
+      }
+    }
+  }
+}

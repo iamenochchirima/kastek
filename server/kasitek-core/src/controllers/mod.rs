@@ -24,6 +24,7 @@ pub mod orgs;
 pub mod product_tour;
 pub mod profile;
 pub mod public;
+pub mod public_v1;
 pub mod realtime;
 pub mod social;
 pub mod whatsapp;
