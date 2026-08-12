@@ -267,6 +267,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     },
     async recordApprovalDecision(input) {
       await toolInvocations.recordApprovalDecision(input);
+      if (input.decision === "rejected") {
+        const run = await runs.getRuntimeRunById(input.runId);
+        if (run) await effectReceipts.markNotExecuted(run.organization_id, input.runId, input.providerToolCallId, { code: "APPROVAL_REJECTED", message: "The requested effect was denied before execution" });
+      }
     },
   };
 }

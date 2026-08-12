@@ -72,6 +72,10 @@ export class EffectReceiptRepository {
     await query(this.pool, `UPDATE agent_effect_receipts SET status = 'failed', error = $3::jsonb, reconciliation_required = $4, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND idempotency_key = $2 AND status IN ('reserved', 'executing', 'unknown', 'reconciled')`, [organizationId, idempotencyKey, JSON.stringify(error ?? {}), reconciliationRequired]);
   }
 
+  public async markNotExecuted(organizationId: string, runId: string, providerToolCallId: string, error: unknown): Promise<void> {
+    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'failed', error = $4::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3 AND status IN ('reserved', 'executing')`, [organizationId, runId, providerToolCallId, JSON.stringify(error ?? {})]);
+  }
+
   public async markUnknown(id: string, error: unknown): Promise<void> {
     await query(this.pool, `UPDATE agent_effect_receipts SET status = 'unknown', error = $2::jsonb, reconciliation_required = true, updated_at = now() WHERE id = $1 AND status IN ('reserved', 'executing')`, [id, JSON.stringify(error ?? {})]);
   }
