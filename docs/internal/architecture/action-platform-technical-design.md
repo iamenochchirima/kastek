@@ -8,7 +8,7 @@ sidebar_position: 5
 
 **Status:** Accepted for Slice 1; later-phase decisions remain open  
 **Scope:** Core action contracts, authorisation, execution, approvals, audit, and protocol adapters  
-**Related:** [Platform Architecture](./kasitek-technical-blueprint.md) · [Implementation Plan](./agent-protocol-implementation-plan.md) · [Implementation Checklist](./agent-protocol-implementation-checklist.md)
+**Related:** [Platform Architecture](./kasitek-technical-blueprint.md) · [14-layer agent architecture](../../../KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md) · [Unified implementation plan](../../../KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md)
 
 This document preserves the agreed implementation design for the core service that will support product APIs, native agents, MCP, and future A2A integrations.
 
@@ -806,4 +806,4 @@ Runtime policy adapters, transaction ownership, retry semantics for external eff
 
 This design is approved only when the names, boundaries, dependency rules, core types, transaction model, isolation model, and first implementation slice are accepted.
 
-Once approved, the [Implementation Checklist](./agent-protocol-implementation-checklist.md) must be updated to reference this design, and each completed item must link to code or test evidence.
+Implementation evidence is tracked in the [unified agent-system implementation plan](../../../KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md), and each completed item must link to code or test evidence.

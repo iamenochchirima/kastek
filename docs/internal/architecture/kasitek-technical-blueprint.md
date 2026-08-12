@@ -605,7 +605,7 @@ Agents never receive unrestricted SQL, provider credentials, or broad internal A
 
 MCP and A2A are adapters over the capability and policy layers. They are not alternate permission systems.
 
-The delivery design is defined in the [Agent Protocol Implementation Plan](./agent-protocol-implementation-plan.md). The core code and production structure are defined in the [Action Platform Technical Design](./action-platform-technical-design.md). Day-to-day progress is tracked in the [Agent Protocol Implementation Checklist](./agent-protocol-implementation-checklist.md).
+The approved 14-layer decisions are defined in the [agent capability architecture](../../../KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md), and day-to-day implementation is tracked in the [unified agent-system implementation plan](../../../KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md). The [Action Platform Technical Design](./action-platform-technical-design.md) remains a supporting core-action reference.
 
 ## 12. Security, privacy, and compliance
 
