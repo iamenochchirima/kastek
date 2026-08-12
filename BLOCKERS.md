@@ -48,3 +48,16 @@ verified or completed. Work on independent items continues.
   it does not establish a product build failure.
 - **Next action:** Rerun after B-001 in an environment that permits Next.js
   build worker process creation.
+
+## B-005 — Core route-surface migration overlaps active unrelated edits
+
+- **Blueprint:** Slice 1 application shell and route-surface split.
+- **Evidence:** `server/kasitek-core/src/routes.rs` has active uncommitted
+  social/OAuth route changes outside this programme. The route table is the
+  shared target for splitting `api::product`, `api::admin`, `api::internal`,
+  `api::provider_webhooks`, and `api::website`.
+- **Impact:** I can add the shell and independently migrate domains, but cannot
+  safely replace the central route table or claim route-surface parity until
+  those edits are committed or explicitly handed over.
+- **Next action:** Rebase the route split on the completed social/OAuth change,
+  preserving its endpoint additions and response contracts.
