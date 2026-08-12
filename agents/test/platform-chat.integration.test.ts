@@ -5,6 +5,7 @@ import { AgentRepository } from "../src/db/repositories/agent-repository";
 import { ConversationRepository } from "../src/db/repositories/conversation-repository";
 import { PlatformChatRepository } from "../src/db/repositories/platform-chat-repository";
 import { RunRepository } from "../src/db/repositories/run-repository";
+import { ChannelRepository } from "../src/db/repositories/channel-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -15,6 +16,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
   const conversations = new ConversationRepository(pool);
   const platformChat = new PlatformChatRepository(pool);
   const runs = new RunRepository(pool);
+  const channels = new ChannelRepository(pool);
   const organizationId = `platform-chat-${randomUUID()}`;
   let agentId = "";
   let versionId = "";
@@ -70,7 +72,82 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       ["inbound", "Where do I create a campaign?", first.run.id],
       ["outbound", "Open Campaigns and select Create campaign.", first.run.id],
     ]);
+    expect(messages.every((message) => message.source_channel === "platform")).toBe(true);
     expect((await runs.getRun(organizationId, first.run.id))?.status).toBe("completed");
+  });
+
+  it("rotates the primary thread without deleting history", async () => {
+    const previous = await platformChat.resolveConversation({ organizationId, installationId, actorId: "user-1" });
+    const current = await platformChat.createNewConversation({ organizationId, installationId, actorId: "user-1" });
+    expect(current.conversation.id).not.toBe(previous.conversation.id);
+    expect(current.conversation.is_primary).toBe(true);
+    const archived = await conversations.getOwnedConversation(organizationId, previous.conversation.id, "user-1");
+    expect(archived).toMatchObject({ status: "archived", is_primary: false });
+    const history = await conversations.listOwnerConversations(organizationId, installationId, "user-1");
+    expect(history[0]?.id).toBe(current.conversation.id);
+    expect(history.some((conversation) => conversation.id === previous.conversation.id)).toBe(true);
+  });
+
+  it("routes a paired external identity into the owner's current thread", async () => {
+    const current = await platformChat.resolveConversation({ organizationId, installationId, actorId: "user-1" });
+    const connection = await channels.createConnection({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      channelKey: "kasiai-personal",
+      actorId: "user-1",
+    });
+    await channels.bind({
+      organizationId,
+      installationId,
+      connectionId: connection.id,
+      externalIdentity: "+27820000001",
+      ownerActorId: "user-1",
+    });
+    const accepted = await platformChat.acceptExternalMessage({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      provider: "meta-whatsapp",
+      providerEventId: "event-external-1",
+      providerMessageId: "wamid-external-1",
+      externalIdentity: "+27820000001",
+      externalConversationId: "wa-thread-1",
+      messageType: "text",
+      content: { text: "What is happening in my workspace?" },
+    });
+    expect(accepted.conversation.id).toBe(current.conversation.id);
+    expect(accepted.message).toMatchObject({ source_channel: "whatsapp", external_conversation_id: "wa-thread-1" });
+    const duplicate = await platformChat.acceptExternalMessage({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      provider: "meta-whatsapp",
+      providerEventId: "event-external-1",
+      providerMessageId: "wamid-external-1",
+      externalIdentity: "+27820000001",
+      externalConversationId: "wa-thread-1",
+      messageType: "text",
+      content: { text: "duplicate" },
+    });
+    expect(duplicate.created).toBe(false);
+    expect(duplicate.message.id).toBe(accepted.message.id);
+    await expect(platformChat.acceptMessage({
+      organizationId,
+      installationId,
+      actorId: "user-1",
+      idempotencyKey: "overlapping-sidebar-message",
+      message: "This must not cross the WhatsApp reply",
+    })).rejects.toMatchObject({ statusCode: 409, code: "conversation_busy" });
+    await runs.transitionRun(accepted.run.id, "received", "queued");
+    await runs.transitionRun(accepted.run.id, "queued", "running");
+    await runs.completeRun(accepted.run.id, { message: "Here is your workspace update." });
+    const messages = await conversations.listMessages(organizationId, current.conversation.id);
+    const reply = messages.find((message) => message.run_id === accepted.run.id && message.direction === "outbound");
+    expect(reply).toMatchObject({ source_channel: "whatsapp", delivery_status: "queued" });
+    const attempts = await pool.query("SELECT * FROM delivery_attempts WHERE message_id = $1", [reply!.id]);
+    expect(attempts.rows).toHaveLength(1);
+    expect(attempts.rows[0]).toMatchObject({ channel_type: "whatsapp", status: "queued" });
   });
 
   it("keeps each platform user in a separate conversation", async () => {
@@ -88,6 +165,8 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
 
   afterAll(async () => {
     await pool.query("DELETE FROM conversation_summaries WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM delivery_attempts WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM channel_pairing_tokens WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM messages WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM participants WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_workflow_state WHERE organization_id = $1", [organizationId]);
@@ -95,6 +174,8 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM conversations WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM channel_bindings WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM channel_connections WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_principals WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);
     if (versionId) await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);

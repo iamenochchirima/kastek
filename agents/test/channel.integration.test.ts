@@ -32,6 +32,7 @@ describe.skipIf(!runIntegration)("channel routing contracts (integration)", () =
     expect(pairing.token).toBeTruthy();
     const binding = await channels.consumePairingToken({ organizationId, token: pairing.token! });
     expect(binding.channel_type).toBe("platform");
+    expect(binding.owner_actor_id).toBe("test-user");
     await expect(channels.consumePairingToken({ organizationId, token: pairing.token! })).rejects.toThrow("invalid");
     const conversation = await conversations.createConversation({ organizationId, installationId, channelType: "platform", channelKey: "sidebar", externalConversationId: "conversation:test" });
     conversationId = conversation.id;

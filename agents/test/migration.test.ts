@@ -63,5 +63,10 @@ describe("foundation migration", () => {
     const correlationSql = await readFile(new URL("../migrations/019_event_correlation.sql", import.meta.url), "utf8");
     expect(correlationSql).toContain("ADD COLUMN IF NOT EXISTS correlation_id");
     expect(correlationSql).toContain("agent_events_correlation_idx");
+    const unifiedConversationsSql = await readFile(new URL("../migrations/020_kasiai_unified_conversations.sql", import.meta.url), "utf8");
+    expect(unifiedConversationsSql).toContain("owner_actor_id");
+    expect(unifiedConversationsSql).toContain("conversations_current_owner_idx");
+    expect(unifiedConversationsSql).toContain("source_channel");
+    expect(unifiedConversationsSql).toContain("reply_binding_id");
   });
 });

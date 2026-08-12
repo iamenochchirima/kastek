@@ -24,6 +24,7 @@ export interface ChannelBindingRecord {
   channel_type: string;
   external_identity: string;
   routing_key: string;
+  owner_actor_id: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -49,6 +50,7 @@ export interface ChannelPairingResult {
   installation_id: string;
   connection_id: string;
   external_identity: string;
+  owner_actor_id: string | null;
   expires_at: string;
   token?: string;
 }
@@ -89,6 +91,7 @@ export class ChannelRepository {
     connectionId: string;
     externalIdentity: string;
     routingKey?: string;
+    ownerActorId: string;
   }): Promise<ChannelBindingRecord> {
     return withTransaction(this.pool, async (client) => {
       const connection = await client.query<ChannelConnectionRecord>(
@@ -100,15 +103,17 @@ export class ChannelRepository {
       if (!target) throw new Error("Channel connection not found");
       const result = await client.query<ChannelBindingRecord>(
         `INSERT INTO channel_bindings
-          (organization_id, installation_id, channel_connection_id, channel_type, external_identity, routing_key)
-         VALUES ($1, $2, $3, $4, $5, $6)
+          (organization_id, installation_id, channel_connection_id, channel_type, external_identity, routing_key,
+           owner_actor_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (organization_id, channel_type, external_identity) DO UPDATE SET
            installation_id = EXCLUDED.installation_id,
            channel_connection_id = EXCLUDED.channel_connection_id,
            routing_key = EXCLUDED.routing_key,
+           owner_actor_id = EXCLUDED.owner_actor_id,
            status = 'active', updated_at = now()
          RETURNING *`,
-        [input.organizationId, input.installationId, input.connectionId, target.channel_type, input.externalIdentity, input.routingKey ?? "default"],
+        [input.organizationId, input.installationId, input.connectionId, target.channel_type, input.externalIdentity, input.routingKey ?? "default", input.ownerActorId],
       );
       return result.rows[0]!;
     });
@@ -207,11 +212,13 @@ export class ChannelRepository {
     const result = await query<ChannelPairingResult>(
       this.pool,
       `INSERT INTO channel_pairing_tokens
-        (organization_id, installation_id, connection_id, token_hash, external_identity, expires_at, created_by)
-       SELECT $1, cc.installation_id, cc.id, $4, $5, $6, $7
+        (organization_id, installation_id, connection_id, token_hash, external_identity, expires_at,
+         created_by, owner_actor_id)
+       SELECT $1, cc.installation_id, cc.id, $4, $5, $6, $7, $7
        FROM channel_connections cc
        WHERE cc.id = $3 AND cc.organization_id = $1 AND cc.installation_id = $2 AND cc.status = 'active'
-       RETURNING id, organization_id, installation_id, connection_id, external_identity, expires_at`,
+       RETURNING id, organization_id, installation_id, connection_id, external_identity, expires_at,
+         owner_actor_id`,
       [input.organizationId, input.installationId, input.connectionId, generated.tokenHash, input.externalIdentity, generated.expiresAt, input.actorId],
     );
     if (!result.rows[0]) throw new Error("Channel connection not found");
@@ -227,7 +234,8 @@ export class ChannelRepository {
         `UPDATE channel_pairing_tokens
          SET consumed_at = now()
          WHERE organization_id = $1 AND token_hash = $2 AND consumed_at IS NULL AND expires_at > now()
-         RETURNING id, organization_id, installation_id, connection_id, external_identity, expires_at`,
+         RETURNING id, organization_id, installation_id, connection_id, external_identity, expires_at,
+           owner_actor_id`,
         [input.organizationId, hashPairingToken(input.token)],
       );
       const pairing = token.rows[0];
@@ -239,13 +247,15 @@ export class ChannelRepository {
       if (!connection.rows[0]) throw new Error("Channel connection not found");
       const binding = await client.query<ChannelBindingRecord>(
         `INSERT INTO channel_bindings
-          (organization_id, installation_id, channel_connection_id, channel_type, external_identity, routing_key)
-         VALUES ($1, $2, $3, $4, $5, 'default')
+          (organization_id, installation_id, channel_connection_id, channel_type, external_identity,
+           routing_key, owner_actor_id)
+         VALUES ($1, $2, $3, $4, $5, 'default', $6)
          ON CONFLICT (organization_id, channel_type, external_identity) DO UPDATE SET
            installation_id = EXCLUDED.installation_id, channel_connection_id = EXCLUDED.channel_connection_id,
-           routing_key = EXCLUDED.routing_key, status = 'active', updated_at = now()
+           routing_key = EXCLUDED.routing_key, owner_actor_id = EXCLUDED.owner_actor_id,
+           status = 'active', updated_at = now()
          RETURNING *`,
-        [input.organizationId, pairing.installation_id, pairing.connection_id, connection.rows[0].channel_type, pairing.external_identity],
+        [input.organizationId, pairing.installation_id, pairing.connection_id, connection.rows[0].channel_type, pairing.external_identity, pairing.owner_actor_id],
       );
       await client.query(
         `INSERT INTO audit_records (organization_id, actor_type, action, resource_type, resource_id, metadata)

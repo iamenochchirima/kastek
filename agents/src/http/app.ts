@@ -104,7 +104,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
     if (statusCode >= 500) app.log.error(error);
     const message = error instanceof ZodError ? "Invalid request" : error instanceof Error ? error.message : "Request failed";
-    reply.code(statusCode).send({ error: statusCode >= 500 ? "internal_error" : message });
+    const code = (error as { code?: string }).code;
+    reply.code(statusCode).send({ error: statusCode >= 500 ? "internal_error" : message, ...(code ? { code } : {}) });
   });
 
   app.get("/health/live", async () => ({ status: "ok", service: "kasitek-agents" }));
@@ -293,6 +294,21 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
+  app.get<{ Params: { installationId: string } }>(
+    "/v1/installations/:installationId/conversations",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:read");
+      return {
+        conversations: await conversations.listOwnerConversations(
+          auth.organizationId,
+          request.params.installationId,
+          auth.actorId,
+        ),
+      };
+    },
+  );
+
   app.post<{ Params: { installationId: string } }>(
     "/v1/installations/:installationId/platform/conversation/new",
     async (request, reply) => {
@@ -361,6 +377,56 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
+  app.post<{ Params: { installationId: string } }>(
+    "/v1/installations/:installationId/channels/inbound",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "channels:ingest");
+      const input = z.object({
+        channelType: z.string().trim().min(1).max(80),
+        provider: z.string().trim().min(1).max(80),
+        providerEventId: z.string().trim().min(1).max(240),
+        providerMessageId: z.string().trim().min(1).max(240),
+        externalIdentity: z.string().trim().min(1).max(240),
+        externalConversationId: z.string().trim().min(1).max(240),
+        messageType: z.string().trim().min(1).max(80).default("text"),
+        content: z.record(z.string(), z.unknown()),
+        occurredAt: z.string().datetime().optional(),
+        displayName: z.string().trim().max(240).optional(),
+      }).parse(request.body);
+      input.content = parseCanonicalMessageContent(input.messageType, input.content);
+      const accepted = await platformChat.acceptExternalMessage({
+        organizationId: auth.organizationId,
+        installationId: request.params.installationId,
+        correlationId: auth.correlationId,
+        ...input,
+      });
+      const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
+      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run.status === "received") {
+        try {
+          await dependencies.startWorkflow(accepted.run.id);
+        } catch (error) {
+          await runs.appendEvent({
+            organizationId: auth.organizationId,
+            runId: accepted.run.id,
+            installationId: request.params.installationId,
+            eventType: "run.dispatch_failed",
+            payload: { message: error instanceof Error ? error.message : "Unable to dispatch workflow", retryable: true },
+          });
+          throw error;
+        }
+      }
+      return reply.code(accepted.created ? 202 : 200).send({
+        conversation: accepted.conversation,
+        message: accepted.message,
+        runId: accepted.run.id,
+        status: accepted.run.status,
+        created: accepted.created,
+        durable: workflowEnabled,
+      });
+    },
+  );
+
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/schedules", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     const input = z.object({ expression: z.string().trim().min(1).max(240), timezone: z.string().trim().min(1).max(80).default("UTC"), input: z.record(z.string(), z.unknown()).default({}), nextRunAt: z.string().datetime().optional() }).parse(request.body);
@@ -403,7 +469,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { installationId: string; connectionId: string } }>("/v1/installations/:installationId/channels/:connectionId/bindings", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     const input = z.object({ externalIdentity: z.string().trim().min(1).max(240), routingKey: z.string().trim().max(160).default("default") }).parse(request.body);
-    const binding = await channels.bind({ organizationId: auth.organizationId, installationId: request.params.installationId, connectionId: request.params.connectionId, ...input });
+    const binding = await channels.bind({ organizationId: auth.organizationId, installationId: request.params.installationId, connectionId: request.params.connectionId, ...input, ownerActorId: auth.actorId });
     return reply.code(201).send(binding);
   });
 
@@ -477,7 +543,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
       requireScope(auth, dependencies.config, "chat:read");
-      const conversation = await conversations.getConversation(auth.organizationId, request.params.conversationId);
+      const conversation = await conversations.getOwnedConversation(auth.organizationId, request.params.conversationId, auth.actorId);
       if (!conversation) return reply.code(404).send({ error: "conversation_not_found" });
       const limit = request.query.limit === undefined ? undefined : Number(request.query.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 200)) return reply.code(400).send({ error: "invalid_message_limit" });

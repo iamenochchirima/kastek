@@ -23,6 +23,8 @@ export interface RunRecord {
   finished_at: string | null;
   updated_at: string;
   idempotency_key?: string | null;
+  reply_channel_type?: string | null;
+  reply_binding_id?: string | null;
   created?: boolean;
 }
 
@@ -200,14 +202,18 @@ export class RunRepository {
            FROM messages WHERE conversation_id = $1`,
           [run.conversation_id],
         );
-        await client.query(
+        const outbound = await client.query<{ id: string }>(
           `INSERT INTO messages
             (conversation_id, organization_id, participant_id, direction, message_type, content,
-             provider, provider_message_id, sequence_number, run_id)
-           VALUES ($1, $2, $3, 'outbound', 'text', $4::jsonb, 'platform', $5, $6, $7)
+             provider, provider_message_id, sequence_number, run_id, source_channel,
+             source_binding_id, occurred_at, delivery_status)
+           VALUES ($1, $2, $3, 'outbound', 'text', $4::jsonb, COALESCE($8, 'platform'), $5, $6, $7,
+                   COALESCE($8, 'platform'), $9, now(),
+                   CASE WHEN COALESCE($8, 'platform') = 'platform' THEN 'local' ELSE 'queued' END)
            ON CONFLICT (run_id, direction)
            WHERE run_id IS NOT NULL AND direction IN ('inbound', 'outbound')
-           DO NOTHING`,
+           DO NOTHING
+           RETURNING id`,
           [
             run.conversation_id,
             run.organization_id,
@@ -216,8 +222,19 @@ export class RunRepository {
             run.id,
             nextSequence.rows[0]!.sequence_number,
             run.id,
+            run.reply_channel_type ?? "platform",
+            run.reply_binding_id ?? null,
           ],
         );
+        if (outbound.rows[0] && run.reply_channel_type && run.reply_channel_type !== "platform") {
+          await client.query(
+            `INSERT INTO delivery_attempts
+              (organization_id, conversation_id, message_id, channel_type, status, attempt_number)
+             VALUES ($1, $2, $3, $4, 'queued', 1)
+             ON CONFLICT (message_id, attempt_number) DO NOTHING`,
+            [run.organization_id, run.conversation_id, outbound.rows[0].id, run.reply_channel_type],
+          );
+        }
         await client.query("UPDATE conversations SET updated_at = now() WHERE id = $1", [run.conversation_id]);
       }
       const updated = await client.query<RunRecord>(

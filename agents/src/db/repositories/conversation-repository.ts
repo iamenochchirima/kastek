@@ -10,6 +10,10 @@ export interface ConversationRecord {
   external_conversation_id: string | null;
   title: string | null;
   status: string;
+  owner_actor_id: string | null;
+  is_primary: boolean;
+  archived_at: string | null;
+  rotated_from_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -25,6 +29,12 @@ export interface MessageRecord {
   provider: string | null;
   provider_message_id: string | null;
   run_id: string | null;
+  source_channel: string;
+  source_connection_id: string | null;
+  source_binding_id: string | null;
+  external_conversation_id: string | null;
+  occurred_at: string;
+  delivery_status: string | null;
   sequence_number: string;
   created_at: string;
 }
@@ -84,6 +94,34 @@ export class ConversationRepository {
     return result.rows[0] ?? null;
   }
 
+  public async getOwnedConversation(organizationId: string, conversationId: string, ownerActorId: string): Promise<ConversationRecord | null> {
+    const result = await query<ConversationRecord>(
+      this.pool,
+      `SELECT * FROM conversations
+       WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3`,
+      [organizationId, conversationId, ownerActorId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  public async listOwnerConversations(
+    organizationId: string,
+    installationId: string,
+    ownerActorId: string,
+    limit = 50,
+  ): Promise<ConversationRecord[]> {
+    const result = await query<ConversationRecord>(
+      this.pool,
+      `SELECT * FROM conversations
+       WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
+         AND status <> 'deleted'
+       ORDER BY is_primary DESC, updated_at DESC
+       LIMIT $4`,
+      [organizationId, installationId, ownerActorId, Math.max(1, Math.min(limit, 100))],
+    );
+    return result.rows;
+  }
+
   public async setStatus(organizationId: string, conversationId: string, status: "active" | "archived" | "deleted"): Promise<ConversationRecord> {
     const result = await query<ConversationRecord>(this.pool, `UPDATE conversations SET status = $3, updated_at = now() WHERE organization_id = $1 AND id = $2 RETURNING *`, [organizationId, conversationId, status]);
     if (!result.rows[0]) throw new Error("Conversation not found");
@@ -99,6 +137,12 @@ export class ConversationRepository {
     content: Record<string, unknown>;
     provider?: string;
     providerMessageId?: string;
+    sourceChannel?: string;
+    sourceConnectionId?: string;
+    sourceBindingId?: string;
+    externalConversationId?: string;
+    occurredAt?: string;
+    deliveryStatus?: string;
   }): Promise<MessageRecord> {
     return withTransaction(this.pool, async (client) => {
       const conversation = await client.query<ConversationRecord>(
@@ -126,8 +170,10 @@ export class ConversationRepository {
       const created = await client.query<MessageRecord>(
         `INSERT INTO messages
           (conversation_id, organization_id, participant_id, direction, message_type, content,
-           provider, provider_message_id, sequence_number)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)
+           provider, provider_message_id, sequence_number, source_channel, source_connection_id,
+           source_binding_id, external_conversation_id, occurred_at, delivery_status)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13,
+                 COALESCE($14::timestamptz, now()), $15)
          RETURNING *`,
         [
           input.conversationId,
@@ -139,6 +185,12 @@ export class ConversationRepository {
           input.provider ?? null,
           input.providerMessageId ?? null,
           nextSequence.rows[0]!.sequence_number,
+          input.sourceChannel ?? input.provider ?? "platform",
+          input.sourceConnectionId ?? null,
+          input.sourceBindingId ?? null,
+          input.externalConversationId ?? null,
+          input.occurredAt ?? null,
+          input.deliveryStatus ?? (input.sourceChannel === "platform" || !input.sourceChannel ? "local" : null),
         ],
       );
       await client.query("UPDATE conversations SET updated_at = now() WHERE id = $1", [input.conversationId]);
