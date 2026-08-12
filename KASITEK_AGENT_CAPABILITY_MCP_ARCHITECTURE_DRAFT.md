@@ -717,16 +717,47 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 **Goal:** Protect customer data and actions from credential compromise, cross-tenant access, and
 malicious instructions.
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] Threat model for stolen installation credentials, replay, confused deputy, and token leakage.
-- [ ] Audience binding, token issuer/key rotation, credential hashing/encryption, and secret handling.
-- [ ] Rate limits and abuse controls by installation, organization, IP, tool, and channel.
-- [ ] Prompt-injection defenses and outbound data minimization.
-- [ ] Security review requirements before each new capability domain.
+- [x] Threat-model stolen installation secrets/tokens, request/webhook replay, scope escalation,
+  confused-deputy internal access, cross-workspace/user/customer access, prompt injection, connector
+  secret leakage, runaway cost/loops/spam, attachments, channel/webhook compromise, and public
+  MCP/REST abuse.
+- [x] Store installation secrets only as strong hashes; use short-lived signed audience-bound tokens,
+  rotation/revocation, no query-string tokens, secret-free prompts/events/logs, managed signing-key
+  rotation, and separate signed internal delegations.
+- [x] Use token IDs/expiry, mutation idempotency, replay rejection for high-risk operations where
+  needed, webhook nonce/timestamp validation, and later private-key proof-of-possession/client
+  assertions.
+- [x] Enforce authorization at public MCP/REST edge, Capability Gateway policy/resource/approval
+  enforcement, and independent core final business authorization/idempotency/preconditions.
+- [x] Require organization scope on queries; user ownership for personal-agent work; installation plus
+  customer/thread identity for business conversations; core resource verification; SQL namespace
+  filtering before vector ranking; and cross-org/user/installation tests for every capability.
+- [x] Apply prompt-source hierarchy, no model-controlled grants, no default direct DB/shell/browser,
+  typed validation, allowlisted connectors, effect approval, output validation/redaction, adversarial
+  testing, and separately sandboxed future code/browser execution.
+- [x] Minimize data to models/tools/providers; use IDs/summaries where possible, avoid speculative
+  retrieval, redact telemetry, scope signed file URLs, and enforce attachment scan/type/size policy.
+- [x] Rate-limit by IP, credential, installation, organization, capability, channel identity, and
+  provider account; limit exchanges/discovery/mutations/sends, cap queues, detect anomalies, and use
+  kill switches as a final control.
+- [x] Verify inbound provider signatures/timestamps and secure outbound webhooks: verify destination
+  at creation, prevent SSRF through private/internal address blocking, sign deliveries, cap redirects/
+  time/size, rotate secrets, and keep secrets out of callback URLs.
+- [x] Lock/scan dependencies and images, move to signed/reproducible builds when mature, separate
+  dev/test/prod credentials/projects, use least-privilege cloud identities and production secret
+  management, test backup restore, and audit deployment changes.
+- [x] Automate authorization/isolation/replay/idempotency/redaction tests, fuzz schemas/webhook
+  parsers, scan dependencies/images/secrets, revisit threat models regularly, and obtain an external
+  penetration test before broad public MCP/REST availability.
+- [x] Prepare credential revoke/suspend/rotate, kill-switch, provider/webhook compromise, customer
+  notification, audit preservation, reconciliation/recovery, and pre-launch tabletop runbooks.
 
 ### Exit criteria
 
+- [x] Threat, credential, replay, authorization, isolation, injection, minimization, abuse, webhook,
+  supply-chain, testing, and incident-response policy is approved for implementation.
 - [ ] Security controls are testable at the gateway and core boundary.
 
 ## Layer 14 — Rollout, testing, and operations
@@ -770,7 +801,7 @@ an undecided earlier layer.
 - [x] 10. Context, knowledge, and memory policy
 - [x] 11. User and administrator experience
 - [x] 12. Observability and governance
-- [ ] 13. Security review
+- [x] 13. Security and abuse-resistance policy
 - [ ] 14. Rollout and verification plan
 
 ## Next discussion

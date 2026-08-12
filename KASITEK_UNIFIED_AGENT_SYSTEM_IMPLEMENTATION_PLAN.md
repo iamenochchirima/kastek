@@ -106,6 +106,8 @@ platform data/access contract.
 - [x] Define immutable audit, separate traces/metrics/logs, scoped visibility/support access,
   retention, usage attribution, health/alerts, hierarchical kill switches, exports/redaction, safe
   admin operations, and release evaluation governance.
+- [x] Define the threat model, credential/replay/edge-core defense-in-depth, isolation, injection,
+  minimization, abuse, webhook/SSRF, supply-chain, testing, and incident-response policies.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -482,6 +484,18 @@ operation.
 
 - [ ] Threat-model installation secrets, token replay, revoked credentials, confused-deputy core
   calls, cross-workspace access, prompt injection, connector secrets, and provider webhooks.
+- [ ] Implement audience/token-ID/replay controls, separate external/internal credentials, no-secret
+  telemetry/prompt rules, and key rotation.
+- [ ] Enforce organization/user/installation/customer namespace isolation including SQL-before-vector
+  filters and cross-boundary regression tests.
+- [ ] Enforce prompt/tool/sandbox boundaries, data minimization, attachment/signed-URL policy, and
+  adversarial injection coverage.
+- [ ] Enforce edge/capability/core and IP/credential/installation/organization/capability/channel/
+  provider rate/queue/content abuse controls.
+- [ ] Verify inbound and outbound webhooks with signature/timestamp/replay and SSRF/redirect/
+  destination protections.
+- [ ] Add dependency/image/secret scans, deployment credential separation, least privilege, secret
+  manager, backup restore tests, pen-test gate, and incident/tabletop runbooks.
 - [ ] Add authorization tests at MCP, Agent Platform, and core boundaries.
 - [ ] Add structured redaction tests for credentials and sensitive user data.
 - [ ] Add per-installation/org/tool/channel rate limits and abuse controls.
