@@ -278,16 +278,20 @@ provider coupling does not complete the reorganization.
 
 ### Deliverables
 
-- [ ] Map existing migrations, models, APIs, Temporal workflows, tool registry, model gateway,
+- [x] Map existing migrations, models, APIs, Temporal workflows, tool registry, model gateway,
   conversations, memory, channels, KasiAi UI, Agents UI, and admin endpoints to this blueprint.
-- [ ] Record implemented, partial, missing, and obsolete paths without treating old placeholders as
+- [x] Record implemented, partial, missing, and obsolete paths without treating old placeholders as
   completed architecture.
-- [ ] Confirm legacy `/api/bots` and old provisioning paths remain absent and no fallback or
+- [x] Confirm legacy `/api/bots` and old provisioning paths remain absent and no fallback or
   dual-write path is active.
 - [ ] Confirm local development starts the core, client, Agent API, Temporal worker, databases, and
   required realtime services with documented health checks.
-- [ ] Create or update ADRs for any settled architecture decision not represented in code/docs.
-- [ ] Establish a short evidence format for completed slices: migration/API/test/command/commit.
+- [x] Create or update ADRs for any settled architecture decision not represented in code/docs.
+- [x] Establish a short evidence format for completed slices: migration/API/test/command/commit.
+
+**Slice 0 evidence (2026-08-13):** inventory and baseline results are recorded in
+[`docs/internal/architecture/agent-system-slice-0-baseline.md`](docs/internal/architecture/agent-system-slice-0-baseline.md).
+Pending environment and pre-existing frontend verification gaps are tracked in [`BLOCKERS.md`](BLOCKERS.md).
 
 ### Verification
 
