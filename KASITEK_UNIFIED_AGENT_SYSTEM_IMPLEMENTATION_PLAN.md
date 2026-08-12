@@ -3,6 +3,7 @@
 **Status:** Active architecture and implementation checklist  
 **Scope:** KasiAi, KasiTek-hosted user agents, and externally connected agents  
 **Planning source:** [`KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md`](KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md)  
+**Internal operations plan:** [`KASITEK_ADMIN_OPERATIONS_IMPLEMENTATION_PLAN.md`](KASITEK_ADMIN_OPERATIONS_IMPLEMENTATION_PLAN.md)
 **Initial mode:** broad capability access for controlled testing; commercial limits and granular
 entitlements follow after end-to-end validation
 

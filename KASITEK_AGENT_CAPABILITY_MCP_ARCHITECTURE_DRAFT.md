@@ -702,6 +702,9 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 - [x] Provide internal admin views for system health, queue/workers, provider health, correlation
   search, stuck-run recovery, switches, manifests, audit, usage anomalies, and support approval;
   never make it an unbounded customer-content browser.
+- [x] Define the dedicated KasiTek operator-console implementation boundary, operator roles,
+  support-access sessions, redacted read models, safe command envelope, and end-to-end rollout
+  checklist in [`KASITEK_ADMIN_OPERATIONS_IMPLEMENTATION_PLAN.md`](KASITEK_ADMIN_OPERATIONS_IMPLEMENTATION_PLAN.md).
 - [x] Version evaluation sets with agent/capability releases and gate releases on correctness,
   hallucination, unsafe tool selection, denials, approvals, latency, and cost; retain sampled
   consent-safe evaluation evidence.
