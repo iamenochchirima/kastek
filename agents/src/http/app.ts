@@ -36,6 +36,7 @@ import { PlatformChatRepository } from "../db/repositories/platform-chat-reposit
 import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { availableKasiAiModels, getKasiAiModelCatalog, isAllowedKasiAiModel } from "../system/kasiai-models";
+import { installationTokenJwks, issueInstallationToken } from "../auth/installation-token";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -125,6 +126,27 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       app.log.error(error);
       return reply.code(503).send({ status: "not_ready" });
     }
+  });
+
+  app.get("/.well-known/agent-installation-jwks.json", async () => {
+    if (!dependencies.config.INSTALLATION_TOKEN_PRIVATE_KEY) throw Object.assign(new Error("Installation token signing is not configured"), { statusCode: 503 });
+    return installationTokenJwks(dependencies.config.INSTALLATION_TOKEN_PRIVATE_KEY);
+  });
+
+  app.post("/v1/installation-tokens/exchange", async (request, reply) => {
+    const body = z.object({ secret: z.string().trim().min(20).max(1_000), audience: z.enum(["mcp", "kasitek-public-api"]) }).parse(request.body);
+    if (!dependencies.config.INSTALLATION_TOKEN_PRIVATE_KEY) return reply.code(503).send({ error: "installation_token_exchange_unavailable" });
+    const credential = await installationCredentials.authenticate(body.secret);
+    if (!credential) return reply.code(401).send({ error: "invalid_installation_credential" });
+    const token = issueInstallationToken({
+      privateKeyPem: dependencies.config.INSTALLATION_TOKEN_PRIVATE_KEY,
+      issuer: dependencies.config.INSTALLATION_TOKEN_ISSUER,
+      installationId: credential.installation_id,
+      organizationId: credential.organization_id,
+      credentialId: credential.id,
+      audience: body.audience,
+    });
+    return reply.send({ accessToken: token.accessToken, tokenType: "Bearer", expiresAt: token.expiresAt, audience: body.audience });
   });
 
   app.post("/v1/agents", async (request, reply) => {

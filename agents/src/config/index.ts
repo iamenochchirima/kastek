@@ -30,6 +30,8 @@ const envSchema = z.object({
   KASITEK_CORE_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(10_000),
   MODEL_PRICING_JSON: z.string().optional(),
   AGENTS_CREDENTIAL_ENCRYPTION_KEY: z.string().optional(),
+  INSTALLATION_TOKEN_PRIVATE_KEY: z.string().optional(),
+  INSTALLATION_TOKEN_ISSUER: z.string().default("kasitek-agents"),
   LOG_LEVEL: z.string().default("info"),
 });
 
