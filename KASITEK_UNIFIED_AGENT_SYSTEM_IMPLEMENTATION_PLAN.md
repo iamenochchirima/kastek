@@ -97,6 +97,9 @@ platform data/access contract.
   conversations within organization isolation; do not auto-merge channels or installations.
 - [x] Keep channel gateways thin and standardize delivery, provider webhook, consent/opt-out, human
   handoff, attachment, and safe activity behavior across channels.
+- [x] Establish trusted/untrusted context boundaries, minimal dynamic context, reviewed product
+  knowledge, scoped namespaces, selective memory, lifecycle/export/support controls, injection evals,
+  and provider-privacy attribution.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -270,6 +273,22 @@ authorization check, contract tests, and an audit/effect receipt.
 - [ ] Add draft and action preview states when the relevant common capability becomes available.
 - [ ] Add deterministic and adversarial evaluations for accurate capability claims, tenant
   isolation, tool selection, and refusal of unavailable operations.
+
+### Context, knowledge, and memory controls
+
+- [ ] Classify and label trusted policy/reference/data versus untrusted user, page, file, web,
+  connector, and tool-output content before model context construction.
+- [ ] Build minimal dynamic run context and demand-load detailed workspace data through capabilities.
+- [ ] Replace generic KasiAi knowledge with reviewed/versioned/attributable real product knowledge
+  owned by domains and use live tools for changing facts.
+- [ ] Enforce bounded recent message windows, scoped rolling summaries, on-demand older history, and
+  separate conversation/user_private/organization_shared/agent_private namespaces.
+- [ ] Add selective memory creation with provenance/confidence/consent/edit/delete behavior and
+  explicit external-agent memory capabilities.
+- [ ] Implement conversation-summary/memory deletion, organization memory administration, backup
+  retention, workspace data export, and time-bound audited support access.
+- [ ] Add prompt-injection sanitization/boundaries and adversarial evaluations for untrusted content.
+- [ ] Attribute model/provider privacy settings and minimize model-bound data by policy.
 
 **Exit gate:** KasiAi answers real product questions from trusted knowledge/tools and performs only
 confirmed actions through common capability contracts.

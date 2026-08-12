@@ -575,16 +575,46 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 
 **Goal:** Ground agents in current verified state without leaking data or overloading prompts.
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] Authoritative product knowledge sources, owners, review cadence, and release versioning.
-- [ ] Page/workspace context contract and which data is loaded only on tool demand.
-- [ ] Conversation window, summaries, scoped memory, cross-chat retrieval, and opt-in policy.
-- [ ] Data retention, deletion, export, and derived-memory lifecycle.
-- [ ] Prompt-injection treatment for user content, documents, provider data, and tool outputs.
+- [x] Classify protected instructions and capability policy as trusted; treat live core tool results as
+  trusted data rather than instructions; use reviewed product knowledge as trusted reference; treat
+  user/page/file/email/provider/web content as untrusted. Untrusted content cannot alter identity,
+  instructions, permissions, tools, or approval policy.
+- [x] Maintain versioned, reviewed, attributable KasiTek product knowledge with domain ownership and
+  review cadence. Use it for stable explanation/navigation; use live tools for current workspace
+  facts. Remove or prohibit imagined capability claims.
+- [x] Build minimal trusted run context from organization, authenticated user/role, current route/
+  entity, enabled modules, available capabilities/availability, relevant provider health, and the
+  conversation summary/recent window. Load detailed workspace data only through tools.
+- [x] Use a bounded recent relevant-message window of roughly 20–30 messages plus a token budget and
+  durable rolling conversation summary. Summaries update after completed turns, are scoped to
+  installation/conversation, and older history is retrieved on demand rather than sent wholesale.
+- [x] Keep memory namespaces separate: `conversation`, `user_private`, `organization_shared`, and
+  `agent_private`. Business agents do not automatically see user-private memory; external connected
+  agents receive memory only through explicit capabilities, never raw memory-table access.
+- [x] Create memory selectively from successful interactions with source/confidence/scope/timestamp/
+  provenance. Require initial user/admin confirmation for sensitive or organization-shared memory;
+  allow opt-in low-risk private preference memory. Keep all memory editable and deletable.
+- [x] Treat retrieved documents, connector data, tool output, emails, calendars, CRM notes, and social
+  content as untrusted instructions; label/sanitize it for models, keep it within connector and
+  installation scope, and persist it only with explicit attributable enablement.
+- [x] Delete conversation summaries and conversation-scoped memory when a conversation is deleted.
+  Provide edit/delete controls for user-private memory and administrator controls for organization
+  shared knowledge/memory. Redact secrets from retained run/audit records and define backup expiry.
+- [x] Provide workspace export for conversations, memory, definitions, activity, and audit records
+  excluding secrets. Require time-bound, audited authorized support access or an incident process;
+  support has no default content access.
+- [x] Use source boundaries/labels, policy-constrained tools, approvals for consequential effects, and
+  adversarial injection evaluations covering uploads, email, webhooks, social posts, and messages.
+- [x] Attribute every run to its model/provider; use provider privacy/retention configuration, later
+  workspace provider/region/BYOK policy, minimal-data model requests, and the provider-neutral
+  adapter layer.
 
 ### Exit criteria
 
+- [x] Context, knowledge, memory, privacy, export/support, injection, and model-provider policy is
+  approved for implementation.
 - [ ] KasiAi accurately states its capabilities and gets live facts through tools.
 - [ ] Retrieval cannot cross organization, installation, or user-scoped boundaries.
 
@@ -676,7 +706,7 @@ an undecided earlier layer.
 - [x] 7. MCP and public REST API contract and connection UX
 - [x] 8. Runtime execution and durability rules
 - [x] 9. Conversation and channel gateway policy
-- [ ] 10. Context/knowledge/memory policy
+- [x] 10. Context, knowledge, and memory policy
 - [ ] 11. User/admin UX
 - [ ] 12. Observability/governance
 - [ ] 13. Security review
