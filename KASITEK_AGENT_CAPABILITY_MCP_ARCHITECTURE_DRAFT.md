@@ -99,6 +99,16 @@ checklist we will complete together before work starts.
   installations. Preserve organization isolation, credentials, audit records, idempotency, core
   authorization, and action receipts from the first implementation; subscription limits and
   granular commercial restrictions are deferred to the entitlement phase.
+- [x] During testing, read and draft capabilities may run immediately; real external effects such
+  as publishing, campaign/message sends, and booking confirmations still require explicit
+  approval. Prefer provider sandboxes or dry-run previews where the domain supports them.
+- [x] Implement content and social as the first complete reference capability domain.
+- [x] Ship hosted-agent creation through a guided form first: name, purpose, instructions, model,
+  capabilities, external connections, channels, knowledge/memory, and schedules/workflows where
+  available.
+- [x] Preserve a durable declarative workflow/graph model beneath the guided form.
+- [x] Add a visual n8n-style custom-agent/workflow builder as a planned product phase after the
+  shared capability, execution, and approval contracts are proven; it is deferred, not removed.
 - [ ] Who can install, modify, suspend, and delete an agent installation in a workspace?
 - [ ] Which plans may create agents, connect external agents, use scheduled runs, or invoke
   high-risk capabilities?

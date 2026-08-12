@@ -58,6 +58,12 @@ platform data/access contract.
 - [x] During controlled testing, enable broad capability access for test installations. Do not defer
   workspace isolation, credential security, audit, idempotency, durable run state, or core-side
   authorization.
+- [x] Let read and draft tools run immediately during controlled testing, while requiring exact
+  approval for real external effects such as publishing, sending, and booking confirmation.
+- [x] Use content/social as the first end-to-end reference capability domain.
+- [x] Start hosted-agent creation with a guided form over the durable workflow/graph model.
+- [x] Treat the visual n8n-style custom-agent/workflow builder as an explicit later delivery phase,
+  not an abandoned idea or a replacement runtime.
 - [ ] Decide the first production entitlement and approval policy after the complete system is
   demonstrably testable.
 
@@ -197,6 +203,8 @@ confirmed actions through common capability contracts.
   connector grants, channels, knowledge/memory, schedules, and workflows.
 - [ ] Build a hosted-agent creation wizard with a simple first release: name, purpose,
   instructions, model, capabilities, and channels.
+- [ ] Include external connections, knowledge/memory, schedules, and available workflows in the
+  guided configuration as those shared subsystems become ready.
 - [ ] Add official templates as optional preconfigured definitions, not separate runtimes.
 - [ ] Add immutable versioning, draft/publish/rollback, and safe installation updates.
 - [ ] Build agent detail pages for configuration, activity, runs, memory, credentials, channels,
@@ -222,6 +230,23 @@ confirmed actions through common capability contracts.
 
 **Exit gate:** a user can build/install a general hosted agent that uses both one KasiTek capability
 and one external connector, receives a channel message, and produces an audited result.
+
+### D. Planned visual custom-agent builder
+
+This is a committed later product phase. It must use the same versioned definitions, capability
+manifests, connector manifests, graph workflows, execution engine, approvals, and audit records as
+the guided form.
+
+- [ ] Design an n8n-style canvas for triggers, model/agent steps, KasiTek capabilities, external
+  connector tools, conditions, approvals, delays, schedules, handoffs, and outputs.
+- [ ] Support validated node ports and schemas derived from authoritative capability/connector
+  manifests rather than free-form arbitrary payloads.
+- [ ] Provide draft validation, test runs, step inspection, publish/version/rollback, and reusable
+  subflows.
+- [ ] Keep simple templates and guided forms editable without requiring users to understand the
+  visual graph.
+- [ ] Define import/export and template-sharing policy only after secret/resource references can be
+  safely separated from workflow definitions.
 
 ## 9. Phase 5 — External connected agents and hosted MCP server
 
