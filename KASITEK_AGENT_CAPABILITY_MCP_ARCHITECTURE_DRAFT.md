@@ -469,16 +469,50 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
 
 **Goal:** Turn each invocation into a bounded, observable, recoverable execution.
 
-### Decisions to make
+### Confirmed decisions
 
-- [ ] Which MCP calls run synchronously and which produce durable asynchronous runs?
-- [ ] Temporal workflow mapping for long actions, approvals, retries, scheduled work, and delivery.
-- [ ] Run idempotency key requirements and duplicate/replay behavior.
-- [ ] Locking/concurrency per conversation, installation, external recipient, and capability.
-- [ ] Timeout, retry, compensation, and dead-letter policies.
+- [x] Execute simple bounded reads synchronously with a roughly 10–15 second timeout. Allow simple
+  local draft changes to complete synchronously. Route model work, approvals, schedules, external
+  effects, uploads, provider polling, and multi-step work through durable Temporal runs. Return a
+  run reference rather than holding a client connection beyond the synchronous budget.
+- [x] Use one durable `AgentRun` model for MCP, REST, KasiAi, hosted agents, external channels, and
+  schedules. Persist installation/principal, trigger, conversation/invocation linkage, idempotency,
+  status/attempts, steps/events, model/tool/provider usage, approval state, and receipts.
+- [x] Require stable idempotency keys. Derive Temporal workflow identity from organization,
+  installation, and logical operation/idempotency key. Duplicate submissions attach to the existing
+  run; changed payloads require a new key.
+- [x] Allow one active reasoning run per conversation, one active external effect per idempotency
+  key, generous but finite installation concurrency, and additional provider/account/recipient
+  limits. Queue excess work fairly rather than dropping it.
+- [x] Use Temporal workflows for coordination and short retryable activities for database/model/tool/
+  core/provider/file/webhook/channel I/O. Store raw secrets and large content outside workflow
+  history as secure references.
+- [x] Retry transient reads and I/O in bounded fashion. Use policy-controlled model retry/fallback;
+  retry core mutations only with the same idempotency key; reconcile external-provider uncertainty
+  before retry. Never automatically retry validation, authorization, or approval failures.
+- [x] Support user/admin cancellation through Temporal signals and activity cancellation. Prevent
+  pending effects after cancellation. Represent accepted irreversible provider work as
+  `cancellation_too_late` or `reconciliation_required`, not falsely cancelled. Suspension/kill
+  switches cancel queued work and block new steps.
+- [x] Set policy defaults of 15 seconds for simple requests, 45 seconds interactive wall time,
+  30-minute approval waits, bounded domain-specific background workflows, maximum six model calls,
+  and maximum four tool calls per run. Broad testing may raise quotas but not remove bounds.
+- [x] Treat ordered durable run events as authoritative. SSE, Streamable HTTP, and later WebSocket
+  are transport only; clients poll/reconcile after disconnect. Emit safe lifecycle/progress/tool/
+  approval/delivery/receipt events without raw secrets, prompts, or generic sensitive content.
+- [x] Scale stateless workers with workload-class task queues: interactive, background/scheduled,
+  connector/delivery, and model-heavy where needed. Use durable locks, monitor backlog/stuck runs/
+  retries/latency/worker health, and preserve recovery across restarts/replicas.
+- [x] After bounded retries, mark runs/effects `needs_attention`; preserve evidence and let an
+  authorized operator inspect, safely retry, cancel, or compensate rather than hiding failure.
+- [x] Store attachments/media in object storage. Persist only secure object references, hashes,
+  MIME/ownership/scan metadata in messages/runs; use resumable transfers and a separate durable
+  upload/reconciliation flow for media publishing.
 
 ### Exit criteria
 
+- [x] Synchronous/durable execution, workflow/activity, idempotency, concurrency, retry,
+  cancellation, budget, scaling, dead-letter, event, and media architecture is approved.
 - [ ] A restart or stream disconnect cannot duplicate an external effect.
 - [ ] Every invocation is traceable to a durable run/effect receipt where appropriate.
 
@@ -601,7 +635,7 @@ an undecided earlier layer.
 - [x] 5. Action safety and approvals
 - [x] 6. Core delegated authorization boundary
 - [x] 7. MCP and public REST API contract and connection UX
-- [ ] 8. Runtime execution rules
+- [x] 8. Runtime execution and durability rules
 - [ ] 9. Channels and conversation policy
 - [ ] 10. Context/knowledge/memory policy
 - [ ] 11. User/admin UX

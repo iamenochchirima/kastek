@@ -90,6 +90,9 @@ platform data/access contract.
   WebSocket transports only for demonstrated client compatibility or UX needs.
 - [x] Define typed REST plus advanced generic invocation, OpenAPI 3.1, parity, installation
   webhooks, agent-readable documentation, and real MCP/REST client compatibility gates.
+- [x] Use one durable AgentRun/Temporal model for all agent entry points, stable idempotency-derived
+  workflows, bounded synchronous calls, durable effects/approvals/schedules, safe cancellation,
+  ordered events, workload task queues, and object-storage media references.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -391,6 +394,24 @@ same audit UI as a KasiTek-hosted agent.
   the domain supports it.
 - [ ] Add `reconciliation_required` for ambiguous provider outcomes and prohibit blind effect retry.
 - [ ] Re-authorize the approving user at execution and prevent agent self-approval.
+
+### Runtime execution and recovery
+
+- [ ] Apply shared run records to MCP, REST, hosted agents, KasiAi, channels, and schedules with
+  trigger/principal/conversation/invocation/idempotency/usage/receipt linkage.
+- [ ] Route model work, approvals, schedules, provider effects/polling, uploads, and multi-step
+  work through Temporal; retain 10–15 second synchronous reads/local draft budget.
+- [ ] Derive workflow IDs from organization/installation/logical idempotency key and attach duplicate
+  requests to the current durable run.
+- [ ] Enforce durable conversation/effect/installation/provider/recipient concurrency limits and
+  fair queues.
+- [ ] Implement bounded retry policies, model spend/fallback policy, mutation idempotency,
+  provider reconciliation, cancellation signals, `cancellation_too_late`, and `needs_attention`.
+- [ ] Persist safe ordered events and ensure stream disconnects fall back to polling/reconciliation.
+- [ ] Split task queues by interactive, background/scheduled, connector/delivery, and model-heavy
+  work as operational load requires; monitor queues, retries, backlog, and stuck runs.
+- [ ] Store media/attachments externally by secure object reference with ownership, hashes, MIME,
+  scan state, resumable transfers, and durable media-publish reconciliation.
 - [ ] Build admin/customer activity views: run, model, tool, input hash, result, effect,
   approval, delivery, cost, and trace correlation.
 - [ ] Add audit retention, redaction, export, and support-access policy.
