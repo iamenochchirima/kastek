@@ -28,7 +28,7 @@ This checklist covers the first complete product delivery on the shared Agent Pl
   versioned agents and do not introduce template-specific runtime branches.
 
 This plan is the historical product-integration tranche of
-[`KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md`](../../../KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md).
+[`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](../../../KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md).
 The shared runtime, storage, Temporal worker, model gateway, memory, tools, and audit system remain
 authoritative.
 

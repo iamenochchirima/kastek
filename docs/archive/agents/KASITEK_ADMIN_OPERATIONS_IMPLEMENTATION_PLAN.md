@@ -1,5 +1,7 @@
 # KasiTek Admin Operations Console
 
+**Status:** Archived — consolidated into [`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](../../../KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md)
+
 ## Scope
 
 This plan covers the internal KasiTek administration surface for operating the

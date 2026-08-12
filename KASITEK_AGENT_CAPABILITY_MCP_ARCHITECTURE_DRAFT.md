@@ -1,8 +1,9 @@
 # KasiTek Agent Capability Platform and MCP Architecture Draft
 
-**Status:** Draft for product and architecture decisions  
-**Scope:** Direct KasiTek first; preserve explicit organization ownership for the future white-label platform  
+**Status:** Approved architecture decisions
+**Scope:** Direct KasiTek first; preserve explicit organization ownership for the future white-label platform
 **Last updated:** 2026-08-12
+**Implementation checklist:** [`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md)
 
 ## Purpose
 
@@ -704,7 +705,7 @@ Codex, Claude Code, n8n, scripts, SDKs, webhooks, and customer-built runtimes.
   never make it an unbounded customer-content browser.
 - [x] Define the dedicated KasiTek operator-console implementation boundary, operator roles,
   support-access sessions, redacted read models, safe command envelope, and end-to-end rollout
-  checklist in [`KASITEK_ADMIN_OPERATIONS_IMPLEMENTATION_PLAN.md`](KASITEK_ADMIN_OPERATIONS_IMPLEMENTATION_PLAN.md).
+  checklist in [`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md).
 - [x] Version evaluation sets with agent/capability releases and gate releases on correctness,
   hallucination, unsafe tool selection, denials, approvals, latency, and cost; retain sampled
   consent-safe evaluation evidence.

@@ -1,9 +1,9 @@
 # KasiTek Unified Agent System Implementation Plan
 
-**Status:** Active architecture and implementation checklist  
+**Status:** Archived — consolidated into [`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](../../../KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md)
 **Scope:** KasiAi, KasiTek-hosted user agents, and externally connected agents  
-**Planning source:** [`KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md`](KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md)  
-**Internal operations plan:** [`KASITEK_ADMIN_OPERATIONS_IMPLEMENTATION_PLAN.md`](KASITEK_ADMIN_OPERATIONS_IMPLEMENTATION_PLAN.md)
+**Planning source:** [`KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md`](../../../KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md)
+**Internal operations:** merged into the canonical execution blueprint
 **Initial mode:** broad capability access for controlled testing; commercial limits and granular
 entitlements follow after end-to-end validation
 

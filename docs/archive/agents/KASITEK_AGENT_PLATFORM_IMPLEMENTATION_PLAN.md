@@ -8,7 +8,7 @@
 ## Current implementation evidence
 
 The active direct-product integration and one-way legacy bot cutover are now tracked in
-[`KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md`](../../../KASITEK_UNIFIED_AGENT_SYSTEM_IMPLEMENTATION_PLAN.md). The historical cutover checklist
+[`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](../../../KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md). The historical cutover checklist
 owns the detailed work for the platform/sidebar channel, the first protected KasiAi deployment,
 template-created agents, the new Agents UI, and complete removal of the old `/api/bots` and n8n
 bot-provisioning system. There is no planned runtime fallback or dual-write path.
