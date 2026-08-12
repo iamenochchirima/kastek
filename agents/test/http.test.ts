@@ -38,6 +38,14 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("publishes protected-resource metadata for MCP clients", async () => {
+    const app = buildApp({ config, pool: fakePool });
+    const response = await app.inject({ method: "GET", url: "/.well-known/oauth-protected-resource" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ resource: "/mcp", bearer_methods_supported: ["header"] });
+    await app.close();
+  });
+
   it("filters MCP tools by the installation grant set", async () => {
     const app = buildApp({
       config,

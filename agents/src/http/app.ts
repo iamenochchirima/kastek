@@ -148,6 +148,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return installationTokenJwks(dependencies.config.INSTALLATION_TOKEN_PRIVATE_KEY);
   });
 
+  app.get("/.well-known/oauth-protected-resource", async () => ({
+    resource: "/mcp",
+    authorization_servers: [],
+    scopes_supported: ["mcp:read", "mcp:write"],
+    bearer_methods_supported: ["header"],
+  }));
+
   app.post("/v1/installation-tokens/exchange", async (request, reply) => {
     const body = z.object({ secret: z.string().trim().min(20).max(1_000), audience: z.enum(["mcp", "kasitek-public-api"]) }).parse(request.body);
     if (!dependencies.config.INSTALLATION_TOKEN_PRIVATE_KEY) return reply.code(503).send({ error: "installation_token_exchange_unavailable" });
