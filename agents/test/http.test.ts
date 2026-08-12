@@ -48,6 +48,8 @@ describe("Agent Platform HTTP foundation", () => {
     const response = await app.inject({ method: "POST", url: "/mcp", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { jsonrpc: "2.0", id: 2, method: "tools/list", params: { installationId: "install-1" } } });
     expect(response.statusCode).toBe(200);
     expect(response.json().result.tools.map((tool: { name: string }) => tool.name)).toEqual(["platform.current_time"]);
+    const denied = await app.inject({ method: "POST", url: "/mcp", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { jsonrpc: "2.0", id: 3, method: "tools/call", params: { installationId: "install-1", name: "kasitek.core.customer_get", arguments: { customerId: "customer-1" } } } });
+    expect(denied.json()).toMatchObject({ jsonrpc: "2.0", id: 3, error: { code: -32001 } });
     await app.close();
   });
 

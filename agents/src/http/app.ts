@@ -192,21 +192,25 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const args = params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments) ? params.arguments as Record<string, unknown> : {};
       if (!name) return failure(-32602, "name is required");
       const runId = typeof params.runId === "string" && params.runId.length <= 120 ? params.runId : randomUUID();
-      const result = await toolRegistry.invoke({
-        name,
-        arguments: args,
-        grantedTools: granted,
-        context: {
-          organizationId: auth.organizationId,
-          agentId: installation.agent_definition_id,
-          agentVersionId: installation.agent_version_id,
-          installationId: installation.id,
-          runId,
-          actorId: auth.actorId,
-          correlationId: auth.correlationId ?? randomUUID(),
-        },
-      });
-      return respond({ content: [{ type: "text", text: JSON.stringify(result.output) }], isError: false, structuredContent: result.output });
+      try {
+        const result = await toolRegistry.invoke({
+          name,
+          arguments: args,
+          grantedTools: granted,
+          context: {
+            organizationId: auth.organizationId,
+            agentId: installation.agent_definition_id,
+            agentVersionId: installation.agent_version_id,
+            installationId: installation.id,
+            runId,
+            actorId: auth.actorId,
+            correlationId: auth.correlationId ?? randomUUID(),
+          },
+        });
+        return respond({ content: [{ type: "text", text: JSON.stringify(result.output) }], isError: false, structuredContent: result.output });
+      } catch (error) {
+        return failure(-32001, error instanceof Error ? error.message : "tool_call_failed", { code: error && typeof error === "object" && "code" in error ? error.code : "TOOL_FAILED" });
+      }
     }
     return failure(-32601, "method_not_found");
   });
