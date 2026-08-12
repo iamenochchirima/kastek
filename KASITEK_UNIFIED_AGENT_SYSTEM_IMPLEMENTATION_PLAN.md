@@ -51,6 +51,13 @@ platform data/access contract.
   those agents may do.
 - [x] Treat external agents as non-human installation identities that can operate without a human
   session.
+- [x] Start external authentication with multiple named copy-once installation secrets, stored only
+  as hashes and exchanged for one-hour access tokens refreshed before expiry.
+- [x] Validate installation and credential status on every request for immediate suspension and
+  revocation; credentials initially inherit installation grants and may only be narrowed later.
+- [x] Audience-bind external tokens to the Agent Platform and use separate delegated internal
+  authority for `kasitek-core`.
+- [x] Add registered public-key client assertions before broad production availability.
 - [x] Make both the hosted KasiTek MCP server and a versioned REST API first-class interoperable
   surfaces for external agents and integrations.
 - [x] Use MCP for agent-native discovery/invocation and REST for deterministic automations, n8n,
@@ -131,13 +138,17 @@ MCP code; no duplicate capability definitions.
 
 - [ ] Generate copy-once installation secret credentials for controlled testing.
 - [ ] Add an installation token-exchange endpoint that issues short-lived, audience-bound tokens.
+- [ ] Set access-token lifetime to one hour and document automatic refresh approximately five
+  minutes before expiry.
 - [ ] Include installation, organization, credential, allowed scopes, resource constraints,
   expiry, and token audience in claims.
 - [ ] Validate token issuer, signature, audience, expiry, installation status, credential status,
   and organization state on every request.
 - [ ] Add token/client rate limits and audit every exchange.
 - [ ] Add suspend/revoke behavior that invalidates future exchanges and active authorization.
-- [ ] Plan private-key client assertions as the production-grade alternative to static secrets.
+- [ ] Add optional credential expiry and rotation reminders without forced expiry initially.
+- [ ] Ensure credential grants inherit and can only narrow installation grants.
+- [ ] Implement registered public keys and signed client assertions before broad production release.
 
 **Exit gate:** a test runtime can independently obtain a short-lived token and is rejected after
 credential rotation or installation suspension.

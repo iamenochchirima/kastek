@@ -139,19 +139,37 @@ An administrator creates an installation and generates a named installation secr
 The runtime exchanges that secret for a short-lived, audience-bound access token. The installation
 can be suspended, revoked, rotated, and audited without relying on a human session.
 
-### Decisions to make
+### Confirmed decisions
 
 - [x] External agents use installation identities and credentials rather than human sessions.
-- [ ] Initial client authentication: installation secret, signed private-key assertion, or both?
-- [ ] Access-token lifetime, refresh/exchange rules, credential expiry, and rotation policy.
-- [ ] Whether credentials can be constrained to IPs, environments, or named runtime instances.
-- [ ] How credentials are encrypted, displayed once, recovered, and revoked.
-- [ ] Whether external agents may use both MCP and REST with the same installation identity.
+- [x] Start with copy-once installation secrets. Store only a secure hash; lost secrets are replaced,
+  never recovered or displayed again.
+- [x] Exchange installation secrets for short-lived access tokens lasting one hour; clients should
+  refresh approximately five minutes before expiry.
+- [x] Support multiple user-named credentials per installation without attempting to infer or trust
+  where a runtime is hosted.
+- [x] Check installation and credential status on every authenticated request so suspension or
+  revocation takes effect immediately even when an issued token has not expired.
+- [x] Make credential expiry optional initially and provide rotation reminders; administrators can
+  rotate or revoke each credential independently.
+- [x] Credentials initially inherit their installation's effective permissions. Later, a credential
+  may be narrowed but can never exceed the installation's grants.
+- [x] Use the same installation identity and credential flow for MCP and REST.
+- [x] Audience-bind external tokens to the Agent Platform/API. Never accept an external installation
+  token directly at `kasitek-core`; core receives separately issued delegated internal authority.
+- [x] Keep credentials out of prompts, conversations, workflow history, logs, traces, audit payloads,
+  and all UI/API responses after initial creation.
+- [x] Add registered public keys and signed client assertions before broad production availability,
+  allowing deployments to authenticate without transmitting a long-lived shared secret.
+- [ ] Decide optional credential-level IP/network constraints only if a concrete deployment or plan
+  requires them; hosting-location awareness is not part of the identity model.
 
 ### Exit criteria
 
-- [ ] Credential and token threat model is documented.
-- [ ] Token claims, audience validation, and revocation behavior are specified.
+- [x] Credential type, token lifetime, audience separation, inheritance, and revocation behavior are
+  decided for implementation.
+- [ ] Credential and token threat model is documented and reviewed.
+- [ ] Token claims and endpoint-level validation are specified as executable contracts.
 
 ## Layer 3 — Permission, entitlement, and resource policy
 
@@ -429,7 +447,7 @@ Work through the layers in this order. Do not begin implementation of a later la
 an undecided earlier layer.
 
 - [ ] 1. Product contract and installation lifecycle
-- [ ] 2. Installation credential and token lifecycle
+- [x] 2. Installation credential and token lifecycle
 - [ ] 3. Scope taxonomy, subscriptions, and resource constraints
 - [ ] 4. First capability catalog and core ownership
 - [ ] 5. Action safety and approvals
