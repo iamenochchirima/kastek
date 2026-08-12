@@ -518,6 +518,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn revoke_channel_binding(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        binding_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/channel-bindings/{binding_id}"),
+            organization_id,
+            actor_id,
+            &["channels:write"],
+            None,
+        )
+        .await
+    }
+
     pub async fn get_conversation(
         &self,
         organization_id: &str,

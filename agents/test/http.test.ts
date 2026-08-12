@@ -353,13 +353,14 @@ describe("Agent Platform HTTP foundation", () => {
           return { id, status };
         },
       } as never,
-      channels: { revokeBinding: async () => undefined } as never,
+      channels: { revokeOwnerBinding: async () => undefined } as never,
     });
     const archived = await app.inject({ method: "POST", url: "/v1/conversations/conversation-1/status/archived", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
     const revoked = await app.inject({ method: "DELETE", url: "/v1/channel-bindings/binding-1", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
     expect(archived.json()).toMatchObject({ id: "conversation-1", status: "archived" });
     expect(lifecycleCalls).toEqual([{ organizationId: "org-1", id: "conversation-1", ownerActorId: "user-1", status: "archived" }]);
-    expect(revoked.statusCode).toBe(204);
+    expect(revoked.statusCode).toBe(200);
+    expect(revoked.json()).toEqual({ disconnected: true });
     await app.close();
   });
 });

@@ -230,6 +230,10 @@ export function listKasiAiChannels(installationId: string): Promise<{ connection
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels`);
 }
 
+export function disconnectKasiAiChannel(bindingId: string): Promise<{ disconnected: boolean }> {
+  return request(`/api/agents/channel-bindings/${encodeURIComponent(bindingId)}`, { method: "DELETE" });
+}
+
 export function issueKasiAiWhatsappPairing(connectionId: string): Promise<{
   installationId: string;
   pairing: { token: string; expires_at: string };

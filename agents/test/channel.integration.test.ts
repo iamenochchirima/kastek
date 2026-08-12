@@ -60,6 +60,11 @@ describe.skipIf(!runIntegration)("channel routing contracts (integration)", () =
       status: "sent",
     });
     expect(staleReceipt.delivery_status).toBe("read");
+    await expect(channels.revokeOwnerBinding(organizationId, binding.id, "another-user"))
+      .rejects.toThrow("Channel binding not found");
+    await channels.revokeOwnerBinding(organizationId, binding.id, "test-user");
+    expect((await channels.listOwnerBindings(organizationId, installationId, "test-user"))[0]?.status)
+      .toBe("revoked");
   });
 
   beforeAll(async () => { await pool.query("SELECT 1"); });

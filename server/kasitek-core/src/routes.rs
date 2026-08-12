@@ -99,6 +99,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::post().to(agent_platform::issue_kasiai_whatsapp_pairing),
                 )
                 .route(
+                    "/channel-bindings/{bindingId}",
+                    web::delete().to(agent_platform::disconnect_channel),
+                )
+                .route(
                     "/installations/{installationId}/platform/messages",
                     web::post().to(agent_platform::send_message),
                 )

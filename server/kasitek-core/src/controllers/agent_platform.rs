@@ -134,6 +134,19 @@ pub async fn list_channels(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn disconnect_channel(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    binding_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .revoke_channel_binding(&organization_id, &user.id, binding_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WhatsappPairingRequest {

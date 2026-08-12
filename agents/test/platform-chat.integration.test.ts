@@ -170,7 +170,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     const deliveredReply = (await conversations.listMessages(organizationId, current.conversation.id))
       .find((message) => message.id === reply!.id);
     expect(deliveredReply).toMatchObject({ delivery_status: "sent", provider_message_id: "wamid-reply-1" });
-    await channels.revokeBinding(organizationId, binding.id);
+    await channels.revokeOwnerBinding(organizationId, binding.id, "user-1");
     await expect(platformChat.acceptExternalMessage({
       organizationId,
       channelType: "whatsapp",

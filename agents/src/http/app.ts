@@ -523,14 +523,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     };
   });
 
-  app.post<{ Params: { installationId: string; connectionId: string } }>("/v1/installations/:installationId/channels/:connectionId/bindings", async (request, reply) => {
-    const auth = requireAuth(request, dependencies.config);
-    requireScope(auth, dependencies.config, "channels:write");
-    const input = z.object({ externalIdentity: z.string().trim().min(1).max(240), routingKey: z.string().trim().max(160).default("default") }).parse(request.body);
-    const binding = await channels.bind({ organizationId: auth.organizationId, installationId: request.params.installationId, connectionId: request.params.connectionId, ...input, ownerActorId: auth.actorId });
-    return reply.code(201).send(binding);
-  });
-
   app.post<{ Params: { installationId: string; connectionId: string } }>("/v1/installations/:installationId/channels/:connectionId/pairing", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "channels:write");
@@ -553,8 +545,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.delete<{ Params: { bindingId: string } }>("/v1/channel-bindings/:bindingId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "channels:write");
-    await channels.revokeBinding(auth.organizationId, request.params.bindingId);
-    return reply.code(204).send();
+    await channels.revokeOwnerBinding(auth.organizationId, request.params.bindingId, auth.actorId);
+    return reply.send({ disconnected: true });
   });
 
   app.post<{ Params: { installationId: string } }>(

@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelAgentRun,
   createPlatformConversation,
+  disconnectKasiAiChannel,
   ensureKasiAi,
   getPlatformConversation,
   issueKasiAiWhatsappPairing,
@@ -133,6 +134,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const [pairing, setPairing] = useState<{ token: string; expiresAt: string } | null>(null);
   const [pairingBusy, setPairingBusy] = useState(false);
   const [pairingCopied, setPairingCopied] = useState(false);
+  const [disconnectingBindingId, setDisconnectingBindingId] = useState<string | null>(null);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -439,6 +441,21 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     setPairingCopied(true);
   };
 
+  const disconnectChannel = async (binding: AgentChannelBinding) => {
+    if (!installation || disconnectingBindingId) return;
+    if (!window.confirm(`Disconnect ${channelLabel(binding.channel_type)} from KasiAi? Existing messages will remain in conversation history.`)) return;
+    setDisconnectingBindingId(binding.id);
+    setError(null);
+    try {
+      await disconnectKasiAiChannel(binding.id);
+      await refreshChannels(installation.id);
+    } catch (cause) {
+      setError(formatAgentError(cause, `Unable to disconnect ${channelLabel(binding.channel_type)}`));
+    } finally {
+      setDisconnectingBindingId(null);
+    }
+  };
+
   const availableChannels = useMemo(
     () => Array.from(new Set([
       ...messages.map(messageChannel),
@@ -590,6 +607,26 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
               <p className="mt-1 text-[10px] text-muted-foreground">Expires {new Date(pairing.expiresAt).toLocaleTimeString()}.</p>
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {channelBindings.some((binding) => binding.status === "active") ? (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-[11px] text-muted-foreground">
+          <span>Connected:</span>
+          {channelBindings.filter((binding) => binding.status === "active").map((binding) => (
+            <span key={binding.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1">
+              {channelLabel(binding.channel_type)}
+              <button
+                type="button"
+                className="rounded-full p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => void disconnectChannel(binding)}
+                disabled={disconnectingBindingId === binding.id}
+                aria-label={`Disconnect ${channelLabel(binding.channel_type)} from KasiAi`}
+              >
+                {disconnectingBindingId === binding.id ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+              </button>
+            </span>
+          ))}
         </div>
       ) : null}
 

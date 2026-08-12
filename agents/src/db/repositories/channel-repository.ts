@@ -174,8 +174,13 @@ export class ChannelRepository {
     return result.rows;
   }
 
-  public async revokeBinding(organizationId: string, bindingId: string): Promise<void> {
-    const result = await query(this.pool, `UPDATE channel_bindings SET status = 'revoked', updated_at = now() WHERE organization_id = $1 AND id = $2 AND status <> 'revoked'`, [organizationId, bindingId]);
+  public async revokeOwnerBinding(organizationId: string, bindingId: string, ownerActorId: string): Promise<void> {
+    const result = await query(
+      this.pool,
+      `UPDATE channel_bindings SET status = 'revoked', updated_at = now()
+       WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3 AND status <> 'revoked'`,
+      [organizationId, bindingId, ownerActorId],
+    );
     if (!result.rowCount) throw new Error("Channel binding not found");
   }
 
