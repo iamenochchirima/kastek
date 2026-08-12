@@ -180,6 +180,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }).parse(request.body);
     const respond = (result: unknown) => reply.send({ jsonrpc: "2.0", id: body.id, result });
     const failure = (code: number, message: string, data?: unknown) => reply.send({ jsonrpc: "2.0", id: body.id, error: { code, message, ...(data === undefined ? {} : { data }) } });
+    if (dependencies.config.AGENT_GATEWAY_SHARED_SECRET && request.headers["x-agent-gateway-secret"] !== dependencies.config.AGENT_GATEWAY_SHARED_SECRET) {
+      return failure(-32003, "gateway_authentication_required");
+    }
     if (body.method === "initialize") {
       return respond({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "kasitek-agent-platform", version: "1.0.0" } });
     }

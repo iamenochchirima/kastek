@@ -38,6 +38,13 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("requires the configured gateway secret before accepting MCP traffic", async () => {
+    const app = buildApp({ config: { ...config, AGENT_GATEWAY_SHARED_SECRET: "gateway-secret" }, pool: fakePool });
+    const response = await app.inject({ method: "POST", url: "/mcp", payload: { jsonrpc: "2.0", id: 4, method: "initialize" } });
+    expect(response.json()).toMatchObject({ error: { code: -32003 } });
+    await app.close();
+  });
+
   it("publishes protected-resource metadata for MCP clients", async () => {
     const app = buildApp({ config, pool: fakePool });
     const response = await app.inject({ method: "GET", url: "/.well-known/oauth-protected-resource" });
