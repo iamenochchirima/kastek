@@ -11,6 +11,8 @@ import {
   Square,
   X,
 } from "lucide-react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   cancelAgentRun,
@@ -29,6 +31,33 @@ import { cn } from "@/lib/utils";
 
 function messageText(message: AgentMessage): string {
   return typeof message.content?.text === "string" ? message.content.text : JSON.stringify(message.content);
+}
+
+const markdownComponents: Components = {
+  h1: ({ children }) => <h3 className="mt-3 text-base font-semibold first:mt-0">{children}</h3>,
+  h2: ({ children }) => <h4 className="mt-3 text-sm font-semibold first:mt-0">{children}</h4>,
+  h3: ({ children }) => <h5 className="mt-2 text-sm font-semibold first:mt-0">{children}</h5>,
+  p: ({ children }) => <p className="mt-2 first:mt-0">{children}</p>,
+  ul: ({ children }) => <ul className="mt-2 list-disc space-y-1 pl-5 first:mt-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mt-2 list-decimal space-y-1 pl-5 first:mt-0">{children}</ol>,
+  li: ({ children }) => <li>{children}</li>,
+  blockquote: ({ children }) => <blockquote className="mt-2 border-l-2 border-current/30 pl-3 italic">{children}</blockquote>,
+  code: ({ children, className }) => className
+    ? <code className="my-2 block overflow-x-auto rounded-md bg-black/15 p-2 text-xs leading-5">{children}</code>
+    : <code className="rounded bg-black/15 px-1 py-0.5 text-[0.85em]">{children}</code>,
+  a: ({ children, href }) => {
+    const safeHref = href && /^(https?:|mailto:)/i.test(href) ? href : undefined;
+    return safeHref
+      ? <a href={safeHref} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:opacity-80">{children}</a>
+      : <>{children}</>;
+  },
+  table: ({ children }) => <div className="my-2 overflow-x-auto"><table className="w-full border-collapse text-left text-xs">{children}</table></div>,
+  th: ({ children }) => <th className="border border-current/20 px-2 py-1 font-semibold">{children}</th>,
+  td: ({ children }) => <td className="border border-current/20 px-2 py-1 align-top">{children}</td>,
+};
+
+function SafeMarkdown({ children }: { children: string }) {
+  return <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>{children}</ReactMarkdown>;
 }
 
 function sortMessages(messages: AgentMessage[]): AgentMessage[] {
@@ -406,7 +435,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
                   ? "rounded-bl-sm border border-border bg-card text-foreground"
                   : "rounded-br-sm bg-primary text-primary-foreground",
               )}>
-                {messageText(message)}
+                {message.direction === "outbound" ? messageText(message) : <SafeMarkdown>{messageText(message)}</SafeMarkdown>}
               </div>
             </div>
           ))}
