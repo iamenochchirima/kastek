@@ -24,7 +24,7 @@ marked when the complete deliverable and its verification exist.
 ## Verification evidence
 
 Agent Platform `pnpm test && pnpm build` currently passes with 30 test files passing, 9 integration
-files skipped because no local database/provider stack is configured, and 81 tests passing. Core
+files skipped because no local database/provider stack is configured, and 83 tests passing. Core
 capability tests and `cargo check -p kasitek-core` pass. The skipped integration environment and
 existing client/admin lint/build blockers remain recorded in the root `BLOCKERS.md`.
 
