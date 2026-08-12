@@ -58,6 +58,7 @@ function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegistry {
       required: ["iso"],
       additionalProperties: false,
     },
+    manifest: { ownerService: "agents", requiredScope: "platform.time.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "access", redaction: [] },
     handler: async () => ({ iso: new Date().toISOString() }),
   });
   tools.register({
@@ -74,6 +75,7 @@ function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegistry {
       additionalProperties: false,
     },
     outputSchema: { type: "object", required: ["customer"], additionalProperties: true },
+    manifest: { ownerService: "kasitek-core", requiredScope: "customers.read", resourceSelector: { type: "customer", argument: "customerId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["customer.email", "customer.phone"] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
       return coreClient.getCustomer(context, String(args.customerId));
@@ -93,6 +95,7 @@ function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegistry {
       required: ["organizationId", "connections"],
       additionalProperties: false,
     },
+    manifest: { ownerService: "kasitek-core", requiredScope: "connections.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "access", redaction: ["connections.credentials"] },
     handler: async (context) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
       return coreClient.getWorkspaceStatus(context);

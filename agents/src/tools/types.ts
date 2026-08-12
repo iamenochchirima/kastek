@@ -1,5 +1,20 @@
 export type ToolRiskClass = "read" | "draft" | "controlled-write" | "external-effect" | "privileged";
 
+export type CapabilityExecution = "immediate" | "durable";
+export type CapabilityAvailability = "available" | "not_granted" | "not_configured" | "unhealthy";
+
+export interface CapabilityManifestMetadata {
+  ownerService: string;
+  requiredScope: string;
+  resourceSelector?: { type: string; argument?: string };
+  execution: CapabilityExecution;
+  idempotency: "not_applicable" | "optional" | "required";
+  approval: "none" | "policy" | "always";
+  auditClassification: "access" | "full" | "restricted";
+  redaction: string[];
+  availability?: CapabilityAvailability;
+}
+
 export interface ToolInvocationContext {
   organizationId: string;
   agentId: string;
@@ -26,6 +41,11 @@ export interface ToolDefinition {
   inputSchema: Record<string, unknown>;
   outputSchema: Record<string, unknown>;
   handler: (context: ToolInvocationContext, argumentsValue: Record<string, unknown>) => Promise<unknown>;
+  manifest?: CapabilityManifestMetadata;
+}
+
+export interface CapabilityManifest extends Omit<ToolDefinition, "handler" | "manifest"> {
+  manifest: CapabilityManifestMetadata;
 }
 
 export interface ToolInvocationRequest {

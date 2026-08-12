@@ -1,6 +1,8 @@
 import Ajv, { type ValidateFunction } from "ajv";
 import { createHash } from "node:crypto";
 import type {
+  CapabilityManifest,
+  CapabilityManifestMetadata,
   ToolDefinition,
   ToolInvocationRequest,
   ToolInvocationResult,
@@ -41,6 +43,13 @@ export class ToolRegistry {
     this.tools.set(definition.name, { ...definition, validateInput, validateOutput });
   }
 
+  public registerManifest(definition: CapabilityManifest & ToolDefinition): void {
+    if (!definition.manifest.ownerService.trim()) throw new Error(`Capability owner is required: ${definition.name}`);
+    if (!definition.manifest.requiredScope.trim()) throw new Error(`Capability scope is required: ${definition.name}`);
+    if (!definition.manifest.redaction.every((entry) => entry.trim().length > 0)) throw new Error(`Capability redaction metadata is invalid: ${definition.name}`);
+    this.register(definition);
+  }
+
   public list(grantedTools?: ReadonlySet<string>): Array<Omit<ToolDefinition, "handler">> {
     return [...this.tools.values()]
       .filter((tool) => !grantedTools || grantedTools.has(tool.name))
@@ -52,6 +61,12 @@ export class ToolRegistry {
     if (!tool) return undefined;
     const { handler: _handler, validateInput: _input, validateOutput: _output, ...manifest } = tool;
     return manifest;
+  }
+
+  public manifests(grantedTools?: ReadonlySet<string>): Array<Omit<CapabilityManifest, "handler">> {
+    return [...this.tools.values()]
+      .filter((tool) => tool.manifest && (!grantedTools || grantedTools.has(tool.name)))
+      .map(({ handler: _handler, validateInput: _input, validateOutput: _output, ...manifest }) => manifest as Omit<CapabilityManifest, "handler">);
   }
 
   public async invoke(request: ToolInvocationRequest): Promise<ToolInvocationResult> {
