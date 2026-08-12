@@ -41,6 +41,7 @@ import { installationTokenJwks, issueInstallationToken } from "../auth/installat
 import { createDefaultTools } from "../temporal/activities";
 import { KasitekCoreReadClient } from "../core/client";
 import { ToolRegistry } from "../tools/registry";
+import { randomUUID } from "node:crypto";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -155,6 +156,53 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       audience: body.audience,
     });
     return reply.send({ accessToken: token.accessToken, tokenType: "Bearer", expiresAt: token.expiresAt, audience: body.audience });
+  });
+
+  app.post("/mcp", async (request, reply) => {
+    const body = z.object({
+      jsonrpc: z.literal("2.0"),
+      id: z.union([z.string(), z.number(), z.null()]),
+      method: z.string().min(1).max(120),
+      params: z.record(z.string(), z.unknown()).optional(),
+    }).parse(request.body);
+    const respond = (result: unknown) => reply.send({ jsonrpc: "2.0", id: body.id, result });
+    const failure = (code: number, message: string, data?: unknown) => reply.send({ jsonrpc: "2.0", id: body.id, error: { code, message, ...(data === undefined ? {} : { data }) } });
+    if (body.method === "initialize") {
+      return respond({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "kasitek-agent-platform", version: "1.0.0" } });
+    }
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "mcp:read");
+    const params = body.params ?? {};
+    const installationId = typeof params.installationId === "string" ? params.installationId : undefined;
+    if (!installationId) return failure(-32602, "installationId is required");
+    const installation = await agents.getInstallation(auth.organizationId, installationId);
+    if (!installation || installation.status !== "active") return failure(-32004, "installation_not_found");
+    const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
+    if (body.method === "tools/list") {
+      return respond({ tools: toolRegistry.manifests(granted).map((manifest) => ({ name: manifest.name, description: manifest.description, inputSchema: manifest.inputSchema })) });
+    }
+    if (body.method === "tools/call") {
+      const name = typeof params.name === "string" ? params.name : "";
+      const args = params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments) ? params.arguments as Record<string, unknown> : {};
+      if (!name) return failure(-32602, "name is required");
+      const runId = typeof params.runId === "string" && params.runId.length <= 120 ? params.runId : randomUUID();
+      const result = await toolRegistry.invoke({
+        name,
+        arguments: args,
+        grantedTools: granted,
+        context: {
+          organizationId: auth.organizationId,
+          agentId: installation.agent_definition_id,
+          agentVersionId: installation.agent_version_id,
+          installationId: installation.id,
+          runId,
+          actorId: auth.actorId,
+          correlationId: auth.correlationId ?? randomUUID(),
+        },
+      });
+      return respond({ content: [{ type: "text", text: JSON.stringify(result.output) }], isError: false, structuredContent: result.output });
+    }
+    return failure(-32601, "method_not_found");
   });
 
   app.post("/v1/agents", async (request, reply) => {

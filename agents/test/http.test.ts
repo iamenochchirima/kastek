@@ -26,6 +26,18 @@ const fakePool = {
 } as never;
 
 describe("Agent Platform HTTP foundation", () => {
+  it("serves the MCP initialize contract without requiring tenant credentials", async () => {
+    const app = buildApp({ config, pool: fakePool });
+    const response = await app.inject({
+      method: "POST",
+      url: "/mcp",
+      payload: { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ jsonrpc: "2.0", id: 1, result: { capabilities: { tools: { listChanged: false } } } });
+    await app.close();
+  });
+
   it("requires an explicit organization and actor scope", async () => {
     const app = buildApp({ config, pool: fakePool });
     const response = await app.inject({ method: "POST", url: "/v1/agents", payload: { name: "Test" } });
