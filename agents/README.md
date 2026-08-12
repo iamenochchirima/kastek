@@ -8,6 +8,7 @@ actions will go through authenticated internal contracts exposed by `kasitek-cor
 ## Processes
 
 - `pnpm run dev:api` starts the HTTP API.
+- `pnpm run dev:gateway` starts the stateless external MCP gateway.
 - `pnpm run dev:worker` starts the Temporal worker.
 - `pnpm run migrate` applies PostgreSQL migrations.
 - `pnpm run bootstrap:kasiai` idempotently creates the protected KasiAi definition and initial
@@ -21,6 +22,11 @@ independently. The default local-stack mode connects them to a dedicated Tempora
 development namespace. Set `TEMPORAL_MODE=local`, `TEMPORAL_ADDRESS=localhost:7233`, and
 `TEMPORAL_NAMESPACE=default` when a completely local Temporal Server is needed. Production
 must enable Temporal and provide a dedicated namespace/task queue.
+
+The gateway is a third independently scalable process. It owns no database, Temporal, core, or
+product state: `POST /mcp` forwards the authenticated JSON-RPC request to the private Agent API,
+and `/health` reports gateway readiness. Route `agents.kasitek.co.za/mcp` to `start:gateway`; keep
+the Agent API `/v1` surface on its private/API origin.
 
 Cloud mode requires `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, and `TEMPORAL_API_KEY` in
 `agents/.env` (or the environment used to launch the processes). Never commit the API key.
@@ -64,6 +70,15 @@ The initial tool is `kasitek.core.customer_get`. It calls
 correlation headers. Core scopes the query by organization and returns only the read model.
 The Agent Platform never receives core database credentials. Rotate this service token as a
 deployment secret; do not reuse the n8n callback token or a user session token.
+
+When configured, `KASITEK_CORE_DELEGATION_PRIVATE_KEY` signs a short-lived ES256 delegation per
+core invocation. Core verifies it with `AGENTS_DELEGATION_PUBLIC_KEY`, issuer, audience, run,
+installation, capability, and correlation claims. The static internal token remains only as a
+development compatibility path.
+
+External-effect tools reserve an idempotency-derived effect receipt before execution. Provider
+success/failure is persisted separately from the tool result; ambiguous outcomes are surfaced by
+`GET /v1/operations/effects/reconciliation` and must be reconciled before retrying.
 
 User-owned model credentials are stored through `/v1/credentials` as encrypted vault records.
 Set `AGENTS_CREDENTIAL_ENCRYPTION_KEY` to a random 32-byte hex or base64 key in every API and
