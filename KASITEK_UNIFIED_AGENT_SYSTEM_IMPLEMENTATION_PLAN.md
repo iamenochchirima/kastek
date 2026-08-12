@@ -530,13 +530,24 @@ operation.
 
 ### Rollout
 
-- [ ] Controlled test workspace with broad test grants and clear audit labelling.
-- [ ] Read-only KasiAi internal beta.
-- [ ] Draft-capability beta.
-- [ ] External-connected MCP beta.
-- [ ] Hosted user-agent beta.
-- [ ] Controlled external-effect beta by domain.
-- [ ] Production entitlement/limits launch after release gates pass.
+- [ ] Create separate local, shared dev/test, controlled beta, and production environments with
+  isolated database/Temporal/credentials/provider-test/signing/webhook resources.
+- [ ] Create seeded/reseedable controlled-test workspaces with labelled `development_full_access`,
+  sandbox/fake providers, and no unapproved real recipients.
+- [ ] Add independent platform/KasiAi/capability/external-effect/MCP/REST/webhook/hosted/external/
+  channel/connector/organization-beta feature flags and effect-level off switches.
+- [ ] Require migration/rollback, contract/auth/retry/eval/redaction/dashboard/runbook/UI/E2E owner/
+  switch gates before each layer/domain beta.
+- [ ] Test rollback via switches before destructive action, preserve evidence/schema compatibility,
+  compensate safely/audited, and communicate impact.
+- [ ] Prove grounded KasiAi, hosted agent channel+connector+approval, Codex/Claude MCP, n8n REST,
+  immediate revoke, no duplicate effects, webhook replay denial, isolation, and UI reconciliation.
+- [ ] Establish dashboard/on-call/alerts/runbooks/restore/provider-outage/key-rotation/support/
+  pause-every-layer readiness before public beta.
+- [ ] Publish and maintain REST/OpenAPI/MCP/agent/customer/admin/ADR/security/catalog/changelog/
+  deprecation documentation.
+- [ ] Promote reads → drafts → sandbox effects → real effects feature-by-feature; add plan quotas and
+  billing enforcement only after release gates pass.
 
 **Exit gate:** the system can be safely operated, tested, rolled back, and expanded domain by domain.
 

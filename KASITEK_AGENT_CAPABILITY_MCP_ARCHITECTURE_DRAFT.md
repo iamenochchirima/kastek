@@ -764,25 +764,49 @@ malicious instructions.
 
 **Goal:** Ship the capability surface without exposing unproven mutations.
 
-### Proposed rollout
+### Confirmed decisions
 
-1. Grounded, read-only KasiAi tools.
-2. Draft capabilities and audit/approval UI.
-3. Controlled write and external-effect tools for selected domains.
-4. Installation credentials and private customer-agent API.
-5. Hosted MCP beta with compatibility tests.
-6. Additional channels and capability domains.
-
-### Decisions to make
-
-- [ ] Sandbox/test workspace model for integrations and agent installations.
-- [ ] Contract, authorization, idempotency, adversarial, and MCP compatibility test requirements.
-- [ ] Feature flags, beta access, migration/rollback, and incident communications.
-- [ ] Release gates for read tools, drafts, and external-effect capabilities.
+- [x] Use separate local development, shared development/test, controlled beta workspace, and
+  production environments. Keep databases, Temporal namespaces, credentials, provider sandbox/test
+  accounts, signing keys, and webhook endpoints separate; do not test against production customer
+  data by default.
+- [x] Create controlled-test workspaces with `development_full_access`, seeded product fixtures and
+  test social accounts, sandbox/fake providers where available, explicit audit labels, reseed/reset
+  tooling, and no real recipients unless specifically approved.
+- [x] Release in this order: shared contracts/control plane/credentials/registry/core delegation;
+  grounded read-only KasiAi with content/social reads; content/social drafts/approval; sandbox
+  content/social effects; REST/webhook beta; MCP beta; hosted guided agents with a real external
+  connector/channel; contacts/inbox, bookings, campaigns, then remaining domains; visual workflow
+  builder; subscription quotas/billing enforcement and broad production release.
+- [x] Use independent feature flags for platform, KasiAi tools, each capability, external effects,
+  MCP, REST, webhooks, hosted agents, external installations, channels/connectors, and
+  organization-level beta access. Every external-effect capability has an independent off switch.
+- [x] Require migration/rollback, contract/authorization, idempotency/recovery, capability/eval,
+  redaction/secret scan, observability/alerts, runbook, approval/receipt UI, controlled-workspace
+  end-to-end evidence, responsible owner, and rollback switch before enabling a domain/layer.
+- [x] Roll back through flags/kill switches first; preserve run/audit/effect evidence and compatible
+  schema/data, compensate only safely through separately approved actions, and communicate known
+  impact/status to affected workspaces.
+- [x] Require end-to-end proof that: KasiAi gives grounded content/social help and refuses invented
+  operations; hosted agents handle a channel message with external connector/draft/approval;
+  Codex/Claude MCP and n8n REST calls yield equivalent sandbox effects/receipts; credential revocation
+  is immediate; failure/retry does not duplicate effects; webhook replay is ignored; cross-scope access
+  is denied; and usage/audit/approval/delivery views reconcile with actual operations.
+- [x] Before public beta, provide queue/run/error/cost/provider/webhook dashboards, proportionate
+  ownership/on-call and alerts, incident/support playbooks, backup restore evidence, provider outage/
+  reconciliation procedures, credential/key rotation practice, support escalation, and a tested
+  ability to pause each layer.
+- [x] Maintain public REST/OpenAPI/MCP docs, agent-readable integration guide, customer setup guides,
+  admin operations guide, internal ADR/architecture docs, security/incident runbooks, capability
+  catalog/changelog, and migration/deprecation notices.
+- [x] Do not set a broad production date now. Promote feature-by-feature through controlled beta only
+  when release gates pass: reads, drafts, sandbox effects, then real external effects.
 
 ### Exit criteria
 
-- [ ] Each rollout stage has objective checks and a rollback path.
+- [x] Environment, testing, sequence, flags, gates, rollback, scenarios, operations, documentation,
+  and feature-by-feature release policy is approved for implementation.
+- [ ] Each rollout stage has objective checks and a tested rollback path.
 
 ## Decision sequence
 
@@ -802,7 +826,7 @@ an undecided earlier layer.
 - [x] 11. User and administrator experience
 - [x] 12. Observability and governance
 - [x] 13. Security and abuse-resistance policy
-- [ ] 14. Rollout and verification plan
+- [x] 14. Rollout, testing, and operations policy
 
 ## Next discussion
 
