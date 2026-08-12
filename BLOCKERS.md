@@ -14,14 +14,16 @@ verified or completed. Work on independent items continues.
   value. `pnpm --filter client lint` now passes with one existing non-blocking
   `<img>` warning; client TypeScript checking also passes.
 
-## B-002 — Admin lint command has no ESLint flat configuration
+## B-002 — Admin lint command has no ESLint flat configuration (resolved)
 
 - **Blueprint:** Slice 0 verification; admin lint baseline.
 - **Evidence:** `pnpm --filter admin lint` invokes ESLint 9.39.2, which stops
   because `client/apps/admin` has no `eslint.config.{js,mjs,cjs}`.
-- **Impact:** Admin lint cannot run under the checked-in command.
-- **Next action:** Add or migrate the admin ESLint configuration, then rerun
-  the required command.
+- **Resolution:** Added the ESLint 9 flat configuration at
+  `client/apps/admin/eslint.config.mjs`. `pnpm --filter admin lint` now exits
+  successfully with existing warnings only; hydration-related state effects
+  are explicitly documented in the config while the shared state boundary is
+  migrated.
 
 ## B-003 — Local integration and authenticated smoke environment unavailable
 
