@@ -517,12 +517,13 @@ Relevant starting points:
   token at the Agent API.
 - [x] Add request/body limits, timeouts, upstream abort propagation, client-disconnect cancellation,
   and bounded response handling.
-- [ ] Add rate limits keyed by installation/credential and safe pre-authentication network limits.
+- [x] Add bounded rate limits keyed by bearer credential (or pre-authentication network address)
+  and safe pre-authentication network limits; distributed enforcement remains a deployment gate.
 - [ ] Add a global and scoped MCP kill switch with audited changes.
 - [ ] Add structured redacted logs, correlation ids, latency/error metrics, and readiness that checks
   required upstream availability without taking ownership of business state.
-- [ ] Pin and negotiate the supported MCP protocol revision; do not hard-code a response without
-  compatibility tests.
+- [x] Pin and negotiate the supported MCP protocol revision (`2025-06-18`); reject incompatible
+  revisions with a compatibility-tested response.
 - [ ] Complete Streamable HTTP lifecycle, notification, structured error, and cancellation behavior.
 - [ ] Add Railway/service deployment configuration, routing, scaling, and health checks.
 - [x] Keep `/v1` off the MCP gateway.
@@ -531,6 +532,8 @@ Relevant starting points:
 
 - [x] Production configuration fails without gateway-to-API authentication.
 - [x] Spoofed internal identity headers are stripped or rejected.
+- [x] Gateway tests cover transport disable, rate limiting, protocol negotiation, bounded lifecycle
+  methods, and upstream protocol-header propagation.
 
 **Partial evidence:** `agents/src/gateway/app.ts`, `agents/src/gateway/server.ts`,
 `agents/test/gateway.test.ts`; `5d3787e`. Distributed limits, metrics/readiness, deployment,

@@ -4,6 +4,11 @@ The hosted endpoint is `https://agents.kasitek.co.za/mcp`. It is a Streamable HT
 transport backed by the stateless gateway. The gateway forwards no credentials into prompts and has
 no database or Temporal ownership.
 
+The supported MCP protocol revision is `2025-06-18`. Send it in the `MCP-Protocol-Version` header
+when the client supports negotiation. The gateway rejects unsupported revisions and advertises the
+supported revision in the response header. The initial deployment supports POST JSON-RPC requests;
+GET streaming and resumable sessions are intentionally not advertised yet.
+
 1. Exchange a copy-once installation credential at `POST /v1/installation-tokens/exchange` with
    `{"secret":"...","audience":"mcp"}`.
 2. Send the resulting short-lived bearer token to `/mcp` with every JSON-RPC request, including

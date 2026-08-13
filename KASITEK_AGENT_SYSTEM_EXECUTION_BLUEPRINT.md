@@ -651,11 +651,16 @@ real capabilities, preserves independent chats, and never invents platform featu
 - [x] Add installation capability discovery and grant controls through the authenticated core proxy;
   keep invocation-time grant checks as the final enforcement boundary.
 - [x] Add a local stdio bridge only for clients that cannot connect to hosted Streamable HTTP.
+- [x] Add gateway transport hardening: bounded pre-authenticated/authenticated rate windows,
+  explicit emergency disable configuration, protocol revision negotiation, and explicit unsupported
+  GET/session behavior; keep policy and kill-switch ownership in Agent API/runtime.
 
 ### Verification
 
 - [ ] Add MCP protocol, authentication, discovery filtering, cancellation, error, instance-isolation,
   stateless scaling, and Agent Platform adapter tests.
+- [x] Add focused gateway tests for rate limiting, protocol negotiation, transport disable, bounded
+  lifecycle methods, and upstream header propagation.
 - [ ] Add REST/OpenAPI conformance tests for every principal type, scope/resource authorization,
   pagination, validation, idempotency, rate limits, metering, webhooks, versioning, and deprecation.
 - [x] Add focused installation REST tests for audience authentication, API scope enforcement,

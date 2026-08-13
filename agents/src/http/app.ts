@@ -43,6 +43,8 @@ import { createDefaultTools } from "../temporal/activities";
 import { KasitekCoreReadClient } from "../core/client";
 import { ToolRegistry } from "../tools/registry";
 import { randomUUID } from "node:crypto";
+
+const MCP_PROTOCOL_VERSION = "2025-06-18";
 import { ConnectorRegistry } from "../connectors";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
@@ -289,6 +291,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }).parse(request.body);
     const respond = (result: unknown) => body.id === undefined ? reply.code(204).send() : reply.send({ jsonrpc: "2.0", id: body.id, result });
     const failure = (code: number, message: string, data?: unknown) => body.id === undefined ? reply.code(204).send() : reply.send({ jsonrpc: "2.0", id: body.id, error: { code, message, ...(data === undefined ? {} : { data }) } });
+    const headerProtocol = request.headers["mcp-protocol-version"];
+    const requestedProtocol = typeof headerProtocol === "string"
+      ? headerProtocol
+      : typeof body.params?.protocolVersion === "string" ? body.params.protocolVersion : undefined;
+    if (requestedProtocol && requestedProtocol !== MCP_PROTOCOL_VERSION) {
+      reply.header("mcp-protocol-version", MCP_PROTOCOL_VERSION);
+      return failure(-32602, "unsupported_mcp_protocol_version");
+    }
+    reply.header("mcp-protocol-version", MCP_PROTOCOL_VERSION);
     if (dependencies.config.AGENT_GATEWAY_SHARED_SECRET && request.headers["x-agent-gateway-secret"] !== dependencies.config.AGENT_GATEWAY_SHARED_SECRET) {
       return failure(-32003, "gateway_authentication_required");
     }
@@ -300,7 +311,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return failure(-32003, error instanceof Error ? error.message : "mcp_authentication_failed");
     }
     if (body.method === "initialize") {
-      return respond({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "kasitek-agent-platform", version: "1.0.0" } });
+      return respond({ protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: { listChanged: false } }, serverInfo: { name: "kasitek-agent-platform", version: "1.0.0" } });
     }
     const params = body.params ?? {};
     const suppliedInstallationId = typeof params.installationId === "string" ? params.installationId : undefined;

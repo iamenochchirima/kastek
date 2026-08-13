@@ -25,8 +25,16 @@ must enable Temporal and provide a dedicated namespace/task queue.
 
 The gateway is a third independently scalable process. It owns no database, Temporal, core, or
 product state: `POST /mcp` forwards the authenticated JSON-RPC request to the private Agent API,
-and `/health` reports gateway readiness. Route `agents.kasitek.co.za/mcp` to `start:gateway`; keep
+and `/health` reports gateway liveness. Route `agents.kasitek.co.za/mcp` to `start:gateway`; keep
 the Agent API `/v1` surface on its private/API origin.
+
+The gateway applies bounded in-process fixed-window limits before forwarding requests. Set
+`MCP_GATEWAY_ENABLED=false` for an emergency transport disable, and tune the authenticated and
+pre-authentication windows with the `MCP_GATEWAY_*` variables. These controls are transport-local;
+installation grants, capability policy, approvals, usage, and audit remain owned by the Agent API.
+The gateway accepts MCP protocol revision `2025-06-18` and returns an explicit incompatibility
+error for other revisions. It currently uses JSON responses for POST Streamable HTTP and does not
+claim GET streaming or resumable session support.
 
 Cloud mode requires `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, and `TEMPORAL_API_KEY` in
 `agents/.env` (or the environment used to launch the processes). Never commit the API key.

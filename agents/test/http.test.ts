@@ -106,6 +106,24 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("negotiates the supported MCP protocol revision and rejects incompatible clients", async () => {
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+    });
+    const supported = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}`, "mcp-protocol-version": "2025-06-18" }, payload: { jsonrpc: "2.0", id: 1, method: "initialize" } });
+    expect(supported.statusCode).toBe(200);
+    expect(supported.headers["mcp-protocol-version"]).toBe("2025-06-18");
+    expect(supported.json()).toMatchObject({ result: { protocolVersion: "2025-06-18" } });
+    const incompatible = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}`, "mcp-protocol-version": "2099-01-01" }, payload: { jsonrpc: "2.0", id: 2, method: "initialize" } });
+    expect(incompatible.statusCode).toBe(200);
+    expect(incompatible.headers["mcp-protocol-version"]).toBe("2025-06-18");
+    expect(incompatible.json()).toMatchObject({ error: { code: -32602, message: "unsupported_mcp_protocol_version" } });
+    await app.close();
+  });
+
   it("accepts JSON-RPC notifications without emitting a response body", async () => {
     const app = buildApp({
       config: mcpConfig,
