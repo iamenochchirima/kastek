@@ -294,6 +294,12 @@ existing template query and keeps provider synchronization/authoring outside the
 surface. The generated capability catalog and client/core transport tests were updated; the same
 Rust and Agent verification gates pass.
 
+The Agents detail capability panel now groups tools by domain, shows permission/risk/approval and
+availability state, supports explicit refresh/retry, and prevents misleading grants when a
+dependency is unconfigured or unhealthy (`e1d5485`). Client TypeScript, targeted ESLint, and the
+full Next production build pass; authenticated browser interaction remains a separate release
+gate.
+
 The WhatsApp model follow-up moves the completed connection, template, campaign, contact/list, and
 inbox transport DTOs/rows into `db::whatsapp_models`; `db::models` re-exports them during migration
 so existing adapters retain source compatibility (`7daf4da`). Call-specific models and the broader
