@@ -282,6 +282,12 @@ mutations behind their existing product and approval paths. Rust format/check/li
 (85 passed, 3 infrastructure-gated ignored); Agent tests pass (33 files, 149 passed, 24
 environment-gated skipped); and the Agent TypeScript build passes.
 
+The template read follow-up `7039b13` exposes the existing organization-scoped WhatsApp template
+catalog through `kasitek.core.templates_list`, with an optional approved/pending/rejected/disabled
+status filter. Provider synchronization and template creation remain separate product-admin
+operations; the Agent capability is read-only and carries template-body/button redaction metadata.
+The Rust and Agent verification gates remain green.
+
 The WhatsApp model follow-up moves the completed connection, template, campaign, contact/list, and
 inbox transport DTOs/rows into `db::whatsapp_models`; `db::models` re-exports them during migration
 so existing adapters retain source compatibility (`7daf4da`). Call-specific models and the broader
