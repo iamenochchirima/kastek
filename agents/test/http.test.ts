@@ -175,6 +175,39 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("cancels only the authenticated installation's durable MCP operation", async () => {
+    const signalCancellation = vi.fn().mockResolvedValue(undefined);
+    const getRun = vi.fn().mockResolvedValue({ id: "run-mcp-1", organization_id: "org-1", installation_id: "install-1", status: "running" });
+    const runs = {
+      getRun,
+    } as unknown as RunRepository;
+    const app = buildApp({
+      config: { ...mcpConfig, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      runs,
+      signalCancellation,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/mcp",
+      headers: { authorization: `Bearer ${mcpToken()}` },
+      payload: { jsonrpc: "2.0", method: "notifications/cancelled", params: { runId: "run-mcp-1", reason: "client stopped" } },
+    });
+    expect(response.statusCode).toBe(204);
+    expect(signalCancellation).toHaveBeenCalledWith("run-mcp-1", { reason: "installation:install-1: client stopped" });
+    getRun.mockResolvedValueOnce({ id: "run-other", organization_id: "org-1", installation_id: "install-other", status: "running" });
+    const denied = await app.inject({
+      method: "POST",
+      url: "/mcp",
+      headers: { authorization: `Bearer ${mcpToken()}` },
+      payload: { jsonrpc: "2.0", id: 8, method: "notifications/cancelled", params: { runId: "run-other" } },
+    });
+    expect(denied.json()).toMatchObject({ error: { code: -32004, message: "operation_not_found" } });
+    await app.close();
+  });
+
   it("requires an explicit organization and actor scope", async () => {
     const app = buildApp({ config, pool: fakePool });
     const response = await app.inject({ method: "POST", url: "/v1/agents", payload: { name: "Test" } });

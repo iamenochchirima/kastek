@@ -366,7 +366,7 @@ Relevant starting points:
 - [ ] Return structured `APPROVAL_REQUIRED` data with a stable approval/status reference instead of a
   terminal generic tool failure.
 - [x] Route approved effects through the exact approval and effect boundary from AR-003/AR-004.
-- [ ] Implement MCP cancellation and propagate it to the operation/workflow where cancellation is
+- [x] Implement MCP cancellation and propagate it to the operation/workflow where cancellation is
   safe.
 - [x] Ensure retries use client/request idempotency and cannot duplicate drafts or effects.
 - [x] Keep the external gateway stateless and free of database, Temporal, and business ownership.

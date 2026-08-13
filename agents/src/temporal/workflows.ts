@@ -54,8 +54,19 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
     let resumeApprovedToolCall: ResumeApprovedToolCall | undefined = input.resumeApprovedToolCall;
 
     while (true) {
+      if (cancellation) {
+        await transition("running", "cancelled");
+        return;
+      }
       const result = await activities.executeLoop({ runId: input.runId, resumeApprovedToolCall });
       resumeApprovedToolCall = undefined;
+      // Temporal delivers signals between activity completions. This check makes a
+      // cancellation received while a model/tool activity was in flight durable
+      // before the workflow can accept another step or publish a completion.
+      if (cancellation) {
+        await transition("running", "cancelled");
+        return;
+      }
       if (result.status === "awaiting_approval") {
         await activities.pauseRun({
           runId: input.runId,

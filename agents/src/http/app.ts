@@ -306,6 +306,26 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         return failure(-32001, error instanceof Error ? error.message : "tool_call_failed", { code: error && typeof error === "object" && "code" in error ? error.code : "TOOL_FAILED" });
       }
     }
+    if (body.method === "notifications/cancelled") {
+      try {
+        requireMcpScope(auth, "mcp:write");
+      } catch (error) {
+        return failure(-32003, error instanceof Error ? error.message : "mcp_authorization_failed");
+      }
+      const runId = typeof params.runId === "string" ? params.runId.trim() : "";
+      if (!runId) return failure(-32602, "runId is required");
+      const run = await runs.getRun(auth.organizationId, runId);
+      if (!run || run.installation_id !== auth.installationId) {
+        return failure(-32004, "operation_not_found");
+      }
+      if (["completed", "failed", "cancelled", "expired"].includes(run.status)) {
+        return body.id === undefined ? reply.code(204).send() : respond({ runId, status: run.status });
+      }
+      if (!dependencies.signalCancellation) return failure(-32004, "durable_mcp_execution_unavailable");
+      const reason = typeof params.reason === "string" ? params.reason.trim().slice(0, 500) : "cancelled by MCP client";
+      await dependencies.signalCancellation(run.id, { reason: `installation:${auth.installationId}: ${reason}` });
+      return body.id === undefined ? reply.code(204).send() : respond({ runId, status: "cancellation_signalled" });
+    }
     return failure(-32601, "method_not_found");
   });
 
