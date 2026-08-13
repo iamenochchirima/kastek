@@ -270,10 +270,10 @@ pub async fn disable_kill_switch(
     switch_id: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
-    let response = client(config.get_ref())?
+    let _response = client(config.get_ref())?
         .disable_kill_switch(&organization_id, &user.id, switch_id.trim())
         .await?;
-    Ok(HttpResponse::NoContent().json(response))
+    Ok(HttpResponse::NoContent().finish())
 }
 
 #[derive(Debug, Deserialize)]
