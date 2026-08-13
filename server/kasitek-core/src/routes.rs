@@ -31,6 +31,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::get().to(agent_internal::get_workspace_status),
                 )
                 .route(
+                    "/content/posts",
+                    web::get().to(agent_internal::list_content_posts),
+                )
+                .route(
+                    "/content/posts",
+                    web::post().to(agent_internal::create_content_draft),
+                )
+                .route(
+                    "/content/posts/{id}",
+                    web::get().to(agent_internal::get_content_post),
+                )
+                .route(
                     "/channels/deliver",
                     web::post().to(agent_internal::deliver_channel_message),
                 ),
@@ -335,6 +347,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         .route(
                             "/bluesky/client-metadata",
                             web::get().to(social::bluesky_client_metadata),
+                        )
+                        .route(
+                            "/bluesky/readiness",
+                            web::get().to(social::bluesky_oauth_readiness),
                         )
                         .route("/bluesky/start", web::get().to(social::start_bluesky_oauth))
                         .route(
