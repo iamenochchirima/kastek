@@ -152,6 +152,36 @@ List the booking services configured for the current KasiTek workspace.
   "additionalProperties": false
 }
 ```
+## kasitek.core.bookings_list (1.0.0)
+
+List the current KasiTek workspace's upcoming and historical bookings.
+
+- Owner: `kasitek-core`
+- Permission: `bookings.read` (Bookings Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Audit: `restricted`; redacts: `bookings.contactPhone`, `bookings.notes`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "bookings"
+  ],
+  "additionalProperties": false
+}
+```
 ## kasitek.core.contacts_list (1.0.0)
 
 Search the current KasiTek workspace's WhatsApp contacts and consent state.

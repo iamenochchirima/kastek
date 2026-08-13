@@ -1,7 +1,10 @@
 use sqlx::PgPool;
 
 use crate::{
-    domains::bookings::{model::BookingService, queries},
+    domains::bookings::{
+        model::{Booking, BookingService},
+        queries,
+    },
     error::AppError,
     identity::request_context::RequestContext,
 };
@@ -14,4 +17,11 @@ pub async fn list_booking_services(
     context: &RequestContext,
 ) -> Result<Vec<BookingService>, AppError> {
     queries::list_services(pool, context).await
+}
+
+pub async fn list_bookings(
+    pool: &PgPool,
+    context: &RequestContext,
+) -> Result<Vec<Booking>, AppError> {
+    queries::list_bookings(pool, context).await
 }

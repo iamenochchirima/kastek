@@ -38,6 +38,10 @@ export interface CoreBookingServices {
   services: CoreBookingService[];
 }
 
+export interface CoreBookings {
+  bookings: unknown[];
+}
+
 export interface CoreContacts {
   contacts: unknown[];
   totalContacts?: number;
@@ -171,6 +175,10 @@ export class KasitekCoreReadClient {
 
   public async listBookingServices(context: ToolInvocationContext): Promise<CoreBookingServices> {
     return this.getJson<CoreBookingServices>(context, "/api/internal/agents/v1/bookings/services", "Booking services");
+  }
+
+  public async listBookings(context: ToolInvocationContext): Promise<CoreBookings> {
+    return this.getJson<CoreBookings>(context, "/api/internal/agents/v1/bookings", "Bookings");
   }
 
   public async listContacts(
@@ -342,6 +350,7 @@ export class KasitekCoreReadClient {
     if (path.includes("/customers/")) return "kasitek.core.customer_get";
     if (path.includes("workspace/status")) return "kasitek.core.workspace_status";
     if (path.includes("bookings/services")) return "kasitek.core.booking_services_list";
+    if (path.endsWith("/bookings")) return "kasitek.core.bookings_list";
     if (path.includes("/inbox/conversations/") && path.endsWith("/messages")) return "kasitek.core.inbox_messages_list";
     if (path.includes("/inbox/conversations")) return "kasitek.core.inbox_conversations_list";
     if (path.includes("/contacts")) return "kasitek.core.contacts_list";

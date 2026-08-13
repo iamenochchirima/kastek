@@ -224,6 +224,18 @@ pub async fn list_booking_services(
     Ok(HttpResponse::Ok().json(BookingServicesResponse::new(services)))
 }
 
+pub async fn list_bookings(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.bookings_list")
+            .await?;
+    let bookings = core_adapter::list_bookings(pool.get_ref(), &context).await?;
+    Ok(HttpResponse::Ok().json(json!({ "bookings": bookings })))
+}
+
 /// List the organisation's WhatsApp contacts through the same scoped query
 /// used by the product contacts surface. The Agent Platform receives the
 /// filtered projection and aggregate counts, never provider credentials.

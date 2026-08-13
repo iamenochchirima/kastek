@@ -126,6 +126,29 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     },
   });
   tools.register({
+    name: "kasitek.core.bookings_list",
+    version: "1.0.0",
+    description: "List the current KasiTek workspace's upcoming and historical bookings.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: { type: "object", additionalProperties: false },
+    outputSchema: { type: "object", required: ["bookings"], additionalProperties: false },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "bookings.read",
+      execution: "immediate",
+      idempotency: "not_applicable",
+      approval: "none",
+      auditClassification: "restricted",
+      redaction: ["bookings.contactPhone", "bookings.notes"],
+    },
+    handler: async (context) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.listBookings(context);
+    },
+  });
+  tools.register({
     name: "kasitek.core.contacts_list",
     version: "1.0.0",
     description: "Search the current KasiTek workspace's WhatsApp contacts and consent state.",
