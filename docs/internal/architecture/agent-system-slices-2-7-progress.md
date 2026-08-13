@@ -175,13 +175,15 @@ grants, suspended installations, and cross-organization operation access. The re
 database-backed membership and untrusted-header cases stay open until the seeded integration
 environment is available.
 
-Social provider capability metadata, OAuth, and TikTok webhook boundaries now have separate service
-ownership. `1f2bc42` moves channel capability metadata into `social_channels`; `c16727f` moves
-PKCE/state generation and provider authorize URL builders into `social_oauth`; and `ddf8474` moves
+Social provider capability metadata, OAuth, webhook, and publishing boundaries now have separate
+service ownership. `1f2bc42` moves channel capability metadata into `social_channels`; `c16727f`
+moves PKCE/state generation and provider authorize URL builders into `social_oauth`; `ddf8474` moves
 TikTok signature verification, envelope validation, and durable event recording into
-`social_webhooks`. The existing controller-facing `social::` exports remain stable, and the core
-library suite passes 85 tests with three explicitly ignored infrastructure-gated cases. The broader
-social decomposition (posts, publishing, and per-provider adapters) remains open.
+`social_webhooks`; and `8b1fc14` moves X, LinkedIn, Threads, TikTok, Facebook, and Instagram
+publishing adapters plus token rotation helpers into `social_publishing`. The existing
+controller-facing `social::` exports remain stable, and the core library suite passes 85 tests with
+three explicitly ignored infrastructure-gated cases. Shared post/job lifecycle ownership remains in
+`social`, while provider-specific adapter decomposition is now explicit.
 
 The content adapter now also supports a safe draft-only update path. The internal core boundary
 accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,
