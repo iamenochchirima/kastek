@@ -13,7 +13,9 @@ use sqlx::{PgPool, Row};
 
 use crate::capabilities::{content_adapter, core_adapter};
 use crate::config::AppConfig;
-use crate::db::models::{SocialPostUpsertRequest, WhatsappContactListQuery};
+use crate::db::models::{
+    SocialPostUpsertRequest, WhatsappContactListQuery, WhatsappTemplateListQuery,
+};
 use crate::domains::bookings::transport::BookingServicesResponse;
 use crate::error::AppError;
 use crate::identity::internal_delegation;
@@ -259,6 +261,19 @@ pub async fn get_campaign_summary(
         whatsapp::get_campaign_summary(pool.get_ref(), &organization_id, &path.into_inner())
             .await?;
     Ok(HttpResponse::Ok().json(campaign))
+}
+
+pub async fn list_templates(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<WhatsappTemplateListQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, _) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.templates_list").await?;
+    let templates =
+        whatsapp::list_templates(pool.get_ref(), &organization_id, query.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(templates))
 }
 
 /// List the organisation's WhatsApp contacts through the same scoped query

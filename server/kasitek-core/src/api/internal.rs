@@ -34,6 +34,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 "/campaigns/{id}",
                 web::get().to(agent_internal::get_campaign_summary),
             )
+            .route("/templates", web::get().to(agent_internal::list_templates))
             .route("/contacts", web::get().to(agent_internal::list_contacts))
             .route(
                 "/inbox/conversations",

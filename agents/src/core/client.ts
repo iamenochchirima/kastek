@@ -50,6 +50,10 @@ export interface CoreCampaignSummary {
   campaign: Record<string, unknown>;
 }
 
+export interface CoreTemplates {
+  templates: unknown[];
+}
+
 export interface CoreContacts {
   contacts: unknown[];
   totalContacts?: number;
@@ -201,6 +205,18 @@ export class KasitekCoreReadClient {
       context,
       `/api/internal/agents/v1/campaigns/${encodeURIComponent(campaignId)}`,
       "Campaign summary",
+    );
+  }
+
+  public async listTemplates(
+    context: ToolInvocationContext,
+    status?: "APPROVED" | "PENDING" | "REJECTED" | "DISABLED",
+  ): Promise<CoreTemplates> {
+    const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+    return this.getJson<CoreTemplates>(
+      context,
+      `/api/internal/agents/v1/templates${suffix}`,
+      "Templates",
     );
   }
 
@@ -376,6 +392,7 @@ export class KasitekCoreReadClient {
     if (path.endsWith("/bookings")) return "kasitek.core.bookings_list";
     if (path.includes("/campaigns/")) return "kasitek.core.campaign_summary";
     if (path.endsWith("/campaigns")) return "kasitek.core.campaigns_list";
+    if (path.startsWith("/api/internal/agents/v1/templates")) return "kasitek.core.templates_list";
     if (path.includes("/inbox/conversations/") && path.endsWith("/messages")) return "kasitek.core.inbox_messages_list";
     if (path.includes("/inbox/conversations")) return "kasitek.core.inbox_conversations_list";
     if (path.includes("/contacts")) return "kasitek.core.contacts_list";

@@ -253,6 +253,47 @@ Read one organization-scoped WhatsApp campaign summary without recipient details
   "additionalProperties": false
 }
 ```
+## kasitek.core.templates_list (1.0.0)
+
+List the current KasiTek workspace's WhatsApp templates and approval status.
+
+- Owner: `kasitek-core`
+- Permission: `templates.read` (Templates Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Audit: `restricted`; redacts: `templates.body`, `templates.buttons`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "APPROVED",
+        "PENDING",
+        "REJECTED",
+        "DISABLED"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "templates"
+  ],
+  "additionalProperties": false
+}
+```
 ## kasitek.core.contacts_list (1.0.0)
 
 Search the current KasiTek workspace's WhatsApp contacts and consent state.

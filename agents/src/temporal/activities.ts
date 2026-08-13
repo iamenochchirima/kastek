@@ -201,6 +201,36 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     },
   });
   tools.register({
+    name: "kasitek.core.templates_list",
+    version: "1.0.0",
+    description: "List the current KasiTek workspace's WhatsApp templates and approval status.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: { status: { type: "string", enum: ["APPROVED", "PENDING", "REJECTED", "DISABLED"] } },
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["templates"], additionalProperties: false },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "templates.read",
+      execution: "immediate",
+      idempotency: "not_applicable",
+      approval: "none",
+      auditClassification: "restricted",
+      redaction: ["templates.body", "templates.buttons"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.listTemplates(
+        context,
+        typeof args.status === "string" ? args.status as "APPROVED" | "PENDING" | "REJECTED" | "DISABLED" : undefined,
+      );
+    },
+  });
+  tools.register({
     name: "kasitek.core.contacts_list",
     version: "1.0.0",
     description: "Search the current KasiTek workspace's WhatsApp contacts and consent state.",

@@ -12,6 +12,7 @@ describe("capability discovery", () => {
       "kasitek.core.bookings_list",
       "kasitek.core.campaigns_list",
       "kasitek.core.campaign_summary",
+      "kasitek.core.templates_list",
       "kasitek.core.contacts_list",
       "kasitek.core.inbox_conversations_list",
       "kasitek.core.inbox_messages_list",
@@ -29,12 +30,13 @@ describe("capability discovery", () => {
     expect(manifests[4]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "bookings.read", idempotency: "not_applicable" });
     expect(manifests[5]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "campaigns.read", idempotency: "not_applicable" });
     expect(manifests[6]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "campaigns.read", resourceSelector: { type: "campaign" } });
-    expect(manifests[7]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "contacts.read", idempotency: "not_applicable" });
-    expect(manifests[8]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "inbox.read", idempotency: "not_applicable" });
+    expect(manifests[7]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "templates.read", idempotency: "not_applicable" });
+    expect(manifests[8]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "contacts.read", idempotency: "not_applicable" });
     expect(manifests[9]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "inbox.read", idempotency: "not_applicable" });
-    expect(manifests[12]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "not_applicable" });
-    expect(manifests[13]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "required" });
-    expect(manifests[14]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
+    expect(manifests[10]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "inbox.read", idempotency: "not_applicable" });
+    expect(manifests[13]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "not_applicable" });
+    expect(manifests[14]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "required" });
     expect(manifests[15]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
+    expect(manifests[16]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
   });
 });
