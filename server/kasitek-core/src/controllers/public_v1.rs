@@ -22,8 +22,17 @@ pub async fn health(state: web::Data<AppState>) -> HttpResponse {
 }
 
 async fn public_context(req: &HttpRequest, state: &AppState) -> Result<RequestContext, AppError> {
-    if req.headers().get("authorization").is_some() {
-        return installation_context(req, state);
+    if state.config.agents_installation_token_public_key.is_some()
+        && req
+            .headers()
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.strip_prefix("Bearer "))
+            .is_some()
+    {
+        if let Ok(context) = installation_context(req, state) {
+            return Ok(context);
+        }
     }
     product_session::resolve(req, &state.pool).await
 }
