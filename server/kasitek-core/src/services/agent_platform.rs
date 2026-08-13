@@ -1192,6 +1192,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn get_run_timeline(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        run_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/runs/{run_id}/timeline"),
+            organization_id,
+            actor_id,
+            &["runs:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn cancel_run(
         &self,
         organization_id: &str,

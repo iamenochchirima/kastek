@@ -1310,6 +1310,19 @@ pub async fn get_run(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn get_run_timeline(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    run_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .get_run_timeline(&organization_id, &user.id, &run_id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn cancel_run(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

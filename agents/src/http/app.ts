@@ -42,6 +42,7 @@ import { createPublicKey } from "node:crypto";
 import { createDefaultTools } from "../temporal/activities";
 import { KasitekCoreReadClient } from "../core/client";
 import { ToolRegistry } from "../tools/registry";
+import { redactSensitiveValue } from "../tools/redaction";
 import { randomUUID } from "node:crypto";
 
 const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -1370,6 +1371,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { runId: string } }>("/v1/runs/:runId/timeline", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "runs:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
     const [events, steps, toolCalls, effects] = await Promise.all([
@@ -1378,7 +1380,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       toolInvocations.list(auth.organizationId, run.id),
       effectReceipts.listForRun(auth.organizationId, run.id),
     ]);
-    return { run, events, steps, toolCalls, effects };
+    return {
+      run,
+      events,
+      steps: steps.map((step) => ({ ...step, input: redactSensitiveValue(step.input), output: redactSensitiveValue(step.output), error: redactSensitiveValue(step.error) })),
+      toolCalls: toolCalls.map((toolCall) => redactSensitiveValue(toolCall)),
+      effects: effects.map((effect) => ({ ...effect, provider_receipt: redactSensitiveValue(effect.provider_receipt), error: redactSensitiveValue(effect.error) })),
+    };
   });
 
   app.get("/v1/operations/summary", async (request) => {

@@ -88,6 +88,14 @@ export type AgentOperationEvent = {
   [key: string]: unknown;
 };
 
+export type AgentRunTimeline = {
+  run: AgentRun;
+  events: AgentOperationEvent[];
+  steps: Array<Record<string, unknown>>;
+  toolCalls: Array<Record<string, unknown>>;
+  effects: Array<Record<string, unknown>>;
+};
+
 export type AgentApproval = {
   status: "pending" | "approved" | "denied" | "expired" | "consumed" | "cancelled" | string;
   providerToolCallId: string;

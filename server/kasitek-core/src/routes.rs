@@ -280,6 +280,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 )
                 .route("/runs/{runId}", web::get().to(agent_platform::get_run))
                 .route(
+                    "/runs/{runId}/timeline",
+                    web::get().to(agent_platform::get_run_timeline),
+                )
+                .route(
                     "/runs/{runId}/cancel",
                     web::post().to(agent_platform::cancel_run),
                 )

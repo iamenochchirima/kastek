@@ -919,7 +919,8 @@ describe("Agent Platform HTTP foundation", () => {
         listEvents: async () => [{ event_type: "run.completed" }],
       } as unknown as RunRepository,
       runSteps: { listSteps: async () => [{ sequence_number: 1, step_type: "context" }] } as never,
-      toolInvocations: { list: async () => [{ tool_name: "platform.current_time" }] } as never,
+      toolInvocations: { list: async () => [{ tool_name: "platform.current_time", arguments: { apiKey: "do-not-leak" } }] } as never,
+      effectReceipts: { listForRun: async () => [{ id: "effect-1", capability: "test.effect", status: "succeeded", provider_receipt: { accessToken: "do-not-leak" } }] } as never,
     });
     const response = await app.inject({
       method: "GET",
@@ -931,7 +932,8 @@ describe("Agent Platform HTTP foundation", () => {
       run: { id: "run-1" },
       events: [{ event_type: "run.completed" }],
       steps: [{ step_type: "context" }],
-      toolCalls: [{ tool_name: "platform.current_time" }],
+      toolCalls: [{ tool_name: "platform.current_time", arguments: { apiKey: "[REDACTED]" } }],
+      effects: [{ provider_receipt: { accessToken: "[REDACTED]" } }],
     });
     await app.close();
   });
