@@ -78,6 +78,9 @@ marked when the complete deliverable and its verification exist.
   across agent lifecycle, installations, schedules, credentials, knowledge, memory, evaluations,
   conversations, and run creation. A HMAC regression matrix covers the previously unguarded routes
   (`56cc77a`, `a541304`).
+- Installation credential rotation is now a real atomic replacement path: the old credential is
+  revoked in the same transaction, the replacement secret is shown once, and both revoke/rotate
+  actions emit audit records. The core proxy and Agent detail UI expose the flow (`22a25f0`).
 - Run inspection now streams the durable event timeline through the existing authenticated SSE
   route, refreshes on terminal events, and presents a retry state when the stream is unavailable;
   the cursor remains stable for the lifetime of one stream session (`4466439`, `9d0635a`).
