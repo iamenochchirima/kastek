@@ -442,8 +442,10 @@ the first complete agent-capability domain in Slice 5.
 
 ### Verification
 
-- [ ] Run `cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core` after
-  each coherent migration step.
+- [x] Run `cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core` after
+  each coherent migration step. Evidence: the latest WhatsApp decomposition/model slices through
+  `f7a7a99` and `cf94066` were each followed by format, check, and core library verification;
+  the current suite passes 85 tests with 3 infrastructure-gated ignores.
 - [x] Add route-inventory tests proving all pre-existing routes remain mounted during the structural
   migration and that `/v1` is not accidentally served by product or website modules. Evidence:
   `c5c2cb7` and `62e2ec2` preserve the 225 path inventory, exercise representative route mounts,

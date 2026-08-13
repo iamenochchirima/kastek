@@ -114,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **137 checked and 87 unchecked items out of 224**. This is a
+The primary blueprint currently has **138 checked and 86 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -293,6 +293,11 @@ The final auth/admin session rows and authentication/profile request/response DT
 `db::auth_models`; `db::models.rs` is now a compatibility-only re-export surface across all migrated
 domains (`f7a7a99`). The model cleanup item is now closed against the blueprint; active controller
 exports were retained because callers and parity tests still depend on them.
+
+The structural migration verification gate is now recorded as complete: every coherent backend
+slice in this run was followed by `cargo fmt --check`, `cargo check -p kasitek-core`, and
+`cargo test -p kasitek-core --lib`; the current result is 85 passed and 3 explicitly ignored
+infrastructure cases.
 
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
