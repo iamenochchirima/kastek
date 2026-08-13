@@ -1,0 +1,403 @@
+use chrono::{Duration, Utc};
+use serde_json::{json, Value};
+use sqlx::PgPool;
+
+use crate::error::AppError;
+
+use super::social::{
+    decrypt_social_secret, encrypt_social_secret, fetch_json, required_env, ThreadsTokenResponse,
+    TikTokTokenResponse, INSTAGRAM_GRAPH_BASE, LINKEDIN_UGC_POSTS_URL, META_GRAPH_BASE,
+    TIKTOK_CREATOR_INFO_URL, TIKTOK_PUBLISH_URL, TIKTOK_TOKEN_URL, X_POST_TWEET_URL,
+};
+
+pub(crate) async fn publish_post_to_x(
+    access_token_encrypted: &str,
+    text: &str,
+) -> Result<(String, String), AppError> {
+    let access_token = decrypt_social_secret(access_token_encrypted)?;
+    let result: Value = fetch_json(
+        reqwest::Client::new()
+            .post(X_POST_TWEET_URL)
+            .bearer_auth(access_token)
+            .header("Content-Type", "application/json")
+            .json(&json!({ "text": text })),
+        "Failed to publish to X",
+    )
+    .await?;
+
+    let id = result
+        .get("data")
+        .and_then(|value| value.get("id"))
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::BadRequest("X publish did not return a post id".to_string()))?;
+    let published_text = result
+        .get("data")
+        .and_then(|value| value.get("text"))
+        .and_then(|value| value.as_str())
+        .unwrap_or(text);
+    Ok((id.to_string(), published_text.to_string()))
+}
+
+pub(crate) async fn publish_post_to_linkedin(
+    access_token_encrypted: &str,
+    external_account_id: &Option<String>,
+    metadata: &Option<Value>,
+    text: &str,
+) -> Result<(Option<String>, String), AppError> {
+    let access_token = decrypt_social_secret(access_token_encrypted)?;
+    let actor_urn = metadata
+        .as_ref()
+        .and_then(|value| value.get("actorUrn"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+        .or_else(|| {
+            external_account_id
+                .as_ref()
+                .map(|value| format!("urn:li:person:{value}"))
+        })
+        .ok_or_else(|| {
+            AppError::BadRequest("LinkedIn connection is missing a member identifier".to_string())
+        })?;
+
+    let response = reqwest::Client::new()
+        .post(LINKEDIN_UGC_POSTS_URL)
+        .bearer_auth(access_token)
+        .header("Content-Type", "application/json")
+        .header("X-Restli-Protocol-Version", "2.0.0")
+        .json(&json!({
+            "author": actor_urn,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": { "text": text },
+                    "shareMediaCategory": "NONE"
+                }
+            },
+            "visibility": {
+                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+            }
+        }))
+        .send()
+        .await?;
+
+    let headers = response.headers().clone();
+    let status = response.status();
+    let body = response.text().await?;
+    if !status.is_success() {
+        return Err(AppError::BadRequest(body));
+    }
+
+    let payload: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
+    let external_post_id = headers
+        .get("x-restli-id")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.to_string())
+        .or_else(|| {
+            payload
+                .get("id")
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string())
+        });
+    Ok((external_post_id, text.to_string()))
+}
+
+pub(crate) async fn save_rotated_tokens(
+    pool: &PgPool,
+    channel_id: &str,
+    access: &str,
+    refresh: Option<&str>,
+    expires_in: Option<i64>,
+) -> Result<(), AppError> {
+    let encrypted_access = encrypt_social_secret(access)?;
+    let encrypted_refresh = match refresh {
+        Some(value) => Some(encrypt_social_secret(value)?),
+        None => None,
+    };
+    let expires_at =
+        expires_in.map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
+    sqlx::query(
+        r#"UPDATE "SocialChannelConnection" SET "accessToken"=$1,
+        "refreshToken"=COALESCE($2,"refreshToken"), metadata=COALESCE(metadata,'{}'::jsonb) || $3,
+        "lastSyncedAt"=NOW(), "updatedAt"=NOW() WHERE id=$4"#,
+    )
+    .bind(encrypted_access)
+    .bind(encrypted_refresh)
+    .bind(json!({"expiresAt": expires_at}))
+    .bind(channel_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub(crate) async fn publish_post_to_threads(
+    access_token_encrypted: &str,
+    user_id: &str,
+    text: &str,
+) -> Result<(String, String), AppError> {
+    if text.chars().count() > 500 {
+        return Err(AppError::BadRequest(
+            "Threads posts are limited to 500 characters".to_string(),
+        ));
+    }
+    let access = decrypt_social_secret(access_token_encrypted)?;
+    let create: Value = fetch_json(
+        reqwest::Client::new()
+            .post(format!(
+                "{}/{}",
+                super::social::THREADS_GRAPH_BASE,
+                format!("{user_id}/threads")
+            ))
+            .bearer_auth(&access)
+            .form(&[("media_type", "TEXT"), ("text", text)]),
+        "Failed to create Threads post",
+    )
+    .await?;
+    let creation_id = create
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::BadRequest("Threads did not return a creation id".to_string()))?;
+    let publish: Value = fetch_json(
+        reqwest::Client::new()
+            .post(format!(
+                "{}/{}",
+                super::social::THREADS_GRAPH_BASE,
+                format!("{user_id}/threads_publish")
+            ))
+            .bearer_auth(access)
+            .form(&[("creation_id", creation_id)]),
+        "Failed to publish Threads post",
+    )
+    .await?;
+    let id = publish
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::BadRequest("Threads did not return a post id".to_string()))?;
+    Ok((id.to_string(), text.to_string()))
+}
+
+pub(crate) async fn refresh_threads_token(
+    access_encrypted: &str,
+) -> Result<ThreadsTokenResponse, AppError> {
+    let access = decrypt_social_secret(access_encrypted)?;
+    let url = format!(
+        "https://graph.threads.com/refresh_access_token?grant_type=th_refresh_token&access_token={}",
+        urlencoding::encode(&access)
+    );
+    fetch_json(
+        reqwest::Client::new().get(url),
+        "Threads token refresh failed",
+    )
+    .await
+}
+
+pub(crate) async fn refresh_tiktok_token(
+    refresh_encrypted: &str,
+) -> Result<TikTokTokenResponse, AppError> {
+    let refresh = decrypt_social_secret(refresh_encrypted)?;
+    fetch_json(
+        reqwest::Client::new().post(TIKTOK_TOKEN_URL).form(&[
+            ("client_key", required_env("AUTH_TIKTOK_CLIENT_KEY")?),
+            ("client_secret", required_env("AUTH_TIKTOK_CLIENT_SECRET")?),
+            ("grant_type", "refresh_token".to_string()),
+            ("refresh_token", refresh),
+        ]),
+        "TikTok token refresh failed",
+    )
+    .await
+}
+
+pub(crate) async fn publish_post_to_tiktok(
+    access_token: &str,
+    metadata: &Option<Value>,
+    text: &str,
+) -> Result<(String, String), AppError> {
+    let consented = metadata
+        .as_ref()
+        .and_then(|v| v.get("tiktokConsent"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if !consented {
+        return Err(AppError::BadRequest(
+            "TikTok publishing consent is required".to_string(),
+        ));
+    }
+    let media_url = metadata
+        .as_ref()
+        .and_then(|v| v.get("tiktokMediaUrl"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| {
+            AppError::BadRequest("Add a public HTTPS TikTok video or image URL".to_string())
+        })?;
+    if !media_url.starts_with("https://") {
+        return Err(AppError::BadRequest(
+            "TikTok media URL must use HTTPS".to_string(),
+        ));
+    }
+    let media_type = metadata
+        .as_ref()
+        .and_then(|v| v.get("tiktokMediaType"))
+        .and_then(Value::as_str)
+        .unwrap_or("VIDEO");
+    if media_type == "VIDEO" && text.encode_utf16().count() > 2200 {
+        return Err(AppError::BadRequest(
+            "TikTok video captions are limited to 2200 UTF-16 characters".to_string(),
+        ));
+    }
+    if media_type == "PHOTO" && text.encode_utf16().count() > 4000 {
+        return Err(AppError::BadRequest(
+            "TikTok photo descriptions are limited to 4000 UTF-16 characters".to_string(),
+        ));
+    }
+    let requested_privacy = metadata
+        .as_ref()
+        .and_then(|v| v.get("tiktokPrivacyLevel"))
+        .and_then(Value::as_str)
+        .unwrap_or("SELF_ONLY");
+    let creator: Value = fetch_json(
+        reqwest::Client::new()
+            .post(TIKTOK_CREATOR_INFO_URL)
+            .bearer_auth(access_token)
+            .header("Content-Type", "application/json")
+            .json(&json!({})),
+        "Failed to query TikTok creator settings",
+    )
+    .await?;
+    let allowed = creator
+        .get("data")
+        .and_then(|v| v.get("privacy_level_options"))
+        .and_then(Value::as_array)
+        .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>())
+        .unwrap_or_default();
+    if !allowed.contains(&requested_privacy) {
+        return Err(AppError::BadRequest(format!(
+            "TikTok privacy level {requested_privacy} is not available for this account"
+        )));
+    }
+    let (url, payload) = if media_type == "PHOTO" {
+        (
+            TIKTOK_PUBLISH_URL,
+            json!({"post_info":{"title":text.chars().take(90).collect::<String>(),"description":text,"privacy_level":requested_privacy},
+            "source_info":{"source":"PULL_FROM_URL","photo_cover_index":1,"photo_images":[media_url]},"post_mode":"DIRECT_POST","media_type":"PHOTO"}),
+        )
+    } else {
+        (
+            "https://open.tiktokapis.com/v2/post/publish/video/init/",
+            json!({"post_info":{"title":text,"privacy_level":requested_privacy},
+            "source_info":{"source":"PULL_FROM_URL","video_url":media_url}}),
+        )
+    };
+    let result: Value = fetch_json(
+        reqwest::Client::new()
+            .post(url)
+            .bearer_auth(access_token)
+            .header("Content-Type", "application/json")
+            .json(&payload),
+        "Failed to publish to TikTok",
+    )
+    .await?;
+    let code = result
+        .get("error")
+        .and_then(|v| v.get("code"))
+        .and_then(Value::as_str)
+        .unwrap_or("ok");
+    if code != "ok" {
+        return Err(AppError::BadRequest(
+            result
+                .get("error")
+                .and_then(|v| v.get("message"))
+                .and_then(Value::as_str)
+                .unwrap_or(code)
+                .to_string(),
+        ));
+    }
+    let id = result
+        .get("data")
+        .and_then(|v| v.get("publish_id"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::BadRequest("TikTok did not return a publish id".to_string()))?;
+    Ok((id.to_string(), text.to_string()))
+}
+
+pub(crate) async fn publish_post_to_facebook(
+    access_token_encrypted: &str,
+    external_account_id: &Option<String>,
+    text: &str,
+) -> Result<(String, String), AppError> {
+    let page_id = external_account_id.as_deref().ok_or_else(|| {
+        AppError::BadRequest("Facebook connection is missing a Page identifier".to_string())
+    })?;
+    let access_token = decrypt_social_secret(access_token_encrypted)?;
+    let result: Value = fetch_json(
+        reqwest::Client::new()
+            .post(format!("{META_GRAPH_BASE}/{page_id}/feed"))
+            .bearer_auth(access_token)
+            .form(&[("message", text.to_string())]),
+        "Failed to publish to Facebook",
+    )
+    .await?;
+
+    let id = result.get("id").and_then(Value::as_str).ok_or_else(|| {
+        AppError::BadRequest("Facebook publish did not return a post id".to_string())
+    })?;
+    Ok((id.to_string(), text.to_string()))
+}
+
+pub(crate) async fn publish_post_to_instagram(
+    access_token_encrypted: &str,
+    external_account_id: &Option<String>,
+    connection_metadata: &Option<Value>,
+    image_url: &str,
+    caption: &str,
+) -> Result<(String, String), AppError> {
+    let account_id = external_account_id.as_deref().ok_or_else(|| {
+        AppError::BadRequest("Instagram connection is missing an account identifier".to_string())
+    })?;
+    let parsed_image_url = reqwest::Url::parse(image_url)
+        .map_err(|_| AppError::BadRequest("Instagram image URL is invalid".to_string()))?;
+    if parsed_image_url.scheme() != "https" {
+        return Err(AppError::BadRequest(
+            "Instagram requires a public HTTPS image URL".to_string(),
+        ));
+    }
+
+    let access_token = decrypt_social_secret(access_token_encrypted)?;
+    let uses_instagram_login = connection_metadata
+        .as_ref()
+        .and_then(|value| value.get("authMethod"))
+        .and_then(Value::as_str)
+        == Some("instagram_login");
+    let graph_base = if uses_instagram_login {
+        INSTAGRAM_GRAPH_BASE
+    } else {
+        META_GRAPH_BASE
+    };
+    let client = reqwest::Client::new();
+    let container: Value = fetch_json(
+        client
+            .post(format!("{graph_base}/{account_id}/media"))
+            .bearer_auth(&access_token)
+            .form(&[
+                ("image_url", image_url.to_string()),
+                ("caption", caption.to_string()),
+            ]),
+        "Failed to create the Instagram media container",
+    )
+    .await?;
+    let creation_id = container.get("id").and_then(Value::as_str).ok_or_else(|| {
+        AppError::BadRequest("Instagram did not return a media container identifier".to_string())
+    })?;
+    let published: Value = fetch_json(
+        client
+            .post(format!("{graph_base}/{account_id}/media_publish"))
+            .bearer_auth(access_token)
+            .form(&[("creation_id", creation_id)]),
+        "Failed to publish the Instagram post",
+    )
+    .await?;
+    let post_id = published.get("id").and_then(Value::as_str).ok_or_else(|| {
+        AppError::BadRequest("Instagram did not return a published media id".to_string())
+    })?;
+    Ok((post_id.to_string(), caption.to_string()))
+}
