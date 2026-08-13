@@ -114,6 +114,41 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn create_agent(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/agents",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn create_agent_version(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/agents/{agent_id}/versions"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn operations_summary(
         &self,
         organization_id: &str,
@@ -511,6 +546,23 @@ impl AgentPlatformClient {
             actor_id,
             &["agents:write"],
             None,
+        )
+        .await
+    }
+
+    pub async fn create_installation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/installations",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
         )
         .await
     }

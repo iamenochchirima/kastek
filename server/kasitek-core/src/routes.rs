@@ -70,6 +70,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/agents")
                 .route("", web::get().to(agent_platform::list_agents))
+                .route("", web::post().to(agent_platform::create_agent))
                 .route(
                     "/operations/summary",
                     web::get().to(agent_platform::operations_summary),
@@ -91,6 +92,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route(
                     "/installations/{installationId}/status/{status}",
                     web::post().to(agent_platform::set_installation_status),
+                )
+                .route(
+                    "/installations",
+                    web::post().to(agent_platform::create_installation),
                 )
                 .route(
                     "/installations/{installationId}/settings",
@@ -143,6 +148,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route(
                     "/{agentId}/versions",
                     web::get().to(agent_platform::list_agent_versions),
+                )
+                .route(
+                    "/{agentId}/versions",
+                    web::post().to(agent_platform::create_agent_version),
                 )
                 .route(
                     "/{agentId}/versions/{versionId}/publish",

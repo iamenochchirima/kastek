@@ -70,6 +70,48 @@ pub async fn list_agents(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn create_agent(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Agent body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .create_agent(&organization_id, &user.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn create_agent_version(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    agent_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Agent version body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .create_agent_version(
+            &organization_id,
+            &user.id,
+            agent_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
 pub async fn operations_summary(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -726,6 +768,36 @@ pub async fn list_agent_versions(
         .list_agent_versions(&organization_id, &user.id, &agent_id)
         .await?;
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn create_installation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: Option<web::Json<Value>>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let mut input = body
+        .map(|value| value.into_inner())
+        .unwrap_or_else(|| Value::Object(Default::default()));
+    if !input.is_object() {
+        return Err(AppError::BadRequest(
+            "Installation body must be an object".to_string(),
+        ));
+    }
+    if input.get("scopeType").is_none() {
+        input["scopeType"] = Value::String("organization".to_string());
+    }
+    if input.get("scopeId").is_none() {
+        input["scopeId"] = Value::String(organization_id.clone());
+    }
+    if input.get("settings").is_none() {
+        input["settings"] = Value::Object(Default::default());
+    }
+    let response = client(config.get_ref())?
+        .create_installation(&organization_id, &user.id, input)
+        .await?;
+    Ok(HttpResponse::Created().json(response))
 }
 
 async fn mutate_agent_version(

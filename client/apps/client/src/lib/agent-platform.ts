@@ -197,6 +197,18 @@ export function listAgents(): Promise<{ agents: AgentDefinition[] }> {
   return request<{ agents: AgentDefinition[] }>("/api/agents");
 }
 
+export function createAgent(input: { name: string; slug?: string; description?: string }): Promise<AgentDefinition> {
+  return request("/api/agents", { method: "POST", body: JSON.stringify({ ...input, protected: false }) });
+}
+
+export function createAgentVersion(agentId: string, input: { instructions: string; configuration?: Record<string, unknown>; policy?: Record<string, unknown> }): Promise<AgentVersion> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}/versions`, { method: "POST", body: JSON.stringify({ configuration: {}, policy: {}, ...input }) });
+}
+
+export function createAgentInstallation(agentVersionId: string, settings: Record<string, unknown> = {}): Promise<AgentInstallation> {
+  return request("/api/agents/installations", { method: "POST", body: JSON.stringify({ agentVersionId, scopeType: "organization", settings }) });
+}
+
 export type AgentTemplate = {
   key: string;
   version: number;
