@@ -246,7 +246,7 @@ Relevant starting points:
   capability, resource, connector/channel, and kill-switch state.
 - [x] Atomically consume the approved record once and only once before the permitted effect begins.
 - [ ] Ensure Temporal activity retry cannot consume approval twice or execute a second effect.
-- [ ] Cancel the approval when the run or installation is cancelled/disabled.
+- [x] Cancel the approval when the run or installation is cancelled/disabled.
 - [ ] Replace or clearly separate duplicated approval state in `tool_invocations` so the source of
   truth is unambiguous.
 - [ ] Remove dead methods and misleading documentation only after the live path uses the repository.
