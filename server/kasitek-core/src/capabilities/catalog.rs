@@ -78,6 +78,7 @@ fn social_action(
             ActorKind::DirectUser,
             ActorKind::NativeAgent,
             ActorKind::ApiClient,
+            ActorKind::ExternalAgent,
         ]
         .into_iter()
         .collect(),
@@ -119,7 +120,7 @@ pub fn content_create_draft() -> ActionDefinition {
         json!({"type":"object","properties":{"text":{"type":"string","maxLength":50000},"media":{"type":"array"}},"required":["text"],"additionalProperties":false}),
         json!({"type":"object","required":["post"],"additionalProperties":true}),
         ["content.write"],
-        IdempotencyRule::Optional,
+        IdempotencyRule::Required,
     )
 }
 
@@ -167,5 +168,13 @@ mod tests {
         assert!(actions
             .iter()
             .any(|action| action.id.name() == "content.posts.publish"));
+        let draft = actions
+            .iter()
+            .find(|action| action.id.name() == "content.posts.draft.create")
+            .expect("draft action is present");
+        assert_eq!(draft.idempotency, actions::IdempotencyRule::Required);
+        assert!(draft
+            .supported_actors
+            .contains(&actions::ActorKind::ExternalAgent));
     }
 }
