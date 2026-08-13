@@ -4,7 +4,24 @@ This file defines the default working structure for implementation tasks in this
 
 ## Project Direction
 
-For product and architecture direction, consult [`PROJECT_PLAN.md`](PROJECT_PLAN.md) before making meaningful structural decisions.
+Consult [`PROJECT_PLAN.md`](PROJECT_PLAN.md) before making meaningful structural decisions. It is the
+repository-level ownership and boundary document, not a substitute for a current scoped execution
+plan.
+
+Use the narrowest active plan that owns the work. For the Agent Platform programme, read and follow
+these documents in order:
+
+1. [`KASITEK_AGENT_SYSTEM_AUDIT_REMEDIATION_CHECKLIST.md`](KASITEK_AGENT_SYSTEM_AUDIT_REMEDIATION_CHECKLIST.md)
+   for audited release-blocking corrections.
+2. [`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md)
+   for ordered implementation and verification.
+3. [`KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md`](KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md)
+   for approved architectural rationale.
+4. [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for cross-product ownership and direct/white-label
+   boundaries.
+
+Do not treat documents under `docs/archive/` as active plans. Supporting documents under
+`docs/internal/` do not override a root canonical plan unless explicitly promoted.
 
 In particular, do not lose the current white-label model:
 
@@ -12,6 +29,7 @@ In particular, do not lose the current white-label model:
 - `tenant-portal` is a separate white-label frontend
 - the tenant platform has its own database
 - the white-label system has three live layers from the start:
+
   1. KasiTek platform
   2. tenant admin/staff
   3. tenant client/customer accounts

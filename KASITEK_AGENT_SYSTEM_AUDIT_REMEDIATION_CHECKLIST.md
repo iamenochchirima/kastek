@@ -10,6 +10,8 @@
 
 **Architecture rationale:** [`KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md`](KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md)
 
+**Repository boundaries:** [`PROJECT_PLAN.md`](PROJECT_PLAN.md)
+
 ## 1. Purpose
 
 This file converts the post-implementation audit into a bounded execution checklist. Complete the
@@ -23,8 +25,11 @@ but it did not complete the requested one-shot implementation.
 ## 2. Instructions for the implementation model
 
 - [ ] Read this entire checklist before editing code.
-- [ ] Read `PROJECT_PLAN.md`, the primary blueprint, the architecture draft, `AGENTS.md`, and
-  `BLOCKERS.md` before making structural decisions.
+- [ ] Read `AGENTS.md`, this checklist, the primary blueprint, the architecture draft,
+  `PROJECT_PLAN.md`, and `BLOCKERS.md` before making structural decisions.
+- [ ] Treat this checklist as the remediation authority, the blueprint as the ordered implementation
+  authority, the architecture draft as rationale, and `PROJECT_PLAN.md` as the repository-level
+  ownership/boundary reference. Do not use `PROJECT_PLAN.md` to replace or reorder this programme.
 - [ ] Inspect commits after the blueprint was introduced and inspect the current worktree before
   changing files.
 - [ ] Preserve existing unrelated changes. Do not restore, overwrite, stage, or commit them.
