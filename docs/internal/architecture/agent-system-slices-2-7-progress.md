@@ -187,6 +187,11 @@ library suite passes 85 tests with three explicitly ignored infrastructure-gated
 publish-job execution/reconciliation remains in `social`, while provider-specific adapter and post
 lifecycle decomposition is now explicit.
 
+The channel lifecycle follow-up `0747b4f` moves organization-scoped channel list/get/create/update/
+delete operations into `social_channels`, preserving the existing `social::` exports and capability
+metadata merge. Provider-specific connection upserts and identity refresh remain in `social` until
+their provider adapter boundaries are extracted.
+
 The content adapter now also supports a safe draft-only update path. The internal core boundary
 accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,
 reuses the existing organization-scoped social update service, and the Agent registry/client expose
