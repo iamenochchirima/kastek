@@ -91,6 +91,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     "/operations/effects/{effectId}/reconcile",
                     web::post().to(agent_platform::reconcile_effect),
                 )
+                .route(
+                    "/operations/kill-switches",
+                    web::get().to(agent_platform::list_kill_switches),
+                )
+                .route(
+                    "/operations/kill-switches",
+                    web::post().to(agent_platform::create_kill_switch),
+                )
+                .route(
+                    "/operations/kill-switches/{switchId}",
+                    web::delete().to(agent_platform::disable_kill_switch),
+                )
                 .route("/audit", web::get().to(agent_platform::list_audit))
                 .route("/templates", web::get().to(agent_platform::list_templates))
                 .route(

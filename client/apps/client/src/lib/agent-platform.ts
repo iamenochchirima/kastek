@@ -98,6 +98,18 @@ export type AgentEffectReceipt = {
   updated_at?: string;
 };
 
+export type AgentKillSwitch = {
+  id: string;
+  organization_id?: string | null;
+  scope_type: "organization" | "agent" | "installation" | "tool" | string;
+  scope_id: string;
+  reason: string;
+  enabled: boolean;
+  created_by?: string;
+  created_at?: string;
+  disabled_at?: string | null;
+};
+
 export type AgentOperationEvent = {
   id?: string;
   sequence_number?: number | string;
@@ -143,6 +155,18 @@ export function reconcileAgentEffect(effectId: string, input: { outcome: "succee
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function listAgentKillSwitches(): Promise<{ killSwitches: AgentKillSwitch[] }> {
+  return request("/api/agents/operations/kill-switches");
+}
+
+export function createAgentKillSwitch(input: { scopeType: "organization" | "agent" | "installation" | "tool"; scopeId: string; reason: string }): Promise<AgentKillSwitch> {
+  return request("/api/agents/operations/kill-switches", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function disableAgentKillSwitch(switchId: string): Promise<void> {
+  return request(`/api/agents/operations/kill-switches/${encodeURIComponent(switchId)}`, { method: "DELETE" });
 }
 
 export function listAgentOperationRuns(limit = 50): Promise<{ runs: AgentOperationRun[] }> {

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { History, ListChecks, ShieldAlert } from "lucide-react";
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
-import type { AgentEffectReceipt, AgentOperationRun } from "@/lib/agent-platform";
+import type { AgentEffectReceipt, AgentKillSwitch, AgentOperationRun } from "@/lib/agent-platform";
+import { AgentKillSwitchControls } from "@/components/dashboard/agents/agent-kill-switch-controls";
 import { AgentReconciliationActions } from "@/components/dashboard/agents/agent-reconciliation-actions";
 import { redirect } from "next/navigation";
 
@@ -32,12 +33,13 @@ type OperationsHealth = {
 export default async function AgentActivityPage() {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
-  const [audit, summary, health, operations, reconciliation] = await Promise.all([
+  const [audit, summary, health, operations, reconciliation, killSwitches] = await Promise.all([
     fetchRustJson<{ records: AuditRecord[] }>("/api/agents/audit?limit=100").catch(() => ({ records: [] })),
     fetchRustJson<OperationsSummary>("/api/agents/operations/summary").catch(() => ({ runs: { runsByStatus: [], oldestQueuedAt: null } })),
     fetchRustJson<OperationsHealth>("/api/agents/operations/health").catch((): OperationsHealth => ({ status: "unavailable", database: { status: "unavailable" }, temporal: { enabled: false }, model: { provider: "unknown", model: "unknown", credentialConfigured: false } })),
     fetchRustJson<{ runs: AgentOperationRun[] }>("/api/agents/operations/runs?limit=100").catch(() => ({ runs: [] })),
     fetchRustJson<{ effects: AgentEffectReceipt[] }>("/api/agents/operations/effects/reconciliation?limit=100").catch(() => ({ effects: [] })),
+    fetchRustJson<{ killSwitches: AgentKillSwitch[] }>("/api/agents/operations/kill-switches").catch(() => ({ killSwitches: [] })),
   ]);
   const totalRuns = summary.runs.runsByStatus.reduce((total, entry) => total + entry.count, 0);
 
@@ -76,6 +78,7 @@ export default async function AgentActivityPage() {
           <div className="flex items-start gap-3"><ShieldAlert className="mt-0.5 h-5 w-5 text-status-attention" /><div><h2 id="reconciliation-heading" className="text-lg font-semibold text-foreground">Effects needing reconciliation</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">These provider calls may have reached an external system without a recorded terminal result. Resolve each one after checking the provider; the decision is audited and cannot be changed twice.</p></div><span className="ml-auto rounded-full border border-status-attention/40 px-2.5 py-1 text-xs font-medium text-status-attention">{reconciliation.effects.length}</span></div>
           {reconciliation.effects.length ? <div className="mt-5 space-y-3">{reconciliation.effects.map((effect) => <div key={effect.id} className="rounded-lg border border-status-attention/30 bg-card p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="break-all font-medium text-foreground">{effect.capability || "External effect"}</p><p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{effect.id}{effect.run_id ? ` · run ${effect.run_id}` : ""}</p><p className="mt-1 text-xs text-muted-foreground">Status: {effect.status}{effect.updated_at ? ` · updated ${new Date(effect.updated_at).toLocaleString()}` : ""}</p></div><AgentReconciliationActions effect={effect} /></div></div>)}</div> : <p className="mt-5 text-sm text-muted-foreground">No provider effects are waiting for reconciliation.</p>}
         </section>
+        <AgentKillSwitchControls initial={killSwitches.killSwitches} />
         <section className="mt-8 rounded-xl border border-border bg-card p-6">
           <div className="flex items-center gap-3"><History className="h-5 w-5 text-primary" /><h2 className="text-lg font-semibold text-foreground">Audit timeline</h2></div>
           {audit.records.length === 0 ? (

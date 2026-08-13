@@ -1495,11 +1495,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get("/v1/operations/kill-switches", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     return { killSwitches: await killSwitches.list(auth.organizationId) };
   });
 
   app.post("/v1/operations/kill-switches", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ scopeType: z.enum(["global", "organization", "agent", "installation", "tool"]), scopeId: z.string().trim().min(1).max(240), reason: z.string().trim().min(1).max(500) }).parse(request.body);
     if (input.scopeType === "global") throw new Error("Global kill switches require platform operator scope");
     const record = await killSwitches.set({ organizationId: auth.organizationId, ...input, actorId: auth.actorId });
@@ -1508,6 +1510,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.delete<{ Params: { switchId: string } }>("/v1/operations/kill-switches/:switchId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     await killSwitches.disable(auth.organizationId, request.params.switchId, auth.actorId);
     return reply.code(204).send();
   });

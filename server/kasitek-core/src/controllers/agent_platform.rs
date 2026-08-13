@@ -208,6 +208,74 @@ pub async fn reconcile_effect(
     Ok(HttpResponse::Accepted().json(response))
 }
 
+pub async fn list_kill_switches(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_kill_switches(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn create_kill_switch(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Kill-switch body must be an object".to_string(),
+        ));
+    }
+    let scope_type = body
+        .get("scopeType")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if !matches!(
+        scope_type,
+        "organization" | "agent" | "installation" | "tool"
+    ) {
+        return Err(AppError::BadRequest(
+            "Kill-switch scopeType is invalid".to_string(),
+        ));
+    }
+    for key in ["scopeId", "reason"] {
+        if body
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+        {
+            return Err(AppError::BadRequest(format!(
+                "Kill-switch {key} is required"
+            )));
+        }
+    }
+    let response = client(config.get_ref())?
+        .create_kill_switch(&organization_id, &user.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn disable_kill_switch(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    switch_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .disable_kill_switch(&organization_id, &user.id, switch_id.trim())
+        .await?;
+    Ok(HttpResponse::NoContent().json(response))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AuditQuery {
     pub action: Option<String>,
