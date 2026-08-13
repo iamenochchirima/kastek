@@ -51,6 +51,14 @@ pub async fn require_workspace_admin(
     context: &RequestContext,
     pool: &PgPool,
 ) -> Result<(), AppError> {
+    if !matches!(
+        context.principal.kind,
+        crate::identity::principal::PrincipalKind::DirectUser
+    ) {
+        return Err(AppError::Forbidden(
+            "Booking service administration requires a workspace user".to_string(),
+        ));
+    }
     let user_id = context.user_id.as_deref().ok_or_else(|| {
         AppError::Forbidden("Booking service administration requires a workspace user".to_string())
     })?;
@@ -60,9 +68,16 @@ pub async fn require_workspace_admin(
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, Utc};
+    use sqlx::postgres::PgPoolOptions;
+
+    use crate::identity::{
+        principal::{Principal, PrincipalKind},
+        request_context::RequestContext,
+    };
 
     use super::{
-        normalize_required_text, validate_duration_minutes, validate_future_start, validate_status,
+        normalize_required_text, require_workspace_admin, validate_duration_minutes,
+        validate_future_start, validate_status,
     };
 
     #[test]
@@ -88,5 +103,29 @@ mod tests {
         assert!(validate_future_start(Utc::now() - Duration::minutes(1)).is_err());
         assert!(validate_status("CONFIRMED").is_ok());
         assert!(validate_status("PUBLISHED").is_err());
+    }
+
+    #[tokio::test]
+    async fn rejects_non_user_principals_before_membership_lookup() {
+        let pool = PgPoolOptions::new()
+            .connect_lazy("postgres://localhost/kasitek")
+            .expect("lazy pool");
+        let context = RequestContext {
+            principal: Principal {
+                kind: PrincipalKind::AgentInstallation,
+                id: "installation-1".to_string(),
+                subject_user_id: Some("actor-1".to_string()),
+                client_id: Some("credential-1".to_string()),
+            },
+            organization_id: "org-1".to_string(),
+            user_id: Some("actor-1".to_string()),
+            client_id: Some("credential-1".to_string()),
+            installation_id: Some("installation-1".to_string()),
+            effective_grants: Default::default(),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: None,
+        };
+        assert!(require_workspace_admin(&context, &pool).await.is_err());
     }
 }

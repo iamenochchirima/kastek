@@ -66,3 +66,48 @@ impl Principal {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Principal, PrincipalKind};
+    use actions::{ActorKind, IdentityRealm};
+
+    #[test]
+    fn direct_actor_conversion_preserves_supported_principal_kinds() {
+        let direct = Principal::direct_user("user-1").to_direct_actor().unwrap();
+        assert_eq!(direct.kind, ActorKind::DirectUser);
+        assert_eq!(direct.realm, IdentityRealm::Direct);
+
+        let api_client = Principal {
+            kind: PrincipalKind::WorkspaceApiKey,
+            id: "key-1".to_string(),
+            subject_user_id: None,
+            client_id: Some("client-1".to_string()),
+        }
+        .to_direct_actor()
+        .unwrap();
+        assert_eq!(api_client.kind, ActorKind::ApiClient);
+        assert_eq!(
+            api_client.authenticated_client_id.as_deref(),
+            Some("client-1")
+        );
+    }
+
+    #[test]
+    fn direct_runtime_rejects_wrong_realm_principals() {
+        for kind in [
+            PrincipalKind::PlatformAdmin,
+            PrincipalKind::OAuthUser,
+            PrincipalKind::OAuthApplication,
+        ] {
+            let result = Principal {
+                kind,
+                id: "principal-1".to_string(),
+                subject_user_id: None,
+                client_id: None,
+            }
+            .to_direct_actor();
+            assert!(result.is_err());
+        }
+    }
+}
