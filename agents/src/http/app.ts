@@ -220,6 +220,32 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
   const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config));
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
+  if (connectorRegistry.list().length === 0) {
+    connectorRegistry.register({
+      id: "telegram.messaging",
+      version: "1.0.0",
+      displayName: "Telegram messaging",
+      ownerService: "agents",
+      auth: "api_key",
+      requiredScopes: ["channels:ingest", "channels:deliver"],
+      capabilityNames: ["kasitek.core.channel_deliver"],
+      rateLimit: { requests: 30, windowSeconds: 60 },
+      redactedFields: ["botToken", "accessToken"],
+      supportsReconciliation: true,
+    });
+    connectorRegistry.register({
+      id: "discord.messaging",
+      version: "1.0.0",
+      displayName: "Discord messaging",
+      ownerService: "agents",
+      auth: "oauth2",
+      requiredScopes: ["channels:ingest", "channels:deliver"],
+      capabilityNames: ["kasitek.core.channel_deliver"],
+      rateLimit: { requests: 30, windowSeconds: 60 },
+      redactedFields: ["botToken", "accessToken"],
+      supportsReconciliation: true,
+    });
+  }
   const effectReceipts = dependencies.effectReceipts ?? new EffectReceiptRepository(dependencies.pool);
   const approvals = dependencies.approvals ?? new ApprovalRepository(dependencies.pool);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);

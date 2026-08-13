@@ -1084,6 +1084,9 @@ impl AgentPlatformClient {
         if !response.status().is_success() {
             return Err(self.map_status(response).await);
         }
+        if response.status() == StatusCode::NO_CONTENT {
+            return Ok(Value::Null);
+        }
         response.json::<Value>().await.map_err(|error| {
             log::error!("Agent Platform returned invalid JSON: {error}");
             AppError::BadGateway("Agent Platform returned an invalid response".to_string())
