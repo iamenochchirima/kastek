@@ -1,15 +1,18 @@
 import type { WorkflowGraph } from "./graph";
+import { hashToolArguments } from "../tools/registry";
 
 export interface GraphToolRequest {
   name: string;
   arguments: Record<string, unknown>;
   nodeId: string;
+  approved?: unknown;
 }
 
 export interface GraphExecutorDependencies {
   model?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown> }) => Promise<unknown>;
   agentLoop?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown> }) => Promise<unknown>;
   tool?: (input: GraphToolRequest) => Promise<unknown>;
+  resumeApprovedToolCall?: { id: string; name: string; arguments: Record<string, unknown>; approval: unknown };
 }
 
 export interface GraphExecutionResult {
@@ -17,6 +20,7 @@ export interface GraphExecutionResult {
   state: Record<string, unknown>;
   trace: Array<{ nodeId: string; type: string; status: string }>;
   pausedAt?: string;
+  pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
   error?: string;
 }
 
@@ -110,8 +114,29 @@ export async function executeWorkflowGraph(
         result = await dependencies.agentLoop({ nodeId: node.id, config: node.config, state });
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "approval") {
-        trace.push({ nodeId: node.id, type: node.type, status: "awaiting_approval" });
-        return { status: "awaiting_approval", state, trace, pausedAt: node.id };
+        const approvalConfig = node.config ?? {};
+        const toolName = typeof approvalConfig.toolName === "string" ? approvalConfig.toolName : undefined;
+        const toolArguments = approvalConfig.arguments && typeof approvalConfig.arguments === "object" && !Array.isArray(approvalConfig.arguments)
+          ? approvalConfig.arguments as Record<string, unknown>
+          : {};
+        if (toolName && dependencies.tool) {
+          const toolCallId = typeof approvalConfig.toolCallId === "string" ? approvalConfig.toolCallId : `workflow:${node.id}`;
+          const resumed = dependencies.resumeApprovedToolCall;
+          if (resumed && resumed.id === toolCallId && resumed.name === toolName) {
+            result = await dependencies.tool({ name: toolName, arguments: toolArguments, nodeId: node.id, approved: resumed.approval });
+            applyConfiguredWrites(state, node, result);
+          } else {
+            const argumentsHash = createWorkflowArgumentsHash(toolArguments);
+            trace.push({ nodeId: node.id, type: node.type, status: "awaiting_approval" });
+            return { status: "awaiting_approval", state, trace, pausedAt: node.id, pendingToolCalls: [{ id: toolCallId, name: toolName, arguments: toolArguments, argumentsHash }] };
+          }
+        } else if (toolName) {
+          throw new Error(`Approval node tool is not configured: ${node.id}`);
+        }
+        if (!toolName) {
+          trace.push({ nodeId: node.id, type: node.type, status: "awaiting_approval" });
+          return { status: "awaiting_approval", state, trace, pausedAt: node.id };
+        }
       } else if (node.type === "wait") {
         trace.push({ nodeId: node.id, type: node.type, status: "awaiting_external_event" });
         return { status: "awaiting_external_event", state, trace, pausedAt: node.id };
@@ -137,4 +162,8 @@ export async function executeWorkflowGraph(
     }
   }
   return { status: "failed", state, trace, error: "Workflow step limit exceeded" };
+}
+
+function createWorkflowArgumentsHash(argumentsValue: Record<string, unknown>): string {
+  return hashToolArguments(argumentsValue);
 }

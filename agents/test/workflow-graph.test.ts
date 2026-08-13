@@ -27,6 +27,23 @@ describe("workflow graph validation", () => {
     expect(result).toMatchObject({ status: "awaiting_approval", pausedAt: "approval", state: { value: 1 } });
   });
 
+  it("binds configured approval nodes to a stable tool proposal and resumes once", async () => {
+    const graph = {
+      version: 1 as const,
+      entryNodeId: "approve",
+      nodes: [
+        { id: "approve", type: "approval" as const, config: { toolName: "echo", arguments: { value: "approved" }, toolCallId: "call-1" }, writes: ["result"] },
+        { id: "done", type: "deterministic" as const, config: { operation: "set", path: "done", value: true } },
+      ],
+      edges: [{ from: "approve", to: "done" }],
+      stateSchema: {},
+    };
+    const pending = await executeWorkflowGraph(graph, {} , { tool: async () => ({ ok: true }) });
+    expect(pending).toMatchObject({ status: "awaiting_approval", pausedAt: "approve", pendingToolCalls: [{ id: "call-1", name: "echo" }] });
+    const resumed = await executeWorkflowGraph(graph, {}, { tool: async (request) => ({ ok: request.approved === "approval" }), resumeApprovedToolCall: { id: "call-1", name: "echo", arguments: { value: "approved" }, approval: "approval" } });
+    expect(resumed).toMatchObject({ status: "completed", state: { result: { ok: true }, done: true } });
+  });
+
   it("validates a graph and returns a deterministic order", () => {
     const result = validateWorkflowGraph({
       version: 1,

@@ -8,7 +8,7 @@ import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
 import { EnvironmentCredentialResolver, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
 import type { ModelPricing } from "../model/types";
-import { runBoundedAgentLoop } from "../runtime/loop";
+import { runBoundedAgentLoop, type AgentLoopResult } from "../runtime/loop";
 import { buildAgentContext } from "../runtime/context";
 import { retrievalGate } from "../runtime/context";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
@@ -27,6 +27,11 @@ import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repos
 import { ApprovalRepository } from "../db/repositories/approval-repository";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
+import { validateWorkflowGraph, type WorkflowGraph } from "../workflows/graph";
+import { executeWorkflowGraph } from "../workflows/executor";
+import { WorkflowStateRepository } from "../db/repositories/workflow-state-repository";
+import { redactSensitiveValue } from "../tools/redaction";
+import type { ModelCredentials, ModelResponse } from "../model/types";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -256,6 +261,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const effectReceipts = new EffectReceiptRepository(pool);
   const approvals = new ApprovalRepository(pool);
   const installationGrants = new InstallationGrantRepository(pool);
+  const workflowState = new WorkflowStateRepository(pool);
   const gateway = options.gateway ?? new ModelGateway(undefined, { pricing: pricingFromConfig(options.config) });
   const credentials = options.credentials ?? (options.config
     ? new VaultCredentialResolver(new CredentialVaultRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY))
@@ -284,7 +290,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           tools,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools, workflowState);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -671,6 +677,7 @@ async function executeLoopForRun(
   gateway: ModelGateway,
   credentials: CredentialResolver,
   tools: ToolRegistry,
+  workflowState: WorkflowStateRepository,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const configuration = run.configuration;
@@ -796,6 +803,30 @@ async function executeLoopForRun(
       knowledgeMatchCount: knowledgeMatches.length,
     },
   });
+  if (configuration.workflow && typeof configuration.workflow === "object" && !Array.isArray(configuration.workflow)) {
+    return executeConfiguredWorkflow({
+      run,
+      graphInput: configuration.workflow,
+      inputState: { input: currentMessage, context: dynamicContext ?? {}, output: {} },
+      context,
+      modelProvider: provider,
+      model,
+      modelCredentials,
+      gateway,
+      tools,
+      allowedTools,
+      runRepository: runs,
+      modelCalls,
+      toolInvocations,
+      approvals,
+      effectReceipts,
+      runSteps,
+      installationGrants,
+      killSwitches,
+      workflowState,
+      resumeApprovedToolCall,
+    });
+  }
   const toolSteps = new Map<string, string>();
   const startedExternalEffects = new Set<string>();
   const loopResult = await runBoundedAgentLoop({
@@ -983,4 +1014,178 @@ async function executeLoopForRun(
     },
   });
   return loopResult;
+}
+
+type ConfiguredWorkflowRun = Awaited<ReturnType<RunRepository["getRuntimeRun"]>> & object;
+
+async function executeConfiguredWorkflow(input: {
+  run: ConfiguredWorkflowRun;
+  graphInput: unknown;
+  inputState: Record<string, unknown>;
+  context: ReturnType<typeof buildAgentContext>;
+  modelProvider: "openrouter" | "openai" | "anthropic" | "gemini";
+  model: string;
+  modelCredentials: ModelCredentials;
+  gateway: ModelGateway;
+  tools: ToolRegistry;
+  allowedTools: ReadonlySet<string>;
+  runRepository: RunRepository;
+  modelCalls: ModelCallRepository;
+  toolInvocations: ToolInvocationRepository;
+  approvals: ApprovalRepository;
+  effectReceipts: EffectReceiptRepository;
+  runSteps: RunStepRepository;
+  installationGrants: InstallationGrantRepository;
+  killSwitches: KillSwitchRepository;
+  workflowState: WorkflowStateRepository;
+  resumeApprovedToolCall?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"];
+}): Promise<AgentLoopResult> {
+  let graph: WorkflowGraph;
+  try {
+    graph = validateWorkflowGraph(input.graphInput).graph;
+  } catch (error) {
+    return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: 0, toolCalls: 0, error: { code: "WORKFLOW_INVALID", message: error instanceof Error ? error.message : "Workflow graph is invalid" } };
+  }
+  const persisted = await input.workflowState.get(input.run.organization_id, input.run.id);
+  const persistedState = persisted?.state;
+  const workflowStateValue = persistedState?.__workflowState && typeof persistedState.__workflowState === "object" && !Array.isArray(persistedState.__workflowState)
+    ? persistedState.__workflowState as Record<string, unknown>
+    : input.inputState;
+  const pausedNodeId = typeof persistedState?.__workflowNodeId === "string" ? persistedState.__workflowNodeId : undefined;
+  const executionGraph = pausedNodeId && graph.nodes.some((node) => node.id === pausedNodeId) ? { ...graph, entryNodeId: pausedNodeId } : graph;
+  const toolSequence = { value: 0 };
+  let lastModelResponse: ModelResponse | undefined;
+
+  const executeTool = async (request: { name: string; arguments: Record<string, unknown>; nodeId: string; approved?: unknown }): Promise<unknown> => {
+    const manifest = input.tools.get(request.name);
+    if (!manifest) throw new Error(`WORKFLOW_TOOL_NOT_FOUND:${request.name}`);
+    if (manifest.requiresApproval && !request.approved) throw new Error(`WORKFLOW_APPROVAL_REQUIRED:${request.name}`);
+    if (manifest.riskClass === "external-effect" && !request.approved) throw new Error(`WORKFLOW_APPROVAL_REQUIRED:${request.name}`);
+    await assertCurrentCapabilityPolicy({
+      organizationId: input.run.organization_id,
+      installationId: input.run.installation_id,
+      name: request.name,
+      argumentsValue: request.arguments,
+      grantedTools: input.allowedTools,
+      tools: input.tools,
+      installationGrants: input.installationGrants,
+      approved: Boolean(request.approved),
+    });
+    const argumentsHash = hashToolArguments(request.arguments);
+    const providerToolCallId = `workflow:${request.nodeId}`;
+    const step = await input.runSteps.startStep({ runId: input.run.id, organizationId: input.run.organization_id, stepType: "tool", input: { toolCallId: providerToolCallId, name: request.name, argumentsHash } });
+    await input.toolInvocations.recordProposal({
+      organizationId: input.run.organization_id,
+      runId: input.run.id,
+      providerToolCallId,
+      sequenceNumber: toolSequence.value += 1,
+      toolName: request.name,
+      toolVersion: manifest.version,
+      riskClass: manifest.riskClass,
+      argumentsHash,
+      arguments: request.arguments,
+      requiresApproval: manifest.requiresApproval,
+    });
+    try {
+      if (manifest.requiresApproval && manifest.riskClass !== "external-effect") {
+        await input.approvals.consume({
+          organizationId: input.run.organization_id,
+          installationId: input.run.installation_id,
+          runId: input.run.id,
+          providerToolCallId,
+          capability: request.name,
+          capabilityVersion: manifest.version,
+          argumentsHash,
+          resourceSnapshot: {},
+          previewRevision: argumentsHash,
+          policyRevision: "v1",
+          permittedEffectKey: `${input.run.id}:${providerToolCallId}`,
+        });
+      }
+      const result = await input.tools.invoke({
+        name: request.name,
+        arguments: request.arguments,
+        context: {
+          organizationId: input.run.organization_id,
+          agentId: input.run.agent_definition_id,
+          agentVersionId: input.run.agent_version_id,
+          installationId: input.run.installation_id,
+          runId: input.run.id,
+          actorId: input.run.created_by,
+          correlationId: input.run.correlation_id,
+        },
+        grantedTools: input.allowedTools,
+        approval: request.approved as Parameters<ToolRegistry["invoke"]>[0]["approval"],
+        beforeEffect: manifest.riskClass === "external-effect" ? async () => {
+          await input.approvals.consumeAndStartEffect({
+            organizationId: input.run.organization_id,
+            installationId: input.run.installation_id,
+            runId: input.run.id,
+            providerToolCallId,
+            capability: request.name,
+            capabilityVersion: manifest.version,
+            argumentsHash,
+            resourceSnapshot: {},
+            previewRevision: argumentsHash,
+            policyRevision: "v1",
+            permittedEffectKey: `${input.run.id}:${providerToolCallId}`,
+            effectIdempotencyKey: `${input.run.id}:${request.name}:${argumentsHash}`,
+          });
+        } : undefined,
+      });
+      const safeOutput = redactSensitiveValue(result.output);
+      await input.toolInvocations.recordCompleted({ runId: input.run.id, providerToolCallId, output: safeOutput, latencyMs: result.latencyMs, effectId: result.effectId });
+      await input.runSteps.finishStep({ stepId: step.id, status: "completed", output: { latencyMs: result.latencyMs } });
+      if (result.effectId) await input.effectReceipts.markSucceededByKey(input.run.organization_id, `${input.run.id}:${request.name}:${argumentsHash}`, safeOutput);
+      return safeOutput;
+    } catch (error) {
+      const normalized = { code: error instanceof Error && "code" in error ? String((error as { code?: unknown }).code) : "WORKFLOW_TOOL_FAILED", message: error instanceof Error ? error.message : "Workflow tool failed" };
+      await input.toolInvocations.recordFailed({ runId: input.run.id, providerToolCallId, error: normalized });
+      await input.runSteps.finishStep({ stepId: step.id, status: "failed", error: normalized });
+      throw error;
+    }
+  };
+
+  const result = await executeWorkflowGraph(executionGraph, workflowStateValue, {
+    model: async ({ nodeId, config, state }) => {
+      const instruction = typeof config.instruction === "string" ? config.instruction : "Continue the workflow.";
+      const response = await input.gateway.complete({
+        provider: input.modelProvider,
+        model: input.model,
+        messages: [...input.context.messages, { role: "user", content: JSON.stringify({ nodeId, instruction, state }) }],
+        maxTokens: typeof config.maxTokens === "number" ? Math.max(1, Math.min(8_000, config.maxTokens)) : 2_000,
+        temperature: typeof config.temperature === "number" ? config.temperature : undefined,
+      }, input.modelCredentials);
+      lastModelResponse = response;
+      await input.modelCalls.recordCompleted({ organizationId: input.run.organization_id, runId: input.run.id, provider: response.provider, model: response.model, fundingSource: input.modelCredentials.fundingSource, credentialReference: input.modelCredentials.credentialReference, response });
+      const step = await input.runSteps.startStep({ runId: input.run.id, organizationId: input.run.organization_id, stepType: "model", input: { provider: response.provider, model: response.model, nodeId } });
+      await input.runSteps.finishStep({ stepId: step.id, status: "completed", output: { totalTokens: response.usage.totalTokens, latencyMs: response.latencyMs } });
+      return { output: response.message.content, text: response.message.content };
+    },
+    tool: executeTool,
+    resumeApprovedToolCall: input.resumeApprovedToolCall,
+  });
+
+  if (result.status === "awaiting_approval") {
+    const pending = result.pendingToolCalls?.[0];
+    if (!pending) return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: 0, error: { code: "WORKFLOW_APPROVAL_UNCONFIGURED", message: "Approval node must identify a capability and arguments" } };
+    const manifest = input.tools.get(pending.name);
+    if (!manifest) return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: 0, error: { code: "WORKFLOW_TOOL_NOT_FOUND", message: `Workflow tool is not registered: ${pending.name}` } };
+    await input.toolInvocations.recordProposal({ organizationId: input.run.organization_id, runId: input.run.id, providerToolCallId: pending.id, sequenceNumber: toolSequence.value + 1, toolName: pending.name, toolVersion: manifest.version, riskClass: manifest.riskClass, argumentsHash: pending.argumentsHash, arguments: pending.arguments, requiresApproval: true });
+    await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: {}, previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
+    if (manifest.riskClass === "external-effect") await input.effectReceipts.reserve({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, idempotencyKey: `${input.run.id}:${pending.name}:${pending.argumentsHash}` });
+    await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
+    await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.approval.pending", payload: { nodeId: result.pausedAt, capability: pending.name, providerToolCallId: pending.id } });
+    return { status: "awaiting_approval", messages: [], pendingToolCalls: [pending], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value };
+  }
+  if (result.status === "awaiting_external_event") return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, error: { code: "WORKFLOW_EXTERNAL_EVENT_UNSUPPORTED", message: "Workflow wait nodes require an external event continuation" } };
+  if (result.status === "failed") return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, error: { code: "WORKFLOW_FAILED", message: result.error ?? "Workflow execution failed" } };
+  await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: null, __workflowState: result.state } });
+  const output = typeof result.state.output === "string" ? result.state.output : typeof result.state.answer === "string" ? result.state.answer : lastModelResponse?.message.content ?? "Workflow completed";
+  const response = lastModelResponse ?? { provider: input.modelProvider, model: input.model, message: { role: "assistant" as const, content: output }, toolCalls: [], finishReason: "workflow", usage: emptyWorkflowUsage(), latencyMs: 0 };
+  return { status: "completed", messages: [response.message], response, usage: { ...response.usage, estimatedCostUsd: response.usage.estimatedCostUsd ?? 0 }, iterations: result.trace.length, toolCalls: toolSequence.value };
+}
+
+function emptyWorkflowUsage(): { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number } {
+  return { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
 }
