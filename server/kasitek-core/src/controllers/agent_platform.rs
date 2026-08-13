@@ -154,6 +154,60 @@ pub async fn operations_health(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn operations_effects_reconciliation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<RunQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=500).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Reconciliation limit must be between 1 and 500".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .operations_effects_reconciliation(&organization_id, &user.id, query.limit)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn reconcile_effect(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    effect_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Reconciliation body must be an object".to_string(),
+        ));
+    }
+    let outcome = body
+        .get("outcome")
+        .and_then(Value::as_str)
+        .filter(|value| matches!(*value, "succeeded" | "failed"))
+        .ok_or_else(|| {
+            AppError::BadRequest("Reconciliation outcome must be succeeded or failed".to_string())
+        })?;
+    if outcome == "failed" && body.get("error").is_none() {
+        return Err(AppError::BadRequest(
+            "A failed reconciliation requires an error object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .reconcile_effect(
+            &organization_id,
+            &user.id,
+            effect_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Accepted().json(response))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AuditQuery {
     pub action: Option<String>,

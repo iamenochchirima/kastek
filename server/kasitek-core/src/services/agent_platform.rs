@@ -202,6 +202,45 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn operations_effects_reconciliation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let path = match limit {
+            Some(limit) => format!("/v1/operations/effects/reconciliation?limit={limit}"),
+            None => "/v1/operations/effects/reconciliation".to_string(),
+        };
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn reconcile_effect(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        effect_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/operations/effects/{effect_id}/reconcile"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn list_audit(
         &self,
         organization_id: &str,

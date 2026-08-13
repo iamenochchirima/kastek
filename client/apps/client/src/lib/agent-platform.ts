@@ -80,6 +80,24 @@ export type AgentOperationsSummary = {
   effects: { pendingReconciliation: number };
 };
 
+export type AgentEffectReceipt = {
+  id: string;
+  organization_id?: string;
+  installation_id?: string;
+  run_id?: string;
+  provider_tool_call_id?: string;
+  capability?: string;
+  capability_version?: string;
+  arguments_hash?: string;
+  idempotency_key?: string;
+  status: string;
+  provider_receipt?: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
+  reconciliation_required?: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type AgentOperationEvent = {
   id?: string;
   sequence_number?: number | string;
@@ -114,6 +132,17 @@ export type AgentOperationRun = AgentRun & {
 
 export function getAgentOperationsSummary(): Promise<AgentOperationsSummary> {
   return request<AgentOperationsSummary>("/api/agents/operations/summary");
+}
+
+export function listAgentEffectReconciliation(limit = 100): Promise<{ effects: AgentEffectReceipt[] }> {
+  return request(`/api/agents/operations/effects/reconciliation?limit=${encodeURIComponent(String(limit))}`);
+}
+
+export function reconcileAgentEffect(effectId: string, input: { outcome: "succeeded" | "failed"; providerReceipt?: Record<string, unknown>; error?: Record<string, unknown> }): Promise<{ effectId: string; status: string; reconciliationRequired: boolean }> {
+  return request(`/api/agents/operations/effects/${encodeURIComponent(effectId)}/reconcile`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export function listAgentOperationRuns(limit = 50): Promise<{ runs: AgentOperationRun[] }> {

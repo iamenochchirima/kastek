@@ -83,6 +83,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     "/operations/health",
                     web::get().to(agent_platform::operations_health),
                 )
+                .route(
+                    "/operations/effects/reconciliation",
+                    web::get().to(agent_platform::operations_effects_reconciliation),
+                )
+                .route(
+                    "/operations/effects/{effectId}/reconcile",
+                    web::post().to(agent_platform::reconcile_effect),
+                )
                 .route("/audit", web::get().to(agent_platform::list_audit))
                 .route("/templates", web::get().to(agent_platform::list_templates))
                 .route(
