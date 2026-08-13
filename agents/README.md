@@ -66,9 +66,13 @@ authentication modes are present:
   `KASITEK_AGENTS_INTERNAL_TOKEN`.
 - `KASITEK_CORE_DELEGATION_PRIVATE_KEY` — an ES256 private key for per-invocation delegation.
 
-The initial tool is `kasitek.core.customer_get`. It calls
-`GET /api/internal/agents/v1/customers/:id` with `x-organization-id`, `x-actor-id`, run, and
-correlation headers. Core scopes the query by organization and returns only the read model.
+The core capability boundary currently includes customer/workspace reads and the first content
+vertical. Content tools call `GET /api/internal/agents/v1/content/posts` and
+`GET /api/internal/agents/v1/content/posts/:id` for scoped reads, `POST
+/api/internal/agents/v1/content/posts` for idempotent drafts, and approval-bound publish/schedule
+routes for later rollout. Every request carries organization, actor, run, correlation, and (for
+writes) idempotency context. Core scopes all queries and writes by organization and returns only
+the typed read/write result; the Agent Platform never receives core database credentials.
 The Agent Platform never receives core database credentials. Rotate this service token as a
 deployment secret; do not reuse the n8n callback token or a user session token.
 
