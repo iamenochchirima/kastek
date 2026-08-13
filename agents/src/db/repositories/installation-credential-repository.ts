@@ -13,6 +13,7 @@ export interface InstallationCredentialRecord {
   created_at: string;
   revoked_at: string | null;
   mcp_scopes: Array<"mcp:read" | "mcp:write">;
+  api_scopes?: Array<"api:read" | "api:write">;
 }
 
 export interface CreatedInstallationCredential {
@@ -45,6 +46,7 @@ export class InstallationCredentialRepository {
     actorId: string;
     expiresAt?: string;
     mcpScopes: Array<"mcp:read" | "mcp:write">;
+    apiScopes?: Array<"api:read" | "api:write">;
   }): Promise<CreatedInstallationCredential> {
     const secret = `ksi_${randomBytes(32).toString("base64url")}`;
     const credential = await withTransaction(this.pool, async (client) => {
@@ -55,10 +57,10 @@ export class InstallationCredentialRepository {
       if (!installation.rows[0]) throw new Error("Active installation not found");
       const result = await client.query<InstallationCredentialRecord>(
         `INSERT INTO agent_installation_credentials
-          (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, created_by)
-         VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7)
-         RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes`,
-        [input.installationId, input.organizationId, input.label.trim(), hashSecret(secret), input.expiresAt ?? null, JSON.stringify(input.mcpScopes), input.actorId],
+          (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, api_scopes, created_by)
+         VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7::jsonb, $8)
+         RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes`,
+        [input.installationId, input.organizationId, input.label.trim(), hashSecret(secret), input.expiresAt ?? null, JSON.stringify(input.mcpScopes), JSON.stringify(input.apiScopes ?? ["api:read"]), input.actorId],
       );
       await client.query(
         `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -73,7 +75,7 @@ export class InstallationCredentialRepository {
   public async list(organizationId: string, installationId: string): Promise<InstallationCredentialRecord[]> {
     const result = await query<InstallationCredentialRecord>(
       this.pool,
-      `SELECT id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes
+      `SELECT id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes
        FROM agent_installation_credentials WHERE organization_id = $1 AND installation_id = $2 ORDER BY created_at DESC`,
       [organizationId, installationId],
     );
@@ -84,7 +86,7 @@ export class InstallationCredentialRepository {
     const candidates = await query<InstallationCredentialRecord & { secret_hash: string; installation_status: string }>(
       this.pool,
       `SELECT credential.id, credential.installation_id, credential.organization_id, credential.label, credential.status,
-              credential.expires_at, credential.last_used_at, credential.created_at, credential.revoked_at, credential.mcp_scopes,
+              credential.expires_at, credential.last_used_at, credential.created_at, credential.revoked_at, credential.mcp_scopes, credential.api_scopes,
               credential.secret_hash, installation.status AS installation_status
        FROM agent_installation_credentials credential
        JOIN agent_installations installation ON installation.id = credential.installation_id
@@ -109,7 +111,7 @@ export class InstallationCredentialRepository {
       this.pool,
       `SELECT credential.id, credential.installation_id, credential.organization_id, credential.label,
               credential.status, credential.expires_at, credential.last_used_at, credential.created_at,
-              credential.revoked_at, credential.mcp_scopes
+              credential.revoked_at, credential.mcp_scopes, credential.api_scopes
        FROM agent_installation_credentials credential
        JOIN agent_installations installation ON installation.id = credential.installation_id
        WHERE credential.id = $1 AND credential.organization_id = $2 AND credential.installation_id = $3

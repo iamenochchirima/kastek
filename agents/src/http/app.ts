@@ -107,18 +107,18 @@ interface McpAuthContext extends AuthContext {
   credentialId: string;
 }
 
-async function authenticateMcpRequest(input: {
+async function authenticateInstallationRequest(input: {
   request: FastifyRequest;
   config: AppConfig;
   installationCredentials: InstallationCredentialRepository;
   agents: AgentRepository;
-}): Promise<McpAuthContext> {
+}, audience: "mcp" | "kasitek-public-api"): Promise<McpAuthContext> {
   const authorization = headerValue(input.request, "authorization");
   if (!authorization?.startsWith("Bearer ")) {
-    throw Object.assign(new Error("MCP installation token required"), { statusCode: 401 });
+    throw Object.assign(new Error(`${audience === "mcp" ? "MCP" : "Public API"} installation token required`), { statusCode: 401 });
   }
   if (!input.config.INSTALLATION_TOKEN_PRIVATE_KEY) {
-    throw Object.assign(new Error("MCP installation token verification is unavailable"), { statusCode: 503 });
+    throw Object.assign(new Error(`${audience === "mcp" ? "MCP" : "Public API"} installation token verification is unavailable`), { statusCode: 503 });
   }
   let claims;
   try {
@@ -126,37 +126,84 @@ async function authenticateMcpRequest(input: {
     claims = verifyInstallationToken(
       authorization.slice("Bearer ".length),
       publicKeyPem,
-      "mcp",
+      audience,
       Math.floor(Date.now() / 1000),
       input.config.INSTALLATION_TOKEN_ISSUER,
     );
   } catch {
-    throw Object.assign(new Error("Invalid MCP installation token"), { statusCode: 401 });
+    throw Object.assign(new Error(`Invalid ${audience === "mcp" ? "MCP" : "public API"} installation token`), { statusCode: 401 });
   }
   const credential = await input.installationCredentials.getActiveForToken({
     credentialId: claims.credentialId,
     organizationId: claims.organizationId,
     installationId: claims.sub,
   });
-  if (!credential) throw Object.assign(new Error("MCP installation credential is no longer active"), { statusCode: 401 });
+  if (!credential) throw Object.assign(new Error(`${audience === "mcp" ? "MCP" : "Public API"} installation credential is no longer active`), { statusCode: 401 });
   const installation = await input.agents.getInstallation(claims.organizationId, claims.sub);
   if (!installation || installation.status !== "active") {
-    throw Object.assign(new Error("MCP installation is no longer active"), { statusCode: 401 });
+    throw Object.assign(new Error(`${audience === "mcp" ? "MCP" : "Public API"} installation is no longer active`), { statusCode: 401 });
   }
   return {
     organizationId: claims.organizationId,
     actorId: `installation:${claims.sub}`,
     correlationId: claims.jti,
-    scopes: credential.mcp_scopes,
+    scopes: audience === "mcp" ? credential.mcp_scopes : (credential.api_scopes ?? []),
     installationId: claims.sub,
     credentialId: claims.credentialId,
   };
+}
+
+async function authenticateMcpRequest(input: {
+  request: FastifyRequest;
+  config: AppConfig;
+  installationCredentials: InstallationCredentialRepository;
+  agents: AgentRepository;
+}): Promise<McpAuthContext> {
+  return authenticateInstallationRequest(input, "mcp");
+}
+
+async function authenticatePublicApiRequest(input: {
+  request: FastifyRequest;
+  config: AppConfig;
+  installationCredentials: InstallationCredentialRepository;
+  agents: AgentRepository;
+}): Promise<McpAuthContext> {
+  return authenticateInstallationRequest(input, "kasitek-public-api");
 }
 
 function requireMcpScope(auth: McpAuthContext, scope: "mcp:read" | "mcp:write"): void {
   if (!auth.scopes.includes(scope)) {
     throw Object.assign(new Error(`MCP credential is missing scope: ${scope}`), { statusCode: 403 });
   }
+}
+
+function requireApiScope(auth: McpAuthContext, scope: "api:read" | "api:write"): void {
+  if (!auth.scopes.includes(scope)) {
+    throw Object.assign(new Error(`Public API credential is missing scope: ${scope}`), { statusCode: 403 });
+  }
+}
+
+async function acceptDurableToolCall(input: {
+  runs: RunRepository;
+  startWorkflow?: (runId: string) => Promise<void>;
+  temporalEnabled: boolean;
+  organizationId: string;
+  actorId: string;
+  installationId: string;
+  name: string;
+  arguments: Record<string, unknown>;
+  toolCallId: string;
+  idempotencyKey: string;
+}) {
+  if (!input.temporalEnabled || !input.startWorkflow) throw Object.assign(new Error("durable tool execution is unavailable"), { statusCode: 503 });
+  const accepted = await input.runs.createRun(input.organizationId, input.actorId, {
+    installationId: input.installationId,
+    triggerType: "manual",
+    idempotencyKey: input.idempotencyKey,
+    input: { mcpTool: { name: input.name, arguments: input.arguments, toolCallId: input.toolCallId } },
+  });
+  if (accepted.created !== false && accepted.status === "received") await input.startWorkflow(accepted.id);
+  return accepted;
 }
 
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
@@ -280,19 +327,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const manifest = toolRegistry.get(name);
       if (!manifest) return failure(-32602, "tool_not_found");
       if (!granted.has(name)) return failure(-32001, "tool_not_granted");
-      if (!dependencies.config.TEMPORAL_ENABLED || !dependencies.startWorkflow) {
-        return failure(-32004, "durable_mcp_execution_unavailable");
-      }
       try {
-        const accepted = await runs.createRun(auth.organizationId, auth.actorId, {
+        const accepted = await acceptDurableToolCall({
+          runs,
+          startWorkflow: dependencies.startWorkflow,
+          temporalEnabled: dependencies.config.TEMPORAL_ENABLED,
+          organizationId: auth.organizationId,
+          actorId: auth.actorId,
           installationId: installation.id,
-          triggerType: "manual",
-          idempotencyKey,
-          input: {
-            mcpTool: { name, arguments: args, toolCallId },
-          },
+          name,
+          arguments: args,
+          toolCallId,
+          idempotencyKey: idempotencyKey ?? `mcp:${auth.credentialId}:${randomUUID()}`,
         });
-        if (accepted.created !== false && accepted.status === "received") await dependencies.startWorkflow(accepted.id);
         return respond({
           content: [{ type: "text", text: `Accepted ${name} as operation ${accepted.id}.` }],
           isError: false,
@@ -327,6 +374,68 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return body.id === undefined ? reply.code(204).send() : respond({ runId, status: "cancellation_signalled" });
     }
     return failure(-32601, "method_not_found");
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/tools/call", async (request, reply) => {
+    const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
+    if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "installation_not_found" });
+    requireApiScope(auth, "api:write");
+    const input = z.object({
+      name: z.string().trim().min(1).max(160),
+      arguments: z.record(z.string(), z.unknown()).default({}),
+      toolCallId: z.string().trim().min(1).max(240).optional(),
+      idempotencyKey: z.string().trim().min(8).max(240),
+    }).parse(request.body ?? {});
+    const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
+    if (!installation || installation.status !== "active") return reply.code(404).send({ error: "installation_not_found" });
+    const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
+    const manifest = toolRegistry.get(input.name);
+    if (!manifest) return reply.code(404).send({ error: "tool_not_found" });
+    if (!granted.has(input.name)) return reply.code(403).send({ error: "tool_not_granted" });
+    if (!dependencies.config.TEMPORAL_ENABLED || !dependencies.startWorkflow) {
+      return reply.code(503).send({ error: "durable_api_execution_unavailable" });
+    }
+    const accepted = await acceptDurableToolCall({
+      runs,
+      startWorkflow: dependencies.startWorkflow,
+      temporalEnabled: dependencies.config.TEMPORAL_ENABLED,
+      organizationId: auth.organizationId,
+      actorId: auth.actorId,
+      installationId: installation.id,
+      name: input.name,
+      arguments: input.arguments,
+      toolCallId: input.toolCallId ?? `api:${randomUUID()}`,
+      idempotencyKey: `api:${auth.credentialId}:${input.idempotencyKey}`,
+    });
+    return reply.code(202).send({
+      operationId: accepted.id,
+      runId: accepted.id,
+      status: accepted.status,
+      durable: true,
+      approvalRequired: manifest.requiresApproval,
+    });
+  });
+
+  app.get<{ Params: { installationId: string; runId: string } }>("/v1/installations/:installationId/operations/:runId", async (request, reply) => {
+    const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
+    if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
+    requireApiScope(auth, "api:read");
+    const run = await runs.getRun(auth.organizationId, request.params.runId);
+    if (!run || run.installation_id !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
+    return { operationId: run.id, run, events: await runs.listEvents(auth.organizationId, run.id) };
+  });
+
+  app.post<{ Params: { installationId: string; runId: string } }>("/v1/installations/:installationId/operations/:runId/cancel", async (request, reply) => {
+    const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
+    if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
+    requireApiScope(auth, "api:write");
+    const run = await runs.getRun(auth.organizationId, request.params.runId);
+    if (!run || run.installation_id !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
+    if (["completed", "failed", "cancelled", "expired"].includes(run.status)) return { operationId: run.id, status: run.status };
+    if (!dependencies.signalCancellation) return reply.code(503).send({ error: "durable_api_execution_unavailable" });
+    const input = z.object({ reason: z.string().trim().max(500).optional() }).parse(request.body ?? {});
+    await dependencies.signalCancellation(run.id, { reason: `${auth.actorId}: ${input.reason ?? "cancelled by API client"}` });
+    return { operationId: run.id, status: "cancellation_signalled" };
   });
 
   app.post("/v1/agents", async (request, reply) => {

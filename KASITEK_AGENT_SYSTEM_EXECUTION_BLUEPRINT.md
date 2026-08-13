@@ -638,6 +638,9 @@ real capabilities, preserves independent chats, and never invents platform featu
 - [x] Use installation token exchange and protected-resource metadata for MCP. When an installation
   uses REST, issue/validate a REST-audience token through the public API principal framework rather
   than routing the request through MCP.
+- [x] Add an installation-scoped REST transport for external agents: tool invocation, idempotent
+  durable operation references, operation timelines, and workflow cancellation. Keep its grants and
+  API scopes separate from MCP scopes while reusing the same tool-run acceptance boundary.
 - [ ] Implement signed outbound webhooks with subscription scope, delivery records, exponential
   retry, replay protection, disable/re-enable policy, and diagnostics.
 - [ ] Add an external-agent connection wizard with named credentials, copy-once setup, grants,
@@ -650,6 +653,8 @@ real capabilities, preserves independent chats, and never invents platform featu
   stateless scaling, and Agent Platform adapter tests.
 - [ ] Add REST/OpenAPI conformance tests for every principal type, scope/resource authorization,
   pagination, validation, idempotency, rate limits, metering, webhooks, versioning, and deprecation.
+- [x] Add focused installation REST tests for audience authentication, API scope enforcement,
+  installation isolation, durable invocation/idempotency, operation inspection, and cancellation.
 - [ ] Add behavior-parity tests proving equivalent MCP and REST operations converge on the same core
   domain command/query and compatible authorization, approval, idempotency, effect, receipt, and
   audit outcomes without requiring identical protocol envelopes.

@@ -46,6 +46,17 @@ function mcpToken(input: { installationId?: string; organizationId?: string; cre
   }).accessToken;
 }
 
+function publicApiToken(input: { installationId?: string; organizationId?: string; credentialId?: string } = {}): string {
+  return issueInstallationToken({
+    privateKeyPem: mcpConfig.INSTALLATION_TOKEN_PRIVATE_KEY!,
+    issuer: mcpConfig.INSTALLATION_TOKEN_ISSUER,
+    installationId: input.installationId ?? "install-1",
+    organizationId: input.organizationId ?? "org-1",
+    credentialId: input.credentialId ?? "credential-1",
+    audience: "kasitek-public-api",
+  }).accessToken;
+}
+
 function mcpCredential(scopes: Array<"mcp:read" | "mcp:write"> = ["mcp:read", "mcp:write"]) {
   return {
     id: "credential-1",
@@ -53,6 +64,7 @@ function mcpCredential(scopes: Array<"mcp:read" | "mcp:write"> = ["mcp:read", "m
     organization_id: "org-1",
     status: "active",
     mcp_scopes: scopes,
+    api_scopes: ["api:read", "api:write"],
   };
 }
 
@@ -205,6 +217,79 @@ describe("Agent Platform HTTP foundation", () => {
       payload: { jsonrpc: "2.0", id: 8, method: "notifications/cancelled", params: { runId: "run-other" } },
     });
     expect(denied.json()).toMatchObject({ error: { code: -32004, message: "operation_not_found" } });
+    await app.close();
+  });
+
+  it("routes public API tool calls through the same durable Agent run boundary", async () => {
+    const startWorkflow = vi.fn().mockResolvedValue(undefined);
+    const runs = { createRun: vi.fn().mockResolvedValue({ id: "run-api-1", status: "received", created: true }) } as unknown as RunRepository;
+    const app = buildApp({
+      config: { ...mcpConfig, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      runs,
+      startWorkflow,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+      toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/tools/call",
+      headers: { authorization: `Bearer ${publicApiToken()}` },
+      payload: { name: "platform.current_time", arguments: {}, idempotencyKey: "api-request-1" },
+    });
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ operationId: "run-api-1", runId: "run-api-1", durable: true });
+    expect(runs.createRun).toHaveBeenCalledWith("org-1", "installation:install-1", expect.objectContaining({ idempotencyKey: "api:credential-1:api-request-1", input: { mcpTool: expect.objectContaining({ name: "platform.current_time" }) } }));
+    expect(startWorkflow).toHaveBeenCalledWith("run-api-1");
+    await app.close();
+  });
+
+  it("does not let a read-only public API credential invoke tools", async () => {
+    const app = buildApp({
+      config: { ...mcpConfig, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => ({ ...mcpCredential(), api_scopes: ["api:read"] }) } as never,
+      toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
+      startWorkflow: vi.fn(),
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/tools/call",
+      headers: { authorization: `Bearer ${publicApiToken()}` },
+      payload: { name: "platform.current_time", arguments: {}, idempotencyKey: "api-read-only-1" },
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ error: "Public API credential is missing scope: api:write" });
+    await app.close();
+  });
+
+  it("exposes installation-scoped operation status and cancellation over the public API", async () => {
+    const signalCancellation = vi.fn().mockResolvedValue(undefined);
+    const getRun = vi.fn().mockResolvedValue({ id: "run-api-1", organization_id: "org-1", installation_id: "install-1", status: "running" });
+    const runs = {
+      getRun,
+      listEvents: vi.fn().mockResolvedValue([{ event_type: "run.started" }]),
+    } as unknown as RunRepository;
+    const app = buildApp({
+      config: { ...mcpConfig, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      runs,
+      signalCancellation,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+    });
+    const status = await app.inject({ method: "GET", url: "/v1/installations/install-1/operations/run-api-1", headers: { authorization: `Bearer ${publicApiToken()}` } });
+    expect(status.statusCode).toBe(200);
+    expect(status.json()).toMatchObject({ operationId: "run-api-1", run: { id: "run-api-1" }, events: [{ event_type: "run.started" }] });
+    const cancelled = await app.inject({ method: "POST", url: "/v1/installations/install-1/operations/run-api-1/cancel", headers: { authorization: `Bearer ${publicApiToken()}` }, payload: { reason: "client stopped" } });
+    expect(cancelled.statusCode).toBe(200);
+    expect(cancelled.json()).toMatchObject({ operationId: "run-api-1", status: "cancellation_signalled" });
+    expect(signalCancellation).toHaveBeenCalledWith("run-api-1", { reason: "installation:install-1: client stopped" });
+    getRun.mockResolvedValueOnce({ id: "run-other", organization_id: "org-1", installation_id: "install-other", status: "running" });
+    const denied = await app.inject({ method: "GET", url: "/v1/installations/install-1/operations/run-other", headers: { authorization: `Bearer ${publicApiToken()}` } });
+    expect(denied.statusCode).toBe(404);
     await app.close();
   });
 

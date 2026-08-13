@@ -387,6 +387,11 @@ Relevant starting points:
 **Partial evidence:** `agents/src/http/app.ts`, `agents/src/temporal/activities.ts`,
 `agents/test/http.test.ts`; `1c95d9c`. Protocol-neutral extraction, cancellation, parity, restart,
 and external-client proof remain open.
+
+**Additional transport evidence:** the installation REST transport now uses the same
+`acceptDurableToolCall` boundary as MCP, carries an audience-specific API scope policy, and exposes
+installation-scoped operation status/cancellation. This closes the REST transport slice but does not
+close the remaining hosted-agent parity, restart, live approval, or external-client gates.
 - [ ] Real Codex, Claude Code, and a generic MCP client are verified before checking the relevant
   primary-blueprint item.
 
