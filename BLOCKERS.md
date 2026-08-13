@@ -25,19 +25,23 @@ verified or completed. Work on independent items continues.
   are explicitly documented in the config while the shared state boundary is
   migrated.
 
-## B-003 — Local integration and authenticated smoke environment unavailable
+## B-003 — Temporal and authenticated browser smoke verification remain unavailable
 
 - **Blueprint:** Slice 0 database/Temporal and authenticated health-smoke
   verification.
-- **Evidence:** no Agent or core database URL is exported to this execution
-  environment; no local service responds on ports 4000, 4100, 3000, or 3001.
-  Agent database integration tests therefore remain skipped, and authenticated
-  KasiAi/Agents smoke tests cannot run.
-- **Impact:** Database, Temporal, and browser-health evidence is pending a
-  configured isolated environment; unit verification can continue.
-- **Next action:** Start the documented local stack with non-production test
-  credentials and databases, then run migration, authenticated health, and
-  end-to-end smoke checks.
+- **Resolved evidence:** `agents/.env` supplies a local Agent PostgreSQL
+  database at `localhost:5433`; `pnpm migrate` applied migrations 027–032,
+  and `set -a; source .env; set +a; RUN_AGENTS_DB_INTEGRATION_TESTS=true
+  pnpm test` passed all 39 files / 113 tests on 2026-08-13.
+- **Remaining evidence:** no local core/API/browser process is running on
+  ports 4000, 4100, 3000, or 3001. The configured Temporal Cloud namespace
+  has not yet been exercised with a worker recovery, approval continuation,
+  and MCP smoke run.
+- **Impact:** Agent database verification is no longer blocked. Temporal
+  recovery and authenticated end-to-end browser/MCP verification remain open.
+- **Next action:** Start the API, Temporal worker, and gateway with the
+  configured development environment, then execute the durable MCP approval
+  and recovery smoke tests.
 
 ## B-004 — Client production build cannot run in this sandbox (resolved)
 
