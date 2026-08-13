@@ -280,7 +280,7 @@ The Agent Platform database suite passed locally with 39 files / 113 tests, and 
 core format/check/library tests passed. A checked implementation item does **not** assert that its
 slice completion gate or production-release verification has passed.
 
-At this reconciliation point, 123 of 224 implementation/verification items are checked. The count
+At this reconciliation point, 126 of 224 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -348,8 +348,9 @@ the first complete agent-capability domain in Slice 5.
   middleware requirement, status code, and response contract. Evidence: `c5c2cb7` moves the
   complete registry into boundary modules, and its route inventory test confirms all 225 pre-split
   path literals remain present plus representative mounted-route checks.
-- [ ] Rename the current anonymous quote/waitlist `public` concept to `website` before creating
-  `api::public_v1`; do not expose those handlers as developer API operations.
+- [x] Rename the current anonymous quote/waitlist `public` concept to `website` before creating
+  `api::public_v1`; do not expose those handlers as developer API operations. Evidence: `62e2ec2`
+  renames the website controller/service modules and isolates the versioned public module.
 - [x] Move social publishing, WhatsApp inbox/campaign, and billing reconciliation loops from
   `main.rs` into `workers/*` modules while preserving `KASITEK_PROCESS` behavior and independent
   worker deployment support.
@@ -414,8 +415,10 @@ the first complete agent-capability domain in Slice 5.
 
 - [ ] Run `cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core` after
   each coherent migration step.
-- [ ] Add route-inventory tests proving all pre-existing routes remain mounted during the structural
-  migration and that `/v1` is not accidentally served by product or website modules.
+- [x] Add route-inventory tests proving all pre-existing routes remain mounted during the structural
+  migration and that `/v1` is not accidentally served by product or website modules. Evidence:
+  `c5c2cb7` and `62e2ec2` preserve the 225 path inventory, exercise representative route mounts,
+  and assert `/v1` ownership in `api::public_v1`.
 - [ ] Add booking unit tests for normalization, validation, policy, status, overlap, and organization
   isolation plus database integration tests for transactional outcomes.
 - [ ] Add product-versus-internal booking parity tests proving both adapters invoke the same business

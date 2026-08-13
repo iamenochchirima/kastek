@@ -114,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **124 checked and 100 unchecked items out of 224**. This is a
+The primary blueprint currently has **126 checked and 98 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -130,7 +130,11 @@ tests. Core-owned REST/OpenAPI contracts remain separate as required by the blue
 
 Core route registration is now split into product, internal, provider-webhook, website, and admin
 modules. `c5c2cb7` preserves the exact 225 route path literals and adds representative mounted
-route regression coverage; the `/v1` ownership move into a dedicated public module remains open.
+route regression coverage.
+
+The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
+`api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
+controller/service modules. Route tests assert the ownership split and representative legacy mounts.
 
 The initial approval separation-of-duties rule is implemented: a run initiator cannot approve their
 own pending action, with an HTTP regression in `22b2748`. The broader workspace approver/resource
