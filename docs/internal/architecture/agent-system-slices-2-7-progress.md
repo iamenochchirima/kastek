@@ -39,10 +39,12 @@ marked when the complete deliverable and its verification exist.
 - The hosted-agent detail experience now includes a graph editor that writes the validated version
   `configuration.workflow` schema, supports node/edge and loop-bound editing, approval/wait/fan-out
   controls, and secret-safe JSON import/export. It uses the existing draft/publish/rollback
-  lifecycle and is committed in `b2de22f`; durable graph execution is now connected in `0812616`.
+  lifecycle and is committed in `b2de22f`; durable graph execution is connected in `0812616`.
   State revisions, deterministic/model/tool nodes, configured approval proposals/resumption, and
-  redacted tool/model evidence use the existing runtime boundary. External wait-node continuation,
-  visual test-run controls, and full Temporal/database proof remain unchecked.
+  redacted tool/model evidence use the existing runtime boundary. External wait-node continuation
+  now persists the paused node/state, exposes an authenticated signal route and run-detail resume
+  action, and is covered by graph regression tests in `bcb7ba2`. Visual test-run controls and full
+  Temporal/database proof remain unchecked.
 - KasiAi runs now build grounded dynamic context from the authenticated actor and organization,
   granted capability names/modules, durable conversation, and bounded route/entity/page context
   marked as untrusted UI data. The shared builder and regression test are committed in `4e8df19`.
