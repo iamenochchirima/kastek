@@ -7,31 +7,12 @@ use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
     admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai, auth,
     billing, bookings, calls, connections, customers, health, inbox, notifications, onboarding,
-    orgs, product_tour, profile, public, public_v1, realtime, social, whatsapp, whatsapp_calls,
-    workspace,
+    orgs, product_tour, profile, realtime, social, whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/", web::get().to(health::root));
     cfg.route("/health", web::get().to(health::health_check));
-    cfg.service(
-        web::scope("/v1")
-            .route("/health", web::get().to(public_v1::health))
-            .route("/openapi.json", web::get().to(public_v1::openapi))
-            .route("/capabilities", web::get().to(public_v1::capabilities))
-            .route(
-                "/content/posts",
-                web::get().to(public_v1::list_content_posts),
-            )
-            .route(
-                "/content/posts",
-                web::post().to(public_v1::create_content_draft),
-            )
-            .route(
-                "/content/posts/{id}",
-                web::get().to(public_v1::get_content_post),
-            ),
-    );
     cfg.route("/api/workspace/summary", web::get().to(workspace::summary));
     cfg.service(
         web::scope("/api/calls")

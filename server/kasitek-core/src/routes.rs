@@ -4,6 +4,7 @@ use actix_web::web;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     crate::api::product::configure(cfg);
+    crate::api::public_v1::configure(cfg);
     crate::api::internal::configure(cfg);
     crate::api::provider_webhooks::configure(cfg);
     crate::api::website::configure(cfg);
@@ -16,6 +17,12 @@ mod tests {
 
     #[actix_web::test]
     async fn representative_legacy_routes_remain_mounted_after_split() {
+        let product_routes = include_str!("api/product.rs");
+        let website_routes = include_str!("api/website.rs");
+        let public_v1_routes = include_str!("api/public_v1.rs");
+        assert!(!product_routes.contains("scope(\"/v1\")"));
+        assert!(!website_routes.contains("scope(\"/v1\")"));
+        assert!(public_v1_routes.contains("scope(\"/v1\")"));
         let routes = [
             (Method::GET, "/health"),
             (Method::GET, "/v1/health"),
