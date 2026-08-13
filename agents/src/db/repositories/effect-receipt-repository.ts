@@ -35,17 +35,33 @@ export class EffectReceiptRepository {
     argumentsHash: string;
     idempotencyKey: string;
   }): Promise<EffectReceipt> {
-    const result = await query<EffectReceipt>(
+    const created = await query<EffectReceipt>(
       this.pool,
       `INSERT INTO agent_effect_receipts
         (organization_id, installation_id, run_id, provider_tool_call_id, capability,
          capability_version, arguments_hash, idempotency_key, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'reserved')
-       ON CONFLICT (organization_id, idempotency_key) DO UPDATE SET updated_at = now()
+       ON CONFLICT (organization_id, idempotency_key) DO NOTHING
        RETURNING *`,
       [input.organizationId, input.installationId, input.runId, input.providerToolCallId, input.capability, input.capabilityVersion, input.argumentsHash, input.idempotencyKey],
     );
-    return result.rows[0]!;
+    const receipt = created.rows[0] ?? (await query<EffectReceipt>(
+      this.pool,
+      `SELECT * FROM agent_effect_receipts WHERE organization_id = $1 AND idempotency_key = $2`,
+      [input.organizationId, input.idempotencyKey],
+    )).rows[0];
+    if (!receipt) throw new Error("Effect receipt could not be reserved");
+    if (
+      receipt.installation_id !== input.installationId
+      || receipt.run_id !== input.runId
+      || receipt.provider_tool_call_id !== input.providerToolCallId
+      || receipt.capability !== input.capability
+      || receipt.capability_version !== input.capabilityVersion
+      || receipt.arguments_hash !== input.argumentsHash
+    ) {
+      throw new Error("Effect idempotency key conflicts with a different invocation");
+    }
+    return receipt;
   }
 
   public async markExecuting(id: string): Promise<void> {
@@ -77,7 +93,7 @@ export class EffectReceiptRepository {
   }
 
   public async markUnknown(id: string, error: unknown): Promise<void> {
-    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'unknown', error = $2::jsonb, reconciliation_required = true, updated_at = now() WHERE id = $1 AND status IN ('reserved', 'executing')`, [id, JSON.stringify(error ?? {})]);
+    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'unknown', error = $2::jsonb, reconciliation_required = true, updated_at = now() WHERE id = $1 AND status = 'executing'`, [id, JSON.stringify(error ?? {})]);
   }
 
   public async reconcile(input: { organizationId: string; effectId: string; outcome: "succeeded" | "failed"; providerReceipt?: unknown; error?: unknown }): Promise<void> {

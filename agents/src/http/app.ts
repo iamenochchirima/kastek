@@ -1128,6 +1128,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ outcome: z.enum(["succeeded", "failed"]), providerReceipt: z.record(z.string(), z.unknown()).optional(), error: z.record(z.string(), z.unknown()).optional() }).parse(request.body ?? {});
     await effectReceipts.reconcile({ organizationId: auth.organizationId, effectId: request.params.effectId, ...input });
+    await dependencies.pool.query(
+      `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, correlation_id, metadata)
+       VALUES ($1, 'user', $2, 'agent_effect.reconciled', 'agent_effect_receipt', $3, $4, $5::jsonb)`,
+      [auth.organizationId, auth.actorId, request.params.effectId, auth.correlationId ?? null, JSON.stringify({ outcome: input.outcome })],
+    );
     return reply.code(202).send({ effectId: request.params.effectId, status: "reconciled", outcome: input.outcome });
   });
 
