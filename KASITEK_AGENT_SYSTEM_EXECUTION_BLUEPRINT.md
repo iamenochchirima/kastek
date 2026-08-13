@@ -540,11 +540,12 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
 
 ### Deliverables
 
-- [x] Implement manifests and typed core handlers for connection discovery/health, content listing,
-  content detail, drafts, updates, publish status, scheduling, unscheduling, publishing, and delete
-  or archive behavior supported by the product.
-- [x] Apply organization, connected-account, platform, ownership, capability, and resource checks to
-  every handler.
+- [x] Implement manifests and typed core handlers for content listing, content detail, and
+  idempotent drafts; the shared internal route is now used by the Agent Platform client.
+- [ ] Complete typed handlers for updates, publish status, scheduling, unscheduling, publishing,
+  and delete/archive behavior supported by the product.
+- [x] Apply organization, capability, ownership, and resource checks to the current read, draft,
+  and approval-gated publish handlers.
 - [ ] Implement draft operations as immediate safe writes and real publish/schedule effects through
   immutable preview, approval, idempotent core action/outbox, provider receipt, and reconciliation.
 - [x] Return platform capability differences and partial batch results explicitly rather than

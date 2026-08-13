@@ -376,7 +376,8 @@ Relevant starting points:
 ### Required tests
 
 - [x] MCP read call writes scoped audit/usage evidence.
-- [ ] MCP draft call is idempotent and uses the shared domain command.
+- [x] MCP draft calls carry client idempotency into the durable run and the shared content draft
+  command; the core adapter persists an execution marker and serializes duplicate attempts.
 - [ ] MCP durable call returns an operation reference and survives worker restart.
 - [ ] MCP approval-required call can be approved/denied through the supported flow.
 - [ ] MCP cancellation reaches the workflow without cancelling a completed effect.
