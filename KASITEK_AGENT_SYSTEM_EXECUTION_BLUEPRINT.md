@@ -425,8 +425,13 @@ the first complete agent-capability domain in Slice 5.
   OAuth, webhook, publishing, and provider-account boundaries while preserving controller-facing
   `social::` exports; `cargo fmt --check`, `cargo check -p kasitek-core`, and the core library suite
   pass (85 tests, 3 infrastructure-gated ignores).
-- [ ] Split WhatsApp into connections, contacts, templates, campaigns, inbox transport, provider
+- [x] Split WhatsApp into connections, contacts, templates, campaigns, inbox transport, provider
   webhooks, calls, and delivery workers rather than moving `services/whatsapp.rs` unchanged.
+  Evidence: `07069a4`, `7be54cf`, `9ffd858`, `f42a00e`, `ec4842c`, and `ca89e40` extract the
+  template, connection, contact/list, campaign/worker, provider-webhook, and inbox/delivery
+  boundaries while preserving controller-facing `whatsapp::` exports; `cargo fmt --check`,
+  `cargo check -p kasitek-core`, and the core library suite pass (85 tests, 3 infrastructure-gated
+  ignores).
 - [ ] Remove migrated request DTOs and row types from the global `db/models.rs`, and remove obsolete
   controller/service functions only after callers and parity tests have moved.
 
