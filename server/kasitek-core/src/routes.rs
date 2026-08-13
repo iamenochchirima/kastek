@@ -93,6 +93,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::delete().to(agent_platform::revoke_installation_credential),
                 )
                 .route(
+                    "/installations/{installationId}/capabilities",
+                    web::get().to(agent_platform::list_installation_capabilities),
+                )
+                .route(
+                    "/installations/{installationId}/tools",
+                    web::post().to(agent_platform::grant_installation_tool),
+                )
+                .route(
                     "/{agentId}/versions",
                     web::get().to(agent_platform::list_agent_versions),
                 )

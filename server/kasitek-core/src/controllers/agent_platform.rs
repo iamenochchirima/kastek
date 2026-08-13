@@ -525,6 +525,44 @@ pub async fn revoke_installation_credential(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn list_installation_capabilities(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_installation_capabilities(&organization_id, &user.id, installation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn grant_installation_tool(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let tool_name = body
+        .get("toolName")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("toolName is required".to_string()))?;
+    let response = client(config.get_ref())?
+        .grant_installation_tool(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            tool_name,
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
 pub async fn list_agent_versions(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

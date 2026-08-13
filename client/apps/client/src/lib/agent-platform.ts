@@ -219,6 +219,29 @@ export function revokeAgentInstallationCredential(installationId: string, creden
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/credentials/${encodeURIComponent(credentialId)}`, { method: "DELETE" });
 }
 
+export type AgentCapability = {
+  name: string;
+  version: string;
+  description: string;
+  riskClass: string;
+  requiresApproval: boolean;
+  availability: "available" | "not_granted" | "not_configured" | "unhealthy" | string;
+  inputSchema: Record<string, unknown>;
+  outputSchema: Record<string, unknown>;
+  manifest?: Record<string, unknown>;
+};
+
+export function listAgentInstallationCapabilities(installationId: string): Promise<{ installationId: string; capabilities: AgentCapability[] }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/capabilities`);
+}
+
+export function grantAgentInstallationTool(installationId: string, toolName: string): Promise<unknown> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/tools`, {
+    method: "POST",
+    body: JSON.stringify({ toolName }),
+  });
+}
+
 export type AgentInstallationSettings = {
   language?: string;
   tone?: "concise" | "balanced" | "detailed";

@@ -306,6 +306,41 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_installation_capabilities(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/installations/{installation_id}/capabilities"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn grant_installation_tool(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        tool_name: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/tools"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(json!({ "toolName": tool_name })),
+        )
+        .await
+    }
+
     pub async fn list_agent_versions(
         &self,
         organization_id: &str,

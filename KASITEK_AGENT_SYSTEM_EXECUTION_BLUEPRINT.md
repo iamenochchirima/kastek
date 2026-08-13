@@ -648,6 +648,8 @@ real capabilities, preserves independent chats, and never invents platform featu
   resource scope, health diagnostics, rotation/revocation, examples, and audit activity.
 - [x] Add the first credential-management slice: named installation credentials, independent
   API/MCP scopes, copy-once secret display, list, and revocation in the Agents UI.
+- [x] Add installation capability discovery and grant controls through the authenticated core proxy;
+  keep invocation-time grant checks as the final enforcement boundary.
 - [x] Add a local stdio bridge only for clients that cannot connect to hosted Streamable HTTP.
 
 ### Verification

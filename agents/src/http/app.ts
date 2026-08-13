@@ -561,6 +561,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/tools", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ toolName: z.string().trim().min(1).max(160) }).parse(request.body);
     const grant = await toolGrants.grantInstallationTool({
       organizationId: auth.organizationId,

@@ -21,6 +21,9 @@ import {
   listAgentInstallationCredentials,
   revokeAgentInstallationCredential,
   type AgentInstallationCredential,
+  grantAgentInstallationTool,
+  listAgentInstallationCapabilities,
+  type AgentCapability,
   type AgentDefinition,
   type AgentVersion,
   type AgentMessage,
@@ -115,6 +118,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {agent.installation_id ? <InstallationCredentials installationId={agent.installation_id} /> : null}
 
+        {agent.installation_id ? <InstallationCapabilities installationId={agent.installation_id} /> : null}
+
         {agent.installation_id ? <AgentTestChat installationId={agent.installation_id} active={agent.installation_status === "active"} /> : null}
 
         <section className="space-y-3" aria-labelledby="agent-versions-title">
@@ -204,6 +209,50 @@ function InstallationCredentials({ installationId }: { installationId: string })
       {secret ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="text-sm font-semibold text-status-attention">Copy this secret now. It will not be shown again.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-background px-3 py-2 text-xs text-foreground">{secret}</code><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(secret)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy</Button></div></div> : null}
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
       {loading ? <p className="text-sm text-muted-foreground">Loading credentials…</p> : credentials.length ? <div className="space-y-2">{credentials.map((credential) => <div key={credential.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{credential.label}</p><p className="mt-1 text-xs text-muted-foreground">{credential.status} · API {credential.api_scopes?.join(", ") ?? "api:read"} · MCP {credential.mcp_scopes.join(", ")}</p></div>{credential.status === "active" ? <Button type="button" variant="outline" size="sm" onClick={() => void revoke(credential)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No external credentials yet.</p>}
+    </CardContent>
+  </Card>;
+}
+
+function InstallationCapabilities({ installationId }: { installationId: string }) {
+  const [capabilities, setCapabilities] = useState<AgentCapability[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listAgentInstallationCapabilities(installationId);
+      setCapabilities(response.capabilities);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load capabilities");
+    } finally {
+      setLoading(false);
+    }
+  }, [installationId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const grant = async (capability: AgentCapability) => {
+    if (busy || capability.availability === "available") return;
+    setBusy(capability.name);
+    setError(null);
+    try {
+      await grantAgentInstallationTool(installationId, capability.name);
+      setCapabilities((current) => current.map((entry) => entry.name === capability.name ? { ...entry, availability: "available" } : entry));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to grant capability");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return <Card>
+    <CardContent className="space-y-4 p-6">
+      <div><h2 className="text-lg font-semibold text-foreground">Capabilities</h2><p className="mt-1 text-sm text-muted-foreground">These are the platform tools this installation may expose to KasiAi or external agents. Grants are enforced again at invocation time.</p></div>
+      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      {loading ? <p className="text-sm text-muted-foreground">Loading capabilities…</p> : capabilities.length ? <div className="space-y-2">{capabilities.map((capability) => <div key={capability.name} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{capability.name}</p><p className="mt-1 text-xs text-muted-foreground">{capability.description} · {capability.riskClass}{capability.requiresApproval ? " · approval required" : ""}</p></div><Button type="button" size="sm" variant={capability.availability === "available" ? "outline" : "default"} disabled={capability.availability === "available" || busy !== null} onClick={() => void grant(capability)}>{capability.availability === "available" ? "Granted" : busy === capability.name ? "Granting…" : "Grant"}</Button></div>)}</div> : <p className="text-sm text-muted-foreground">No capabilities are registered for this installation.</p>}
     </CardContent>
   </Card>;
 }
