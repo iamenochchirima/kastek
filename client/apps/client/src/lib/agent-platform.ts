@@ -66,6 +66,7 @@ export type AgentRun = {
   started_at?: string | null;
   finished_at?: string | null;
   updated_at?: string;
+  created_by?: string;
   agent_name?: string | null;
   agent_slug?: string | null;
 };
