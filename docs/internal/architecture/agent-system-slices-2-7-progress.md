@@ -114,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **136 checked and 88 unchecked items out of 224**. This is a
+The primary blueprint currently has **137 checked and 87 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -288,6 +288,11 @@ Website quote/waitlist/business-profile DTOs and AI/social ideation requests now
 (`dd5338c`). The global model file now contains the remaining auth/admin session records and a small
 legacy surface; the model-cleanup checklist item still needs those final ownership decisions and
 obsolete-function removal review.
+
+The final auth/admin session rows and authentication/profile request/response DTOs now live in
+`db::auth_models`; `db::models.rs` is now a compatibility-only re-export surface across all migrated
+domains (`f7a7a99`). The model cleanup item is now closed against the blueprint; active controller
+exports were retained because callers and parity tests still depend on them.
 
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`

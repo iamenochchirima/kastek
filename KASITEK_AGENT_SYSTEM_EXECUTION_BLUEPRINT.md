@@ -432,8 +432,13 @@ the first complete agent-capability domain in Slice 5.
   boundaries while preserving controller-facing `whatsapp::` exports; `cargo fmt --check`,
   `cargo check -p kasitek-core`, and the core library suite pass (85 tests, 3 infrastructure-gated
   ignores).
-- [ ] Remove migrated request DTOs and row types from the global `db/models.rs`, and remove obsolete
-  controller/service functions only after callers and parity tests have moved.
+- [x] Remove migrated request DTOs and row types from the global `db/models.rs`, and remove obsolete
+  controller/service functions only after callers and parity tests have moved. Evidence:
+  `7daf4da`, `afb64dc`, `7baa1ae`, `b8dec88`, `cf94066`, `dd5338c`, and `f7a7a99` move the
+  WhatsApp, call, inbox, social, notification, website/AI, and auth/admin model definitions into
+  owning modules; `db/models.rs` now contains only compatibility re-exports. Caller inventory and
+  the core route/library suite pass (85 tests, 3 infrastructure-gated ignores), and no obsolete
+  controller/service function remained after the active export/parity review.
 
 ### Verification
 
