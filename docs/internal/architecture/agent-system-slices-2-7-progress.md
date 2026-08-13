@@ -251,6 +251,13 @@ push notifications, and provider call dispatch live there. The existing `process
 route export remains stable and the core suite passes (`ec4842c`). Inbox transport, calls, and the
 remaining cross-provider delivery-worker decomposition remain open.
 
+WhatsApp inbox transport is now explicit in `whatsapp_inbox`: Agent reply delivery, queued outbound
+message/media workers, organization-scoped conversation reads, start/send/update/delete flows,
+read/reaction actions, and attachment download all live behind this service boundary. Existing
+controller-facing exports remain stable and the core suite passes (`ca89e40`). The standalone calls
+adapter remains in `whatsapp_calls`; the broad checklist item still needs its final cross-provider
+delivery-worker and target-environment E2E evidence.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
