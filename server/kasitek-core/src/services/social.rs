@@ -1,9 +1,7 @@
 use base64::engine::general_purpose::{STANDARD, URL_SAFE, URL_SAFE_NO_PAD};
 use base64::Engine as _;
 use chrono::{DateTime, Duration, Utc};
-use crypto_utils::{
-    decrypt_with_aes256_gcm, encrypt_with_aes256_gcm, generate_token, sha256_base64_url,
-};
+use crypto_utils::{decrypt_with_aes256_gcm, encrypt_with_aes256_gcm};
 use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -19,12 +17,10 @@ use crate::db::models::{
 use crate::error::AppError;
 use crate::services::{billing, bluesky_oauth, connections};
 
-const X_AUTHORIZE_URL: &str = "https://twitter.com/i/oauth2/authorize";
 const X_TOKEN_URL: &str = "https://api.x.com/2/oauth2/token";
 const X_ME_URL: &str =
     "https://api.x.com/2/users/me?user.fields=id,name,username,profile_image_url";
 const X_POST_TWEET_URL: &str = "https://api.x.com/2/tweets";
-const META_AUTHORIZE_URL: &str = "https://www.facebook.com/v23.0/dialog/oauth";
 const META_TOKEN_URL: &str = "https://graph.facebook.com/v23.0/oauth/access_token";
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v23.0";
 const META_PAGE_WEBHOOK_FIELDS: &str =
@@ -34,18 +30,14 @@ const META_INSTAGRAM_WEBHOOK_FIELDS: &str =
     "messages,messaging_postbacks,messaging_seen,message_reactions";
 const META_INSTAGRAM_ACCOUNT_WEBHOOK_SUBSCRIPTION_VERSION: i32 = 1;
 static META_INSTAGRAM_APP_WEBHOOK_CONFIGURED: AtomicBool = AtomicBool::new(false);
-const INSTAGRAM_AUTHORIZE_URL: &str = "https://www.instagram.com/oauth/authorize";
 const INSTAGRAM_TOKEN_URL: &str = "https://api.instagram.com/oauth/access_token";
 const INSTAGRAM_LONG_LIVED_TOKEN_URL: &str = "https://graph.instagram.com/access_token";
 const INSTAGRAM_GRAPH_BASE: &str = "https://graph.instagram.com/v23.0";
-const LINKEDIN_AUTHORIZE_URL: &str = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL: &str = "https://www.linkedin.com/oauth/v2/accessToken";
 const LINKEDIN_USERINFO_URL: &str = "https://api.linkedin.com/v2/userinfo";
 const LINKEDIN_UGC_POSTS_URL: &str = "https://api.linkedin.com/v2/ugcPosts";
-const THREADS_AUTHORIZE_URL: &str = "https://www.threads.com/oauth/authorize";
 const THREADS_TOKEN_URL: &str = "https://graph.threads.com/oauth/access_token";
 const THREADS_GRAPH_BASE: &str = "https://graph.threads.com/v1.0";
-const TIKTOK_AUTHORIZE_URL: &str = "https://www.tiktok.com/v2/auth/authorize/";
 const TIKTOK_TOKEN_URL: &str = "https://open.tiktokapis.com/v2/oauth/token/";
 // `user.info.basic` authorizes only these profile fields. Requesting `username`
 // makes TikTok reject an otherwise valid sandbox authorization.
@@ -112,12 +104,7 @@ fn merge_channel_metadata_with_capabilities(
     Some(Value::Object(object))
 }
 
-#[derive(Clone)]
-pub struct XOAuthState {
-    pub state: String,
-    pub verifier: String,
-    pub challenge: String,
-}
+pub use super::social_oauth::XOAuthState;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct OAuthCallbackQuery {
@@ -240,11 +227,11 @@ fn token_expires_within(metadata: &Option<Value>, duration: Duration) -> bool {
         .unwrap_or(false)
 }
 
-fn social_app_url(config: &AppConfig) -> String {
+pub(crate) fn social_app_url(config: &AppConfig) -> String {
     config.public_api_url.trim_end_matches('/').to_string()
 }
 
-fn required_env(name: &str) -> Result<String, AppError> {
+pub(crate) fn required_env(name: &str) -> Result<String, AppError> {
     std::env::var(name).map_err(|_| AppError::Internal(format!("{name} is required")))
 }
 
@@ -435,172 +422,13 @@ pub fn decrypt_social_secret(payload: &str) -> Result<String, AppError> {
         .map_err(|error| AppError::Internal(format!("Failed to decrypt token: {error}")))
 }
 
-pub fn create_x_oauth_state() -> XOAuthState {
-    let verifier = generate_token(48);
-    let state = generate_token(24);
-    let challenge = sha256_base64_url(&verifier);
-
-    XOAuthState {
-        state,
-        verifier,
-        challenge,
-    }
-}
-
-pub fn build_x_authorize_url(
-    config: &AppConfig,
-    state: &str,
-    challenge: &str,
-) -> Result<String, AppError> {
-    let client_id = required_env("AUTH_X_CLIENT_ID")?;
-    let redirect_uri = format!("{}/api/social/oauth/x/callback", social_app_url(config));
-    let scope = "tweet.read tweet.write users.read offline.access";
-    Ok(format!(
-        "{X_AUTHORIZE_URL}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&code_challenge={}&code_challenge_method=S256",
-        urlencoding::encode(&client_id),
-        urlencoding::encode(&redirect_uri),
-        urlencoding::encode(scope),
-        urlencoding::encode(state),
-        urlencoding::encode(challenge),
-    ))
-}
-
-pub fn create_linkedin_oauth_state() -> String {
-    cuid2::create_id().replace('-', "")
-}
-
-pub fn create_meta_oauth_state() -> String {
-    cuid2::create_id().replace('-', "")
-}
-
-pub fn create_instagram_oauth_state() -> String {
-    cuid2::create_id().replace('-', "")
-}
-
-pub fn create_threads_oauth_state() -> String {
-    cuid2::create_id().replace('-', "")
-}
-pub fn create_tiktok_oauth_state() -> String {
-    cuid2::create_id().replace('-', "")
-}
-
-pub fn build_threads_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
-    let client_id = required_env("AUTH_THREADS_APP_ID")?;
-    let redirect_uri = format!(
-        "{}/api/social/oauth/threads/callback",
-        social_app_url(config)
-    );
-    let scope = std::env::var("AUTH_THREADS_SCOPES")
-        .unwrap_or_else(|_| "threads_basic,threads_content_publish".to_string());
-    Ok(format!(
-        "{THREADS_AUTHORIZE_URL}?client_id={}&redirect_uri={}&scope={}&response_type=code&state={}",
-        urlencoding::encode(&client_id),
-        urlencoding::encode(&redirect_uri),
-        urlencoding::encode(&scope),
-        urlencoding::encode(state)
-    ))
-}
-
-pub fn build_tiktok_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
-    let client_key = required_env("AUTH_TIKTOK_CLIENT_KEY")?;
-    let redirect_uri = format!(
-        "{}/api/social/oauth/tiktok/callback",
-        social_app_url(config)
-    );
-    let scope = std::env::var("AUTH_TIKTOK_SCOPES")
-        .unwrap_or_else(|_| "user.info.basic,video.publish".to_string());
-    Ok(format!(
-        "{TIKTOK_AUTHORIZE_URL}?client_key={}&redirect_uri={}&scope={}&response_type=code&state={}",
-        urlencoding::encode(&client_key),
-        urlencoding::encode(&redirect_uri),
-        urlencoding::encode(&scope),
-        urlencoding::encode(state)
-    ))
-}
-
-pub fn build_linkedin_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
-    let client_id = required_env("AUTH_LINKEDIN_CLIENT_ID")?;
-    let redirect_uri = format!(
-        "{}/api/social/oauth/linkedin/callback",
-        social_app_url(config)
-    );
-    let scope = "openid profile email w_member_social";
-    Ok(format!(
-        "{LINKEDIN_AUTHORIZE_URL}?response_type=code&client_id={}&redirect_uri={}&state={}&scope={}",
-        urlencoding::encode(&client_id),
-        urlencoding::encode(&redirect_uri),
-        urlencoding::encode(state),
-        urlencoding::encode(scope),
-    ))
-}
-
-pub fn build_meta_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
-    let client_id = required_env("AUTH_META_APP_ID")?;
-    let redirect_uri = format!("{}/api/social/oauth/meta/callback", social_app_url(config));
-    let scope = std::env::var("AUTH_META_SCOPES").unwrap_or_else(|_| {
-        [
-            "pages_show_list",
-            "pages_manage_metadata",
-            "pages_read_engagement",
-            "pages_manage_posts",
-            "pages_messaging",
-            "instagram_basic",
-            "instagram_content_publish",
-            "instagram_manage_messages",
-        ]
-        .join(",")
-    });
-
-    Ok(format!(
-        "{META_AUTHORIZE_URL}?client_id={}&redirect_uri={}&state={}&response_type=code&scope={}",
-        urlencoding::encode(&client_id),
-        urlencoding::encode(&redirect_uri),
-        urlencoding::encode(state),
-        urlencoding::encode(&scope),
-    ))
-}
-
-fn instagram_app_id() -> Result<String, AppError> {
-    required_env("AUTH_INSTAGRAM_APP_ID").map_err(|_| {
-        AppError::Internal(
-            "AUTH_INSTAGRAM_APP_ID is required for direct Instagram Login; use the Instagram App ID from the Instagram API setup, not the Meta App ID".to_string(),
-        )
-    })
-}
-
-fn instagram_app_secret() -> Result<String, AppError> {
-    required_env("AUTH_INSTAGRAM_APP_SECRET").map_err(|_| {
-        AppError::Internal(
-            "AUTH_INSTAGRAM_APP_SECRET is required for direct Instagram Login".to_string(),
-        )
-    })
-}
-
-pub fn build_instagram_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
-    let client_id = instagram_app_id()?;
-    let redirect_uri = format!(
-        "{}/api/social/oauth/instagram/callback",
-        social_app_url(config)
-    );
-    let scope = std::env::var("AUTH_INSTAGRAM_SCOPES").unwrap_or_else(|_| {
-        [
-            "instagram_business_basic",
-            "instagram_business_content_publish",
-            "instagram_business_manage_messages",
-            "instagram_business_manage_comments",
-            "instagram_business_manage_insights",
-        ]
-        .join(",")
-    });
-
-    Ok(format!(
-        "{INSTAGRAM_AUTHORIZE_URL}?force_reauth=true&client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
-        urlencoding::encode(&client_id),
-        urlencoding::encode(&redirect_uri),
-        urlencoding::encode(&scope),
-        urlencoding::encode(state),
-    ))
-}
+pub use super::social_oauth::{
+    build_instagram_authorize_url, build_linkedin_authorize_url, build_meta_authorize_url,
+    build_threads_authorize_url, build_tiktok_authorize_url, build_x_authorize_url,
+    create_instagram_oauth_state, create_linkedin_oauth_state, create_meta_oauth_state,
+    create_threads_oauth_state, create_tiktok_oauth_state, create_x_oauth_state,
+};
+pub(crate) use super::social_oauth::{instagram_app_id, instagram_app_secret};
 
 async fn fetch_json<T: serde::de::DeserializeOwned>(
     request: reqwest::RequestBuilder,
