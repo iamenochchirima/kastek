@@ -31,6 +31,9 @@ pub struct AppConfig {
     pub agents_delegation_public_key: Option<String>,
     pub agents_delegation_issuer: String,
     pub agents_delegation_audience: String,
+    /// ES256 public key used to validate one-hour Agent Platform installation tokens on `/v1`.
+    pub agents_installation_token_public_key: Option<String>,
+    pub agents_installation_token_issuer: String,
     pub agents_api_timeout_ms: u32,
     pub web_push_vapid_public_key: Option<String>,
     pub web_push_vapid_private_key: Option<String>,
@@ -61,7 +64,11 @@ impl AppConfig {
                 "http://localhost:3001".to_string()
             }
         });
-        let public_api_url = env_string_or("KASITEK_CORE_PUBLIC_URL", "http://localhost:4000");
+        let public_api_url = normalize_http_origin(&env_string_or(
+            "KASITEK_CORE_PUBLIC_URL",
+            "http://localhost:4000",
+        ))
+        .expect("KASITEK_CORE_PUBLIC_URL must be an absolute HTTP(S) origin without a path");
         let paystack_mode = if env_string_or("PAYSTACK_MODE", "test").eq_ignore_ascii_case("live") {
             "live".to_string()
         } else {
@@ -115,6 +122,13 @@ impl AppConfig {
             agents_delegation_audience: env_string_or(
                 "AGENTS_DELEGATION_AUDIENCE",
                 "kasitek-core-internal",
+            ),
+            agents_installation_token_public_key: env_optional(
+                "AGENTS_INSTALLATION_TOKEN_PUBLIC_KEY",
+            ),
+            agents_installation_token_issuer: env_string_or(
+                "AGENTS_INSTALLATION_TOKEN_ISSUER",
+                "kasitek-agents",
             ),
             agents_api_timeout_ms: env_u32_or("AGENTS_API_TIMEOUT_MS", 15_000).clamp(500, 120_000),
             web_push_vapid_public_key: env_optional("WEB_PUSH_VAPID_PUBLIC_KEY"),

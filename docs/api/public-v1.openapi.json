@@ -34,7 +34,8 @@
       "kasitekSession": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "KasiTek session token"
+        "bearerFormat": "KasiTek session token or Agent Platform installation token",
+        "description": "A KasiTek user session or an Agent Platform ES256 installation token with audience kasitek-public-api. Configure AGENTS_INSTALLATION_TOKEN_PUBLIC_KEY on core before accepting machine tokens."
       }
     },
     "schemas": {
@@ -43,7 +44,7 @@
         "required": ["version", "principal", "actions"],
         "properties": {
           "version": { "const": "v1" },
-          "principal": { "type": "object", "required": ["kind", "id", "organizationId"], "properties": { "kind": { "const": "direct_user" }, "id": { "type": "string" }, "organizationId": { "type": "string" } } },
+          "principal": { "type": "object", "required": ["kind", "id", "organizationId"], "properties": { "kind": { "enum": ["direct_user", "agent_installation"] }, "id": { "type": "string" }, "organizationId": { "type": "string" } } },
           "actions": { "type": "array", "items": { "$ref": "#/components/schemas/Capability" } }
         }
       },

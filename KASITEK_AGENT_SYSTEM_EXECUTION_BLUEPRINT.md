@@ -638,6 +638,9 @@ real capabilities, preserves independent chats, and never invents platform featu
 - [x] Protect the initial `/v1/capabilities` route with the normalized direct-user request context,
   exclude non-public/unsupported actions, return a stable public capability DTO, and document the
   current session-authenticated contract in the core-owned OpenAPI file.
+- [x] Add optional core verification of Agent Platform ES256 installation tokens with the exact
+  `kasitek-public-api` audience and configured issuer; installation revocation/introspection and
+  grant/entitlement lookup remain runtime policy work.
 - [x] Use installation token exchange and protected-resource metadata for MCP. When an installation
   uses REST, issue/validate a REST-audience token through the public API principal framework rather
   than routing the request through MCP.

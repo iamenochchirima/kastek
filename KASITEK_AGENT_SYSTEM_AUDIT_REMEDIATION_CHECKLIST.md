@@ -423,6 +423,9 @@ Relevant starting points:
   by the blueprint.
 - [x] Protect the initial capability route with the normalized authenticated direct-user context;
   machine principal exchange remains open for the broader public API boundary.
+- [x] Validate optional Agent Platform installation JWTs with ES256 signature, issuer, audience,
+  expiry, subject, and organization/credential claims before treating the caller as an external
+  agent; active credential introspection remains open.
 - [ ] If anonymous discovery is desired, record and approve that product/security decision before
   implementation rather than assuming it.
 - [ ] Filter discovery by lifecycle, authenticated principal type, organization entitlements,
