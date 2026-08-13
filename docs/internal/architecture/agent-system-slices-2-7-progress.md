@@ -88,6 +88,9 @@ marked when the complete deliverable and its verification exist.
   capability, and content resource routes at `/v1/openapi.json`, with bearer-installation and
   product-session security schemes and a Rust validity/coverage regression (`server/kasitek-core/openapi/v1.json`).
   Broader principal, webhook, and parity conformance remains open.
+- The external MCP integration contract is now separately documented with token exchange,
+  Streamable HTTP lifecycle, scope behavior, idempotency, and durable operation inspection
+  (`agents/docs/mcp-integration.md`, `c5c48a4`).
 
 ## Verification evidence
 
@@ -111,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **120 checked and 104 unchecked items out of 224**. This is a
+The primary blueprint currently has **121 checked and 103 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The initial approval separation-of-duties rule is implemented: a run initiator cannot approve their

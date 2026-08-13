@@ -280,7 +280,7 @@ The Agent Platform database suite passed locally with 39 files / 113 tests, and 
 core format/check/library tests passed. A checked implementation item does **not** assert that its
 slice completion gate or production-release verification has passed.
 
-At this reconciliation point, 120 of 224 implementation/verification items are checked. The count
+At this reconciliation point, 121 of 224 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -637,8 +637,12 @@ real capabilities, preserves independent chats, and never invents platform featu
   where it benefits non-agent API consumers. A direct REST call does not automatically create an
   `AgentRun`; it always creates API/action audit and usage records and links an AgentRun when one
   actually initiated the call.
-- [ ] Publish core-owned OpenAPI 3.1 for `/v1` and agent-readable MCP integration documentation;
+- [x] Publish core-owned OpenAPI 3.1 for `/v1` and agent-readable MCP integration documentation;
   validate overlapping MCP schemas and outcomes against the shared business/action contracts.
+  The current public resource contract is served at `/v1/openapi.json` from
+  `server/kasitek-core/openapi/v1.json`; MCP authentication, discovery, protocol, idempotency,
+  and structured outcomes are documented in `agents/docs/mcp-integration.md` and covered by the
+  gateway/core contract suites (`c5c48a4`). Broader principal and provider conformance remains open.
 - [x] Protect the initial `/v1/capabilities` route with the normalized direct-user request context,
   exclude non-public/unsupported actions, return a stable public capability DTO, and document the
   current session-authenticated contract in the core-owned OpenAPI file.
