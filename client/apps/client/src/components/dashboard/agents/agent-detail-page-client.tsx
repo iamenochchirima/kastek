@@ -26,6 +26,10 @@ import {
   type AgentCapability,
   listAgentInstallationRuns,
   type AgentInstallationRun,
+  listKasiAiChannels,
+  disconnectKasiAiChannel,
+  type AgentChannelConnection,
+  type AgentChannelBinding,
   type AgentDefinition,
   type AgentVersion,
   type AgentMessage,
@@ -123,6 +127,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {agent.installation_id ? <InstallationCapabilities installationId={agent.installation_id} /> : null}
 
         {agent.installation_id ? <InstallationRuns installationId={agent.installation_id} /> : null}
+
+        {agent.installation_id ? <InstallationChannels installationId={agent.installation_id} /> : null}
 
         {agent.installation_id ? <AgentTestChat installationId={agent.installation_id} active={agent.installation_status === "active"} /> : null}
 
@@ -286,6 +292,51 @@ function InstallationRuns({ installationId }: { installationId: string }) {
       <div><h2 className="text-lg font-semibold text-foreground">Recent runs</h2><p className="mt-1 text-sm text-muted-foreground">Durable runs for this installation, including channel and external-agent activity.</p></div>
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
       {loading ? <p className="text-sm text-muted-foreground">Loading runs…</p> : runs.length ? <div className="space-y-2">{runs.map((run) => <div key={run.id} className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono text-xs text-foreground">{run.id}</p><p className="mt-1 text-xs text-muted-foreground">{run.trigger_type ?? "manual"}{run.created_at ? ` · ${new Date(run.created_at).toLocaleString()}` : ""}</p>{run.error?.message ? <p className="mt-1 text-xs text-destructive">{run.error.message}</p> : null}</div><Badge className={run.status === "completed" ? "border-accent/30 bg-accent/10 text-accent" : run.status === "failed" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border bg-secondary text-muted-foreground"}>{run.status}</Badge></div>)}</div> : <p className="text-sm text-muted-foreground">No runs have been recorded for this installation.</p>}
+    </CardContent>
+  </Card>;
+}
+
+function InstallationChannels({ installationId }: { installationId: string }) {
+  const [connections, setConnections] = useState<AgentChannelConnection[]>([]);
+  const [bindings, setBindings] = useState<AgentChannelBinding[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listKasiAiChannels(installationId);
+      setConnections(response.connections);
+      setBindings(response.bindings);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load agent channels");
+    } finally {
+      setLoading(false);
+    }
+  }, [installationId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const disconnect = async (binding: AgentChannelBinding) => {
+    if (busy || !window.confirm(`Disconnect ${binding.external_identity}?`)) return;
+    setBusy(binding.id);
+    try {
+      await disconnectKasiAiChannel(binding.id);
+      setBindings((current) => current.map((entry) => entry.id === binding.id ? { ...entry, status: "revoked" } : entry));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to disconnect channel");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return <Card>
+    <CardContent className="space-y-4 p-6">
+      <div><h2 className="text-lg font-semibold text-foreground">Connected channels</h2><p className="mt-1 text-sm text-muted-foreground">Channel connections and user bindings that can deliver messages to this installation. Secrets stay in the provider connection vault.</p></div>
+      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      {loading ? <p className="text-sm text-muted-foreground">Loading channels…</p> : connections.length || bindings.length ? <div className="space-y-2">{connections.map((connection: AgentChannelConnection) => <div key={connection.id} className="rounded-lg border border-border p-3"><div className="flex items-center justify-between gap-3"><div><p className="font-medium capitalize text-foreground">{connection.channel_type}</p><p className="mt-1 text-xs text-muted-foreground">{connection.channel_key} · {connection.status}</p></div><Badge className="border-border bg-secondary text-muted-foreground">connection</Badge></div></div>)}{bindings.map((binding: AgentChannelBinding) => <div key={binding.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className="font-medium text-foreground">{binding.external_identity}</p><p className="mt-1 text-xs text-muted-foreground">{binding.channel_type} · {binding.status}</p></div>{binding.status === "active" ? <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void disconnect(binding)}>{busy === binding.id ? "Disconnecting…" : "Disconnect"}</Button> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No channels are connected to this installation.</p>}
     </CardContent>
   </Card>;
 }

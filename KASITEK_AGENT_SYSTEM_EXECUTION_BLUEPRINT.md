@@ -788,6 +788,8 @@ every success, denial, failure, or ambiguous outcome has a durable operator-visi
   knowledge/memory, channels, conversations, runs, approvals, usage, credentials, and settings.
 - [x] Add per-installation recent run history with status and safe error visibility; keep the broader
   detail-view areas open until their corresponding controls and tests are implemented.
+- [x] Add connected-channel and binding observability with owner-scoped disconnect controls; provider
+  secrets remain outside the browser and Agent Platform records.
 - [x] Build credential create/copy-once/rotate/revoke and installation suspend/resume/archive UX.
 - [x] Show safe run/tool/model/effect timelines, errors, recovery actions, usage, cost estimates, and
   current service readiness without exposing chain-of-thought or secrets.
