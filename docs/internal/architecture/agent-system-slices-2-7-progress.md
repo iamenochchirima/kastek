@@ -114,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **129 checked and 95 unchecked items out of 224**. This is a
+The primary blueprint currently has **130 checked and 94 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -146,6 +146,10 @@ Booking validation is now centralized in the domain policy (text normalization, 
 future scheduling, and status validation), and overlap detection explicitly includes organization
 scope (`6697e98`). Pure policy tests pass; seeded PostgreSQL transaction/overlap integration remains
 open under the environment-gated verification item.
+
+The identity boundary now has explicit product-session, admin-session, public-installation, and
+internal-delegation adapters that construct `RequestContext` before pilot domain operations; the
+admin adapter also maps roles to narrow platform grants (`838d32e`).
 
 The content adapter now also supports a safe draft-only update path. The internal core boundary
 accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,

@@ -361,8 +361,12 @@ the first complete agent-capability domain in Slice 5.
   accounts, OAuth users/applications, agent installations, and trusted internal services.
 - [x] Define `RequestContext` with principal, identity realm, organization, optional user/client or
   installation, effective grants, correlation/causation IDs, idempotency key, and request metadata.
-- [ ] Make product-session, admin-session, public credential, and internal-delegation adapters build
+- [x] Make product-session, admin-session, public credential, and internal-delegation adapters build
   `RequestContext`; domain operations must not inspect Actix requests, cookies, or raw headers.
+  Evidence: `identity::product_session`, `identity::admin_session`, `identity::internal_delegation`,
+  and the public installation adapter all normalize request identity before the bookings/content
+  domain and capability operations; pilot operations accept only `RequestContext` (`838d32e`,
+  `15d3f77`, `f63cdc3`).
 - [x] Preserve the active-organization cookie only as a product-session preference and continue to
   verify organization membership from durable state.
 - [ ] Add negative tests for wrong organization, wrong realm, missing membership, wrong principal
