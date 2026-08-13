@@ -45,7 +45,8 @@ marked when the complete deliverable and its verification exist.
   now persists the paused node/state, exposes an authenticated signal route and run-detail resume
   action, and is covered by graph regression tests in `bcb7ba2`. The editor now starts an installed
   workflow test from a real platform message and links to its durable timeline; full
-  Temporal/database proof remains unchecked.
+  Temporal/database proof remains unchecked. The run page now loads a scoped timeline proxy and
+  renders redacted steps, tool calls, and effect receipts from the same run in `f345261`.
 - KasiAi runs now build grounded dynamic context from the authenticated actor and organization,
   granted capability names/modules, durable conversation, and bounded route/entity/page context
   marked as untrusted UI data. The shared builder and regression test are committed in `4e8df19`.
