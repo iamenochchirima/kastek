@@ -27,7 +27,7 @@ export function evaluateKasiAiRelease(input: CreateVersionInput): { passed: bool
   }));
   checks.push({
     name: "read-only initial tool policy",
-    passed: allowedTools.length > 0 && allowedTools.every((tool) => ["platform.current_time", "kasitek.core.workspace_status"].includes(tool)),
+    passed: allowedTools.length > 0 && allowedTools.every((tool) => ["platform.current_time", "kasitek.core.workspace_status", "kasitek.core.content_posts_list", "kasitek.core.content_post_get"].includes(tool)),
     detail: allowedTools.join(", "),
   });
   checks.push({
