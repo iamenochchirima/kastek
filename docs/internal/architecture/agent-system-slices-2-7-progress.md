@@ -36,6 +36,11 @@ marked when the complete deliverable and its verification exist.
   model policy configuration, pause/resume, and per-installation usage summaries. The core proxy,
   Agent API, and client detail experience are committed in `152192e`, `81807cb`, `5765e7e`,
   `55e33d6`, `52def06`, and `4e04a17`.
+- The hosted-agent detail experience now includes a graph editor that writes the validated version
+  `configuration.workflow` schema, supports node/edge and loop-bound editing, approval/wait/fan-out
+  controls, and secret-safe JSON import/export. It uses the existing draft/publish/rollback
+  lifecycle and is committed in `b2de22f`; full graph execution and end-to-end workflow test-run
+  proof remain unchecked until the editor is connected to the durable workflow activity path.
 - Approval/effect/invocation remediation is now in a coherent committed backend slice:
   `a0cf679` adds the shared installation invocation boundary, immediate-read durability, approval
   compare-and-set/idempotency, effect receipt transitions, gateway transport hardening, migrations
