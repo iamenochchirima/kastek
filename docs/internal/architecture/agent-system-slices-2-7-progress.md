@@ -288,6 +288,12 @@ status filter. Provider synchronization and template creation remain separate pr
 operations; the Agent capability is read-only and carries template-body/button redaction metadata.
 The Rust and Agent verification gates remain green.
 
+The template catalog follow-up `7039b13` exposes organization-scoped WhatsApp template listing
+through `kasitek.core.templates_list`, including an optional approval-status filter. It reuses the
+existing template query and keeps provider synchronization/authoring outside the Agent read
+surface. The generated capability catalog and client/core transport tests were updated; the same
+Rust and Agent verification gates pass.
+
 The WhatsApp model follow-up moves the completed connection, template, campaign, contact/list, and
 inbox transport DTOs/rows into `db::whatsapp_models`; `db::models` re-exports them during migration
 so existing adapters retain source compatibility (`7daf4da`). Call-specific models and the broader
