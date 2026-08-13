@@ -91,18 +91,19 @@ verified or completed. Work on independent items continues.
 - **Next action:** Select and document the operator role matrix and support-grant policy, then wire
   the protected admin API and end-to-end authorization tests.
 
-## B-007 — Approval actor/resource and self-approval policy is not yet defined
+## B-007 — Approval actor/resource role matrix is not yet defined
 
 - **Blueprint:** Slice 10 approval verification; remediation AR-002.
 - **Evidence:** approval records bind the organization, installation, capability, arguments, preview,
-  and effect key, but the public decision route receives only a generic authenticated actor ID. The
-  approved policy does not define which workspace roles may approve which resources, whether the run
-  initiator may approve their own action, or how that initiator is represented for external agents.
-- **Impact:** atomic decision state and retry idempotency are implemented, but full approver/resource
-  authorization and self-approval verification cannot be claimed. Do not expand real external effects
-  beyond controlled testing until this policy and its identity inputs exist.
-- **Next action:** approve the decision matrix and persist/propagate the initiating human or service
-  principal needed for separation-of-duties checks, then add cross-resource and self-approval tests.
+  and effect key. The initial separation-of-duties policy is now explicit and enforced: the run
+  initiator cannot approve their own action (`22b2748`, `agents/test/http.test.ts`). The public
+  decision route still receives only a generic authenticated actor ID and does not yet have an
+  approved workspace role/resource matrix or external-service principal model.
+- **Impact:** atomic decision state, retry idempotency, and self-approval protection are implemented,
+  but full approver/resource authorization cannot be claimed. Do not expand real external effects
+  beyond controlled testing until the role/resource policy and identity inputs exist.
+- **Next action:** approve the workspace approver/resource decision matrix and persist/propagate the
+  initiating human or service principal needed for cross-resource authorization checks.
 
 ## B-011 — Public capability feature-flag and resource-discovery policy is not yet defined
 

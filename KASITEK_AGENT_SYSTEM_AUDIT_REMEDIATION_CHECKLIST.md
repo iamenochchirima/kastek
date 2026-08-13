@@ -191,8 +191,9 @@ Relevant starting points:
   affected resource. The decision route now re-resolves the organization-scoped run, active
   installation, exact proposal/capability/version/hash, and resource policy before deciding.
 - [x] Enforce current installation/capability grants again at decision time.
-- [ ] Enforce the approved self-approval and separation-of-duties policy. If undefined, record the
-  precise decision in `BLOCKERS.md` and keep real external effects disabled.
+- [x] Enforce the initial self-approval and separation-of-duties policy: the authenticated run
+  initiator may not approve their own pending action. The broader workspace role/resource matrix
+  remains explicitly open in `BLOCKERS.md`.
 - [x] Reject terminal, stale, expired, already decided, or non-awaiting approvals atomically.
 - [x] Do not accept `approvedBy` from the request body; derive it from the authenticated principal.
 - [x] Emit a redacted immutable audit event for approval, denial, expiry, and cancellation.
@@ -211,7 +212,8 @@ Relevant starting points:
 - [x] Valid approve and deny decisions signal Temporal once and write audit evidence.
 - [x] Concurrent decisions result in exactly one accepted decision.
 - [x] Duplicate idempotent submission returns the original decision without a second signal.
-- [ ] Self-approval behavior matches the approved policy.
+- [x] Self-approval behavior matches the initial policy: a run initiator receives 403 before the
+  durable approval transition or Temporal signal (`agents/test/http.test.ts`).
 
 ### Completion gate
 
@@ -224,7 +226,8 @@ installation, exact proposal capability/version/hash, current capability grants,
 resource grants before the atomic decision. `agents/test/http.test.ts` proves a revoked capability
 cannot signal Temporal; `agents/test/run.integration.test.ts` proves concurrent compare-and-set
 decisions; and the HTTP suite proves an identical retry returns the recorded decision without a
-second signal. Workspace approver role and self-approval policy remain open.
+second signal. Commit `22b2748` blocks run-initiator self-approval before durable mutation or
+signalling; the broader workspace approver role/resource matrix remains open.
 - [x] Remediation committed in `a0cf679` (`fix(agents): harden invocation and effect boundaries`).
 
 ## 7. AR-003 — Durable exact single-use approvals

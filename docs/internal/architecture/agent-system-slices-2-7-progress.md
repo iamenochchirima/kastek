@@ -95,6 +95,10 @@ Temporal worker-restart or hosted gateway proof.
 The primary blueprint currently has **119 checked and 105 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
+The initial approval separation-of-duties rule is implemented: a run initiator cannot approve their
+own pending action, with an HTTP regression in `22b2748`. The broader workspace approver/resource
+role matrix remains blocked by `BLOCKERS.md` B-007.
+
 ## Remaining work
 
 The hosted gateway route/deployment smoke, public Rust `/v1` middleware and principal matrix,
