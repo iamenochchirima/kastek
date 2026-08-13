@@ -173,6 +173,29 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       });
     },
   });
+  tools.register({
+    name: "kasitek.core.content_post_publish",
+    version: "1.0.0",
+    description: "Publish an approved content post to one configured social channel.",
+    riskClass: "external-effect",
+    requiresApproval: true,
+    timeoutMs: 60_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        postId: { type: "string", minLength: 1, maxLength: 160 },
+        platform: { type: "string", minLength: 1, maxLength: 80 },
+      },
+      required: ["postId", "platform"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["post", "result"], additionalProperties: true },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.publish", resourceSelector: { type: "content_post", argument: "postId" }, execution: "durable", idempotency: "required", approval: "always", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt"] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.publishContentPost(context, String(args.postId), String(args.platform));
+    },
+  });
   return tools;
 }
 

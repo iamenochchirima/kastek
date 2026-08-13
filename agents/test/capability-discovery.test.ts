@@ -11,8 +11,10 @@ describe("capability discovery", () => {
       "kasitek.core.content_posts_list",
       "kasitek.core.content_post_get",
       "kasitek.core.content_post_draft",
+      "kasitek.core.content_post_publish",
     ]);
     expect(manifests[1]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "customers.read" });
     expect(manifests[5]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "required" });
+    expect(manifests[6]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
   });
 });

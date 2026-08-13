@@ -259,6 +259,39 @@ pub async fn create_content_draft(
 }
 
 #[derive(Debug, Deserialize)]
+pub struct AgentContentPublishRequest {
+    pub platform: String,
+}
+
+pub async fn publish_content_post(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<AgentContentPublishRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_post_publish",
+    )
+    .await?;
+    if context.idempotency_key.is_none() {
+        return Err(AppError::BadRequest(
+            "idempotency-key is required for content publishing".to_string(),
+        ));
+    }
+    let result = content_adapter::publish(
+        pool.get_ref(),
+        &context,
+        &path.into_inner(),
+        &body.platform,
+    )
+    .await?;
+    Ok(HttpResponse::Accepted().json(result))
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentChannelDeliveryRequest {
     pub channel_type: String,

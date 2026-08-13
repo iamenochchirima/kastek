@@ -87,6 +87,21 @@ describe("kasitek-core read boundary", () => {
     expect(JSON.parse(String(init.body))).toMatchObject({ content: "Draft", channels: ["threads"], status: "DRAFT" });
   });
 
+  it("routes publishing through the approval-bound core capability", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => new Response(JSON.stringify({ post: { id: "post-1", content: "Hello", channels: ["threads"], status: "PUBLISHED" }, result: { status: "sent" } }), { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).publishContentPost(context, "post-1", "THREADS")).resolves.toMatchObject({ post: { status: "PUBLISHED" } });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/content/posts/post-1/publish");
+    expect(init.headers).toHaveProperty("idempotency-key");
+    expect(JSON.parse(String(init.body))).toEqual({ platform: "THREADS" });
+  });
+
   it("binds a delegation token to the installation and the exact core capability", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ customer: { id: "cust-1" }, identities: [] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

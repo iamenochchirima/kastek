@@ -7,6 +7,16 @@ use crate::{
     services::social,
 };
 
+const SUPPORTED_PLATFORMS: [&str; 7] = [
+    "FACEBOOK",
+    "INSTAGRAM",
+    "THREADS",
+    "TIKTOK",
+    "BLUESKY",
+    "LINKEDIN",
+    "X",
+];
+
 /// Typed content capability boundary. Transport layers pass a normalized
 /// context here; organization ownership is never accepted from the payload.
 pub async fn list_posts(
@@ -52,4 +62,82 @@ pub async fn create_draft(
         context.idempotency_key.as_deref(),
     )
     .await
+}
+
+pub async fn publish(
+    pool: &PgPool,
+    context: &RequestContext,
+    post_id: &str,
+    platform: &str,
+) -> Result<serde_json::Value, AppError> {
+    let platform = platform.trim().to_ascii_uppercase();
+    if !SUPPORTED_PLATFORMS.contains(&platform.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "Publishing is not available for {platform}"
+        )));
+    }
+    let post = social::get_social_post(pool, &context.organization_id, post_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
+    if !post.row.channels.iter().any(|channel| channel == &platform) {
+        return Err(AppError::BadRequest(format!(
+            "This post is not configured for {platform}"
+        )));
+    }
+    let job_id = post
+        .publish_jobs
+        .iter()
+        .find(|job| job.platform == platform)
+        .map(|job| job.id.clone())
+        .ok_or_else(|| AppError::NotFound("Publish job not found".to_string()))?;
+    let idempotency_key = context.idempotency_key.as_deref().ok_or_else(|| {
+        AppError::BadRequest("idempotency-key is required for content publishing".to_string())
+    })?;
+    let job = post
+        .publish_jobs
+        .iter()
+        .find(|job| job.id == job_id)
+        .expect("publish job selected from post");
+    let prior_key = job
+        .metadata
+        .as_ref()
+        .and_then(|metadata| metadata.get("_kasitek_agent_idempotency_key"))
+        .and_then(serde_json::Value::as_str);
+    if prior_key == Some(idempotency_key) {
+        let result = social::execute_social_publish_job(pool, &job_id).await?;
+        let refreshed = social::get_social_post(pool, &context.organization_id, post_id).await?;
+        return Ok(serde_json::json!({ "post": refreshed, "result": result }));
+    }
+    if prior_key.is_some() {
+        return Err(AppError::Conflict(
+            "This publish job already has an idempotent execution".to_string(),
+        ));
+    }
+    if job.status == "PUBLISHED" && job.external_post_id.is_some() {
+        return Err(AppError::Conflict(format!(
+            "This post has already been published to {platform}"
+        )));
+    }
+    let marked = sqlx::query(
+        r#"UPDATE "SocialPublishJob"
+           SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{_kasitek_agent_idempotency_key}', to_jsonb($2::text), true), "updatedAt" = NOW()
+           WHERE id = $1 AND metadata->>'_kasitek_agent_idempotency_key' IS NULL"#,
+    )
+    .bind(&job_id)
+    .bind(idempotency_key)
+    .execute(pool)
+    .await?;
+    if marked.rows_affected() != 1 {
+        return Err(AppError::Conflict(
+            "This publish job was claimed by another execution".to_string(),
+        ));
+    }
+    if !social::claim_publish_job(pool, &job_id, &["PENDING", "FAILED", "QUEUED"]).await? {
+        return Err(AppError::Conflict(
+            "This publish job is already being processed".to_string(),
+        ));
+    }
+    let result = social::execute_social_publish_job(pool, &job_id).await?;
+    let refreshed = social::get_social_post(pool, &context.organization_id, post_id).await?;
+    Ok(serde_json::json!({ "post": refreshed, "result": result }))
 }

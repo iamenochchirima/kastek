@@ -43,6 +43,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::get().to(agent_internal::get_content_post),
                 )
                 .route(
+                    "/content/posts/{id}/publish",
+                    web::post().to(agent_internal::publish_content_post),
+                )
+                .route(
                     "/channels/deliver",
                     web::post().to(agent_internal::deliver_channel_message),
                 ),
