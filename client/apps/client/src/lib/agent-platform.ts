@@ -52,25 +52,56 @@ export type AgentConversation = {
 
 export type AgentRun = {
   id: string;
+  organization_id?: string;
+  agent_definition_id?: string;
+  agent_version_id?: string;
+  installation_id?: string;
+  conversation_id?: string | null;
+  trigger_type?: string;
   status: string;
+  input?: Record<string, unknown>;
   output?: { message?: string; [key: string]: unknown } | null;
   error?: { message?: string; [key: string]: unknown } | null;
+  created_at?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  updated_at?: string;
+  agent_name?: string | null;
+  agent_slug?: string | null;
 };
 
 export type AgentOperationsSummary = {
   organizationId: string;
   generatedAt: string;
-  runs: Array<{ status: string; count: number }>;
-  models: Array<Record<string, unknown>>;
+  runs: { runsByStatus: Array<{ status: string; count: number }>; oldestQueuedAt: string | null };
+  models: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number; failedCalls: number };
   tools: Array<{ status: string; count: number }>;
   effects: { pendingReconciliation: number };
+};
+
+export type AgentOperationEvent = {
+  id?: string;
+  sequence_number?: number | string;
+  event_type?: string;
+  payload?: Record<string, unknown>;
+  created_at?: string;
+  [key: string]: unknown;
+};
+
+export type AgentOperationRun = AgentRun & {
+  agent_name?: string | null;
+  agent_slug?: string | null;
 };
 
 export function getAgentOperationsSummary(): Promise<AgentOperationsSummary> {
   return request<AgentOperationsSummary>("/api/agents/operations/summary");
 }
 
-export function getAgentRun(runId: string): Promise<{ run: AgentRun; events: AgentStreamEvent[] }> {
+export function listAgentOperationRuns(limit = 50): Promise<{ runs: AgentOperationRun[] }> {
+  return request(`/api/agents/operations/runs?limit=${encodeURIComponent(String(limit))}`);
+}
+
+export function getAgentRun(runId: string): Promise<{ run: AgentRun; events: AgentOperationEvent[] }> {
   return request(`/api/agents/runs/${encodeURIComponent(runId)}`);
 }
 

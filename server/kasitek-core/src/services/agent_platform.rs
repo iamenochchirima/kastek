@@ -130,6 +130,27 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn operations_runs(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let path = match limit {
+            Some(limit) => format!("/v1/operations/runs?limit={limit}"),
+            None => "/v1/operations/runs".to_string(),
+        };
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn operations_health(
         &self,
         organization_id: &str,
@@ -311,10 +332,20 @@ impl AgentPlatformClient {
         organization_id: &str,
         actor_id: &str,
         installation_id: &str,
+        credential_id: Option<&str>,
     ) -> Result<Value, AppError> {
+        let path = credential_id
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| {
+                format!(
+                    "/v1/installations/{installation_id}/capabilities?credentialId={}",
+                    urlencoding::encode(value)
+                )
+            })
+            .unwrap_or_else(|| format!("/v1/installations/{installation_id}/capabilities"));
         self.request_json(
             Method::GET,
-            &format!("/v1/installations/{installation_id}/capabilities"),
+            &path,
             organization_id,
             actor_id,
             &["agents:read"],

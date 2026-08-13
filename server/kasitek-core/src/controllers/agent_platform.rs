@@ -82,6 +82,24 @@ pub async fn operations_summary(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn operations_runs(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<RunQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=200).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Run limit must be between 1 and 200".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .operations_runs(&organization_id, &user.id, query.limit)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn operations_health(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -562,7 +580,7 @@ pub async fn list_installation_capabilities(
 ) -> Result<HttpResponse, AppError> {
     let (user, organization_id) = scope(&req, pool.get_ref()).await?;
     let response = client(config.get_ref())?
-        .list_installation_capabilities(&organization_id, &user.id, installation_id.trim())
+        .list_installation_capabilities(&organization_id, &user.id, installation_id.trim(), None)
         .await?;
     Ok(HttpResponse::Ok().json(response))
 }

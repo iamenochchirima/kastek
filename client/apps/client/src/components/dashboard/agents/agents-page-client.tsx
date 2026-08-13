@@ -102,8 +102,8 @@ export function AgentsPageClient({
 }
 
 function OperationsSummary({ summary }: { summary: AgentOperationsSummary }) {
-  const runCount = summary.runs.reduce((total, entry) => total + Number(entry.count || 0), 0);
-  const activeCount = summary.runs.filter((entry) => ["received", "queued", "running", "awaiting_approval", "awaiting_human", "awaiting_external_event"].includes(entry.status)).reduce((total, entry) => total + Number(entry.count || 0), 0);
+  const runCount = summary.runs.runsByStatus.reduce((total, entry) => total + Number(entry.count || 0), 0);
+  const activeCount = summary.runs.runsByStatus.filter((entry) => ["received", "queued", "running", "awaiting_approval", "awaiting_human", "awaiting_external_event"].includes(entry.status)).reduce((total, entry) => total + Number(entry.count || 0), 0);
   const pendingReconciliation = summary.effects?.pendingReconciliation ?? 0;
   return <section aria-label="Agent operations summary" className="grid gap-3 sm:grid-cols-3">
     <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Runs</p><p className="mt-1 text-2xl font-semibold text-foreground">{runCount}</p><p className="mt-1 text-xs text-muted-foreground">{activeCount} active or waiting</p></CardContent></Card>

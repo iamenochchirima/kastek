@@ -27,6 +27,8 @@ export interface RunRecord {
   reply_binding_id?: string | null;
   resolved_model_provider?: string | null;
   resolved_model?: string | null;
+  agent_name?: string | null;
+  agent_slug?: string | null;
   created?: boolean;
 }
 
@@ -35,6 +37,7 @@ export interface RuntimeRunRecord extends RunRecord {
   configuration: Record<string, unknown>;
   policy: Record<string, unknown>;
   installation_settings: Record<string, unknown>;
+  installation_status: string;
 }
 
 export class RunRepository {
@@ -292,7 +295,8 @@ export class RunRepository {
   public async getRuntimeRun(organizationId: string, runId: string): Promise<RuntimeRunRecord | null> {
     const result = await query<RuntimeRunRecord>(
       this.pool,
-      `SELECT ar.*, av.instructions, av.configuration, av.policy, ai.settings AS installation_settings
+      `SELECT ar.*, av.instructions, av.configuration, av.policy, ai.settings AS installation_settings,
+              ai.status AS installation_status
        FROM agent_runs ar
        JOIN agent_versions av ON av.id = ar.agent_version_id
        JOIN agent_installations ai ON ai.id = ar.installation_id
@@ -305,7 +309,8 @@ export class RunRepository {
   public async getRuntimeRunById(runId: string): Promise<RuntimeRunRecord | null> {
     const result = await query<RuntimeRunRecord>(
       this.pool,
-      `SELECT ar.*, av.instructions, av.configuration, av.policy, ai.settings AS installation_settings
+      `SELECT ar.*, av.instructions, av.configuration, av.policy, ai.settings AS installation_settings,
+              ai.status AS installation_status
        FROM agent_runs ar
        JOIN agent_versions av ON av.id = ar.agent_version_id
        JOIN agent_installations ai ON ai.id = ar.installation_id
@@ -358,6 +363,20 @@ export class RunRepository {
        WHERE organization_id = $1 AND installation_id = $2
        ORDER BY created_at DESC LIMIT $3`,
       [organizationId, installationId, boundedLimit],
+    );
+    return result.rows;
+  }
+
+  public async listOrganizationRuns(organizationId: string, limit = 50): Promise<RunRecord[]> {
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 200);
+    const result = await query<RunRecord>(
+      this.pool,
+      `SELECT ar.*, ad.name AS agent_name, ad.slug AS agent_slug
+       FROM agent_runs ar
+       LEFT JOIN agent_definitions ad ON ad.id = ar.agent_definition_id
+       WHERE ar.organization_id = $1
+       ORDER BY ar.created_at DESC, ar.id DESC LIMIT $2`,
+      [organizationId, boundedLimit],
     );
     return result.rows;
   }

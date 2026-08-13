@@ -48,6 +48,10 @@ const MCP_PROTOCOL_VERSION = "2025-06-18";
 import { ConnectorRegistry } from "../connectors";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
+import { InstallationCapabilityError, InstallationCapabilityInvocationService } from "../invocation/installation-capability";
+import { InstallationImmediateReadService } from "../invocation/immediate-read";
+import { authorizeInstallationCapability } from "../capabilities/authorization";
+import { ApprovalDecisionRateLimiter } from "./approval-rate-limit";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -107,6 +111,7 @@ function requireScope(auth: AuthContext, config: AppConfig, scope: string): void
 interface McpAuthContext extends AuthContext {
   installationId: string;
   credentialId: string;
+  agentId: string;
 }
 
 async function authenticateInstallationRequest(input: {
@@ -152,6 +157,7 @@ async function authenticateInstallationRequest(input: {
     scopes: audience === "mcp" ? credential.mcp_scopes : (credential.api_scopes ?? []),
     installationId: claims.sub,
     credentialId: claims.credentialId,
+    agentId: installation.agent_definition_id ?? "",
   };
 }
 
@@ -185,27 +191,14 @@ function requireApiScope(auth: McpAuthContext, scope: "api:read" | "api:write"):
   }
 }
 
-async function acceptDurableToolCall(input: {
-  runs: RunRepository;
-  startWorkflow?: (runId: string) => Promise<void>;
-  temporalEnabled: boolean;
-  organizationId: string;
-  actorId: string;
-  installationId: string;
-  name: string;
-  arguments: Record<string, unknown>;
-  toolCallId: string;
-  idempotencyKey: string;
-}) {
-  if (!input.temporalEnabled || !input.startWorkflow) throw Object.assign(new Error("durable tool execution is unavailable"), { statusCode: 503 });
-  const accepted = await input.runs.createRun(input.organizationId, input.actorId, {
-    installationId: input.installationId,
-    triggerType: "manual",
-    idempotencyKey: input.idempotencyKey,
-    input: { mcpTool: { name: input.name, arguments: input.arguments, toolCallId: input.toolCallId } },
-  });
-  if (accepted.created !== false && accepted.status === "received") await input.startWorkflow(accepted.id);
-  return accepted;
+function publicApprovalStatus(approval: { status: string; provider_tool_call_id: string; capability: string; expires_at: string } | null) {
+  if (!approval) return null;
+  return {
+    status: approval.status,
+    providerToolCallId: approval.provider_tool_call_id,
+    capability: approval.capability,
+    expiresAt: approval.expires_at,
+  };
 }
 
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
@@ -233,10 +226,35 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const schedules = dependencies.schedules ?? new ScheduleRepository(dependencies.pool);
   const killSwitches = dependencies.killSwitches ?? new KillSwitchRepository(dependencies.pool);
   const kasiaiPreferences = dependencies.kasiaiPreferences ?? new KasiAiPreferenceRepository(dependencies.pool);
+  const approvalDecisionRateLimiter = new ApprovalDecisionRateLimiter(
+    dependencies.config.APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW,
+    dependencies.config.APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS,
+    dependencies.config.APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS,
+  );
+  const immediateReads = new InstallationImmediateReadService({ runs, toolInvocations, tools: toolRegistry });
+  const installationInvocations = new InstallationCapabilityInvocationService({
+    agents,
+    runs,
+    toolGrants,
+    installationGrants,
+    killSwitches,
+    tools: toolRegistry,
+    temporalEnabled: dependencies.config.TEMPORAL_ENABLED,
+    startWorkflow: dependencies.startWorkflow,
+    immediateRead: (input) => immediateReads.execute({
+      ...input,
+      agentId: input.installation.agent_definition_id ?? "",
+      agentVersionId: input.installation.agent_version_id,
+    }),
+  });
 
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
     if (statusCode >= 500) app.log.error(error);
+    if (request.url === "/mcp" && request.method === "POST" && statusCode === 400) {
+      reply.header("mcp-protocol-version", MCP_PROTOCOL_VERSION);
+      return reply.code(400).send({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "invalid_mcp_request" } });
+    }
     const message = error instanceof ZodError ? "Invalid request" : error instanceof Error ? error.message : "Request failed";
     const code = (error as { code?: string }).code;
     reply.code(statusCode).send({ error: statusCode >= 500 ? "internal_error" : message, ...(code ? { code } : {}) });
@@ -310,17 +328,43 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     } catch (error) {
       return failure(-32003, error instanceof Error ? error.message : "mcp_authentication_failed");
     }
+    // Global, organization, agent, and installation kill switches are checked
+    // after bearer revalidation and before any MCP method is served. Tool-level
+    // switches are enforced by the shared invocation service for tools/call.
+    if (await killSwitches.isBlocked({
+      organizationId: auth.organizationId,
+      agentId: auth.agentId,
+      installationId: auth.installationId,
+    })) {
+      return failure(-32030, "mcp_kill_switch_active", { code: "MCP_KILL_SWITCH_ACTIVE" });
+    }
     if (body.method === "initialize") {
       return respond({ protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: { listChanged: false } }, serverInfo: { name: "kasitek-agent-platform", version: "1.0.0" } });
     }
     const params = body.params ?? {};
     const suppliedInstallationId = typeof params.installationId === "string" ? params.installationId : undefined;
     if (suppliedInstallationId && suppliedInstallationId !== auth.installationId) return failure(-32602, "installationId does not match authenticated installation");
-    const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
-    if (!installation || installation.status !== "active") return failure(-32004, "installation_not_found");
-    const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
     if (body.method === "tools/list") {
+      const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
+      if (!installation || installation.status !== "active") return failure(-32004, "installation_not_found");
+      const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
       return respond({ tools: toolRegistry.manifests(granted).map((manifest) => ({ name: manifest.name, description: manifest.description, inputSchema: manifest.inputSchema })) });
+    }
+    if (body.method === "tools/status") {
+      const runId = typeof params.runId === "string" ? params.runId.trim() : "";
+      if (!runId) return failure(-32602, "runId is required");
+      const run = await runs.getRun(auth.organizationId, runId);
+      if (!run || run.installation_id !== auth.installationId) return failure(-32004, "operation_not_found");
+      const approval = await approvals.getForRun(auth.organizationId, run.id);
+      return respond({
+        content: [{ type: "text", text: `Operation ${run.id} is ${run.status}.` }],
+        structuredContent: {
+          runId: run.id,
+          status: run.status,
+          terminal: ["completed", "failed", "cancelled", "expired"].includes(run.status),
+          approval: publicApprovalStatus(approval),
+        },
+      });
     }
     if (body.method === "tools/call") {
       try {
@@ -335,23 +379,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const idempotencyKey = typeof params.idempotencyKey === "string" && params.idempotencyKey.length >= 8 && params.idempotencyKey.length <= 240
         ? `mcp:${auth.credentialId}:${params.idempotencyKey}`
         : undefined;
-      const manifest = toolRegistry.get(name);
-      if (!manifest) return failure(-32602, "tool_not_found");
-      if (!granted.has(name)) return failure(-32001, "tool_not_granted");
-      if (!toolRegistry.validateArguments(name, args)) return failure(-32602, "invalid_tool_arguments");
       try {
-        const accepted = await acceptDurableToolCall({
-          runs,
-          startWorkflow: dependencies.startWorkflow,
-          temporalEnabled: dependencies.config.TEMPORAL_ENABLED,
+        const invocation = await installationInvocations.accept({
           organizationId: auth.organizationId,
           actorId: auth.actorId,
-          installationId: installation.id,
+          installationId: auth.installationId,
           name,
-          arguments: args,
+          argumentsValue: args,
           toolCallId,
           idempotencyKey: idempotencyKey ?? `mcp:${auth.credentialId}:${randomUUID()}`,
         });
+        const { accepted, manifest } = invocation;
         return respond({
           content: [{ type: "text", text: `Accepted ${name} as operation ${accepted.id}.` }],
           isError: false,
@@ -359,10 +397,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
             runId: accepted.id,
             status: accepted.status,
             approvalRequired: manifest.requiresApproval,
+            ...( "immediate" in invocation && invocation.immediate === true ? { output: invocation.output } : {}),
+            statusReference: { method: "tools/status", params: { runId: accepted.id } },
           },
         });
       } catch (error) {
-        return failure(-32001, error instanceof Error ? error.message : "tool_call_failed", { code: error && typeof error === "object" && "code" in error ? error.code : "TOOL_FAILED" });
+        const code = error instanceof InstallationCapabilityError ? error.code : "TOOL_FAILED";
+        const rpcCode = code === "INVALID_TOOL_ARGUMENTS" || code === "TOOL_NOT_FOUND" ? -32602 : code === "INSTALLATION_NOT_FOUND" ? -32004 : -32001;
+        return failure(rpcCode, error instanceof Error ? error.message : "tool_call_failed", { code });
       }
     }
     if (body.method === "notifications/cancelled") {
@@ -397,36 +439,35 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       toolCallId: z.string().trim().min(1).max(240).optional(),
       idempotencyKey: z.string().trim().min(8).max(240),
     }).parse(request.body ?? {});
-    const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
-    if (!installation || installation.status !== "active") return reply.code(404).send({ error: "installation_not_found" });
-    const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
     const manifest = toolRegistry.get(input.name);
     if (!manifest) return reply.code(404).send({ error: "tool_not_found" });
-    if (!granted.has(input.name)) return reply.code(403).send({ error: "tool_not_granted" });
     requireApiScope(auth, manifest.riskClass === "read" ? "api:read" : "api:write");
-    if (!toolRegistry.validateArguments(input.name, input.arguments)) return reply.code(400).send({ error: "invalid_tool_arguments" });
-    if (!dependencies.config.TEMPORAL_ENABLED || !dependencies.startWorkflow) {
-      return reply.code(503).send({ error: "durable_api_execution_unavailable" });
+    try {
+      const invocation = await installationInvocations.accept({
+        organizationId: auth.organizationId,
+        actorId: auth.actorId,
+        installationId: auth.installationId,
+        name: input.name,
+        argumentsValue: input.arguments,
+        toolCallId: input.toolCallId ?? `api:${randomUUID()}`,
+        idempotencyKey: `api:${auth.credentialId}:${input.idempotencyKey}`,
+      });
+      const { accepted } = invocation;
+      return reply.code(202).send({
+        operationId: accepted.id,
+        runId: accepted.id,
+        status: accepted.status,
+        durable: true,
+        approvalRequired: manifest.requiresApproval,
+        ...( "immediate" in invocation && invocation.immediate === true ? { output: invocation.output } : {}),
+      });
+    } catch (error) {
+      const code = error instanceof InstallationCapabilityError ? error.code : "TOOL_FAILED";
+      const statusCode = code === "INSTALLATION_NOT_FOUND" || code === "TOOL_NOT_FOUND" ? 404
+        : code === "INVALID_TOOL_ARGUMENTS" ? 400
+          : code === "DURABLE_EXECUTION_UNAVAILABLE" ? 503 : 403;
+      return reply.code(statusCode).send({ error: error instanceof Error ? error.message : "tool_call_failed", code });
     }
-    const accepted = await acceptDurableToolCall({
-      runs,
-      startWorkflow: dependencies.startWorkflow,
-      temporalEnabled: dependencies.config.TEMPORAL_ENABLED,
-      organizationId: auth.organizationId,
-      actorId: auth.actorId,
-      installationId: installation.id,
-      name: input.name,
-      arguments: input.arguments,
-      toolCallId: input.toolCallId ?? `api:${randomUUID()}`,
-      idempotencyKey: `api:${auth.credentialId}:${input.idempotencyKey}`,
-    });
-    return reply.code(202).send({
-      operationId: accepted.id,
-      runId: accepted.id,
-      status: accepted.status,
-      durable: true,
-      approvalRequired: manifest.requiresApproval,
-    });
   });
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/tools", async (request, reply) => {
@@ -468,8 +509,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireApiScope(auth, "api:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run || run.installation_id !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
-    const events = await runs.listEvents(auth.organizationId, run.id);
-    return { operationId: run.id, run, events: events.map(toPublicEvent) };
+    const [events, approval] = await Promise.all([
+      runs.listEvents(auth.organizationId, run.id),
+      approvals.getForRun(auth.organizationId, run.id),
+    ]);
+    return { operationId: run.id, run, approval: publicApprovalStatus(approval), events: events.map(toPublicEvent) };
   });
 
   app.get<{ Params: { installationId: string; runId: string }; Querystring: { after?: string } }>("/v1/installations/:installationId/operations/:runId/events", async (request, reply) => {
@@ -628,8 +672,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(201).send(installation);
   });
 
-  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/capabilities", async (request, reply) => {
+  app.get<{ Params: { installationId: string }; Querystring: { credentialId?: string } }>("/v1/installations/:installationId/capabilities", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    if (request.query.credentialId) {
+      const credential = await installationCredentials.getActiveForToken({ credentialId: request.query.credentialId, organizationId: auth.organizationId, installationId: request.params.installationId });
+      if (!credential) return reply.code(401).send({ error: "installation_credential_not_active" });
+    }
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
     const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
@@ -637,7 +685,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       ...manifest,
       availability: granted.has(manifest.name) ? (manifest.manifest?.availability ?? "available") : "not_granted",
     }));
-    return { installationId: installation.id, capabilities };
+    const credential = request.query.credentialId ? await installationCredentials.getActiveForToken({ credentialId: request.query.credentialId, organizationId: auth.organizationId, installationId: request.params.installationId }) : null;
+    return { installationId: installation.id, apiScopes: credential?.api_scopes ?? null, capabilities };
   });
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/credentials", async (request) => {
@@ -1318,6 +1367,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     };
   });
 
+  app.get<{ Querystring: { limit?: string } }>("/v1/operations/runs", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const limit = request.query.limit === undefined ? 50 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error("Invalid run limit");
+    return { runs: await runs.listOrganizationRuns(auth.organizationId, limit) };
+  });
+
   app.get<{ Querystring: { limit?: string } }>("/v1/operations/effects/reconciliation", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
@@ -1333,10 +1390,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     await effectReceipts.reconcile({ organizationId: auth.organizationId, effectId: request.params.effectId, ...input });
     await dependencies.pool.query(
       `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, correlation_id, metadata)
-       VALUES ($1, 'user', $2, 'agent_effect.reconciled', 'agent_effect_receipt', $3, $4, $5::jsonb)`,
+       VALUES ($1, 'user', $2, 'agent_effect.reconciliation_resolved', 'agent_effect_receipt', $3, $4, $5::jsonb)`,
       [auth.organizationId, auth.actorId, request.params.effectId, auth.correlationId ?? null, JSON.stringify({ outcome: input.outcome })],
     );
-    return reply.code(202).send({ effectId: request.params.effectId, status: "reconciled", outcome: input.outcome });
+    return reply.code(202).send({ effectId: request.params.effectId, status: input.outcome, reconciliationRequired: false });
   });
 
   app.get("/v1/operations/health", async (request) => {
@@ -1410,7 +1467,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.delete<{ Params: { switchId: string } }>("/v1/operations/kill-switches/:switchId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
-    await killSwitches.disable(auth.organizationId, request.params.switchId);
+    await killSwitches.disable(auth.organizationId, request.params.switchId, auth.actorId);
     return reply.code(204).send();
   });
 
@@ -1604,11 +1661,52 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (run.status !== "awaiting_approval") return reply.code(409).send({ error: "run_not_awaiting_approval" });
     if (!dependencies.signalApproval) return reply.code(503).send({ error: "temporal_not_configured" });
     const input = z.object({ decision: z.enum(["approved", "rejected"]), providerToolCallId: z.string().trim().min(1).max(240), argumentsHash: z.string().length(64) }).parse(request.body);
-    let approval;
+    const approvalRecord = await approvals.getForRun(auth.organizationId, request.params.runId);
+    if (!approvalRecord || approvalRecord.provider_tool_call_id !== input.providerToolCallId || approvalRecord.arguments_hash !== input.argumentsHash || approvalRecord.installation_id !== run.installation_id) {
+      return reply.code(404).send({ error: "approval_not_found" });
+    }
+    const installation = await agents.getInstallation(auth.organizationId, run.installation_id);
+    if (!installation || installation.status !== "active") return reply.code(403).send({ error: "installation_not_active" });
+    const proposal = await toolInvocations.getProposal(auth.organizationId, request.params.runId, input.providerToolCallId);
+    if (!proposal || proposal.toolName !== approvalRecord.capability || proposal.toolVersion !== approvalRecord.capability_version || proposal.argumentsHash !== input.argumentsHash) {
+      return reply.code(409).send({ error: "approval_proposal_mismatch" });
+    }
+    const grantedTools = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
     try {
-      approval = await approvals.decide({ ...input, organizationId: auth.organizationId, runId: request.params.runId, approvedBy: auth.actorId });
+      await authorizeInstallationCapability({
+        organizationId: auth.organizationId,
+        installationId: installation.id,
+        name: approvalRecord.capability,
+        argumentsValue: proposal.arguments,
+        grantedTools,
+        tools: toolRegistry,
+        installationGrants,
+        approved: false,
+        enforceApproval: false,
+      });
+    } catch (error) {
+      return reply.code(403).send({ error: "approval_policy_changed", code: error instanceof Error ? error.message : "CAPABILITY_NOT_GRANTED" });
+    }
+    const rateLimit = approvalDecisionRateLimiter.consume(`${auth.organizationId}:${request.params.runId}:${auth.actorId}`);
+    if (!rateLimit.allowed) {
+      reply.header("retry-after", String(rateLimit.retryAfterSeconds));
+      return reply.code(429).send({ error: "approval_rate_limited", retryAfterSeconds: rateLimit.retryAfterSeconds });
+    }
+    let decision;
+    try {
+      decision = await approvals.decide({ ...input, organizationId: auth.organizationId, runId: request.params.runId, approvedBy: auth.actorId });
     } catch (error) {
       return reply.code(409).send({ error: "approval_not_pending", detail: error instanceof Error ? error.message : undefined });
+    }
+    const approval = decision.approval;
+    if (!decision.accepted) {
+      return reply.code(200).send({
+        runId: request.params.runId,
+        status: "approval_already_signalled",
+        decision: input.decision,
+        approvedBy: approval.approved_by,
+        expiresAt: approval.expires_at,
+      });
     }
     if (input.decision === "rejected") {
       await effectReceipts.markNotExecuted(auth.organizationId, request.params.runId, input.providerToolCallId, {
