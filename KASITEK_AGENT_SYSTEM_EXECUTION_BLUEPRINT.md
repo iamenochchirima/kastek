@@ -384,7 +384,10 @@ the first complete agent-capability domain in Slice 5.
   booking operation boundary.
 - [x] Keep SQL in `domains/bookings/postgres.rs` initially; introduce repository traits only where
   transaction control, substitution, or isolated policy testing requires them.
-- [ ] Adapt the existing `/api/bookings/*` handlers to the new operations with response-parity tests.
+- [x] Adapt the existing `/api/bookings/*` handlers to the new operations with response-parity tests.
+  Evidence: product handlers use the shared booking commands/queries, the internal service adapter
+  uses the same query boundary, and `domains/bookings/transport.rs` tests the shared response
+  envelope (`15d3f77`).
 - [x] Expose one typed internal booking capability through the same operations to prove a second
   adapter does not duplicate SQL, validation, or authorization. Evidence: the internal
   `/api/internal/agents/v1/bookings/services` route resolves the delegated `RequestContext` and

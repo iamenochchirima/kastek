@@ -114,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **128 checked and 96 unchecked items out of 224**. This is a
+The primary blueprint currently has **129 checked and 95 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -138,6 +138,9 @@ product handler and the internal `/api/internal/agents/v1/bookings/services` han
 same booking query boundary. The Agent client and generated capability registry expose
 `kasitek.core.booking_services_list`, with core route, transport, and client tests passing
 (`15d3f77`).
+
+The existing `/api/bookings/*` product handlers now have an explicit transport/domain separation
+and a tested shared response envelope with the internal booking adapter (`15d3f77`).
 
 The content adapter now also supports a safe draft-only update path. The internal core boundary
 accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,
