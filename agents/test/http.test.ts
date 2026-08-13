@@ -304,6 +304,7 @@ describe("Agent Platform HTTP foundation", () => {
     const runs = {
       getRun,
       listEvents: vi.fn().mockResolvedValue([{ event_type: "run.started" }]),
+      listEventsAfter: vi.fn().mockResolvedValue([{ sequence_number: 2, event_type: "tool.completed", payload: { message: "safe", secret: "redacted" }, created_at: "2026-08-13T00:00:00.000Z" }]),
     } as unknown as RunRepository;
     const app = buildApp({
       config: { ...mcpConfig, TEMPORAL_ENABLED: true },
@@ -316,6 +317,10 @@ describe("Agent Platform HTTP foundation", () => {
     const status = await app.inject({ method: "GET", url: "/v1/installations/install-1/operations/run-api-1", headers: { authorization: `Bearer ${publicApiToken()}` } });
     expect(status.statusCode).toBe(200);
     expect(status.json()).toMatchObject({ operationId: "run-api-1", run: { id: "run-api-1" }, events: [{ event_type: "run.started" }] });
+    const events = await app.inject({ method: "GET", url: "/v1/installations/install-1/operations/run-api-1/events?after=1", headers: { authorization: `Bearer ${publicApiToken()}` } });
+    expect(events.statusCode).toBe(200);
+    expect(events.json()).toMatchObject({ operationId: "run-api-1", nextAfter: 2, events: [{ event_type: "tool.completed", payload: { message: "safe" } }] });
+    expect(events.json().events[0].payload).not.toHaveProperty("secret");
     const cancelled = await app.inject({ method: "POST", url: "/v1/installations/install-1/operations/run-api-1/cancel", headers: { authorization: `Bearer ${publicApiToken()}` }, payload: { reason: "client stopped" } });
     expect(cancelled.statusCode).toBe(200);
     expect(cancelled.json()).toMatchObject({ operationId: "run-api-1", status: "cancellation_signalled" });

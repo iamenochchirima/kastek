@@ -31,7 +31,7 @@ import { KillSwitchRepository } from "../db/repositories/kill-switch-repository"
 import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
-import { formatSseComment, formatSseEvent } from "./sse";
+import { formatSseComment, formatSseEvent, toPublicEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
 import { PlatformChatRepository } from "../db/repositories/platform-chat-repository";
 import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
@@ -446,7 +446,22 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireApiScope(auth, "api:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run || run.installation_id !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
-    return { operationId: run.id, run, events: await runs.listEvents(auth.organizationId, run.id) };
+    const events = await runs.listEvents(auth.organizationId, run.id);
+    return { operationId: run.id, run, events: events.map(toPublicEvent) };
+  });
+
+  app.get<{ Params: { installationId: string; runId: string }; Querystring: { after?: string } }>("/v1/installations/:installationId/operations/:runId/events", async (request, reply) => {
+    const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
+    if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
+    requireApiScope(auth, "api:read");
+    const run = await runs.getRun(auth.organizationId, request.params.runId);
+    if (!run || run.installation_id !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
+    const after = request.query.after === undefined ? 0 : Number(request.query.after);
+    if (!Number.isSafeInteger(after) || after < 0) return reply.code(400).send({ error: "invalid_after_cursor" });
+    const events = await runs.listEventsAfter(auth.organizationId, run.id, after);
+    const publicEvents = events.map(toPublicEvent);
+    const nextAfter = events.length ? Number(events[events.length - 1]!.sequence_number) : after;
+    return { operationId: run.id, events: publicEvents, nextAfter, status: run.status, terminal: ["completed", "failed", "cancelled", "expired"].includes(run.status) };
   });
 
   app.post<{ Params: { installationId: string; runId: string } }>("/v1/installations/:installationId/operations/:runId/cancel", async (request, reply) => {

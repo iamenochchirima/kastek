@@ -58,6 +58,10 @@ Authorization: Bearer <installation-token>
 The response contains the organization-scoped run record and its ordered event timeline. A run from
 another installation is intentionally indistinguishable from a missing operation (`404`).
 
+For polling clients, use `GET /v1/installations/{installationId}/operations/{runId}/events?after=42`.
+The response includes `nextAfter`, the current status, a terminal flag, and only redacted public
+event fields. Persist the cursor and resume from it after reconnecting.
+
 ## Cancel an operation
 
 ```http
