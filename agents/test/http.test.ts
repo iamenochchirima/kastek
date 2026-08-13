@@ -756,6 +756,27 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("rejects self-approval before changing durable approval state or signalling Temporal", async () => {
+    const decide = vi.fn();
+    const signalApproval = vi.fn();
+    const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
+    const token = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["runs:approve"] }, "test-secret");
+    const app = buildApp({
+      config: hmacConfig,
+      pool: fakePool,
+      runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval", created_by: "user-1" }) } as unknown as RunRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as never,
+      approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }), decide } as never,
+      signalApproval,
+    });
+    const response = await app.inject({ method: "POST", url: "/v1/runs/approval-run/approval", headers: { authorization: `Bearer ${token}` }, payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) } });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({ error: "approval_self_approval_forbidden", code: "SEPARATION_OF_DUTIES_REQUIRED" });
+    expect(decide).not.toHaveBeenCalled();
+    expect(signalApproval).not.toHaveBeenCalled();
+    await app.close();
+  });
+
   it("returns an existing approval decision without signalling Temporal twice", async () => {
     const signals: unknown[] = [];
     const expiresAt = new Date(Date.now() + 60_000).toISOString();

@@ -1694,6 +1694,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (run.status !== "awaiting_approval") return reply.code(409).send({ error: "run_not_awaiting_approval" });
     if (!dependencies.signalApproval) return reply.code(503).send({ error: "temporal_not_configured" });
     const input = z.object({ decision: z.enum(["approved", "rejected"]), providerToolCallId: z.string().trim().min(1).max(240), argumentsHash: z.string().length(64) }).parse(request.body);
+    if (input.decision === "approved" && run.created_by === auth.actorId) {
+      return reply.code(403).send({ error: "approval_self_approval_forbidden", code: "SEPARATION_OF_DUTIES_REQUIRED" });
+    }
     const approvalRecord = await approvals.getForRun(auth.organizationId, request.params.runId);
     if (!approvalRecord || approvalRecord.provider_tool_call_id !== input.providerToolCallId || approvalRecord.arguments_hash !== input.argumentsHash || approvalRecord.installation_id !== run.installation_id) {
       return reply.code(404).send({ error: "approval_not_found" });
