@@ -18,13 +18,20 @@
     "/capabilities": {
       "get": {
         "operationId": "listCapabilities",
+        "parameters": [
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 100 } },
+          { "name": "cursor", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 0, "default": 0 } },
+          { "name": "version", "in": "query", "required": false, "schema": { "type": "string", "enum": ["v1"], "default": "v1" } }
+        ],
         "responses": {
           "200": {
             "description": "Discoverable action catalog for the authenticated direct-user workspace",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CapabilityResponse" } } }
           },
           "401": { "description": "Missing or invalid KasiTek user session" },
-          "403": { "description": "Authenticated user has no available organization" }
+          "400": { "description": "Invalid pagination or version" },
+          "403": { "description": "Authenticated user has no available organization" },
+          "500": { "description": "Entitlement or installation policy dependency unavailable" }
         }
       }
     },
@@ -74,11 +81,23 @@
     "schemas": {
       "CapabilityResponse": {
         "type": "object",
-        "required": ["version", "principal", "actions"],
+        "required": ["version", "principal", "actions", "pagination"],
         "properties": {
           "version": { "const": "v1" },
           "principal": { "type": "object", "required": ["kind", "id", "organizationId"], "properties": { "kind": { "enum": ["direct_user", "agent_installation"] }, "id": { "type": "string" }, "organizationId": { "type": "string" } } },
-          "actions": { "type": "array", "items": { "$ref": "#/components/schemas/Capability" } }
+          "actions": { "type": "array", "items": { "$ref": "#/components/schemas/Capability" } },
+          "pagination": { "$ref": "#/components/schemas/CapabilityPagination" }
+        }
+      },
+      "CapabilityPagination": {
+        "type": "object",
+        "required": ["limit", "cursor", "total", "version"],
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 200 },
+          "cursor": { "type": "integer", "minimum": 0 },
+          "nextCursor": { "type": ["integer", "null"], "minimum": 0 },
+          "total": { "type": "integer", "minimum": 0 },
+          "version": { "const": "v1" }
         }
       },
       "Capability": {

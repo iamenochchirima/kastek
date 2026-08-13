@@ -5,6 +5,7 @@ use actions::{ActionDefinition, ActionLifecycle, ActorKind, ProductRuntime};
 use actix_web::{web, HttpRequest, HttpResponse, HttpResponseBuilder};
 use jwt_simple::algorithms::ECDSAP256PublicKeyLike;
 use jwt_simple::prelude::{ES256PublicKey, VerificationOptions};
+use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashSet;
 
@@ -13,6 +14,7 @@ use crate::capabilities::content_adapter;
 use crate::db::models::SocialPostUpsertRequest;
 use crate::error::AppError;
 use crate::identity::{product_session, request_context::RequestContext};
+use crate::services::agent_platform::AgentPlatformClient;
 
 pub async fn health(state: web::Data<AppState>) -> HttpResponse {
     HttpResponse::Ok().json(json!({
@@ -24,19 +26,24 @@ pub async fn health(state: web::Data<AppState>) -> HttpResponse {
 }
 
 async fn public_context(req: &HttpRequest, state: &AppState) -> Result<RequestContext, AppError> {
-    if state.config.agents_installation_token_public_key.is_some()
-        && req
-            .headers()
-            .get("authorization")
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.strip_prefix("Bearer "))
-            .is_some()
-    {
-        if let Ok(context) = installation_context(req, state) {
-            return Ok(context);
-        }
+    // Product user sessions are opaque bearer values. A JWT-shaped bearer value
+    // is an attempted Agent installation credential and must never fall through
+    // to cookie/session authentication when signature or claim validation fails.
+    if installation_bearer_token(req).is_some() {
+        return installation_context(req, state);
     }
     product_session::resolve(req, &state.pool).await
+}
+
+fn installation_bearer_token(req: &HttpRequest) -> Option<&str> {
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    (token.split('.').count() == 3).then_some(token)
 }
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
@@ -48,14 +55,7 @@ struct InstallationTokenClaims {
 }
 
 fn installation_context(req: &HttpRequest, state: &AppState) -> Result<RequestContext, AppError> {
-    let token = req
-        .headers()
-        .get("authorization")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or(AppError::Unauthorized)?;
+    let token = installation_bearer_token(req).ok_or(AppError::Unauthorized)?;
     let public_key = state
         .config
         .agents_installation_token_public_key
@@ -163,6 +163,41 @@ fn require_public_action(
     }
 }
 
+fn public_action_allowed(
+    definition: &ActionDefinition,
+    actor: ActorKind,
+    allowed_grants: Option<&HashSet<String>>,
+    allowed_api_scopes: Option<&HashSet<String>>,
+    entitlements: &HashSet<String>,
+) -> bool {
+    if !is_public_action_for_actor(definition, actor) {
+        return false;
+    }
+    let grants_ok = allowed_grants
+        .map(|grants| {
+            definition
+                .required_grants
+                .iter()
+                .all(|grant| grants.contains(grant))
+        })
+        .unwrap_or(true);
+    let scope_ok = allowed_api_scopes
+        .map(|scopes| {
+            let required = if matches!(definition.risk, actions::RiskClass::Read) {
+                "api:read"
+            } else {
+                "api:write"
+            };
+            scopes.contains(required)
+        })
+        .unwrap_or(true);
+    let entitlements_ok = definition
+        .required_entitlements
+        .iter()
+        .all(|entitlement| entitlements.contains(entitlement));
+    grants_ok && scope_ok && entitlements_ok
+}
+
 fn response_with_context(context: &RequestContext) -> HttpResponseBuilder {
     let mut response = HttpResponse::Ok();
     if let Some(correlation_id) = context.correlation_id.as_deref() {
@@ -192,17 +227,154 @@ fn public_action(definition: &ActionDefinition) -> serde_json::Value {
     })
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CapabilitiesQuery {
+    pub limit: Option<usize>,
+    pub cursor: Option<usize>,
+    pub version: Option<String>,
+}
+
+async fn active_entitlements(
+    state: &AppState,
+    organization_id: &str,
+) -> Result<HashSet<String>, AppError> {
+    let rows = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT key
+        FROM "OrganizationEntitlementGrant"
+        WHERE "orgId" = $1
+          AND "startsAt" <= NOW()
+          AND ("endsAt" IS NULL OR "endsAt" > NOW())
+          AND jsonb_typeof(value) = 'boolean'
+          AND (value #>> '{}')::boolean = TRUE
+        UNION
+        SELECT entitlement.key
+        FROM "OrganizationSubscription" subscription
+        JOIN "PlanEntitlement" entitlement ON entitlement."planId" = subscription."planId"
+        WHERE subscription."orgId" = $1
+          AND subscription.status IN (
+            'TRIAL'::"OrganizationSubscriptionStatus",
+            'ACTIVE'::"OrganizationSubscriptionStatus",
+            'GRACE'::"OrganizationSubscriptionStatus"
+          )
+          AND jsonb_typeof(entitlement.value) = 'boolean'
+          AND (entitlement.value #>> '{}')::boolean = TRUE
+        "#,
+    )
+    .bind(organization_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!(
+            "Failed to resolve public API entitlements: {error}"
+        ))
+    })?;
+    Ok(rows.into_iter().collect())
+}
+
 pub async fn capabilities(
     req: HttpRequest,
     state: web::Data<AppState>,
+    query: web::Query<CapabilitiesQuery>,
 ) -> Result<HttpResponse, AppError> {
+    let limit = query.limit.unwrap_or(100);
+    if !(1..=200).contains(&limit) {
+        return Err(AppError::BadRequest(
+            "capabilities limit must be between 1 and 200".to_string(),
+        ));
+    }
+    let cursor = query.cursor.unwrap_or(0);
+    if query
+        .version
+        .as_deref()
+        .is_some_and(|version| version != "v1")
+    {
+        return Err(AppError::BadRequest(
+            "unsupported capabilities version".to_string(),
+        ));
+    }
     let context = public_context(&req, &state).await?;
     let actor = actor_for_context(&context);
+    let entitlements = active_entitlements(&state, &context.organization_id).await?;
+    let mut allowed_grants: Option<HashSet<String>> = None;
+    let mut allowed_api_scopes: Option<HashSet<String>> = None;
+    if matches!(
+        context.principal.kind,
+        crate::identity::principal::PrincipalKind::AgentInstallation
+    ) {
+        let credential_id = context.principal.client_id.as_deref();
+        let capability_payload = AgentPlatformClient::from_config(&state.config)?
+            .list_installation_capabilities(
+                &context.organization_id,
+                &context.principal.id,
+                context
+                    .installation_id
+                    .as_deref()
+                    .ok_or(AppError::Unauthorized)?,
+                credential_id,
+            )
+            .await?;
+        let mut grants = HashSet::new();
+        if let Some(capabilities) = capability_payload
+            .get("capabilities")
+            .and_then(|value| value.as_array())
+        {
+            for capability in capabilities {
+                let available = capability
+                    .get("availability")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("available");
+                if available == "not_granted"
+                    || available == "not_configured"
+                    || available == "unhealthy"
+                {
+                    continue;
+                }
+                if let Some(scope) = capability
+                    .get("manifest")
+                    .and_then(|value| value.get("requiredScope"))
+                    .and_then(|value| value.as_str())
+                {
+                    grants.insert(scope.to_string());
+                }
+            }
+        }
+        allowed_grants = Some(grants);
+        allowed_api_scopes = capability_payload
+            .get("apiScopes")
+            .and_then(|value| value.as_array())
+            .map(|scopes| {
+                scopes
+                    .iter()
+                    .filter_map(|scope| scope.as_str().map(str::to_string))
+                    .collect()
+            });
+    }
     let actions = state
         .action_registry
         .definitions()
-        .filter(|definition| is_public_action_for_actor(definition, actor))
+        .filter(|definition| {
+            public_action_allowed(
+                definition,
+                actor,
+                allowed_grants.as_ref(),
+                allowed_api_scopes.as_ref(),
+                &entitlements,
+            )
+        })
         .map(public_action)
+        .collect::<Vec<_>>();
+    let total = actions.len();
+    if cursor > total {
+        return Err(AppError::BadRequest(
+            "capabilities cursor is past the end of the result".to_string(),
+        ));
+    }
+    let next_cursor = (cursor + limit < total).then_some(cursor + limit);
+    let actions = actions
+        .into_iter()
+        .skip(cursor)
+        .take(limit)
         .collect::<Vec<_>>();
     let mut response = HttpResponse::Ok();
     if let Some(correlation_id) = context.correlation_id.as_deref() {
@@ -219,6 +391,13 @@ pub async fn capabilities(
             "organizationId": context.organization_id,
         },
         "actions": actions,
+        "pagination": {
+            "limit": limit,
+            "cursor": cursor,
+            "nextCursor": next_cursor,
+            "total": total,
+            "version": "v1",
+        },
     })))
 }
 
@@ -260,8 +439,14 @@ pub async fn create_content_draft(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_public_action_for_actor, verify_installation_token};
+    use std::collections::HashSet;
+
+    use super::{
+        installation_bearer_token, is_public_action_for_actor, public_action_allowed,
+        verify_installation_token,
+    };
     use actions::{catalog::initial_registry, ActionLifecycle, ActorKind, ProductRuntime};
+    use actix_web::test::TestRequest;
     use jwt_simple::{
         algorithms::ECDSAP256KeyPairLike,
         prelude::{Claims, Duration, ES256KeyPair},
@@ -329,6 +514,49 @@ mod tests {
     }
 
     #[test]
+    fn installation_discovery_requires_all_grants_and_the_matching_api_scope() {
+        let definitions = all_definitions();
+        let draft = definitions
+            .iter()
+            .find(|definition| definition.id.name() == "content.posts.draft.create")
+            .expect("draft action");
+        let entitlements = HashSet::from(["feature.social.access".to_string()]);
+        let read_only = HashSet::from(["api:read".to_string(), "content.write".to_string()]);
+        assert!(!public_action_allowed(
+            draft,
+            ActorKind::ExternalAgent,
+            Some(&HashSet::from(["content.write".to_string()])),
+            Some(&read_only),
+            &entitlements,
+        ));
+        assert!(public_action_allowed(
+            draft,
+            ActorKind::ExternalAgent,
+            Some(&HashSet::from(["content.write".to_string()])),
+            Some(&HashSet::from(["api:write".to_string()])),
+            &entitlements,
+        ));
+    }
+
+    #[test]
+    fn discovery_denies_actions_when_an_entitlement_is_missing() {
+        let definitions = all_definitions();
+        let list = definitions
+            .iter()
+            .find(|definition| definition.id.name() == "content.posts.list")
+            .expect("content list action");
+        let grants = HashSet::from(["content.read".to_string()]);
+        let scopes = HashSet::from(["api:read".to_string()]);
+        assert!(!public_action_allowed(
+            list,
+            ActorKind::ExternalAgent,
+            Some(&grants),
+            Some(&scopes),
+            &HashSet::new(),
+        ));
+    }
+
+    #[test]
     fn installation_tokens_require_signature_issuer_audience_and_claims() {
         let key_pair = ES256KeyPair::generate();
         let custom = super::InstallationTokenClaims {
@@ -353,6 +581,39 @@ mod tests {
         assert!(verify_installation_token(&public_key, "wrong-issuer", &token).is_err());
         assert!(
             verify_installation_token(&public_key, "kasitek-agents", &format!("{token}x")).is_err()
+        );
+
+        let wrong_audience = key_pair
+            .sign(
+                Claims::with_custom_claims(
+                    super::InstallationTokenClaims {
+                        organization_id: "org-1".to_string(),
+                        credential_id: "credential-1".to_string(),
+                    },
+                    Duration::from_hours(1),
+                )
+                .with_issuer("kasitek-agents")
+                .with_audience("mcp")
+                .with_subject("installation-1")
+                .with_jwt_id("token-wrong-audience"),
+            )
+            .expect("wrong audience token");
+        assert!(verify_installation_token(&public_key, "kasitek-agents", &wrong_audience).is_err());
+    }
+
+    #[test]
+    fn only_jwt_shaped_bearers_select_installation_authentication() {
+        let opaque_session = TestRequest::default()
+            .insert_header(("authorization", "Bearer opaque-session-token"))
+            .to_http_request();
+        assert_eq!(installation_bearer_token(&opaque_session), None);
+
+        let installation_jwt = TestRequest::default()
+            .insert_header(("authorization", "Bearer header.payload.signature"))
+            .to_http_request();
+        assert_eq!(
+            installation_bearer_token(&installation_jwt),
+            Some("header.payload.signature")
         );
     }
 }

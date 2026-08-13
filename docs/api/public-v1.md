@@ -21,10 +21,15 @@ machine access is enabled.
 ## Capability discovery
 
 `GET /capabilities` returns a stable DTO generated from the shared action catalog. Discovery is
-filtered by public lifecycle, direct runtime support, and the authenticated actor type. Internal,
-pilot, retired, and incompatible actions are not returned. The response includes required grants,
-OAuth scopes, entitlements, idempotency, risk, approval, audit, and usage metadata so a client can
-prepare for the later typed resource/action routes.
+filtered by public lifecycle, direct runtime support, authenticated actor type, active organization
+entitlements, installation grants/availability, and API scope where the caller is an installation.
+Internal, pilot, retired, unentitled, and incompatible actions are not returned. The response
+includes required grants, OAuth scopes, entitlements, idempotency, risk, approval, audit, and usage
+metadata so a client can prepare for the later typed resource/action routes.
+
+Discovery accepts `limit` (1–200, default 100), `cursor` (a zero-based offset), and `version=v1`.
+The `pagination` object returns the effective limit, cursor, total, stable version, and an optional
+`nextCursor`.
 
 ## Initial content routes
 
