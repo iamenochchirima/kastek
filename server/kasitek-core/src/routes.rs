@@ -146,6 +146,43 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::get().to(agent_platform::list_installation_runs),
                 )
                 .route(
+                    "/installations/{installationId}/schedules",
+                    web::get().to(agent_platform::list_installation_schedules),
+                )
+                .route(
+                    "/installations/{installationId}/schedules",
+                    web::post().to(agent_platform::create_installation_schedule),
+                )
+                .route(
+                    "/schedules/{scheduleId}/status/{status}",
+                    web::post().to(agent_platform::set_schedule_status),
+                )
+                .route(
+                    "/knowledge/sources",
+                    web::get().to(agent_platform::list_knowledge_sources),
+                )
+                .route(
+                    "/knowledge/sources",
+                    web::post().to(agent_platform::create_knowledge_source),
+                )
+                .route(
+                    "/knowledge/sources/{sourceId}/ingest-url",
+                    web::post().to(agent_platform::ingest_knowledge_source_url),
+                )
+                .route(
+                    "/knowledge/sources/{sourceId}",
+                    web::delete().to(agent_platform::delete_knowledge_source),
+                )
+                .route("/memory", web::get().to(agent_platform::list_memory))
+                .route(
+                    "/memory/{memoryId}",
+                    web::delete().to(agent_platform::delete_memory),
+                )
+                .route(
+                    "/memory/{memoryId}/revalidate",
+                    web::post().to(agent_platform::revalidate_memory),
+                )
+                .route(
                     "/{agentId}/versions",
                     web::get().to(agent_platform::list_agent_versions),
                 )

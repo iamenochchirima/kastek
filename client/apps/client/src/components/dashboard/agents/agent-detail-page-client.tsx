@@ -33,6 +33,19 @@ import {
   type AgentConnector,
   listAgentInstallationRuns,
   type AgentInstallationRun,
+  listAgentInstallationSchedules,
+  createAgentInstallationSchedule,
+  setAgentScheduleStatus,
+  type AgentSchedule,
+  listAgentKnowledgeSources,
+  createAgentKnowledgeSource,
+  ingestAgentKnowledgeSourceUrl,
+  deleteAgentKnowledgeSource,
+  listAgentMemory,
+  deleteAgentMemory,
+  revalidateAgentMemory,
+  type AgentKnowledgeSource,
+  type AgentMemory,
   listKasiAiChannels,
   disconnectKasiAiChannel,
   type AgentChannelConnection,
@@ -150,6 +163,10 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {agent.installation_id ? <InstallationCapabilities installationId={agent.installation_id} /> : null}
 
         {agent.installation_id ? <InstallationAccessScope installationId={agent.installation_id} /> : null}
+
+        {agent.installation_id ? <InstallationKnowledge agentId={agent.id} installationId={agent.installation_id} /> : null}
+
+        {agent.installation_id ? <InstallationSchedules installationId={agent.installation_id} /> : null}
 
         {agent.installation_id ? <InstallationRuns installationId={agent.installation_id} /> : null}
 
@@ -414,6 +431,174 @@ function InstallationRuns({ installationId }: { installationId: string }) {
       <div><h2 className="text-lg font-semibold text-foreground">Recent runs</h2><p className="mt-1 text-sm text-muted-foreground">Durable runs for this installation, including channel and external-agent activity.</p></div>
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
       {loading ? <p className="text-sm text-muted-foreground">Loading runs…</p> : runs.length ? <div className="space-y-2">{runs.map((run) => <div key={run.id} className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono text-xs text-foreground">{run.id}</p><p className="mt-1 text-xs text-muted-foreground">{run.trigger_type ?? "manual"}{run.created_at ? ` · ${new Date(run.created_at).toLocaleString()}` : ""}</p>{run.error?.message ? <p className="mt-1 text-xs text-destructive">{run.error.message}</p> : null}</div><Badge className={run.status === "completed" ? "border-accent/30 bg-accent/10 text-accent" : run.status === "failed" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border bg-secondary text-muted-foreground"}>{run.status}</Badge></div>)}</div> : <p className="text-sm text-muted-foreground">No runs have been recorded for this installation.</p>}
+    </CardContent>
+  </Card>;
+}
+
+function InstallationKnowledge({ agentId, installationId }: { agentId: string; installationId: string }) {
+  const [sources, setSources] = useState<AgentKnowledgeSource[]>([]);
+  const [memories, setMemories] = useState<AgentMemory[]>([]);
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [sourceResponse, memoryResponse] = await Promise.all([
+        listAgentKnowledgeSources(agentId, installationId),
+        listAgentMemory(agentId, installationId),
+      ]);
+      setSources(sourceResponse.sources);
+      setMemories(memoryResponse.memories);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load knowledge and memory");
+    } finally {
+      setLoading(false);
+    }
+  }, [agentId, installationId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const addSource = async () => {
+    if (!name.trim() || !url.trim() || busy) return;
+    setBusy("source");
+    setError(null);
+    try {
+      const source = await createAgentKnowledgeSource({ agentId, installationId, name: name.trim(), sourceType: "url", sourceUri: url.trim() });
+      await ingestAgentKnowledgeSourceUrl(source.id, url.trim());
+      setSources((current) => [source, ...current]);
+      setName("");
+      setUrl("");
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to ingest knowledge source");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const removeSource = async (source: AgentKnowledgeSource) => {
+    if (busy || !window.confirm(`Remove ${source.name}? Its indexed chunks will no longer be retrieved.`)) return;
+    setBusy(`source:${source.id}`);
+    try {
+      await deleteAgentKnowledgeSource(source.id, agentId, installationId);
+      setSources((current) => current.filter((entry) => entry.id !== source.id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to remove knowledge source");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const removeMemory = async (memory: AgentMemory) => {
+    if (busy || !window.confirm("Delete this memory? This is recorded as a deletion request.")) return;
+    setBusy(`memory:${memory.id}`);
+    try {
+      await deleteAgentMemory(memory.id, agentId, installationId);
+      setMemories((current) => current.filter((entry) => entry.id !== memory.id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to delete memory");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const revalidate = async (memory: AgentMemory) => {
+    if (busy) return;
+    setBusy(`revalidate:${memory.id}`);
+    try {
+      const updated = await revalidateAgentMemory(memory.id, agentId, installationId, null);
+      setMemories((current) => current.map((entry) => entry.id === memory.id ? updated : entry));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to revalidate memory");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return <Card>
+    <CardContent className="space-y-5 p-6">
+      <div><h2 className="text-lg font-semibold text-foreground">Knowledge and memory</h2><p className="mt-1 text-sm text-muted-foreground">Attach approved URLs to this agent and review durable memories in this installation scope. Retrieved content stays organization-scoped.</p></div>
+      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      <div className="rounded-xl border border-border bg-secondary/20 p-4">
+        <p className="text-sm font-semibold text-foreground">Add a URL source</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-[0.8fr_1.2fr_auto]">
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Source name" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+          <input value={url} onChange={(event) => setUrl(event.target.value)} type="url" placeholder="https://example.com/help" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+          <Button type="button" size="sm" disabled={busy !== null || !name.trim() || !url.trim()} onClick={() => void addSource()}>{busy === "source" ? "Indexing…" : "Add and index"}</Button>
+        </div>
+      </div>
+      {loading ? <p className="text-sm text-muted-foreground">Loading knowledge and memory…</p> : <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-2"><p className="text-sm font-semibold text-foreground">Knowledge sources</p>{sources.length ? sources.map((source) => <div key={source.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"><div className="min-w-0"><p className="font-medium text-foreground">{source.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{source.source_uri || source.source_type} · revision {source.revision} · {source.status}</p></div><Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void removeSource(source)}>{busy === `source:${source.id}` ? "Removing…" : "Remove"}</Button></div>) : <p className="text-sm text-muted-foreground">No knowledge sources are attached.</p>}</div>
+        <div className="space-y-2"><p className="text-sm font-semibold text-foreground">Durable memories</p>{memories.length ? memories.slice(0, 20).map((memory) => <div key={memory.id} className="rounded-lg border border-border p-3"><p className="line-clamp-2 text-sm text-foreground">{memory.canonical_text}</p><div className="mt-2 flex items-center justify-between gap-2"><p className="text-[11px] text-muted-foreground">{memory.namespace} · {memory.memory_type} · {memory.status}{memory.expires_at ? ` · expires ${new Date(memory.expires_at).toLocaleDateString()}` : ""}</p><div className="flex gap-1"><Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void revalidate(memory)}>{busy === `revalidate:${memory.id}` ? "…" : "Revalidate"}</Button><Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void removeMemory(memory)}>Delete</Button></div></div></div>) : <p className="text-sm text-muted-foreground">No memories are recorded for this installation.</p>}</div>
+      </div>}
+    </CardContent>
+  </Card>;
+}
+
+function InstallationSchedules({ installationId }: { installationId: string }) {
+  const [schedules, setSchedules] = useState<AgentSchedule[]>([]);
+  const [expression, setExpression] = useState("0 9 * * *");
+  const [timezone, setTimezone] = useState("UTC");
+  const [nextRunAt, setNextRunAt] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listAgentInstallationSchedules(installationId);
+      setSchedules(response.schedules);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load schedules");
+    } finally {
+      setLoading(false);
+    }
+  }, [installationId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const create = async () => {
+    if (!expression.trim() || !timezone.trim() || busy) return;
+    setBusy("create");
+    setError(null);
+    try {
+      const schedule = await createAgentInstallationSchedule(installationId, { expression: expression.trim(), timezone: timezone.trim(), nextRunAt: nextRunAt ? new Date(nextRunAt).toISOString() : undefined, input: { source: "agent-detail" } });
+      setSchedules((current) => [schedule, ...current]);
+      setNextRunAt("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to create schedule");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const setStatus = async (schedule: AgentSchedule) => {
+    if (busy) return;
+    const status = schedule.status === "active" ? "paused" : "active";
+    setBusy(schedule.id);
+    try {
+      const updated = await setAgentScheduleStatus(schedule.id, status);
+      setSchedules((current) => current.map((entry) => entry.id === schedule.id ? updated : entry));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to update schedule");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return <Card>
+    <CardContent className="space-y-4 p-6">
+      <div><h2 className="text-lg font-semibold text-foreground">Schedules</h2><p className="mt-1 text-sm text-muted-foreground">Create durable schedule triggers for this installation. The runtime owns dispatch and records each resulting run.</p></div>
+      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      <div className="grid gap-2 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-[1.2fr_0.7fr_1fr_auto] sm:items-end"><label className="text-xs font-medium text-foreground">Cron expression<input value={expression} onChange={(event) => setExpression(event.target.value)} placeholder="0 9 * * *" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground">Timezone<input value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder="Africa/Johannesburg" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground">First run (optional)<input value={nextRunAt} onChange={(event) => setNextRunAt(event.target.value)} type="datetime-local" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><Button type="button" size="sm" disabled={busy !== null || !expression.trim()} onClick={() => void create()}>{busy === "create" ? "Creating…" : "Add schedule"}</Button></div>
+      {loading ? <p className="text-sm text-muted-foreground">Loading schedules…</p> : schedules.length ? <div className="space-y-2">{schedules.map((schedule) => <div key={schedule.id} className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono text-sm text-foreground">{schedule.expression}</p><p className="mt-1 text-xs text-muted-foreground">{schedule.timezone} · {schedule.next_run_at ? `next ${new Date(schedule.next_run_at).toLocaleString()}` : "runtime calculates next run"}</p></div><Button type="button" variant="outline" size="sm" disabled={busy !== null || schedule.status === "disabled"} onClick={() => void setStatus(schedule)}>{busy === schedule.id ? "Updating…" : schedule.status === "active" ? "Pause" : "Resume"}</Button></div>)}</div> : <p className="text-sm text-muted-foreground">No schedules configured.</p>}
     </CardContent>
   </Card>;
 }

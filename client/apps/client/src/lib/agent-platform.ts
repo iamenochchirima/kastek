@@ -360,6 +360,94 @@ export function listAgentInstallationRuns(installationId: string, limit = 50): P
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/runs?limit=${encodeURIComponent(String(limit))}`);
 }
 
+export type AgentSchedule = {
+  id: string;
+  installation_id: string;
+  expression: string;
+  timezone: string;
+  input: Record<string, unknown>;
+  status: "active" | "paused" | "disabled" | string;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export function listAgentInstallationSchedules(installationId: string): Promise<{ schedules: AgentSchedule[] }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/schedules`);
+}
+
+export function createAgentInstallationSchedule(installationId: string, input: { expression: string; timezone: string; input?: Record<string, unknown>; nextRunAt?: string }): Promise<AgentSchedule> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/schedules`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function setAgentScheduleStatus(scheduleId: string, status: "active" | "paused" | "disabled"): Promise<AgentSchedule> {
+  return request(`/api/agents/schedules/${encodeURIComponent(scheduleId)}/status/${status}`, { method: "POST" });
+}
+
+export type AgentKnowledgeSource = {
+  id: string;
+  organization_id: string;
+  agent_definition_id: string | null;
+  installation_id: string | null;
+  name: string;
+  source_type: string;
+  source_uri: string | null;
+  provenance: Record<string, unknown>;
+  status: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgentMemory = {
+  id: string;
+  namespace: string;
+  memory_type: string;
+  canonical_text: string;
+  source_type: string;
+  sensitivity: string;
+  status: string;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export function listAgentKnowledgeSources(agentId: string, installationId?: string): Promise<{ sources: AgentKnowledgeSource[] }> {
+  const query = new URLSearchParams({ agentId });
+  if (installationId) query.set("installationId", installationId);
+  return request(`/api/agents/knowledge/sources?${query.toString()}`);
+}
+
+export function createAgentKnowledgeSource(input: { agentId: string; installationId?: string; name: string; sourceType: "url" | "manual" | "platform" | "upload"; sourceUri?: string }): Promise<AgentKnowledgeSource> {
+  return request("/api/agents/knowledge/sources", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function ingestAgentKnowledgeSourceUrl(sourceId: string, url: string): Promise<{ sourceId: string; revision: number; chunks: unknown[] }> {
+  return request(`/api/agents/knowledge/sources/${encodeURIComponent(sourceId)}/ingest-url`, { method: "POST", body: JSON.stringify({ url }) });
+}
+
+export function deleteAgentKnowledgeSource(sourceId: string, agentId: string, installationId?: string): Promise<unknown> {
+  return request(`/api/agents/knowledge/sources/${encodeURIComponent(sourceId)}`, { method: "DELETE", body: JSON.stringify({ agentId, ...(installationId ? { installationId } : {}) }) });
+}
+
+export function listAgentMemory(agentId: string, installationId?: string): Promise<{ memories: AgentMemory[] }> {
+  const query = new URLSearchParams({ agentId });
+  if (installationId) query.set("installationId", installationId);
+  return request(`/api/agents/memory?${query.toString()}`);
+}
+
+export function deleteAgentMemory(memoryId: string, agentId: string, installationId?: string): Promise<unknown> {
+  return request(`/api/agents/memory/${encodeURIComponent(memoryId)}`, { method: "DELETE", body: JSON.stringify({ agentId, ...(installationId ? { installationId } : {}) }) });
+}
+
+export function revalidateAgentMemory(memoryId: string, agentId: string, installationId?: string, expiresAt: string | null = null): Promise<AgentMemory> {
+  return request(`/api/agents/memory/${encodeURIComponent(memoryId)}/revalidate`, { method: "POST", body: JSON.stringify({ agentId, ...(installationId ? { installationId } : {}), expiresAt }) });
+}
+
 export type AgentInstallationSettings = {
   language?: string;
   tone?: "concise" | "balanced" | "detailed";

@@ -515,6 +515,214 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_installation_schedules(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/installations/{installation_id}/schedules"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn create_installation_schedule(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/schedules"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn set_schedule_status(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        schedule_id: &str,
+        status: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/schedules/{schedule_id}/status/{status}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_knowledge_sources(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: Option<&str>,
+        installation_id: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let mut query = Vec::new();
+        if let Some(agent_id) = agent_id.filter(|value| !value.trim().is_empty()) {
+            query.push(format!("agentId={}", urlencoding::encode(agent_id)));
+        }
+        if let Some(installation_id) = installation_id.filter(|value| !value.trim().is_empty()) {
+            query.push(format!(
+                "installationId={}",
+                urlencoding::encode(installation_id)
+            ));
+        }
+        if let Some(limit) = limit {
+            query.push(format!("limit={limit}"));
+        }
+        let path = if query.is_empty() {
+            "/v1/knowledge/sources".to_string()
+        } else {
+            format!("/v1/knowledge/sources?{}", query.join("&"))
+        };
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn create_knowledge_source(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/knowledge/sources",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn ingest_knowledge_source_url(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        source_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/knowledge/sources/{source_id}/ingest-url"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn delete_knowledge_source(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        source_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/knowledge/sources/{source_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn list_memory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+        installation_id: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let mut query = vec![format!("agentId={}", urlencoding::encode(agent_id))];
+        if let Some(installation_id) = installation_id.filter(|value| !value.trim().is_empty()) {
+            query.push(format!(
+                "installationId={}",
+                urlencoding::encode(installation_id)
+            ));
+        }
+        if let Some(limit) = limit {
+            query.push(format!("limit={limit}"));
+        }
+        self.request_json(
+            Method::GET,
+            &format!("/v1/memory?{}", query.join("&")),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn delete_memory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        memory_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/memory/{memory_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn revalidate_memory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        memory_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/memory/{memory_id}/revalidate"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn list_agent_versions(
         &self,
         organization_id: &str,

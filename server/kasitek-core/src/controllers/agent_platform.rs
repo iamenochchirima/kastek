@@ -173,6 +173,15 @@ pub struct RunQuery {
     pub limit: Option<u32>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct KnowledgeQuery {
+    #[serde(rename = "agentId")]
+    pub agent_id: Option<String>,
+    #[serde(rename = "installationId")]
+    pub installation_id: Option<String>,
+    pub limit: Option<u32>,
+}
+
 pub async fn list_installation_runs(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -192,6 +201,255 @@ pub async fn list_installation_runs(
             &user.id,
             installation_id.trim(),
             query.limit,
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_installation_schedules(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_installation_schedules(&organization_id, &user.id, installation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn create_installation_schedule(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Schedule body must be an object".to_string(),
+        ));
+    }
+    let expression = body
+        .get("expression")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Schedule expression is required".to_string()))?;
+    if expression.len() > 240 {
+        return Err(AppError::BadRequest(
+            "Schedule expression is too long".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .create_installation_schedule(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn set_schedule_status(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (schedule_id, status) = path.into_inner();
+    if !matches!(status.as_str(), "active" | "paused" | "disabled") {
+        return Err(AppError::BadRequest("Invalid schedule status".to_string()));
+    }
+    let response = client(config.get_ref())?
+        .set_schedule_status(&organization_id, &user.id, schedule_id.trim(), &status)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_knowledge_sources(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<KnowledgeQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=500).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Knowledge limit must be between 1 and 500".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .list_knowledge_sources(
+            &organization_id,
+            &user.id,
+            query.agent_id.as_deref(),
+            query.installation_id.as_deref(),
+            query.limit,
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn create_knowledge_source(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Knowledge source body must be an object".to_string(),
+        ));
+    }
+    if body
+        .get("agentId")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_none()
+    {
+        return Err(AppError::BadRequest("agentId is required".to_string()));
+    }
+    let response = client(config.get_ref())?
+        .create_knowledge_source(&organization_id, &user.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn ingest_knowledge_source_url(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    source_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Knowledge ingest body must be an object".to_string(),
+        ));
+    }
+    if body
+        .get("url")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_none()
+    {
+        return Err(AppError::BadRequest("url is required".to_string()));
+    }
+    let response = client(config.get_ref())?
+        .ingest_knowledge_source_url(
+            &organization_id,
+            &user.id,
+            source_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn delete_knowledge_source(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    source_id: web::Path<String>,
+    body: Option<web::Json<Value>>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let body = body
+        .map(|value| value.into_inner())
+        .unwrap_or_else(|| serde_json::json!({}));
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Knowledge deletion body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .delete_knowledge_source(&organization_id, &user.id, source_id.trim(), body)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_memory(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<KnowledgeQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let agent_id = query
+        .agent_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("agentId is required".to_string()))?;
+    if query.limit.is_some_and(|limit| !(1..=500).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Memory limit must be between 1 and 500".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .list_memory(
+            &organization_id,
+            &user.id,
+            agent_id,
+            query.installation_id.as_deref(),
+            query.limit,
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn delete_memory(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    memory_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Memory deletion body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .delete_memory(
+            &organization_id,
+            &user.id,
+            memory_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn revalidate_memory(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    memory_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Memory revalidation body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .revalidate_memory(
+            &organization_id,
+            &user.id,
+            memory_id.trim(),
+            body.into_inner(),
         )
         .await?;
     Ok(HttpResponse::Ok().json(response))
