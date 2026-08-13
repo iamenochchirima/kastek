@@ -1022,6 +1022,25 @@ pub async fn cancel_run(
     Ok(HttpResponse::Accepted().json(response))
 }
 
+pub async fn approve_run(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    run_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Approval body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .approve_run(&organization_id, &user.id, &run_id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Accepted().json(response))
+}
+
 pub async fn stream_run(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

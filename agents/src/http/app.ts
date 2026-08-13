@@ -191,12 +191,15 @@ function requireApiScope(auth: McpAuthContext, scope: "api:read" | "api:write"):
   }
 }
 
-function publicApprovalStatus(approval: { status: string; provider_tool_call_id: string; capability: string; expires_at: string } | null) {
+function publicApprovalStatus(approval: { status: string; provider_tool_call_id: string; capability: string; arguments_hash: string; resource_snapshot?: Record<string, unknown>; preview_revision?: string; expires_at: string } | null) {
   if (!approval) return null;
   return {
     status: approval.status,
     providerToolCallId: approval.provider_tool_call_id,
     capability: approval.capability,
+    argumentsHash: approval.arguments_hash,
+    resourceSnapshot: approval.resource_snapshot ?? {},
+    previewRevision: approval.preview_revision ?? null,
     expiresAt: approval.expires_at,
   };
 }
@@ -1331,8 +1334,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "runs:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
-    const events = await runs.listEvents(auth.organizationId, run.id);
-    return { run, events };
+    const [events, approval] = await Promise.all([
+      runs.listEvents(auth.organizationId, run.id),
+      approvals.getForRun(auth.organizationId, run.id),
+    ]);
+    return { run, approval: publicApprovalStatus(approval), events };
   });
 
   app.get<{ Params: { runId: string } }>("/v1/runs/:runId/timeline", async (request, reply) => {

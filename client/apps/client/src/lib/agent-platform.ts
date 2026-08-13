@@ -88,6 +88,16 @@ export type AgentOperationEvent = {
   [key: string]: unknown;
 };
 
+export type AgentApproval = {
+  status: "pending" | "approved" | "denied" | "expired" | "consumed" | "cancelled" | string;
+  providerToolCallId: string;
+  capability: string;
+  argumentsHash: string;
+  resourceSnapshot?: Record<string, unknown>;
+  previewRevision?: string | null;
+  expiresAt: string;
+};
+
 export type AgentOperationRun = AgentRun & {
   agent_name?: string | null;
   agent_slug?: string | null;
@@ -101,8 +111,15 @@ export function listAgentOperationRuns(limit = 50): Promise<{ runs: AgentOperati
   return request(`/api/agents/operations/runs?limit=${encodeURIComponent(String(limit))}`);
 }
 
-export function getAgentRun(runId: string): Promise<{ run: AgentRun; events: AgentOperationEvent[] }> {
+export function getAgentRun(runId: string): Promise<{ run: AgentRun; approval?: AgentApproval | null; events: AgentOperationEvent[] }> {
   return request(`/api/agents/runs/${encodeURIComponent(runId)}`);
+}
+
+export function decideAgentRunApproval(runId: string, approval: Pick<AgentApproval, "providerToolCallId" | "argumentsHash">, decision: "approved" | "rejected"): Promise<{ runId: string; status: string }> {
+  return request(`/api/agents/runs/${encodeURIComponent(runId)}/approval`, {
+    method: "POST",
+    body: JSON.stringify({ decision, providerToolCallId: approval.providerToolCallId, argumentsHash: approval.argumentsHash }),
+  });
 }
 
 export type AgentChannelConnection = {

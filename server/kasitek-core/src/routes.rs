@@ -239,6 +239,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::post().to(agent_platform::cancel_run),
                 )
                 .route(
+                    "/runs/{runId}/approval",
+                    web::post().to(agent_platform::approve_run),
+                )
+                .route(
                     "/runs/{runId}/events/stream",
                     web::get().to(agent_platform::stream_run),
                 ),

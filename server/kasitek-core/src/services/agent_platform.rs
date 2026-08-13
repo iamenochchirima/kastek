@@ -1002,6 +1002,24 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn approve_run(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        run_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/runs/{run_id}/approval"),
+            organization_id,
+            actor_id,
+            &["runs:approve"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn stream_run_events(
         &self,
         organization_id: &str,
