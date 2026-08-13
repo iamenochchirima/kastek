@@ -36,6 +36,7 @@ const envSchema = z.object({
   KASITEK_CORE_DELEGATION_ISSUER: z.string().default("kasitek-agents"),
   KASITEK_CORE_DELEGATION_AUDIENCE: z.string().default("kasitek-core-internal"),
   AGENT_GATEWAY_SHARED_SECRET: z.string().optional(),
+  EFFECT_RECONCILIATION_INTERVAL_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(60_000),
   LOG_LEVEL: z.string().default("info"),
 });
 

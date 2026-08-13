@@ -22,6 +22,13 @@ export interface EffectReceipt {
   completed_at: string | null;
 }
 
+export interface StaleEffectReceipt {
+  id: string;
+  organization_id: string;
+  installation_id: string;
+  run_id: string;
+}
+
 export class EffectReceiptRepository {
   public constructor(private readonly pool: Pool) {}
 
@@ -94,6 +101,32 @@ export class EffectReceiptRepository {
 
   public async markUnknown(id: string, error: unknown): Promise<void> {
     await query(this.pool, `UPDATE agent_effect_receipts SET status = 'unknown', error = $2::jsonb, reconciliation_required = true, updated_at = now() WHERE id = $1 AND status = 'executing'`, [id, JSON.stringify(error ?? {})]);
+  }
+
+  public async markStaleExecutingUnknown(maxAgeSeconds = 120, limit = 100): Promise<StaleEffectReceipt[]> {
+    const result = await query<StaleEffectReceipt>(
+      this.pool,
+      `WITH stale AS (
+         SELECT id
+         FROM agent_effect_receipts
+         WHERE status = 'executing'
+           AND updated_at <= now() - make_interval(secs => $1::integer)
+         ORDER BY updated_at ASC
+         LIMIT $2
+         FOR UPDATE SKIP LOCKED
+       )
+       UPDATE agent_effect_receipts AS receipt
+       SET status = 'unknown',
+           error = '{"code":"EFFECT_OUTCOME_UNKNOWN","message":"Provider outcome was not recorded before the execution lease expired"}'::jsonb,
+           reconciliation_required = true,
+           updated_at = now()
+       FROM stale
+       WHERE receipt.id = stale.id
+         AND receipt.status = 'executing'
+       RETURNING receipt.id, receipt.organization_id, receipt.installation_id, receipt.run_id`,
+      [Math.max(1, Math.min(maxAgeSeconds, 86_400)), Math.max(1, Math.min(limit, 500))],
+    );
+    return result.rows;
   }
 
   public async reconcile(input: { organizationId: string; effectId: string; outcome: "succeeded" | "failed"; providerReceipt?: unknown; error?: unknown }): Promise<void> {
