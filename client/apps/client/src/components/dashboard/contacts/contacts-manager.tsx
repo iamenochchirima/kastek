@@ -613,38 +613,50 @@ export default function ContactsManager({
             <>
             <div className="space-y-3 md:hidden">
               {sortedLists.map((list) => (
-                <button
+                <div
                   key={list.label}
-                  type="button"
-                  onClick={() => navigate({ listLabel: list.label })}
-                  className="w-full rounded-xl border border-border bg-secondary/30 p-4 text-left transition-colors hover:bg-secondary/45"
+                  className="w-full rounded-xl border border-border bg-secondary/30 p-4 text-left"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium text-foreground">{list.label}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {list.primaryLocation || "No shared location"}
+                  <button
+                    type="button"
+                    onClick={() => navigate({ listLabel: list.label })}
+                    aria-label={`Open contact list ${list.label}`}
+                    className="block w-full text-left transition-colors hover:text-primary"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-foreground">{list.label}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {list.primaryLocation || "No shared location"}
+                        </div>
+                      </div>
+                      <div className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground">
+                        {list.totalContacts}
                       </div>
                     </div>
-                    <div className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground">
-                      {list.totalContacts}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {list.metadataKeys.length > 0 ? (
+                        list.metadataKeys.map((key) => (
+                          <span
+                            key={key}
+                            className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-xs text-muted-foreground"
+                          >
+                            {key}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No extra fields</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {list.metadataKeys.length > 0 ? (
-                      list.metadataKeys.map((key) => (
-                        <span
-                          key={key}
-                          className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-xs text-muted-foreground"
-                        >
-                          {key}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground">No extra fields</span>
-                    )}
-                  </div>
-                  <div className="mt-4 flex justify-end">
+                  </button>
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => navigate({ listLabel: list.label })}
+                      className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                    >
+                      Open list
+                    </button>
                     <ListActionsMenu
                       label={list.label}
                       onAddContacts={prepareAddContacts}
@@ -653,7 +665,7 @@ export default function ContactsManager({
                       onDelete={openDeleteModal}
                     />
                   </div>
-                </button>
+                </div>
               ))}
             </div>
 
