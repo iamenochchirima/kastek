@@ -29,6 +29,38 @@ fn whatsapp_inbox_queue_key() -> &'static str {
     "whatsapp:inbox:outbound"
 }
 
+/// Atomically reserve a short-lived delegated-request identifier across every
+/// core replica. Delegated agent requests are privileged service calls, so a
+/// missing or unavailable shared replay store is an authentication failure,
+/// not a best-effort condition.
+pub async fn claim_delegation_replay(jti: &str) -> Result<bool, AppError> {
+    let Some(client) = redis_client() else {
+        log::error!("[agent-delegation] REDIS_URL is required for delegation replay protection");
+        return Err(AppError::Unauthorized);
+    };
+    let mut connection = client
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(|error| {
+            log::error!("[agent-delegation] failed to connect to Redis: {error}");
+            AppError::Unauthorized
+        })?;
+    let key = format!("agents:delegation:jti:{jti}");
+    let claimed = redis::cmd("SET")
+        .arg(key)
+        .arg("1")
+        .arg("NX")
+        .arg("PX")
+        .arg(120_000_u64)
+        .query_async::<Option<String>>(&mut connection)
+        .await
+        .map_err(|error| {
+            log::error!("[agent-delegation] failed to claim replay key: {error}");
+            AppError::Unauthorized
+        })?;
+    Ok(claimed.is_some())
+}
+
 pub async fn publish_whatsapp_event(org_id: &str, event: &Value) -> Result<(), AppError> {
     publish_inbox_event(org_id, event).await
 }

@@ -1,8 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::{Mutex, OnceLock},
-    time::{Duration, Instant},
-};
+use std::collections::HashSet;
 
 use actix_web::HttpRequest;
 use jwt_simple::{
@@ -18,6 +14,7 @@ use crate::{
         principal::{Principal, PrincipalKind},
         request_context::RequestContext,
     },
+    services::realtime,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -41,23 +38,7 @@ pub struct DelegationClaims {
     pub arguments_hash: Option<String>,
 }
 
-static SEEN_DELEGATIONS: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
-
-fn accept_jti(jti: &str) -> bool {
-    let cache = SEEN_DELEGATIONS.get_or_init(|| Mutex::new(HashMap::new()));
-    let Ok(mut cache) = cache.lock() else {
-        return false;
-    };
-    let now = Instant::now();
-    cache.retain(|_, seen_at| now.duration_since(*seen_at) < Duration::from_secs(120));
-    if cache.contains_key(jti) {
-        return false;
-    }
-    cache.insert(jti.to_string(), now);
-    true
-}
-
-pub fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestContext, AppError> {
+pub async fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestContext, AppError> {
     let token = req
         .headers()
         .get("authorization")
@@ -88,9 +69,6 @@ pub fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestContext, 
         .map_err(|_| AppError::Unauthorized)?;
     let subject = claims.subject.clone().ok_or(AppError::Unauthorized)?;
     let jti = claims.jwt_id.clone().ok_or(AppError::Unauthorized)?;
-    if !accept_jti(&jti) {
-        return Err(AppError::Unauthorized);
-    }
     let correlation_id = claims.custom.correlation_id.clone();
     if claims.custom.organization_id.trim().is_empty()
         || claims.custom.installation_id.trim().is_empty()
@@ -99,7 +77,20 @@ pub fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestContext, 
         || claims.custom.run_id.trim().is_empty()
         || claims.custom.invocation_id.trim().is_empty()
         || claims.custom.correlation_id.trim().is_empty()
+        || jti.trim().is_empty()
+        || jti.len() > 255
+        || subject != claims.custom.installation_id
     {
+        return Err(AppError::Unauthorized);
+    }
+    if !realtime::claim_delegation_replay(&jti).await? {
+        log::warn!(
+            "[agent-delegation] rejected replayed request installation_id={} run_id={} invocation_id={} correlation_id={}",
+            claims.custom.installation_id,
+            claims.custom.run_id,
+            claims.custom.invocation_id,
+            claims.custom.correlation_id,
+        );
         return Err(AppError::Unauthorized);
     }
     Ok(RequestContext {
@@ -118,16 +109,4 @@ pub fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestContext, 
         causation_id: Some(claims.custom.invocation_id),
         idempotency_key: claims.custom.idempotency_key,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::accept_jti;
-
-    #[test]
-    fn delegation_jti_is_single_use_within_the_replay_window() {
-        let jti = "test-jti-replay";
-        assert!(accept_jti(&jti));
-        assert!(!accept_jti(&jti));
-    }
 }
