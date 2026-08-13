@@ -168,6 +168,13 @@ The current slice evidence is recorded as follows:
   `99f6005`, `838d32e`; core Rust suite passes, while external infrastructure gates remain in
   `BLOCKERS.md`.
 
+Negative identity coverage now explicitly rejects wrong-realm principals from the direct runtime
+and rejects agent-installation principals from workspace-admin booking mutations before any
+membership lookup (`7d93685`). Existing Agent Platform suites cover revoked credentials, revoked
+grants, suspended installations, and cross-organization operation access. The remaining core
+database-backed membership and untrusted-header cases stay open until the seeded integration
+environment is available.
+
 The content adapter now also supports a safe draft-only update path. The internal core boundary
 accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,
 reuses the existing organization-scoped social update service, and the Agent registry/client expose
