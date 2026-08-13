@@ -641,6 +641,9 @@ real capabilities, preserves independent chats, and never invents platform featu
 - [x] Add optional core verification of Agent Platform ES256 installation tokens with the exact
   `kasitek-public-api` audience and configured issuer; installation revocation/introspection and
   grant/entitlement lookup remain runtime policy work.
+- [x] Expose the first typed public resource slice through the shared content adapter: organization-
+  scoped post list/detail and idempotent draft creation; keep publish/schedule effects outside the
+  initial public route set until their approval/effect contract is externally verified.
 - [x] Use installation token exchange and protected-resource metadata for MCP. When an installation
   uses REST, issue/validate a REST-audience token through the public API principal framework rather
   than routing the request through MCP.

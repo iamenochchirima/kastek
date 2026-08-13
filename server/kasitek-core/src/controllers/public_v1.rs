@@ -2,13 +2,15 @@
 //! legacy `/api/*` composition so the migration can be reviewed independently.
 
 use actions::{ActionDefinition, ActionLifecycle, ActorKind, ProductRuntime};
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse, HttpResponseBuilder};
 use jwt_simple::algorithms::ECDSAP256PublicKeyLike;
 use jwt_simple::prelude::{ES256PublicKey, VerificationOptions};
 use serde_json::json;
 use std::collections::HashSet;
 
 use crate::bootstrap::state::AppState;
+use crate::capabilities::content_adapter;
+use crate::db::models::SocialPostUpsertRequest;
 use crate::error::AppError;
 use crate::identity::{product_session, request_context::RequestContext};
 
@@ -130,6 +132,39 @@ fn is_public_action_for_actor(definition: &ActionDefinition, actor: ActorKind) -
         && definition.supported_actors.contains(&actor)
 }
 
+fn actor_for_context(context: &RequestContext) -> ActorKind {
+    match context.principal.kind {
+        crate::identity::principal::PrincipalKind::AgentInstallation => ActorKind::ExternalAgent,
+        _ => ActorKind::DirectUser,
+    }
+}
+
+fn require_public_action(
+    state: &AppState,
+    context: &RequestContext,
+    name: &str,
+) -> Result<(), AppError> {
+    let available = state.action_registry.definitions().any(|definition| {
+        definition.id.name() == name
+            && is_public_action_for_actor(definition, actor_for_context(context))
+    });
+    if available {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(format!(
+            "Public capability is unavailable: {name}"
+        )))
+    }
+}
+
+fn response_with_context(context: &RequestContext) -> HttpResponseBuilder {
+    let mut response = HttpResponse::Ok();
+    if let Some(correlation_id) = context.correlation_id.as_deref() {
+        response.insert_header(("x-correlation-id", correlation_id.to_string()));
+    }
+    response
+}
+
 fn public_action(definition: &ActionDefinition) -> serde_json::Value {
     json!({
         "name": definition.id.name(),
@@ -156,18 +191,11 @@ pub async fn capabilities(
     state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
+    let actor = actor_for_context(&context);
     let actions = state
         .action_registry
         .definitions()
-        .filter(|definition| {
-            let actor = match context.principal.kind {
-                crate::identity::principal::PrincipalKind::AgentInstallation => {
-                    ActorKind::ExternalAgent
-                }
-                _ => ActorKind::DirectUser,
-            };
-            is_public_action_for_actor(definition, actor)
-        })
+        .filter(|definition| is_public_action_for_actor(definition, actor))
         .map(public_action)
         .collect::<Vec<_>>();
     let mut response = HttpResponse::Ok();
@@ -186,6 +214,42 @@ pub async fn capabilities(
         },
         "actions": actions,
     })))
+}
+
+pub async fn list_content_posts(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "content.posts.list")?;
+    let posts = content_adapter::list_posts(&state.pool, &context).await?;
+    Ok(response_with_context(&context).json(json!({ "posts": posts })))
+}
+
+pub async fn get_content_post(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "content.posts.list")?;
+    let post = content_adapter::get_post(&state.pool, &context, &path.into_inner())
+        .await?
+        .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
+    Ok(response_with_context(&context).json(json!({ "post": post })))
+}
+
+pub async fn create_content_draft(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    body: web::Json<SocialPostUpsertRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "content.posts.draft.create")?;
+    let post = content_adapter::create_draft(&state.pool, &context, &body).await?;
+    Ok(response_with_context(&context)
+        .status(actix_web::http::StatusCode::CREATED)
+        .json(json!({ "post": post })))
 }
 
 #[cfg(test)]
@@ -237,6 +301,25 @@ mod tests {
         assert!(payload.get("name").is_some());
         assert!(payload.get("owningDomain").is_some());
         assert!(payload.get("handler").is_none());
+    }
+
+    #[test]
+    fn content_public_actions_are_read_and_draft_only() {
+        let registry = actions::catalog::initial_registry().expect("catalog");
+        let mut action_registry = registry;
+        for definition in crate::capabilities::catalog::definitions() {
+            action_registry.register(definition).expect("definition");
+        }
+        let state = action_registry;
+        let direct = state
+            .definitions()
+            .any(|definition| definition.id.name() == "content.posts.list");
+        let publish = state.definitions().any(|definition| {
+            definition.id.name() == "content.posts.publish"
+                && definition.lifecycle == ActionLifecycle::Public
+        });
+        assert!(direct);
+        assert!(!publish);
     }
 
     #[test]

@@ -26,4 +26,17 @@ pilot, retired, and incompatible actions are not returned. The response includes
 OAuth scopes, entitlements, idempotency, risk, approval, audit, and usage metadata so a client can
 prepare for the later typed resource/action routes.
 
+## Initial content routes
+
+The first typed resource routes reuse the same content capability adapter used by Agent Platform
+internal tools:
+
+- `GET /content/posts` — organization-scoped content records;
+- `GET /content/posts/{id}` — one organization-scoped content record;
+- `POST /content/posts` — create a reviewable draft. Send an `Idempotency-Key` header; duplicate
+  keys resolve to the existing draft rather than creating another record.
+
+These routes do not publish content. Publishing remains an approval-controlled capability and is
+not exposed through this initial public resource slice.
+
 The canonical OpenAPI document is [`public-v1.openapi.json`](./public-v1.openapi.json).

@@ -27,6 +27,39 @@
           "403": { "description": "Authenticated user has no available organization" }
         }
       }
+    },
+    "/content/posts": {
+      "get": {
+        "operationId": "listContentPosts",
+        "responses": {
+          "200": { "description": "Organization-scoped content posts" },
+          "401": { "description": "Missing or invalid principal" },
+          "403": { "description": "Capability unavailable for principal" }
+        }
+      },
+      "post": {
+        "operationId": "createContentDraft",
+        "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 240 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": {
+          "201": { "description": "Draft created" },
+          "400": { "description": "Missing idempotency key or invalid draft" },
+          "401": { "description": "Missing or invalid principal" },
+          "403": { "description": "Capability unavailable for principal" }
+        }
+      }
+    },
+    "/content/posts/{id}": {
+      "get": {
+        "operationId": "getContentPost",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Organization-scoped content post" },
+          "401": { "description": "Missing or invalid principal" },
+          "403": { "description": "Capability unavailable for principal" },
+          "404": { "description": "Content post not found" }
+        }
+      }
     }
   },
   "components": {

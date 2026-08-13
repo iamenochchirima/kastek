@@ -440,6 +440,9 @@ open; the initial direct-user capability contract is authenticated and DTO-backe
 - [ ] Add pagination/versioning where required by the public API contract.
 - [x] Generate or update the initial core-owned OpenAPI 3.1 capability contract with authentication
   and response schemas; broader resource/action coverage remains open.
+- [x] Add the first typed `/v1/content/posts` list/detail/draft routes over the shared organization-
+  scoped content adapter with required idempotency for drafts; publish remains withheld pending the
+  external approval/effect gate.
 - [ ] Add metering, rate-limit, audit, and metrics middleware before calling the endpoint complete.
 
 ### Required tests
