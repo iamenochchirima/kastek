@@ -1,4 +1,5 @@
 use std::sync::OnceLock;
+use std::time::Duration;
 
 use redis::AsyncCommands;
 use serde_json::Value;
@@ -6,6 +7,52 @@ use serde_json::Value;
 use crate::error::AppError;
 
 static REDIS_CLIENT: OnceLock<Option<redis::Client>> = OnceLock::new();
+const DELEGATION_REPLAY_TTL: Duration = Duration::from_secs(125);
+
+/// Shared, atomic replay guard for short-lived Agent Platform delegations.
+/// Separate instances deliberately hold separate Redis clients so the same
+/// behavior can be verified across core replicas and process restarts.
+#[derive(Clone)]
+pub struct DelegationReplayStore {
+    client: redis::Client,
+    ttl: Duration,
+}
+
+impl DelegationReplayStore {
+    pub fn connect(redis_url: &str, ttl: Duration) -> Result<Self, AppError> {
+        let client = redis::Client::open(redis_url).map_err(|error| {
+            log::error!("[agent-delegation] invalid Redis replay-store URL: {error}");
+            AppError::Unauthorized
+        })?;
+        Ok(Self { client, ttl })
+    }
+
+    pub async fn claim(&self, issuer: &str, jti: &str) -> Result<bool, AppError> {
+        let mut connection = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
+            .map_err(|error| {
+                log::error!("[agent-delegation] failed to connect to Redis: {error}");
+                AppError::Unauthorized
+            })?;
+        let key = format!("agents:delegation:{}:{jti}", issuer.trim());
+        let ttl_ms = self.ttl.as_millis().clamp(1, u64::MAX as u128) as u64;
+        let claimed = redis::cmd("SET")
+            .arg(key)
+            .arg("1")
+            .arg("NX")
+            .arg("PX")
+            .arg(ttl_ms)
+            .query_async::<Option<String>>(&mut connection)
+            .await
+            .map_err(|error| {
+                log::error!("[agent-delegation] failed to claim replay key: {error}");
+                AppError::Unauthorized
+            })?;
+        Ok(claimed.is_some())
+    }
+}
 
 fn redis_client() -> Option<&'static redis::Client> {
     REDIS_CLIENT
@@ -38,27 +85,32 @@ pub async fn claim_delegation_replay(issuer: &str, jti: &str) -> Result<bool, Ap
         log::error!("[agent-delegation] REDIS_URL is required for delegation replay protection");
         return Err(AppError::Unauthorized);
     };
-    let mut connection = client
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|error| {
-            log::error!("[agent-delegation] failed to connect to Redis: {error}");
-            AppError::Unauthorized
-        })?;
-    let key = format!("agents:delegation:{}:{jti}", issuer.trim());
-    let claimed = redis::cmd("SET")
-        .arg(key)
-        .arg("1")
-        .arg("NX")
-        .arg("PX")
-        .arg(120_000_u64)
-        .query_async::<Option<String>>(&mut connection)
-        .await
-        .map_err(|error| {
-            log::error!("[agent-delegation] failed to claim replay key: {error}");
-            AppError::Unauthorized
-        })?;
-    Ok(claimed.is_some())
+    DelegationReplayStore {
+        client: client.clone(),
+        ttl: DELEGATION_REPLAY_TTL,
+    }
+    .claim(issuer, jti)
+    .await
+}
+
+#[cfg(test)]
+mod delegation_replay_tests {
+    use super::DelegationReplayStore;
+    use std::time::Duration;
+
+    #[tokio::test]
+    #[ignore = "requires REDIS_REPLAY_TEST_URL pointing to an isolated Redis instance"]
+    async fn replay_store_is_shared_across_instances_and_expires() {
+        let redis_url =
+            std::env::var("REDIS_REPLAY_TEST_URL").expect("REDIS_REPLAY_TEST_URL is required");
+        let first = DelegationReplayStore::connect(&redis_url, Duration::from_millis(75)).unwrap();
+        let second = DelegationReplayStore::connect(&redis_url, Duration::from_millis(75)).unwrap();
+        let jti = format!("test-{}", cuid2::create_id());
+        assert!(first.claim("test-issuer", &jti).await.unwrap());
+        assert!(!second.claim("test-issuer", &jti).await.unwrap());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(second.claim("test-issuer", &jti).await.unwrap());
+    }
 }
 
 pub async fn publish_whatsapp_event(org_id: &str, event: &Value) -> Result<(), AppError> {

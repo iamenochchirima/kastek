@@ -1,6 +1,7 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use actix_web::HttpRequest;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use jwt_simple::{
     algorithms::ECDSAP256PublicKeyLike,
     prelude::{ES256PublicKey, VerificationOptions},
@@ -40,6 +41,45 @@ pub struct DelegationClaims {
     pub arguments_hash: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct DelegationHeader {
+    kid: Option<String>,
+}
+
+fn delegation_key_id(token: &str) -> Result<Option<String>, AppError> {
+    let encoded = token.split('.').next().ok_or(AppError::Unauthorized)?;
+    let bytes = URL_SAFE_NO_PAD
+        .decode(encoded)
+        .map_err(|_| AppError::Unauthorized)?;
+    let header: DelegationHeader =
+        serde_json::from_slice(&bytes).map_err(|_| AppError::Unauthorized)?;
+    match header.kid {
+        Some(kid) if kid.trim().is_empty() || kid.len() > 128 => Err(AppError::Unauthorized),
+        other => Ok(other),
+    }
+}
+
+fn select_delegation_public_key(config: &AppConfig, token: &str) -> Result<String, AppError> {
+    let kid = delegation_key_id(token)?;
+    if let Some(raw_keys) = config.agents_delegation_public_keys_json.as_deref() {
+        let keys: BTreeMap<String, String> =
+            serde_json::from_str(raw_keys).map_err(|_| AppError::Unauthorized)?;
+        let kid = kid.ok_or(AppError::Unauthorized)?;
+        return keys
+            .get(&kid)
+            .filter(|key| !key.trim().is_empty())
+            .cloned()
+            .ok_or(AppError::Unauthorized);
+    }
+    if kid.is_some() {
+        return Err(AppError::Unauthorized);
+    }
+    config
+        .agents_delegation_public_key
+        .clone()
+        .ok_or(AppError::Unauthorized)
+}
+
 pub async fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestContext, AppError> {
     let token = req
         .headers()
@@ -49,11 +89,8 @@ pub async fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestCon
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or(AppError::Unauthorized)?;
-    let public_key = config
-        .agents_delegation_public_key
-        .as_deref()
-        .ok_or(AppError::Unauthorized)?;
-    let key = ES256PublicKey::from_pem(public_key).map_err(|_| AppError::Unauthorized)?;
+    let public_key = select_delegation_public_key(config, token)?;
+    let key = ES256PublicKey::from_pem(&public_key).map_err(|_| AppError::Unauthorized)?;
     let mut allowed_audiences = HashSet::new();
     allowed_audiences.insert(config.agents_delegation_audience.clone());
     let options = VerificationOptions {
@@ -111,4 +148,110 @@ pub async fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestCon
         causation_id: Some(claims.custom.invocation_id),
         idempotency_key: claims.custom.idempotency_key,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{delegation_key_id, select_delegation_public_key};
+    use crate::config::AppConfig;
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+
+    fn token(header: &str) -> String {
+        format!("{}.payload.signature", URL_SAFE_NO_PAD.encode(header))
+    }
+
+    fn config(keys: Option<&str>, legacy: Option<&str>) -> AppConfig {
+        // This construction intentionally exercises only key selection; the remaining settings are
+        // unrelated to delegation verification and use development-safe placeholders.
+        AppConfig {
+            port: 4000,
+            environment: "test".to_string(),
+            database_url: "postgres://test".to_string(),
+            database_max_connections: 1,
+            frontend_url: "http://localhost:3000".to_string(),
+            admin_frontend_url: "http://localhost:3001".to_string(),
+            public_api_url: "http://localhost:4000".to_string(),
+            auth_url: "http://localhost:3000".to_string(),
+            private_release_mode: true,
+            session_secret: "test".to_string(),
+            resend_api_key: None,
+            resend_from_email: "test@example.com".to_string(),
+            zoomconnect_send_url: None,
+            agents_internal_token: None,
+            agents_api_url: None,
+            agents_internal_auth_secret: None,
+            agents_internal_auth_audience: "test".to_string(),
+            agents_delegation_public_key: legacy.map(str::to_string),
+            agents_delegation_public_keys_json: keys.map(str::to_string),
+            agents_delegation_issuer: "issuer".to_string(),
+            agents_delegation_audience: "audience".to_string(),
+            agents_installation_token_public_key: None,
+            agents_installation_token_issuer: "issuer".to_string(),
+            agents_api_timeout_ms: 1_000,
+            web_push_vapid_public_key: None,
+            web_push_vapid_private_key: None,
+            web_push_subject: "mailto:test@example.com".to_string(),
+            paystack_secret_key: None,
+            paystack_mode: "test".to_string(),
+            paystack_api_base_url: "https://example.test".to_string(),
+            twilio_account_sid: None,
+            twilio_auth_token: None,
+            twilio_api_key_sid: None,
+            twilio_api_key_secret: None,
+            twilio_twiml_app_sid: None,
+            twilio_voice_webhook_url: None,
+            twilio_browser_twiml_url: None,
+            twilio_inbound_fallback_number: None,
+        }
+    }
+
+    #[test]
+    fn selects_overlapping_rotated_key_by_kid() {
+        let keys = r#"{"old":"old-pem","current":"current-pem"}"#;
+        assert_eq!(
+            select_delegation_public_key(
+                &config(Some(keys), None),
+                &token(r#"{"alg":"ES256","kid":"old"}"#)
+            )
+            .unwrap(),
+            "old-pem"
+        );
+        assert_eq!(
+            select_delegation_public_key(
+                &config(Some(keys), None),
+                &token(r#"{"alg":"ES256","kid":"current"}"#)
+            )
+            .unwrap(),
+            "current-pem"
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_or_missing_rotation_key_id() {
+        let config = config(Some(r#"{"current":"current-pem"}"#), None);
+        assert!(select_delegation_public_key(
+            &config,
+            &token(r#"{"alg":"ES256","kid":"unknown"}"#)
+        )
+        .is_err());
+        assert!(select_delegation_public_key(&config, &token(r#"{"alg":"ES256"}"#)).is_err());
+        assert!(delegation_key_id("not-a-jwt").is_err());
+    }
+
+    #[test]
+    fn permits_legacy_tokens_only_with_the_legacy_single_key() {
+        assert_eq!(
+            select_delegation_public_key(
+                &config(None, Some("legacy-pem")),
+                &token(r#"{"alg":"ES256"}"#)
+            )
+            .unwrap(),
+            "legacy-pem"
+        );
+        assert!(select_delegation_public_key(
+            &config(None, Some("legacy-pem")),
+            &token(r#"{"alg":"ES256","kid":"current"}"#)
+        )
+        .is_err());
+    }
 }
