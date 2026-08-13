@@ -155,6 +155,19 @@ The repeatable domain migration template and post-bookings dependency order are 
 `docs/internal/architecture/domain-migration-template.md`; future slices must satisfy its shared
 operation, isolation, adapter, verification, and evidence gates.
 
+The current slice evidence is recorded as follows:
+
+- Booking transport/internal capability and product response parity: `15d3f77`, `21317c0`,
+  `7f4d89c`; verified with `cargo fmt --check`, `cargo check -p kasitek-core`, `cargo test -p
+  kasitek-core --lib`, focused Agent client/capability tests, and Agent build.
+- Booking policy normalization and organization-scoped overlap: `6697e98`, `c95eda1`; the same
+  Rust checks pass, with seeded PostgreSQL transaction tests still environment-gated.
+- Content draft update through internal Agent and public REST adapters: `f63cdc3`, `7a82ce1`,
+  `9b84334`, `b4fc0e8`; Agent full suite/build and core Rust suite pass.
+- Public installation grant/scope reauthorization and normalized admin context: `8dc98a4`,
+  `99f6005`, `838d32e`; core Rust suite passes, while external infrastructure gates remain in
+  `BLOCKERS.md`.
+
 The content adapter now also supports a safe draft-only update path. The internal core boundary
 accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,
 reuses the existing organization-scoped social update service, and the Agent registry/client expose

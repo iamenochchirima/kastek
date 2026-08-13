@@ -440,7 +440,9 @@ the first complete agent-capability domain in Slice 5.
   behavior while preserving their distinct authentication and response envelopes.
 - [ ] Run existing workspace, customer, connection, and billing database suites to detect unrelated
   regressions caused by application-state or route restructuring.
-- [ ] Record the changed paths, preserved contracts, test commands, and commit for the slice.
+- [x] Record the changed paths, preserved contracts, test commands, and commit for the slice.
+  Evidence: the progress record lists the booking transport/internal capability, public content,
+  identity, and policy slices with preserved envelopes, commits, and verification commands.
 
 **Complete when:** `kasitek-core` has testable composition, separately mounted API surfaces, a
 normalized identity boundary, one real domain shared by product and capability adapters, and a
