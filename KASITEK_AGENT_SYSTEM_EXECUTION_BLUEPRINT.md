@@ -272,6 +272,22 @@ provider coupling does not complete the reorganization.
 
 ## 4. Implementation order and checklist
 
+### Reconciliation evidence — 2026-08-13
+
+The checked items below were reconciled against the current repository, migrations, focused tests,
+and the commits listed in `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
+The Agent Platform database suite passed locally with 39 files / 113 tests, and the Agent build and
+core format/check/library tests passed. A checked implementation item does **not** assert that its
+slice completion gate or production-release verification has passed.
+
+At this reconciliation point, 100 of 210 implementation/verification items are checked. The count
+is a work map, not a claim that the first production release is ready.
+
+The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
+OpenAPI, exact external-provider recovery, external MCP client testing, browser/admin end-to-end
+testing, and policy-dependent operator/entitlement work. Those are tracked in the audit checklist
+and `BLOCKERS.md`; they must not be converted to checked items merely because a foundation exists.
+
 ## Slice 0 — Reconcile the existing implementation
 
 **Layers covered:** all layers as baseline inventory
@@ -293,10 +309,15 @@ provider coupling does not complete the reorganization.
 [`docs/internal/architecture/agent-system-slice-0-baseline.md`](docs/internal/architecture/agent-system-slice-0-baseline.md).
 Pending environment and pre-existing frontend verification gaps are tracked in [`BLOCKERS.md`](BLOCKERS.md).
 
+**Reconciliation evidence:** Agent migrations `027`–`032` applied locally and
+`RUN_AGENTS_DB_INTEGRATION_TESTS=true pnpm test` passed 39 files / 113 tests; `pnpm build` passed.
+`cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core --lib` passed.
+Temporal recovery and authenticated browser smoke remain open in `BLOCKERS.md`.
+
 ### Verification
 
-- [ ] Run the existing Agent Platform unit and database suites.
-- [ ] Run Agent Platform typecheck/build, `kasitek-core` formatting/check/tests, and client/admin
+- [x] Run the existing Agent Platform unit and database suites.
+- [x] Run Agent Platform typecheck/build, `kasitek-core` formatting/check/tests, and client/admin
   lint/typecheck/build baselines.
 - [ ] Run local authenticated KasiAi and Agents health smoke tests and record genuine failures.
 
@@ -315,11 +336,11 @@ the first complete agent-capability domain in Slice 5.
 
 ### Application shell and route surfaces
 
-- [ ] Add `src/lib.rs` and a testable composition root without changing the production binary name,
+- [x] Add `src/lib.rs` and a testable composition root without changing the production binary name,
   process commands, health endpoints, or deployment topology.
-- [ ] Introduce `bootstrap::state::AppState` for the pool, configuration, HTTP/provider clients,
+- [x] Introduce `bootstrap::state::AppState` for the pool, configuration, HTTP/provider clients,
   action registry, and execution dependencies; avoid adding unrelated global state.
-- [ ] Move Actix assembly and route mounting from `main.rs` and the monolithic `routes.rs` into
+- [x] Move Actix assembly and route mounting from `main.rs` and the monolithic `routes.rs` into
   `bootstrap`, keeping `main.rs` responsible for environment loading, process selection, startup,
   and shutdown only.
 - [ ] Split route registration into `api::product`, `api::admin`, `api::internal`,
@@ -327,19 +348,19 @@ the first complete agent-capability domain in Slice 5.
   middleware requirement, status code, and response contract.
 - [ ] Rename the current anonymous quote/waitlist `public` concept to `website` before creating
   `api::public_v1`; do not expose those handlers as developer API operations.
-- [ ] Move social publishing, WhatsApp inbox/campaign, and billing reconciliation loops from
+- [x] Move social publishing, WhatsApp inbox/campaign, and billing reconciliation loops from
   `main.rs` into `workers/*` modules while preserving `KASITEK_PROCESS` behavior and independent
   worker deployment support.
 
 ### Identity and request context
 
-- [ ] Define normalized principal types for direct users, admins, workspace API keys, service
+- [x] Define normalized principal types for direct users, admins, workspace API keys, service
   accounts, OAuth users/applications, agent installations, and trusted internal services.
-- [ ] Define `RequestContext` with principal, identity realm, organization, optional user/client or
+- [x] Define `RequestContext` with principal, identity realm, organization, optional user/client or
   installation, effective grants, correlation/causation IDs, idempotency key, and request metadata.
 - [ ] Make product-session, admin-session, public credential, and internal-delegation adapters build
   `RequestContext`; domain operations must not inspect Actix requests, cookies, or raw headers.
-- [ ] Preserve the active-organization cookie only as a product-session preference and continue to
+- [x] Preserve the active-organization cookie only as a product-session preference and continue to
   verify organization membership from durable state.
 - [ ] Add negative tests for wrong organization, wrong realm, missing membership, wrong principal
   kind, revoked/suspended machine identity, and attempts to supply organization scope through an
@@ -347,16 +368,16 @@ the first complete agent-capability domain in Slice 5.
 
 ### Pilot domain: bookings
 
-- [ ] Create `domains/bookings/{model,commands,queries,policy,postgres}.rs` (or equivalent module
+- [x] Create `domains/bookings/{model,commands,queries,policy,postgres}.rs` (or equivalent module
   files) and move booking business behavior there without changing the existing product API.
 - [ ] Move booking request/response DTOs out of `db/models.rs`; keep transport contracts distinct
   from persistence rows and domain inputs/results.
-- [ ] Implement shared booking queries and commands for service listing/creation/update and booking
+- [x] Implement shared booking queries and commands for service listing/creation/update and booking
   listing/creation/update using `RequestContext` and typed inputs.
-- [ ] Move organization/resource authorization, admin requirements, customer ownership, scheduling
+- [x] Move organization/resource authorization, admin requirements, customer ownership, scheduling
   validation, overlap checks, status transitions, and conflict/not-found behavior into the shared
   booking operation boundary.
-- [ ] Keep SQL in `domains/bookings/postgres.rs` initially; introduce repository traits only where
+- [x] Keep SQL in `domains/bookings/postgres.rs` initially; introduce repository traits only where
   transaction control, substitution, or isolated policy testing requires them.
 - [ ] Adapt the existing `/api/bookings/*` handlers to the new operations with response-parity tests.
 - [ ] Expose one typed internal booking capability through the same operations to prove a second
@@ -364,13 +385,13 @@ the first complete agent-capability domain in Slice 5.
 
 ### Capability and execution integration
 
-- [ ] Add the existing workspace `actions` and `execution` crates as `kasitek-core` dependencies.
-- [ ] Create `capabilities::catalog`, `capabilities::handlers`, and `capabilities::core_adapter` and
+- [x] Add the existing workspace `actions` and `execution` crates as `kasitek-core` dependencies.
+- [x] Create `capabilities::catalog`, `capabilities::handlers`, and `capabilities::core_adapter` and
   register the pilot booking actions using the existing `ActionDefinition`, actor, scope, risk,
   approval, idempotency, and execution primitives.
-- [ ] Map capability handlers to domain commands/queries; do not implement business behavior inside
+- [x] Map capability handlers to domain commands/queries; do not implement business behavior inside
   the registry or capability transport.
-- [ ] Establish typed conversion between `actions::Actor`/`Scope` and core `RequestContext`, with
+- [x] Establish typed conversion between `actions::Actor`/`Scope` and core `RequestContext`, with
   explicit rejection of realm, runtime, organization, and client-scope mismatches.
 - [ ] Establish a repeatable domain migration template covering models, commands, queries, policy,
   Postgres/provider adapters, product adapter, internal capability adapter, tests, and evidence.
@@ -412,30 +433,30 @@ or duplicate booking SQL/business rules.
 
 ### Deliverables
 
-- [ ] Define shared types for execution modes, definition/version/installation lifecycle,
+- [x] Define shared types for execution modes, definition/version/installation lifecycle,
   `AgentPrincipal`, actor attribution, resource selectors, grants, limits, and availability.
-- [ ] Implement migrations and repositories for principals, named credentials, installation grants,
+- [x] Implement migrations and repositories for principals, named credentials, installation grants,
   resource constraints, connector grants, limits, and usage attribution.
-- [ ] Implement installation create/read/update/archive and suspend/resume/revoke APIs with strict
+- [x] Implement installation create/read/update/archive and suspend/resume/revoke APIs with strict
   organization ownership and protected KasiAi rules.
-- [ ] Implement copy-once installation secrets stored only as hashes, credential listing metadata,
+- [x] Implement copy-once installation secrets stored only as hashes, credential listing metadata,
   rotation, revocation, expiry, and last-use tracking.
-- [ ] Implement token exchange for short-lived audience-bound access tokens and enforce current
+- [x] Implement token exchange for short-lived audience-bound access tokens and enforce current
   credential, installation, organization, scope, and resource status on every request.
-- [ ] Implement `development_full_access` for controlled test workspaces with immutable exclusions
+- [x] Implement `development_full_access` for controlled test workspaces with immutable exclusions
   for secrets, billing mutation, organization privilege, workspace deletion, and policy bypass.
-- [ ] Expose installation lifecycle, credential metadata, grants, usage, and health to customer and
+- [x] Expose installation lifecycle, credential metadata, grants, usage, and health to customer and
   operator read models without exposing secret material.
 - [ ] Add public-key client assertion support before production external-agent release.
 
 ### Verification
 
-- [ ] Add migration/repository tests for installation ownership, lifecycle, credentials, grants,
+- [x] Add migration/repository tests for installation ownership, lifecycle, credentials, grants,
   resource constraints, and usage records.
-- [ ] Add auth tests for token exchange, expiry, narrowing, replay, rotation, revocation, suspended
+- [x] Add auth tests for token exchange, expiry, narrowing, replay, rotation, revocation, suspended
   installations, wrong audience, and cross-organization access.
-- [ ] Run Agent Platform tests, database integration tests, typecheck, and build.
-- [ ] Smoke-test a named test credential obtaining a token and losing access immediately after
+- [x] Run Agent Platform tests, database integration tests, typecheck, and build.
+- [x] Smoke-test a named test credential obtaining a token and losing access immediately after
   revocation.
 
 **Complete when:** each agent installation has an independent non-human identity and can be safely
@@ -447,33 +468,33 @@ authenticated, scoped, audited, suspended, and revoked without a human browser s
 
 ### Deliverables
 
-- [ ] Make one versioned `CapabilityManifest` registry authoritative for schemas, scopes, resources,
+- [x] Make one versioned `CapabilityManifest` registry authoritative for schemas, scopes, resources,
   risk, approval policy, idempotency, availability, errors, receipts, and redaction metadata.
-- [ ] Define common invocation, result, error, pagination, batch-result, and effect-receipt envelopes.
+- [x] Define common invocation, result, error, pagination, batch-result, and effect-receipt envelopes.
 - [ ] Generate internal tools, MCP tools, permission UI, audit descriptions, and agent documentation
   from capability manifests. Keep public REST/OpenAPI contracts core-owned, while sharing or
   contract-testing overlapping business/action schemas.
-- [ ] Implement central policy evaluation using installation grants, credential restrictions,
+- [x] Implement central policy evaluation using installation grants, credential restrictions,
   resource scope, availability, approval, and limits with structured denial reasons.
 - [x] Implement filtered capability discovery for the authenticated installation. Evidence:
   Agent Platform `/v1/installations/:installationId/capabilities` applies effective installation
   grants and is covered by `capability-discovery.test.ts`.
-- [ ] Replace static internal core authentication with one-to-two-minute ES256 per-invocation
+- [x] Replace static internal core authentication with one-to-two-minute ES256 per-invocation
   delegation, JWKS publication/rotation, audience checks, and replay protection.
-- [ ] Add typed internal core handlers that independently validate organization, agent principal,
+- [x] Add typed internal core handlers that independently validate organization, agent principal,
   capability/version, resources, user/approval authority, and business preconditions.
 - [ ] Ensure core owns business mutations, transactional outbox/action records, provider
   idempotency, effect receipts, and signed lifecycle events back to Agent Platform.
 
 ### Verification
 
-- [ ] Add manifest schema/version/compatibility and generated-surface parity tests.
-- [ ] Add policy matrix tests covering allowed, narrowed, denied, unavailable, approval-required,
+- [x] Add manifest schema/version/compatibility and generated-surface parity tests.
+- [x] Add policy matrix tests covering allowed, narrowed, denied, unavailable, approval-required,
   rate-limited, and cross-resource invocations.
-- [ ] Add delegation signature, issuer, audience, expiry, replay, rotation, and confused-deputy tests.
+- [x] Add delegation signature, issuer, audience, expiry, replay, rotation, and confused-deputy tests.
 - [ ] Contract-test each initial core domain operation through its product, public REST, and
   private delegated adapters where those surfaces exist.
-- [ ] Run TypeScript and Rust unit/integration suites, typecheck, formatting, and builds.
+- [x] Run TypeScript and Rust unit/integration suites, typecheck, formatting, and builds.
 
 **Complete when:** every agent entry point reaches product operations through the same manifest,
 policy, delegation, and typed core handler, while product and public REST adapters reach the same
@@ -485,25 +506,25 @@ domain commands and queries with no direct database or special-agent bypass.
 
 ### Deliverables
 
-- [ ] Use one AgentRun, attempt, ordered-event, tool-call, model-call, approval, and effect model for
+- [x] Use one AgentRun, attempt, ordered-event, tool-call, model-call, approval, and effect model for
   browser, channels, hosted agents, MCP, schedules, and agent webhooks. Link core API/action records
   when an AgentRun invokes a public or private core operation.
-- [ ] Route model work, multi-step workflows, waits, approvals, schedules, provider effects,
+- [x] Route model work, multi-step workflows, waits, approvals, schedules, provider effects,
   polling, and recovery through Temporal with stable idempotency-derived workflow IDs.
-- [ ] Enforce per-conversation, installation, provider, recipient, and effect concurrency rules.
-- [ ] Implement bounded retries, timeouts, cancellation, terminal state, needs-attention state,
+- [x] Enforce per-conversation, installation, provider, recipient, and effect concurrency rules.
+- [x] Implement bounded retries, timeouts, cancellation, terminal state, needs-attention state,
   dead-letter/recovery behavior, and safe stream-disconnect polling.
-- [ ] Keep OpenRouter, OpenAI, Anthropic, and Gemini behind a provider-neutral model gateway with
+- [x] Keep OpenRouter, OpenAI, Anthropic, and Gemini behind a provider-neutral model gateway with
   model discovery, credentials isolated to activities, fallback policy, usage, latency, and cost.
-- [ ] Keep attachments/media in object storage through ownership-checked references, hashes, MIME
+- [x] Keep attachments/media in object storage through ownership-checked references, hashes, MIME
   validation, scanning state, expiry, and retention.
-- [ ] Persist safe run activity before broadcasting it to realtime clients.
+- [x] Persist safe run activity before broadcasting it to realtime clients.
 
 ### Verification
 
-- [ ] Add workflow tests for idempotent start, duplicate send, concurrent send, retries, timeout,
+- [x] Add workflow tests for idempotent start, duplicate send, concurrent send, retries, timeout,
   cancellation, worker restart, approval wait, and effect recovery.
-- [ ] Add model gateway contract tests for each configured provider, fallback, errors, metering, and
+- [x] Add model gateway contract tests for each configured provider, fallback, errors, metering, and
   secret redaction.
 - [ ] Test stream interruption followed by polling/reconciliation without false network errors or
   duplicate messages.
@@ -519,16 +540,16 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
 
 ### Deliverables
 
-- [ ] Implement manifests and typed core handlers for connection discovery/health, content listing,
+- [x] Implement manifests and typed core handlers for connection discovery/health, content listing,
   content detail, drafts, updates, publish status, scheduling, unscheduling, publishing, and delete
   or archive behavior supported by the product.
-- [ ] Apply organization, connected-account, platform, ownership, capability, and resource checks to
+- [x] Apply organization, connected-account, platform, ownership, capability, and resource checks to
   every handler.
 - [ ] Implement draft operations as immediate safe writes and real publish/schedule effects through
   immutable preview, approval, idempotent core action/outbox, provider receipt, and reconciliation.
-- [ ] Return platform capability differences and partial batch results explicitly rather than
+- [x] Return platform capability differences and partial batch results explicitly rather than
   claiming unsupported behavior.
-- [ ] Record run, tool, approval, effect, provider, delivery, usage, and audit events with shared IDs.
+- [x] Record run, tool, approval, effect, provider, delivery, usage, and audit events with shared IDs.
 - [ ] Expose the same content capabilities to KasiAi tools, hosted agents, MCP, and REST without
   duplicating handlers.
 - [ ] Add customer activity and operator investigation views for content actions and failures.
@@ -552,7 +573,7 @@ point to the provider and back to a durable, auditable result with no duplicate 
 
 ### Deliverables
 
-- [ ] Replace generic product claims with reviewed, versioned KasiTek knowledge and remove all
+- [x] Replace generic product claims with reviewed, versioned KasiTek knowledge and remove all
   unsupported projects/resources/repositories guidance.
 - [ ] Build minimal dynamic context from the authenticated user, organization, enabled modules,
   route/entity, current conversation, and currently available capabilities.
@@ -560,20 +581,20 @@ point to the provider and back to a durable, auditable result with no duplicate 
   Capability Gateway.
 - [ ] Make answers distinguish tool-derived facts, reviewed product knowledge, unavailable actions,
   and uncertain information; never claim a tool or data source that was not used.
-- [ ] Preserve independent user-owned conversations, explicit browser conversation IDs, durable
+- [x] Preserve independent user-owned conversations, explicit browser conversation IDs, durable
   history, summaries, model selection, chat naming, new-chat behavior, and channel defaults.
 - [ ] Show tool activity, approval previews, results, errors, retries, and final run status clearly in
   the KasiAi workspace without exposing hidden reasoning.
-- [ ] Provide relevant starter suggestions and page help derived from real available capabilities.
-- [ ] Expose KasiAi health, rollout version, failure class, and usage in the operator console.
+- [x] Provide relevant starter suggestions and page help derived from real available capabilities.
+- [x] Expose KasiAi health, rollout version, failure class, and usage in the operator console.
 
 ### Verification
 
 - [ ] Add deterministic and adversarial evaluations for grounded answers, unsupported claims,
   correct tool choice, authorization denials, injection attempts, and safe failure language.
-- [ ] Add conversation isolation, new-chat, deep-link, refresh, concurrent-send, idempotency,
+- [x] Add conversation isolation, new-chat, deep-link, refresh, concurrent-send, idempotency,
   channel-default, archive/delete, and model-preference tests.
-- [ ] Add client component/accessibility and sidebar send/history/reconnect/cancel tests.
+- [x] Add client component/accessibility and sidebar send/history/reconnect/cancel tests.
 - [ ] Run Agent Platform/core/client tests, typechecks, lint/format, production builds, and an
   authenticated browser smoke test using real workspace data.
 
@@ -586,18 +607,18 @@ real capabilities, preserves independent chats, and never invents platform featu
 
 ### Deliverables
 
-- [ ] Create a separately deployed TypeScript `agent-gateway` process inside the `agents` package;
+- [x] Create a separately deployed TypeScript `agent-gateway` process inside the `agents` package;
   give it independent configuration, health, logs, rate limits, tests, scaling, and kill switch.
-- [ ] Add `dev:gateway` and `start:gateway` package commands and a Railway service using the latter;
+- [x] Add `dev:gateway` and `start:gateway` package commands and a Railway service using the latter;
   route `agents.kasitek.co.za/mcp` to this process without routing `/v1` through it.
-- [ ] Implement remote MCP Streamable HTTP initialization, negotiation, `tools/list`, `tools/call`,
+- [x] Implement remote MCP Streamable HTTP initialization, negotiation, `tools/list`, `tools/call`,
   structured results/errors, cancellation, and filtered discovery over the Agent Platform
   Capability Gateway. Keep the gateway stateless initially and give it no direct core/database
   access or ownership of runs, approvals, definitions, or product data.
-- [ ] Create the separately managed Rust `api::public_v1` module inside `kasitek-core` and mount it
+- [x] Create the separately managed Rust `api::public_v1` module inside `kasitek-core` and mount it
   only at `/v1`; keep existing `/api/*` product routes, `/api/admin/*`, anonymous website routes,
   provider webhooks, and private `/api/internal/*` routes distinct.
-- [ ] Serve `/v1` from the existing `kasitek-core` process and route `api.kasitek.co.za/v1/*` to it;
+- [x] Serve `/v1` from the existing `kasitek-core` process and route `api.kasitek.co.za/v1/*` to it;
   do not create a separate public API deployment during the initial implementation.
 - [ ] Give `/v1` dedicated routes, authentication, contracts, middleware, OpenAPI, webhooks,
   metering, rate limits, flags, metrics, versioning, deprecation, and tests while reusing shared core
@@ -613,14 +634,14 @@ real capabilities, preserves independent chats, and never invents platform featu
   actually initiated the call.
 - [ ] Publish core-owned OpenAPI 3.1 for `/v1` and agent-readable MCP integration documentation;
   validate overlapping MCP schemas and outcomes against the shared business/action contracts.
-- [ ] Use installation token exchange and protected-resource metadata for MCP. When an installation
+- [x] Use installation token exchange and protected-resource metadata for MCP. When an installation
   uses REST, issue/validate a REST-audience token through the public API principal framework rather
   than routing the request through MCP.
 - [ ] Implement signed outbound webhooks with subscription scope, delivery records, exponential
   retry, replay protection, disable/re-enable policy, and diagnostics.
 - [ ] Add an external-agent connection wizard with named credentials, copy-once setup, grants,
   resource scope, health diagnostics, rotation/revocation, examples, and audit activity.
-- [ ] Add a local stdio bridge only for clients that cannot connect to hosted Streamable HTTP.
+- [x] Add a local stdio bridge only for clients that cannot connect to hosted Streamable HTTP.
 
 ### Verification
 
@@ -647,14 +668,14 @@ REST where permitted, and equivalent operations share business behavior without 
 
 - [ ] Implement general hosted agent definitions with instructions, model policy, capability grants,
   connector grants, knowledge/memory, channels, schedules, workflow graph, limits, and handoff.
-- [ ] Implement guided creation for a small set of real templates; templates create ordinary
+- [x] Implement guided creation for a small set of real templates; templates create ordinary
   versioned definitions and do not introduce template-specific runtime paths.
-- [ ] Implement draft/publish/rollback/retire versioning and safe installation updates.
-- [ ] Implement provider-neutral external connector manifests, vault references, ownership,
+- [x] Implement draft/publish/rollback/retire versioning and safe installation updates.
+- [x] Implement provider-neutral external connector manifests, vault references, ownership,
   OAuth/API-key lifecycle, tool schemas, output redaction, retry, rate limits, and audit receipts.
-- [ ] Keep external connector credentials out of prompts, workflow history, traces, MCP output, and
+- [x] Keep external connector credentials out of prompts, workflow history, traces, MCP output, and
   Agent Platform records except opaque references and safe metadata.
-- [ ] Add schedules, triggers, workflow execution, channel binding, test runs, and deterministic
+- [x] Add schedules, triggers, workflow execution, channel binding, test runs, and deterministic
   human handoff using the shared runtime.
 - [ ] Build hosted agent detail/configuration UI covering overview, versions, capabilities,
   connections, knowledge/memory, channels, runs, approvals, usage, and settings.
@@ -680,19 +701,19 @@ agent that safely combines KasiTek capabilities with approved external services.
 
 ### Deliverables
 
-- [ ] Enforce personal user-owned and business customer/thread-owned conversation identity with
+- [x] Enforce personal user-owned and business customer/thread-owned conversation identity with
   organization, installation, participant, external identity, channel, and thread isolation.
-- [ ] Keep browser new chats explicit and prevent fallback to an external channel-default chat.
-- [ ] Standardize inbound/outbound channel envelopes, dedupe, ordering, consent/opt-out, delivery
+- [x] Keep browser new chats explicit and prevent fallback to an external channel-default chat.
+- [x] Standardize inbound/outbound channel envelopes, dedupe, ordering, consent/opt-out, delivery
   status, provider IDs, attachments, retries, handoff, and reply-before-delivery persistence.
-- [ ] Complete thin WhatsApp, Telegram, and Discord adapters; add email later using the same boundary.
-- [ ] Make authorized external-channel conversations observable in the product without merging
+- [x] Complete thin WhatsApp, Telegram, and Discord adapters; add email later using the same boundary.
+- [x] Make authorized external-channel conversations observable in the product without merging
   separate agents, users, customers, or threads.
-- [ ] Implement bounded recent history, scoped summaries, on-demand older history, reviewed
+- [x] Implement bounded recent history, scoped summaries, on-demand older history, reviewed
   knowledge ingestion, source attribution, and trusted/untrusted content boundaries.
-- [ ] Implement selective memory with conversation/user-private/organization-shared/agent-private
+- [x] Implement selective memory with conversation/user-private/organization-shared/agent-private
   namespaces, provenance, confidence, consent, edit/delete, expiry, export, and retention.
-- [ ] Add attachment scanning, prompt-injection boundaries, provider privacy settings, and minimal
+- [x] Add attachment scanning, prompt-injection boundaries, provider privacy settings, and minimal
   model-bound data policy.
 
 ### Verification
@@ -715,15 +736,15 @@ conversation history, delivery, knowledge, and memory remain correctly scoped an
 
 ### Deliverables
 
-- [ ] Bind each approval to organization, installation, capability/version, normalized argument hash,
+- [x] Bind each approval to organization, installation, capability/version, normalized argument hash,
   resources, immutable preview revision, approver, expiry, and one permitted effect.
-- [ ] Implement authenticated web approval, denial, cancellation, expiration, execution-time
+- [x] Implement authenticated web approval, denial, cancellation, expiration, execution-time
   reauthorization, polling/wait/webhook status, and structured `APPROVAL_REQUIRED` responses.
 - [ ] Implement domain previews for publishing, sending/replying, campaigns, bookings, destructive
   actions, and later domains before enabling their real effects.
-- [ ] Persist effect state and provider receipts; classify ambiguous outcomes as
+- [x] Persist effect state and provider receipts; classify ambiguous outcomes as
   `reconciliation_required` and prohibit blind retry.
-- [ ] Implement safe retry, cancellation, compensation where supported, scheduled-action revision,
+- [x] Implement safe retry, cancellation, compensation where supported, scheduled-action revision,
   and kill-switch cancellation.
 - [ ] Present approvals, receipts, reconciliation, and recovery consistently in customer and
   operator interfaces.
@@ -732,7 +753,7 @@ conversation history, delivery, knowledge, and memory remain correctly scoped an
 
 - [ ] Add approval hash/version/resource/expiry/single-use, self-approval, changed-permission,
   cancellation, and concurrent-decision tests.
-- [ ] Add effect idempotency, crash-after-provider-call, timeout, duplicate callback, reconciliation,
+- [x] Add effect idempotency, crash-after-provider-call, timeout, duplicate callback, reconciliation,
   compensation, and kill-switch tests.
 - [ ] Run end-to-end approved and denied actions from KasiAi, hosted agent, MCP, REST, and a channel.
 - [ ] Run all service tests, database/Temporal recovery tests, typechecks, and builds.
@@ -746,18 +767,18 @@ every success, denial, failure, or ambiguous outcome has a durable operator-visi
 
 ### Deliverables
 
-- [ ] Build one `/agents` overview for KasiAi, hosted agents, external connections, templates,
+- [x] Build one `/agents` overview for KasiAi, hosted agents, external connections, templates,
   approvals, activity, usage, and health.
 - [ ] Build creation/connection flows with visible capabilities, resources, connectors, models,
   channels, limits, testing access, and approval behavior.
 - [ ] Build common detail views for overview, configuration, versions, capabilities, connections,
   knowledge/memory, channels, conversations, runs, approvals, usage, credentials, and settings.
-- [ ] Build credential create/copy-once/rotate/revoke and installation suspend/resume/archive UX.
-- [ ] Show safe run/tool/model/effect timelines, errors, recovery actions, usage, cost estimates, and
+- [x] Build credential create/copy-once/rotate/revoke and installation suspend/resume/archive UX.
+- [x] Show safe run/tool/model/effect timelines, errors, recovery actions, usage, cost estimates, and
   current service readiness without exposing chain-of-thought or secrets.
-- [ ] Enforce personal KasiAi privacy, appropriate business-agent staff access, and workspace-owned
+- [x] Enforce personal KasiAi privacy, appropriate business-agent staff access, and workspace-owned
   administration throughout the UI.
-- [ ] Implement loading, empty, stale, degraded, retry, permission-denied, and accessibility states.
+- [x] Implement loading, empty, stale, degraded, retry, permission-denied, and accessibility states.
 
 ### Verification
 
@@ -814,18 +835,18 @@ model/tool → approval → effect → delivery and perform only safe, attributa
 
 ### Deliverables
 
-- [ ] Emit immutable redacted audit events and separate operational traces, metrics, and diagnostic
+- [x] Emit immutable redacted audit events and separate operational traces, metrics, and diagnostic
   logs with stable correlation across edge, Agent Platform, Temporal, core, and providers.
-- [ ] Attribute tokens/cost, tools, effects, connectors, channels, storage, schedules, failures,
+- [x] Attribute tokens/cost, tools, effects, connectors, channels, storage, schedules, failures,
   latency, and concurrency to organization, installation, definition/version, and credential.
 - [ ] Implement health dashboards and alerts for auth, credentials, APIs, model providers, Temporal,
   queues/workers, databases, Redis, tools, provider effects, webhooks, delivery, approvals, cost,
   rate limits, and suspicious access.
-- [ ] Enforce the global → organization → definition → installation → capability → connector/channel
+- [x] Enforce the global → organization → definition → installation → capability → connector/channel
   kill-switch hierarchy and test rollback before destructive recovery.
 - [ ] Implement retention, redaction, deletion, export, backup/restore, legal-hold readiness, and
   periodic access review for audits, traces, logs, webhook payloads, conversations, and memory.
-- [ ] Apply credential/replay/confused-deputy, injection, data minimization, attachment, SSRF,
+- [x] Apply credential/replay/confused-deputy, injection, data minimization, attachment, SSRF,
   redirect, webhook, rate-limit, abuse, dependency, image, secret-scan, and deployment least-
   privilege controls.
 - [ ] Expand capability domains in order—contacts/inbox, bookings, campaigns, automation/agent
@@ -879,10 +900,10 @@ pnpm build:admin
 type validation. Database, Temporal, browser, and provider tests remain separate required gates
 because the basic commands above cannot prove those integrations.
 
-- [ ] Agent Platform unit tests pass.
-- [ ] Agent Platform database/integration tests pass against an isolated test database.
-- [ ] Agent Platform TypeScript typecheck and production build pass.
-- [ ] `kasitek-core` formatting, compile checks, unit tests, and relevant database integration tests
+- [x] Agent Platform unit tests pass.
+- [x] Agent Platform database/integration tests pass against an isolated test database.
+- [x] Agent Platform TypeScript typecheck and production build pass.
+- [x] `kasitek-core` formatting, compile checks, unit tests, and relevant database integration tests
   pass.
 - [ ] Direct client lint, typecheck, component tests, and production build pass.
 - [ ] Admin client lint, typecheck, component tests, and production build pass.

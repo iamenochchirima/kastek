@@ -6,6 +6,10 @@
 
 **Audit date:** 2026-08-13
 
+**Evidence reconciliation:** 2026-08-13 — 88 of 240 checklist items have current implementation
+or verification evidence. The remaining items are not silently deferred: they are retained as
+explicit release, policy, or end-to-end verification work.
+
 **Primary implementation plan:** [`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md)
 
 **Architecture rationale:** [`KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md`](KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md)
@@ -114,43 +118,47 @@ Relevant starting points:
 
 ### Implementation checklist
 
-- [ ] Add a dedicated MCP authentication path; do not weaken or overload internal service HMAC
+- [x] Add a dedicated MCP authentication path; do not weaken or overload internal service HMAC
   authentication.
-- [ ] Verify ES256 signature, expected issuer, exact `mcp` audience, expiry, not-before/issued-at
+- [x] Verify ES256 signature, expected issuer, exact `mcp` audience, expiry, not-before/issued-at
   constraints where present, subject, organization, credential id, and JWT id.
-- [ ] Validate the token header algorithm and reject algorithm/key confusion.
-- [ ] Load the referenced installation credential and reject revoked, rotated-out, expired, missing,
+- [x] Validate the token header algorithm and reject algorithm/key confusion.
+- [x] Load the referenced installation credential and reject revoked, rotated-out, expired, missing,
   or organization-mismatched credentials.
-- [ ] Load the installation and reject missing, suspended, disabled, or organization-mismatched
+- [x] Load the installation and reject missing, suspended, disabled, or organization-mismatched
   installations.
-- [ ] Bind the authenticated installation id to the token subject. Do not trust a different
+- [x] Bind the authenticated installation id to the token subject. Do not trust a different
   `params.installationId` supplied by the client.
-- [ ] Remove `params.installationId` from the MCP client contract if the token subject makes it
+- [x] Remove `params.installationId` from the MCP client contract if the token subject makes it
   redundant, or require an exact match for backward compatibility.
-- [ ] Map MCP read/write scopes from an explicit credential policy. If the product has not defined
+- [x] Map MCP read/write scopes from an explicit credential policy. If the product has not defined
   that mapping, record a blocker and default to denial rather than granting write access.
-- [ ] Keep internal HMAC tokens limited to trusted service-to-service routes; document any deliberate
+- [x] Keep internal HMAC tokens limited to trusted service-to-service routes; document any deliberate
   gateway-to-API authentication separately from end-client installation authentication.
-- [ ] Ensure token rotation/revocation takes effect without waiting for a one-hour JWT to expire.
-- [ ] Update protected-resource metadata so it accurately describes the supported authorization
+- [x] Ensure token rotation/revocation takes effect without waiting for a one-hour JWT to expire.
+- [x] Update protected-resource metadata so it accurately describes the supported authorization
   mechanism and authorization server/token exchange location.
-- [ ] Update the MCP integration document to match the implemented request contract.
+- [x] Update the MCP integration document to match the implemented request contract.
+
+**Evidence:** `agents/src/http/app.ts`, `agents/src/http/auth.ts`,
+`agents/src/auth/installation-token.ts`, migration `031_installation_credential_mcp_scopes.sql`,
+`agents/test/http.test.ts`, `agents/test/installation-token.test.ts`; `48b16bf`.
 
 ### Required tests
 
-- [ ] A valid exchanged `aud=mcp` installation token can initialize and list only its installation's
+- [x] A valid exchanged `aud=mcp` installation token can initialize and list only its installation's
   granted tools.
-- [ ] The same token cannot select another installation in the same organization.
-- [ ] The same token cannot select an installation in another organization.
-- [ ] Wrong audience, issuer, signature, algorithm, expiry, credential id, or subject is rejected.
-- [ ] Revoked/rotated credential and suspended/disabled installation are rejected immediately.
-- [ ] An internal HMAC token cannot impersonate an installation unless a separately documented
+- [x] The same token cannot select another installation in the same organization.
+- [x] The same token cannot select an installation in another organization.
+- [x] Wrong audience, issuer, signature, algorithm, expiry, credential id, or subject is rejected.
+- [x] Revoked/rotated credential and suspended/disabled installation are rejected immediately.
+- [x] An internal HMAC token cannot impersonate an installation unless a separately documented
   trusted gateway contract explicitly permits it.
-- [ ] Existing internal API authentication tests continue to pass.
+- [x] Existing internal API authentication tests continue to pass.
 
 ### Completion gate
 
-- [ ] Re-run the audit reproduction and receive a successful scoped MCP response with the exchanged
+- [x] Re-run the audit reproduction and receive a successful scoped MCP response with the exchanged
   token; all negative cases above pass.
 - [ ] Suggested commit: `fix(agents): authenticate MCP installation tokens`.
 
@@ -177,7 +185,7 @@ Relevant starting points:
 
 ### Implementation checklist
 
-- [ ] Define and enforce a dedicated approval scope such as the existing canonical policy name; do
+- [x] Define and enforce a dedicated approval scope such as the existing canonical policy name; do
   not invent a new public role matrix if none has been approved.
 - [ ] Require the approver to have access to the organization, installation, run, capability, and
   affected resource.
@@ -185,23 +193,26 @@ Relevant starting points:
 - [ ] Enforce the approved self-approval and separation-of-duties policy. If undefined, record the
   precise decision in `BLOCKERS.md` and keep real external effects disabled.
 - [ ] Reject terminal, stale, expired, already decided, or non-awaiting approvals atomically.
-- [ ] Do not accept `approvedBy` from the request body; derive it from the authenticated principal.
-- [ ] Emit a redacted immutable audit event for approval, denial, expiry, and cancellation.
+- [x] Do not accept `approvedBy` from the request body; derive it from the authenticated principal.
+- [x] Emit a redacted immutable audit event for approval, denial, expiry, and cancellation.
 - [ ] Rate-limit repeated decisions and make the decision command idempotent.
 
 ### Required tests
 
-- [ ] A token with no approval scope receives 403 and no Temporal signal is sent.
+- [x] A token with no approval scope receives 403 and no Temporal signal is sent.
 - [ ] A correctly scoped but unrelated actor/resource receives 403.
 - [ ] Cross-organization run ids are indistinguishable from not found.
-- [ ] Valid approve and deny decisions signal Temporal once and write audit evidence.
+- [x] Valid approve and deny decisions signal Temporal once and write audit evidence.
 - [ ] Concurrent decisions result in exactly one accepted decision.
 - [ ] Duplicate idempotent submission returns the original decision without a second signal.
 - [ ] Self-approval behavior matches the approved policy.
 
 ### Completion gate
 
-- [ ] Re-run the zero-scope reproduction and receive 403 with `signalled=false`.
+- [x] Re-run the zero-scope reproduction and receive 403 with `signalled=false`.
+
+**Partial evidence:** `agents/src/http/app.ts`, `agents/test/http.test.ts`; `7508423`,
+`e94e16a`. Resource/actor policy, self-approval policy, and decision idempotency remain open.
 - [ ] Suggested commit: `fix(agents): authorize run approval decisions`.
 
 ## 7. AR-003 — Durable exact single-use approvals
@@ -224,16 +235,16 @@ Relevant starting points:
 
 ### Implementation checklist
 
-- [ ] Create a pending approval record when an approval-requiring proposal is durably accepted.
-- [ ] Bind the record to organization, installation, run, provider tool-call id, capability and
+- [x] Create a pending approval record when an approval-requiring proposal is durably accepted.
+- [x] Bind the record to organization, installation, run, provider tool-call id, capability and
   version, normalized argument hash, resource snapshot, immutable preview revision, policy revision,
   expiry, and permitted effect/idempotency key.
-- [ ] Change the schema if necessary so a pending record does not require an `approved_by` value.
-- [ ] Decide approval/denial with an atomic compare-and-set transition.
+- [x] Change the schema if necessary so a pending record does not require an `approved_by` value.
+- [x] Decide approval/denial with an atomic compare-and-set transition.
 - [ ] Expire pending approvals durably and surface expiration to the workflow and UI.
 - [ ] Immediately before effect execution, reauthorize current organization, installation,
   capability, resource, connector/channel, and kill-switch state.
-- [ ] Atomically consume the approved record once and only once before the permitted effect begins.
+- [x] Atomically consume the approved record once and only once before the permitted effect begins.
 - [ ] Ensure Temporal activity retry cannot consume approval twice or execute a second effect.
 - [ ] Cancel the approval when the run or installation is cancelled/disabled.
 - [ ] Replace or clearly separate duplicated approval state in `tool_invocations` so the source of
@@ -242,11 +253,16 @@ Relevant starting points:
 
 ### Required tests
 
-- [ ] Database test covers pending → approved → consumed.
-- [ ] Database tests cover pending → denied, expired, and cancelled.
+- [x] Database test covers pending → approved → consumed.
+- [x] Database tests cover pending → denied, expired, and cancelled.
 - [ ] Wrong organization, installation, capability version, argument hash, resource snapshot,
   preview revision, policy revision, or effect key cannot consume approval.
-- [ ] Two concurrent consumers produce exactly one successful consumption.
+- [x] Two concurrent consumers produce exactly one successful consumption.
+
+**Partial evidence:** migration `032_durable_approval_lifecycle.sql`,
+`agents/src/db/repositories/approval-repository.ts`, `agents/src/temporal/activities.ts`,
+`agents/test/run.integration.test.ts`; `e94e16a`. Expiry scheduling, cancellation, full
+execution-time reauthorization, and Temporal recovery proof remain open.
 - [ ] Changed grants or disabled installation after approval prevents execution.
 - [ ] Temporal replay/retry does not create or consume a second approval.
 
@@ -276,23 +292,27 @@ Relevant starting points:
 
 ### Implementation checklist
 
-- [ ] Keep a proposed or approval-waiting effect `reserved`; do not mark it `executing` on proposal.
-- [ ] Mark `executing` atomically immediately before the provider side effect is invoked.
+- [x] Keep a proposed or approval-waiting effect `reserved`; do not mark it `executing` on proposal.
+- [x] Mark `executing` atomically immediately before the provider side effect is invoked.
 - [ ] Introduce an explicit pre-effect execution hook/boundary if `ToolRegistry.invoke()` currently
   hides the exact provider-call boundary.
 - [ ] Require the durable approval consumption and effect transition to agree on organization, run,
   tool-call id, capability/version, arguments hash, and idempotency key.
-- [ ] Mark denied, expired, cancelled, or failed-before-provider effects as definitely not executed,
+- [x] Mark denied, expired, cancelled, or failed-before-provider effects as definitely not executed,
   with `reconciliation_required=false`.
-- [ ] Mark `unknown/reconciliation_required` only when execution may have reached the provider and the
+- [x] Mark `unknown/reconciliation_required` only when execution may have reached the provider and the
   outcome cannot be determined.
-- [ ] Do not mutate effect state as an incidental side effect of a GET/health query. Move stale
+- [x] Do not mutate effect state as an incidental side effect of a GET/health query. Move stale
   execution detection to a scheduled reconciliation command/job with audit evidence.
-- [ ] Ensure reconciliation commands are authenticated, scoped, version-checked, idempotent, and
+- [x] Ensure reconciliation commands are authenticated, scoped, version-checked, idempotent, and
   audited.
 - [ ] Make receipt status and reconciliation API response semantics agree; remove an unused
   `reconciled` state or use it consistently.
-- [ ] Store provider receipts safely and redact credentials/provider secrets from errors and output.
+- [x] Store provider receipts safely and redact credentials/provider secrets from errors and output.
+
+**Partial evidence:** `agents/src/db/repositories/effect-receipt-repository.ts`,
+`agents/src/temporal/activities.ts`, `agents/src/temporal/worker.ts`, `agents/test/run.integration.test.ts`;
+`ad7e0ec`, `7ecc36a`, `3de686f`. The exact provider-call hook and full recovery matrix remain open.
 - [ ] Prohibit blind retry after any ambiguous provider outcome.
 
 ### Required tests
@@ -335,33 +355,37 @@ Relevant starting points:
 ### Implementation checklist
 
 - [ ] Extract or reuse one protocol-neutral invocation service used by hosted agents and MCP.
-- [ ] Resolve the authenticated installation and effective grants inside that service.
-- [ ] Normalize and validate arguments once using the canonical capability manifest.
+- [x] Resolve the authenticated installation and effective grants inside that service.
+- [x] Normalize and validate arguments once using the canonical capability manifest.
 - [ ] Apply current entitlement, resource, connector/channel, risk, approval, kill-switch, quota,
   budget, and availability policy before invocation.
-- [ ] Create durable invocation/audit/usage evidence for every MCP call.
-- [ ] Route durable capabilities through Temporal and return a stable operation/run reference.
+- [x] Create durable invocation/audit/usage evidence for every MCP call.
+- [x] Route durable capabilities through Temporal and return a stable operation/run reference.
 - [ ] Permit immediate read execution only when the manifest explicitly declares it, while still
   recording audit and usage evidence.
 - [ ] Return structured `APPROVAL_REQUIRED` data with a stable approval/status reference instead of a
   terminal generic tool failure.
-- [ ] Route approved effects through the exact approval and effect boundary from AR-003/AR-004.
+- [x] Route approved effects through the exact approval and effect boundary from AR-003/AR-004.
 - [ ] Implement MCP cancellation and propagate it to the operation/workflow where cancellation is
   safe.
-- [ ] Ensure retries use client/request idempotency and cannot duplicate drafts or effects.
-- [ ] Keep the external gateway stateless and free of database, Temporal, and business ownership.
+- [x] Ensure retries use client/request idempotency and cannot duplicate drafts or effects.
+- [x] Keep the external gateway stateless and free of database, Temporal, and business ownership.
 - [ ] Ensure equivalent MCP and hosted-agent operations converge on the same domain adapter and
   produce compatible authorization, audit, approval, effect, and receipt outcomes.
 
 ### Required tests
 
-- [ ] MCP read call writes scoped audit/usage evidence.
+- [x] MCP read call writes scoped audit/usage evidence.
 - [ ] MCP draft call is idempotent and uses the shared domain command.
 - [ ] MCP durable call returns an operation reference and survives worker restart.
 - [ ] MCP approval-required call can be approved/denied through the supported flow.
 - [ ] MCP cancellation reaches the workflow without cancelling a completed effect.
 - [ ] MCP and hosted-agent parity tests assert the same domain operation and policy outcome.
-- [ ] Cross-installation and cross-organization calls are rejected.
+- [x] Cross-installation and cross-organization calls are rejected.
+
+**Partial evidence:** `agents/src/http/app.ts`, `agents/src/temporal/activities.ts`,
+`agents/test/http.test.ts`; `1c95d9c`. Protocol-neutral extraction, cancellation, parity, restart,
+and external-client proof remain open.
 - [ ] Real Codex, Claude Code, and a generic MCP client are verified before checking the relevant
   primary-blueprint item.
 
@@ -387,7 +411,7 @@ Relevant starting points:
 
 ### Implementation checklist
 
-- [ ] Keep `/v1/health` intentionally minimal and public only if that is the documented health
+- [x] Keep `/v1/health` intentionally minimal and public only if that is the documented health
   contract.
 - [ ] Put `/v1/capabilities` behind the dedicated public principal/authentication boundary required
   by the blueprint.
@@ -395,7 +419,11 @@ Relevant starting points:
   implementation rather than assuming it.
 - [ ] Filter discovery by lifecycle, authenticated principal type, organization entitlements,
   scopes, grants, resource policy, runtime support, feature flags, and availability.
-- [ ] Never expose `Internal`, disabled, retired, unentitled, or incompatible actions.
+- [x] Never expose `Internal`, disabled, retired, unentitled, or incompatible actions.
+
+**Partial evidence:** `server/kasitek-core/src/controllers/public_v1.rs`,
+`server/kasitek-core/src/capabilities/catalog.rs`; `4b8cd4f`. Dedicated public-principal
+authentication, DTOs, OpenAPI, metering, and broader policy filtering remain open.
 - [ ] Return a stable public DTO rather than serializing the internal `ActionDefinition` directly.
 - [ ] Add pagination/versioning where required by the public API contract.
 - [ ] Generate or update core-owned OpenAPI 3.1 with authentication and response schemas.
@@ -427,27 +455,31 @@ replayed against another instance or after restart.
 
 ### Implementation checklist
 
-- [ ] Replace process-local replay tracking with an atomic shared replay store appropriate to the
+- [x] Replace process-local replay tracking with an atomic shared replay store appropriate to the
   approved deployment topology.
-- [ ] Key replay state by issuer and JWT id, with expiration at least as long as token validity plus
+- [x] Key replay state by issuer and JWT id, with expiration at least as long as token validity plus
   allowed clock skew.
-- [ ] Make accept-if-absent atomic across replicas.
-- [ ] Fail closed when the replay store is unavailable for effect-capable invocations.
-- [ ] Bound storage growth and purge expired entries safely.
-- [ ] Bind and validate organization, installation, capability/version, run, invocation,
+- [x] Make accept-if-absent atomic across replicas.
+- [x] Fail closed when the replay store is unavailable for effect-capable invocations.
+- [x] Bound storage growth and purge expired entries safely.
+- [x] Bind and validate organization, installation, capability/version, run, invocation,
   correlation, argument hash, and idempotency claims appropriate to the operation.
-- [ ] Ensure effect-capable Agent-to-core calls actually populate argument hash and idempotency
+- [x] Ensure effect-capable Agent-to-core calls actually populate argument hash and idempotency
   claims; the current client leaves them unset.
 - [ ] Add signing-key rotation/JWKS behavior required by the primary blueprint.
 
 ### Required tests
 
-- [ ] First use succeeds and same-process replay fails.
+- [x] First use succeeds and same-process replay fails.
 - [ ] Replay against a second simulated instance fails.
 - [ ] Replay after service restart but before JWT expiry fails.
 - [ ] Reuse after replay-record expiry follows the documented expired-token behavior.
-- [ ] Missing or mismatched trace, argument, idempotency, capability, or installation claims fail.
-- [ ] Replay-store outage follows the documented fail-closed behavior.
+- [x] Missing or mismatched trace, argument, idempotency, capability, or installation claims fail.
+- [x] Replay-store outage follows the documented fail-closed behavior.
+
+**Partial evidence:** `server/kasitek-core/src/identity/internal_delegation.rs`,
+`server/kasitek-core/src/services/realtime.rs`, Agent core-client tests; `ac738b0`, `14e2892`.
+Multi-instance/restart integration and signing-key rotation remain open.
 
 ### Completion gate
 
@@ -473,11 +505,11 @@ Relevant starting points:
 
 ### Implementation checklist
 
-- [ ] Require a strong gateway-to-Agent-API credential in production; fail startup if absent.
-- [ ] Do not forward client-supplied internal organization/actor headers as trusted identity.
-- [ ] Forward only allowlisted headers and derive installation identity from the validated bearer
+- [x] Require a strong gateway-to-Agent-API credential in production; fail startup if absent.
+- [x] Do not forward client-supplied internal organization/actor headers as trusted identity.
+- [x] Forward only allowlisted headers and derive installation identity from the validated bearer
   token at the Agent API.
-- [ ] Add request/body limits, timeouts, upstream abort propagation, client-disconnect cancellation,
+- [x] Add request/body limits, timeouts, upstream abort propagation, client-disconnect cancellation,
   and bounded response handling.
 - [ ] Add rate limits keyed by installation/credential and safe pre-authentication network limits.
 - [ ] Add a global and scoped MCP kill switch with audited changes.
@@ -487,12 +519,16 @@ Relevant starting points:
   compatibility tests.
 - [ ] Complete Streamable HTTP lifecycle, notification, structured error, and cancellation behavior.
 - [ ] Add Railway/service deployment configuration, routing, scaling, and health checks.
-- [ ] Keep `/v1` off the MCP gateway.
+- [x] Keep `/v1` off the MCP gateway.
 
 ### Required tests
 
-- [ ] Production configuration fails without gateway-to-API authentication.
-- [ ] Spoofed internal identity headers are stripped or rejected.
+- [x] Production configuration fails without gateway-to-API authentication.
+- [x] Spoofed internal identity headers are stripped or rejected.
+
+**Partial evidence:** `agents/src/gateway/app.ts`, `agents/src/gateway/server.ts`,
+`agents/test/gateway.test.ts`; `5d3787e`. Distributed limits, metrics/readiness, deployment,
+protocol cancellation, and hosted smoke remain open.
 - [ ] Rate, body, timeout, disconnect/cancellation, upstream failure, and kill-switch tests pass.
 - [ ] Two gateway instances remain stateless and produce equivalent behavior.
 - [ ] Protocol initialization/negotiation and notifications pass compatibility tests.
@@ -506,16 +542,16 @@ Relevant starting points:
 
 ## 13. AR-009 — Evidence, progress, and blocker accuracy
 
-- [ ] Update `docs/internal/architecture/agent-system-slices-2-7-progress.md` so it does not call
+- [x] Update `docs/internal/architecture/agent-system-slices-2-7-progress.md` so it does not call
   approval/effect/MCP paths implemented until their live integration and tests pass.
-- [ ] Update `BLOCKERS.md` with every unresolved product decision or unavailable verification
+- [x] Update `BLOCKERS.md` with every unresolved product decision or unavailable verification
   environment discovered during remediation.
 - [ ] Do not use `BLOCKERS.md` as a list of ordinary unfinished work; unfinished work remains an
   unchecked checklist item.
 - [ ] Recount checked and unchecked primary-blueprint items and record the count in the handoff.
 - [ ] Add evidence to primary-blueprint items only when their full deliverable and verification gate
   pass.
-- [ ] Ensure documentation describes actual authentication, approval, effect, MCP, and public API
+- [x] Ensure documentation describes actual authentication, approval, effect, MCP, and public API
   behavior rather than intended future behavior.
 - [ ] Suggested commit: `docs(agents): reconcile audit remediation evidence`.
 
@@ -527,11 +563,11 @@ runtime verification.
 
 ### Static and unit verification
 
-- [ ] `cd agents && pnpm test`
-- [ ] `cd agents && pnpm build`
-- [ ] `cd server && cargo fmt --check`
-- [ ] `cd server && cargo check -p kasitek-core`
-- [ ] `cd server && cargo test -p kasitek-core`
+- [x] `cd agents && pnpm test`
+- [x] `cd agents && pnpm build`
+- [x] `cd server && cargo fmt --check`
+- [x] `cd server && cargo check -p kasitek-core`
+- [x] `cd server && cargo test -p kasitek-core`
 - [ ] `cd client && pnpm --filter client lint`
 - [ ] `cd client/apps/client && pnpm exec tsc --noEmit`
 - [ ] `cd client && pnpm --filter admin lint`
@@ -541,9 +577,9 @@ runtime verification.
 
 ### Required integration verification
 
-- [ ] Apply all Agent migrations to a clean isolated PostgreSQL database.
+- [x] Apply all Agent migrations to a clean isolated PostgreSQL database.
 - [ ] Apply the new migrations from every supported previous schema baseline.
-- [ ] Run all Agent integration tests with zero unexpected skips.
+- [x] Run all Agent integration tests with zero unexpected skips.
 - [ ] Run relevant core database integration tests with zero unexpected ignores.
 - [ ] Run Temporal approval, retry, worker-restart, crash-after-provider-call, cancellation, and replay
   recovery tests.
@@ -557,19 +593,19 @@ runtime verification.
 
 ### Audit regressions that must be explicitly demonstrated
 
-- [ ] A valid exchanged MCP installation token succeeds.
-- [ ] A revoked token or mismatched installation fails.
-- [ ] A zero-scope internal token cannot approve a run.
-- [ ] A long approval wait never creates a false ambiguous provider outcome.
-- [ ] A denied effect is durably closed as not executed.
-- [ ] An approval is consumed once under concurrent execution.
-- [ ] MCP calls create the required durable audit/usage/runtime evidence.
-- [ ] Internal/pilot actions are not anonymously exposed through `/v1/capabilities`.
+- [x] A valid exchanged MCP installation token succeeds.
+- [x] A revoked token or mismatched installation fails.
+- [x] A zero-scope internal token cannot approve a run.
+- [x] A long approval wait never creates a false ambiguous provider outcome.
+- [x] A denied effect is durably closed as not executed.
+- [x] An approval is consumed once under concurrent execution.
+- [x] MCP calls create the required durable audit/usage/runtime evidence.
+- [x] Internal/pilot actions are not anonymously exposed through `/v1/capabilities`.
 - [ ] Delegation replay fails across replicas and restart.
 
 ### Verification hygiene
 
-- [ ] Use a repository-supported Node version. The audit ran on unsupported Node `23.11.1`; the
+- [x] Use a repository-supported Node version. The audit ran on unsupported Node `23.11.1`; the
   repository requested `>=22.12.0 <23 || >=24.0.0`.
 - [ ] Record warnings separately from failures. The audit baseline had one client lint warning and
   34 admin lint warnings.

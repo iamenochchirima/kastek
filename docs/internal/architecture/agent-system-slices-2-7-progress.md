@@ -5,17 +5,22 @@ marked when the complete deliverable and its verification exist.
 
 ## Implemented evidence
 
-- Installation credential records use copy-once scrypt hashes and support rotation/revocation:
-  `9f7203d`.
+- Installation credential records use copy-once scrypt hashes, MCP scopes, token exchange, and
+  rotation/revocation. MCP requests validate the ES256 installation token against the current
+  credential and installation: `9f7203d`, `48b16bf`.
 - Installation resource/connector grants and capability discovery are organization- and
   installation-scoped: `5745184`, `b3830c8`.
 - Agent invocations can issue short-lived ES256 delegations and kasitek-core verifies issuer,
-  audience, expiry, subject, organization, installation, and capability claims:
-  `d3c9648`, `ba7458c`.
-- Durable external-effect receipts and single-use approval records have migrations and repository
-  transitions, including reconciliation-required outcomes: `82ebdb0`, `63a90f7`.
-- The Agent Platform has a stateless MCP gateway process, scoped MCP tool discovery/call transport,
-  and gateway forwarding tests: `e90661c`, `75f051e`.
+  audience, expiry, subject, organization, installation, capability, argument-hash, and
+  idempotency claims. Replay prevention uses Redis atomic `SET NX`, not process memory:
+  `d3c9648`, `ba7458c`, `ac738b0`, `14e2892`.
+- Durable external-effect receipts and exact single-use approval records have migrations and
+  repository transitions, including reconciliation-required outcomes. Approval decisions require
+  `runs:approve`, and effects stay reserved until execution: `82ebdb0`, `63a90f7`, `e94e16a`,
+  `ad7e0ec`, `7508423`, `7ecc36a`.
+- The Agent Platform has a stateless MCP gateway process, installation-scoped MCP discovery/call
+  transport, gateway authentication hardening, and durable MCP runs: `e90661c`, `75f051e`,
+  `5d3787e`, `1c95d9c`.
 - Provider-neutral connector manifests, canonical Telegram/Discord inbound envelopes, and delivery
   adapter boundaries are implemented and unit tested: `6e40567`, `b8e1c50`.
 - Core action metadata and typed content adapters cover content listing, draft creation, and publish
@@ -23,11 +28,12 @@ marked when the complete deliverable and its verification exist.
 
 ## Verification evidence
 
-Agent Platform `pnpm test && pnpm build` currently passes with 30 test files passing, 9 integration
-files skipped because no local database/provider stack is configured, and 86 tests passing. Core
-capability tests and `cargo check -p kasitek-core` pass. The skipped integration environment and
-existing database/Temporal integration environment remains recorded in the root `BLOCKERS.md`.
-Client lint/typecheck/build and admin lint/build now pass; admin lint reports existing warnings.
+On 2026-08-13, Agent Platform migration `027` through `032` applied to the local Agent PostgreSQL
+database. With `RUN_AGENTS_DB_INTEGRATION_TESTS=true`, `pnpm test` passed 39 files / 113 tests, and
+`pnpm build` passed. `cargo fmt --check`, `cargo check -p kasitek-core`, and
+`cargo test -p kasitek-core --lib` passed (61 tests passed; 2 database tests intentionally ignored).
+Temporal recovery, browser, externally hosted MCP, provider sandbox, and the full frontend/admin
+matrix remain release gates and are tracked in the canonical checklist and `BLOCKERS.md`.
 
 ## Remaining work
 
