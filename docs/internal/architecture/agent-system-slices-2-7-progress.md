@@ -258,6 +258,16 @@ controller-facing exports remain stable and the core suite passes (`ca89e40`). T
 adapter remains in `whatsapp_calls`; the broad checklist item still needs its final cross-provider
 delivery-worker and target-environment E2E evidence.
 
+The next capability-domain slice exposes the existing organization-scoped contacts and inbox query
+services through the delegated Agent/Core boundary. `2316624` adds filtered contact listing,
+conversation listing, and conversation message reads under `contacts.read`/`inbox.read`, with
+resource selection and redaction metadata in the authoritative Agent manifest registry. Core owns
+the SQL and organization checks; Agent Platform only receives typed projections and never connects
+to the core database. Rust format/check/library tests pass (85 passed, 3 infrastructure-gated
+ignored), Agent tests pass (33 files, 147 passed, 24 environment-gated skipped), and the Agent
+TypeScript build passes. This is a read-side foundation for the broader contacts/inbox capability
+expansion; writes, provider effects, and full browser/provider E2E remain open.
+
 The WhatsApp model follow-up moves the completed connection, template, campaign, contact/list, and
 inbox transport DTOs/rows into `db::whatsapp_models`; `db::models` re-exports them during migration
 so existing adapters retain source compatibility (`7daf4da`). Call-specific models and the broader
