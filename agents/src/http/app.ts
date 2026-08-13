@@ -576,6 +576,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post("/v1/agents", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = createAgentInputSchema.parse(request.body);
     const agent = await agents.createAgent(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(agent);
@@ -606,6 +607,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { agentId: string } }>("/v1/agents/:agentId/versions", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     const agent = await agents.getAgent(auth.organizationId, request.params.agentId);
     if (!agent) return reply.code(404).send({ error: "agent_not_found" });
     return { versions: await agents.listVersions(auth.organizationId, request.params.agentId) };
@@ -613,6 +615,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { agentId: string } }>("/v1/agents/:agentId/versions", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = createVersionInputSchema.parse(request.body);
     const version = await agents.createVersion(auth.organizationId, auth.actorId, request.params.agentId, input);
     return reply.code(201).send(version);
@@ -622,6 +625,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/agents/:agentId/versions/:versionId/publish",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:write");
       const version = await agents.publishVersion(
         auth.organizationId,
         auth.actorId,
@@ -636,6 +640,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/agents/:agentId/versions/:versionId/tools",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:write");
       const input = z.object({ toolName: z.string().trim().min(1).max(160) }).parse(request.body);
       const grant = await toolGrants.grantVersionTool({
         organizationId: auth.organizationId,
@@ -652,6 +657,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/agents/:agentId/versions/:versionId/tools",
     async (request) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:read");
       return { grants: await toolGrants.listForVersion(auth.organizationId, request.params.versionId) };
     },
   );
@@ -671,6 +677,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.delete<{ Params: { grantId: string } }>("/v1/tool-grants/:grantId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     await toolGrants.revoke({ organizationId: auth.organizationId, grantId: request.params.grantId, actorId: auth.actorId });
     return reply.code(204).send();
   });
@@ -679,6 +686,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/agents/:agentId/versions/:versionId/rollback",
     async (request) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:write");
       return agents.rollbackVersion(auth.organizationId, auth.actorId, request.params.agentId, request.params.versionId);
     },
   );
@@ -687,17 +695,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/agents/:agentId/versions/:versionId/retire",
     async (request) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:write");
       return agents.retireVersion(auth.organizationId, auth.actorId, request.params.agentId, request.params.versionId);
     },
   );
 
   app.post<{ Params: { agentId: string } }>("/v1/agents/:agentId/archive", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     return agents.archiveAgent(auth.organizationId, auth.actorId, request.params.agentId);
   });
 
   app.post("/v1/installations", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = createInstallationInputSchema.parse(request.body);
     const installation = await agents.createInstallation(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(installation);
@@ -705,6 +716,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { installationId: string }; Querystring: { credentialId?: string } }>("/v1/installations/:installationId/capabilities", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     if (request.query.credentialId) {
       const credential = await installationCredentials.getActiveForToken({ credentialId: request.query.credentialId, organizationId: auth.organizationId, installationId: request.params.installationId });
       if (!credential) return reply.code(401).send({ error: "installation_credential_not_active" });
@@ -722,6 +734,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/credentials", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     return { credentials: await installationCredentials.list(auth.organizationId, request.params.installationId) };
   });
 
@@ -752,6 +765,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/grants", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     return installationGrants.effective(auth.organizationId, request.params.installationId);
   });
 
@@ -762,6 +776,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/connectors", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
     const grants = await installationGrants.effective(auth.organizationId, installation.id);
@@ -818,6 +833,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/installations/:installationId/kasiai/home",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:write");
       requireScope(auth, dependencies.config, "kasiai:read");
       const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
       if (!installation || installation.status !== "active") return reply.code(404).send({ error: "kasiai_installation_not_found" });
@@ -1155,6 +1171,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/schedules", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ expression: z.string().trim().min(1).max(240), timezone: z.string().trim().min(1).max(80).default("UTC"), input: z.record(z.string(), z.unknown()).default({}), nextRunAt: z.string().datetime().optional() }).parse(request.body);
     const schedule = await schedules.create({ organizationId: auth.organizationId, installationId: request.params.installationId, expression: input.expression, timezone: input.timezone, scheduleInput: input.input, nextRunAt: input.nextRunAt, actorId: auth.actorId });
     return reply.code(201).send(schedule);
@@ -1162,11 +1179,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/schedules", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     return { schedules: await schedules.list(auth.organizationId, request.params.installationId) };
   });
 
   app.post<{ Params: { scheduleId: string; status: "active" | "paused" | "disabled" } }>("/v1/schedules/:scheduleId/status/:status", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const status = z.enum(["active", "paused", "disabled"]).parse(request.params.status);
     return schedules.setStatus(auth.organizationId, request.params.scheduleId, status, auth.actorId);
   });
@@ -1227,6 +1246,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/installations/:installationId/conversations",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:write");
       const input = z
         .object({
           channelType: z.string().trim().min(1).max(80).default("platform"),
@@ -1259,6 +1279,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/conversations/:conversationId/messages",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:write");
       const input = z
         .object({
           participantId: z.string().uuid().optional(),
@@ -1312,6 +1333,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { conversationId: string } }>("/v1/conversations/:conversationId/participants", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "chat:write");
     const input = z.object({ participantType: z.enum(["user", "customer", "staff", "agent", "system"]), externalId: z.string().trim().max(240).optional(), displayName: z.string().trim().max(240).optional() }).parse(request.body);
     const participant = await conversations.createParticipant({ organizationId: auth.organizationId, conversationId: request.params.conversationId, ...input });
     return reply.code(201).send(participant);
@@ -1321,6 +1343,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/installations/:installationId/status/:status",
     async (request) => {
       const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:write");
       const status = z.enum(["active", "paused", "disabled"]).parse(request.params.status);
       return agents.setInstallationStatus(auth.organizationId, request.params.installationId, status, auth.actorId);
     },
@@ -1341,6 +1364,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post("/v1/runs", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "runs:write");
     const input = startRunInputSchema.parse(request.body);
     const run = await runs.createRun(auth.organizationId, auth.actorId, input);
     if (run.created !== false && dependencies.config.TEMPORAL_ENABLED && dependencies.startWorkflow) {
@@ -1517,6 +1541,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post("/v1/credentials", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ provider: z.enum(["openrouter", "openai", "anthropic", "gemini"]), apiKey: z.string().min(1).max(10_000), label: z.string().trim().max(160).optional() }).parse(request.body);
     const credential = await credentials.store({ organizationId: auth.organizationId, actorId: auth.actorId, ...input });
     return reply.code(201).send(credential);
@@ -1524,17 +1549,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get("/v1/credentials", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     return { credentials: await credentials.list(auth.organizationId) };
   });
 
   app.delete<{ Params: { credentialId: string } }>("/v1/credentials/:credentialId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     await credentials.revoke(auth.organizationId, request.params.credentialId);
     return reply.code(204).send();
   });
 
   app.post<{ Params: { credentialId: string } }>("/v1/credentials/:credentialId/rotate", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ apiKey: z.string().min(1).max(10_000), label: z.string().trim().max(160).optional() }).parse(request.body);
     const credential = await credentials.rotate({ organizationId: auth.organizationId, credentialId: request.params.credentialId, actorId: auth.actorId, ...input });
     return reply.code(201).send(credential);
@@ -1542,6 +1570,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post("/v1/knowledge/sources", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({
       name: z.string().trim().min(1).max(240),
       sourceType: z.enum(["upload", "url", "platform", "manual"]),
@@ -1556,6 +1585,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { sourceId: string } }>("/v1/knowledge/sources/:sourceId/ingest-url", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ url: z.string().url().max(2_000), maxBytes: z.number().int().positive().max(10_000_000).optional(), timeoutMs: z.number().int().positive().max(60_000).optional() }).parse(request.body);
     const source = await knowledge.getSource({ organizationId: auth.organizationId }, request.params.sourceId);
     if (!source) return reply.code(404).send({ error: "knowledge_source_not_found" });
@@ -1574,6 +1604,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Querystring: { agentId?: string; installationId?: string; limit?: string } }>("/v1/memory", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     const agentId = z.string().uuid().parse(request.query.agentId);
     const installationId = request.query.installationId ? z.string().uuid().parse(request.query.installationId) : undefined;
     const limit = request.query.limit ? Number(request.query.limit) : undefined;
@@ -1583,6 +1614,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.delete<{ Params: { memoryId: string } }>("/v1/memory/:memoryId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional() }).parse(request.body);
     await memory.deleteMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, actorId: auth.actorId }, request.params.memoryId, auth.actorId);
     return reply.code(204).send();
@@ -1590,12 +1622,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { memoryId: string } }>("/v1/memory/:memoryId/revalidate", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional(), expiresAt: z.string().datetime().nullable() }).parse(request.body);
     return memory.revalidateMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, actorId: auth.actorId }, request.params.memoryId, input.expiresAt);
   });
 
   app.get<{ Querystring: { agentId?: string; installationId?: string; limit?: string } }>("/v1/knowledge/sources", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     const agentId = request.query.agentId ? z.string().uuid().parse(request.query.agentId) : undefined;
     const installationId = request.query.installationId ? z.string().uuid().parse(request.query.installationId) : undefined;
     const limit = request.query.limit ? Number(request.query.limit) : undefined;
@@ -1605,6 +1639,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.delete<{ Params: { sourceId: string } }>("/v1/knowledge/sources/:sourceId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional() }).parse(request.body);
     await knowledge.deleteSource({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId }, request.params.sourceId, auth.actorId);
     return reply.code(204).send();
@@ -1612,6 +1647,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post("/v1/evaluations/scenarios", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({
       agentDefinitionId: z.string().uuid().optional(),
       name: z.string().trim().min(1).max(240),
@@ -1627,11 +1663,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get("/v1/evaluations/scenarios", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     return { scenarios: await evaluations.listScenarios(auth.organizationId) };
   });
 
   app.post<{ Params: { scenarioId: string } }>("/v1/evaluations/scenarios/:scenarioId/runs", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
     const scenario = await evaluations.getScenario(auth.organizationId, request.params.scenarioId);
     if (!scenario) return reply.code(404).send({ error: "evaluation_scenario_not_found" });
     const input = z.object({ agentVersionId: z.string().uuid().optional(), runId: z.string().uuid().optional(), actualOutput: z.unknown(), evaluatorVersion: z.string().trim().min(1).max(80).default("deterministic-v1") }).parse(request.body);
@@ -1642,6 +1680,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Querystring: { scenarioId?: string } }>("/v1/evaluations/runs", async (request) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
     const scenarioId = request.query.scenarioId ? z.string().uuid().parse(request.query.scenarioId) : undefined;
     return { runs: await evaluations.listRuns(auth.organizationId, scenarioId) };
   });

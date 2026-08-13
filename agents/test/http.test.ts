@@ -656,6 +656,21 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("enforces scopes on agent lifecycle routes", async () => {
+    const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
+    const noScopeToken = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: [] }, "test-secret");
+    const app = buildApp({ config: hmacConfig, pool: fakePool });
+    const denied = await app.inject({
+      method: "POST",
+      url: "/v1/agents",
+      headers: { authorization: `Bearer ${noScopeToken}` },
+      payload: { name: "should-not-create", slug: "should-not-create" },
+    });
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json()).toMatchObject({ error: "Missing internal scope: agents:write" });
+    await app.close();
+  });
+
   it("signals approval and cancellation without handling either in process memory", async () => {
     const signals: Array<{ type: string; value: unknown }> = [];
     const runs = {
