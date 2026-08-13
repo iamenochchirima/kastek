@@ -172,6 +172,36 @@ pub fn content_publish() -> ActionDefinition {
     )
 }
 
+pub fn content_unschedule() -> ActionDefinition {
+    social_action(
+        "content.posts.unschedule",
+        Version::new(1, 0, 0),
+        "Unschedule content",
+        "Move a scheduled content post back to a draft without publishing it.",
+        RiskClass::ExternalEffect,
+        ApprovalRule::Always,
+        json!({"type":"object","properties":{"postId":{"type":"string"}},"required":["postId"],"additionalProperties":false}),
+        json!({"type":"object","required":["post","status"],"additionalProperties":true}),
+        ["content.publish"],
+        IdempotencyRule::Required,
+    )
+}
+
+pub fn content_delete() -> ActionDefinition {
+    social_action(
+        "content.posts.delete",
+        Version::new(1, 0, 0),
+        "Delete content",
+        "Delete an unpublished content draft or schedule.",
+        RiskClass::ExternalEffect,
+        ApprovalRule::Always,
+        json!({"type":"object","properties":{"postId":{"type":"string"}},"required":["postId"],"additionalProperties":false}),
+        json!({"type":"object","properties":{"postId":{"type":"string"},"deleted":{"type":"boolean"}},"required":["postId","deleted"],"additionalProperties":false}),
+        ["content.write"],
+        IdempotencyRule::Required,
+    )
+}
+
 pub fn definitions() -> Vec<ActionDefinition> {
     vec![
         booking_list_services(),
@@ -179,6 +209,8 @@ pub fn definitions() -> Vec<ActionDefinition> {
         content_create_draft(),
         content_update_draft(),
         content_publish(),
+        content_unschedule(),
+        content_delete(),
     ]
 }
 
@@ -193,7 +225,7 @@ mod tests {
     #[test]
     fn built_in_content_actions_have_valid_policy_metadata() {
         let actions = definitions();
-        assert_eq!(actions.len(), 5);
+        assert_eq!(actions.len(), 7);
         for action in &actions {
             action
                 .validate_metadata()

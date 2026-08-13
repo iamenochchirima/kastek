@@ -114,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **134 checked and 90 unchecked items out of 224**. This is a
+The primary blueprint currently has **135 checked and 89 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -211,6 +211,13 @@ are denied after grant revocation or scope narrowing (`8dc98a4`).
 The public REST content slice now also exposes `PATCH /v1/content/posts/{id}` for draft-only
 updates, backed by the shared content adapter and a public `content.posts.draft.update` action.
 OpenAPI, route, authorization, and action-catalog coverage are committed in `9b84334`.
+
+The typed content follow-up adds approval-aware Agent operations for unscheduling and deleting
+unpublished posts (`content_post_unschedule`, `content_post_delete`). Unscheduling atomically moves
+`SCHEDULED` posts back to `DRAFT`, releases queued jobs, and records an idempotency marker; delete
+rejects published records and stays organization-scoped. Internal routes, core client/manifest
+surfaces, generated capability documentation, route inventory, Rust checks/tests, and Agent tests
+are verified in the current working slice.
 
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`

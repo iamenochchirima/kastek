@@ -278,6 +278,46 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       return coreClient.scheduleContentPost(context, String(args.postId), String(args.scheduledFor));
     },
   });
+  tools.register({
+    name: "kasitek.core.content_post_unschedule",
+    version: "1.0.0",
+    description: "Move a scheduled content post back to a draft without publishing it.",
+    riskClass: "external-effect",
+    requiresApproval: true,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: { postId: { type: "string", minLength: 1, maxLength: 160 } },
+      required: ["postId"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["post", "status"], additionalProperties: true },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.publish", resourceSelector: { type: "content_post", argument: "postId" }, execution: "durable", idempotency: "required", approval: "always", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt"] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.unscheduleContentPost(context, String(args.postId));
+    },
+  });
+  tools.register({
+    name: "kasitek.core.content_post_delete",
+    version: "1.0.0",
+    description: "Delete an unpublished content draft or schedule.",
+    riskClass: "external-effect",
+    requiresApproval: true,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: { postId: { type: "string", minLength: 1, maxLength: 160 } },
+      required: ["postId"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["postId", "deleted"], additionalProperties: false },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.write", resourceSelector: { type: "content_post", argument: "postId" }, execution: "durable", idempotency: "required", approval: "always", auditClassification: "full", redaction: [] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.deleteContentPost(context, String(args.postId));
+    },
+  });
   return tools;
 }
 

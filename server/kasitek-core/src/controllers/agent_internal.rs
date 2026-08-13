@@ -348,6 +348,35 @@ pub async fn schedule_content_post(
     Ok(HttpResponse::Accepted().json(result))
 }
 
+pub async fn unschedule_content_post(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_post_unschedule",
+    )
+    .await?;
+    let result = content_adapter::unschedule(pool.get_ref(), &context, &path.into_inner()).await?;
+    Ok(HttpResponse::Accepted().json(result))
+}
+
+pub async fn delete_content_post(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.content_post_delete")
+            .await?;
+    let result = content_adapter::delete_post(pool.get_ref(), &context, &path.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentChannelDeliveryRequest {

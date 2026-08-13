@@ -493,3 +493,87 @@ Schedule a draft for provider publishing at a future time.
   "additionalProperties": true
 }
 ```
+## kasitek.core.content_post_unschedule (1.0.0)
+
+Move a scheduled content post back to a draft without publishing it.
+
+- Owner: `kasitek-core`
+- Permission: `content.publish` (Content Publish permission)
+- Risk: `external-effect`; execution: `durable`; approval: `always`
+- Idempotency: `required`; timeout: 15000ms
+- Resource scope: `content_post`
+- Audit: `full`; redacts: `post.publishJobs.providerReceipt`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "postId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "postId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "post",
+    "status"
+  ],
+  "additionalProperties": true
+}
+```
+## kasitek.core.content_post_delete (1.0.0)
+
+Delete an unpublished content draft or schedule.
+
+- Owner: `kasitek-core`
+- Permission: `content.write` (Content Write permission)
+- Risk: `external-effect`; execution: `durable`; approval: `always`
+- Idempotency: `required`; timeout: 15000ms
+- Resource scope: `content_post`
+- Audit: `full`; redacts: none
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "postId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "postId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "postId",
+    "deleted"
+  ],
+  "additionalProperties": false
+}
+```

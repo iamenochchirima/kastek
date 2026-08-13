@@ -257,3 +257,106 @@ pub async fn schedule(
     let refreshed = social::get_social_post(pool, &context.organization_id, post_id).await?;
     Ok(serde_json::json!({ "post": refreshed, "status": "SCHEDULED" }))
 }
+
+/// Move a scheduled post back to a draft and release its queued provider jobs.
+/// The idempotency marker is stored with the post so retries return the same
+/// draft outcome without reapplying the transition.
+pub async fn unschedule(
+    pool: &PgPool,
+    context: &RequestContext,
+    post_id: &str,
+) -> Result<serde_json::Value, AppError> {
+    let idempotency_key = context.idempotency_key.as_deref().ok_or_else(|| {
+        AppError::BadRequest("idempotency-key is required for content unscheduling".to_string())
+    })?;
+    let mut tx = pool.begin().await?;
+    let lock_key = format!(
+        "kasitek.content.unschedule:{}:{}",
+        context.organization_id, post_id
+    );
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1))")
+        .bind(lock_key)
+        .execute(&mut *tx)
+        .await?;
+    let (status, metadata) = sqlx::query_as::<_, (String, Option<serde_json::Value>)>(
+        r#"SELECT status::text, metadata FROM "SocialPost" WHERE id = $1 AND "orgId" = $2"#,
+    )
+    .bind(post_id)
+    .bind(&context.organization_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
+    let mut metadata = metadata.unwrap_or_else(|| serde_json::json!({}));
+    let object = metadata.as_object_mut().ok_or_else(|| {
+        AppError::BadRequest("Content metadata must be a JSON object".to_string())
+    })?;
+    if object
+        .get("_kasitek_agent_unschedule_idempotency_key")
+        .and_then(serde_json::Value::as_str)
+        == Some(idempotency_key)
+    {
+        tx.rollback().await?;
+        let post = social::get_social_post(pool, &context.organization_id, post_id).await?;
+        return Ok(serde_json::json!({ "post": post, "status": "DRAFT" }));
+    }
+    if status != "SCHEDULED" {
+        return Err(AppError::Conflict(
+            "Only scheduled content can be unscheduled".to_string(),
+        ));
+    }
+    object.remove("_kasitek_agent_schedule_idempotency_key");
+    object.insert(
+        "_kasitek_agent_unschedule_idempotency_key".to_string(),
+        serde_json::Value::String(idempotency_key.to_string()),
+    );
+    sqlx::query(
+        r#"UPDATE "SocialPost"
+           SET status = 'DRAFT'::"SocialPostStatus", "scheduledFor" = NULL, metadata = $3, "updatedAt" = NOW()
+           WHERE id = $1 AND "orgId" = $2"#,
+    )
+    .bind(post_id)
+    .bind(&context.organization_id)
+    .bind(serde_json::Value::Object(object.clone()))
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        r#"UPDATE "SocialPublishJob"
+           SET status = 'PENDING'::"SocialPublishJobStatus", "scheduledFor" = NULL, "updatedAt" = NOW()
+           WHERE "postId" = $1 AND status = 'QUEUED'::"SocialPublishJobStatus""#,
+    )
+    .bind(post_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    let post = social::get_social_post(pool, &context.organization_id, post_id).await?;
+    Ok(serde_json::json!({ "post": post, "status": "DRAFT" }))
+}
+
+/// Delete a draft or scheduled post without exposing a cross-organization
+/// existence check. Published records remain immutable for auditability.
+pub async fn delete_post(
+    pool: &PgPool,
+    context: &RequestContext,
+    post_id: &str,
+) -> Result<serde_json::Value, AppError> {
+    if context.idempotency_key.is_none() {
+        return Err(AppError::BadRequest(
+            "idempotency-key is required for content deletion".to_string(),
+        ));
+    }
+    let status = sqlx::query_scalar::<_, String>(
+        r#"SELECT status::text FROM "SocialPost" WHERE id = $1 AND "orgId" = $2"#,
+    )
+    .bind(post_id)
+    .bind(&context.organization_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
+    if status == "PUBLISHED" {
+        return Err(AppError::Conflict(
+            "Published content is immutable and cannot be deleted".to_string(),
+        ));
+    }
+    let deleted = social::delete_social_post(pool, &context.organization_id, post_id).await?;
+    Ok(serde_json::json!({ "postId": post_id, "deleted": deleted }))
+}

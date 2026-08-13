@@ -191,6 +191,18 @@ export class KasitekCoreReadClient {
     });
   }
 
+  public async unscheduleContentPost(context: ToolInvocationContext, postId: string): Promise<{ post: CoreContentPost; status: string }> {
+    return this.requestJson<{ post: CoreContentPost; status: string }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}/unschedule`, "Content unschedule", {
+      method: "POST",
+    });
+  }
+
+  public async deleteContentPost(context: ToolInvocationContext, postId: string): Promise<{ postId: string; deleted: boolean }> {
+    return this.requestJson<{ postId: string; deleted: boolean }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}`, "Content delete", {
+      method: "DELETE",
+    });
+  }
+
   public async deliverChannelMessage(input: {
     organizationId: string;
     installationId: string;
@@ -246,7 +258,7 @@ export class KasitekCoreReadClient {
           "x-actor-id": context.actorId ?? "kasitek-agent-platform",
           "x-agent-run-id": context.runId,
           "x-correlation-id": context.correlationId,
-          ...(this.idempotencyKeyFor(path, context, init.body) ? { "idempotency-key": this.idempotencyKeyFor(path, context, init.body)! } : {}),
+          ...(this.idempotencyKeyFor(path, init.method, context, init.body) ? { "idempotency-key": this.idempotencyKeyFor(path, init.method, context, init.body)! } : {}),
           accept: "application/json",
           ...(init.body ? { "content-type": "application/json" } : {}),
           ...(init.headers ?? {}),
@@ -278,13 +290,15 @@ export class KasitekCoreReadClient {
     if (method === "PATCH" && path.includes("/content/posts/")) return "kasitek.core.content_post_update";
     if (path.includes("/content/posts/") && path.endsWith("/publish")) return "kasitek.core.content_post_publish";
     if (path.includes("/content/posts/") && path.endsWith("/schedule")) return "kasitek.core.content_post_schedule";
+    if (path.includes("/content/posts/") && path.endsWith("/unschedule")) return "kasitek.core.content_post_unschedule";
+    if (method === "DELETE" && path.includes("/content/posts/")) return "kasitek.core.content_post_delete";
     if (path.includes("/content/posts/")) return "kasitek.core.content_post_get";
     if (path.includes("channels/deliver")) return "kasitek.core.channel_deliver";
     throw new CoreToolError("CORE_INVALID_REQUEST", "Unknown kasitek-core capability route");
   }
 
-  private idempotencyKeyFor(path: string, context: CoreRequestContext, body?: BodyInit | null): string | undefined {
-    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("/content/posts/") && path.endsWith("/publish") ? "kasitek.core.content_post_publish" : path.includes("/content/posts/") && path.endsWith("/schedule") ? "kasitek.core.content_post_schedule" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : undefined;
+  private idempotencyKeyFor(path: string, method: string | undefined, context: CoreRequestContext, body?: BodyInit | null): string | undefined {
+    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("/content/posts/") && path.endsWith("/publish") ? "kasitek.core.content_post_publish" : path.includes("/content/posts/") && path.endsWith("/schedule") ? "kasitek.core.content_post_schedule" : path.includes("/content/posts/") && path.endsWith("/unschedule") ? "kasitek.core.content_post_unschedule" : method === "DELETE" && path.includes("/content/posts/") ? "kasitek.core.content_post_delete" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : undefined;
     if (!capability) return undefined;
     const bodyText = typeof body === "string" ? body : "";
     return `${context.runId}:${capability}:${createHash("sha256").update(bodyText).digest("hex")}`;
@@ -310,7 +324,7 @@ export class KasitekCoreReadClient {
         invocationId: `${context.runId}:${capability}`,
         correlationId: context.correlationId,
         audience: this.config.KASITEK_CORE_DELEGATION_AUDIENCE,
-        idempotencyKey: capability === "kasitek.core.channel_deliver" || capability === "kasitek.core.content_post_draft" || capability === "kasitek.core.content_post_publish" || capability === "kasitek.core.content_post_schedule" ? `${context.runId}:${capability}:${argumentsHash ?? "empty"}` : undefined,
+      idempotencyKey: capability === "kasitek.core.channel_deliver" || capability === "kasitek.core.content_post_draft" || capability === "kasitek.core.content_post_publish" || capability === "kasitek.core.content_post_schedule" || capability === "kasitek.core.content_post_unschedule" || capability === "kasitek.core.content_post_delete" ? `${context.runId}:${capability}:${argumentsHash ?? "empty"}` : undefined,
         argumentsHash,
       });
     }

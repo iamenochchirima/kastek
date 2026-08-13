@@ -572,8 +572,12 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
 
 - [x] Implement manifests and typed core handlers for content listing, content detail, and
   idempotent drafts; the shared internal route is now used by the Agent Platform client.
-- [ ] Complete typed handlers for updates, publish status, scheduling, unscheduling, publishing,
-  and delete/archive behavior supported by the product.
+- [x] Complete typed handlers for updates, publish status, scheduling, unscheduling, publishing,
+  and delete/archive behavior supported by the product. Evidence: the normalized content adapter
+  now exposes draft update, publish, schedule, unschedule, and unpublished-delete transitions;
+  Agent internal routes, core client methods, approval/idempotency manifests, and generated
+  capability documentation cover the full typed surface. Rust core checks/tests and the Agent suite
+  (33 files, 145 passed, 24 environment-gated skips) pass.
 - [x] Apply organization, capability, ownership, and resource checks to the current read, draft,
   and approval-gated publish handlers.
 - [ ] Implement draft operations as immediate safe writes and real publish/schedule effects through

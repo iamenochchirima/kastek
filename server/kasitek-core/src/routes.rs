@@ -38,6 +38,14 @@ mod tests {
                 Method::PATCH,
                 "/api/internal/agents/v1/content/posts/post-1",
             ),
+            (
+                Method::POST,
+                "/api/internal/agents/v1/content/posts/post-1/unschedule",
+            ),
+            (
+                Method::DELETE,
+                "/api/internal/agents/v1/content/posts/post-1",
+            ),
             (Method::GET, "/api/agents"),
             (Method::GET, "/api/admin/me"),
             (Method::POST, "/api/quote-requests"),

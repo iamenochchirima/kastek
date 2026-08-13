@@ -15,6 +15,8 @@ describe("capability discovery", () => {
       "kasitek.core.content_post_draft",
       "kasitek.core.content_post_publish",
       "kasitek.core.content_post_schedule",
+      "kasitek.core.content_post_unschedule",
+      "kasitek.core.content_post_delete",
     ]);
     expect(manifests[1]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "customers.read" });
     expect(manifests[3]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "bookings.read", idempotency: "not_applicable" });
