@@ -83,10 +83,11 @@ pub use super::social_channels::{
     create_social_channel, delete_social_channel, get_social_channel, list_social_channels,
     update_social_channel,
 };
-pub(crate) use super::social_provider_connections::get_social_channel_by_external_account;
 pub use super::social_provider_connections::{
-    upsert_bluesky_oauth_connection_for_org, upsert_threads_connection_for_org,
-    upsert_tiktok_connection_for_org,
+    upsert_bluesky_oauth_connection_for_org, upsert_instagram_connection_for_org,
+    upsert_linkedin_connection_for_org, upsert_meta_connections_for_org,
+    upsert_threads_connection_for_org, upsert_tiktok_connection_for_org,
+    upsert_x_connection_for_org,
 };
 
 pub(crate) fn merge_channel_metadata_with_capabilities(
@@ -687,7 +688,7 @@ impl InstagramProfile {
     }
 }
 
-fn value_as_identifier(value: Option<&Value>) -> Option<String> {
+pub(crate) fn value_as_identifier(value: Option<&Value>) -> Option<String> {
     match value {
         Some(Value::String(value)) if !value.trim().is_empty() => Some(value.clone()),
         Some(Value::Number(value)) => Some(value.to_string()),
@@ -696,33 +697,33 @@ fn value_as_identifier(value: Option<&Value>) -> Option<String> {
 }
 
 #[derive(Clone, serde::Deserialize)]
-struct MetaPictureData {
-    url: Option<String>,
+pub(crate) struct MetaPictureData {
+    pub(crate) url: Option<String>,
 }
 
 #[derive(Clone, serde::Deserialize)]
-struct MetaPicture {
-    data: Option<MetaPictureData>,
+pub(crate) struct MetaPicture {
+    pub(crate) data: Option<MetaPictureData>,
 }
 
 #[derive(Clone, serde::Deserialize)]
 pub struct MetaInstagramAccount {
-    id: String,
-    username: Option<String>,
-    name: Option<String>,
-    profile_picture_url: Option<String>,
+    pub(crate) id: String,
+    pub(crate) username: Option<String>,
+    pub(crate) name: Option<String>,
+    pub(crate) profile_picture_url: Option<String>,
 }
 
 #[derive(Clone, serde::Deserialize)]
 pub struct MetaPageAccount {
     pub id: String,
-    name: Option<String>,
-    username: Option<String>,
+    pub(crate) name: Option<String>,
+    pub(crate) username: Option<String>,
     pub access_token: Option<String>,
-    tasks: Option<Vec<String>>,
-    picture: Option<MetaPicture>,
-    connected_instagram_account: Option<MetaInstagramAccount>,
-    instagram_business_account: Option<MetaInstagramAccount>,
+    pub(crate) tasks: Option<Vec<String>>,
+    pub(crate) picture: Option<MetaPicture>,
+    pub(crate) connected_instagram_account: Option<MetaInstagramAccount>,
+    pub(crate) instagram_business_account: Option<MetaInstagramAccount>,
 }
 
 #[derive(serde::Deserialize)]
@@ -1152,456 +1153,6 @@ pub async fn ensure_meta_page_webhook_subscriptions(
     }
 
     Ok(refreshed)
-}
-
-pub async fn upsert_meta_connections_for_org(
-    pool: &PgPool,
-    user_id: &str,
-    org_id: &str,
-    user_tokens: &MetaTokenResponse,
-    pages: &[MetaPageAccount],
-    include_facebook_pages: bool,
-    include_instagram_accounts: bool,
-) -> Result<Vec<SocialChannel>, AppError> {
-    let user_access_token = user_tokens
-        .access_token
-        .as_deref()
-        .ok_or_else(|| AppError::BadRequest("Missing Meta access token".to_string()))?;
-    let encrypted_user_access_token = encrypt_social_secret(user_access_token)?;
-    let user_token_expires_at = user_tokens
-        .expires_in
-        .map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
-    let mut saved = Vec::new();
-
-    for page in pages {
-        let page_access_token = match page.access_token.as_deref() {
-            Some(value) if !value.trim().is_empty() => value,
-            _ => continue,
-        };
-        let encrypted_page_access_token = encrypt_social_secret(page_access_token)?;
-        let page_metadata = json!({
-            "provider": "meta",
-            "assetType": "facebook_page",
-            "pageId": page.id,
-            "username": page.username,
-            "pictureUrl": page.picture.as_ref().and_then(|picture| picture.data.as_ref()).and_then(|data| data.url.clone()),
-            "tasks": page.tasks.clone().unwrap_or_default(),
-            "userTokenExpiresAt": user_token_expires_at,
-            "tokenType": user_tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
-        });
-
-        if include_facebook_pages {
-            sqlx::query(
-                r#"
-            INSERT INTO "SocialChannelConnection" (
-                id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
-                "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
-            )
-            VALUES (
-                $1, $2, $3, 'FACEBOOK'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $4, $5, $6,
-                $7, $8, $9, NOW(), NOW(), NOW()
-            )
-            ON CONFLICT ("orgId", platform, "externalAccountId")
-            DO UPDATE SET
-                status = 'CONNECTED'::"SocialChannelStatus",
-                "displayName" = EXCLUDED."displayName",
-                handle = EXCLUDED.handle,
-                "accessToken" = EXCLUDED."accessToken",
-                "refreshToken" = EXCLUDED."refreshToken",
-                metadata = EXCLUDED.metadata,
-                "lastSyncedAt" = NOW(),
-                "updatedAt" = NOW()
-                "#,
-            )
-            .bind(cuid2::create_id())
-            .bind(user_id)
-            .bind(org_id)
-            .bind(
-                page.name
-                    .clone()
-                    .unwrap_or_else(|| "Facebook Page".to_string()),
-            )
-            .bind(page.username.as_ref().map(|username| format!("@{username}")))
-            .bind(&page.id)
-            .bind(&encrypted_page_access_token)
-            .bind(Some(encrypted_user_access_token.clone()))
-            .bind(merge_channel_metadata_with_capabilities(
-                "FACEBOOK",
-                Some(page_metadata),
-            ))
-            .execute(pool)
-            .await?;
-
-            if let Some(channel) =
-                get_social_channel_by_external_account(pool, org_id, "FACEBOOK", &page.id).await?
-            {
-                saved.push(channel);
-            }
-        }
-
-        if !include_instagram_accounts {
-            continue;
-        }
-
-        let instagram = match page
-            .connected_instagram_account
-            .clone()
-            .or(page.instagram_business_account.clone())
-        {
-            Some(account) => Some(account),
-            None => fetch_page_instagram_account(page_access_token, &page.id).await?,
-        };
-
-        if let Some(instagram) = instagram {
-            let instagram_metadata = json!({
-                "provider": "meta",
-                "assetType": "instagram_professional_account",
-                "instagramAccountId": instagram.id,
-                "pageId": page.id,
-                "pageName": page.name,
-                "profilePictureUrl": instagram.profile_picture_url,
-                "userTokenExpiresAt": user_token_expires_at,
-                "tokenType": user_tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
-            });
-
-            sqlx::query(
-                r#"
-                INSERT INTO "SocialChannelConnection" (
-                    id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
-                    "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
-                )
-                VALUES (
-                    $1, $2, $3, 'INSTAGRAM'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $4, $5, $6,
-                    $7, $8, $9, NOW(), NOW(), NOW()
-                )
-                ON CONFLICT ("orgId", platform, "externalAccountId")
-                DO UPDATE SET
-                    status = 'CONNECTED'::"SocialChannelStatus",
-                    "displayName" = EXCLUDED."displayName",
-                    handle = EXCLUDED.handle,
-                    "accessToken" = EXCLUDED."accessToken",
-                    "refreshToken" = EXCLUDED."refreshToken",
-                    metadata = EXCLUDED.metadata,
-                    "lastSyncedAt" = NOW(),
-                    "updatedAt" = NOW()
-                "#,
-            )
-            .bind(cuid2::create_id())
-            .bind(user_id)
-            .bind(org_id)
-            .bind(
-                instagram
-                    .name
-                    .clone()
-                    .or(instagram.username.clone())
-                    .unwrap_or_else(|| "Instagram account".to_string()),
-            )
-            .bind(
-                instagram
-                    .username
-                    .as_ref()
-                    .map(|username| format!("@{username}")),
-            )
-            .bind(&instagram.id)
-            .bind(&encrypted_page_access_token)
-            .bind(Some(encrypted_user_access_token.clone()))
-            .bind(merge_channel_metadata_with_capabilities(
-                "INSTAGRAM",
-                Some(instagram_metadata),
-            ))
-            .execute(pool)
-            .await?;
-
-            if let Some(channel) =
-                get_social_channel_by_external_account(pool, org_id, "INSTAGRAM", &instagram.id)
-                    .await?
-            {
-                saved.push(channel);
-            }
-        }
-    }
-
-    Ok(saved)
-}
-
-pub async fn upsert_instagram_connection_for_org(
-    pool: &PgPool,
-    user_id: &str,
-    org_id: &str,
-    tokens: &InstagramTokenResponse,
-    granted_permissions: Option<&[String]>,
-    profile: &InstagramProfile,
-) -> Result<SocialChannel, AppError> {
-    let account_id = profile.account_id().ok_or_else(|| {
-        AppError::BadRequest(
-            "Instagram account lookup did not return an account identifier".to_string(),
-        )
-    })?;
-    let app_scoped_account_id = profile.id.clone();
-    let instagram_user_id = value_as_identifier(profile.user_id.as_ref());
-    let access_token = tokens
-        .access_token
-        .as_deref()
-        .ok_or_else(|| AppError::BadRequest("Missing Instagram access token".to_string()))?;
-    let encrypted_access_token = encrypt_social_secret(access_token)?;
-    let expires_at = tokens
-        .expires_in
-        .map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
-    let permissions = granted_permissions
-        .map(|values| values.to_vec())
-        .or_else(|| tokens.permissions.clone())
-        .unwrap_or_default();
-    let display_name = profile
-        .name
-        .clone()
-        .or(profile.username.clone())
-        .unwrap_or_else(|| "Instagram account".to_string());
-    let handle = profile
-        .username
-        .as_ref()
-        .map(|username| format!("@{username}"));
-    let metadata = json!({
-        "provider": "instagram",
-        "authMethod": "instagram_login",
-        "assetType": "instagram_professional_account",
-        "apiHost": "graph.instagram.com",
-        "instagramAccountId": account_id,
-        "instagramUserId": instagram_user_id,
-        "instagramAppScopedId": app_scoped_account_id,
-        "username": profile.username,
-        "profilePictureUrl": profile.profile_picture_url,
-        "accountType": profile.account_type,
-        "followersCount": profile.followers_count,
-        "followsCount": profile.follows_count,
-        "mediaCount": profile.media_count,
-        "permissions": permissions,
-        "tokenType": tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
-        "tokenExpiresAt": expires_at,
-    });
-
-    let mut tx = pool.begin().await?;
-    if let Some(app_scoped_account_id) = app_scoped_account_id
-        .as_deref()
-        .filter(|value| *value != account_id)
-    {
-        let canonical_connection_exists = sqlx::query_scalar::<_, bool>(
-            r#"
-            SELECT EXISTS (
-                SELECT 1
-                FROM "SocialChannelConnection"
-                WHERE "orgId" = $1
-                  AND platform = 'INSTAGRAM'::"SocialPlatform"
-                  AND "externalAccountId" = $2
-            )
-            "#,
-        )
-        .bind(org_id)
-        .bind(&account_id)
-        .fetch_one(tx.as_mut())
-        .await?;
-
-        if !canonical_connection_exists {
-            sqlx::query(
-                r#"
-                UPDATE "SocialChannelConnection"
-                SET "externalAccountId" = $1,
-                    "updatedAt" = NOW()
-                WHERE "orgId" = $2
-                  AND platform = 'INSTAGRAM'::"SocialPlatform"
-                  AND metadata->>'authMethod' = 'instagram_login'
-                  AND (
-                      "externalAccountId" = $3
-                      OR metadata->>'instagramAppScopedId' = $3
-                  )
-                "#,
-            )
-            .bind(&account_id)
-            .bind(org_id)
-            .bind(app_scoped_account_id)
-            .execute(tx.as_mut())
-            .await?;
-        }
-    }
-
-    sqlx::query(
-        r#"
-        INSERT INTO "SocialChannelConnection" (
-            id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
-            "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
-        )
-        VALUES (
-            $1, $2, $3, 'INSTAGRAM'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $4, $5, $6,
-            $7, NULL, $8, NOW(), NOW(), NOW()
-        )
-        ON CONFLICT ("orgId", platform, "externalAccountId")
-        DO UPDATE SET
-            "userId" = EXCLUDED."userId",
-            status = 'CONNECTED'::"SocialChannelStatus",
-            "displayName" = EXCLUDED."displayName",
-            handle = EXCLUDED.handle,
-            "accessToken" = EXCLUDED."accessToken",
-            "refreshToken" = NULL,
-            metadata = EXCLUDED.metadata,
-            "lastSyncedAt" = NOW(),
-            "updatedAt" = NOW()
-        "#,
-    )
-    .bind(cuid2::create_id())
-    .bind(user_id)
-    .bind(org_id)
-    .bind(display_name)
-    .bind(handle)
-    .bind(&account_id)
-    .bind(encrypted_access_token)
-    .bind(merge_channel_metadata_with_capabilities(
-        "INSTAGRAM",
-        Some(metadata),
-    ))
-    .execute(tx.as_mut())
-    .await?;
-    tx.commit().await?;
-
-    get_social_channel_by_external_account(pool, org_id, "INSTAGRAM", &account_id)
-        .await?
-        .ok_or_else(|| AppError::Internal("Failed to save Instagram connection".to_string()))
-}
-
-pub async fn upsert_x_connection_for_org(
-    pool: &PgPool,
-    user_id: &str,
-    org_id: &str,
-    tokens: &XTokenResponse,
-    profile: &XMeData,
-) -> Result<SocialChannel, AppError> {
-    let encrypted_access = encrypt_social_secret(
-        tokens
-            .access_token
-            .as_deref()
-            .ok_or_else(|| AppError::BadRequest("Missing X access token".to_string()))?,
-    )?;
-    let encrypted_refresh = match tokens.refresh_token.as_deref() {
-        Some(value) => Some(encrypt_social_secret(value)?),
-        None => None,
-    };
-    let expires_at = tokens
-        .expires_in
-        .map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
-
-    sqlx::query(
-        r#"
-        INSERT INTO "SocialChannelConnection" (
-            id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
-            "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
-        )
-        VALUES (
-            $1, $2, $3, 'X'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $4, $5, $6,
-            $7, $8, $9, NOW(), NOW(), NOW()
-        )
-        ON CONFLICT ("orgId", platform, "externalAccountId")
-        DO UPDATE SET
-            status = 'CONNECTED'::"SocialChannelStatus",
-            "displayName" = EXCLUDED."displayName",
-            handle = EXCLUDED.handle,
-            "accessToken" = EXCLUDED."accessToken",
-            "refreshToken" = EXCLUDED."refreshToken",
-            metadata = EXCLUDED.metadata,
-            "lastSyncedAt" = NOW(),
-            "updatedAt" = NOW()
-        "#,
-    )
-    .bind(cuid2::create_id())
-    .bind(user_id)
-    .bind(org_id)
-    .bind(profile.name.clone().or(profile.username.clone()).unwrap_or_else(|| "X account".to_string()))
-    .bind(profile.username.as_ref().map(|username| format!("@{username}")))
-    .bind(&profile.id)
-    .bind(encrypted_access)
-    .bind(encrypted_refresh)
-    .bind(merge_channel_metadata_with_capabilities("X", Some(json!({
-        "provider": "x",
-        "tokenType": tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
-        "scope": tokens.scope.clone().unwrap_or_else(|| "tweet.read tweet.write users.read offline.access".to_string()),
-        "expiresAt": expires_at,
-        "avatarUrl": profile.profile_image_url,
-    }))))
-    .execute(pool)
-    .await?;
-
-    get_social_channel_by_external_account(pool, org_id, "X", &profile.id)
-        .await?
-        .ok_or_else(|| AppError::Internal("Failed to load saved X connection".to_string()))
-}
-
-pub async fn upsert_linkedin_connection_for_org(
-    pool: &PgPool,
-    user_id: &str,
-    org_id: &str,
-    tokens: &LinkedInTokenResponse,
-    profile: &LinkedInProfile,
-) -> Result<SocialChannel, AppError> {
-    let profile_sub = profile
-        .sub
-        .as_deref()
-        .ok_or_else(|| AppError::BadRequest("Missing LinkedIn member identifier".to_string()))?;
-    let encrypted_access = encrypt_social_secret(
-        tokens
-            .access_token
-            .as_deref()
-            .ok_or_else(|| AppError::BadRequest("Missing LinkedIn access token".to_string()))?,
-    )?;
-    let encrypted_refresh = match tokens.refresh_token.as_deref() {
-        Some(value) => Some(encrypt_social_secret(value)?),
-        None => None,
-    };
-    let expires_at = tokens
-        .expires_in
-        .map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
-
-    sqlx::query(
-        r#"
-        INSERT INTO "SocialChannelConnection" (
-            id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId",
-            "accessToken", "refreshToken", metadata, "lastSyncedAt", "createdAt", "updatedAt"
-        )
-        VALUES (
-            $1, $2, $3, 'LINKEDIN'::"SocialPlatform", 'CONNECTED'::"SocialChannelStatus", $4, NULL, $5,
-            $6, $7, $8, NOW(), NOW(), NOW()
-        )
-        ON CONFLICT ("orgId", platform, "externalAccountId")
-        DO UPDATE SET
-            status = 'CONNECTED'::"SocialChannelStatus",
-            "displayName" = EXCLUDED."displayName",
-            "accessToken" = EXCLUDED."accessToken",
-            "refreshToken" = EXCLUDED."refreshToken",
-            metadata = EXCLUDED.metadata,
-            "lastSyncedAt" = NOW(),
-            "updatedAt" = NOW()
-        "#,
-    )
-    .bind(cuid2::create_id())
-    .bind(user_id)
-    .bind(org_id)
-    .bind(profile.name.clone().unwrap_or_else(|| "LinkedIn profile".to_string()))
-    .bind(profile_sub)
-    .bind(encrypted_access)
-    .bind(encrypted_refresh)
-    .bind(merge_channel_metadata_with_capabilities(
-        "LINKEDIN",
-        Some(json!({
-            "provider": "linkedin",
-            "scope": tokens.scope.clone().unwrap_or_else(|| "openid profile email w_member_social".to_string()),
-            "expiresAt": expires_at,
-            "picture": profile.picture,
-            "email": profile.email,
-            "actorUrn": format!("urn:li:person:{profile_sub}")
-        })),
-    ))
-    .execute(pool)
-    .await?;
-
-    get_social_channel_by_external_account(pool, org_id, "LINKEDIN", profile_sub)
-        .await?
-        .ok_or_else(|| AppError::Internal("Failed to load saved LinkedIn connection".to_string()))
 }
 
 async fn get_social_channel_private_by_id(
