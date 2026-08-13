@@ -61,7 +61,7 @@ export function AgentsPageClient({
               Manage the agents installed in this workspace. KasiAi is the first protected platform agent; other templates will use the same runtime as they become available.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2"><Button asChild type="button" variant="outline"><Link href="/agents/new">Create custom agent</Link></Button><Button type="button" className="gap-2" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" />Browse templates</Button></div>
+          <div className="flex flex-wrap gap-2"><Button asChild type="button" variant="outline"><Link href="/agents/connect">Connect external agent</Link></Button><Button asChild type="button" variant="outline"><Link href="/agents/new">Create custom agent</Link></Button><Button type="button" className="gap-2" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" />Browse templates</Button></div>
         </header>
 
         {kasiaiInstallationId ? (
