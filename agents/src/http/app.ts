@@ -327,6 +327,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const manifest = toolRegistry.get(name);
       if (!manifest) return failure(-32602, "tool_not_found");
       if (!granted.has(name)) return failure(-32001, "tool_not_granted");
+      if (!toolRegistry.validateArguments(name, args)) return failure(-32602, "invalid_tool_arguments");
       try {
         const accepted = await acceptDurableToolCall({
           runs,
@@ -392,6 +393,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!manifest) return reply.code(404).send({ error: "tool_not_found" });
     if (!granted.has(input.name)) return reply.code(403).send({ error: "tool_not_granted" });
     requireApiScope(auth, manifest.riskClass === "read" ? "api:read" : "api:write");
+    if (!toolRegistry.validateArguments(input.name, input.arguments)) return reply.code(400).send({ error: "invalid_tool_arguments" });
     if (!dependencies.config.TEMPORAL_ENABLED || !dependencies.startWorkflow) {
       return reply.code(503).send({ error: "durable_api_execution_unavailable" });
     }

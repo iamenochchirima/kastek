@@ -67,6 +67,11 @@ export class ToolRegistry {
     return manifest;
   }
 
+  public validateArguments(name: string, argumentsValue: Record<string, unknown>): boolean {
+    const tool = this.tools.get(name);
+    return Boolean(tool?.validateInput(argumentsValue));
+  }
+
   public manifests(grantedTools?: ReadonlySet<string>): Array<Omit<CapabilityManifest, "handler">> {
     return [...this.tools.values()]
       .filter((tool) => tool.manifest && (!grantedTools || grantedTools.has(tool.name)))

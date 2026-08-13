@@ -278,6 +278,14 @@ describe("Agent Platform HTTP foundation", () => {
       payload: { name: "platform.current_time", arguments: {}, idempotencyKey: "api-read-only-1" },
     });
     expect(read.statusCode).toBe(202);
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/tools/call",
+      headers: { authorization: `Bearer ${publicApiToken()}` },
+      payload: { name: "platform.current_time", arguments: { unexpected: true }, idempotencyKey: "api-read-only-invalid" },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json()).toMatchObject({ error: "invalid_tool_arguments" });
     const write = await app.inject({
       method: "POST",
       url: "/v1/installations/install-1/tools/call",
