@@ -157,6 +157,10 @@ manifest grants, and the credential's REST API scope at execution time instead o
 discovery alone. Direct product sessions retain their existing action checks; installation calls
 are denied after grant revocation or scope narrowing (`8dc98a4`).
 
+The public REST content slice now also exposes `PATCH /v1/content/posts/{id}` for draft-only
+updates, backed by the shared content adapter and a public `content.posts.draft.update` action.
+OpenAPI, route, authorization, and action-catalog coverage are committed in `9b84334`.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
