@@ -33,9 +33,14 @@ const envSchema = z.object({
   INSTALLATION_TOKEN_PRIVATE_KEY: z.string().optional(),
   INSTALLATION_TOKEN_ISSUER: z.string().default("kasitek-agents"),
   KASITEK_CORE_DELEGATION_PRIVATE_KEY: z.string().optional(),
+  /** Stable identifier for the currently active core-delegation signing key. */
+  KASITEK_CORE_DELEGATION_KEY_ID: z.string().trim().min(1).max(128).optional(),
   KASITEK_CORE_DELEGATION_ISSUER: z.string().default("kasitek-agents"),
   KASITEK_CORE_DELEGATION_AUDIENCE: z.string().default("kasitek-core-internal"),
   AGENT_GATEWAY_SHARED_SECRET: z.string().optional(),
+  APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW: z.coerce.number().int().min(1).max(1000).default(5),
+  APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3_600_000).default(60_000),
+  APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS: z.coerce.number().int().min(1).max(100_000).default(10_000),
   EFFECT_RECONCILIATION_INTERVAL_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(60_000),
   LOG_LEVEL: z.string().default("info"),
 });

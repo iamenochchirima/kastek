@@ -29,6 +29,10 @@ pub struct AppConfig {
     pub agents_internal_auth_secret: Option<String>,
     pub agents_internal_auth_audience: String,
     pub agents_delegation_public_key: Option<String>,
+    /// Optional JSON object mapping delegation JWT `kid` values to ES256 public PEMs.
+    /// Keep the previous key here during a rotation, then remove it after all short-lived tokens
+    /// signed with it have expired.
+    pub agents_delegation_public_keys_json: Option<String>,
     pub agents_delegation_issuer: String,
     pub agents_delegation_audience: String,
     /// ES256 public key used to validate one-hour Agent Platform installation tokens on `/v1`.
@@ -52,6 +56,11 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
+    pub fn has_agent_delegation_keys(&self) -> bool {
+        self.agents_delegation_public_key.is_some()
+            || self.agents_delegation_public_keys_json.is_some()
+    }
+
     pub fn from_env() -> Result<Self, env::VarError> {
         let environment = env_string_or("ENVIRONMENT", "development");
         let frontend_url =
@@ -118,6 +127,7 @@ impl AppConfig {
                 "kasitek-agents",
             ),
             agents_delegation_public_key: env_optional("AGENTS_DELEGATION_PUBLIC_KEY"),
+            agents_delegation_public_keys_json: env_optional("AGENTS_DELEGATION_PUBLIC_KEYS_JSON"),
             agents_delegation_issuer: env_string_or("AGENTS_DELEGATION_ISSUER", "kasitek-agents"),
             agents_delegation_audience: env_string_or(
                 "AGENTS_DELEGATION_AUDIENCE",

@@ -11,6 +11,7 @@ actions will go through authenticated internal contracts exposed by `kasitek-cor
 - `pnpm run dev:gateway` starts the stateless external MCP gateway.
 - `pnpm run dev:worker` starts the Temporal worker.
 - `pnpm run migrate` applies PostgreSQL migrations.
+- `pnpm run test:e2e:local` exercises a real local installation through REST, Temporal, and MCP.
 - `pnpm run bootstrap:kasiai` idempotently creates the protected KasiAi definition and initial
   published version after migrations are applied.
 - `pnpm run build` compiles both processes to `dist/`.
@@ -37,6 +38,32 @@ The gateway accepts MCP protocol revision `2025-06-18` and returns an explicit i
 error for other revisions. It currently uses JSON responses for POST Streamable HTTP and does not
 claim GET streaming or resumable session support.
 
+Approval decisions have a separate bounded per-organization/run/actor fixed-window guard. Tune it
+with `APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW`, `APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS`, and
+`APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS`; PostgreSQL remains the authoritative compare-and-set and
+duplicate-decision boundary. When Temporal is unavailable in a development environment, only read
+manifests that explicitly declare `execution: immediate` may execute directly; the run and tool
+evidence are still persisted. Durable writes and all approval-required capabilities continue to
+require Temporal.
+
+## Local end-to-end smoke test
+
+After migrations, start the API, worker, and gateway in separate terminals:
+
+```bash
+pnpm run dev:api
+pnpm run dev:worker
+pnpm run dev:gateway
+```
+
+Set a dedicated development ES256 `INSTALLATION_TOKEN_PRIVATE_KEY` in `agents/.env` before starting
+the API, and use a non-production `AGENT_GATEWAY_SHARED_SECRET` when the gateway and API communicate
+over a non-private local network. Then run `pnpm run test:e2e:local`. The smoke test creates an
+isolated organization, agent, installation, credential, and two durable runs. It verifies REST
+credential exchange, filtered discovery, idempotent execution, MCP authentication, protocol
+negotiation, and MCP tool acceptance; it archives its agent fixture afterwards. Set
+`AGENTS_E2E_KEEP_FIXTURES=true` only when investigating a failed run.
+
 Cloud mode requires `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, and `TEMPORAL_API_KEY` in
 `agents/.env` (or the environment used to launch the processes). Never commit the API key.
 
@@ -48,6 +75,12 @@ For containers, use the checked-in Dockerfile for the API and override the Railw
 command with `node dist/temporal/worker.js`. Run `pnpm run migrate` as a release/deployment step
 against the Agent Platform database before routing traffic. The worker should use private
 networking and the API should expose `/health/live` and `/health/ready`.
+
+The gateway service has a checked-in Railway descriptor at `agents/railway.gateway.json`. Configure
+that service with the `agents/` directory as its Railway root, set `AGENT_PLATFORM_URL` to the private
+Agent API origin, provide `AGENT_GATEWAY_SHARED_SECRET`, and attach the `agents.kasitek.co.za` custom
+domain. Scale gateway replicas independently; `/health/ready` is the service health check and no
+gateway replica requires a database or sticky session.
 
 Run requests may include an `idempotencyKey`; retries within an organization return the original
 run and do not start a second Temporal workflow. Run inspection is available at
@@ -74,6 +107,8 @@ authentication modes are present:
 - `KASITEK_CORE_INTERNAL_TOKEN` — a dedicated bearer token configured in core as
   `KASITEK_AGENTS_INTERNAL_TOKEN`.
 - `KASITEK_CORE_DELEGATION_PRIVATE_KEY` — an ES256 private key for per-invocation delegation.
+- `KASITEK_CORE_DELEGATION_KEY_ID` — optional active signing-key identifier during a core
+  delegation-key rotation; it must match core's trusted key map.
 
 The core capability boundary currently includes customer/workspace reads and the first content
 vertical. Content tools call `GET /api/internal/agents/v1/content/posts` and
@@ -86,9 +121,9 @@ The Agent Platform never receives core database credentials. Rotate this service
 deployment secret; do not reuse the n8n callback token or a user session token.
 
 When configured, `KASITEK_CORE_DELEGATION_PRIVATE_KEY` signs a short-lived ES256 delegation per
-core invocation. Core verifies it with `AGENTS_DELEGATION_PUBLIC_KEY`, issuer, audience, run,
-installation, capability, and correlation claims. The static internal token remains only as a
-development compatibility path.
+core invocation. Core verifies it with its legacy `AGENTS_DELEGATION_PUBLIC_KEY` or the rotating
+`AGENTS_DELEGATION_PUBLIC_KEYS_JSON` map, issuer, audience, run, installation, capability, and
+correlation claims. The static internal token remains only as a development compatibility path.
 
 External-effect tools reserve an idempotency-derived effect receipt before execution. Provider
 success/failure is persisted separately from the tool result; ambiguous outcomes are surfaced by

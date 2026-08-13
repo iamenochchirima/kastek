@@ -54,6 +54,8 @@ export interface ToolInvocationRequest {
   context: ToolInvocationContext;
   grantedTools: ReadonlySet<string>;
   approval?: ToolApproval;
+  /** Runs after all validation/approval checks and immediately before a real effect handler. */
+  beforeEffect?: () => Promise<void> | void;
 }
 
 export interface ToolInvocationResult {

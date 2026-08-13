@@ -82,6 +82,30 @@ describe("Tool Gateway and bounded runtime", () => {
     expect(effectIdForInvocation({ runId: "run" }, "platform.publish", hashToolArguments({ id: "post-1" }))).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("runs the durable pre-effect boundary immediately before the provider handler", async () => {
+    const registry = new ToolRegistry();
+    const order: string[] = [];
+    registry.register({
+      name: "platform.effect",
+      version: "1.0.0",
+      description: "effect",
+      riskClass: "external-effect",
+      requiresApproval: false,
+      timeoutMs: 1_000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => { order.push("provider"); return { ok: true }; },
+    });
+    await registry.invoke({
+      name: "platform.effect",
+      arguments: {},
+      grantedTools: new Set(["platform.effect"]),
+      context: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      beforeEffect: async () => { order.push("receipt-executing"); },
+    });
+    expect(order).toEqual(["receipt-executing", "provider"]);
+  });
+
   it("continues after a tool result and completes without a tool call", async () => {
     const registry = new ToolRegistry();
     registry.register({

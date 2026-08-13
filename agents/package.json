@@ -15,6 +15,7 @@
     "start:api": "node dist/http/server.js",
     "start:gateway": "node dist/gateway/server.js",
     "start:worker": "node dist/temporal/worker.js",
+    "test:e2e:local": "tsx scripts/local-e2e-smoke.ts",
     "migrate": "tsx src/db/migrate.ts",
     "bootstrap:kasiai": "tsx src/system/bootstrap-kasiai.ts",
     "release:kasiai": "tsx src/system/release-kasiai.ts",

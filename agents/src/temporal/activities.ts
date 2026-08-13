@@ -26,7 +26,7 @@ import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
-import { evaluateCapabilityPolicy } from "../capabilities/policy";
+import { authorizeInstallationCapability } from "../capabilities/authorization";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -237,24 +237,7 @@ async function assertCurrentCapabilityPolicy(input: {
   installationGrants: InstallationGrantRepository;
   approved: boolean;
 }): Promise<void> {
-  const manifest = input.tools.get(input.name);
-  if (!manifest) throw new Error(`Tool is not registered: ${input.name}`);
-  const selector = manifest.manifest?.resourceSelector;
-  const selected = selector?.argument ? input.argumentsValue[selector.argument] : undefined;
-  const requestedResources = selector && typeof selected === "string" && selected.trim()
-    ? [{ type: selector.type, id: selected.trim() }]
-    : undefined;
-  const grants = await input.installationGrants.effective(input.organizationId, input.installationId);
-  const decision = evaluateCapabilityPolicy({
-    capability: input.name,
-    grantedCapabilities: input.grantedTools,
-    requestedResources,
-    grantedResources: grants.resources,
-    available: manifest.manifest?.availability !== "not_configured" && manifest.manifest?.availability !== "unhealthy",
-    requiresApproval: manifest.requiresApproval,
-    approved: input.approved,
-  });
-  if (!decision.allowed) throw new Error(decision.code);
+  await authorizeInstallationCapability(input);
 }
 
 export function createActivities(pool: Pool, options: ActivityOptions = {}): AgentRunActivities {
@@ -484,13 +467,11 @@ async function executeMcpToolRun(
   if (!manifest) throw new Error(`Tool is not registered: ${invocation.name}`);
   const argumentsHash = hashToolArguments(invocation.arguments);
   const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
-  if (!grantedTools.has(invocation.name)) throw new Error(`Tool is not granted: ${invocation.name}`);
-  if (await killSwitches.isBlocked({
-    organizationId: run.organization_id,
-    agentId: run.agent_definition_id,
-    installationId: run.installation_id,
-    toolNames: [invocation.name],
-  })) throw new Error("AGENT_KILL_SWITCH_ACTIVE");
+  // New direct calls must be granted before a proposal is created. Resumed
+  // approvals are re-authorized in the guarded path below so revocation closes
+  // the reserved effect as unexecuted without reaching the provider.
+  if (!resumeApprovedToolCall && !grantedTools.has(invocation.name)) throw new Error(`Tool is not granted: ${invocation.name}`);
+  if (!resumeApprovedToolCall && run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
 
   let stepId: string | undefined;
   if (!resumeApprovedToolCall) {
@@ -551,18 +532,16 @@ async function executeMcpToolRun(
     }
   }
 
+  let policyApplied = false;
+  let effectTransitioned = false;
   try {
-    if (manifest.requiresApproval) {
-      await approvals.consume({
-        organizationId: run.organization_id,
-        runId: run.id,
-        providerToolCallId: invocation.id,
-        capability: invocation.name,
-        capabilityVersion: manifest.version,
-        argumentsHash,
-        permittedEffectKey: `${run.id}:${invocation.id}`,
-      });
-    }
+    if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
+    if (await killSwitches.isBlocked({
+      organizationId: run.organization_id,
+      agentId: run.agent_definition_id,
+      installationId: run.installation_id,
+      toolNames: [invocation.name],
+    })) throw new Error("AGENT_KILL_SWITCH_ACTIVE");
     await assertCurrentCapabilityPolicy({
       organizationId: run.organization_id,
       installationId: run.installation_id,
@@ -573,14 +552,49 @@ async function executeMcpToolRun(
       installationGrants,
       approved: !manifest.requiresApproval || Boolean(resumeApprovedToolCall?.approval),
     });
-    if (manifest.riskClass === "external-effect") {
-      await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`);
+    policyApplied = true;
+    const effectIdempotencyKey = `${run.id}:${invocation.name}:${argumentsHash}`;
+    if (manifest.requiresApproval && manifest.riskClass !== "external-effect") {
+      await approvals.consume({
+        organizationId: run.organization_id,
+        installationId: run.installation_id,
+        runId: run.id,
+        providerToolCallId: invocation.id,
+        capability: invocation.name,
+        capabilityVersion: manifest.version,
+        argumentsHash,
+        resourceSnapshot: {},
+        previewRevision: argumentsHash,
+        policyRevision: "v1",
+        permittedEffectKey: `${run.id}:${invocation.id}`,
+      });
     }
     const result = await tools.invoke({
       name: invocation.name,
       arguments: invocation.arguments,
       grantedTools,
       approval: resumeApprovedToolCall?.approval,
+      beforeEffect: manifest.riskClass === "external-effect" ? async () => {
+        if (manifest.requiresApproval) {
+          await approvals.consumeAndStartEffect({
+            organizationId: run.organization_id,
+            installationId: run.installation_id,
+            runId: run.id,
+            providerToolCallId: invocation.id,
+            capability: invocation.name,
+            capabilityVersion: manifest.version,
+            argumentsHash,
+            resourceSnapshot: {},
+            previewRevision: argumentsHash,
+            policyRevision: "v1",
+            permittedEffectKey: `${run.id}:${invocation.id}`,
+            effectIdempotencyKey,
+          });
+        } else {
+          await effectReceipts.markExecutingByKey(run.organization_id, effectIdempotencyKey);
+        }
+        effectTransitioned = true;
+      } : undefined,
       context: {
         organizationId: run.organization_id,
         agentId: run.agent_definition_id,
@@ -597,7 +611,6 @@ async function executeMcpToolRun(
       output: result.output,
       latencyMs: result.latencyMs,
       effectId: result.effectId,
-      approval: resumeApprovedToolCall?.approval,
     });
     if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`, result.output);
     if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
@@ -619,7 +632,12 @@ async function executeMcpToolRun(
     const normalized = { code: "MCP_TOOL_FAILED", message: error instanceof Error ? error.message : "MCP tool failed" };
     await toolInvocations.recordFailed({ runId: run.id, providerToolCallId: invocation.id, error: normalized });
     if (manifest.riskClass === "external-effect") {
-      await effectReceipts.markFailedByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`, normalized, false);
+      const effectKey = `${run.id}:${invocation.name}:${argumentsHash}`;
+      if (effectTransitioned) {
+        await effectReceipts.markUnknownByKey(run.organization_id, effectKey, normalized);
+      } else if (!policyApplied) {
+        await effectReceipts.markNotExecutedByKey(run.organization_id, effectKey, normalized);
+      }
     }
     if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: normalized });
     return {
@@ -654,6 +672,7 @@ async function executeLoopForRun(
   credentials: CredentialResolver,
   tools: ToolRegistry,
 ) {
+  if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const configuration = run.configuration;
   const installationSettings = run.installation_settings ?? {};
   const modelTarget = resolveModelTarget(configuration, run.policy);
@@ -761,6 +780,7 @@ async function executeLoopForRun(
     },
   });
   const toolSteps = new Map<string, string>();
+  const startedExternalEffects = new Set<string>();
   const loopResult = await runBoundedAgentLoop({
     model: { provider, model, temperature: typeof configuration.temperature === "number" ? configuration.temperature : undefined },
     messages: context.messages,
@@ -858,18 +878,36 @@ async function executeLoopForRun(
       toolSteps.set(proposal.toolCallId, step.id);
     },
     onToolExecuting: async (execution) => {
+      if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
+      await assertCurrentCapabilityPolicy({
+        organizationId: run.organization_id,
+        installationId: run.installation_id,
+        name: execution.name,
+        argumentsValue: execution.arguments,
+        grantedTools,
+        tools,
+        installationGrants,
+        approved: execution.requiresApproval,
+      });
       if (execution.requiresApproval) {
-        await approvals.consume({
+        await approvals.consumeAndStartEffect({
           organizationId: run.organization_id,
+          installationId: run.installation_id,
           runId: run.id,
           providerToolCallId: execution.toolCallId,
           capability: execution.name,
           capabilityVersion: execution.version,
           argumentsHash: execution.argumentsHash,
+          resourceSnapshot: {},
+          previewRevision: execution.argumentsHash,
+          policyRevision: "v1",
           permittedEffectKey: `${run.id}:${execution.toolCallId}`,
+          effectIdempotencyKey: `${run.id}:${execution.name}:${execution.argumentsHash}`,
         });
+      } else {
+        await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${execution.name}:${execution.argumentsHash}`);
       }
-      await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${execution.name}:${execution.argumentsHash}`);
+      startedExternalEffects.add(execution.toolCallId);
     },
     onToolCompleted: async (result) => {
       await toolInvocations.recordCompleted({
@@ -878,7 +916,6 @@ async function executeLoopForRun(
         output: result.output,
         latencyMs: result.latencyMs,
         effectId: result.effectId,
-        approval: result.approval,
       });
       if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${result.name}:${result.argumentsHash}`, result.output);
       const stepId = toolSteps.get(result.toolCallId);
@@ -892,7 +929,12 @@ async function executeLoopForRun(
       });
       const failedTool = tools.get(failure.name);
       if (failedTool?.riskClass === "external-effect" && failure.argumentsHash) {
-        await effectReceipts.markFailedByKey(run.organization_id, `${run.id}:${failure.name}:${failure.argumentsHash}`, failure.error, false);
+        const effectKey = `${run.id}:${failure.name}:${failure.argumentsHash}`;
+        if (startedExternalEffects.has(failure.toolCallId)) {
+          await effectReceipts.markUnknownByKey(run.organization_id, effectKey, failure.error);
+        } else {
+          await effectReceipts.markNotExecutedByKey(run.organization_id, effectKey, failure.error);
+        }
       }
       const stepId = toolSteps.get(failure.toolCallId);
       if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: failure.error });

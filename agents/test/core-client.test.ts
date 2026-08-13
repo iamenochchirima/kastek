@@ -121,6 +121,7 @@ describe("kasitek-core read boundary", () => {
       AGENTS_DATABASE_URL: "postgres://localhost/agents",
       KASITEK_CORE_URL: "https://core.example.test",
       KASITEK_CORE_DELEGATION_PRIVATE_KEY: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+      KASITEK_CORE_DELEGATION_KEY_ID: "delegation-2026-08",
     });
     await new KasitekCoreReadClient(config).getCustomer(context, "cust-1");
     const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
@@ -128,5 +129,7 @@ describe("kasitek-core read boundary", () => {
     const claims = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString("utf8"));
     expect(claims.sub).toBe("install-1");
     expect(claims.capability).toBe("kasitek.core.customer_get");
+    const header = JSON.parse(Buffer.from(token.split(".")[0]!, "base64url").toString("utf8"));
+    expect(header.kid).toBe("delegation-2026-08");
   });
 });

@@ -24,7 +24,7 @@ async fn require_internal_agent(
     req: &HttpRequest,
     required_capability: &str,
 ) -> Result<(String, String), AppError> {
-    if config.agents_delegation_public_key.is_some() {
+    if config.has_agent_delegation_keys() {
         let context = internal_delegation::resolve(config, req).await?;
         if !context.has_grant(required_capability) {
             return Err(AppError::Forbidden(format!(
@@ -77,7 +77,7 @@ async fn resolve_internal_agent_context(
     req: &HttpRequest,
     required_capability: &str,
 ) -> Result<RequestContext, AppError> {
-    if config.agents_delegation_public_key.is_some() {
+    if config.has_agent_delegation_keys() {
         let context = internal_delegation::resolve(config, req).await?;
         if !context.has_grant(required_capability) {
             return Err(AppError::Forbidden(format!(

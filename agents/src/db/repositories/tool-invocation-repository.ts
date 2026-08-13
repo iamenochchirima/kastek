@@ -53,16 +53,15 @@ export class ToolInvocationRepository {
     output: unknown;
     latencyMs: number;
     effectId?: string;
-    approval?: unknown;
   }): Promise<void> {
     await query(
       this.pool,
       `UPDATE tool_invocations
        SET status = 'completed', output = $3::jsonb, latency_ms = $4,
-           effect_id = $5, approval = COALESCE($6::jsonb, approval),
+           effect_id = $5,
            started_at = COALESCE(started_at, created_at), finished_at = now()
        WHERE run_id = $1 AND provider_tool_call_id = $2`,
-      [input.runId, input.providerToolCallId, JSON.stringify(input.output), input.latencyMs, input.effectId ?? null, input.approval ? JSON.stringify(input.approval) : null],
+      [input.runId, input.providerToolCallId, JSON.stringify(input.output), input.latencyMs, input.effectId ?? null],
     );
   }
 
@@ -76,26 +75,6 @@ export class ToolInvocationRepository {
     );
   }
 
-  public async recordApprovalDecision(input: {
-    runId: string;
-    providerToolCallId: string;
-    decision: "approved" | "rejected";
-    approval: unknown;
-  }): Promise<void> {
-    const approval = input.approval as { argumentsHash?: string; expiresAt?: string };
-    if (!approval.argumentsHash || !approval.expiresAt) throw new Error("Approval must include arguments hash and expiry");
-    if (new Date(approval.expiresAt).getTime() <= Date.now()) throw new Error("Approval has expired");
-    const result = await query(
-      this.pool,
-      `UPDATE tool_invocations
-       SET status = $3, approval = $4::jsonb
-       WHERE run_id = $1 AND provider_tool_call_id = $2 AND status = 'awaiting_approval'
-         AND arguments_hash = $5`,
-      [input.runId, input.providerToolCallId, input.decision, JSON.stringify(input.approval), approval.argumentsHash],
-    );
-    if (!result.rowCount) throw new Error("Approval action is stale, mutated, or not awaiting approval");
-  }
-
   public async list(organizationId: string, runId: string): Promise<Array<Record<string, unknown>>> {
     const result = await query(
       this.pool,
@@ -105,6 +84,21 @@ export class ToolInvocationRepository {
       [organizationId, runId],
     );
     return result.rows as Array<Record<string, unknown>>;
+  }
+
+  public async getProposal(organizationId: string, runId: string, providerToolCallId: string): Promise<ToolProposalRecord | null> {
+    const result = await query<ToolProposalRecord>(
+      this.pool,
+      `SELECT organization_id AS "organizationId", run_id AS "runId",
+              provider_tool_call_id AS "providerToolCallId", sequence_number AS "sequenceNumber",
+              tool_name AS "toolName", tool_version AS "toolVersion", risk_class AS "riskClass",
+              arguments_hash AS "argumentsHash", arguments, (status = 'awaiting_approval') AS "requiresApproval"
+       FROM tool_invocations
+       WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3
+       LIMIT 1`,
+      [organizationId, runId, providerToolCallId],
+    );
+    return result.rows[0] ?? null;
   }
 
   public async outcomeSummary(organizationId: string): Promise<Array<{ status: string; count: number }>> {

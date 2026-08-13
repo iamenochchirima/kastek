@@ -36,6 +36,7 @@ export function issueCoreDelegation(input: {
   audience: string;
   idempotencyKey?: string;
   argumentsHash?: string;
+  keyId?: string;
   now?: number;
 }): string {
   const now = input.now ?? Math.floor(Date.now() / 1000);
@@ -57,7 +58,7 @@ export function issueCoreDelegation(input: {
     exp: now + 120,
     jti: randomUUID(),
   };
-  const header = encode(JSON.stringify({ alg: "ES256", typ: "JWT" }));
+  const header = encode(JSON.stringify({ alg: "ES256", typ: "JWT", ...(input.keyId ? { kid: input.keyId } : {}) }));
   const payload = encode(JSON.stringify(claims));
   const signature = sign("sha256", Buffer.from(`${header}.${payload}`), { key: createPrivateKey(input.privateKeyPem), dsaEncoding: "ieee-p1363" });
   return `${header}.${payload}.${encode(signature)}`;

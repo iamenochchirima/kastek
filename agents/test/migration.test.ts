@@ -1,7 +1,15 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("foundation migration", () => {
+  it("assigns every migration a unique ordered version", async () => {
+    const directory = new URL("../migrations/", import.meta.url);
+    const files = (await readdir(directory)).filter((file) => file.endsWith(".sql")).sort();
+    const versions = files.map((file) => file.split("_")[0]);
+    expect(new Set(versions).size).toBe(versions.length);
+    expect(versions).toEqual([...versions].sort());
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");
@@ -87,5 +95,12 @@ describe("foundation migration", () => {
     const attachmentsSql = await readFile(new URL("../migrations/030_attachment_references.sql", import.meta.url), "utf8");
     expect(attachmentsSql).toContain("agent_attachment_references");
     expect(attachmentsSql).toContain("scan_status");
+    const apiScopesSql = await readFile(new URL("../migrations/033_installation_credential_api_scopes.sql", import.meta.url), "utf8");
+    expect(apiScopesSql).toContain("api_scopes");
+    const receiptStateSql = await readFile(new URL("../migrations/034_effect_receipt_state_semantics.sql", import.meta.url), "utf8");
+    expect(receiptStateSql).toContain("DROP CONSTRAINT");
+    expect(receiptStateSql).toContain("'unknown'");
+    const legacyApprovalSql = await readFile(new URL("../migrations/035_remove_legacy_tool_approval.sql", import.meta.url), "utf8");
+    expect(legacyApprovalSql).toContain("DROP COLUMN IF EXISTS approval");
   });
 });

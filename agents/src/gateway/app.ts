@@ -51,11 +51,13 @@ export function buildGateway(input: {
   preAuthRateLimitPerWindow?: number;
   rateLimitWindowMs?: number;
   rateLimitMaxKeys?: number;
+  upstreamTimeoutMs?: number;
 }): FastifyInstance {
   if (input.environment === "production" && !input.sharedSecret?.trim()) {
     throw new Error("AGENT_GATEWAY_SHARED_SECRET is required in production");
   }
-  const app = Fastify({ logger: false, bodyLimit: MAX_MCP_REQUEST_BYTES, requestTimeout: UPSTREAM_TIMEOUT_MS });
+  const upstreamTimeoutMs = input.upstreamTimeoutMs ?? UPSTREAM_TIMEOUT_MS;
+  const app = Fastify({ logger: false, bodyLimit: MAX_MCP_REQUEST_BYTES, requestTimeout: upstreamTimeoutMs });
   const enabled = input.enabled ?? true;
   const windowMs = input.rateLimitWindowMs ?? 60_000;
   const authenticatedLimiter = new FixedWindowRateLimiter(input.rateLimitPerWindow ?? 120, windowMs, input.rateLimitMaxKeys ?? 10_000);
@@ -64,6 +66,18 @@ export function buildGateway(input: {
 
   const jsonRpcError = (reply: { code: (status: number) => { send: (payload: unknown) => unknown } }, code: number, message: string) =>
     reply.code(code === -32029 ? 429 : code === -32003 ? 401 : code === -32602 ? 400 : 503).send({ jsonrpc: "2.0", id: null, error: { code, message } });
+
+  app.setErrorHandler((error, request, reply) => {
+    if (request.url === "/mcp" && request.method === "POST") {
+      const tooLarge = (error as { code?: string }).code === "FST_ERR_CTP_BODY_TOO_LARGE";
+      return reply.code(tooLarge ? 413 : ((error as { statusCode?: number }).statusCode ?? 400)).send({
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: tooLarge ? -32011 : -32000, message: tooLarge ? "mcp_request_too_large" : "invalid_mcp_request" },
+      });
+    }
+    return reply.code((error as { statusCode?: number }).statusCode ?? 500).send({ error: "gateway_error" });
+  });
 
   const protocolVersion = (request: { headers: Record<string, string | string[] | undefined> }): string | undefined => {
     const value = request.headers["mcp-protocol-version"];
@@ -138,14 +152,22 @@ export function buildGateway(input: {
 
     const controller = new AbortController();
     const onDisconnect = () => controller.abort();
-    request.raw.once("close", onDisconnect);
+    const onResponseClose = () => {
+      // A response close before `finish` means the client disconnected while
+      // the upstream request was still in flight. A normal completed response
+      // emits `finish` first and is therefore not aborted.
+      if (!reply.raw.writableFinished) controller.abort();
+    };
+    request.raw.once("aborted", onDisconnect);
+    reply.raw.once("close", onResponseClose);
     try {
       const response = await fetch(`${input.agentPlatformUrl.replace(/\/$/, "")}/mcp`, {
         method: "POST",
         headers,
         body: JSON.stringify(request.body),
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)]),
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(upstreamTimeoutMs)]),
       });
+      if (response.status >= 500) throw new Error("agent_platform_upstream_failure");
       const payload = await readBoundedResponse(response, MAX_MCP_RESPONSE_BYTES);
       const upstreamProtocol = response.headers.get("mcp-protocol-version");
       if (upstreamProtocol) reply.header("mcp-protocol-version", upstreamProtocol);
@@ -154,7 +176,8 @@ export function buildGateway(input: {
       const message = error instanceof Error && error.message === "upstream_response_too_large" ? error.message : "agent_platform_unavailable";
       return reply.code(502).send({ jsonrpc: "2.0", id: null, error: { code: -32000, message } });
     } finally {
-      request.raw.off("close", onDisconnect);
+      request.raw.off("aborted", onDisconnect);
+      reply.raw.off("close", onResponseClose);
     }
   });
   return app;

@@ -53,6 +53,7 @@ export interface AgentLoopInput {
     toolCallId: string;
     name: string;
     version: string;
+    arguments: Record<string, unknown>;
     argumentsHash: string;
     requiresApproval: boolean;
   }) => Promise<void> | void;
@@ -118,15 +119,6 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         requiresApproval: resumedManifest?.requiresApproval ?? true,
         sequenceNumber: 1,
       });
-      if (resumedManifest?.riskClass === "external-effect") {
-        await input.onToolExecuting?.({
-          toolCallId: resumed.id,
-          name: resumed.name,
-          version: resumedManifest?.version ?? "unknown",
-          argumentsHash: hashToolArguments(resumed.arguments),
-          requiresApproval: resumedManifest?.requiresApproval ?? true,
-        });
-      }
       await input.beforeToolInvoke?.({
         toolCallId: resumed.id,
         name: resumed.name,
@@ -139,6 +131,16 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         context: input.toolContext,
         grantedTools: input.grantedTools,
         approval: resumed.approval,
+        beforeEffect: resumedManifest?.riskClass === "external-effect" ? async () => {
+          await input.onToolExecuting?.({
+            toolCallId: resumed.id,
+            name: resumed.name,
+            version: resumedManifest.version,
+            arguments: resumed.arguments,
+            argumentsHash: hashToolArguments(resumed.arguments),
+            requiresApproval: resumedManifest.requiresApproval,
+          });
+        } : undefined,
       });
       messages.push({ role: "assistant", content: "", toolCalls: [{ id: resumed.id, name: resumed.name, arguments: resumed.arguments }] });
       const safeOutput = redactSensitiveValue(result.output);
@@ -216,9 +218,6 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           sequenceNumber: toolCalls,
         });
         try {
-          if (manifest?.riskClass === "external-effect" && !manifest.requiresApproval) {
-            await input.onToolExecuting?.({ toolCallId: toolCall.id, name: toolCall.name, version: manifest.version, argumentsHash, requiresApproval: false });
-          }
           await input.beforeToolInvoke?.({
             toolCallId: toolCall.id,
             name: toolCall.name,
@@ -230,6 +229,16 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             arguments: toolCall.arguments,
             context: input.toolContext,
             grantedTools: input.grantedTools,
+            beforeEffect: manifest?.riskClass === "external-effect" ? async () => {
+              await input.onToolExecuting?.({
+                toolCallId: toolCall.id,
+                name: toolCall.name,
+                version: manifest.version,
+                arguments: toolCall.arguments,
+                argumentsHash,
+                requiresApproval: manifest.requiresApproval,
+              });
+            } : undefined,
           });
           const safeOutput = redactSensitiveValue(result.output);
           messages.push({

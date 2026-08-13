@@ -259,6 +259,7 @@ export class KasitekCoreReadClient {
         : undefined;
       return issueCoreDelegation({
         privateKeyPem: this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY,
+        keyId: this.config.KASITEK_CORE_DELEGATION_KEY_ID,
         issuer: this.config.KASITEK_CORE_DELEGATION_ISSUER,
         subject: context.installationId,
         organizationId: context.organizationId,

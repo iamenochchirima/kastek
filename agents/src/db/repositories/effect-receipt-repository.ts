@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { query } from "../pool";
 
-export type EffectReceiptStatus = "reserved" | "executing" | "succeeded" | "failed" | "unknown" | "reconciled";
+export type EffectReceiptStatus = "reserved" | "executing" | "succeeded" | "failed" | "unknown";
 
 export interface EffectReceipt {
   id: string;
@@ -72,35 +72,45 @@ export class EffectReceiptRepository {
   }
 
   public async markExecuting(id: string): Promise<void> {
-    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'executing', updated_at = now() WHERE id = $1 AND status IN ('reserved', 'reconciled')`, [id]);
+    const result = await query(this.pool, `UPDATE agent_effect_receipts SET status = 'executing', updated_at = now() WHERE id = $1 AND status = 'reserved'`, [id]);
+    if (!result.rowCount) throw new Error("Effect is not reserved for execution; blind retry is prohibited");
   }
 
   public async markExecutingByKey(organizationId: string, idempotencyKey: string): Promise<void> {
-    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'executing', updated_at = now() WHERE organization_id = $1 AND idempotency_key = $2 AND status IN ('reserved', 'reconciled')`, [organizationId, idempotencyKey]);
+    const result = await query(this.pool, `UPDATE agent_effect_receipts SET status = 'executing', updated_at = now() WHERE organization_id = $1 AND idempotency_key = $2 AND status = 'reserved'`, [organizationId, idempotencyKey]);
+    if (!result.rowCount) throw new Error("Effect is not reserved for execution; blind retry is prohibited");
   }
 
   public async markSucceeded(id: string, providerReceipt: unknown): Promise<void> {
-    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'succeeded', provider_receipt = $2::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE id = $1 AND status IN ('reserved', 'executing', 'unknown', 'reconciled')`, [id, JSON.stringify(providerReceipt ?? {})]);
+    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'succeeded', provider_receipt = $2::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE id = $1 AND status IN ('reserved', 'executing', 'unknown')`, [id, JSON.stringify(providerReceipt ?? {})]);
   }
 
   public async markSucceededByKey(organizationId: string, idempotencyKey: string, providerReceipt: unknown): Promise<void> {
-    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'succeeded', provider_receipt = $3::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND idempotency_key = $2 AND status IN ('reserved', 'executing', 'unknown', 'reconciled')`, [organizationId, idempotencyKey, JSON.stringify(providerReceipt ?? {})]);
+    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'succeeded', provider_receipt = $3::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND idempotency_key = $2 AND status IN ('reserved', 'executing', 'unknown')`, [organizationId, idempotencyKey, JSON.stringify(providerReceipt ?? {})]);
   }
 
   public async markFailed(id: string, error: unknown, reconciliationRequired = false): Promise<void> {
-    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'failed', error = $2::jsonb, reconciliation_required = $3, updated_at = now(), completed_at = now() WHERE id = $1 AND status IN ('reserved', 'executing', 'unknown', 'reconciled')`, [id, JSON.stringify(error ?? {}), reconciliationRequired]);
+    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'failed', error = $2::jsonb, reconciliation_required = $3, updated_at = now(), completed_at = now() WHERE id = $1 AND status IN ('reserved', 'executing', 'unknown')`, [id, JSON.stringify(error ?? {}), reconciliationRequired]);
   }
 
   public async markFailedByKey(organizationId: string, idempotencyKey: string, error: unknown, reconciliationRequired = false): Promise<void> {
-    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'failed', error = $3::jsonb, reconciliation_required = $4, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND idempotency_key = $2 AND status IN ('reserved', 'executing', 'unknown', 'reconciled')`, [organizationId, idempotencyKey, JSON.stringify(error ?? {}), reconciliationRequired]);
+    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'failed', error = $3::jsonb, reconciliation_required = $4, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND idempotency_key = $2 AND status IN ('reserved', 'executing', 'unknown')`, [organizationId, idempotencyKey, JSON.stringify(error ?? {}), reconciliationRequired]);
   }
 
   public async markNotExecuted(organizationId: string, runId: string, providerToolCallId: string, error: unknown): Promise<void> {
     await query(this.pool, `UPDATE agent_effect_receipts SET status = 'failed', error = $4::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3 AND status = 'reserved'`, [organizationId, runId, providerToolCallId, JSON.stringify(error ?? {})]);
   }
 
+  public async markNotExecutedByKey(organizationId: string, idempotencyKey: string, error: unknown): Promise<void> {
+    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'failed', error = $3::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND idempotency_key = $2 AND status = 'reserved'`, [organizationId, idempotencyKey, JSON.stringify(error ?? {})]);
+  }
+
   public async markUnknown(id: string, error: unknown): Promise<void> {
     await query(this.pool, `UPDATE agent_effect_receipts SET status = 'unknown', error = $2::jsonb, reconciliation_required = true, updated_at = now() WHERE id = $1 AND status = 'executing'`, [id, JSON.stringify(error ?? {})]);
+  }
+
+  public async markUnknownByKey(organizationId: string, idempotencyKey: string, error: unknown): Promise<void> {
+    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'unknown', error = $3::jsonb, reconciliation_required = true, updated_at = now() WHERE organization_id = $1 AND idempotency_key = $2 AND status = 'executing'`, [organizationId, idempotencyKey, JSON.stringify(error ?? {})]);
   }
 
   public async markStaleExecutingUnknown(maxAgeSeconds = 120, limit = 100): Promise<StaleEffectReceipt[]> {
