@@ -33,10 +33,20 @@ pub async fn create_draft(
         .user_id
         .as_deref()
         .or(context.principal.subject_user_id.as_deref())
-        .unwrap_or(&context.principal.id);
+        .map(str::to_string);
+    let actor_id = match actor_id {
+        Some(actor_id) => actor_id,
+        None => sqlx::query_scalar::<_, String>(
+            r#"SELECT "ownerId" FROM "Organization" WHERE id = $1"#,
+        )
+        .bind(&context.organization_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Organization owner not found".to_string()))?,
+    };
     social::create_social_post_idempotent(
         pool,
-        actor_id,
+        &actor_id,
         &context.organization_id,
         request,
         context.idempotency_key.as_deref(),

@@ -42,12 +42,15 @@ const LINKEDIN_AUTHORIZE_URL: &str = "https://www.linkedin.com/oauth/v2/authoriz
 const LINKEDIN_TOKEN_URL: &str = "https://www.linkedin.com/oauth/v2/accessToken";
 const LINKEDIN_USERINFO_URL: &str = "https://api.linkedin.com/v2/userinfo";
 const LINKEDIN_UGC_POSTS_URL: &str = "https://api.linkedin.com/v2/ugcPosts";
-const THREADS_AUTHORIZE_URL: &str = "https://threads.net/oauth/authorize";
-const THREADS_TOKEN_URL: &str = "https://graph.threads.net/oauth/access_token";
-const THREADS_GRAPH_BASE: &str = "https://graph.threads.net/v1.0";
+const THREADS_AUTHORIZE_URL: &str = "https://www.threads.com/oauth/authorize";
+const THREADS_TOKEN_URL: &str = "https://graph.threads.com/oauth/access_token";
+const THREADS_GRAPH_BASE: &str = "https://graph.threads.com/v1.0";
 const TIKTOK_AUTHORIZE_URL: &str = "https://www.tiktok.com/v2/auth/authorize/";
 const TIKTOK_TOKEN_URL: &str = "https://open.tiktokapis.com/v2/oauth/token/";
-const TIKTOK_USER_URL: &str = "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,username";
+// `user.info.basic` authorizes only these profile fields. Requesting `username`
+// makes TikTok reject an otherwise valid sandbox authorization.
+const TIKTOK_USER_URL: &str =
+    "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name";
 const TIKTOK_CREATOR_INFO_URL: &str =
     "https://open.tiktokapis.com/v2/post/publish/creator_info/query/";
 const TIKTOK_PUBLISH_URL: &str = "https://open.tiktokapis.com/v2/post/publish/content/init/";
@@ -331,7 +334,7 @@ fn token_expires_within(metadata: &Option<Value>, duration: Duration) -> bool {
 }
 
 fn social_app_url(config: &AppConfig) -> String {
-    config.auth_url.trim_end_matches('/').to_string()
+    config.public_api_url.trim_end_matches('/').to_string()
 }
 
 fn required_env(name: &str) -> Result<String, AppError> {
@@ -905,7 +908,7 @@ pub async fn exchange_threads_code_for_token(
     let access = short.access_token.as_deref().ok_or_else(|| {
         AppError::BadRequest("Threads did not return an access token".to_string())
     })?;
-    let long_url = format!("https://graph.threads.net/access_token?grant_type=th_exchange_token&client_secret={}&access_token={}",
+    let long_url = format!("https://graph.threads.com/access_token?grant_type=th_exchange_token&client_secret={}&access_token={}",
         urlencoding::encode(&required_env("AUTH_THREADS_APP_SECRET")?), urlencoding::encode(access));
     fetch_json(
         reqwest::Client::new().get(long_url),
@@ -3081,6 +3084,16 @@ pub async fn create_social_post(
     org_id: &str,
     request: &SocialPostUpsertRequest,
 ) -> Result<SocialPost, AppError> {
+    create_social_post_idempotent(pool, user_id, org_id, request, None).await
+}
+
+pub async fn create_social_post_idempotent(
+    pool: &PgPool,
+    user_id: &str,
+    org_id: &str,
+    request: &SocialPostUpsertRequest,
+    idempotency_key: Option<&str>,
+) -> Result<SocialPost, AppError> {
     let content = request
         .content
         .as_ref()
@@ -3115,9 +3128,66 @@ pub async fn create_social_post(
     let channel_selections =
         validate_channel_selections(pool, org_id, &channels, &request.channel_selections).await?;
     let variants = normalize_variants(&request.variants, &channels, &content);
+
+    let idempotency_key = idempotency_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if let Some(key) = idempotency_key {
+        if key.len() > 240 {
+            return Err(AppError::BadRequest(
+                "Content draft idempotency key is too long".to_string(),
+            ));
+        }
+        if let Some(existing_id) = sqlx::query_scalar::<_, String>(
+            r#"SELECT id FROM "SocialPost" WHERE "orgId" = $1 AND metadata->>'_kasitek_agent_idempotency_key' = $2 LIMIT 1"#,
+        )
+        .bind(org_id)
+        .bind(key)
+        .fetch_optional(pool)
+        .await?
+        {
+            return get_social_post(pool, org_id, &existing_id)
+                .await?
+                .ok_or_else(|| AppError::Internal("Idempotent content draft disappeared".to_string()));
+        }
+    }
+
+    let metadata = if let Some(key) = idempotency_key {
+        let mut metadata = request.metadata.clone().unwrap_or_else(|| json!({}));
+        let object = metadata.as_object_mut().ok_or_else(|| {
+            AppError::BadRequest("Content metadata must be a JSON object".to_string())
+        })?;
+        object.insert(
+            "_kasitek_agent_idempotency_key".to_string(),
+            Value::String(key.to_string()),
+        );
+        Some(metadata)
+    } else {
+        request.metadata.clone()
+    };
     let post_id = cuid2::create_id();
 
     let mut tx = pool.begin().await?;
+    if let Some(key) = idempotency_key {
+        let lock_key = format!("kasitek.content.draft:{org_id}:{key}");
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1))")
+            .bind(lock_key)
+            .execute(&mut *tx)
+            .await?;
+        if let Some(existing_id) = sqlx::query_scalar::<_, String>(
+            r#"SELECT id FROM "SocialPost" WHERE "orgId" = $1 AND metadata->>'_kasitek_agent_idempotency_key' = $2 LIMIT 1"#,
+        )
+        .bind(org_id)
+        .bind(key)
+        .fetch_optional(&mut *tx)
+        .await?
+        {
+            tx.rollback().await?;
+            return get_social_post(pool, org_id, &existing_id)
+                .await?
+                .ok_or_else(|| AppError::Internal("Idempotent content draft disappeared".to_string()));
+        }
+    }
 
     sqlx::query(
         r#"
@@ -3153,7 +3223,7 @@ pub async fn create_social_post(
     .bind(&channels)
     .bind(&status)
     .bind(scheduled_for)
-    .bind(&request.metadata)
+    .bind(&metadata)
     .execute(tx.as_mut())
     .await?;
     create_variants_and_jobs(
@@ -3539,7 +3609,7 @@ async fn publish_post_to_threads(
 
 async fn refresh_threads_token(access_encrypted: &str) -> Result<ThreadsTokenResponse, AppError> {
     let access = decrypt_social_secret(access_encrypted)?;
-    let url = format!("https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token={}", urlencoding::encode(&access));
+    let url = format!("https://graph.threads.com/refresh_access_token?grant_type=th_refresh_token&access_token={}", urlencoding::encode(&access));
     fetch_json(
         reqwest::Client::new().get(url),
         "Threads token refresh failed",
@@ -3956,10 +4026,6 @@ pub async fn execute_social_publish_job(
         .to_string();
 
     let result = async {
-        billing::require_capability(pool, org_id, billing::capabilities::CONTENT_PUBLISH).await?;
-        billing::require_meter_available(pool, org_id, billing::meters::SOCIAL_PUBLISHES, 1)
-            .await?;
-
         if job.platform == "FACEBOOK" {
             let channel = resolve_connected_channel_for_platform(
                 pool,
