@@ -192,10 +192,11 @@ delete operations into `social_channels`, preserving the existing `social::` exp
 metadata merge. Provider-specific connection upserts and identity refresh remain in `social` until
 their provider adapter boundaries are extracted.
 
-The provider-connection follow-up `44e64ee` moves the shared encrypted connection upsert, external
-account lookup, and Threads/TikTok/Bluesky connection adapters into
-`social_provider_connections`. X, LinkedIn, Meta, and Instagram retain their specialized upsert
-paths in `social` because they normalize provider-specific account identities and permissions.
+The provider-connection follow-ups `44e64ee` and `5e2d6d8` move the shared encrypted connection
+upsert, external account lookup, and all provider connection adapters (Threads, TikTok, Bluesky, X,
+LinkedIn, Meta, and Instagram) into `social_provider_connections`. Provider-specific identity
+normalization and permission metadata now stay with those adapters rather than the shared social
+service.
 
 The content adapter now also supports a safe draft-only update path. The internal core boundary
 accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,
