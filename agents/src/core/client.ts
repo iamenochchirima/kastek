@@ -1,6 +1,7 @@
 import type { AppConfig } from "../config";
 import type { ToolInvocationContext } from "../tools/types";
 import { issueCoreDelegation } from "./delegation";
+import { createHash } from "node:crypto";
 
 export interface CoreCustomerDetail {
   customer: {
@@ -146,7 +147,7 @@ export class KasitekCoreReadClient {
       const response = await fetch(`${baseUrl}${path}`, {
         ...init,
         headers: {
-          authorization: `Bearer ${this.token(context, path.includes("workspace") ? "kasitek.core.workspace_status" : "kasitek.core.channel_deliver", "1.0.0")}`,
+          authorization: `Bearer ${this.token(context, this.capabilityFor(path), "1.0.0", init.body)}`,
           "x-organization-id": context.organizationId,
           "x-actor-id": context.actorId ?? "kasitek-agent-platform",
           "x-agent-run-id": context.runId,
@@ -173,12 +174,23 @@ export class KasitekCoreReadClient {
     }
   }
 
-  private token(context: CoreRequestContext, capability: string, version: string): string {
+  private capabilityFor(path: string): string {
+    if (path.includes("/customers/")) return "kasitek.core.customer_get";
+    if (path.includes("workspace/status")) return "kasitek.core.workspace_status";
+    if (path.includes("channels/deliver")) return "kasitek.core.channel_deliver";
+    throw new CoreToolError("CORE_INVALID_REQUEST", "Unknown kasitek-core capability route");
+  }
+
+  private token(context: CoreRequestContext, capability: string, version: string, body?: BodyInit | null): string {
     if (this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY) {
+      const bodyText = typeof body === "string" ? body : "";
+      const argumentsHash = bodyText
+        ? createHash("sha256").update(bodyText).digest("hex")
+        : undefined;
       return issueCoreDelegation({
         privateKeyPem: this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY,
         issuer: this.config.KASITEK_CORE_DELEGATION_ISSUER,
-        subject: context.actorId ?? "kasitek-agent-platform",
+        subject: context.installationId,
         organizationId: context.organizationId,
         installationId: context.installationId,
         capability,
@@ -187,6 +199,8 @@ export class KasitekCoreReadClient {
         invocationId: `${context.runId}:${capability}`,
         correlationId: context.correlationId,
         audience: this.config.KASITEK_CORE_DELEGATION_AUDIENCE,
+        idempotencyKey: capability === "kasitek.core.channel_deliver" ? `${context.runId}:${capability}:${argumentsHash ?? "empty"}` : undefined,
+        argumentsHash,
       });
     }
     return this.config.KASITEK_CORE_INTERNAL_TOKEN!.trim();

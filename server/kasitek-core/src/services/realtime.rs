@@ -33,7 +33,7 @@ fn whatsapp_inbox_queue_key() -> &'static str {
 /// core replica. Delegated agent requests are privileged service calls, so a
 /// missing or unavailable shared replay store is an authentication failure,
 /// not a best-effort condition.
-pub async fn claim_delegation_replay(jti: &str) -> Result<bool, AppError> {
+pub async fn claim_delegation_replay(issuer: &str, jti: &str) -> Result<bool, AppError> {
     let Some(client) = redis_client() else {
         log::error!("[agent-delegation] REDIS_URL is required for delegation replay protection");
         return Err(AppError::Unauthorized);
@@ -45,7 +45,7 @@ pub async fn claim_delegation_replay(jti: &str) -> Result<bool, AppError> {
             log::error!("[agent-delegation] failed to connect to Redis: {error}");
             AppError::Unauthorized
         })?;
-    let key = format!("agents:delegation:jti:{jti}");
+    let key = format!("agents:delegation:{}:{jti}", issuer.trim());
     let claimed = redis::cmd("SET")
         .arg(key)
         .arg("1")

@@ -55,4 +55,21 @@ describe("kasitek-core read boundary", () => {
     await expect(new KasitekCoreReadClient(config).getWorkspaceStatus(context)).resolves.toMatchObject({ organizationId: "org-1" });
     expect(fetch).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/workspace/status", expect.any(Object));
   });
+
+  it("binds a delegation token to the installation and the exact core capability", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ customer: { id: "cust-1" }, identities: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { privateKey } = await import("node:crypto").then(({ generateKeyPairSync }) => generateKeyPairSync("ec", { namedCurve: "prime256v1" }));
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_DELEGATION_PRIVATE_KEY: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+    });
+    await new KasitekCoreReadClient(config).getCustomer(context, "cust-1");
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const token = String((request.headers as Record<string, string>).authorization).slice("Bearer ".length);
+    const claims = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString("utf8"));
+    expect(claims.sub).toBe("install-1");
+    expect(claims.capability).toBe("kasitek.core.customer_get");
+  });
 });
