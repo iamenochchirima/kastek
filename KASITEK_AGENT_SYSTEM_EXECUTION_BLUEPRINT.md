@@ -661,6 +661,8 @@ real capabilities, preserves independent chats, and never invents platform featu
   stateless scaling, and Agent Platform adapter tests.
 - [x] Add focused gateway tests for rate limiting, protocol negotiation, transport disable, bounded
   lifecycle methods, and upstream header propagation.
+- [x] Add gateway readiness against the Agent API, correlation-id propagation, and redacted
+  operational counters/latency metrics without introducing business-state ownership.
 - [ ] Add REST/OpenAPI conformance tests for every principal type, scope/resource authorization,
   pagination, validation, idempotency, rate limits, metering, webhooks, versioning, and deprecation.
 - [x] Add focused installation REST tests for audience authentication, API scope enforcement,

@@ -520,8 +520,9 @@ Relevant starting points:
 - [x] Add bounded rate limits keyed by bearer credential (or pre-authentication network address)
   and safe pre-authentication network limits; distributed enforcement remains a deployment gate.
 - [ ] Add a global and scoped MCP kill switch with audited changes.
-- [ ] Add structured redacted logs, correlation ids, latency/error metrics, and readiness that checks
-  required upstream availability without taking ownership of business state.
+- [x] Add correlation ids, redacted latency/error counters, and readiness that checks required Agent
+  API availability without taking ownership of business state. Structured distributed logs remain
+  a deployment follow-up.
 - [x] Pin and negotiate the supported MCP protocol revision (`2025-06-18`); reject incompatible
   revisions with a compatibility-tested response.
 - [ ] Complete Streamable HTTP lifecycle, notification, structured error, and cancellation behavior.

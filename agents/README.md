@@ -25,7 +25,8 @@ must enable Temporal and provide a dedicated namespace/task queue.
 
 The gateway is a third independently scalable process. It owns no database, Temporal, core, or
 product state: `POST /mcp` forwards the authenticated JSON-RPC request to the private Agent API,
-and `/health` reports gateway liveness. Route `agents.kasitek.co.za/mcp` to `start:gateway`; keep
+and `/health` reports gateway liveness. `/health/ready` checks the Agent API readiness endpoint and
+`/metrics` exposes redacted in-process request counters and latency. Route `agents.kasitek.co.za/mcp` to `start:gateway`; keep
 the Agent API `/v1` surface on its private/API origin.
 
 The gateway applies bounded in-process fixed-window limits before forwarding requests. Set

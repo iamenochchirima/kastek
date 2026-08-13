@@ -66,4 +66,21 @@ describe("agent gateway", () => {
     expect(session.headers.allow).toBe("POST");
     await app.close();
   });
+
+  it("exposes readiness and redacted operational metrics with correlation ids", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      if (String(url).endsWith("/health/ready")) return new Response(JSON.stringify({ status: "ready" }), { status: 200 });
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: {} }), { status: 200, headers: { "content-type": "application/json", "mcp-protocol-version": "2025-06-18" } });
+    });
+    const app = buildGateway({ agentPlatformUrl: "http://agent-platform:4100", rateLimitPerWindow: 10, preAuthRateLimitPerWindow: 10 });
+    const ready = await app.inject({ method: "GET", url: "/health/ready" });
+    const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: "Bearer secret", "x-correlation-id": "trace-123" }, payload: { jsonrpc: "2.0", id: 1, method: "initialize" } });
+    const metrics = await app.inject({ method: "GET", url: "/metrics" });
+    expect(ready.statusCode).toBe(200);
+    expect(response.headers["x-correlation-id"]).toBe("trace-123");
+    expect(metrics.body).toContain("kasitek_gateway_requests_total 1");
+    expect(metrics.body).toContain("kasitek_gateway_errors_total 0");
+    await app.close();
+    fetchMock.mockRestore();
+  });
 });

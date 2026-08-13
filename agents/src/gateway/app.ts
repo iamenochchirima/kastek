@@ -1,11 +1,20 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { FixedWindowRateLimiter } from "./rate-limit";
 
 const MAX_MCP_REQUEST_BYTES = 256 * 1024;
 const MAX_MCP_RESPONSE_BYTES = 1024 * 1024;
 const UPSTREAM_TIMEOUT_MS = 15_000;
 const SUPPORTED_PROTOCOL_VERSIONS = new Set(["2025-06-18"]);
+
+interface GatewayMetrics {
+  requests: number;
+  responses: number;
+  errors: number;
+  inFlight: number;
+  totalLatencyMs: number;
+}
 
 async function readBoundedResponse(response: Response, limit: number): Promise<string> {
   const declaredLength = Number(response.headers.get("content-length"));
@@ -51,6 +60,7 @@ export function buildGateway(input: {
   const windowMs = input.rateLimitWindowMs ?? 60_000;
   const authenticatedLimiter = new FixedWindowRateLimiter(input.rateLimitPerWindow ?? 120, windowMs, input.rateLimitMaxKeys ?? 10_000);
   const preAuthLimiter = new FixedWindowRateLimiter(input.preAuthRateLimitPerWindow ?? 60, windowMs, input.rateLimitMaxKeys ?? 10_000);
+  const metrics: GatewayMetrics = { requests: 0, responses: 0, errors: 0, inFlight: 0, totalLatencyMs: 0 };
 
   const jsonRpcError = (reply: { code: (status: number) => { send: (payload: unknown) => unknown } }, code: number, message: string) =>
     reply.code(code === -32029 ? 429 : code === -32003 ? 401 : code === -32602 ? 400 : 503).send({ jsonrpc: "2.0", id: null, error: { code, message } });
@@ -61,6 +71,27 @@ export function buildGateway(input: {
   };
 
   app.get("/health", async () => ({ status: "ok", service: "agent-gateway" }));
+  app.get("/health/ready", async (_request, reply) => {
+    if (!enabled) return reply.code(503).send({ status: "not_ready", reason: "mcp_gateway_disabled" });
+    try {
+      const response = await fetch(`${input.agentPlatformUrl.replace(/\/$/, "")}/health/ready`, { signal: AbortSignal.timeout(2_000) });
+      if (!response.ok) return reply.code(503).send({ status: "not_ready", reason: "agent_platform_unready" });
+      return { status: "ready", service: "agent-gateway" };
+    } catch {
+      return reply.code(503).send({ status: "not_ready", reason: "agent_platform_unreachable" });
+    }
+  });
+  app.get("/metrics", async (_request, reply) => {
+    const averageLatencyMs = metrics.responses ? metrics.totalLatencyMs / metrics.responses : 0;
+    return reply.type("text/plain; version=0.0.4").send([
+      `kasitek_gateway_requests_total ${metrics.requests}`,
+      `kasitek_gateway_responses_total ${metrics.responses}`,
+      `kasitek_gateway_errors_total ${metrics.errors}`,
+      `kasitek_gateway_in_flight ${metrics.inFlight}`,
+      `kasitek_gateway_average_latency_ms ${averageLatencyMs.toFixed(3)}`,
+      "",
+    ].join("\n"));
+  });
   app.get("/.well-known/oauth-protected-resource", async () => ({
     resource: "/mcp",
     authorization_servers: [],
@@ -71,6 +102,20 @@ export function buildGateway(input: {
   app.get("/mcp", async (_request, reply) => reply.code(405).header("allow", "POST").send({ error: "streaming_not_supported" }));
   app.delete("/mcp", async (_request, reply) => reply.code(405).header("allow", "POST").send({ error: "sessions_not_supported" }));
   app.post("/mcp", async (request, reply) => {
+    const startedAt = Date.now();
+    metrics.requests += 1;
+    metrics.inFlight += 1;
+    const correlationId = typeof request.headers["x-correlation-id"] === "string" && /^[a-zA-Z0-9._:-]{1,160}$/.test(request.headers["x-correlation-id"])
+      ? request.headers["x-correlation-id"]
+      : randomUUID();
+    reply.header("x-correlation-id", correlationId);
+    const finish = (error = false) => {
+      metrics.inFlight = Math.max(0, metrics.inFlight - 1);
+      metrics.responses += 1;
+      if (error) metrics.errors += 1;
+      metrics.totalLatencyMs += Date.now() - startedAt;
+    };
+    reply.raw.once("finish", () => finish(reply.statusCode >= 500));
     if (!enabled) return jsonRpcError(reply, -32030, "mcp_gateway_disabled");
     const authorization = typeof request.headers.authorization === "string" ? request.headers.authorization : "";
     const rateKey = authorization.startsWith("Bearer ")
