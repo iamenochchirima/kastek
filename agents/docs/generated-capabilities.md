@@ -182,6 +182,77 @@ List the current KasiTek workspace's upcoming and historical bookings.
   "additionalProperties": false
 }
 ```
+## kasitek.core.campaigns_list (1.0.0)
+
+List the current KasiTek workspace's WhatsApp campaign status and delivery metrics.
+
+- Owner: `kasitek-core`
+- Permission: `campaigns.read` (Campaigns Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Audit: `restricted`; redacts: `campaigns.templateBody`, `campaigns.recipientPhone`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "campaigns"
+  ],
+  "additionalProperties": false
+}
+```
+## kasitek.core.campaign_summary (1.0.0)
+
+Read one organization-scoped WhatsApp campaign summary without recipient details.
+
+- Owner: `kasitek-core`
+- Permission: `campaigns.read` (Campaigns Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Resource scope: `campaign`
+- Audit: `restricted`; redacts: `campaign.templateBody`, `campaign.recipientPhone`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "campaignId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "campaignId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "campaign"
+  ],
+  "additionalProperties": false
+}
+```
 ## kasitek.core.contacts_list (1.0.0)
 
 Search the current KasiTek workspace's WhatsApp contacts and consent state.

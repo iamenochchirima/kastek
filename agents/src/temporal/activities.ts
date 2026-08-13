@@ -149,6 +149,58 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     },
   });
   tools.register({
+    name: "kasitek.core.campaigns_list",
+    version: "1.0.0",
+    description: "List the current KasiTek workspace's WhatsApp campaign status and delivery metrics.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: { type: "object", additionalProperties: false },
+    outputSchema: { type: "object", required: ["campaigns"], additionalProperties: false },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "campaigns.read",
+      execution: "immediate",
+      idempotency: "not_applicable",
+      approval: "none",
+      auditClassification: "restricted",
+      redaction: ["campaigns.templateBody", "campaigns.recipientPhone"],
+    },
+    handler: async (context) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.listCampaigns(context);
+    },
+  });
+  tools.register({
+    name: "kasitek.core.campaign_summary",
+    version: "1.0.0",
+    description: "Read one organization-scoped WhatsApp campaign summary without recipient details.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: { campaignId: { type: "string", minLength: 1, maxLength: 160 } },
+      required: ["campaignId"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["campaign"], additionalProperties: false },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "campaigns.read",
+      resourceSelector: { type: "campaign", argument: "campaignId" },
+      execution: "immediate",
+      idempotency: "not_applicable",
+      approval: "none",
+      auditClassification: "restricted",
+      redaction: ["campaign.templateBody", "campaign.recipientPhone"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.getCampaignSummary(context, String(args.campaignId));
+    },
+  });
+  tools.register({
     name: "kasitek.core.contacts_list",
     version: "1.0.0",
     description: "Search the current KasiTek workspace's WhatsApp contacts and consent state.",

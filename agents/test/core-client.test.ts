@@ -82,6 +82,22 @@ describe("kasitek-core read boundary", () => {
     expect(fetchMock).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/bookings", expect.any(Object));
   });
 
+  it("reads campaign inventory and a scoped campaign summary", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string) => new Response(
+      JSON.stringify(input.includes("/campaigns/") ? { campaign: { id: "campaign-1", status: "COMPLETED" } } : { campaigns: [{ id: "campaign-1" }] }),
+      { status: 200 },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).listCampaigns(context)).resolves.toMatchObject({ campaigns: [{ id: "campaign-1" }] });
+    await expect(new KasitekCoreReadClient(config).getCampaignSummary(context, "campaign/1")).resolves.toMatchObject({ campaign: { status: "COMPLETED" } });
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/campaigns/campaign%2F1");
+  });
+
   it("reads filtered contacts through the organization-scoped capability", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ contacts: [{ id: "contact-1" }], totalContacts: 1 }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

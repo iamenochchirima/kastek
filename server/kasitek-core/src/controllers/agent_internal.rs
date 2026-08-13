@@ -236,6 +236,31 @@ pub async fn list_bookings(
     Ok(HttpResponse::Ok().json(json!({ "bookings": bookings })))
 }
 
+pub async fn list_campaigns(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, _) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.campaigns_list").await?;
+    let campaigns = whatsapp::list_campaigns(pool.get_ref(), &organization_id).await?;
+    Ok(HttpResponse::Ok().json(campaigns))
+}
+
+pub async fn get_campaign_summary(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, _) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.campaign_summary").await?;
+    let campaign =
+        whatsapp::get_campaign_summary(pool.get_ref(), &organization_id, &path.into_inner())
+            .await?;
+    Ok(HttpResponse::Ok().json(campaign))
+}
+
 /// List the organisation's WhatsApp contacts through the same scoped query
 /// used by the product contacts surface. The Agent Platform receives the
 /// filtered projection and aggregate counts, never provider credentials.

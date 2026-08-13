@@ -42,6 +42,14 @@ export interface CoreBookings {
   bookings: unknown[];
 }
 
+export interface CoreCampaigns {
+  campaigns: unknown[];
+}
+
+export interface CoreCampaignSummary {
+  campaign: Record<string, unknown>;
+}
+
 export interface CoreContacts {
   contacts: unknown[];
   totalContacts?: number;
@@ -179,6 +187,21 @@ export class KasitekCoreReadClient {
 
   public async listBookings(context: ToolInvocationContext): Promise<CoreBookings> {
     return this.getJson<CoreBookings>(context, "/api/internal/agents/v1/bookings", "Bookings");
+  }
+
+  public async listCampaigns(context: ToolInvocationContext): Promise<CoreCampaigns> {
+    return this.getJson<CoreCampaigns>(context, "/api/internal/agents/v1/campaigns", "Campaigns");
+  }
+
+  public async getCampaignSummary(
+    context: ToolInvocationContext,
+    campaignId: string,
+  ): Promise<CoreCampaignSummary> {
+    return this.getJson<CoreCampaignSummary>(
+      context,
+      `/api/internal/agents/v1/campaigns/${encodeURIComponent(campaignId)}`,
+      "Campaign summary",
+    );
   }
 
   public async listContacts(
@@ -351,6 +374,8 @@ export class KasitekCoreReadClient {
     if (path.includes("workspace/status")) return "kasitek.core.workspace_status";
     if (path.includes("bookings/services")) return "kasitek.core.booking_services_list";
     if (path.endsWith("/bookings")) return "kasitek.core.bookings_list";
+    if (path.includes("/campaigns/")) return "kasitek.core.campaign_summary";
+    if (path.endsWith("/campaigns")) return "kasitek.core.campaigns_list";
     if (path.includes("/inbox/conversations/") && path.endsWith("/messages")) return "kasitek.core.inbox_messages_list";
     if (path.includes("/inbox/conversations")) return "kasitek.core.inbox_conversations_list";
     if (path.includes("/contacts")) return "kasitek.core.contacts_list";
