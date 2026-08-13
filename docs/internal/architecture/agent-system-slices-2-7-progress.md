@@ -98,7 +98,7 @@ previously recorded database run passed 41 files /
 156 tests (one explicitly skipped Temporal recovery integration) under Node 22.22.2, and
 `pnpm --dir agents build` passed. Gateway tests now cover body/timeout/disconnect/upstream/kill-switch
 behavior and two independent replicas. `cargo fmt --check`, `cargo check -p kasitek-core`, and the
-core library suite passed 71 tests with three explicitly ignored seeded-database/Redis cases.
+core library suite passed 72 tests with three explicitly ignored seeded-database/Redis cases.
 Client and admin lint/typecheck/build verification also passed under Node 22.22.2 (one client lint
 warning and 34 admin lint warnings, zero errors). External Redis, Temporal, browser, provider, and
 frontend interaction matrices remain release gates tracked in the canonical checklist and
