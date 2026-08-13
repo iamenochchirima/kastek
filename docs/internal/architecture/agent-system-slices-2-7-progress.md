@@ -263,6 +263,11 @@ inbox transport DTOs/rows into `db::whatsapp_models`; `db::models` re-exports th
 so existing adapters retain source compatibility (`7daf4da`). Call-specific models and the broader
 global model cleanup remain open under the next decomposition checklist item.
 
+Call-specific persistence rows and request DTOs now live in `db::call_models`, with the existing
+`db::models` imports preserved through re-exports for the voice/WhatsApp call adapters (`afb64dc`).
+The remaining global model cleanup is now limited to shared conversation/message and other
+cross-domain DTOs that still need an owning boundary.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
