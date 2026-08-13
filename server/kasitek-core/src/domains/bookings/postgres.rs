@@ -174,6 +174,7 @@ pub async fn create_booking(
         SELECT EXISTS(
             SELECT 1 FROM "Booking"
             WHERE "serviceId" = $1
+              AND "orgId" = $4
               AND status NOT IN ('CANCELLED'::"BookingStatus", 'NO_SHOW'::"BookingStatus")
               AND "scheduledStart" < $3
               AND "scheduledEnd" > $2
@@ -183,6 +184,7 @@ pub async fn create_booking(
     .bind(service_id)
     .bind(scheduled_start)
     .bind(scheduled_end)
+    .bind(org_id)
     .fetch_one(pool)
     .await?;
 

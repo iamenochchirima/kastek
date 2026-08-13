@@ -1,4 +1,3 @@
-use chrono::Utc;
 use sqlx::PgPool;
 
 use crate::{error::AppError, identity::request_context::RequestContext};
@@ -11,32 +10,18 @@ use super::{
     policy, postgres,
 };
 
-const VALID_BOOKING_STATUSES: [&str; 5] = [
-    "SCHEDULED",
-    "CONFIRMED",
-    "COMPLETED",
-    "CANCELLED",
-    "NO_SHOW",
-];
-
 pub async fn create_service(
     pool: &PgPool,
     context: &RequestContext,
     input: CreateServiceInput,
 ) -> Result<BookingService, AppError> {
     policy::require_workspace_admin(context, pool).await?;
-    if input.name.trim().is_empty() {
-        return Err(AppError::BadRequest("Service name is required".to_string()));
-    }
-    if !(5..=1_440).contains(&input.duration_minutes) {
-        return Err(AppError::BadRequest(
-            "Duration must be between 5 and 1440 minutes".to_string(),
-        ));
-    }
+    let name = policy::normalize_required_text(&input.name, "Service name")?;
+    policy::validate_duration_minutes(input.duration_minutes)?;
     postgres::create_service(
         pool,
         &context.organization_id,
-        input.name.trim(),
+        &name,
         input.description.as_deref(),
         input.duration_minutes,
     )
@@ -50,26 +35,19 @@ pub async fn update_service(
     input: UpdateServiceInput,
 ) -> Result<BookingService, AppError> {
     policy::require_workspace_admin(context, pool).await?;
-    if input
+    let name = input
         .name
         .as_deref()
-        .is_some_and(|name| name.trim().is_empty())
-    {
-        return Err(AppError::BadRequest("Service name is required".to_string()));
-    }
-    if input
-        .duration_minutes
-        .is_some_and(|value| !(5..=1_440).contains(&value))
-    {
-        return Err(AppError::BadRequest(
-            "Duration must be between 5 and 1440 minutes".to_string(),
-        ));
+        .map(|name| policy::normalize_required_text(name, "Service name"))
+        .transpose()?;
+    if let Some(value) = input.duration_minutes {
+        policy::validate_duration_minutes(value)?;
     }
     postgres::update_service(
         pool,
         &context.organization_id,
         service_id,
-        input.name.as_deref().map(str::trim),
+        name.as_deref(),
         input.description.as_ref().map(|value| value.as_deref()),
         input.duration_minutes,
         input.active,
@@ -83,16 +61,9 @@ pub async fn create_booking(
     context: &RequestContext,
     input: CreateBookingInput,
 ) -> Result<Booking, AppError> {
-    if input.service_id.trim().is_empty() || input.contact_name.trim().is_empty() {
-        return Err(AppError::BadRequest(
-            "Service and contact name are required".to_string(),
-        ));
-    }
-    if input.scheduled_start <= Utc::now() {
-        return Err(AppError::BadRequest(
-            "Bookings must be scheduled in the future".to_string(),
-        ));
-    }
+    let service_id = policy::normalize_required_text(&input.service_id, "Service")?;
+    let contact_name = policy::normalize_required_text(&input.contact_name, "Contact name")?;
+    policy::validate_future_start(input.scheduled_start)?;
     let user_id = context.user_id.as_deref().ok_or_else(|| {
         AppError::Forbidden("Booking creation requires a workspace user".to_string())
     })?;
@@ -100,9 +71,9 @@ pub async fn create_booking(
         pool,
         &context.organization_id,
         user_id,
-        input.service_id.trim(),
+        &service_id,
         input.customer_id.as_deref(),
-        input.contact_name.trim(),
+        &contact_name,
         input.contact_phone.as_deref(),
         input.scheduled_start,
         &input.timezone,
@@ -117,12 +88,8 @@ pub async fn update_booking(
     booking_id: &str,
     input: UpdateBookingInput,
 ) -> Result<Booking, AppError> {
-    if input
-        .status
-        .as_deref()
-        .is_some_and(|status| !VALID_BOOKING_STATUSES.contains(&status))
-    {
-        return Err(AppError::BadRequest("Invalid booking status".to_string()));
+    if let Some(status) = input.status.as_deref() {
+        policy::validate_status(status)?;
     }
     postgres::update_booking(
         pool,
