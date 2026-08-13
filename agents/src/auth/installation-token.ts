@@ -7,6 +7,7 @@ export interface InstallationTokenClaims {
   credentialId: string;
   aud: string;
   iat: number;
+  nbf?: number;
   exp: number;
   jti: string;
 }
@@ -45,15 +46,40 @@ export function issueInstallationToken(input: {
   return { accessToken: `${header}.${payload}.${encode(signature)}`, expiresAt: new Date(claims.exp * 1000).toISOString(), claims };
 }
 
-export function verifyInstallationToken(token: string, publicKeyPem: string, audience: string, now = Math.floor(Date.now() / 1000)): InstallationTokenClaims {
+export function verifyInstallationToken(
+  token: string,
+  publicKeyPem: string,
+  audience: string,
+  now = Math.floor(Date.now() / 1000),
+  issuer?: string,
+): InstallationTokenClaims {
   const [headerPart, payloadPart, signaturePart, extra] = token.split(".");
   if (!headerPart || !payloadPart || !signaturePart || extra) throw new Error("Malformed installation token");
-  const header = decode<{ alg?: string; typ?: string }>(headerPart);
+  let header: { alg?: string; typ?: string };
+  let claims: InstallationTokenClaims;
+  try {
+    header = decode<{ alg?: string; typ?: string }>(headerPart);
+    claims = decode<InstallationTokenClaims>(payloadPart);
+  } catch {
+    throw new Error("Malformed installation token");
+  }
   if (header.alg !== "ES256" || header.typ !== "JWT") throw new Error("Invalid installation token header");
   const valid = verify("sha256", Buffer.from(`${headerPart}.${payloadPart}`), { key: createPublicKey(publicKeyPem), dsaEncoding: "ieee-p1363" }, Buffer.from(signaturePart, "base64url"));
   if (!valid) throw new Error("Invalid installation token signature");
-  const claims = decode<InstallationTokenClaims>(payloadPart);
-  if (claims.aud !== audience || claims.exp <= now || !claims.sub || !claims.credentialId || !claims.organizationId || !claims.jti) throw new Error("Invalid installation token claims");
+  if (
+    claims.aud !== audience
+    || (issuer !== undefined && claims.iss !== issuer)
+    || !Number.isSafeInteger(claims.iat)
+    || !Number.isSafeInteger(claims.exp)
+    || (claims.nbf !== undefined && !Number.isSafeInteger(claims.nbf))
+    || claims.iat > now + 60
+    || claims.exp <= now
+    || (claims.nbf !== undefined && claims.nbf > now)
+    || !claims.sub
+    || !claims.credentialId
+    || !claims.organizationId
+    || !claims.jti
+  ) throw new Error("Invalid installation token claims");
   return claims;
 }
 

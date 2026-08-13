@@ -5,6 +5,10 @@ import type { RunRepository } from "../src/db/repositories/run-repository";
 import type { AppConfig } from "../src/config";
 import type { PlatformChatRepository } from "../src/db/repositories/platform-chat-repository";
 import { signInternalToken } from "../src/http/auth";
+import { generateKeyPairSync } from "node:crypto";
+import { issueInstallationToken } from "../src/auth/installation-token";
+
+const installationTokenKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 
 const config: AppConfig = {
   NODE_ENV: "test",
@@ -25,12 +29,45 @@ const fakePool = {
   query: async () => ({ rows: [{ ok: 1 }] }),
 } as never;
 
+const mcpConfig: AppConfig = {
+  ...config,
+  INSTALLATION_TOKEN_PRIVATE_KEY: installationTokenKeyPair.privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+  INSTALLATION_TOKEN_ISSUER: "test-agent-platform",
+};
+
+function mcpToken(input: { installationId?: string; organizationId?: string; credentialId?: string } = {}): string {
+  return issueInstallationToken({
+    privateKeyPem: mcpConfig.INSTALLATION_TOKEN_PRIVATE_KEY!,
+    issuer: mcpConfig.INSTALLATION_TOKEN_ISSUER,
+    installationId: input.installationId ?? "install-1",
+    organizationId: input.organizationId ?? "org-1",
+    credentialId: input.credentialId ?? "credential-1",
+    audience: "mcp",
+  }).accessToken;
+}
+
+function mcpCredential(scopes: Array<"mcp:read" | "mcp:write"> = ["mcp:read", "mcp:write"]) {
+  return {
+    id: "credential-1",
+    installation_id: "install-1",
+    organization_id: "org-1",
+    status: "active",
+    mcp_scopes: scopes,
+  };
+}
+
 describe("Agent Platform HTTP foundation", () => {
   it("serves the MCP initialize contract without requiring tenant credentials", async () => {
-    const app = buildApp({ config, pool: fakePool });
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+    });
     const response = await app.inject({
       method: "POST",
       url: "/mcp",
+      headers: { authorization: `Bearer ${mcpToken()}` },
       payload: { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
     });
     expect(response.statusCode).toBe(200);
@@ -39,7 +76,7 @@ describe("Agent Platform HTTP foundation", () => {
   });
 
   it("requires the configured gateway secret before accepting MCP traffic", async () => {
-    const app = buildApp({ config: { ...config, AGENT_GATEWAY_SHARED_SECRET: "gateway-secret" }, pool: fakePool });
+    const app = buildApp({ config: { ...mcpConfig, AGENT_GATEWAY_SHARED_SECRET: "gateway-secret" }, pool: fakePool });
     const response = await app.inject({ method: "POST", url: "/mcp", payload: { jsonrpc: "2.0", id: 4, method: "initialize" } });
     expect(response.json()).toMatchObject({ error: { code: -32003 } });
     await app.close();
@@ -49,13 +86,22 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({ config, pool: fakePool });
     const response = await app.inject({ method: "GET", url: "/.well-known/oauth-protected-resource" });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ resource: "/mcp", bearer_methods_supported: ["header"] });
+    expect(response.json()).toMatchObject({
+      resource: "/mcp",
+      bearer_methods_supported: ["header"],
+      installation_token_exchange_endpoint: "/v1/installation-tokens/exchange",
+    });
     await app.close();
   });
 
   it("accepts JSON-RPC notifications without emitting a response body", async () => {
-    const app = buildApp({ config, pool: fakePool });
-    const response = await app.inject({ method: "POST", url: "/mcp", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { jsonrpc: "2.0", method: "notifications/initialized" } });
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+    });
+    const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", method: "notifications/initialized" } });
     expect(response.statusCode).toBe(204);
     expect(response.body).toBe("");
     await app.close();
@@ -63,16 +109,45 @@ describe("Agent Platform HTTP foundation", () => {
 
   it("filters MCP tools by the installation grant set", async () => {
     const app = buildApp({
-      config,
+      config: mcpConfig,
       pool: fakePool,
       agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
-    const response = await app.inject({ method: "POST", url: "/mcp", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { jsonrpc: "2.0", id: 2, method: "tools/list", params: { installationId: "install-1" } } });
+    const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 2, method: "tools/list" } });
     expect(response.statusCode).toBe(200);
     expect(response.json().result.tools.map((tool: { name: string }) => tool.name)).toEqual(["platform.current_time"]);
-    const denied = await app.inject({ method: "POST", url: "/mcp", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { jsonrpc: "2.0", id: 3, method: "tools/call", params: { installationId: "install-1", name: "kasitek.core.customer_get", arguments: { customerId: "customer-1" } } } });
+    const denied = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "kasitek.core.customer_get", arguments: { customerId: "customer-1" } } } });
     expect(denied.json()).toMatchObject({ jsonrpc: "2.0", id: 3, error: { code: -32001 } });
+    await app.close();
+  });
+
+  it("rejects HMAC and cross-installation credentials from MCP", async () => {
+    const app = buildApp({
+      config: { ...mcpConfig, AUTH_MODE: "hmac", INTERNAL_AUTH_SECRET: "internal-secret" },
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+    });
+    const internal = signInternalToken({ organizationId: "org-1", actorId: "internal", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["mcp:read"] }, "internal-secret");
+    const internalResponse = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${internal}` }, payload: { jsonrpc: "2.0", id: 1, method: "initialize" } });
+    expect(internalResponse.json()).toMatchObject({ error: { code: -32003, message: "Invalid MCP installation token" } });
+    const mismatch = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 2, method: "tools/list", params: { installationId: "install-2" } } });
+    expect(mismatch.json()).toMatchObject({ error: { code: -32602 } });
+    await app.close();
+  });
+
+  it("applies the credential MCP policy at call time", async () => {
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential(["mcp:read"]) } as never,
+      toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
+    });
+    const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "platform.current_time", arguments: {} } } });
+    expect(response.json()).toMatchObject({ error: { code: -32003, message: "MCP credential is missing scope: mcp:write" } });
     await app.close();
   });
 

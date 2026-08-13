@@ -8,6 +8,7 @@ export function buildGateway(input: { agentPlatformUrl: string; sharedSecret?: s
     authorization_servers: [],
     scopes_supported: ["mcp:read", "mcp:write"],
     bearer_methods_supported: ["header"],
+    installation_token_exchange_endpoint: "/v1/installation-tokens/exchange",
   }));
   app.post("/mcp", async (request, reply) => {
     const headers: Record<string, string> = { "content-type": "application/json", accept: "application/json" };

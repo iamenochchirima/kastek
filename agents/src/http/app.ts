@@ -37,7 +37,8 @@ import { PlatformChatRepository } from "../db/repositories/platform-chat-reposit
 import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { availableKasiAiModels, getKasiAiModelCatalog, isAllowedKasiAiModel } from "../system/kasiai-models";
-import { installationTokenJwks, issueInstallationToken } from "../auth/installation-token";
+import { installationTokenJwks, issueInstallationToken, verifyInstallationToken } from "../auth/installation-token";
+import { createPublicKey } from "node:crypto";
 import { createDefaultTools } from "../temporal/activities";
 import { KasitekCoreReadClient } from "../core/client";
 import { ToolRegistry } from "../tools/registry";
@@ -99,6 +100,63 @@ function requireScope(auth: AuthContext, config: AppConfig, scope: string): void
   }
 }
 
+interface McpAuthContext extends AuthContext {
+  installationId: string;
+  credentialId: string;
+}
+
+async function authenticateMcpRequest(input: {
+  request: FastifyRequest;
+  config: AppConfig;
+  installationCredentials: InstallationCredentialRepository;
+  agents: AgentRepository;
+}): Promise<McpAuthContext> {
+  const authorization = headerValue(input.request, "authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    throw Object.assign(new Error("MCP installation token required"), { statusCode: 401 });
+  }
+  if (!input.config.INSTALLATION_TOKEN_PRIVATE_KEY) {
+    throw Object.assign(new Error("MCP installation token verification is unavailable"), { statusCode: 503 });
+  }
+  let claims;
+  try {
+    const publicKeyPem = createPublicKey(input.config.INSTALLATION_TOKEN_PRIVATE_KEY).export({ type: "spki", format: "pem" }).toString();
+    claims = verifyInstallationToken(
+      authorization.slice("Bearer ".length),
+      publicKeyPem,
+      "mcp",
+      Math.floor(Date.now() / 1000),
+      input.config.INSTALLATION_TOKEN_ISSUER,
+    );
+  } catch {
+    throw Object.assign(new Error("Invalid MCP installation token"), { statusCode: 401 });
+  }
+  const credential = await input.installationCredentials.getActiveForToken({
+    credentialId: claims.credentialId,
+    organizationId: claims.organizationId,
+    installationId: claims.sub,
+  });
+  if (!credential) throw Object.assign(new Error("MCP installation credential is no longer active"), { statusCode: 401 });
+  const installation = await input.agents.getInstallation(claims.organizationId, claims.sub);
+  if (!installation || installation.status !== "active") {
+    throw Object.assign(new Error("MCP installation is no longer active"), { statusCode: 401 });
+  }
+  return {
+    organizationId: claims.organizationId,
+    actorId: `installation:${claims.sub}`,
+    correlationId: claims.jti,
+    scopes: credential.mcp_scopes,
+    installationId: claims.sub,
+    credentialId: claims.credentialId,
+  };
+}
+
+function requireMcpScope(auth: McpAuthContext, scope: "mcp:read" | "mcp:write"): void {
+  if (!auth.scopes.includes(scope)) {
+    throw Object.assign(new Error(`MCP credential is missing scope: ${scope}`), { statusCode: 403 });
+  }
+}
+
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const app = Fastify({ logger: { level: dependencies.config.LOG_LEVEL } });
   const agents = dependencies.agents ?? new AgentRepository(dependencies.pool);
@@ -153,6 +211,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     authorization_servers: [],
     scopes_supported: ["mcp:read", "mcp:write"],
     bearer_methods_supported: ["header"],
+    installation_token_exchange_endpoint: "/v1/installation-tokens/exchange",
   }));
 
   app.post("/v1/installation-tokens/exchange", async (request, reply) => {
@@ -183,21 +242,31 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (dependencies.config.AGENT_GATEWAY_SHARED_SECRET && request.headers["x-agent-gateway-secret"] !== dependencies.config.AGENT_GATEWAY_SHARED_SECRET) {
       return failure(-32003, "gateway_authentication_required");
     }
+    let auth: McpAuthContext;
+    try {
+      auth = await authenticateMcpRequest({ request, config: dependencies.config, installationCredentials, agents });
+      requireMcpScope(auth, "mcp:read");
+    } catch (error) {
+      return failure(-32003, error instanceof Error ? error.message : "mcp_authentication_failed");
+    }
     if (body.method === "initialize") {
       return respond({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "kasitek-agent-platform", version: "1.0.0" } });
     }
-    const auth = requireAuth(request, dependencies.config);
-    requireScope(auth, dependencies.config, "mcp:read");
     const params = body.params ?? {};
-    const installationId = typeof params.installationId === "string" ? params.installationId : undefined;
-    if (!installationId) return failure(-32602, "installationId is required");
-    const installation = await agents.getInstallation(auth.organizationId, installationId);
+    const suppliedInstallationId = typeof params.installationId === "string" ? params.installationId : undefined;
+    if (suppliedInstallationId && suppliedInstallationId !== auth.installationId) return failure(-32602, "installationId does not match authenticated installation");
+    const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
     if (!installation || installation.status !== "active") return failure(-32004, "installation_not_found");
     const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
     if (body.method === "tools/list") {
       return respond({ tools: toolRegistry.manifests(granted).map((manifest) => ({ name: manifest.name, description: manifest.description, inputSchema: manifest.inputSchema })) });
     }
     if (body.method === "tools/call") {
+      try {
+        requireMcpScope(auth, "mcp:write");
+      } catch (error) {
+        return failure(-32003, error instanceof Error ? error.message : "mcp_authorization_failed");
+      }
       const name = typeof params.name === "string" ? params.name : "";
       const args = params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments) ? params.arguments as Record<string, unknown> : {};
       if (!name) return failure(-32602, "name is required");

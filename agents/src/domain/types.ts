@@ -82,6 +82,7 @@ export type CreateInstallationInput = z.infer<typeof createInstallationInputSche
 export const createInstallationCredentialInputSchema = z.object({
   label: z.string().trim().min(1).max(160),
   expiresAt: z.string().datetime().optional(),
+  mcpScopes: z.array(z.enum(["mcp:read", "mcp:write"])).min(1).max(2).default(["mcp:read"]),
 });
 
 export const startRunInputSchema = z.object({

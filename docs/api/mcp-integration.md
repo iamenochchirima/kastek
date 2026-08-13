@@ -6,10 +6,12 @@ no database or Temporal ownership.
 
 1. Exchange a copy-once installation credential at `POST /v1/installation-tokens/exchange` with
    `{"secret":"...","audience":"mcp"}`.
-2. Send the resulting short-lived bearer token to `/mcp` with the JSON-RPC `initialize` request.
-3. Include the installation id in `params.installationId` for `tools/list` and `tools/call`.
-4. Use the returned manifest schemas to build arguments. The installation's effective grants filter
-   discovery and calls; denied or unavailable tools return a structured JSON-RPC error.
+2. Send the resulting short-lived bearer token to `/mcp` with every JSON-RPC request, including
+   `initialize`. The token subject is the authenticated installation; clients cannot select another
+   installation with request parameters.
+3. Use the returned manifest schemas to build arguments. The installation's effective grants and
+   the credential's `mcp:read`/`mcp:write` policy filter discovery and calls; denied or unavailable
+   tools return a structured JSON-RPC error.
 
 The Agent Platform owns runs, approvals, effects, and audit records. A tool call never receives
 direct database access. External-effect calls require their declared approval and are represented by
