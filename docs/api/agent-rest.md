@@ -16,6 +16,17 @@ Credentials are independently revocable and carry `api:read` and/or `api:write` 
 require `api:read`; drafts, writes, and external effects require `api:write`. Both are constrained by
 the installation's tool grants and the tool's approval policy.
 
+## Discover granted tools
+
+```http
+GET /v1/installations/{installationId}/tools
+Authorization: Bearer <installation-token>
+```
+
+The response contains only tools granted to that installation, including their versions, JSON input
+and output schemas, risk class, approval requirement, and capability metadata. The endpoint is safe
+to call with a read-only API credential.
+
 ## Invoke a tool
 
 ```http

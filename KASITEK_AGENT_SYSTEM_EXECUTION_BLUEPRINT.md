@@ -638,9 +638,10 @@ real capabilities, preserves independent chats, and never invents platform featu
 - [x] Use installation token exchange and protected-resource metadata for MCP. When an installation
   uses REST, issue/validate a REST-audience token through the public API principal framework rather
   than routing the request through MCP.
-- [x] Add an installation-scoped REST transport for external agents: tool invocation, idempotent
-  durable operation references, operation timelines, and workflow cancellation. Keep its grants and
-  API scopes separate from MCP scopes while reusing the same tool-run acceptance boundary.
+- [x] Add an installation-scoped REST transport for external agents: filtered capability discovery,
+  tool invocation, idempotent durable operation references, operation timelines, and workflow
+  cancellation. Keep its grants and API scopes separate from MCP scopes while reusing the same
+  tool-run acceptance boundary.
 - [ ] Implement signed outbound webhooks with subscription scope, delivery records, exponential
   retry, replay protection, disable/re-enable policy, and diagnostics.
 - [ ] Add an external-agent connection wizard with named credentials, copy-once setup, grants,

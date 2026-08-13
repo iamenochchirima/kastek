@@ -245,6 +245,21 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("discovers only the tools granted to an installation over the public API", async () => {
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => ({ ...mcpCredential(), api_scopes: ["api:read"] }) } as never,
+      toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
+    });
+    const response = await app.inject({ method: "GET", url: "/v1/installations/install-1/tools", headers: { authorization: `Bearer ${publicApiToken()}` } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ installationId: "install-1", tools: [{ name: "platform.current_time", riskClass: "read" }] });
+    expect(response.json().tools).toHaveLength(1);
+    await app.close();
+  });
+
   it("lets a read-only public API credential invoke reads but not mutations", async () => {
     const startWorkflow = vi.fn().mockResolvedValue(undefined);
     const app = buildApp({

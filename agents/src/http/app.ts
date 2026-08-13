@@ -416,6 +416,28 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     });
   });
 
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/tools", async (request, reply) => {
+    const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
+    if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "installation_not_found" });
+    requireApiScope(auth, "api:read");
+    const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
+    if (!installation || installation.status !== "active") return reply.code(404).send({ error: "installation_not_found" });
+    const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
+    return {
+      installationId: installation.id,
+      tools: toolRegistry.manifests(granted).map((manifest) => ({
+        name: manifest.name,
+        version: manifest.version,
+        description: manifest.description,
+        riskClass: manifest.riskClass,
+        requiresApproval: manifest.requiresApproval,
+        inputSchema: manifest.inputSchema,
+        outputSchema: manifest.outputSchema,
+        manifest: manifest.manifest,
+      })),
+    };
+  });
+
   app.get<{ Params: { installationId: string; runId: string } }>("/v1/installations/:installationId/operations/:runId", async (request, reply) => {
     const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
     if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
