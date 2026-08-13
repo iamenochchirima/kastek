@@ -110,4 +110,26 @@ export class ApprovalRepository {
   public async cancel(organizationId: string, runId: string, providerToolCallId: string): Promise<void> {
     await query(this.pool, `UPDATE agent_approval_records SET status = 'cancelled', decided_at = now() WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3 AND status IN ('pending', 'approved')`, [organizationId, runId, providerToolCallId]);
   }
+
+  public async expirePending(limit = 100): Promise<Array<Pick<ApprovalRecord, "id" | "organization_id" | "installation_id" | "run_id" | "provider_tool_call_id">>> {
+    const result = await query<Pick<ApprovalRecord, "id" | "organization_id" | "installation_id" | "run_id" | "provider_tool_call_id">>(
+      this.pool,
+      `WITH expired AS (
+         SELECT id
+         FROM agent_approval_records
+         WHERE status = 'pending' AND expires_at <= now()
+         ORDER BY expires_at ASC
+         LIMIT $1
+         FOR UPDATE SKIP LOCKED
+       )
+       UPDATE agent_approval_records AS approval
+       SET status = 'expired', decided_at = now()
+       FROM expired
+       WHERE approval.id = expired.id AND approval.status = 'pending'
+       RETURNING approval.id, approval.organization_id, approval.installation_id,
+                 approval.run_id, approval.provider_tool_call_id`,
+      [Math.max(1, Math.min(limit, 500))],
+    );
+    return result.rows;
+  }
 }

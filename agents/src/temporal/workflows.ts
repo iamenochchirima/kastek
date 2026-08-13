@@ -11,6 +11,7 @@ import type {
   ApprovalSignal,
   CancellationSignal,
   DurableRunInput,
+  ExpirationSignal,
   ResumeApprovedToolCall,
 } from "./contracts";
 
@@ -25,6 +26,7 @@ const activities = proxyActivities<AgentRunActivities>({
 
 export const approvalSignal = defineSignal<[ApprovalSignal]>("agent.approval");
 export const cancellationSignal = defineSignal<[CancellationSignal]>("agent.cancel");
+export const expirationSignal = defineSignal<[ExpirationSignal]>("agent.expire");
 export const runStatusQuery = defineQuery<RunStatus>("agent.status");
 
 /**
@@ -35,12 +37,16 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
   let status: RunStatus = "received";
   let approval: ApprovalSignal | undefined;
   let cancellation: CancellationSignal | undefined;
+  let expiration: ExpirationSignal | undefined;
   setHandler(runStatusQuery, () => status);
   setHandler(approvalSignal, (value) => {
     approval = value;
   });
   setHandler(cancellationSignal, (value) => {
     cancellation = value;
+  });
+  setHandler(expirationSignal, (value) => {
+    expiration = value;
   });
 
   const transition = async (from: RunStatus, to: RunStatus): Promise<void> => {
@@ -58,6 +64,10 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await transition("running", "cancelled");
         return;
       }
+      if (expiration) {
+        await transition("running", "expired");
+        return;
+      }
       const result = await activities.executeLoop({ runId: input.runId, resumeApprovedToolCall });
       resumeApprovedToolCall = undefined;
       // Temporal delivers signals between activity completions. This check makes a
@@ -65,6 +75,10 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
       // before the workflow can accept another step or publish a completion.
       if (cancellation) {
         await transition("running", "cancelled");
+        return;
+      }
+      if (expiration) {
+        await transition("running", "expired");
         return;
       }
       if (result.status === "awaiting_approval") {
@@ -80,7 +94,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
           },
         });
         status = "awaiting_approval";
-        await condition(() => approval !== undefined || cancellation !== undefined);
+        await condition(() => approval !== undefined || cancellation !== undefined || expiration !== undefined);
         const pending = result.pendingToolCalls?.[0];
         if (cancellation) {
           const cancellationReason = (cancellation as CancellationSignal).reason;
@@ -92,6 +106,18 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             });
           }
           await transition("awaiting_approval", "cancelled");
+          return;
+        }
+        if (expiration) {
+          if (pending) {
+            await activities.cancelPendingApproval({
+              runId: input.runId,
+              providerToolCallId: pending.id,
+              reason: (expiration as ExpirationSignal).reason ?? "The approval expired before execution",
+              outcome: "expired",
+            });
+          }
+          await transition("awaiting_approval", "expired");
           return;
         }
         const decision = approval;

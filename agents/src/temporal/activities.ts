@@ -204,7 +204,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         organizationId: run.organization_id,
         runId: run.id,
         installationId: run.installation_id,
-        eventType: "agent.approval.cancelled",
+        eventType: input.outcome === "expired" ? "agent.approval.expired" : "agent.approval.cancelled",
         payload: { providerToolCallId: input.providerToolCallId },
       });
     },
