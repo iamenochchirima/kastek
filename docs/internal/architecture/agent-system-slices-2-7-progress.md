@@ -180,10 +180,12 @@ service ownership. `1f2bc42` moves channel capability metadata into `social_chan
 moves PKCE/state generation and provider authorize URL builders into `social_oauth`; `ddf8474` moves
 TikTok signature verification, envelope validation, and durable event recording into
 `social_webhooks`; and `8b1fc14` moves X, LinkedIn, Threads, TikTok, Facebook, and Instagram
-publishing adapters plus token rotation helpers into `social_publishing`. The existing
-controller-facing `social::` exports remain stable, and the core library suite passes 85 tests with
-three explicitly ignored infrastructure-gated cases. Shared post/job lifecycle ownership remains in
-`social`, while provider-specific adapter decomposition is now explicit.
+publishing adapters plus token rotation helpers into `social_publishing`; and `09f5e68` moves the
+post query, variant/job creation, validation, idempotent create/update, and delete lifecycle into
+`social_posts`. The existing controller-facing `social::` exports remain stable, and the core
+library suite passes 85 tests with three explicitly ignored infrastructure-gated cases. Shared
+publish-job execution/reconciliation remains in `social`, while provider-specific adapter and post
+lifecycle decomposition is now explicit.
 
 The content adapter now also supports a safe draft-only update path. The internal core boundary
 accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,
