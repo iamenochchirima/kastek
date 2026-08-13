@@ -13,6 +13,8 @@ export interface ApprovalSignal {
   decision: "approved" | "rejected";
   approvedBy: string;
   argumentsHash: string;
+  providerToolCallId: string;
+  expiresAt: string;
 }
 
 export interface CancellationSignal {
@@ -38,10 +40,4 @@ export interface AgentRunActivities {
   generateConversationTitle(input: { runId: string }): Promise<void>;
   deliverRunReply(input: { runId: string }): Promise<void>;
   failRun(input: { runId: string; error: Record<string, unknown> }): Promise<void>;
-  recordApprovalDecision(input: {
-    runId: string;
-    providerToolCallId: string;
-    decision: "approved" | "rejected";
-    approval: ToolApproval;
-  }): Promise<void>;
 }

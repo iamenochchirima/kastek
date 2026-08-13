@@ -46,7 +46,9 @@ export interface AgentLoopInput {
   onToolExecuting?: (input: {
     toolCallId: string;
     name: string;
+    version: string;
     argumentsHash: string;
+    requiresApproval: boolean;
   }) => Promise<void> | void;
   onToolCompleted?: (input: {
     toolCallId: string;
@@ -114,7 +116,9 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         await input.onToolExecuting?.({
           toolCallId: resumed.id,
           name: resumed.name,
+          version: resumedManifest?.version ?? "unknown",
           argumentsHash: hashToolArguments(resumed.arguments),
+          requiresApproval: resumedManifest?.requiresApproval ?? true,
         });
       }
       const result = await input.tools.invoke({
@@ -201,7 +205,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         });
         try {
           if (manifest?.riskClass === "external-effect" && !manifest.requiresApproval) {
-            await input.onToolExecuting?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash });
+            await input.onToolExecuting?.({ toolCallId: toolCall.id, name: toolCall.name, version: manifest.version, argumentsHash, requiresApproval: false });
           }
           const result = await input.tools.invoke({
             name: toolCall.name,

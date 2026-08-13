@@ -77,19 +77,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         const pending = result.pendingToolCalls?.[0];
         const decision = approval;
         approval = undefined;
-        if (pending && decision) {
-          await activities.recordApprovalDecision({
-            runId: input.runId,
-            providerToolCallId: pending.id,
-            decision: decision.decision,
-            approval: {
-              approvedBy: decision.approvedBy,
-              argumentsHash: decision.argumentsHash,
-              expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-            },
-          });
-        }
-        if (!pending || !decision || decision.decision !== "approved" || decision.argumentsHash !== pending.argumentsHash) {
+        if (!pending || !decision || decision.decision !== "approved" || decision.providerToolCallId !== pending.id || decision.argumentsHash !== pending.argumentsHash) {
           await activities.failRun({
             runId: input.runId,
             error: { code: "APPROVAL_REJECTED", message: "Approval was rejected or did not match the pending arguments" },
@@ -105,7 +93,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
           approval: {
             approvedBy: decision.approvedBy,
             argumentsHash: decision.argumentsHash,
-            expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+            expiresAt: decision.expiresAt,
           },
         };
         continue;

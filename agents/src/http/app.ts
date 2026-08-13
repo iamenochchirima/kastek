@@ -45,6 +45,7 @@ import { ToolRegistry } from "../tools/registry";
 import { randomUUID } from "node:crypto";
 import { ConnectorRegistry } from "../connectors";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
+import { ApprovalRepository } from "../db/repositories/approval-repository";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -64,6 +65,7 @@ export interface AppDependencies {
   toolRegistry?: ToolRegistry;
   connectorRegistry?: ConnectorRegistry;
   effectReceipts?: EffectReceiptRepository;
+  approvals?: ApprovalRepository;
   knowledge?: KnowledgeRepository;
   memory?: MemoryRepository;
   evaluations?: EvaluationRepository;
@@ -174,6 +176,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config));
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
   const effectReceipts = dependencies.effectReceipts ?? new EffectReceiptRepository(dependencies.pool);
+  const approvals = dependencies.approvals ?? new ApprovalRepository(dependencies.pool);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
   const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
@@ -1392,8 +1395,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!run) return reply.code(404).send({ error: "run_not_found" });
     if (run.status !== "awaiting_approval") return reply.code(409).send({ error: "run_not_awaiting_approval" });
     if (!dependencies.signalApproval) return reply.code(503).send({ error: "temporal_not_configured" });
-    const input = z.object({ decision: z.enum(["approved", "rejected"]), argumentsHash: z.string().length(64) }).parse(request.body);
-    await dependencies.signalApproval(request.params.runId, { ...input, approvedBy: auth.actorId });
+    const input = z.object({ decision: z.enum(["approved", "rejected"]), providerToolCallId: z.string().trim().min(1).max(240), argumentsHash: z.string().length(64) }).parse(request.body);
+    let approval;
+    try {
+      approval = await approvals.decide({ ...input, organizationId: auth.organizationId, runId: request.params.runId, approvedBy: auth.actorId });
+    } catch (error) {
+      return reply.code(409).send({ error: "approval_not_pending", detail: error instanceof Error ? error.message : undefined });
+    }
+    if (input.decision === "rejected") {
+      await effectReceipts.markNotExecuted(auth.organizationId, request.params.runId, input.providerToolCallId, {
+        code: "APPROVAL_REJECTED",
+        message: "The requested effect was denied before execution",
+      });
+    }
+    await dependencies.signalApproval(request.params.runId, { ...input, approvedBy: auth.actorId, expiresAt: approval.expires_at });
     return reply.code(202).send({ runId: request.params.runId, status: "approval_signalled" });
   });
 

@@ -322,6 +322,9 @@ describe("Agent Platform HTTP foundation", () => {
       config,
       pool: fakePool,
       runs,
+      approvals: {
+        decide: async () => ({ expires_at: new Date(Date.now() + 60_000).toISOString() }),
+      } as never,
       signalApproval: async (runId, value) => signals.push({ type: `approval:${runId}`, value }),
       signalCancellation: async (runId, value) => signals.push({ type: `cancel:${runId}`, value }),
     });
@@ -329,7 +332,7 @@ describe("Agent Platform HTTP foundation", () => {
       method: "POST",
       url: "/v1/runs/approval-run/approval",
       headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
-      payload: { decision: "approved", argumentsHash: "a".repeat(64) },
+      payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) },
     });
     const cancellation = await app.inject({
       method: "POST",
@@ -340,7 +343,7 @@ describe("Agent Platform HTTP foundation", () => {
     expect(approval.statusCode).toBe(202);
     expect(cancellation.statusCode).toBe(202);
     expect(signals).toEqual([
-      { type: "approval:approval-run", value: { decision: "approved", argumentsHash: "a".repeat(64), approvedBy: "user-1" } },
+      { type: "approval:approval-run", value: expect.objectContaining({ decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64), approvedBy: "user-1" }) },
       { type: "cancel:running-run", value: { reason: "user-1: operator stop" } },
     ]);
     await app.close();
@@ -353,6 +356,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: hmacConfig,
       pool: fakePool,
       runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", status: "awaiting_approval" }) } as unknown as RunRepository,
+      approvals: { decide: async () => ({ expires_at: new Date(Date.now() + 60_000).toISOString() }) } as never,
       signalApproval: async (_runId, signal) => signals.push(signal),
     });
     const noScope = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: [] }, "test-secret");
@@ -361,7 +365,7 @@ describe("Agent Platform HTTP foundation", () => {
       method: "POST",
       url: "/v1/runs/approval-run/approval",
       headers: { authorization: `Bearer ${noScope}` },
-      payload: { decision: "approved", argumentsHash: "a".repeat(64) },
+      payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) },
     });
     expect(denied.statusCode).toBe(403);
     expect(signals).toEqual([]);
@@ -369,10 +373,10 @@ describe("Agent Platform HTTP foundation", () => {
       method: "POST",
       url: "/v1/runs/approval-run/approval",
       headers: { authorization: `Bearer ${approved}` },
-      payload: { decision: "approved", argumentsHash: "a".repeat(64) },
+      payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) },
     });
     expect(accepted.statusCode).toBe(202);
-    expect(signals).toEqual([{ decision: "approved", argumentsHash: "a".repeat(64), approvedBy: "user-1" }]);
+    expect(signals).toEqual([expect.objectContaining({ decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64), approvedBy: "user-1" })]);
     await app.close();
   });
 
