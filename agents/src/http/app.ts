@@ -1387,6 +1387,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { runId: string } }>("/v1/runs/:runId/approval", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "runs:approve");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
     if (run.status !== "awaiting_approval") return reply.code(409).send({ error: "run_not_awaiting_approval" });

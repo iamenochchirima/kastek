@@ -346,6 +346,36 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("requires runs:approve before a request can signal a workflow approval", async () => {
+    const signals: unknown[] = [];
+    const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
+    const app = buildApp({
+      config: hmacConfig,
+      pool: fakePool,
+      runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", status: "awaiting_approval" }) } as unknown as RunRepository,
+      signalApproval: async (_runId, signal) => signals.push(signal),
+    });
+    const noScope = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: [] }, "test-secret");
+    const approved = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["runs:approve"] }, "test-secret");
+    const denied = await app.inject({
+      method: "POST",
+      url: "/v1/runs/approval-run/approval",
+      headers: { authorization: `Bearer ${noScope}` },
+      payload: { decision: "approved", argumentsHash: "a".repeat(64) },
+    });
+    expect(denied.statusCode).toBe(403);
+    expect(signals).toEqual([]);
+    const accepted = await app.inject({
+      method: "POST",
+      url: "/v1/runs/approval-run/approval",
+      headers: { authorization: `Bearer ${approved}` },
+      payload: { decision: "approved", argumentsHash: "a".repeat(64) },
+    });
+    expect(accepted.statusCode).toBe(202);
+    expect(signals).toEqual([{ decision: "approved", argumentsHash: "a".repeat(64), approvedBy: "user-1" }]);
+    await app.close();
+  });
+
   it("returns a durable run timeline assembled from events, steps, and tool calls", async () => {
     const app = buildApp({
       config,
