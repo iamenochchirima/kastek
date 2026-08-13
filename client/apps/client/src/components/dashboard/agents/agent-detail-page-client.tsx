@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { Archive, ArrowLeft, CheckCircle2, Copy, History, KeyRound, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Archive, ArrowLeft, CheckCircle2, Copy, History, KeyRound, RefreshCw, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -65,6 +65,32 @@ function versionStatusClass(status: string) {
   if (status === "published") return "border-accent/30 bg-accent/10 text-accent";
   if (status === "draft") return "border-status-attention/30 bg-status-attention-soft text-status-attention";
   return "border-border bg-secondary text-muted-foreground";
+}
+
+function capabilityGroup(capability: AgentCapability) {
+  const scope = capability.permission?.scope || capability.name.split(".")[2] || "platform";
+  return scope.split(".")[0] || "platform";
+}
+
+function availabilityLabel(availability: AgentCapability["availability"]) {
+  switch (availability) {
+    case "available":
+      return "Granted";
+    case "not_granted":
+      return "Not granted";
+    case "not_configured":
+      return "Needs setup";
+    case "unhealthy":
+      return "Unavailable";
+    default:
+      return availability.replaceAll("_", " ");
+  }
+}
+
+function availabilityClass(availability: AgentCapability["availability"]) {
+  if (availability === "available") return "border-accent/30 bg-accent/10 text-accent";
+  if (availability === "not_granted") return "border-status-attention/30 bg-status-attention-soft text-status-attention";
+  return "border-destructive/30 bg-status-danger-soft text-destructive";
 }
 
 export function AgentDetailPageClient({ agent, initialVersions }: { agent: AgentDefinition; initialVersions: AgentVersion[] }) {
@@ -397,6 +423,15 @@ function InstallationCapabilities({ installationId }: { installationId: string }
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  const groupedCapabilities = useMemo(() => {
+    const groups = new Map<string, AgentCapability[]>();
+    for (const capability of capabilities) {
+      const group = capabilityGroup(capability);
+      groups.set(group, [...(groups.get(group) || []), capability]);
+    }
+    return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
+  }, [capabilities]);
+
   const grant = async (capability: AgentCapability) => {
     if (busy || capability.availability === "available") return;
     setBusy(capability.name);
@@ -413,9 +448,29 @@ function InstallationCapabilities({ installationId }: { installationId: string }
 
   return <Card>
     <CardContent className="space-y-4 p-6">
-      <div><h2 className="text-lg font-semibold text-foreground">Capabilities</h2><p className="mt-1 text-sm text-muted-foreground">These are the platform tools this installation may expose to KasiAi or external agents. Grants are enforced again at invocation time.</p></div>
-      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-      {loading ? <p className="text-sm text-muted-foreground">Loading capabilities…</p> : capabilities.length ? <div className="space-y-2">{capabilities.map((capability) => <div key={capability.name} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{capability.name}</p><p className="mt-1 text-xs text-muted-foreground">{capability.description} · {capability.riskClass}{capability.requiresApproval ? " · approval required" : ""}</p></div><Button type="button" size="sm" variant={capability.availability === "available" ? "outline" : "default"} disabled={capability.availability === "available" || busy !== null} onClick={() => void grant(capability)}>{capability.availability === "available" ? "Granted" : busy === capability.name ? "Granting…" : "Grant"}</Button></div>)}</div> : <p className="text-sm text-muted-foreground">No capabilities are registered for this installation.</p>}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Capabilities</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">These are the platform tools this installation may expose to KasiAi or external agents. Grants are enforced again at invocation time.</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={loading || busy !== null}>
+          <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          {loading ? "Refreshing…" : "Refresh"}
+        </Button>
+      </div>
+      {error ? <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between" role="alert"><span>{error}</span><Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>Retry</Button></div> : null}
+      {loading ? <p className="text-sm text-muted-foreground">Loading capabilities…</p> : capabilities.length ? <div className="space-y-5">
+        {groupedCapabilities.map(([group, entries]) => <section key={group} aria-labelledby={`capability-group-${group}`}>
+          <div className="mb-2 flex items-center justify-between gap-3"><h3 id={`capability-group-${group}`} className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group}</h3><span className="text-xs text-muted-foreground">{entries.filter((entry) => entry.availability === "available").length}/{entries.length} granted</span></div>
+          <div className="space-y-2">{entries.map((capability) => {
+            const canGrant = capability.availability === "not_granted";
+            return <div key={capability.name} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium text-foreground">{capability.name}</p><span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${availabilityClass(capability.availability)}`}>{availabilityLabel(capability.availability)}</span></div><p className="mt-1 text-xs leading-5 text-muted-foreground">{capability.description} · {capability.riskClass}{capability.requiresApproval ? " · approval required" : ""}{capability.permission?.scope ? ` · ${capability.permission.scope}` : ""}</p>{!canGrant && capability.availability !== "available" ? <p className="mt-1 text-xs text-status-attention">This capability is not grantable until its dependency is configured and healthy.</p> : null}</div>
+              <Button type="button" size="sm" variant={capability.availability === "available" ? "outline" : "default"} disabled={!canGrant || busy !== null} onClick={() => void grant(capability)}>{capability.availability === "available" ? "Granted" : busy === capability.name ? "Granting…" : canGrant ? "Grant" : availabilityLabel(capability.availability)}</Button>
+            </div>;
+          })}</div>
+        </section>)}
+      </div> : <p className="text-sm text-muted-foreground">No capabilities are registered for this installation.</p>}
     </CardContent>
   </Card>;
 }
