@@ -19,7 +19,7 @@ pub async fn capabilities(state: web::Data<AppState>) -> HttpResponse {
     let actions = state
         .action_registry
         .definitions()
-        .filter(|definition| definition.lifecycle != actions::ActionLifecycle::Retired)
+        .filter(|definition| definition.lifecycle == actions::ActionLifecycle::Public)
         .collect::<Vec<_>>();
     HttpResponse::Ok().json(json!({ "version": "v1", "actions": actions }))
 }
