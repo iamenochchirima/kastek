@@ -720,8 +720,11 @@ REST where permitted, and equivalent operations share business behavior without 
   client lint/typecheck/production build passed with the existing unrelated image warning.
 - [x] Add the installation operations slice: capability grants, credential lifecycle, and recent
   durable run history are available from the authenticated core-proxied Agent details view.
-- [ ] Preserve the later visual workflow builder as an editor over the same graph/version/runtime,
-  with validation, test runs, publishing, rollback, and secret-safe import/export.
+- [x] Preserve the later visual workflow builder as an editor over the same graph/version/runtime,
+  with validation, installed-version test runs linked to durable timelines, publishing, rollback,
+  and secret-safe import/export. Evidence: `client/apps/client/src/components/dashboard/agents/agent-workflow-editor.tsx`,
+  `client/apps/client/src/components/dashboard/agents/agent-detail-page-client.tsx`, and commits
+  `b2de22f`, `0812616`, `bcb7ba2`.
 
 ### Verification
 

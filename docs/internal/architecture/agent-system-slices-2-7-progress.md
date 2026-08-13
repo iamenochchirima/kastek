@@ -43,8 +43,9 @@ marked when the complete deliverable and its verification exist.
   State revisions, deterministic/model/tool nodes, configured approval proposals/resumption, and
   redacted tool/model evidence use the existing runtime boundary. External wait-node continuation
   now persists the paused node/state, exposes an authenticated signal route and run-detail resume
-  action, and is covered by graph regression tests in `bcb7ba2`. Visual test-run controls and full
-  Temporal/database proof remain unchecked.
+  action, and is covered by graph regression tests in `bcb7ba2`. The editor now starts an installed
+  workflow test from a real platform message and links to its durable timeline; full
+  Temporal/database proof remains unchecked.
 - KasiAi runs now build grounded dynamic context from the authenticated actor and organization,
   granted capability names/modules, durable conversation, and bounded route/entity/page context
   marked as untrusted UI data. The shared builder and regression test are committed in `4e8df19`.
@@ -91,7 +92,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **118 checked and 106 unchecked items out of 224**. This is a
+The primary blueprint currently has **119 checked and 105 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 ## Remaining work
