@@ -11,9 +11,10 @@ use serde::Deserialize;
 use serde_json::json;
 use sqlx::{PgPool, Row};
 
-use crate::capabilities::content_adapter;
+use crate::capabilities::{content_adapter, core_adapter};
 use crate::config::AppConfig;
 use crate::db::models::SocialPostUpsertRequest;
+use crate::domains::bookings::transport::BookingServicesResponse;
 use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
@@ -203,6 +204,24 @@ pub async fn get_workspace_status(
             "count": row.get::<i64, _>("count"),
         })).collect::<Vec<_>>(),
     })))
+}
+
+/// List booking services through the same typed booking query used by the
+/// product API. The internal boundary contributes authentication and the
+/// normalized request context; it does not duplicate SQL or booking policy.
+pub async fn list_booking_services(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.booking_services_list",
+    )
+    .await?;
+    let services = core_adapter::list_booking_services(pool.get_ref(), &context).await?;
+    Ok(HttpResponse::Ok().json(BookingServicesResponse::new(services)))
 }
 
 pub async fn list_content_posts(

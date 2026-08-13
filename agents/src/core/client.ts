@@ -23,6 +23,21 @@ export interface CoreWorkspaceStatus {
   connections: Array<{ provider: string; status: string; count: number }>;
 }
 
+export interface CoreBookingService {
+  id: string;
+  orgId?: string;
+  name: string;
+  description?: string | null;
+  durationMinutes: number;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CoreBookingServices {
+  services: CoreBookingService[];
+}
+
 export interface CoreContentPost {
   id: string;
   title?: string | null;
@@ -123,6 +138,10 @@ export class KasitekCoreReadClient {
 
   public async getWorkspaceStatus(context: ToolInvocationContext): Promise<CoreWorkspaceStatus> {
     return this.getJson<CoreWorkspaceStatus>(context, "/api/internal/agents/v1/workspace/status", "Workspace status");
+  }
+
+  public async listBookingServices(context: ToolInvocationContext): Promise<CoreBookingServices> {
+    return this.getJson<CoreBookingServices>(context, "/api/internal/agents/v1/bookings/services", "Booking services");
   }
 
   public async listContentPosts(context: ToolInvocationContext): Promise<CoreContentPosts> {
@@ -235,6 +254,7 @@ export class KasitekCoreReadClient {
   private capabilityFor(path: string, method?: string): string {
     if (path.includes("/customers/")) return "kasitek.core.customer_get";
     if (path.includes("workspace/status")) return "kasitek.core.workspace_status";
+    if (path.includes("bookings/services")) return "kasitek.core.booking_services_list";
     if (method === "POST" && path.endsWith("/content/posts")) return "kasitek.core.content_post_draft";
     if (path.endsWith("/content/posts")) return "kasitek.core.content_posts_list";
     if (path.includes("/content/posts/") && path.endsWith("/publish")) return "kasitek.core.content_post_publish";

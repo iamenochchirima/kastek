@@ -117,6 +117,41 @@ Read connection providers and health statuses for the current KasiTek workspace.
   "additionalProperties": false
 }
 ```
+## kasitek.core.booking_services_list (1.0.0)
+
+List the booking services configured for the current KasiTek workspace.
+
+- Owner: `kasitek-core`
+- Permission: `bookings.read` (Bookings Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 12000ms
+- Audit: `restricted`; redacts: none
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "services": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "services"
+  ],
+  "additionalProperties": false
+}
+```
 ## kasitek.core.content_posts_list (1.0.0)
 
 List the current workspace's content drafts, schedules, and publication records.

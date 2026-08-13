@@ -8,6 +8,7 @@ describe("capability discovery", () => {
       "platform.current_time",
       "kasitek.core.customer_get",
       "kasitek.core.workspace_status",
+      "kasitek.core.booking_services_list",
       "kasitek.core.content_posts_list",
       "kasitek.core.content_post_get",
       "kasitek.core.content_post_draft",
@@ -15,8 +16,9 @@ describe("capability discovery", () => {
       "kasitek.core.content_post_schedule",
     ]);
     expect(manifests[1]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "customers.read" });
-    expect(manifests[5]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "required" });
-    expect(manifests[6]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
+    expect(manifests[3]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "bookings.read", idempotency: "not_applicable" });
+    expect(manifests[6]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "required" });
     expect(manifests[7]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
+    expect(manifests[8]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
   });
 });

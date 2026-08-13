@@ -25,6 +25,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_internal::get_workspace_status),
             )
             .route(
+                "/bookings/services",
+                web::get().to(agent_internal::list_booking_services),
+            )
+            .route(
                 "/content/posts",
                 web::get().to(agent_internal::list_content_posts),
             )

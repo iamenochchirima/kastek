@@ -373,8 +373,10 @@ the first complete agent-capability domain in Slice 5.
 
 - [x] Create `domains/bookings/{model,commands,queries,policy,postgres}.rs` (or equivalent module
   files) and move booking business behavior there without changing the existing product API.
-- [ ] Move booking request/response DTOs out of `db/models.rs`; keep transport contracts distinct
-  from persistence rows and domain inputs/results.
+- [x] Move booking request/response DTOs out of `db/models.rs`; keep transport contracts distinct
+  from persistence rows and domain inputs/results. Evidence: `domains/bookings/transport.rs` owns
+  the booking request DTOs and shared service response envelope; `db/models.rs` has no booking
+  transport types.
 - [x] Implement shared booking queries and commands for service listing/creation/update and booking
   listing/creation/update using `RequestContext` and typed inputs.
 - [x] Move organization/resource authorization, admin requirements, customer ownership, scheduling
@@ -383,8 +385,11 @@ the first complete agent-capability domain in Slice 5.
 - [x] Keep SQL in `domains/bookings/postgres.rs` initially; introduce repository traits only where
   transaction control, substitution, or isolated policy testing requires them.
 - [ ] Adapt the existing `/api/bookings/*` handlers to the new operations with response-parity tests.
-- [ ] Expose one typed internal booking capability through the same operations to prove a second
-  adapter does not duplicate SQL, validation, or authorization.
+- [x] Expose one typed internal booking capability through the same operations to prove a second
+  adapter does not duplicate SQL, validation, or authorization. Evidence: the internal
+  `/api/internal/agents/v1/bookings/services` route resolves the delegated `RequestContext` and
+  calls `capabilities::core_adapter::list_booking_services`; the Agent client/tool and route
+  regression test cover the typed boundary.
 
 ### Capability and execution integration
 

@@ -2,48 +2,14 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 
-use crate::domains::bookings::{commands, model, queries};
+use crate::domains::bookings::{commands, model, queries, transport};
 use crate::error::AppError;
 use crate::identity::{product_session, request_context::RequestContext};
 
-#[derive(Debug, serde::Deserialize)]
-pub struct BookingServiceCreateRequest {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    #[serde(rename = "durationMinutes")]
-    pub duration_minutes: Option<i32>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct BookingServiceUpdateRequest {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    #[serde(rename = "durationMinutes")]
-    pub duration_minutes: Option<i32>,
-    pub active: Option<bool>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct BookingCreateRequest {
-    #[serde(rename = "serviceId")]
-    pub service_id: Option<String>,
-    #[serde(rename = "customerId")]
-    pub customer_id: Option<String>,
-    #[serde(rename = "contactName")]
-    pub contact_name: Option<String>,
-    #[serde(rename = "contactPhone")]
-    pub contact_phone: Option<String>,
-    #[serde(rename = "scheduledStart")]
-    pub scheduled_start: Option<String>,
-    pub timezone: Option<String>,
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct BookingUpdateRequest {
-    pub status: Option<String>,
-    pub notes: Option<String>,
-}
+pub use transport::{
+    BookingCreateRequest, BookingServiceCreateRequest, BookingServiceUpdateRequest,
+    BookingUpdateRequest,
+};
 
 const VALID_BOOKING_STATUSES: [&str; 5] = [
     "SCHEDULED",
@@ -73,13 +39,13 @@ pub async fn list_services(
 ) -> Result<HttpResponse, AppError> {
     let context = request_scope(pool.get_ref(), &req).await?;
     let services = queries::list_services(pool.get_ref(), &context).await?;
-    Ok(HttpResponse::Ok().json(serde_json::json!({ "services": services })))
+    Ok(HttpResponse::Ok().json(transport::BookingServicesResponse::new(services)))
 }
 
 pub async fn create_service(
     pool: web::Data<PgPool>,
     req: HttpRequest,
-    body: web::Json<BookingServiceCreateRequest>,
+    body: web::Json<transport::BookingServiceCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let context = request_scope(pool.get_ref(), &req).await?;
     let name = required_trimmed(body.name.as_ref(), "Service name")?;
@@ -107,7 +73,7 @@ pub async fn update_service(
     pool: web::Data<PgPool>,
     req: HttpRequest,
     path: web::Path<String>,
-    body: web::Json<BookingServiceUpdateRequest>,
+    body: web::Json<transport::BookingServiceUpdateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let context = request_scope(pool.get_ref(), &req).await?;
     if body
@@ -153,7 +119,7 @@ pub async fn list_bookings(
 pub async fn create_booking(
     pool: web::Data<PgPool>,
     req: HttpRequest,
-    body: web::Json<BookingCreateRequest>,
+    body: web::Json<transport::BookingCreateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let context = request_scope(pool.get_ref(), &req).await?;
     let service_id = required_trimmed(body.service_id.as_ref(), "Service")?;
@@ -194,7 +160,7 @@ pub async fn update_booking(
     pool: web::Data<PgPool>,
     req: HttpRequest,
     path: web::Path<String>,
-    body: web::Json<BookingUpdateRequest>,
+    body: web::Json<transport::BookingUpdateRequest>,
 ) -> Result<HttpResponse, AppError> {
     let context = request_scope(pool.get_ref(), &req).await?;
     let status = optional_trimmed(body.status.as_ref()).map(|value| value.to_ascii_uppercase());

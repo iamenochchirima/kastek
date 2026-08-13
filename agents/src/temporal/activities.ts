@@ -111,6 +111,21 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     },
   });
   tools.register({
+    name: "kasitek.core.booking_services_list",
+    version: "1.0.0",
+    description: "List the booking services configured for the current KasiTek workspace.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 12_000,
+    inputSchema: { type: "object", additionalProperties: false },
+    outputSchema: { type: "object", properties: { services: { type: "array" } }, required: ["services"], additionalProperties: false },
+    manifest: { ownerService: "kasitek-core", requiredScope: "bookings.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: [] },
+    handler: async (context) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.listBookingServices(context);
+    },
+  });
+  tools.register({
     name: "kasitek.core.content_posts_list",
     version: "1.0.0",
     description: "List the current workspace's content drafts, schedules, and publication records.",
