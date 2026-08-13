@@ -66,6 +66,17 @@ export interface CoreContentDraftInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface CoreContentUpdateInput {
+  title?: string;
+  prompt?: string;
+  content?: string;
+  channels?: string[];
+  primaryChannelId?: string;
+  channelSelections?: Record<string, string>;
+  variants?: Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }>;
+  metadata?: Record<string, unknown>;
+}
+
 export interface CoreChannelDeliveryResult {
   providerMessageId?: string;
   status: "sent" | "unknown";
@@ -150,6 +161,13 @@ export class KasitekCoreReadClient {
 
   public async getContentPost(context: ToolInvocationContext, postId: string): Promise<{ post: CoreContentPost }> {
     return this.getJson<{ post: CoreContentPost }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}`, "Content post");
+  }
+
+  public async updateContentDraft(context: ToolInvocationContext, postId: string, input: CoreContentUpdateInput): Promise<{ post: CoreContentPost }> {
+    return this.requestJson<{ post: CoreContentPost }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}`, "Content draft update", {
+      method: "PATCH",
+      body: JSON.stringify({ ...input, status: "DRAFT" }),
+    });
   }
 
   public async createContentDraft(context: ToolInvocationContext, input: CoreContentDraftInput): Promise<{ post: CoreContentPost }> {
@@ -257,6 +275,7 @@ export class KasitekCoreReadClient {
     if (path.includes("bookings/services")) return "kasitek.core.booking_services_list";
     if (method === "POST" && path.endsWith("/content/posts")) return "kasitek.core.content_post_draft";
     if (path.endsWith("/content/posts")) return "kasitek.core.content_posts_list";
+    if (method === "PATCH" && path.includes("/content/posts/")) return "kasitek.core.content_post_update";
     if (path.includes("/content/posts/") && path.endsWith("/publish")) return "kasitek.core.content_post_publish";
     if (path.includes("/content/posts/") && path.endsWith("/schedule")) return "kasitek.core.content_post_schedule";
     if (path.includes("/content/posts/")) return "kasitek.core.content_post_get";

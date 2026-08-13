@@ -41,6 +41,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_internal::get_content_post),
             )
             .route(
+                "/content/posts/{id}",
+                web::patch().to(agent_internal::update_content_draft),
+            )
+            .route(
                 "/content/posts/{id}/publish",
                 web::post().to(agent_internal::publish_content_post),
             )

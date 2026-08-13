@@ -84,6 +84,21 @@ describe("kasitek-core read boundary", () => {
     expect(fetchMock).toHaveBeenLastCalledWith("https://core.example.test/api/internal/agents/v1/content/posts/post%2F1", expect.any(Object));
   });
 
+  it("updates a draft through the typed content capability", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ post: { id: "post-1", content: "Updated", channels: ["threads"], status: "DRAFT" } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).updateContentDraft(context, "post-1", { content: "Updated" })).resolves.toMatchObject({ post: { status: "DRAFT" } });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/content/posts/post-1");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(String(init.body))).toEqual({ content: "Updated", status: "DRAFT" });
+  });
+
   it("creates content drafts with actor and idempotency propagation", async () => {
     const fetchMock = vi.fn().mockImplementation(() => new Response(JSON.stringify({ post: { id: "post-2", content: "Draft", channels: ["threads"], status: "DRAFT" } }), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);

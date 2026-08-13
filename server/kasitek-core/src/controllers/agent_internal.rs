@@ -283,6 +283,21 @@ pub struct AgentContentPublishRequest {
     pub platform: String,
 }
 
+pub async fn update_content_draft(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<SocialPostUpsertRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.content_post_update")
+            .await?;
+    let post =
+        content_adapter::update_draft(pool.get_ref(), &context, &path.into_inner(), &body).await?;
+    Ok(HttpResponse::Ok().json(json!({ "post": post })))
+}
+
 pub async fn publish_content_post(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

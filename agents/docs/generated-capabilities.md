@@ -228,6 +228,93 @@ Read one workspace-owned content post and its safe publication status.
   "additionalProperties": true
 }
 ```
+## kasitek.core.content_post_update (1.0.0)
+
+Update a workspace content draft without publishing it.
+
+- Owner: `kasitek-core`
+- Permission: `content.write` (Content Write permission)
+- Risk: `draft`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Resource scope: `content_post`
+- Audit: `full`; redacts: `post.publishJobs.providerReceipt`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "postId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "prompt": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "minItems": 1,
+      "maxItems": 20
+    },
+    "primaryChannelId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "channelSelections": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      }
+    },
+    "variants": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "maxItems": 20
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "postId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "post"
+  ],
+  "additionalProperties": true
+}
+```
 ## kasitek.core.content_post_draft (1.0.0)
 
 Create a workspace content draft without publishing it to any provider.

@@ -33,6 +33,10 @@ mod tests {
             (Method::POST, "/api/webhooks/whatsapp"),
             (Method::GET, "/api/internal/agents/v1/bookings/services"),
             (Method::POST, "/api/internal/agents/v1/content/posts"),
+            (
+                Method::PATCH,
+                "/api/internal/agents/v1/content/posts/post-1",
+            ),
             (Method::GET, "/api/agents"),
             (Method::GET, "/api/admin/me"),
             (Method::POST, "/api/quote-requests"),

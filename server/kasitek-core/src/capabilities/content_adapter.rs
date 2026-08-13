@@ -65,6 +65,42 @@ pub async fn create_draft(
     .await
 }
 
+/// Update an existing workspace-owned draft through the same content service
+/// used by the product controller. The internal Agent boundary may only edit
+/// drafts; publishing and scheduling remain separate approval-aware actions.
+pub async fn update_draft(
+    pool: &PgPool,
+    context: &RequestContext,
+    post_id: &str,
+    request: &SocialPostUpsertRequest,
+) -> Result<SocialPost, AppError> {
+    if request
+        .status
+        .as_deref()
+        .is_some_and(|status| status != "DRAFT")
+    {
+        return Err(AppError::BadRequest(
+            "Agent content updates must keep DRAFT status".to_string(),
+        ));
+    }
+    let actor_id = context
+        .user_id
+        .as_deref()
+        .or(context.principal.subject_user_id.as_deref())
+        .map(str::to_string);
+    let actor_id = match actor_id {
+        Some(actor_id) => actor_id,
+        None => {
+            sqlx::query_scalar::<_, String>(r#"SELECT "ownerId" FROM "Organization" WHERE id = $1"#)
+                .bind(&context.organization_id)
+                .fetch_optional(pool)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Organization owner not found".to_string()))?
+        }
+    };
+    social::update_social_post(pool, &actor_id, &context.organization_id, post_id, request).await
+}
+
 pub async fn publish(
     pool: &PgPool,
     context: &RequestContext,
