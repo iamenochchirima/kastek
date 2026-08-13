@@ -28,3 +28,4 @@ pub mod whatsapp_campaigns;
 pub mod whatsapp_connections;
 pub mod whatsapp_contacts;
 pub mod whatsapp_templates;
+pub mod whatsapp_webhooks;
