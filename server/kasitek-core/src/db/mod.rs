@@ -1,4 +1,5 @@
 pub mod ai_models;
+pub mod auth_models;
 pub mod call_models;
 pub mod inbox_models;
 pub mod models;
