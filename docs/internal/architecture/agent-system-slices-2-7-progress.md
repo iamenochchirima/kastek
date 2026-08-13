@@ -278,6 +278,11 @@ global model file retaining compatibility re-exports while the decomposed social
 their imports (`b8dec88`). The remaining cleanup is limited to shared auth, billing, notification,
 and legacy product DTOs; this slice also leaves all route and wire contracts unchanged.
 
+Notification inbox rows and browser push subscription/action DTOs now live in
+`db::notification_models`, with compatibility re-exports retained for notification controllers and
+push services (`cf94066`). Remaining global model work is now auth, billing, website, and other
+legacy product DTO ownership.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
