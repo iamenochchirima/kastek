@@ -273,6 +273,11 @@ Shared inbox conversation/message rows and the conversation update DTO now live 
 and inbox adapters (`7baa1ae`). Remaining global model work is limited to other cross-domain or
 legacy product DTOs; no runtime contract changed in this slice.
 
+Social channel/post/publishing rows and request DTOs now live in `db::social_models`, with the
+global model file retaining compatibility re-exports while the decomposed social services migrate
+their imports (`b8dec88`). The remaining cleanup is limited to shared auth, billing, notification,
+and legacy product DTOs; this slice also leaves all route and wire contracts unchanged.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
