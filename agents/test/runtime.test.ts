@@ -65,6 +65,7 @@ describe("Tool Gateway and bounded runtime", () => {
       capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
       complete: async (_request: ModelRequest) => response([{ id: "call-1", name: "platform.publish", arguments: { id: "post-1" } }]),
     };
+    const effectStarts: string[] = [];
     const result = await runBoundedAgentLoop({
       model: { provider: "openai", model: "test-model" },
       messages: [{ role: "user", content: "publish" }],
@@ -73,9 +74,11 @@ describe("Tool Gateway and bounded runtime", () => {
       tools: registry,
       grantedTools: new Set(["platform.publish"]),
       toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      onToolExecuting: ({ name }) => effectStarts.push(name),
     });
     expect(result.status).toBe("awaiting_approval");
     expect(result.pendingToolCalls?.[0]?.name).toBe("platform.publish");
+    expect(effectStarts).toEqual([]);
     expect(effectIdForInvocation({ runId: "run" }, "platform.publish", hashToolArguments({ id: "post-1" }))).toMatch(/^[a-f0-9]{64}$/);
   });
 

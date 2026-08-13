@@ -73,7 +73,7 @@ export class EffectReceiptRepository {
   }
 
   public async markNotExecuted(organizationId: string, runId: string, providerToolCallId: string, error: unknown): Promise<void> {
-    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'failed', error = $4::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3 AND status IN ('reserved', 'executing')`, [organizationId, runId, providerToolCallId, JSON.stringify(error ?? {})]);
+    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'failed', error = $4::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3 AND status = 'reserved'`, [organizationId, runId, providerToolCallId, JSON.stringify(error ?? {})]);
   }
 
   public async markUnknown(id: string, error: unknown): Promise<void> {
@@ -86,13 +86,11 @@ export class EffectReceiptRepository {
   }
 
   public async pendingReconciliation(organizationId: string, limit = 100): Promise<EffectReceipt[]> {
-    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'unknown', reconciliation_required = true, updated_at = now(), error = COALESCE(error, '{"code":"EFFECT_EXECUTION_INTERRUPTED"}'::jsonb) WHERE organization_id = $1 AND status = 'executing' AND updated_at < now() - make_interval(secs => $2)`, [organizationId, 120]);
     const result = await query<EffectReceipt>(this.pool, `SELECT * FROM agent_effect_receipts WHERE organization_id = $1 AND reconciliation_required = true ORDER BY updated_at ASC LIMIT $2`, [organizationId, Math.max(1, Math.min(limit, 500))]);
     return result.rows;
   }
 
   public async countPendingReconciliation(organizationId: string): Promise<number> {
-    await query(this.pool, `UPDATE agent_effect_receipts SET status = 'unknown', reconciliation_required = true, updated_at = now(), error = COALESCE(error, '{"code":"EFFECT_EXECUTION_INTERRUPTED"}'::jsonb) WHERE organization_id = $1 AND status = 'executing' AND updated_at < now() - make_interval(secs => 120)`, [organizationId]);
     const result = await query<{ count: string }>(this.pool, `SELECT COUNT(*)::text AS count FROM agent_effect_receipts WHERE organization_id = $1 AND reconciliation_required = true`, [organizationId]);
     return Number(result.rows[0]?.count ?? 0);
   }

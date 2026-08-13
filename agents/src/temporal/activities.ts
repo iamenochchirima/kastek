@@ -463,10 +463,12 @@ async function executeLoopForRun(
           argumentsHash: proposal.argumentsHash,
           idempotencyKey: `${run.id}:${proposal.name}:${proposal.argumentsHash}`,
         });
-        await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${proposal.name}:${proposal.argumentsHash}`);
       }
       const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "tool", input: { toolCallId: proposal.toolCallId, name: proposal.name, argumentsHash: proposal.argumentsHash } });
       toolSteps.set(proposal.toolCallId, step.id);
+    },
+    onToolExecuting: async (execution) => {
+      await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${execution.name}:${execution.argumentsHash}`);
     },
     onToolCompleted: async (result) => {
       await toolInvocations.recordCompleted({
@@ -489,7 +491,7 @@ async function executeLoopForRun(
       });
       const failedTool = tools.get(failure.name);
       if (failedTool?.riskClass === "external-effect" && failure.argumentsHash) {
-        await effectReceipts.markFailedByKey(run.organization_id, `${run.id}:${failure.name}:${failure.argumentsHash}`, failure.error, true);
+        await effectReceipts.markFailedByKey(run.organization_id, `${run.id}:${failure.name}:${failure.argumentsHash}`, failure.error, false);
       }
       const stepId = toolSteps.get(failure.toolCallId);
       if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: failure.error });

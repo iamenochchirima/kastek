@@ -43,6 +43,11 @@ export interface AgentLoopInput {
     requiresApproval: boolean;
     sequenceNumber: number;
   }) => Promise<void> | void;
+  onToolExecuting?: (input: {
+    toolCallId: string;
+    name: string;
+    argumentsHash: string;
+  }) => Promise<void> | void;
   onToolCompleted?: (input: {
     toolCallId: string;
     name: string;
@@ -105,6 +110,13 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         requiresApproval: resumedManifest?.requiresApproval ?? true,
         sequenceNumber: 1,
       });
+      if (resumedManifest?.riskClass === "external-effect") {
+        await input.onToolExecuting?.({
+          toolCallId: resumed.id,
+          name: resumed.name,
+          argumentsHash: hashToolArguments(resumed.arguments),
+        });
+      }
       const result = await input.tools.invoke({
         name: resumed.name,
         arguments: resumed.arguments,
@@ -188,6 +200,9 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           sequenceNumber: toolCalls,
         });
         try {
+          if (manifest?.riskClass === "external-effect" && !manifest.requiresApproval) {
+            await input.onToolExecuting?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash });
+          }
           const result = await input.tools.invoke({
             name: toolCall.name,
             arguments: toolCall.arguments,
