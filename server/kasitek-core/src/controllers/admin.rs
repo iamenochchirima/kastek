@@ -8,6 +8,7 @@ use crate::db::models::{
     ChangePasswordRequest, LoginRequest,
 };
 use crate::error::AppError;
+use crate::identity::admin_session;
 use crate::middleware::{extract_admin, require_admin_role};
 use crate::services::auth::{issue_verification_token, send_email};
 use crate::services::orgs;
@@ -60,6 +61,7 @@ pub async fn logout(config: web::Data<AppConfig>) -> Result<HttpResponse, AppErr
 }
 
 pub async fn me(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
+    let _context = admin_session::resolve(&req, pool.get_ref()).await?;
     let admin = extract_admin(&req, pool.get_ref()).await?;
     Ok(HttpResponse::Ok().json(AdminUserResponse::from(admin)))
 }
@@ -226,8 +228,10 @@ pub async fn change_password(
 }
 
 pub async fn stats(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
-    let admin = extract_admin(&req, pool.get_ref()).await?;
-    require_admin_role(&admin, &["superadmin", "admin", "viewer"])?;
+    let context = admin_session::resolve(&req, pool.get_ref()).await?;
+    if !context.has_grant("admin:read") {
+        return Err(AppError::Forbidden("Insufficient permissions".to_string()));
+    }
 
     let total_users = sqlx::query_scalar::<_, i64>(r#"SELECT COUNT(*) FROM "User""#)
         .fetch_one(pool.get_ref())
