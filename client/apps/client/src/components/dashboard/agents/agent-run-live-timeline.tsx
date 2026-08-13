@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock3, Radio, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ export function AgentRunLiveTimeline({ runId, initialEvents, terminal }: { runId
   const [events, setEvents] = useState(initialEvents);
   const [live, setLive] = useState(!terminal);
   const [error, setError] = useState<string | null>(null);
-  const lastSequence = useMemo(() => events.reduce((latest, event) => Math.max(latest, Number(event.sequence_number) || 0), 0), [events]);
+  const initialSequence = useRef(initialEvents.reduce((latest, event) => Math.max(latest, Number(event.sequence_number) || 0), 0));
 
   useEffect(() => {
     if (terminal) return;
@@ -38,13 +38,13 @@ export function AgentRunLiveTimeline({ runId, initialEvents, terminal }: { runId
         setLive(false);
         router.refresh();
       }
-    }, controller.signal, lastSequence).catch((cause) => {
+    }, controller.signal, initialSequence.current).catch((cause) => {
       if (controller.signal.aborted) return;
       setLive(false);
       setError(cause instanceof Error ? cause.message : "Live run updates are unavailable");
     });
     return () => controller.abort();
-  }, [lastSequence, router, runId, terminal]);
+  }, [router, runId, terminal]);
 
   return <Card><CardContent className="p-6">
     <div className="flex items-center gap-3"><Clock3 className="h-5 w-5 text-primary" /><div><h2 className="text-lg font-semibold text-foreground">Durable timeline</h2><p className="mt-1 text-sm text-muted-foreground">Events are persisted by the Agent Platform and remain available after refresh.</p></div><span className={`ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${live ? "border-accent/30 bg-accent/10 text-accent" : "border-border bg-secondary text-muted-foreground"}`}><Radio className="h-3 w-3" />{live ? "Live" : terminal ? "Complete" : "Paused"}</span></div>
