@@ -142,6 +142,11 @@ same booking query boundary. The Agent client and generated capability registry 
 The existing `/api/bookings/*` product handlers now have an explicit transport/domain separation
 and a tested shared response envelope with the internal booking adapter (`15d3f77`).
 
+Booking validation is now centralized in the domain policy (text normalization, duration bounds,
+future scheduling, and status validation), and overlap detection explicitly includes organization
+scope (`6697e98`). Pure policy tests pass; seeded PostgreSQL transaction/overlap integration remains
+open under the environment-gated verification item.
+
 The content adapter now also supports a safe draft-only update path. The internal core boundary
 accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,
 reuses the existing organization-scoped social update service, and the Agent registry/client expose
