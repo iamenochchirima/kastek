@@ -6,7 +6,7 @@
 
 **Audit date:** 2026-08-13
 
-**Evidence reconciliation:** 2026-08-13 — 159 of 244 checklist items have current implementation
+**Evidence reconciliation:** 2026-08-13 — 161 of 244 checklist items have current implementation
 or verification evidence. The remaining items are not silently deferred: they are retained as
 explicit release, policy, or end-to-end verification work.
 

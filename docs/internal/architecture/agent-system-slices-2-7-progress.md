@@ -98,7 +98,8 @@ progress count only; an unchecked item remains release work or an evidence-backe
 
 The initial approval separation-of-duties rule is implemented: a run initiator cannot approve their
 own pending action, with an HTTP regression in `22b2748`. The broader workspace approver/resource
-role matrix remains blocked by `BLOCKERS.md` B-007.
+role matrix remains blocked by `BLOCKERS.md` B-007. The run page now shows the argument hash and
+preview revision and disables self-approval in the browser before submission (`2b29142`).
 
 ## Remaining work
 
