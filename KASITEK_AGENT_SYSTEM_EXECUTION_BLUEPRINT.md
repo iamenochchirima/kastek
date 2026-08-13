@@ -447,7 +447,9 @@ or duplicate booking SQL/business rules.
   for secrets, billing mutation, organization privilege, workspace deletion, and policy bypass.
 - [x] Expose installation lifecycle, credential metadata, grants, usage, and health to customer and
   operator read models without exposing secret material.
-- [ ] Add public-key client assertion support before production external-agent release.
+- [x] Add public-key client assertion support before production external-agent release. Evidence:
+  `a0521bb` adds P-256 SPKI registration, ES256 assertion verification, atomic database replay
+  consumption, UI registration, integration documentation, and focused HTTP/auth/migration tests.
 
 ### Verification
 
