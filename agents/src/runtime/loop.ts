@@ -33,6 +33,12 @@ export interface AgentLoopInput {
   onModelResponse?: (response: ModelResponse) => Promise<void> | void;
   onModelError?: (error: { code: string; message: string }) => Promise<void> | void;
   beforeModelCall?: () => Promise<void> | void;
+  beforeToolInvoke?: (input: {
+    toolCallId: string;
+    name: string;
+    arguments: Record<string, unknown>;
+    approved: boolean;
+  }) => Promise<void> | void;
   onToolProposed?: (input: {
     toolCallId: string;
     name: string;
@@ -121,6 +127,12 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           requiresApproval: resumedManifest?.requiresApproval ?? true,
         });
       }
+      await input.beforeToolInvoke?.({
+        toolCallId: resumed.id,
+        name: resumed.name,
+        arguments: resumed.arguments,
+        approved: true,
+      });
       const result = await input.tools.invoke({
         name: resumed.name,
         arguments: resumed.arguments,
@@ -207,6 +219,12 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           if (manifest?.riskClass === "external-effect" && !manifest.requiresApproval) {
             await input.onToolExecuting?.({ toolCallId: toolCall.id, name: toolCall.name, version: manifest.version, argumentsHash, requiresApproval: false });
           }
+          await input.beforeToolInvoke?.({
+            toolCallId: toolCall.id,
+            name: toolCall.name,
+            arguments: toolCall.arguments,
+            approved: false,
+          });
           const result = await input.tools.invoke({
             name: toolCall.name,
             arguments: toolCall.arguments,

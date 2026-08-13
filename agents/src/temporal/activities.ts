@@ -187,7 +187,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           tools,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -532,6 +532,7 @@ async function executeLoopForRun(
   effectReceipts: EffectReceiptRepository,
   runSteps: RunStepRepository,
   toolGrants: ToolGrantRepository,
+  installationGrants: InstallationGrantRepository,
   summaries: SummaryRepository,
   killSwitches: KillSwitchRepository,
   kasiaiPreferences: KasiAiPreferenceRepository,
@@ -676,6 +677,20 @@ async function executeLoopForRun(
       maxEstimatedCostUsd: restrictiveLimit(modelTarget.maxEstimatedCostUsd, installationSettings.maxEstimatedCostUsd),
       maxRequests: restrictiveLimit(configuration.maxModelCalls, installationSettings.maxModelCalls),
     }),
+    beforeToolInvoke: async (invocation) => {
+      const manifest = tools.get(invocation.name);
+      if (manifest?.requiresApproval && !invocation.approved) return;
+      await assertCurrentCapabilityPolicy({
+        organizationId: run.organization_id,
+        installationId: run.installation_id,
+        name: invocation.name,
+        argumentsValue: invocation.arguments,
+        grantedTools,
+        tools,
+        installationGrants,
+        approved: invocation.approved,
+      });
+    },
     resumeApprovedToolCall,
     onEvent: (event) => runs.appendEvent({
       organizationId: run.organization_id,
