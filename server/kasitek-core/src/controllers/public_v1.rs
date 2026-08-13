@@ -105,6 +105,12 @@ fn verify_installation_token(
     if installation_id.trim().is_empty()
         || claims.custom.organization_id.trim().is_empty()
         || claims.custom.credential_id.trim().is_empty()
+        || claims
+            .jwt_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
     {
         return Err(AppError::Unauthorized);
     }
