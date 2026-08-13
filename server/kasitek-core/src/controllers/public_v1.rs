@@ -513,6 +513,19 @@ pub async fn create_content_draft(
         .json(json!({ "post": post })))
 }
 
+pub async fn update_content_draft(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+    body: web::Json<SocialPostUpsertRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "content.posts.draft.update").await?;
+    let post =
+        content_adapter::update_draft(&state.pool, &context, &path.into_inner(), &body).await?;
+    Ok(response_with_context(&context).json(json!({ "post": post })))
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;

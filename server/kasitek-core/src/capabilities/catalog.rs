@@ -128,6 +128,35 @@ pub fn content_create_draft() -> ActionDefinition {
     action
 }
 
+pub fn content_update_draft() -> ActionDefinition {
+    let mut action = social_action(
+        "content.posts.draft.update",
+        Version::new(1, 0, 0),
+        "Update content draft",
+        "Update a workspace content draft without publishing it.",
+        RiskClass::Draft,
+        ApprovalRule::None,
+        json!({
+            "type": "object",
+            "properties": {
+                "postId": { "type": "string" },
+                "content": { "type": "string" },
+                "channels": { "type": "array" },
+                "title": { "type": "string" },
+                "prompt": { "type": "string" },
+                "metadata": { "type": "object" }
+            },
+            "required": ["postId"],
+            "additionalProperties": false
+        }),
+        json!({"type":"object","required":["post"],"additionalProperties":true}),
+        ["content.write"],
+        IdempotencyRule::NotApplicable,
+    );
+    action.lifecycle = ActionLifecycle::Public;
+    action
+}
+
 pub fn content_publish() -> ActionDefinition {
     social_action(
         "content.posts.publish",
@@ -148,6 +177,7 @@ pub fn definitions() -> Vec<ActionDefinition> {
         booking_list_services(),
         social_list_posts(),
         content_create_draft(),
+        content_update_draft(),
         content_publish(),
     ]
 }
@@ -163,7 +193,7 @@ mod tests {
     #[test]
     fn built_in_content_actions_have_valid_policy_metadata() {
         let actions = definitions();
-        assert_eq!(actions.len(), 4);
+        assert_eq!(actions.len(), 5);
         for action in &actions {
             action
                 .validate_metadata()

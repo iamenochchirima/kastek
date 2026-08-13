@@ -60,6 +60,18 @@
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" }
         }
+      },
+      "patch": {
+        "operationId": "updateContentDraft",
+        "parameters": [{ "$ref": "#/components/parameters/PostId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContentDraftInput" } } } },
+        "responses": {
+          "200": { "description": "Draft updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PostResponse" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
       }
     }
   },

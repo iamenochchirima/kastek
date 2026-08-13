@@ -27,6 +27,7 @@ mod tests {
             (Method::GET, "/health"),
             (Method::GET, "/v1/health"),
             (Method::GET, "/v1/openapi.json"),
+            (Method::PATCH, "/v1/content/posts/post-1"),
             (Method::GET, "/api/bookings"),
             (Method::POST, "/api/bookings"),
             (Method::GET, "/api/social/posts"),
