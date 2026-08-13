@@ -283,6 +283,12 @@ Notification inbox rows and browser push subscription/action DTOs now live in
 push services (`cf94066`). Remaining global model work is now auth, billing, website, and other
 legacy product DTO ownership.
 
+Website quote/waitlist/business-profile DTOs and AI/social ideation requests now have owning modules
+(`db::website_models`, `db::ai_models`) while `db::models` preserves compatibility re-exports
+(`dd5338c`). The global model file now contains the remaining auth/admin session records and a small
+legacy surface; the model-cleanup checklist item still needs those final ownership decisions and
+obsolete-function removal review.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
