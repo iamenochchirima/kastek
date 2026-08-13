@@ -217,7 +217,14 @@ unpublished posts (`content_post_unschedule`, `content_post_delete`). Unscheduli
 `SCHEDULED` posts back to `DRAFT`, releases queued jobs, and records an idempotency marker; delete
 rejects published records and stays organization-scoped. Internal routes, core client/manifest
 surfaces, generated capability documentation, route inventory, Rust checks/tests, and Agent tests
-are verified in the current working slice.
+are verified in `0bc1e7e`.
+
+The next WhatsApp decomposition slice now gives templates an explicit service boundary in
+`whatsapp_templates`: Graph template synchronization, template authoring, local projection, and
+organization-scoped listing live there while the existing `whatsapp::` exports remain stable for
+controllers and callers (`07069a4`). Connection lifecycle, contacts, campaigns, inbox transport,
+webhooks, calls, and delivery workers remain separate follow-up work; the broad WhatsApp blueprint
+item is intentionally still open.
 
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
