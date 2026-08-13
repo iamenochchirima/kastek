@@ -144,6 +144,11 @@ accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized 
 reuses the existing organization-scoped social update service, and the Agent registry/client expose
 `kasitek.core.content_post_update` with generated documentation and transport tests (`f63cdc3`).
 
+Public `/v1` content invocation now re-checks live installation capability availability, required
+manifest grants, and the credential's REST API scope at execution time instead of relying on
+discovery alone. Direct product sessions retain their existing action checks; installation calls
+are denied after grant revocation or scope narrowing (`8dc98a4`).
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
