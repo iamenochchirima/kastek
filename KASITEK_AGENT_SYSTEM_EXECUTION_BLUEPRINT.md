@@ -280,7 +280,7 @@ The Agent Platform database suite passed locally with 39 files / 113 tests, and 
 core format/check/library tests passed. A checked implementation item does **not** assert that its
 slice completion gate or production-release verification has passed.
 
-At this reconciliation point, 114 of 224 implementation/verification items are checked. The count
+At this reconciliation point, 115 of 224 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -576,8 +576,12 @@ point to the provider and back to a durable, auditable result with no duplicate 
 
 - [x] Replace generic product claims with reviewed, versioned KasiTek knowledge and remove all
   unsupported projects/resources/repositories guidance.
-- [ ] Build minimal dynamic context from the authenticated user, organization, enabled modules,
-  route/entity, current conversation, and currently available capabilities.
+- [x] Build minimal dynamic context from the authenticated user, organization, enabled modules,
+  route/entity, current conversation, and currently available capabilities. The shared context
+  builder now includes authenticated actor/organization identity, granted capability names and
+  capability modules, durable conversation context, and bounded route/entity/page context as
+  untrusted data; `agents/src/runtime/context.ts`, `agents/src/temporal/activities.ts`,
+  `agents/test/context.test.ts`, and commit `4e8df19`.
 - [ ] Grant KasiAi real read, draft, and approved action capabilities only through the shared
   Capability Gateway.
 - [ ] Make answers distinguish tool-derived facts, reviewed product knowledge, unavailable actions,

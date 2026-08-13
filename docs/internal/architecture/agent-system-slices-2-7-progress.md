@@ -41,6 +41,9 @@ marked when the complete deliverable and its verification exist.
   controls, and secret-safe JSON import/export. It uses the existing draft/publish/rollback
   lifecycle and is committed in `b2de22f`; full graph execution and end-to-end workflow test-run
   proof remain unchecked until the editor is connected to the durable workflow activity path.
+- KasiAi runs now build grounded dynamic context from the authenticated actor and organization,
+  granted capability names/modules, durable conversation, and bounded route/entity/page context
+  marked as untrusted UI data. The shared builder and regression test are committed in `4e8df19`.
 - Approval/effect/invocation remediation is now in a coherent committed backend slice:
   `a0cf679` adds the shared installation invocation boundary, immediate-read durability, approval
   compare-and-set/idempotency, effect receipt transitions, gateway transport hardening, migrations
@@ -68,7 +71,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **114 checked and 110 unchecked items out of 224**. This is a
+The primary blueprint currently has **115 checked and 109 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 ## Remaining work
