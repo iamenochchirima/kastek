@@ -13,7 +13,7 @@ use sqlx::{PgPool, Row};
 
 use crate::capabilities::{content_adapter, core_adapter};
 use crate::config::AppConfig;
-use crate::db::models::SocialPostUpsertRequest;
+use crate::db::models::{SocialPostUpsertRequest, WhatsappContactListQuery};
 use crate::domains::bookings::transport::BookingServicesResponse;
 use crate::error::AppError;
 use crate::identity::internal_delegation;
@@ -222,6 +222,63 @@ pub async fn list_booking_services(
     .await?;
     let services = core_adapter::list_booking_services(pool.get_ref(), &context).await?;
     Ok(HttpResponse::Ok().json(BookingServicesResponse::new(services)))
+}
+
+/// List the organisation's WhatsApp contacts through the same scoped query
+/// used by the product contacts surface. The Agent Platform receives the
+/// filtered projection and aggregate counts, never provider credentials.
+pub async fn list_contacts(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<WhatsappContactListQuery>,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.contacts_list")
+            .await?;
+    let result =
+        whatsapp::list_contacts(pool.get_ref(), &context.organization_id, query.into_inner())
+            .await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+/// List the organisation's inbox conversations. Conversation records remain
+/// owned by core; this boundary only returns the redacted list projection.
+pub async fn list_inbox_conversations(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.inbox_conversations_list",
+    )
+    .await?;
+    let result =
+        crate::services::inbox::list_inbox_conversations(pool.get_ref(), &context.organization_id)
+            .await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+/// Read the message timeline for one organisation-scoped conversation. Core
+/// performs the ownership check before loading any provider-specific data.
+pub async fn list_inbox_messages(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.inbox_messages_list")
+            .await?;
+    let result = crate::services::inbox::list_conversation_messages(
+        pool.get_ref(),
+        &context.organization_id,
+        &path.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(result))
 }
 
 pub async fn list_content_posts(

@@ -152,6 +152,146 @@ List the booking services configured for the current KasiTek workspace.
   "additionalProperties": false
 }
 ```
+## kasitek.core.contacts_list (1.0.0)
+
+Search the current KasiTek workspace's WhatsApp contacts and consent state.
+
+- Owner: `kasitek-core`
+- Permission: `contacts.read` (Contacts Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Audit: `restricted`; redacts: `contacts.phone`, `contacts.metadata`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "q": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "optIn": {
+      "type": "string",
+      "enum": [
+        "all",
+        "true",
+        "false"
+      ]
+    },
+    "excluded": {
+      "type": "string",
+      "enum": [
+        "all",
+        "true",
+        "false"
+      ]
+    },
+    "tag": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "location": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "listLabel": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "contacts"
+  ],
+  "additionalProperties": true
+}
+```
+## kasitek.core.inbox_conversations_list (1.0.0)
+
+List the current KasiTek workspace's inbox conversations and unread counts.
+
+- Owner: `kasitek-core`
+- Permission: `inbox.read` (Inbox Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Audit: `restricted`; redacts: `conversations.phone`, `conversations.lastMessage`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "conversations"
+  ],
+  "additionalProperties": false
+}
+```
+## kasitek.core.inbox_messages_list (1.0.0)
+
+Read the organization-scoped message timeline for one inbox conversation.
+
+- Owner: `kasitek-core`
+- Permission: `inbox.read` (Inbox Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Resource scope: `conversation`
+- Audit: `restricted`; redacts: `messages.content`, `messages.attachments`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "conversationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "conversationId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "messages"
+  ],
+  "additionalProperties": true
+}
+```
 ## kasitek.core.content_posts_list (1.0.0)
 
 List the current workspace's content drafts, schedules, and publication records.

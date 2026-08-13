@@ -126,6 +126,101 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     },
   });
   tools.register({
+    name: "kasitek.core.contacts_list",
+    version: "1.0.0",
+    description: "Search the current KasiTek workspace's WhatsApp contacts and consent state.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        q: { type: "string", maxLength: 200 },
+        optIn: { type: "string", enum: ["all", "true", "false"] },
+        excluded: { type: "string", enum: ["all", "true", "false"] },
+        tag: { type: "string", maxLength: 120 },
+        location: { type: "string", maxLength: 160 },
+        listLabel: { type: "string", maxLength: 160 },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["contacts"], additionalProperties: true },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "contacts.read",
+      execution: "immediate",
+      idempotency: "not_applicable",
+      approval: "none",
+      auditClassification: "restricted",
+      redaction: ["contacts.phone", "contacts.metadata"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.listContacts(context, {
+        q: typeof args.q === "string" ? args.q : undefined,
+        optIn: typeof args.optIn === "string" ? args.optIn as "all" | "true" | "false" : undefined,
+        excluded: typeof args.excluded === "string" ? args.excluded as "all" | "true" | "false" : undefined,
+        tag: typeof args.tag === "string" ? args.tag : undefined,
+        location: typeof args.location === "string" ? args.location : undefined,
+        listLabel: typeof args.listLabel === "string" ? args.listLabel : undefined,
+        limit: typeof args.limit === "number" ? args.limit : undefined,
+      });
+    },
+  });
+  tools.register({
+    name: "kasitek.core.inbox_conversations_list",
+    version: "1.0.0",
+    description: "List the current KasiTek workspace's inbox conversations and unread counts.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: { type: "object", additionalProperties: false },
+    outputSchema: { type: "object", required: ["conversations"], additionalProperties: false },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "inbox.read",
+      execution: "immediate",
+      idempotency: "not_applicable",
+      approval: "none",
+      auditClassification: "restricted",
+      redaction: ["conversations.phone", "conversations.lastMessage"],
+    },
+    handler: async (context) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.listInboxConversations(context);
+    },
+  });
+  tools.register({
+    name: "kasitek.core.inbox_messages_list",
+    version: "1.0.0",
+    description: "Read the organization-scoped message timeline for one inbox conversation.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: { conversationId: { type: "string", minLength: 1, maxLength: 160 } },
+      required: ["conversationId"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["messages"], additionalProperties: true },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "inbox.read",
+      resourceSelector: { type: "conversation", argument: "conversationId" },
+      execution: "immediate",
+      idempotency: "not_applicable",
+      approval: "none",
+      auditClassification: "restricted",
+      redaction: ["messages.content", "messages.attachments"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.listInboxMessages(context, String(args.conversationId));
+    },
+  });
+  tools.register({
     name: "kasitek.core.content_posts_list",
     version: "1.0.0",
     description: "List the current workspace's content drafts, schedules, and publication records.",

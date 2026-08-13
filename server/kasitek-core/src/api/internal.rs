@@ -28,6 +28,15 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 "/bookings/services",
                 web::get().to(agent_internal::list_booking_services),
             )
+            .route("/contacts", web::get().to(agent_internal::list_contacts))
+            .route(
+                "/inbox/conversations",
+                web::get().to(agent_internal::list_inbox_conversations),
+            )
+            .route(
+                "/inbox/conversations/{id}/messages",
+                web::get().to(agent_internal::list_inbox_messages),
+            )
             .route(
                 "/content/posts",
                 web::get().to(agent_internal::list_content_posts),

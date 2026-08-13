@@ -70,6 +70,37 @@ describe("kasitek-core read boundary", () => {
     expect(init.headers).toMatchObject({ authorization: "Bearer internal-token", "x-organization-id": "org-1" });
   });
 
+  it("reads filtered contacts through the organization-scoped capability", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ contacts: [{ id: "contact-1" }], totalContacts: 1 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).listContacts(context, { q: "Ada", optIn: "true", limit: 25 })).resolves.toMatchObject({ totalContacts: 1 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/contacts?q=Ada&optIn=true&limit=25");
+    expect(init.headers).toMatchObject({ authorization: "Bearer internal-token", "x-organization-id": "org-1" });
+  });
+
+  it("reads inbox conversations and a scoped message timeline", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string) => new Response(
+      JSON.stringify(input.endsWith("/messages") ? { messages: [{ id: "message-1" }] } : { conversations: [{ id: "conversation-1" }] }),
+      { status: 200 },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).listInboxConversations(context)).resolves.toMatchObject({ conversations: [{ id: "conversation-1" }] });
+    await expect(new KasitekCoreReadClient(config).listInboxMessages(context, "conversation/1")).resolves.toMatchObject({ messages: [{ id: "message-1" }] });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/inbox/conversations");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/inbox/conversations/conversation%2F1/messages");
+  });
+
   it("reads content through the same scoped core boundary", async () => {
     const fetchMock = vi.fn().mockImplementation((input: string) => new Response(JSON.stringify(input.endsWith("/post%2F1") ? { post: { id: "post-1", content: "Hello", channels: ["threads"], status: "DRAFT" } } : { posts: [{ id: "post-1", content: "Hello", channels: ["threads"], status: "DRAFT" }] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

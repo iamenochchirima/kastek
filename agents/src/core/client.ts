@@ -38,6 +38,24 @@ export interface CoreBookingServices {
   services: CoreBookingService[];
 }
 
+export interface CoreContacts {
+  contacts: unknown[];
+  totalContacts?: number;
+  optedInContacts?: number;
+  excludedContacts?: number;
+  lists?: unknown[];
+  tags?: unknown[];
+}
+
+export interface CoreInboxConversations {
+  conversations: unknown[];
+}
+
+export interface CoreInboxMessages {
+  messages: unknown[];
+  capabilities?: Record<string, unknown>;
+}
+
 export interface CoreContentPost {
   id: string;
   title?: string | null;
@@ -153,6 +171,45 @@ export class KasitekCoreReadClient {
 
   public async listBookingServices(context: ToolInvocationContext): Promise<CoreBookingServices> {
     return this.getJson<CoreBookingServices>(context, "/api/internal/agents/v1/bookings/services", "Booking services");
+  }
+
+  public async listContacts(
+    context: ToolInvocationContext,
+    input: {
+      q?: string;
+      optIn?: "all" | "true" | "false";
+      excluded?: "all" | "true" | "false";
+      tag?: string;
+      location?: string;
+      listLabel?: string;
+      limit?: number;
+    } = {},
+  ): Promise<CoreContacts> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(input)) {
+      if (value !== undefined && value !== "") params.set(key, String(value));
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return this.getJson<CoreContacts>(context, `/api/internal/agents/v1/contacts${suffix}`, "Contacts");
+  }
+
+  public async listInboxConversations(context: ToolInvocationContext): Promise<CoreInboxConversations> {
+    return this.getJson<CoreInboxConversations>(
+      context,
+      "/api/internal/agents/v1/inbox/conversations",
+      "Inbox conversations",
+    );
+  }
+
+  public async listInboxMessages(
+    context: ToolInvocationContext,
+    conversationId: string,
+  ): Promise<CoreInboxMessages> {
+    return this.getJson<CoreInboxMessages>(
+      context,
+      `/api/internal/agents/v1/inbox/conversations/${encodeURIComponent(conversationId)}/messages`,
+      "Inbox messages",
+    );
   }
 
   public async listContentPosts(context: ToolInvocationContext): Promise<CoreContentPosts> {
@@ -285,6 +342,9 @@ export class KasitekCoreReadClient {
     if (path.includes("/customers/")) return "kasitek.core.customer_get";
     if (path.includes("workspace/status")) return "kasitek.core.workspace_status";
     if (path.includes("bookings/services")) return "kasitek.core.booking_services_list";
+    if (path.includes("/inbox/conversations/") && path.endsWith("/messages")) return "kasitek.core.inbox_messages_list";
+    if (path.includes("/inbox/conversations")) return "kasitek.core.inbox_conversations_list";
+    if (path.includes("/contacts")) return "kasitek.core.contacts_list";
     if (method === "POST" && path.endsWith("/content/posts")) return "kasitek.core.content_post_draft";
     if (path.endsWith("/content/posts")) return "kasitek.core.content_posts_list";
     if (method === "PATCH" && path.includes("/content/posts/")) return "kasitek.core.content_post_update";
