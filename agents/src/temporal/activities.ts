@@ -689,6 +689,22 @@ async function executeLoopForRun(
   const credentialReference = typeof configuration.credentialReference === "string" ? configuration.credentialReference : undefined;
   const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
   const currentMessage = typeof run.input.message === "string" ? run.input.message : JSON.stringify(run.input);
+  const rawDynamicContext = run.input.context && typeof run.input.context === "object" && !Array.isArray(run.input.context)
+    ? run.input.context as Record<string, unknown>
+    : undefined;
+  const dynamicContext = rawDynamicContext
+    ? {
+      route: typeof rawDynamicContext.route === "string" ? rawDynamicContext.route.slice(0, 500) : undefined,
+      entity: typeof rawDynamicContext.entity === "string" ? rawDynamicContext.entity.slice(0, 240) : undefined,
+      pageTitle: typeof rawDynamicContext.pageTitle === "string" ? rawDynamicContext.pageTitle.slice(0, 240) : undefined,
+      enabledModules: Array.from(new Set([
+        ...[...allowedTools].map((toolName) => toolName.split(".")[0] ?? toolName),
+        ...(Array.isArray(rawDynamicContext.enabledModules)
+          ? rawDynamicContext.enabledModules.filter((value): value is string => typeof value === "string")
+          : []),
+      ])).slice(0, 50),
+    }
+    : undefined;
   const conversation = run.conversation_id ? await conversations.getConversation(run.organization_id, run.conversation_id) : null;
   const preference = await kasiaiPreferences.get(run.organization_id, run.installation_id, run.created_by);
   const preferenceInstruction = preference?.use_saved_preferences
@@ -746,6 +762,7 @@ async function executeLoopForRun(
       createdAt: message.created_at,
     })),
     authorizedTools: tools.list(allowedTools),
+    dynamicContext,
     temporaryContext: run.input.context && typeof run.input.context === "object" && !Array.isArray(run.input.context)
       ? JSON.stringify(run.input.context)
       : undefined,

@@ -45,4 +45,33 @@ describe("Waku-derived context builder", () => {
     expect(estimateTokens("1234")).toBe(1);
     expect(retrievalGate("please answer this")).toBe(false);
   });
+
+  it("includes authenticated and capability context without treating UI data as policy", () => {
+    const context = buildAgentContext({
+      instructions: "Policy",
+      organizationId: "org",
+      actorId: "actor",
+      agentId: "agent",
+      agentVersionId: "version",
+      installationId: "installation",
+      runId: "run",
+      currentMessage: "What is on this page?",
+      recentMessages: [],
+      authorizedTools: [{
+        name: "kasitek.core.customer_get",
+        version: "1.0.0",
+        description: "Read a customer",
+        riskClass: "read",
+        requiresApproval: false,
+        timeoutMs: 1000,
+        inputSchema: { type: "object" },
+        outputSchema: { type: "object" },
+      }],
+      dynamicContext: { route: "/contacts/123", entity: "customer:123", pageTitle: "Customer", enabledModules: ["contacts"] },
+    });
+    expect(context.messages[0]?.content).toContain("actor=actor");
+    expect(context.messages[0]?.content).toContain("Authorized capabilities: kasitek.core.customer_get");
+    expect(context.messages[0]?.content).toContain("<untrusted-data source=\"authenticated-ui-context\">");
+    expect(context.messages[0]?.content).toContain("customer:123");
+  });
 });
