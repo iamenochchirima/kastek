@@ -48,6 +48,10 @@ marked when the complete deliverable and its verification exist.
   activity, approval waits, failures, and completion, with a link to the durable timeline. The UI
   slice is committed in `ca5c200`; full approval-preview/result/retry interaction and authenticated
   browser proof remain open.
+- External-agent setup now has a dedicated `/agents/connect` wizard for named copy-once credentials,
+  independent MCP/REST scopes, installation capability/resource health, optional resource grants,
+  and copyable MCP/REST client examples. Rotation/revocation and audit inspection remain linked to
+  the existing detail/activity views. The slice is committed in `eaf6106`.
 - The grounded context builder states a response provenance contract: separate reviewed knowledge,
   tool-derived facts, untrusted user data, unavailable actions, and uncertain information. The
   contract is covered by the context regression test in `71f9945`; model-judged/adversarial release
@@ -79,7 +83,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **115 checked and 109 unchecked items out of 224**. This is a
+The primary blueprint currently has **116 checked and 108 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 ## Remaining work

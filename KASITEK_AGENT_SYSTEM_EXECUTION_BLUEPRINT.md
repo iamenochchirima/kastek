@@ -280,7 +280,7 @@ The Agent Platform database suite passed locally with 39 files / 113 tests, and 
 core format/check/library tests passed. A checked implementation item does **not** assert that its
 slice completion gate or production-release verification has passed.
 
-At this reconciliation point, 115 of 224 implementation/verification items are checked. The count
+At this reconciliation point, 116 of 224 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -657,8 +657,12 @@ real capabilities, preserves independent chats, and never invents platform featu
   tool-run acceptance boundary.
 - [ ] Implement signed outbound webhooks with subscription scope, delivery records, exponential
   retry, replay protection, disable/re-enable policy, and diagnostics.
-- [ ] Add an external-agent connection wizard with named credentials, copy-once setup, grants,
-  resource scope, health diagnostics, rotation/revocation, examples, and audit activity.
+- [x] Add an external-agent connection wizard with named credentials, copy-once setup, grants,
+  resource scope, health diagnostics, rotation/revocation, examples, and audit activity. The
+  `/agents/connect` flow reuses installation credential/grant APIs, shows capability availability
+  and resource/connector health, offers MCP/REST examples, and links to detail controls for
+  rotation/revocation and durable audit activity. Evidence: `client/apps/client/src/app/(dashboard)/agents/connect/page.tsx`,
+  `client/apps/client/src/components/dashboard/agents/agent-connection-wizard.tsx`, commit `eaf6106`.
 - [x] Add the first credential-management slice: named installation credentials, independent
   API/MCP scopes, copy-once secret display, list, and revocation in the Agents UI.
 - [x] Add installation capability discovery and grant controls through the authenticated core proxy;
