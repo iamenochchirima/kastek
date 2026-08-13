@@ -44,6 +44,14 @@ marked when the complete deliverable and its verification exist.
 - KasiAi runs now build grounded dynamic context from the authenticated actor and organization,
   granted capability names/modules, durable conversation, and bounded route/entity/page context
   marked as untrusted UI data. The shared builder and regression test are committed in `4e8df19`.
+- KasiAi now keeps a compact redacted run-activity trail in chat for context preparation, model/tool
+  activity, approval waits, failures, and completion, with a link to the durable timeline. The UI
+  slice is committed in `ca5c200`; full approval-preview/result/retry interaction and authenticated
+  browser proof remain open.
+- The grounded context builder states a response provenance contract: separate reviewed knowledge,
+  tool-derived facts, untrusted user data, unavailable actions, and uncertain information. The
+  contract is covered by the context regression test in `71f9945`; model-judged/adversarial release
+  evaluations remain unchecked.
 - Approval/effect/invocation remediation is now in a coherent committed backend slice:
   `a0cf679` adds the shared installation invocation boundary, immediate-read durability, approval
   compare-and-set/idempotency, effect receipt transitions, gateway transport hardening, migrations
