@@ -74,11 +74,20 @@ marked when the complete deliverable and its verification exist.
   `033`–`035`, and a local E2E smoke harness. Delegation key rotation and the Redis-backed replay
   store are committed in `e2c9d24`; public capability discovery filtering and pagination are
   committed in `fdf211a`.
+- Internal Agent API routes now enforce the same read/write scope contract as the Rust core proxy
+  across agent lifecycle, installations, schedules, credentials, knowledge, memory, evaluations,
+  conversations, and run creation. A HMAC regression matrix covers the previously unguarded routes
+  (`56cc77a`, `a541304`).
+- Run inspection now streams the durable event timeline through the existing authenticated SSE
+  route, refreshes on terminal events, and presents a retry state when the stream is unavailable;
+  the cursor remains stable for the lifetime of one stream session (`4466439`, `9d0635a`).
 
 ## Verification evidence
 
 On 2026-08-13, Agent Platform migrations through `035` applied to the local Agent PostgreSQL
-database. With `RUN_AGENTS_DB_INTEGRATION_TESTS=true`, `pnpm --dir agents test` passed 41 files /
+database. The latest default `pnpm --dir agents test` run passed 32 files / 139 tests with 10
+environment-gated files (24 tests) skipped; with `RUN_AGENTS_DB_INTEGRATION_TESTS=true`, the
+previously recorded database run passed 41 files /
 156 tests (one explicitly skipped Temporal recovery integration) under Node 22.22.2, and
 `pnpm --dir agents build` passed. Gateway tests now cover body/timeout/disconnect/upstream/kill-switch
 behavior and two independent replicas. `cargo fmt --check`, `cargo check -p kasitek-core`, and the

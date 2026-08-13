@@ -280,7 +280,7 @@ The Agent Platform database suite passed locally with 39 files / 113 tests, and 
 core format/check/library tests passed. A checked implementation item does **not** assert that its
 slice completion gate or production-release verification has passed.
 
-At this reconciliation point, 116 of 224 implementation/verification items are checked. The count
+At this reconciliation point, 120 of 224 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -724,7 +724,8 @@ REST where permitted, and equivalent operations share business behavior without 
   with validation, installed-version test runs linked to durable timelines, publishing, rollback,
   and secret-safe import/export. Evidence: `client/apps/client/src/components/dashboard/agents/agent-workflow-editor.tsx`,
   `client/apps/client/src/components/dashboard/agents/agent-detail-page-client.tsx`, and commits
-  `b2de22f`, `0812616`, `bcb7ba2`.
+  `b2de22f`, `0812616`, `bcb7ba2`. The run detail also consumes the core-proxied SSE stream for
+  live durable timeline updates, terminal refresh, and degraded/retry handling (`4466439`, `9d0635a`).
 
 ### Verification
 
