@@ -114,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **123 checked and 101 unchecked items out of 224**. This is a
+The primary blueprint currently has **124 checked and 100 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -127,6 +127,10 @@ Capability consumers now use generated projections from the authoritative manife
 `2952291` adds MCP and public discovery projections, permission/audit/documentation metadata for
 the Agent UI, a deterministic checked-in capability catalog, a regeneration command, and parity
 tests. Core-owned REST/OpenAPI contracts remain separate as required by the blueprint.
+
+Core route registration is now split into product, internal, provider-webhook, website, and admin
+modules. `c5c2cb7` preserves the exact 225 route path literals and adds representative mounted
+route regression coverage; the `/v1` ownership move into a dedicated public module remains open.
 
 The initial approval separation-of-duties rule is implemented: a run initiator cannot approve their
 own pending action, with an HTTP regression in `22b2748`. The broader workspace approver/resource

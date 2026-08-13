@@ -343,9 +343,11 @@ the first complete agent-capability domain in Slice 5.
 - [x] Move Actix assembly and route mounting from `main.rs` and the monolithic `routes.rs` into
   `bootstrap`, keeping `main.rs` responsible for environment loading, process selection, startup,
   and shutdown only.
-- [ ] Split route registration into `api::product`, `api::admin`, `api::internal`,
+- [x] Split route registration into `api::product`, `api::admin`, `api::internal`,
   `api::provider_webhooks`, and `api::website` modules while preserving every existing URL, method,
-  middleware requirement, status code, and response contract.
+  middleware requirement, status code, and response contract. Evidence: `c5c2cb7` moves the
+  complete registry into boundary modules, and its route inventory test confirms all 225 pre-split
+  path literals remain present plus representative mounted-route checks.
 - [ ] Rename the current anonymous quote/waitlist `public` concept to `website` before creating
   `api::public_v1`; do not expose those handlers as developer API operations.
 - [x] Move social publishing, WhatsApp inbox/campaign, and billing reconciliation loops from
