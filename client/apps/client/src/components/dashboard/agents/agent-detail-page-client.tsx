@@ -101,6 +101,17 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
     setWorkflowReady(true);
   }, []);
 
+  const runWorkflowTest = useCallback(async (message: string) => {
+    if (!agent.installation_id) throw new Error("This agent has no installation to test.");
+    if (installationStatus !== "active") throw new Error("Resume the installation before testing it.");
+    return sendPlatformMessage(agent.installation_id, {
+      message,
+      idempotencyKey: crypto.randomUUID(),
+      createNew: true,
+      context: { route: window.location.pathname, pageTitle: `${agent.name} workflow test` },
+    });
+  }, [agent.installation_id, agent.name, installationStatus]);
+
   const mutate = async (action: string, operation: () => Promise<unknown>) => {
     setBusy(action);
     setError(null);
@@ -223,7 +234,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {agent.installation_id ? <AgentTestChat installationId={agent.installation_id} active={agent.installation_status === "active"} /> : null}
 
-        {!protectedAgent ? <AgentWorkflowEditor configuration={baseConfiguration} onChange={handleWorkflowChange} onValidityChange={handleWorkflowValidity} /> : null}
+        {!protectedAgent ? <AgentWorkflowEditor configuration={baseConfiguration} onChange={handleWorkflowChange} onValidityChange={handleWorkflowValidity} onTestRun={agent.installation_id && installationStatus === "active" ? runWorkflowTest : undefined} /> : null}
 
         {!protectedAgent ? <Card><CardContent className="space-y-4 p-6"><div><h2 className="text-lg font-semibold text-foreground">Create a draft version</h2><p className="mt-1 text-sm text-muted-foreground">Drafts are immutable after creation. Publish the new version from the version history once you are ready.</p></div><div className="rounded-xl border border-border bg-secondary/20 p-4"><h3 className="text-sm font-semibold text-foreground">Model policy</h3><div className="mt-3 grid gap-3 sm:grid-cols-[0.65fr_1.35fr_0.7fr]"><label className="text-xs font-medium text-foreground">Provider<select value={modelProvider} onChange={(event) => setModelProvider(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></label><label className="text-xs font-medium text-foreground">Model<input value={model} onChange={(event) => setModel(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground">Max tokens<input value={maxTokensPerRun} onChange={(event) => setMaxTokensPerRun(event.target.value)} inputMode="numeric" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label></div></div><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm leading-6" aria-label="Agent instructions" /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">The draft will include the current workflow graph and model policy.</p><Button type="button" disabled={creatingVersion || !instructions.trim() || !model.trim() || !workflowReady || !workflowValid || !workflow} onClick={() => void createVersion()}>{creatingVersion ? "Creating draft…" : "Create draft version"}</Button></div></CardContent></Card> : null}
 

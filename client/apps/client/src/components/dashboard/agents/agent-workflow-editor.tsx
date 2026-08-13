@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Download, GitBranch, Plus, Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -159,13 +160,19 @@ export function AgentWorkflowEditor({
   configuration,
   onChange,
   onValidityChange,
+  onTestRun,
 }: {
   configuration?: Record<string, unknown>;
   onChange: (workflow: WorkflowGraphValue | null) => void;
   onValidityChange: (valid: boolean) => void;
+  onTestRun?: (message: string) => Promise<{ runId: string; status: string }>;
 }) {
   const [draft, setDraft] = useState<EditorDraft>(() => graphToDraft(initialGraph(configuration)));
   const [importError, setImportError] = useState<string | null>(null);
+  const [testMessage, setTestMessage] = useState("Run this workflow and summarize the result.");
+  const [testRun, setTestRun] = useState<{ runId: string; status: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -244,6 +251,21 @@ export function AgentWorkflowEditor({
     }
   };
 
+  const runTest = async () => {
+    const message = testMessage.trim();
+    if (!onTestRun || !message || testing) return;
+    setTesting(true);
+    setTestError(null);
+    setTestRun(null);
+    try {
+      setTestRun(await onTestRun(message));
+    } catch (error) {
+      setTestError(error instanceof Error ? error.message : "Unable to start workflow test.");
+    } finally {
+      setTesting(false);
+    }
+  };
+
   return <Card>
     <CardContent className="space-y-5 p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -261,6 +283,12 @@ export function AgentWorkflowEditor({
       {parsed.error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{parsed.error}</p> : <p className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">Graph is valid and will be validated again by the Agent API before the draft is stored.</p>}
       {importError ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{importError}</p> : null}
       <p className="text-xs text-muted-foreground">{[...nodeById.values()].some((node) => node.type === "approval") ? "Approval nodes pause the durable run until an authorized decision resumes it." : "Add an approval node before any consequential tool node when the capability policy requires review."}</p>
+      {onTestRun ? <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+        <div><h3 className="text-sm font-semibold text-foreground">Test the installed workflow</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">This starts a real durable run against the currently published version. Save and publish a draft first if you changed this graph.</p></div>
+        <div className="flex flex-col gap-2 sm:flex-row"><input value={testMessage} onChange={(event) => setTestMessage(event.target.value)} maxLength={20_000} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void runTest(); } }} placeholder="Message to send through the workflow" className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm" /><Button type="button" onClick={() => void runTest()} disabled={testing || !testMessage.trim()}>{testing ? "Starting…" : "Run installed workflow"}</Button></div>
+        {testError ? <p className="text-xs text-destructive" role="alert">{testError}</p> : null}
+        {testRun ? <p className="text-xs text-muted-foreground">Run <Link className="font-mono text-primary underline-offset-2 hover:underline" href={`/agents/activity/${encodeURIComponent(testRun.runId)}`}>{testRun.runId}</Link> accepted with status <span className="font-medium text-foreground">{testRun.status}</span>.</p> : null}
+      </div> : null}
     </CardContent>
   </Card>;
 }
