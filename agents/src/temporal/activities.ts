@@ -196,6 +196,29 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       return coreClient.publishContentPost(context, String(args.postId), String(args.platform));
     },
   });
+  tools.register({
+    name: "kasitek.core.content_post_schedule",
+    version: "1.0.0",
+    description: "Schedule a draft for provider publishing at a future time.",
+    riskClass: "external-effect",
+    requiresApproval: true,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        postId: { type: "string", minLength: 1, maxLength: 160 },
+        scheduledFor: { type: "string", minLength: 20, maxLength: 64 },
+      },
+      required: ["postId", "scheduledFor"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["post", "status"], additionalProperties: true },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.publish", resourceSelector: { type: "content_post", argument: "postId" }, execution: "durable", idempotency: "required", approval: "always", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt"] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.scheduleContentPost(context, String(args.postId), String(args.scheduledFor));
+    },
+  });
   return tools;
 }
 

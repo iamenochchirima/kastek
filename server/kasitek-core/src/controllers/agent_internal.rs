@@ -292,6 +292,35 @@ pub async fn publish_content_post(
 }
 
 #[derive(Debug, Deserialize)]
+pub struct AgentContentScheduleRequest {
+    #[serde(rename = "scheduledFor")]
+    pub scheduled_for: String,
+}
+
+pub async fn schedule_content_post(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<AgentContentScheduleRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_post_schedule",
+    )
+    .await?;
+    let result = content_adapter::schedule(
+        pool.get_ref(),
+        &context,
+        &path.into_inner(),
+        &body.scheduled_for,
+    )
+    .await?;
+    Ok(HttpResponse::Accepted().json(result))
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentChannelDeliveryRequest {
     pub channel_type: String,

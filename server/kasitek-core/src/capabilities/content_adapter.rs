@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use chrono::{DateTime, Utc};
 
 use crate::{
     db::models::{SocialPost, SocialPostUpsertRequest},
@@ -140,4 +141,81 @@ pub async fn publish(
     let result = social::execute_social_publish_job(pool, &job_id).await?;
     let refreshed = social::get_social_post(pool, &context.organization_id, post_id).await?;
     Ok(serde_json::json!({ "post": refreshed, "result": result }))
+}
+
+pub async fn schedule(
+    pool: &PgPool,
+    context: &RequestContext,
+    post_id: &str,
+    scheduled_for: &str,
+) -> Result<serde_json::Value, AppError> {
+    let scheduled_for = DateTime::parse_from_rfc3339(scheduled_for)
+        .map_err(|_| AppError::BadRequest("scheduledFor must be an RFC3339 timestamp".to_string()))?
+        .with_timezone(&Utc);
+    if scheduled_for <= Utc::now() {
+        return Err(AppError::BadRequest(
+            "scheduledFor must be in the future".to_string(),
+        ));
+    }
+    let idempotency_key = context.idempotency_key.as_deref().ok_or_else(|| {
+        AppError::BadRequest("idempotency-key is required for content scheduling".to_string())
+    })?;
+    let mut tx = pool.begin().await?;
+    let lock_key = format!("kasitek.content.schedule:{}:{}", context.organization_id, idempotency_key);
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1))")
+        .bind(lock_key)
+        .execute(&mut *tx)
+        .await?;
+    let existing_marker = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM "SocialPost" WHERE "orgId" = $1 AND metadata->>'_kasitek_agent_schedule_idempotency_key' = $2 LIMIT 1"#,
+    )
+    .bind(&context.organization_id)
+    .bind(idempotency_key)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(existing_id) = existing_marker {
+        tx.rollback().await?;
+        let post = social::get_social_post(pool, &context.organization_id, &existing_id).await?;
+        return Ok(serde_json::json!({ "post": post, "status": "SCHEDULED" }));
+    }
+    let post = social::get_social_post(pool, &context.organization_id, post_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
+    if !matches!(post.row.status.as_str(), "DRAFT" | "SCHEDULED") {
+        return Err(AppError::Conflict(
+            "Only draft content can be scheduled".to_string(),
+        ));
+    }
+    let metadata = post.row.metadata.unwrap_or_else(|| serde_json::json!({}));
+    let mut metadata = metadata
+        .as_object()
+        .cloned()
+        .ok_or_else(|| AppError::BadRequest("Content metadata must be a JSON object".to_string()))?;
+    metadata.insert(
+        "_kasitek_agent_schedule_idempotency_key".to_string(),
+        serde_json::Value::String(idempotency_key.to_string()),
+    );
+    sqlx::query(
+        r#"UPDATE "SocialPost"
+           SET status = 'SCHEDULED'::"SocialPostStatus", "scheduledFor" = $2, metadata = $3, "updatedAt" = NOW()
+           WHERE id = $1 AND "orgId" = $4"#,
+    )
+    .bind(post_id)
+    .bind(scheduled_for)
+    .bind(serde_json::Value::Object(metadata))
+    .bind(&context.organization_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        r#"UPDATE "SocialPublishJob"
+           SET status = 'QUEUED'::"SocialPublishJobStatus", "scheduledFor" = $2, "updatedAt" = NOW()
+           WHERE "postId" = $1 AND status IN ('PENDING'::"SocialPublishJobStatus", 'FAILED'::"SocialPublishJobStatus", 'QUEUED'::"SocialPublishJobStatus")"#,
+    )
+    .bind(post_id)
+    .bind(scheduled_for)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    let refreshed = social::get_social_post(pool, &context.organization_id, post_id).await?;
+    Ok(serde_json::json!({ "post": refreshed, "status": "SCHEDULED" }))
 }
