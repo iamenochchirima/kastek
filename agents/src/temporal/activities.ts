@@ -25,6 +25,8 @@ import { ChannelRepository } from "../db/repositories/channel-repository";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
+import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
+import { evaluateCapabilityPolicy } from "../capabilities/policy";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -111,6 +113,36 @@ function restrictiveLimit(...values: unknown[]): number | undefined {
   return numbers.length ? Math.min(...numbers) : undefined;
 }
 
+async function assertCurrentCapabilityPolicy(input: {
+  organizationId: string;
+  installationId: string;
+  name: string;
+  argumentsValue: Record<string, unknown>;
+  grantedTools: ReadonlySet<string>;
+  tools: ToolRegistry;
+  installationGrants: InstallationGrantRepository;
+  approved: boolean;
+}): Promise<void> {
+  const manifest = input.tools.get(input.name);
+  if (!manifest) throw new Error(`Tool is not registered: ${input.name}`);
+  const selector = manifest.manifest?.resourceSelector;
+  const selected = selector?.argument ? input.argumentsValue[selector.argument] : undefined;
+  const requestedResources = selector && typeof selected === "string" && selected.trim()
+    ? [{ type: selector.type, id: selected.trim() }]
+    : undefined;
+  const grants = await input.installationGrants.effective(input.organizationId, input.installationId);
+  const decision = evaluateCapabilityPolicy({
+    capability: input.name,
+    grantedCapabilities: input.grantedTools,
+    requestedResources,
+    grantedResources: grants.resources,
+    available: manifest.manifest?.availability !== "not_configured" && manifest.manifest?.availability !== "unhealthy",
+    requiresApproval: manifest.requiresApproval,
+    approved: input.approved,
+  });
+  if (!decision.allowed) throw new Error(decision.code);
+}
+
 export function createActivities(pool: Pool, options: ActivityOptions = {}): AgentRunActivities {
   const runs = new RunRepository(pool);
   const modelCalls = new ModelCallRepository(pool);
@@ -126,6 +158,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const kasiaiPreferences = new KasiAiPreferenceRepository(pool);
   const effectReceipts = new EffectReceiptRepository(pool);
   const approvals = new ApprovalRepository(pool);
+  const installationGrants = new InstallationGrantRepository(pool);
   const gateway = options.gateway ?? new ModelGateway(undefined, { pricing: pricingFromConfig(options.config) });
   const credentials = options.credentials ?? (options.config
     ? new VaultCredentialResolver(new CredentialVaultRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY))
@@ -149,6 +182,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           effectReceipts,
           runSteps,
           toolGrants,
+          installationGrants,
           killSwitches,
           tools,
         );
@@ -322,6 +356,7 @@ async function executeMcpToolRun(
   effectReceipts: EffectReceiptRepository,
   runSteps: RunStepRepository,
   toolGrants: ToolGrantRepository,
+  installationGrants: InstallationGrantRepository,
   killSwitches: KillSwitchRepository,
   tools: ToolRegistry,
 ) {
@@ -414,6 +449,16 @@ async function executeMcpToolRun(
         permittedEffectKey: `${run.id}:${invocation.id}`,
       });
     }
+    await assertCurrentCapabilityPolicy({
+      organizationId: run.organization_id,
+      installationId: run.installation_id,
+      name: invocation.name,
+      argumentsValue: invocation.arguments,
+      grantedTools,
+      tools,
+      installationGrants,
+      approved: !manifest.requiresApproval || Boolean(resumeApprovedToolCall?.approval),
+    });
     if (manifest.riskClass === "external-effect") {
       await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`);
     }
