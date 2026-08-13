@@ -1057,6 +1057,25 @@ pub async fn revoke_installation_credential(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn rotate_installation_credential(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, credential_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .rotate_installation_credential(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            credential_id.trim(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
 pub async fn list_installation_capabilities(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

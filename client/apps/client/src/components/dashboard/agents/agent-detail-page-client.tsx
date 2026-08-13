@@ -23,6 +23,7 @@ import {
   createAgentInstallationCredential,
   listAgentInstallationCredentials,
   revokeAgentInstallationCredential,
+  rotateAgentInstallationCredential,
   type AgentInstallationCredential,
   grantAgentInstallationTool,
   listAgentInstallationCapabilities,
@@ -265,6 +266,7 @@ function InstallationCredentials({ installationId }: { installationId: string })
   const [secret, setSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [rotating, setRotating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -313,6 +315,21 @@ function InstallationCredentials({ installationId }: { installationId: string })
     }
   };
 
+  const rotate = async (credential: AgentInstallationCredential) => {
+    if (rotating || !window.confirm(`Rotate ${credential.label}? Existing tokens will stop working immediately.`)) return;
+    setRotating(credential.id);
+    setError(null);
+    try {
+      const rotated = await rotateAgentInstallationCredential(installationId, credential.id);
+      setCredentials((current) => [{ ...rotated.credential }, ...current.map((entry) => entry.id === credential.id ? { ...entry, status: "revoked" as const } : entry)]);
+      setSecret(rotated.secret);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to rotate credential");
+    } finally {
+      setRotating(null);
+    }
+  };
+
   return <Card>
     <CardContent className="space-y-4 p-6">
       <div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-lg font-semibold text-foreground">External agent credentials</h2><p className="mt-1 text-sm text-muted-foreground">Create named credentials for Codex, Claude, n8n, or your own agent. Secrets are shown once and can be revoked independently.</p></div></div>
@@ -324,7 +341,7 @@ function InstallationCredentials({ installationId }: { installationId: string })
       </div>
       {secret ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="text-sm font-semibold text-status-attention">Copy this secret now. It will not be shown again.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-background px-3 py-2 text-xs text-foreground">{secret}</code><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(secret)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy</Button></div><ExternalConnectionSetup secret={secret} /></div> : null}
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-      {loading ? <p className="text-sm text-muted-foreground">Loading credentials…</p> : credentials.length ? <div className="space-y-2">{credentials.map((credential) => <div key={credential.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{credential.label}</p><p className="mt-1 text-xs text-muted-foreground">{credential.status} · API {credential.api_scopes?.join(", ") ?? "api:read"} · MCP {credential.mcp_scopes.join(", ")}</p></div>{credential.status === "active" ? <Button type="button" variant="outline" size="sm" onClick={() => void revoke(credential)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No external credentials yet.</p>}
+      {loading ? <p className="text-sm text-muted-foreground">Loading credentials…</p> : credentials.length ? <div className="space-y-2">{credentials.map((credential) => <div key={credential.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{credential.label}</p><p className="mt-1 text-xs text-muted-foreground">{credential.status} · API {credential.api_scopes?.join(", ") ?? "api:read"} · MCP {credential.mcp_scopes.join(", ")}</p></div>{credential.status === "active" ? <div className="flex gap-2"><Button type="button" variant="outline" size="sm" disabled={rotating !== null} onClick={() => void rotate(credential)}>{rotating === credential.id ? "Rotating…" : "Rotate"}</Button><Button type="button" variant="outline" size="sm" disabled={rotating !== null} onClick={() => void revoke(credential)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button></div> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No external credentials yet.</p>}
     </CardContent>
   </Card>;
 }

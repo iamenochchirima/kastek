@@ -763,6 +763,18 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(204).send();
   });
 
+  app.post<{ Params: { installationId: string; credentialId: string } }>("/v1/installations/:installationId/credentials/:credentialId/rotate", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const rotated = await installationCredentials.rotate({
+      organizationId: auth.organizationId,
+      installationId: request.params.installationId,
+      credentialId: request.params.credentialId,
+      actorId: auth.actorId,
+    });
+    return reply.code(201).send(rotated);
+  });
+
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/grants", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");

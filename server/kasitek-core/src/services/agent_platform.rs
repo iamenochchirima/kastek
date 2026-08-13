@@ -451,6 +451,24 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn rotate_installation_credential(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        credential_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/credentials/{credential_id}/rotate"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
     pub async fn list_installation_capabilities(
         &self,
         organization_id: &str,

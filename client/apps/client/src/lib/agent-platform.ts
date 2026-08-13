@@ -342,6 +342,10 @@ export function revokeAgentInstallationCredential(installationId: string, creden
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/credentials/${encodeURIComponent(credentialId)}`, { method: "DELETE" });
 }
 
+export function rotateAgentInstallationCredential(installationId: string, credentialId: string): Promise<{ credential: AgentInstallationCredential; secret: string }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/credentials/${encodeURIComponent(credentialId)}/rotate`, { method: "POST", body: JSON.stringify({}) });
+}
+
 export type AgentCapability = {
   name: string;
   version: string;

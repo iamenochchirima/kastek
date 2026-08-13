@@ -683,6 +683,24 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("returns a copy-once secret when rotating an installation credential", async () => {
+    const rotate = vi.fn(async () => ({ credential: { id: "credential-2", label: "Local client", status: "active" }, secret: "ksi_rotated" }));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      installationCredentials: { rotate } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/credentials/credential-1/rotate",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({ credential: { id: "credential-2", label: "Local client", status: "active" }, secret: "ksi_rotated" });
+    expect(rotate).toHaveBeenCalledWith({ organizationId: "org-1", installationId: "install-1", credentialId: "credential-1", actorId: "user-1" });
+    await app.close();
+  });
+
   it("signals approval and cancellation without handling either in process memory", async () => {
     const signals: Array<{ type: string; value: unknown }> = [];
     const runs = {

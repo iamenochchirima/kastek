@@ -124,13 +124,53 @@ export class InstallationCredentialRepository {
   }
 
   public async revoke(input: { organizationId: string; installationId: string; credentialId: string; actorId: string }): Promise<void> {
-    const result = await query(
-      this.pool,
-      `UPDATE agent_installation_credentials SET status = 'revoked', revoked_at = now(), revoked_by = $4
-       WHERE id = $1 AND installation_id = $2 AND organization_id = $3 AND status = 'active'`,
-      [input.credentialId, input.installationId, input.organizationId, input.actorId],
-    );
-    if (!result.rowCount) throw new Error("Active installation credential not found");
+    await withTransaction(this.pool, async (client) => {
+      const result = await client.query(
+        `UPDATE agent_installation_credentials SET status = 'revoked', revoked_at = now(), revoked_by = $4
+         WHERE id = $1 AND installation_id = $2 AND organization_id = $3 AND status = 'active'`,
+        [input.credentialId, input.installationId, input.organizationId, input.actorId],
+      );
+      if (!result.rowCount) throw new Error("Active installation credential not found");
+      await client.query(
+        `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent_installation_credential.revoked', 'agent_installation_credential', $3, $4::jsonb)`,
+        [input.organizationId, input.actorId, input.credentialId, JSON.stringify({ installationId: input.installationId })],
+      );
+    });
+  }
+
+  public async rotate(input: { organizationId: string; installationId: string; credentialId: string; actorId: string }): Promise<CreatedInstallationCredential> {
+    const secret = `ksi_${randomBytes(32).toString("base64url")}`;
+    const credential = await withTransaction(this.pool, async (client) => {
+      const current = await client.query<InstallationCredentialRecord>(
+        `SELECT id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes
+         FROM agent_installation_credentials
+         WHERE id = $1 AND installation_id = $2 AND organization_id = $3 AND status = 'active'
+         FOR UPDATE`,
+        [input.credentialId, input.installationId, input.organizationId],
+      );
+      const existing = current.rows[0];
+      if (!existing) throw new Error("Active installation credential not found");
+      await client.query(
+        `UPDATE agent_installation_credentials SET status = 'revoked', revoked_at = now(), revoked_by = $4
+         WHERE id = $1 AND installation_id = $2 AND organization_id = $3 AND status = 'active'`,
+        [input.credentialId, input.installationId, input.organizationId, input.actorId],
+      );
+      const created = await client.query<InstallationCredentialRecord>(
+        `INSERT INTO agent_installation_credentials
+          (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, api_scopes, created_by)
+         VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7::jsonb, $8)
+         RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes`,
+        [input.installationId, input.organizationId, existing.label, hashSecret(secret), existing.expires_at, JSON.stringify(existing.mcp_scopes), JSON.stringify(existing.api_scopes ?? ["api:read"]), input.actorId],
+      );
+      await client.query(
+        `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent_installation_credential.rotated', 'agent_installation_credential', $3, $4::jsonb)`,
+        [input.organizationId, input.actorId, created.rows[0]!.id, JSON.stringify({ installationId: input.installationId, replacedCredentialId: input.credentialId })],
+      );
+      return created.rows[0]!;
+    });
+    return { credential, secret };
   }
 }
 
