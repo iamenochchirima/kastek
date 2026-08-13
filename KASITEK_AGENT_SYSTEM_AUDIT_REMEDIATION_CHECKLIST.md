@@ -656,7 +656,7 @@ metrics/readiness, deployment, protocol cancellation, and hosted smoke remain op
   unchecked checklist item. Current entries are limited to unavailable infrastructure or explicit
   product/security policy decisions.
 - [x] Recount checked and unchecked primary-blueprint items and record the count in the handoff.
-  The current count is 133 checked / 91 unchecked of 224 in
+  The current count is 134 checked / 90 unchecked of 224 in
   `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
 - [ ] Add evidence to primary-blueprint items only when their full deliverable and verification gate
   pass.

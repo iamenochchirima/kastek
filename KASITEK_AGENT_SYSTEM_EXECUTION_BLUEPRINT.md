@@ -419,8 +419,12 @@ the first complete agent-capability domain in Slice 5.
   content/social posts, campaigns, conversations/inbox, social providers/publishing, WhatsApp,
   billing, then auth/admin; change the order only with documented dependency evidence. Evidence:
   `docs/internal/architecture/domain-migration-template.md` records the ordered dependency list.
-- [ ] Split social into channels, posts, publishing, OAuth, webhooks, and per-provider adapters rather
-  than moving the existing `services/social.rs` unchanged.
+- [x] Split social into channels, posts, publishing, OAuth, webhooks, and per-provider adapters rather
+  than moving the existing `services/social.rs` unchanged. Evidence: `0747b4f`, `09f5e68`,
+  `c16727f`, `ddf8474`, `8b1fc14`, `5e2d6d8` extract the channel lifecycle, post lifecycle,
+  OAuth, webhook, publishing, and provider-account boundaries while preserving controller-facing
+  `social::` exports; `cargo fmt --check`, `cargo check -p kasitek-core`, and the core library suite
+  pass (85 tests, 3 infrastructure-gated ignores).
 - [ ] Split WhatsApp into connections, contacts, templates, campaigns, inbox transport, provider
   webhooks, calls, and delivery workers rather than moving `services/whatsapp.rs` unchanged.
 - [ ] Remove migrated request DTOs and row types from the global `db/models.rs`, and remove obsolete
