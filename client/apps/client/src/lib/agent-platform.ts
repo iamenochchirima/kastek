@@ -167,6 +167,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new AgentRequestError(`Agent request failed (${response.status})${detail}`, response.status, code);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -262,6 +263,23 @@ export type AgentCapability = {
   manifest?: Record<string, unknown>;
 };
 
+export type AgentInstallationGrants = {
+  resources: Array<{ resourceType: string; resourceId: string }>;
+  connectors: string[];
+};
+
+export type AgentConnector = {
+  id: string;
+  version: string;
+  displayName: string;
+  ownerService: string;
+  auth: string;
+  requiredScopes: string[];
+  capabilityNames: string[];
+  rateLimit: { requests: number; windowSeconds: number };
+  supportsReconciliation: boolean;
+};
+
 export function listAgentInstallationCapabilities(installationId: string): Promise<{ installationId: string; capabilities: AgentCapability[] }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/capabilities`);
 }
@@ -270,6 +288,32 @@ export function grantAgentInstallationTool(installationId: string, toolName: str
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/tools`, {
     method: "POST",
     body: JSON.stringify({ toolName }),
+  });
+}
+
+export function listAgentInstallationGrants(installationId: string): Promise<AgentInstallationGrants> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/grants`);
+}
+
+export function grantAgentInstallationResource(installationId: string, resourceType: string, resourceId: string): Promise<unknown> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/grants/resources`, {
+    method: "POST",
+    body: JSON.stringify({ resourceType, resourceId }),
+  });
+}
+
+export function listAgentConnectors(): Promise<{ connectors: AgentConnector[] }> {
+  return request("/api/agents/connectors");
+}
+
+export function listAgentInstallationConnectors(installationId: string): Promise<{ installationId: string; connectors: AgentConnector[] }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/connectors`);
+}
+
+export function grantAgentInstallationConnector(installationId: string, connectorId: string): Promise<unknown> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/grants/connectors`, {
+    method: "POST",
+    body: JSON.stringify({ connectorId }),
   });
 }
 

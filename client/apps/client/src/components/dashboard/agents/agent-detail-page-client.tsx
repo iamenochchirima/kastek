@@ -24,6 +24,12 @@ import {
   grantAgentInstallationTool,
   listAgentInstallationCapabilities,
   type AgentCapability,
+  listAgentInstallationGrants,
+  grantAgentInstallationResource,
+  listAgentConnectors,
+  listAgentInstallationConnectors,
+  grantAgentInstallationConnector,
+  type AgentConnector,
   listAgentInstallationRuns,
   type AgentInstallationRun,
   listKasiAiChannels,
@@ -126,6 +132,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {agent.installation_id ? <InstallationCapabilities installationId={agent.installation_id} /> : null}
 
+        {agent.installation_id ? <InstallationAccessScope installationId={agent.installation_id} /> : null}
+
         {agent.installation_id ? <InstallationRuns installationId={agent.installation_id} /> : null}
 
         {agent.installation_id ? <InstallationChannels installationId={agent.installation_id} /> : null}
@@ -216,11 +224,33 @@ function InstallationCredentials({ installationId }: { installationId: string })
         <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={mcpWrite} onChange={(event) => setMcpWrite(event.target.checked)} />MCP write</label>
         <Button type="button" onClick={() => void create()} disabled={creating || !label.trim()}>{creating ? "Creating…" : "Create credential"}</Button>
       </div>
-      {secret ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="text-sm font-semibold text-status-attention">Copy this secret now. It will not be shown again.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-background px-3 py-2 text-xs text-foreground">{secret}</code><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(secret)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy</Button></div></div> : null}
+      {secret ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="text-sm font-semibold text-status-attention">Copy this secret now. It will not be shown again.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-background px-3 py-2 text-xs text-foreground">{secret}</code><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(secret)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy</Button></div><ExternalConnectionSetup secret={secret} /></div> : null}
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
       {loading ? <p className="text-sm text-muted-foreground">Loading credentials…</p> : credentials.length ? <div className="space-y-2">{credentials.map((credential) => <div key={credential.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{credential.label}</p><p className="mt-1 text-xs text-muted-foreground">{credential.status} · API {credential.api_scopes?.join(", ") ?? "api:read"} · MCP {credential.mcp_scopes.join(", ")}</p></div>{credential.status === "active" ? <Button type="button" variant="outline" size="sm" onClick={() => void revoke(credential)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No external credentials yet.</p>}
     </CardContent>
   </Card>;
+}
+
+function ExternalConnectionSetup({ secret }: { secret: string }) {
+  const [mode, setMode] = useState<"mcp" | "rest">("mcp");
+  const [copied, setCopied] = useState(false);
+  const mcpExchange = [
+    "curl -sS https://agents.kasitek.co.za/v1/installation-tokens/exchange",
+    "  -H 'content-type: application/json'",
+    `  -d '{\"secret\":\"${secret}\",\"audience\":\"mcp\"}'`,
+  ].join("\n");
+  const restExchange = [
+    "curl -sS https://api.kasitek.co.za/v1/installation-tokens/exchange",
+    "  -H 'content-type: application/json'",
+    `  -d '{\"secret\":\"${secret}\",\"audience\":\"kasitek-public-api\"}'`,
+  ].join("\n");
+  const snippet = mode === "mcp" ? mcpExchange : restExchange;
+  const copy = async () => {
+    await navigator.clipboard?.writeText(snippet);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+  return <div className="mt-4 rounded-lg border border-border bg-background/70 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm font-semibold text-foreground">Connect an external agent</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Exchange this secret once for a short-lived token. The secret is never sent to the MCP gateway or included in run history.</p></div><div className="flex rounded-lg border border-border bg-card p-0.5"><button type="button" className={`rounded-md px-2.5 py-1 text-xs ${mode === "mcp" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`} onClick={() => setMode("mcp")}>MCP</button><button type="button" className={`rounded-md px-2.5 py-1 text-xs ${mode === "rest" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`} onClick={() => setMode("rest")}>REST</button></div></div><p className="mt-3 text-xs text-muted-foreground">{mode === "mcp" ? "Use the returned access_token as Bearer authentication for https://agents.kasitek.co.za/mcp." : "Use the returned access_token as Bearer authentication for https://api.kasitek.co.za/v1."}</p><div className="mt-2 flex gap-2"><pre className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-secondary/60 p-3 text-[11px] leading-5 text-foreground">{snippet}</pre><Button type="button" variant="outline" size="sm" onClick={() => void copy()}>{copied ? "Copied" : "Copy"}</Button></div></div>;
 }
 
 function InstallationCapabilities({ installationId }: { installationId: string }) {
@@ -263,6 +293,79 @@ function InstallationCapabilities({ installationId }: { installationId: string }
       <div><h2 className="text-lg font-semibold text-foreground">Capabilities</h2><p className="mt-1 text-sm text-muted-foreground">These are the platform tools this installation may expose to KasiAi or external agents. Grants are enforced again at invocation time.</p></div>
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
       {loading ? <p className="text-sm text-muted-foreground">Loading capabilities…</p> : capabilities.length ? <div className="space-y-2">{capabilities.map((capability) => <div key={capability.name} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{capability.name}</p><p className="mt-1 text-xs text-muted-foreground">{capability.description} · {capability.riskClass}{capability.requiresApproval ? " · approval required" : ""}</p></div><Button type="button" size="sm" variant={capability.availability === "available" ? "outline" : "default"} disabled={capability.availability === "available" || busy !== null} onClick={() => void grant(capability)}>{capability.availability === "available" ? "Granted" : busy === capability.name ? "Granting…" : "Grant"}</Button></div>)}</div> : <p className="text-sm text-muted-foreground">No capabilities are registered for this installation.</p>}
+    </CardContent>
+  </Card>;
+}
+
+function InstallationAccessScope({ installationId }: { installationId: string }) {
+  const [resources, setResources] = useState<Array<{ resourceType: string; resourceId: string }>>([]);
+  const [connectors, setConnectors] = useState<AgentConnector[]>([]);
+  const [availableConnectors, setAvailableConnectors] = useState<AgentConnector[]>([]);
+  const [resourceType, setResourceType] = useState("");
+  const [resourceId, setResourceId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [grants, installationConnectors, allConnectors] = await Promise.all([
+        listAgentInstallationGrants(installationId),
+        listAgentInstallationConnectors(installationId),
+        listAgentConnectors(),
+      ]);
+      setResources(grants.resources);
+      setConnectors(installationConnectors.connectors);
+      setAvailableConnectors(allConnectors.connectors);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load access scope");
+    } finally {
+      setLoading(false);
+    }
+  }, [installationId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const addResource = async () => {
+    if (!resourceType.trim() || !resourceId.trim() || busy) return;
+    setBusy("resource");
+    setError(null);
+    try {
+      await grantAgentInstallationResource(installationId, resourceType.trim(), resourceId.trim());
+      setResources((current) => current.some((entry) => entry.resourceType === resourceType.trim() && entry.resourceId === resourceId.trim()) ? current : [...current, { resourceType: resourceType.trim(), resourceId: resourceId.trim() }]);
+      setResourceType("");
+      setResourceId("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to grant resource");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const grantConnector = async (connector: AgentConnector) => {
+    if (busy || connectors.some((entry) => entry.id === connector.id)) return;
+    setBusy(`connector:${connector.id}`);
+    setError(null);
+    try {
+      await grantAgentInstallationConnector(installationId, connector.id);
+      setConnectors((current) => [...current, connector]);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to grant connector");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return <Card>
+    <CardContent className="space-y-4 p-6">
+      <div><h2 className="text-lg font-semibold text-foreground">Access scope</h2><p className="mt-1 text-sm text-muted-foreground">Limit this installation to explicit product resources and approved connectors. These grants are checked again when a capability runs.</p></div>
+      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      {loading ? <p className="text-sm text-muted-foreground">Loading access scope…</p> : <>
+        <div className="rounded-xl border border-border bg-secondary/20 p-4"><p className="text-sm font-semibold text-foreground">Resource grants</p><div className="mt-3 grid gap-2 sm:grid-cols-[0.8fr_1.2fr_auto]"><input value={resourceType} onChange={(event) => setResourceType(event.target.value)} placeholder="Resource type (e.g. content_post)" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" /><input value={resourceId} onChange={(event) => setResourceId(event.target.value)} placeholder="Resource ID" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" /><Button type="button" size="sm" disabled={busy !== null || !resourceType.trim() || !resourceId.trim()} onClick={() => void addResource()}>{busy === "resource" ? "Granting…" : "Grant resource"}</Button></div>{resources.length ? <div className="mt-3 flex flex-wrap gap-2">{resources.map((resource) => <span key={`${resource.resourceType}:${resource.resourceId}`} className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-foreground">{resource.resourceType}: {resource.resourceId}</span>)}</div> : <p className="mt-3 text-xs text-muted-foreground">No resource-specific grants. Capability-level policy still applies.</p>}</div>
+        <div className="rounded-xl border border-border bg-secondary/20 p-4"><p className="text-sm font-semibold text-foreground">Connector grants</p>{connectors.length ? <div className="mt-3 flex flex-wrap gap-2">{connectors.map((connector) => <span key={connector.id} className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs text-accent">{connector.displayName || connector.id}</span>)}</div> : <p className="mt-3 text-xs text-muted-foreground">No connectors are granted to this installation.</p>}{availableConnectors.length ? <div className="mt-4 space-y-2">{availableConnectors.map((connector) => { const granted = connectors.some((entry) => entry.id === connector.id); return <div key={connector.id} className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{connector.displayName || connector.id}</p><p className="mt-1 text-xs text-muted-foreground">{connector.auth} · {connector.capabilityNames.length} capabilities · v{connector.version}</p></div><Button type="button" size="sm" variant={granted ? "outline" : "default"} disabled={granted || busy !== null} onClick={() => void grantConnector(connector)}>{granted ? "Granted" : busy === `connector:${connector.id}` ? "Granting…" : "Grant connector"}</Button></div>; })}</div> : null}</div>
+      </>}
     </CardContent>
   </Card>;
 }

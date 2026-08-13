@@ -113,8 +113,28 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::get().to(agent_platform::list_installation_capabilities),
                 )
                 .route(
+                    "/installations/{installationId}/grants",
+                    web::get().to(agent_platform::list_installation_grants),
+                )
+                .route(
+                    "/installations/{installationId}/grants/resources",
+                    web::post().to(agent_platform::grant_installation_resource),
+                )
+                .route(
+                    "/installations/{installationId}/grants/connectors",
+                    web::post().to(agent_platform::grant_installation_connector),
+                )
+                .route(
                     "/installations/{installationId}/tools",
                     web::post().to(agent_platform::grant_installation_tool),
+                )
+                .route(
+                    "/connectors",
+                    web::get().to(agent_platform::list_connectors),
+                )
+                .route(
+                    "/installations/{installationId}/connectors",
+                    web::get().to(agent_platform::list_installation_connectors),
                 )
                 .route(
                     "/installations/{installationId}/runs",
