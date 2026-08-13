@@ -25,9 +25,15 @@ export interface ExpirationSignal {
   reason?: string;
 }
 
+export interface ExternalEventSignal {
+  key: string;
+  payload: Record<string, unknown>;
+}
+
 export interface DurableRunInput {
   runId: string;
   resumeApprovedToolCall?: ResumeApprovedToolCall;
+  resumeExternalEvent?: ExternalEventSignal;
 }
 
 export interface TransitionRunActivityInput {

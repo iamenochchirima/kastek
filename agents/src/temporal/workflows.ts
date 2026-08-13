@@ -12,6 +12,7 @@ import type {
   CancellationSignal,
   DurableRunInput,
   ExpirationSignal,
+  ExternalEventSignal,
   ResumeApprovedToolCall,
 } from "./contracts";
 
@@ -27,6 +28,7 @@ const activities = proxyActivities<AgentRunActivities>({
 export const approvalSignal = defineSignal<[ApprovalSignal]>("agent.approval");
 export const cancellationSignal = defineSignal<[CancellationSignal]>("agent.cancel");
 export const expirationSignal = defineSignal<[ExpirationSignal]>("agent.expire");
+export const externalEventSignal = defineSignal<[ExternalEventSignal]>("agent.external-event");
 export const runStatusQuery = defineQuery<RunStatus>("agent.status");
 
 /**
@@ -38,6 +40,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
   let approval: ApprovalSignal | undefined;
   let cancellation: CancellationSignal | undefined;
   let expiration: ExpirationSignal | undefined;
+  let externalEvent: ExternalEventSignal | undefined;
   setHandler(runStatusQuery, () => status);
   setHandler(approvalSignal, (value) => {
     approval = value;
@@ -47,6 +50,9 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
   });
   setHandler(expirationSignal, (value) => {
     expiration = value;
+  });
+  setHandler(externalEventSignal, (value) => {
+    externalEvent = value;
   });
 
   const transition = async (from: RunStatus, to: RunStatus): Promise<void> => {
@@ -58,6 +64,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
     await transition("received", "queued");
     await transition("queued", "running");
     let resumeApprovedToolCall: ResumeApprovedToolCall | undefined = input.resumeApprovedToolCall;
+    let resumeExternalEvent: ExternalEventSignal | undefined = input.resumeExternalEvent;
 
     while (true) {
       if (cancellation) {
@@ -68,8 +75,9 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await transition("running", "expired");
         return;
       }
-      const result = await activities.executeLoop({ runId: input.runId, resumeApprovedToolCall });
+      const result = await activities.executeLoop({ runId: input.runId, resumeApprovedToolCall, resumeExternalEvent });
       resumeApprovedToolCall = undefined;
+      resumeExternalEvent = undefined;
       // Temporal delivers signals between activity completions. This check makes a
       // cancellation received while a model/tool activity was in flight durable
       // before the workflow can accept another step or publish a completion.
@@ -141,6 +149,19 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             expiresAt: decision.expiresAt,
           },
         };
+        continue;
+      }
+      if (result.status === "awaiting_external_event") {
+        await activities.pauseRun({ runId: input.runId, status: "awaiting_external_event", output: { status: result.status, waitingFor: result.waitingFor, usage: result.usage, iterations: result.iterations, toolCalls: result.toolCalls } });
+        status = "awaiting_external_event";
+        await condition(() => externalEvent !== undefined || cancellation !== undefined || expiration !== undefined);
+        if (cancellation) { await transition("awaiting_external_event", "cancelled"); return; }
+        if (expiration) { await transition("awaiting_external_event", "expired"); return; }
+        const event = externalEvent;
+        externalEvent = undefined;
+        if (!event) { await activities.failRun({ runId: input.runId, error: { code: "EXTERNAL_EVENT_MISSING", message: "External event signal was not available" } }); status = "failed"; return; }
+        await transition("awaiting_external_event", "running");
+        resumeExternalEvent = event;
         continue;
       }
       if (result.status === "failed") {

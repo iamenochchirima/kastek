@@ -661,6 +661,13 @@ export function cancelAgentRun(runId: string, reason = "Stopped by user"): Promi
   });
 }
 
+export function signalAgentRunExternalEvent(runId: string, input: { key: string; payload?: Record<string, unknown> }): Promise<{ runId: string; status: string; key: string }> {
+  return request(`/api/agents/runs/${encodeURIComponent(runId)}/external-event`, {
+    method: "POST",
+    body: JSON.stringify({ key: input.key, payload: input.payload ?? {} }),
+  });
+}
+
 export type AgentStreamEvent = {
   event: string;
   data: Record<string, unknown>;

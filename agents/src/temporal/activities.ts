@@ -290,7 +290,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           tools,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools, workflowState);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools, workflowState);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -660,6 +660,7 @@ async function executeMcpToolRun(
 async function executeLoopForRun(
   run: Awaited<ReturnType<RunRepository["getRuntimeRun"]>> & object,
   resumeApprovedToolCall: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"],
+  resumeExternalEvent: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeExternalEvent"],
   runs: RunRepository,
   modelCalls: ModelCallRepository,
   conversations: ConversationRepository,
@@ -825,6 +826,7 @@ async function executeLoopForRun(
       killSwitches,
       workflowState,
       resumeApprovedToolCall,
+      resumeExternalEvent,
     });
   }
   const toolSteps = new Map<string, string>();
@@ -1039,6 +1041,7 @@ async function executeConfiguredWorkflow(input: {
   killSwitches: KillSwitchRepository;
   workflowState: WorkflowStateRepository;
   resumeApprovedToolCall?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"];
+  resumeExternalEvent?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeExternalEvent"];
 }): Promise<AgentLoopResult> {
   let graph: WorkflowGraph;
   try {
@@ -1164,6 +1167,7 @@ async function executeConfiguredWorkflow(input: {
     },
     tool: executeTool,
     resumeApprovedToolCall: input.resumeApprovedToolCall,
+    resumeExternalEvent: input.resumeExternalEvent,
   });
 
   if (result.status === "awaiting_approval") {
@@ -1178,7 +1182,11 @@ async function executeConfiguredWorkflow(input: {
     await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.approval.pending", payload: { nodeId: result.pausedAt, capability: pending.name, providerToolCallId: pending.id } });
     return { status: "awaiting_approval", messages: [], pendingToolCalls: [pending], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value };
   }
-  if (result.status === "awaiting_external_event") return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, error: { code: "WORKFLOW_EXTERNAL_EVENT_UNSUPPORTED", message: "Workflow wait nodes require an external event continuation" } };
+  if (result.status === "awaiting_external_event") {
+    await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
+    await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.external_event.pending", payload: { nodeId: result.pausedAt, waitingFor: result.waitingFor } });
+    return { status: "awaiting_external_event", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, waitingFor: result.waitingFor };
+  }
   if (result.status === "failed") return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, error: { code: "WORKFLOW_FAILED", message: result.error ?? "Workflow execution failed" } };
   await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: null, __workflowState: result.state } });
   const output = typeof result.state.output === "string" ? result.state.output : typeof result.state.answer === "string" ? result.state.answer : lastModelResponse?.message.content ?? "Workflow completed";

@@ -30,7 +30,7 @@ import { ScheduleRepository } from "../db/repositories/schedule-repository";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
-import type { ApprovalSignal, CancellationSignal } from "../temporal/contracts";
+import type { ApprovalSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
 import { formatSseComment, formatSseEvent, toPublicEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
 import { PlatformChatRepository } from "../db/repositories/platform-chat-repository";
@@ -82,6 +82,7 @@ export interface AppDependencies {
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
+  signalExternalEvent?: (runId: string, signal: ExternalEventSignal) => Promise<void>;
 }
 
 function headerValue(request: FastifyRequest, name: string): string | undefined {
@@ -1762,6 +1763,18 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = z.object({ reason: z.string().trim().max(500).optional() }).parse(request.body ?? {});
     await dependencies.signalCancellation(request.params.runId, { reason: `${auth.actorId}: ${input.reason ?? "cancelled"}` });
     return reply.code(202).send({ runId: request.params.runId, status: "cancellation_signalled" });
+  });
+
+  app.post<{ Params: { runId: string } }>("/v1/runs/:runId/external-event", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "runs:write");
+    const run = await runs.getRun(auth.organizationId, request.params.runId);
+    if (!run) return reply.code(404).send({ error: "run_not_found" });
+    if (run.status !== "awaiting_external_event") return reply.code(409).send({ error: "run_not_waiting_for_external_event", status: run.status });
+    if (!dependencies.signalExternalEvent) return reply.code(503).send({ error: "temporal_not_configured" });
+    const input = z.object({ key: z.string().trim().min(1).max(160), payload: z.record(z.string(), z.unknown()).default({}) }).strict().parse(request.body ?? {});
+    await dependencies.signalExternalEvent(request.params.runId, input);
+    return reply.code(202).send({ runId: request.params.runId, status: "external_event_signalled", key: input.key });
   });
 
   return app;

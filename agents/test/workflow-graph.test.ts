@@ -44,6 +44,24 @@ describe("workflow graph validation", () => {
     expect(resumed).toMatchObject({ status: "completed", state: { result: { ok: true }, done: true } });
   });
 
+  it("pauses on a named external event and resumes with the event payload", async () => {
+    const graph = {
+      version: 1 as const,
+      entryNodeId: "prepare",
+      nodes: [
+        { id: "prepare", type: "deterministic" as const, config: { operation: "set", path: "prepared", value: true }, writes: [] },
+        { id: "wait", type: "wait" as const, config: { eventKey: "provider.completed" }, writes: ["provider"] },
+        { id: "done", type: "deterministic" as const, config: { operation: "copy", from: "provider.id", to: "result" } },
+      ],
+      edges: [{ from: "prepare", to: "wait" }, { from: "wait", to: "done" }],
+      stateSchema: {},
+    };
+    const pending = await executeWorkflowGraph(graph, {});
+    expect(pending).toMatchObject({ status: "awaiting_external_event", pausedAt: "wait", waitingFor: "provider.completed", state: { prepared: true } });
+    const resumed = await executeWorkflowGraph({ ...graph, entryNodeId: "wait" }, pending.state, { resumeExternalEvent: { key: "provider.completed", payload: { id: "evt-1" } } });
+    expect(resumed).toMatchObject({ status: "completed", state: { prepared: true, provider: { id: "evt-1" }, result: "evt-1" } });
+  });
+
   it("validates a graph and returns a deterministic order", () => {
     const result = validateWorkflowGraph({
       version: 1,

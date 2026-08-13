@@ -1,7 +1,7 @@
 import { loadConfig } from "../config";
 import { createPool } from "../db/pool";
 import { buildApp } from "./app";
-import { connectTemporal, signalRunApproval, signalRunCancellation, startDurableRun } from "../temporal/client";
+import { connectTemporal, signalRunApproval, signalRunCancellation, signalRunExternalEvent, startDurableRun } from "../temporal/client";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -19,6 +19,9 @@ async function main(): Promise<void> {
       : undefined,
     signalCancellation: temporalConnection
       ? (runId, signal) => signalRunCancellation(temporalConnection!.client, runId, signal)
+      : undefined,
+    signalExternalEvent: temporalConnection
+      ? (runId, signal) => signalRunExternalEvent(temporalConnection!.client, runId, signal)
       : undefined,
   });
   const close = async (): Promise<void> => {

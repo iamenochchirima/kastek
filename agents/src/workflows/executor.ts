@@ -13,6 +13,7 @@ export interface GraphExecutorDependencies {
   agentLoop?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown> }) => Promise<unknown>;
   tool?: (input: GraphToolRequest) => Promise<unknown>;
   resumeApprovedToolCall?: { id: string; name: string; arguments: Record<string, unknown>; approval: unknown };
+  resumeExternalEvent?: { key: string; payload: Record<string, unknown> };
 }
 
 export interface GraphExecutionResult {
@@ -21,6 +22,7 @@ export interface GraphExecutionResult {
   trace: Array<{ nodeId: string; type: string; status: string }>;
   pausedAt?: string;
   pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
+  waitingFor?: string;
   error?: string;
 }
 
@@ -138,8 +140,13 @@ export async function executeWorkflowGraph(
           return { status: "awaiting_approval", state, trace, pausedAt: node.id };
         }
       } else if (node.type === "wait") {
-        trace.push({ nodeId: node.id, type: node.type, status: "awaiting_external_event" });
-        return { status: "awaiting_external_event", state, trace, pausedAt: node.id };
+        const eventKey = typeof node.config.eventKey === "string" && node.config.eventKey.trim() ? node.config.eventKey : node.id;
+        if (!dependencies.resumeExternalEvent || dependencies.resumeExternalEvent.key !== eventKey) {
+          trace.push({ nodeId: node.id, type: node.type, status: "awaiting_external_event" });
+          return { status: "awaiting_external_event", state, trace, pausedAt: node.id, waitingFor: eventKey };
+        }
+        result = dependencies.resumeExternalEvent.payload;
+        applyConfiguredWrites(state, node, result);
       } else if (node.type === "fan_out" || node.type === "fan_in" || node.type === "route") {
         // Control-only nodes select edges below; fan-out branches are executed in later steps.
       }
