@@ -41,6 +41,11 @@ claim GET streaming or resumable session support.
 The machine-readable integration guide for external MCP clients is in
 [`docs/mcp-integration.md`](docs/mcp-integration.md).
 
+The capability catalog used by MCP discovery, public tool discovery, permission UI, audit
+descriptions, and agent documentation is generated from the runtime manifest registry. Regenerate
+the checked-in catalog with `pnpm generate:capabilities`; the output is
+[`docs/generated-capabilities.md`](docs/generated-capabilities.md).
+
 Approval decisions have a separate bounded per-organization/run/actor fixed-window guard. Tune it
 with `APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW`, `APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS`, and
 `APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS`; PostgreSQL remains the authoritative compare-and-set and

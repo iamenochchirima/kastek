@@ -403,7 +403,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
       if (!installation || installation.status !== "active") return failure(-32004, "installation_not_found");
       const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
-      return respond({ tools: toolRegistry.manifests(granted).map((manifest) => ({ name: manifest.name, description: manifest.description, inputSchema: manifest.inputSchema })) });
+      return respond({ tools: toolRegistry.surfaces(granted).map((surface) => surface.mcp) });
     }
     if (body.method === "tools/status") {
       const runId = typeof params.runId === "string" ? params.runId.trim() : "";
@@ -534,16 +534,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
     return {
       installationId: installation.id,
-      tools: toolRegistry.manifests(granted).map((manifest) => ({
-        name: manifest.name,
-        version: manifest.version,
-        description: manifest.description,
-        riskClass: manifest.riskClass,
-        requiresApproval: manifest.requiresApproval,
-        inputSchema: manifest.inputSchema,
-        outputSchema: manifest.outputSchema,
-        manifest: manifest.manifest,
-      })),
+      tools: toolRegistry.surfaces(granted),
     };
   });
 
@@ -748,9 +739,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
     const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
-    const capabilities = toolRegistry.manifests().map((manifest) => ({
-      ...manifest,
-      availability: granted.has(manifest.name) ? (manifest.manifest?.availability ?? "available") : "not_granted",
+    const capabilities = toolRegistry.surfaces().map((surface) => ({
+      ...surface,
+      availability: granted.has(surface.name) ? (surface.manifest.availability ?? "available") : "not_granted",
     }));
     const credential = request.query.credentialId ? await installationCredentials.getActiveForToken({ credentialId: request.query.credentialId, organizationId: auth.organizationId, installationId: request.params.installationId }) : null;
     return { installationId: installation.id, apiScopes: credential?.api_scopes ?? null, capabilities };

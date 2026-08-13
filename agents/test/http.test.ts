@@ -227,7 +227,14 @@ describe("Agent Platform HTTP foundation", () => {
     const revoked = await app.inject({ method: "GET", url: "/v1/installations/install-1/capabilities?credentialId=credential-1", headers: { "x-organization-id": "org-1", "x-actor-id": "core" } });
     expect(active.statusCode).toBe(200);
     expect(active.json()).toMatchObject({ apiScopes: ["api:read", "api:write"] });
-    expect(active.json().capabilities).toEqual(expect.arrayContaining([expect.objectContaining({ name: "platform.current_time", availability: "available" })]));
+    const currentTimeCapability = active.json().capabilities.find((capability: { name: string }) => capability.name === "platform.current_time");
+    expect(currentTimeCapability).toMatchObject({
+      name: "platform.current_time",
+      availability: "available",
+      permission: { scope: "platform.time.read", label: "Platform Time Read permission" },
+      audit: { classification: "access" },
+      documentation: { title: "Platform Current Time" },
+    });
     expect(revoked.statusCode).toBe(401);
     await app.close();
   });
@@ -390,7 +397,12 @@ describe("Agent Platform HTTP foundation", () => {
     });
     const response = await app.inject({ method: "GET", url: "/v1/installations/install-1/tools", headers: { authorization: `Bearer ${publicApiToken()}` } });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ installationId: "install-1", tools: [{ name: "platform.current_time", riskClass: "read" }] });
+    expect(response.json()).toMatchObject({ installationId: "install-1", tools: [{
+      name: "platform.current_time",
+      riskClass: "read",
+      permission: { scope: "platform.time.read" },
+      audit: { classification: "access" },
+    }] });
     expect(response.json().tools).toHaveLength(1);
     await app.close();
   });

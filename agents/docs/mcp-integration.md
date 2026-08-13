@@ -14,6 +14,11 @@ The gateway rejects invalid, expired, revoked, suspended, wrong-audience, and cr
 tokens. MCP and REST credential scopes are independent; `mcp:read` is required for discovery and
 `mcp:write` is required for tool calls.
 
+The versioned capability catalog, including permission scopes, resource selectors, audit
+classification, redaction metadata, and JSON Schemas, is generated at
+[`docs/generated-capabilities.md`](generated-capabilities.md). Discovery responses are projections
+of the same registry, so a capability is not separately redefined for MCP or the Agent UI.
+
 ### Key-bound exchange
 
 For agents that should not transmit the copy-once secret on every bootstrap, register a P-256

@@ -8,6 +8,7 @@ import type {
   ToolInvocationResult,
 } from "./types";
 import { ToolPolicyError } from "./types";
+import { generateCapabilitySurfaces, type GeneratedCapabilitySurface } from "../capabilities/surfaces";
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue);
@@ -76,6 +77,10 @@ export class ToolRegistry {
     return [...this.tools.values()]
       .filter((tool) => tool.manifest && (!grantedTools || grantedTools.has(tool.name)))
       .map(({ handler: _handler, validateInput: _input, validateOutput: _output, ...manifest }) => manifest as Omit<CapabilityManifest, "handler">);
+  }
+
+  public surfaces(grantedTools?: ReadonlySet<string>): GeneratedCapabilitySurface[] {
+    return generateCapabilitySurfaces(this.manifests(grantedTools));
   }
 
   public async invoke(request: ToolInvocationRequest): Promise<ToolInvocationResult> {

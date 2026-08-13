@@ -360,6 +360,9 @@ export type AgentCapability = {
   inputSchema: Record<string, unknown>;
   outputSchema: Record<string, unknown>;
   manifest?: Record<string, unknown>;
+  permission?: { scope: string; label: string; resourceType?: string };
+  audit?: { classification: string; description: string; redaction: string[] };
+  documentation?: { title: string; summary: string };
 };
 
 export type AgentInstallationGrants = {
