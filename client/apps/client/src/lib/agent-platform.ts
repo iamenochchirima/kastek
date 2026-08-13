@@ -504,6 +504,8 @@ export type AgentVersion = {
   version_number: number;
   status: "draft" | "published" | "retired" | "archived" | string;
   instructions?: string | null;
+  configuration?: Record<string, unknown>;
+  policy?: Record<string, unknown>;
   model_policy?: Record<string, unknown>;
   tool_policy?: Record<string, unknown>;
   created_at: string;
