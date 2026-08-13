@@ -139,6 +139,11 @@ same booking query boundary. The Agent client and generated capability registry 
 `kasitek.core.booking_services_list`, with core route, transport, and client tests passing
 (`15d3f77`).
 
+The content adapter now also supports a safe draft-only update path. The internal core boundary
+accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,
+reuses the existing organization-scoped social update service, and the Agent registry/client expose
+`kasitek.core.content_post_update` with generated documentation and transport tests (`f63cdc3`).
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
