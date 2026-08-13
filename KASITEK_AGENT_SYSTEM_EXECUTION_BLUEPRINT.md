@@ -389,7 +389,7 @@ the first complete agent-capability domain in Slice 5.
   adapter does not duplicate SQL, validation, or authorization. Evidence: the internal
   `/api/internal/agents/v1/bookings/services` route resolves the delegated `RequestContext` and
   calls `capabilities::core_adapter::list_booking_services`; the Agent client/tool and route
-  regression test cover the typed boundary.
+  regression test cover the typed boundary (`15d3f77`).
 
 ### Capability and execution integration
 

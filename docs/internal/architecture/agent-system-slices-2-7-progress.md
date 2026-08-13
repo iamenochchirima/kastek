@@ -136,7 +136,8 @@ The bookings pilot now has a distinct transport layer and a second typed consume
 DTOs and the shared service-list response envelope live in `domains/bookings/transport.rs`; the
 product handler and the internal `/api/internal/agents/v1/bookings/services` handler both call the
 same booking query boundary. The Agent client and generated capability registry expose
-`kasitek.core.booking_services_list`, with core route, transport, and client tests passing.
+`kasitek.core.booking_services_list`, with core route, transport, and client tests passing
+(`15d3f77`).
 
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
