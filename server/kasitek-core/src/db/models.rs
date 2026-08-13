@@ -2,10 +2,12 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+pub use super::ai_models::*;
 pub use super::call_models::*;
 pub use super::inbox_models::*;
 pub use super::notification_models::*;
 pub use super::social_models::*;
+pub use super::website_models::*;
 pub use super::whatsapp_models::*;
 
 #[derive(Debug, Clone, Serialize, FromRow)]
@@ -189,62 +191,4 @@ pub struct AdminResetPasswordRequest {
     pub email: Option<String>,
     pub token: Option<String>,
     pub password: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct QuoteRequestCreateRequest {
-    #[serde(rename = "businessName")]
-    pub business_name: Option<String>,
-    #[serde(rename = "contactPerson")]
-    pub contact_person: Option<String>,
-    pub phone: Option<String>,
-    pub email: Option<String>,
-    #[serde(rename = "businessType")]
-    pub business_type: Option<String>,
-    pub services: Option<Vec<String>>,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ProductWaitlistCreateRequest {
-    #[serde(rename = "businessName")]
-    pub business_name: Option<String>,
-    #[serde(rename = "contactPerson")]
-    pub contact_person: Option<String>,
-    pub phone: Option<String>,
-    pub email: Option<String>,
-    #[serde(rename = "businessType")]
-    pub business_type: Option<String>,
-    pub products: Option<Vec<String>>,
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, Clone, FromRow)]
-pub struct BusinessProfileRow {
-    #[sqlx(rename = "businessName")]
-    pub business_name: String,
-    #[sqlx(rename = "businessType")]
-    pub business_type: String,
-    pub industry: Option<String>,
-    pub description: Option<String>,
-    pub city: Option<String>,
-    pub province: Option<String>,
-    pub country: String,
-    pub website: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SocialIdeasRequest {
-    pub topic: Option<String>,
-    pub objective: Option<String>,
-    pub channels: Option<Vec<String>>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SocialCaptionRequest {
-    pub prompt: Option<String>,
-    pub title: Option<String>,
-    pub channels: Option<Vec<String>>,
-    #[serde(rename = "currentContent")]
-    pub current_content: Option<String>,
 }
