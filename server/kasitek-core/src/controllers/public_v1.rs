@@ -151,16 +151,86 @@ fn actor_for_context(context: &RequestContext) -> ActorKind {
     }
 }
 
-fn require_public_action(
+fn installation_action_allowed(
+    definition: &ActionDefinition,
+    capability_payload: &serde_json::Value,
+) -> bool {
+    let granted_scopes = capability_payload
+        .get("capabilities")
+        .and_then(serde_json::Value::as_array)
+        .map(|capabilities| {
+            capabilities
+                .iter()
+                .filter(|capability| {
+                    let status = capability
+                        .get("availability")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("available");
+                    status == "available"
+                })
+                .filter_map(|capability| {
+                    capability
+                        .get("manifest")
+                        .and_then(|manifest| manifest.get("requiredScope"))
+                        .and_then(serde_json::Value::as_str)
+                })
+                .collect::<HashSet<_>>()
+        })
+        .unwrap_or_default();
+    if !definition
+        .required_grants
+        .iter()
+        .all(|grant| granted_scopes.contains(grant.as_str()))
+    {
+        return false;
+    }
+    let required_api_scope = if matches!(definition.risk, actions::RiskClass::Read) {
+        "api:read"
+    } else {
+        "api:write"
+    };
+    capability_payload
+        .get("apiScopes")
+        .and_then(serde_json::Value::as_array)
+        .map(|scopes| {
+            scopes
+                .iter()
+                .any(|scope| scope.as_str() == Some(required_api_scope))
+        })
+        .unwrap_or(false)
+}
+
+async fn require_public_action(
     state: &AppState,
     context: &RequestContext,
     name: &str,
 ) -> Result<(), AppError> {
-    let available = state.action_registry.definitions().any(|definition| {
-        definition.id.name() == name
-            && is_public_action_for_actor(definition, actor_for_context(context))
-    });
-    if available {
+    let definition = state
+        .action_registry
+        .definitions()
+        .find(|definition| {
+            definition.id.name() == name
+                && is_public_action_for_actor(definition, actor_for_context(context))
+        })
+        .ok_or_else(|| AppError::Forbidden(format!("Public capability is unavailable: {name}")))?;
+    if !matches!(
+        context.principal.kind,
+        crate::identity::principal::PrincipalKind::AgentInstallation
+    ) {
+        return Ok(());
+    }
+    let capabilities = AgentPlatformClient::from_config(&state.config)?
+        .list_installation_capabilities(
+            &context.organization_id,
+            &context.principal.id,
+            context
+                .installation_id
+                .as_deref()
+                .ok_or(AppError::Unauthorized)?,
+            context.principal.client_id.as_deref(),
+        )
+        .await?;
+    if installation_action_allowed(definition, &capabilities) {
         Ok(())
     } else {
         Err(AppError::Forbidden(format!(
@@ -412,7 +482,7 @@ pub async fn list_content_posts(
     state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "content.posts.list")?;
+    require_public_action(&state, &context, "content.posts.list").await?;
     let posts = content_adapter::list_posts(&state.pool, &context).await?;
     Ok(response_with_context(&context).json(json!({ "posts": posts })))
 }
@@ -423,7 +493,7 @@ pub async fn get_content_post(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "content.posts.list")?;
+    require_public_action(&state, &context, "content.posts.list").await?;
     let post = content_adapter::get_post(&state.pool, &context, &path.into_inner())
         .await?
         .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
@@ -436,7 +506,7 @@ pub async fn create_content_draft(
     body: web::Json<SocialPostUpsertRequest>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "content.posts.draft.create")?;
+    require_public_action(&state, &context, "content.posts.draft.create").await?;
     let post = content_adapter::create_draft(&state.pool, &context, &body).await?;
     Ok(response_with_context(&context)
         .status(actix_web::http::StatusCode::CREATED)
@@ -448,8 +518,8 @@ mod tests {
     use std::collections::HashSet;
 
     use super::{
-        installation_bearer_token, is_public_action_for_actor, public_action_allowed,
-        verify_installation_token,
+        installation_action_allowed, installation_bearer_token, is_public_action_for_actor,
+        public_action_allowed, verify_installation_token,
     };
     use actions::{catalog::initial_registry, ActionLifecycle, ActorKind, ProductRuntime};
     use actix_web::test::TestRequest;
@@ -485,6 +555,40 @@ mod tests {
                 .supported_runtimes
                 .contains(&ProductRuntime::Direct));
         }
+    }
+
+    #[test]
+    fn installation_invocation_requires_live_grant_and_api_scope() {
+        let definition = all_definitions()
+            .into_iter()
+            .find(|definition| definition.id.name() == "content.posts.list")
+            .expect("content list action");
+        let allowed = serde_json::json!({
+            "apiScopes": ["api:read"],
+            "capabilities": [{
+                "availability": "available",
+                "manifest": { "requiredScope": "content.read" }
+            }]
+        });
+        assert!(installation_action_allowed(&definition, &allowed));
+        assert!(!installation_action_allowed(
+            &definition,
+            &serde_json::json!({ "apiScopes": ["api:read"], "capabilities": [] })
+        ));
+        assert!(!installation_action_allowed(
+            &definition,
+            &serde_json::json!({
+                "apiScopes": ["api:write"],
+                "capabilities": [{ "availability": "available", "manifest": { "requiredScope": "content.read" } }]
+            })
+        ));
+        assert!(!installation_action_allowed(
+            &definition,
+            &serde_json::json!({
+                "apiScopes": ["api:read"],
+                "capabilities": [{ "availability": "revoked", "manifest": { "requiredScope": "content.read" } }]
+            })
+        ));
     }
 
     #[test]
