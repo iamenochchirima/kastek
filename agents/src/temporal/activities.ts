@@ -158,6 +158,22 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
     },
+    async cancelPendingApproval(input) {
+      const run = await runs.getRuntimeRunById(input.runId);
+      if (!run) throw new Error("Run not found");
+      await approvals.cancel(run.organization_id, run.id, input.providerToolCallId);
+      await effectReceipts.markNotExecuted(run.organization_id, run.id, input.providerToolCallId, {
+        code: "RUN_CANCELLED",
+        message: input.reason ?? "The run was cancelled before the approved effect began",
+      });
+      await runs.appendEvent({
+        organizationId: run.organization_id,
+        runId: run.id,
+        installationId: run.installation_id,
+        eventType: "agent.approval.cancelled",
+        payload: { providerToolCallId: input.providerToolCallId },
+      });
+    },
     async completeRun(input) {
       const completed = await runs.completeRun(input.runId, input.output);
       if (completed.conversation_id) {

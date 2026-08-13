@@ -81,11 +81,19 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         });
         status = "awaiting_approval";
         await condition(() => approval !== undefined || cancellation !== undefined);
+        const pending = result.pendingToolCalls?.[0];
         if (cancellation) {
+          const cancellationReason = (cancellation as CancellationSignal).reason;
+          if (pending) {
+            await activities.cancelPendingApproval({
+              runId: input.runId,
+              providerToolCallId: pending.id,
+              reason: cancellationReason,
+            });
+          }
           await transition("awaiting_approval", "cancelled");
           return;
         }
-        const pending = result.pendingToolCalls?.[0];
         const decision = approval;
         approval = undefined;
         if (!pending || !decision || decision.decision !== "approved" || decision.providerToolCallId !== pending.id || decision.argumentsHash !== pending.argumentsHash) {
