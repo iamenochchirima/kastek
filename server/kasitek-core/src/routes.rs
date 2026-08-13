@@ -81,6 +81,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::patch().to(agent_platform::set_installation_settings),
                 )
                 .route(
+                    "/installations/{installationId}/credentials",
+                    web::get().to(agent_platform::list_installation_credentials),
+                )
+                .route(
+                    "/installations/{installationId}/credentials",
+                    web::post().to(agent_platform::create_installation_credential),
+                )
+                .route(
+                    "/installations/{installationId}/credentials/{credentialId}",
+                    web::delete().to(agent_platform::revoke_installation_credential),
+                )
+                .route(
                     "/{agentId}/versions",
                     web::get().to(agent_platform::list_agent_versions),
                 )

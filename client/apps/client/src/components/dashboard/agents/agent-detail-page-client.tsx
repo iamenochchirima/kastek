@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Archive, ArrowLeft, CheckCircle2, History, RotateCcw, Sparkles } from "lucide-react";
+import { Archive, ArrowLeft, CheckCircle2, Copy, History, KeyRound, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +17,10 @@ import {
   resolvePlatformConversation,
   sendPlatformMessage,
   streamAgentRun,
+  createAgentInstallationCredential,
+  listAgentInstallationCredentials,
+  revokeAgentInstallationCredential,
+  type AgentInstallationCredential,
   type AgentDefinition,
   type AgentVersion,
   type AgentMessage,
@@ -109,6 +113,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
           </CardContent>
         </Card>
 
+        {agent.installation_id ? <InstallationCredentials installationId={agent.installation_id} /> : null}
+
         {agent.installation_id ? <AgentTestChat installationId={agent.installation_id} active={agent.installation_status === "active"} /> : null}
 
         <section className="space-y-3" aria-labelledby="agent-versions-title">
@@ -128,6 +134,78 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       </div>
     </div>
   );
+}
+
+function InstallationCredentials({ installationId }: { installationId: string }) {
+  const [credentials, setCredentials] = useState<AgentInstallationCredential[]>([]);
+  const [label, setLabel] = useState("");
+  const [mcpWrite, setMcpWrite] = useState(false);
+  const [apiWrite, setApiWrite] = useState(false);
+  const [secret, setSecret] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listAgentInstallationCredentials(installationId);
+      setCredentials(response.credentials);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load agent credentials");
+    } finally {
+      setLoading(false);
+    }
+  }, [installationId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const create = async () => {
+    if (!label.trim() || creating) return;
+    setCreating(true);
+    setSecret(null);
+    setError(null);
+    try {
+      const created = await createAgentInstallationCredential(installationId, {
+        label: label.trim(),
+        mcpScopes: ["mcp:read", ...(mcpWrite ? ["mcp:write" as const] : [])],
+        apiScopes: ["api:read", ...(apiWrite ? ["api:write" as const] : [])],
+      });
+      setCredentials((current) => [created.credential, ...current]);
+      setLabel("");
+      setSecret(created.secret);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to create credential");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const revoke = async (credential: AgentInstallationCredential) => {
+    if (!window.confirm(`Revoke ${credential.label}? Existing tokens will stop working.`)) return;
+    try {
+      await revokeAgentInstallationCredential(installationId, credential.id);
+      setCredentials((current) => current.map((entry) => entry.id === credential.id ? { ...entry, status: "revoked" } : entry));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to revoke credential");
+    }
+  };
+
+  return <Card>
+    <CardContent className="space-y-4 p-6">
+      <div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-lg font-semibold text-foreground">External agent credentials</h2><p className="mt-1 text-sm text-muted-foreground">Create named credentials for Codex, Claude, n8n, or your own agent. Secrets are shown once and can be revoked independently.</p></div></div>
+      <div className="grid gap-3 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+        <label className="text-sm font-medium text-foreground">Credential name<input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Local Codex" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={apiWrite} onChange={(event) => setApiWrite(event.target.checked)} />API write</label>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={mcpWrite} onChange={(event) => setMcpWrite(event.target.checked)} />MCP write</label>
+        <Button type="button" onClick={() => void create()} disabled={creating || !label.trim()}>{creating ? "Creating…" : "Create credential"}</Button>
+      </div>
+      {secret ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="text-sm font-semibold text-status-attention">Copy this secret now. It will not be shown again.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-background px-3 py-2 text-xs text-foreground">{secret}</code><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(secret)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy</Button></div></div> : null}
+      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      {loading ? <p className="text-sm text-muted-foreground">Loading credentials…</p> : credentials.length ? <div className="space-y-2">{credentials.map((credential) => <div key={credential.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{credential.label}</p><p className="mt-1 text-xs text-muted-foreground">{credential.status} · API {credential.api_scopes?.join(", ") ?? "api:read"} · MCP {credential.mcp_scopes.join(", ")}</p></div>{credential.status === "active" ? <Button type="button" variant="outline" size="sm" onClick={() => void revoke(credential)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No external credentials yet.</p>}
+    </CardContent>
+  </Card>;
 }
 
 function AgentTestChat({ installationId, active }: { installationId: string; active: boolean }) {

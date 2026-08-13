@@ -646,6 +646,8 @@ real capabilities, preserves independent chats, and never invents platform featu
   retry, replay protection, disable/re-enable policy, and diagnostics.
 - [ ] Add an external-agent connection wizard with named credentials, copy-once setup, grants,
   resource scope, health diagnostics, rotation/revocation, examples, and audit activity.
+- [x] Add the first credential-management slice: named installation credentials, independent
+  API/MCP scopes, copy-once secret display, list, and revocation in the Agents UI.
 - [x] Add a local stdio bridge only for clients that cannot connect to hosted Streamable HTTP.
 
 ### Verification

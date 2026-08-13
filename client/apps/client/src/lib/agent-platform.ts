@@ -186,6 +186,39 @@ export function setAgentInstallationStatus(installationId: string, status: "acti
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/status/${status}`, { method: "POST" });
 }
 
+export type AgentInstallationCredential = {
+  id: string;
+  installation_id: string;
+  label: string;
+  status: "active" | "revoked";
+  expires_at?: string | null;
+  last_used_at?: string | null;
+  created_at: string;
+  revoked_at?: string | null;
+  mcp_scopes: Array<"mcp:read" | "mcp:write">;
+  api_scopes?: Array<"api:read" | "api:write">;
+};
+
+export function listAgentInstallationCredentials(installationId: string): Promise<{ credentials: AgentInstallationCredential[] }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/credentials`);
+}
+
+export function createAgentInstallationCredential(installationId: string, input: {
+  label: string;
+  expiresAt?: string;
+  mcpScopes: Array<"mcp:read" | "mcp:write">;
+  apiScopes: Array<"api:read" | "api:write">;
+}): Promise<{ credential: AgentInstallationCredential; secret: string }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/credentials`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function revokeAgentInstallationCredential(installationId: string, credentialId: string): Promise<unknown> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/credentials/${encodeURIComponent(credentialId)}`, { method: "DELETE" });
+}
+
 export type AgentInstallationSettings = {
   language?: string;
   tone?: "concise" | "balanced" | "detailed";
