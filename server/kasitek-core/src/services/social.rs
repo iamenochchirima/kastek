@@ -79,8 +79,12 @@ const SOCIAL_PUBLISH_JOB_STATUSES: &[&str] = &[
 const SOCIAL_VARIANT_STATUSES: &[&str] = &["DRAFT", "APPROVED", "NEEDS_EDITS"];
 
 pub use super::social_channels::platform_capabilities;
+pub use super::social_channels::{
+    create_social_channel, delete_social_channel, get_social_channel, list_social_channels,
+    update_social_channel,
+};
 
-fn merge_channel_metadata_with_capabilities(
+pub(crate) fn merge_channel_metadata_with_capabilities(
     platform: &str,
     metadata: Option<Value>,
 ) -> Option<Value> {
@@ -1735,48 +1739,6 @@ pub async fn upsert_bluesky_oauth_connection_for_org(
     .await
 }
 
-pub async fn list_social_channels(
-    pool: &PgPool,
-    org_id: &str,
-) -> Result<Vec<SocialChannel>, AppError> {
-    sqlx::query_as::<_, SocialChannel>(
-        r#"
-        SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
-               "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
-               metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-        FROM "SocialChannelConnection"
-        WHERE "orgId" = $1
-        ORDER BY platform ASC, "createdAt" DESC
-        "#,
-    )
-    .bind(org_id)
-    .fetch_all(pool)
-    .await
-    .map_err(AppError::from)
-}
-
-pub async fn get_social_channel(
-    pool: &PgPool,
-    org_id: &str,
-    id: &str,
-) -> Result<Option<SocialChannel>, AppError> {
-    sqlx::query_as::<_, SocialChannel>(
-        r#"
-        SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
-               "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
-               metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-        FROM "SocialChannelConnection"
-        WHERE id = $1 AND "orgId" = $2
-        LIMIT 1
-        "#,
-    )
-    .bind(id)
-    .bind(org_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(AppError::from)
-}
-
 async fn get_social_channel_private_by_id(
     pool: &PgPool,
     org_id: &str,
@@ -1929,108 +1891,6 @@ pub async fn refresh_social_channel_identity(
     get_social_channel(pool, org_id, channel_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to load refreshed social account".to_string()))
-}
-
-pub async fn create_social_channel(
-    pool: &PgPool,
-    user_id: &str,
-    org_id: &str,
-    platform: &str,
-    display_name: &str,
-    handle: Option<String>,
-    external_account_id: Option<String>,
-    status: &str,
-    metadata: Option<Value>,
-) -> Result<SocialChannel, AppError> {
-    sqlx::query(
-        r#"
-        INSERT INTO "SocialChannelConnection" (
-            id, "userId", "orgId", platform, status, "displayName", handle, "externalAccountId", metadata, "createdAt", "updatedAt"
-        )
-        VALUES (
-            $1, $2, $3, CAST($4 AS "SocialPlatform"), CAST($5 AS "SocialChannelStatus"), $6, $7, $8, $9, NOW(), NOW()
-        )
-        "#,
-    )
-    .bind(cuid2::create_id())
-    .bind(user_id)
-    .bind(org_id)
-    .bind(platform)
-    .bind(status)
-    .bind(display_name)
-    .bind(handle)
-    .bind(external_account_id)
-    .bind(merge_channel_metadata_with_capabilities(platform, metadata))
-    .execute(pool)
-    .await?;
-
-    let created = sqlx::query_as::<_, SocialChannel>(
-        r#"
-        SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
-               "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
-               metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
-        FROM "SocialChannelConnection"
-        WHERE "orgId" = $1
-        ORDER BY "createdAt" DESC
-        LIMIT 1
-        "#,
-    )
-    .bind(org_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(created)
-}
-
-pub async fn update_social_channel(
-    pool: &PgPool,
-    org_id: &str,
-    id: &str,
-    platform: &str,
-    display_name: &str,
-    handle: Option<String>,
-    status: &str,
-    metadata: Option<Value>,
-) -> Result<SocialChannel, AppError> {
-    sqlx::query(
-        r#"
-        UPDATE "SocialChannelConnection"
-        SET platform = CAST($1 AS "SocialPlatform"),
-            "displayName" = $2,
-            handle = $3,
-            status = CAST($4 AS "SocialChannelStatus"),
-            metadata = $5,
-            "updatedAt" = NOW()
-        WHERE id = $6 AND "orgId" = $7
-        "#,
-    )
-    .bind(platform)
-    .bind(display_name)
-    .bind(handle)
-    .bind(status)
-    .bind(merge_channel_metadata_with_capabilities(platform, metadata))
-    .bind(id)
-    .bind(org_id)
-    .execute(pool)
-    .await?;
-
-    get_social_channel(pool, org_id, id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))
-}
-
-pub async fn delete_social_channel(
-    pool: &PgPool,
-    org_id: &str,
-    id: &str,
-) -> Result<bool, AppError> {
-    let result =
-        sqlx::query(r#"DELETE FROM "SocialChannelConnection" WHERE id = $1 AND "orgId" = $2"#)
-            .bind(id)
-            .bind(org_id)
-            .execute(pool)
-            .await?;
-    Ok(result.rows_affected() == 1)
 }
 
 pub async fn remove_threads_connection_data(
