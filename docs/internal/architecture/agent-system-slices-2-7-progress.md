@@ -286,13 +286,8 @@ The template read follow-up `7039b13` exposes the existing organization-scoped W
 catalog through `kasitek.core.templates_list`, with an optional approved/pending/rejected/disabled
 status filter. Provider synchronization and template creation remain separate product-admin
 operations; the Agent capability is read-only and carries template-body/button redaction metadata.
-The Rust and Agent verification gates remain green.
-
-The template catalog follow-up `7039b13` exposes organization-scoped WhatsApp template listing
-through `kasitek.core.templates_list`, including an optional approval-status filter. It reuses the
-existing template query and keeps provider synchronization/authoring outside the Agent read
-surface. The generated capability catalog and client/core transport tests were updated; the same
-Rust and Agent verification gates pass.
+The generated capability catalog and client/core transport tests were updated; the same Rust and
+Agent verification gates pass.
 
 The Agents detail capability panel now groups tools by domain, shows permission/risk/approval and
 availability state, supports explicit refresh/retry, and prevents misleading grants when a
