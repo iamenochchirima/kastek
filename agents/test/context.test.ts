@@ -71,6 +71,7 @@ describe("Waku-derived context builder", () => {
     });
     expect(context.messages[0]?.content).toContain("actor=actor");
     expect(context.messages[0]?.content).toContain("Authorized capabilities: kasitek.core.customer_get");
+    expect(context.messages[0]?.content).toContain("Grounding contract:");
     expect(context.messages[0]?.content).toContain("<untrusted-data source=\"authenticated-ui-context\">");
     expect(context.messages[0]?.content).toContain("customer:123");
   });
