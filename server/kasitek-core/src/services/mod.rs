@@ -25,4 +25,5 @@ pub mod website;
 pub mod whatsapp;
 pub mod whatsapp_calls;
 pub mod whatsapp_connections;
+pub mod whatsapp_contacts;
 pub mod whatsapp_templates;
