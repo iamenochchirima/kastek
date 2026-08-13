@@ -245,6 +245,12 @@ existing `whatsapp::` exports and delivery call sites remain stable (`f42a00e`).
 provider webhooks, calls, and the remaining cross-provider delivery-worker decomposition are still
 open.
 
+The Meta WhatsApp webhook boundary is now explicit in `whatsapp_webhooks`: delivery status mapping,
+campaign status reconciliation, inbound text/media ingestion, KasiAi pairing, unsubscribe safety,
+push notifications, and provider call dispatch live there. The existing `process_webhook_payload`
+route export remains stable and the core suite passes (`ec4842c`). Inbox transport, calls, and the
+remaining cross-provider delivery-worker decomposition remain open.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
