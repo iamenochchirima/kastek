@@ -9,7 +9,11 @@ const config = z.object({
   AGENT_GATEWAY_SHARED_SECRET: z.string().optional(),
 }).parse(process.env);
 
-const app = buildGateway({ agentPlatformUrl: config.AGENT_PLATFORM_URL, sharedSecret: config.AGENT_GATEWAY_SHARED_SECRET });
+const app = buildGateway({
+  agentPlatformUrl: config.AGENT_PLATFORM_URL,
+  sharedSecret: config.AGENT_GATEWAY_SHARED_SECRET,
+  environment: config.NODE_ENV,
+});
 
 app.listen({ host: config.GATEWAY_HOST, port: config.GATEWAY_PORT }).catch((error) => {
   app.log.error(error);
