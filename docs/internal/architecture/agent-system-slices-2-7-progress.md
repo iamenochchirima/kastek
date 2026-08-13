@@ -268,6 +268,12 @@ ignored), Agent tests pass (33 files, 147 passed, 24 environment-gated skipped),
 TypeScript build passes. This is a read-side foundation for the broader contacts/inbox capability
 expansion; writes, provider effects, and full browser/provider E2E remain open.
 
+The follow-on bookings read slice `6fc9c00` exposes the existing shared booking query through
+`kasitek.core.bookings_list` alongside the service-list capability. The internal adapter reuses
+`domains::bookings::queries` and keeps organization scope in the normalized delegated context;
+no booking mutation or agent-side identity impersonation is introduced. The same Rust and Agent
+verification gates pass, and generated capability documentation is refreshed.
+
 The WhatsApp model follow-up moves the completed connection, template, campaign, contact/list, and
 inbox transport DTOs/rows into `db::whatsapp_models`; `db::models` re-exports them during migration
 so existing adapters retain source compatibility (`7daf4da`). Call-specific models and the broader
