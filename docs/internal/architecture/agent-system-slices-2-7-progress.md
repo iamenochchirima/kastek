@@ -300,6 +300,11 @@ dependency is unconfigured or unhealthy (`e1d5485`). Client TypeScript, targeted
 full Next production build pass; authenticated browser interaction remains a separate release
 gate.
 
+The contacts list mobile layout now uses separate keyboard-accessible list-open and actions
+controls instead of nesting a dropdown inside a button (`2bcc990`). This prevents action clicks
+from accidentally navigating the list and removes invalid nested interactive markup. Client
+TypeScript, targeted lint, and the production build pass.
+
 The WhatsApp model follow-up moves the completed connection, template, campaign, contact/list, and
 inbox transport DTOs/rows into `db::whatsapp_models`; `db::models` re-exports them during migration
 so existing adapters retain source compatibility (`7daf4da`). Call-specific models and the broader
