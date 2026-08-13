@@ -232,6 +232,12 @@ diagnostics, and organization-scoped reads live behind that boundary. Existing c
 `whatsapp::` exports and the shared SQL projection remain stable (`7be54cf`). Contacts, campaigns,
 inbox transport, provider webhooks, calls, and delivery workers are still open decomposition work.
 
+WhatsApp contacts and list management now have their own `whatsapp_contacts` service boundary for
+organization-scoped listing/statistics, CSV export, edits, consent-checked imports, and list rename/
+delete operations. Shared phone/list normalization helpers remain reusable by campaign and inbox
+paths, while controller-facing `whatsapp::` exports stay stable (`9ffd858`). Campaign workers,
+inbox transport, provider webhooks, calls, and delivery workers remain open.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
