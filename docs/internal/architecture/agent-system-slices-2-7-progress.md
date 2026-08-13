@@ -268,6 +268,11 @@ Call-specific persistence rows and request DTOs now live in `db::call_models`, w
 The remaining global model cleanup is now limited to shared conversation/message and other
 cross-domain DTOs that still need an owning boundary.
 
+Shared inbox conversation/message rows and the conversation update DTO now live in
+`db::inbox_models`; `db::models` continues to provide compatibility re-exports for social, WhatsApp,
+and inbox adapters (`7baa1ae`). Remaining global model work is limited to other cross-domain or
+legacy product DTOs; no runtime contract changed in this slice.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
