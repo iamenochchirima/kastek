@@ -280,7 +280,7 @@ The Agent Platform database suite passed locally with 39 files / 113 tests, and 
 core format/check/library tests passed. A checked implementation item does **not** assert that its
 slice completion gate or production-release verification has passed.
 
-At this reconciliation point, 100 of 210 implementation/verification items are checked. The count
+At this reconciliation point, 114 of 224 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -704,8 +704,12 @@ REST where permitted, and equivalent operations share business behavior without 
   Agent Platform records except opaque references and safe metadata.
 - [x] Add schedules, triggers, workflow execution, channel binding, test runs, and deterministic
   human handoff using the shared runtime.
-- [ ] Build hosted agent detail/configuration UI covering overview, versions, capabilities,
-  connections, knowledge/memory, channels, runs, approvals, usage, and settings.
+- [x] Build hosted agent detail/configuration UI covering overview, versions, capabilities,
+  connections, knowledge/memory, channels, runs, approvals, usage, and settings. Evidence:
+  `client/apps/client/src/components/dashboard/agents/agent-detail-page-client.tsx`,
+  `client/apps/client/src/app/(dashboard)/agents/activity/[runId]/page.tsx`, commits
+  `152192e`, `81807cb`, `87c9e12`, `5765e7e`, `55e33d6`, `52def06`, and `4e04a17`;
+  client lint/typecheck/production build passed with the existing unrelated image warning.
 - [x] Add the installation operations slice: capability grants, credential lifecycle, and recent
   durable run history are available from the authenticated core-proxied Agent details view.
 - [ ] Preserve the later visual workflow builder as an editor over the same graph/version/runtime,
