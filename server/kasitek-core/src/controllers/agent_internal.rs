@@ -238,18 +238,19 @@ pub async fn create_content_draft(
     req: HttpRequest,
     body: web::Json<SocialPostUpsertRequest>,
 ) -> Result<HttpResponse, AppError> {
-    let context = resolve_internal_agent_context(
-        config.get_ref(),
-        &req,
-        "kasitek.core.content_post_draft",
-    )
-    .await?;
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.content_post_draft")
+            .await?;
     if context.idempotency_key.is_none() {
         return Err(AppError::BadRequest(
             "idempotency-key is required for content drafts".to_string(),
         ));
     }
-    if body.status.as_deref().is_some_and(|status| status != "DRAFT") {
+    if body
+        .status
+        .as_deref()
+        .is_some_and(|status| status != "DRAFT")
+    {
         return Err(AppError::BadRequest(
             "Agent content drafts must use DRAFT status".to_string(),
         ));
@@ -270,24 +271,17 @@ pub async fn publish_content_post(
     path: web::Path<String>,
     body: web::Json<AgentContentPublishRequest>,
 ) -> Result<HttpResponse, AppError> {
-    let context = resolve_internal_agent_context(
-        config.get_ref(),
-        &req,
-        "kasitek.core.content_post_publish",
-    )
-    .await?;
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.content_post_publish")
+            .await?;
     if context.idempotency_key.is_none() {
         return Err(AppError::BadRequest(
             "idempotency-key is required for content publishing".to_string(),
         ));
     }
-    let result = content_adapter::publish(
-        pool.get_ref(),
-        &context,
-        &path.into_inner(),
-        &body.platform,
-    )
-    .await?;
+    let result =
+        content_adapter::publish(pool.get_ref(), &context, &path.into_inner(), &body.platform)
+            .await?;
     Ok(HttpResponse::Accepted().json(result))
 }
 

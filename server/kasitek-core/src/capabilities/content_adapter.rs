@@ -1,5 +1,5 @@
-use sqlx::PgPool;
 use chrono::{DateTime, Utc};
+use sqlx::PgPool;
 
 use crate::{
     db::models::{SocialPost, SocialPostUpsertRequest},
@@ -47,13 +47,13 @@ pub async fn create_draft(
         .map(str::to_string);
     let actor_id = match actor_id {
         Some(actor_id) => actor_id,
-        None => sqlx::query_scalar::<_, String>(
-            r#"SELECT "ownerId" FROM "Organization" WHERE id = $1"#,
-        )
-        .bind(&context.organization_id)
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Organization owner not found".to_string()))?,
+        None => {
+            sqlx::query_scalar::<_, String>(r#"SELECT "ownerId" FROM "Organization" WHERE id = $1"#)
+                .bind(&context.organization_id)
+                .fetch_optional(pool)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Organization owner not found".to_string()))?
+        }
     };
     social::create_social_post_idempotent(
         pool,
@@ -161,7 +161,10 @@ pub async fn schedule(
         AppError::BadRequest("idempotency-key is required for content scheduling".to_string())
     })?;
     let mut tx = pool.begin().await?;
-    let lock_key = format!("kasitek.content.schedule:{}:{}", context.organization_id, idempotency_key);
+    let lock_key = format!(
+        "kasitek.content.schedule:{}:{}",
+        context.organization_id, idempotency_key
+    );
     sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1))")
         .bind(lock_key)
         .execute(&mut *tx)
@@ -187,10 +190,9 @@ pub async fn schedule(
         ));
     }
     let metadata = post.row.metadata.unwrap_or_else(|| serde_json::json!({}));
-    let mut metadata = metadata
-        .as_object()
-        .cloned()
-        .ok_or_else(|| AppError::BadRequest("Content metadata must be a JSON object".to_string()))?;
+    let mut metadata = metadata.as_object().cloned().ok_or_else(|| {
+        AppError::BadRequest("Content metadata must be a JSON object".to_string())
+    })?;
     metadata.insert(
         "_kasitek_agent_schedule_idempotency_key".to_string(),
         serde_json::Value::String(idempotency_key.to_string()),
