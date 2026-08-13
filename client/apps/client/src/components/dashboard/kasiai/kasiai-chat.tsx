@@ -1,10 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import {
   Archive, ArrowLeft, Bot, ChevronDown, ChevronRight, Copy, LoaderCircle, MessageCircle,
   MoreHorizontal, PanelLeft, Pin, Plus, Search, Send, Settings2, SlidersHorizontal,
-  Sparkles, Square, Trash2, Unlink, X,
+  Activity, Sparkles, Square, Trash2, Unlink, X,
 } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -132,6 +133,8 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [lastRunId, setLastRunId] = useState<string | null>(null);
+  const [runProgress, setRunProgress] = useState("Preparing request…");
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [hasMore, setHasMore] = useState(false);
@@ -218,6 +221,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     conversationSelection.current += 1;
     setInitialised(false); streamAbort.current?.abort();
     setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setChannelFilter("all");
+    setLastRunId(null); setRunProgress("Preparing request…");
   }, [open]);
   useEffect(() => {
     if (!pairing || !installation) return;
@@ -254,7 +258,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const newChat = () => {
     conversationSelection.current += 1; streamAbort.current?.abort(); streamAbort.current = null;
     setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setDraft(""); setChannelFilter("all"); setView("chat");
-    sendLocked.current = false; setSending(false); setActiveRunId(null); setError(null); window.localStorage.removeItem(LAST_CHAT_KEY); setConversationUrl();
+    sendLocked.current = false; setSending(false); setActiveRunId(null); setLastRunId(null); setRunProgress("Preparing request…"); setError(null); window.localStorage.removeItem(LAST_CHAT_KEY); setConversationUrl();
   };
   const close = () => { newChat(); setInitialised(false); onOpenChange(false); };
   const send = async (suggestion?: string) => {
@@ -275,12 +279,18 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       if (selection !== conversationSelection.current) return;
       setMessages((current) => mergeMessages(current.filter((message) => message.id !== optimistic.id), [accepted.message]));
       setConversation(accepted.conversation); window.localStorage.setItem(LAST_CHAT_KEY, accepted.conversation.id); setConversationUrl(accepted.conversation.id);
-      setActiveRunId(accepted.runId);
+      setActiveRunId(accepted.runId); setLastRunId(accepted.runId); setRunProgress("Run accepted; building context…");
       const controller = new AbortController(); streamAbort.current = controller; let cursor = 0; let terminal = false;
       for (let attempt = 0; attempt < 3 && !terminal; attempt += 1) {
         try {
           const streamed = await streamAgentRun(accepted.runId, (event) => {
             const sequence = Number(event.data.sequence_number); if (Number.isSafeInteger(sequence)) cursor = Math.max(cursor, sequence);
+            const name = typeof event.data.name === "string" ? event.data.name : "";
+            if (event.event.includes("tool")) setRunProgress(name ? `Tool activity: ${name}` : "Tool activity in progress…");
+            else if (event.event.includes("model")) setRunProgress("Model response in progress…");
+            else if (event.event.includes("context")) setRunProgress("Context prepared; starting model…");
+            else if (event.event.includes("approval")) setRunProgress("Waiting for approval…");
+            else if (event.event.includes("completed")) setRunProgress("Run completed");
           }, controller.signal, cursor);
           cursor = streamed.lastSequence; terminal = streamed.terminal;
         } catch (streamError) {
@@ -291,7 +301,11 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       let terminalRun: Awaited<ReturnType<typeof getAgentRun>>["run"] | null = null;
       try { terminalRun = terminal ? (await getAgentRun(accepted.runId)).run : await waitForRunTerminal(accepted.runId, controller.signal); }
       catch (cause) { if (cause instanceof DOMException && cause.name === "AbortError") throw cause; }
-      if (terminalRun && terminalRun.status !== "completed") throw new Error(terminalRun.error?.message || "KasiAi could not complete this request");
+      if (terminalRun && terminalRun.status !== "completed") {
+        setRunProgress(`Run ${terminalRun.status.replaceAll("_", " ")}`);
+        throw new Error(terminalRun.error?.message || "KasiAi could not complete this request");
+      }
+      if (terminalRun?.status === "completed") setRunProgress("Run completed");
       try {
         const [result] = await Promise.all([getPlatformConversation(accepted.conversation.id), refreshHome(installation.id)]);
         if (selection !== conversationSelection.current) return;
@@ -308,7 +322,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       if (selection === conversationSelection.current) { sendLocked.current = false; streamAbort.current = null; setActiveRunId(null); setSending(false); }
     }
   };
-  const stop = async () => { if (!activeRunId) return; await cancelAgentRun(activeRunId).catch(() => undefined); streamAbort.current?.abort(); setSending(false); setActiveRunId(null); };
+  const stop = async () => { if (!activeRunId) return; setRunProgress("Cancellation requested…"); await cancelAgentRun(activeRunId).catch(() => undefined); streamAbort.current?.abort(); setSending(false); setActiveRunId(null); };
   const changeModel = async (value: string) => {
     if (!conversation) return;
     const [provider, ...parts] = value.split(":"); const model = parts.join(":");
@@ -343,7 +357,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     {view === "settings" ? <KasiAiSettings section={settingsSection} onSection={setSettingsSection} onBack={() => setView("chat")} preferences={preferences} models={models} modelCatalog={home?.modelCatalog} selectedModel={preferences?.default_model_provider && preferences.default_model ? { provider: preferences.default_model_provider, model: preferences.default_model } : (models[0] ? { provider: models[0].provider, model: models[0].model } : null)} channels={channels} whatsappConnections={whatsappConnections} selectedWhatsapp={selectedWhatsapp} onWhatsapp={setSelectedWhatsapp} pairing={pairing} onPair={() => void connectWhatsapp()} onCopy={() => pairing && navigator.clipboard.writeText(pairing.token)} onDisconnect={(binding) => void disconnect(binding)} onPreference={(input) => void updatePreference(input)} /> : null}
     {view === "chat" ? <>
       {loading ? <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="h-4 w-4 animate-spin" />Preparing KasiAi…</div> : <>
-        {conversation ? <div ref={viewport} className="flex-1 overflow-y-auto px-4 py-5">{hasMore ? <div className="mb-3 text-center"><Button variant="outline" size="sm" onClick={() => void loadOlder()}>Load earlier messages</Button></div> : null}{availableChannels.length ? <div className="mb-4 flex gap-1 overflow-x-auto">{["all", ...availableChannels].map((channel) => <Button key={channel} variant={channelFilter === channel ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-[11px]" onClick={() => setChannelFilter(channel)}>{channel === "all" ? "All messages" : channelLabel(channel)}</Button>)}</div> : null}<div className="mx-auto max-w-3xl space-y-4">{visibleMessages.map((message) => { const source = messageChannel(message); const delivery = message.direction === "outbound" && message.delivery_status && message.delivery_status !== "local" ? ` · ${message.delivery_status}` : ""; return <div key={message.id} className={cn("flex", message.direction === "outbound" ? "justify-start" : "justify-end")}><div className="max-w-[88%]">{source !== "platform" ? <div className={cn("mb-1 text-[10px] text-muted-foreground", message.direction === "outbound" ? "text-left" : "text-right")}>{channelLabel(source)}{delivery}</div> : null}<div className={cn("rounded-2xl px-3.5 py-2.5 text-sm leading-6", message.direction === "outbound" ? "rounded-bl-sm border border-border bg-card" : "rounded-br-sm bg-primary text-primary-foreground")}>{message.direction === "outbound" ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>{messageText(message)}</ReactMarkdown> : messageText(message)}</div></div></div>; })}</div>{sending ? <div className="mx-auto mt-4 flex max-w-3xl items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />KasiAi is working…</div> : null}<div ref={messagesEnd} /></div> : <NewChatHome suggestions={suggestions} onSuggestion={(suggestion) => void send(suggestion)} />}
+        {conversation ? <div ref={viewport} className="flex-1 overflow-y-auto px-4 py-5">{hasMore ? <div className="mb-3 text-center"><Button variant="outline" size="sm" onClick={() => void loadOlder()}>Load earlier messages</Button></div> : null}{availableChannels.length ? <div className="mb-4 flex gap-1 overflow-x-auto">{["all", ...availableChannels].map((channel) => <Button key={channel} variant={channelFilter === channel ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-[11px]" onClick={() => setChannelFilter(channel)}>{channel === "all" ? "All messages" : channelLabel(channel)}</Button>)}</div> : null}<div className="mx-auto max-w-3xl space-y-4">{visibleMessages.map((message) => { const source = messageChannel(message); const delivery = message.direction === "outbound" && message.delivery_status && message.delivery_status !== "local" ? ` · ${message.delivery_status}` : ""; return <div key={message.id} className={cn("flex", message.direction === "outbound" ? "justify-start" : "justify-end")}><div className="max-w-[88%]">{source !== "platform" ? <div className={cn("mb-1 text-[10px] text-muted-foreground", message.direction === "outbound" ? "text-left" : "text-right")}>{channelLabel(source)}{delivery}</div> : null}<div className={cn("rounded-2xl px-3.5 py-2.5 text-sm leading-6", message.direction === "outbound" ? "rounded-bl-sm border border-border bg-card" : "rounded-br-sm bg-primary text-primary-foreground")}>{message.direction === "outbound" ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>{messageText(message)}</ReactMarkdown> : messageText(message)}</div></div></div>; })}</div>{lastRunId ? <div className="mx-auto mt-5 flex max-w-3xl items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-xs"><div className="flex min-w-0 items-center gap-2 text-muted-foreground"><Activity className="h-3.5 w-3.5 shrink-0 text-primary" /><span className="truncate">{runProgress}</span></div><Link href={`/agents/activity/${encodeURIComponent(lastRunId)}`} className="shrink-0 font-medium text-primary hover:underline">View activity</Link></div> : null}{sending ? <div className="mx-auto mt-3 flex max-w-3xl items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />KasiAi is working…</div> : null}<div ref={messagesEnd} /></div> : <NewChatHome suggestions={suggestions} onSuggestion={(suggestion) => void send(suggestion)} />}
         {error ? <div className="mx-4 mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">{error}</div> : null}
         <footer className="border-t border-border p-3">{isArchivedChat ? <div className="rounded-xl border border-border bg-muted/40 px-3 py-3 text-xs text-muted-foreground">This chat is archived. Restore it from the conversation library to continue it.</div> : <div className="rounded-xl border border-border bg-card p-2 focus-within:border-primary/50"><div className="mb-1 flex items-center justify-between gap-2"><ComposerModelPicker model={activeModel} models={models} disabled={!conversation || sending} onSelect={(value) => void changeModel(value)} />{conversation && !conversation.is_primary ? <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => void setKasiAiChannelDefault(conversation.id).then(async (updated) => { setConversation(updated); await refreshHome(installation!.id); })}>Use for channels</Button> : null}</div><textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={conversation ? "Ask KasiAi…" : "Start a new chat…"} rows={2} disabled={sending || !installation} className="min-h-12 w-full resize-none bg-transparent px-1 py-1 text-sm outline-none" aria-label="Message KasiAi" /><div className="flex items-center justify-between pt-1"><span className="text-[10px] text-muted-foreground">Enter to send · Shift+Enter for a new line</span>{sending ? <Button variant="outline" size="sm" onClick={() => void stop()}><Square className="h-3.5 w-3.5" />Stop</Button> : <Button size="sm" disabled={!draft.trim() || !installation} onClick={() => void send()}><Send className="h-3.5 w-3.5" />Send</Button>}</div></div>}</footer>
       </>}
