@@ -11,9 +11,11 @@ use serde::Deserialize;
 use serde_json::json;
 use sqlx::{PgPool, Row};
 
+use crate::capabilities::content_adapter;
 use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::identity::internal_delegation;
+use crate::identity::request_context::RequestContext;
 use crate::services::{customers, whatsapp};
 
 async fn require_internal_agent(
@@ -67,6 +69,72 @@ async fn require_internal_agent(
         .unwrap_or("kasitek-agent-platform");
 
     Ok((organization_id.to_string(), actor_id.to_string()))
+}
+
+async fn resolve_internal_agent_context(
+    config: &AppConfig,
+    req: &HttpRequest,
+    required_capability: &str,
+) -> Result<RequestContext, AppError> {
+    if config.agents_delegation_public_key.is_some() {
+        let context = internal_delegation::resolve(config, req).await?;
+        if !context.has_grant(required_capability) {
+            return Err(AppError::Forbidden(format!(
+                "Missing delegated capability: {required_capability}"
+            )));
+        }
+        return Ok(context);
+    }
+    if config.environment.eq_ignore_ascii_case("production") {
+        return Err(AppError::Unauthorized);
+    }
+    let expected = config
+        .agents_internal_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or(AppError::Unauthorized)?;
+    let provided = req
+        .headers()
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or(AppError::Unauthorized)?;
+    if provided != expected {
+        return Err(AppError::Unauthorized);
+    }
+    let organization_id = req
+        .headers()
+        .get("x-organization-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("x-organization-id is required".to_string()))?;
+    let actor_id = req
+        .headers()
+        .get("x-actor-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .unwrap_or("kasitek-agent-platform")
+        .to_string();
+    Ok(RequestContext {
+        principal: crate::identity::principal::Principal {
+            kind: crate::identity::principal::PrincipalKind::TrustedInternalService,
+            id: actor_id,
+            subject_user_id: None,
+            client_id: None,
+        },
+        organization_id: organization_id.to_string(),
+        user_id: None,
+        client_id: None,
+        installation_id: None,
+        effective_grants: [required_capability.to_string()].into_iter().collect(),
+        correlation_id: None,
+        causation_id: None,
+        idempotency_key: None,
+    })
 }
 
 /// Read a customer and its scoped identities, conversations, bookings, and
@@ -127,6 +195,33 @@ pub async fn get_workspace_status(
             "count": row.get::<i64, _>("count"),
         })).collect::<Vec<_>>(),
     })))
+}
+
+pub async fn list_content_posts(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.content_posts_list")
+            .await?;
+    let posts = content_adapter::list_posts(pool.get_ref(), &context).await?;
+    Ok(HttpResponse::Ok().json(json!({ "posts": posts })))
+}
+
+pub async fn get_content_post(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.content_post_get")
+            .await?;
+    let post = content_adapter::get_post(pool.get_ref(), &context, &path.into_inner())
+        .await?
+        .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
+    Ok(HttpResponse::Ok().json(json!({ "post": post })))
 }
 
 #[derive(Debug, Deserialize)]

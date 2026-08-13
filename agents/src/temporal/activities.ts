@@ -105,6 +105,36 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       return coreClient.getWorkspaceStatus(context);
     },
   });
+  tools.register({
+    name: "kasitek.core.content_posts_list",
+    version: "1.0.0",
+    description: "List the current workspace's content drafts, schedules, and publication records.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 12_000,
+    inputSchema: { type: "object", additionalProperties: false },
+    outputSchema: { type: "object", properties: { posts: { type: "array" } }, required: ["posts"], additionalProperties: false },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["posts.publishJobs.providerReceipt"] },
+    handler: async (context) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.listContentPosts(context);
+    },
+  });
+  tools.register({
+    name: "kasitek.core.content_post_get",
+    version: "1.0.0",
+    description: "Read one workspace-owned content post and its safe publication status.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 12_000,
+    inputSchema: { type: "object", properties: { postId: { type: "string", minLength: 1, maxLength: 160 } }, required: ["postId"], additionalProperties: false },
+    outputSchema: { type: "object", required: ["post"], additionalProperties: true },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_post", argument: "postId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["post.publishJobs.providerReceipt"] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.getContentPost(context, String(args.postId));
+    },
+  });
   return tools;
 }
 

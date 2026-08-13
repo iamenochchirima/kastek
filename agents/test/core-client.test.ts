@@ -56,6 +56,20 @@ describe("kasitek-core read boundary", () => {
     expect(fetch).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/workspace/status", expect.any(Object));
   });
 
+  it("reads content through the same scoped core boundary", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string) => new Response(JSON.stringify(input.endsWith("/post%2F1") ? { post: { id: "post-1", content: "Hello", channels: ["threads"], status: "DRAFT" } } : { posts: [{ id: "post-1", content: "Hello", channels: ["threads"], status: "DRAFT" }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).listContentPosts(context)).resolves.toMatchObject({ posts: [{ id: "post-1" }] });
+    expect(fetchMock).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/content/posts", expect.any(Object));
+    await expect(new KasitekCoreReadClient(config).getContentPost(context, "post/1")).resolves.toMatchObject({ post: { id: "post-1" } });
+    expect(fetchMock).toHaveBeenLastCalledWith("https://core.example.test/api/internal/agents/v1/content/posts/post%2F1", expect.any(Object));
+  });
+
   it("binds a delegation token to the installation and the exact core capability", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ customer: { id: "cust-1" }, identities: [] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

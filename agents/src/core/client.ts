@@ -23,6 +23,23 @@ export interface CoreWorkspaceStatus {
   connections: Array<{ provider: string; status: string; count: number }>;
 }
 
+export interface CoreContentPost {
+  id: string;
+  title?: string | null;
+  content: string;
+  channels: string[];
+  status: string;
+  scheduled_for?: string | null;
+  published_at?: string | null;
+  metadata?: Record<string, unknown> | null;
+  variants?: unknown[];
+  publishJobs?: unknown[];
+}
+
+export interface CoreContentPosts {
+  posts: CoreContentPost[];
+}
+
 export interface CoreChannelDeliveryResult {
   providerMessageId?: string;
   status: "sent" | "unknown";
@@ -95,6 +112,14 @@ export class KasitekCoreReadClient {
 
   public async getWorkspaceStatus(context: ToolInvocationContext): Promise<CoreWorkspaceStatus> {
     return this.getJson<CoreWorkspaceStatus>(context, "/api/internal/agents/v1/workspace/status", "Workspace status");
+  }
+
+  public async listContentPosts(context: ToolInvocationContext): Promise<CoreContentPosts> {
+    return this.getJson<CoreContentPosts>(context, "/api/internal/agents/v1/content/posts", "Content posts");
+  }
+
+  public async getContentPost(context: ToolInvocationContext, postId: string): Promise<{ post: CoreContentPost }> {
+    return this.getJson<{ post: CoreContentPost }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}`, "Content post");
   }
 
   public async deliverChannelMessage(input: {
@@ -177,6 +202,8 @@ export class KasitekCoreReadClient {
   private capabilityFor(path: string): string {
     if (path.includes("/customers/")) return "kasitek.core.customer_get";
     if (path.includes("workspace/status")) return "kasitek.core.workspace_status";
+    if (path.endsWith("/content/posts")) return "kasitek.core.content_posts_list";
+    if (path.includes("/content/posts/")) return "kasitek.core.content_post_get";
     if (path.includes("channels/deliver")) return "kasitek.core.channel_deliver";
     throw new CoreToolError("CORE_INVALID_REQUEST", "Unknown kasitek-core capability route");
   }
