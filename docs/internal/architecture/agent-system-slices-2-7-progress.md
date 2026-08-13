@@ -238,6 +238,13 @@ delete operations. Shared phone/list normalization helpers remain reusable by ca
 paths, while controller-facing `whatsapp::` exports stay stable (`9ffd858`). Campaign workers,
 inbox transport, provider webhooks, calls, and delivery workers remain open.
 
+WhatsApp campaign ownership is now explicit in `whatsapp_campaigns`: campaign creation and
+recipient snapshots, lifecycle transitions, summaries, retry/repair/delete operations, provider
+template sends, recipient claims/recovery, usage metering, and queue reconciliation live there. The
+existing `whatsapp::` exports and delivery call sites remain stable (`f42a00e`). Inbox transport,
+provider webhooks, calls, and the remaining cross-provider delivery-worker decomposition are still
+open.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
