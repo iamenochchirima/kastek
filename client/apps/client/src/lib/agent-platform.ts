@@ -242,6 +242,20 @@ export function grantAgentInstallationTool(installationId: string, toolName: str
   });
 }
 
+export type AgentInstallationRun = AgentRun & {
+  organization_id: string;
+  installation_id: string;
+  trigger_type?: string;
+  created_at?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error?: { message?: string; code?: string; [key: string]: unknown } | null;
+};
+
+export function listAgentInstallationRuns(installationId: string, limit = 50): Promise<{ installationId: string; runs: AgentInstallationRun[] }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/runs?limit=${encodeURIComponent(String(limit))}`);
+}
+
 export type AgentInstallationSettings = {
   language?: string;
   tone?: "concise" | "balanced" | "detailed";

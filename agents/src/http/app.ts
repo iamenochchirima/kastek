@@ -440,6 +440,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     };
   });
 
+  app.get<{ Params: { installationId: string }; Querystring: { limit?: string } }>("/v1/installations/:installationId/runs", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    if (request.params.installationId.trim().length === 0) return reply.code(404).send({ error: "installation_not_found" });
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const limit = request.query.limit === undefined ? 50 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) return reply.code(400).send({ error: "invalid_limit" });
+    return { installationId: installation.id, runs: await runs.listInstallationRuns(auth.organizationId, installation.id, limit) };
+  });
+
   app.get<{ Params: { installationId: string; runId: string } }>("/v1/installations/:installationId/operations/:runId", async (request, reply) => {
     const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
     if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });

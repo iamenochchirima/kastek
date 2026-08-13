@@ -260,6 +260,21 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("lists an installation's durable runs without crossing installation boundaries", async () => {
+    const runs = { listInstallationRuns: vi.fn().mockResolvedValue([{ id: "run-1", installation_id: "install-1", status: "completed" }]) } as unknown as RunRepository;
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      runs,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+    });
+    const response = await app.inject({ method: "GET", url: "/v1/installations/install-1/runs?limit=20", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ installationId: "install-1", runs: [{ id: "run-1", installation_id: "install-1" }] });
+    expect(runs.listInstallationRuns).toHaveBeenCalledWith("org-1", "install-1", 20);
+    await app.close();
+  });
+
   it("lets a read-only public API credential invoke reads but not mutations", async () => {
     const startWorkflow = vi.fn().mockResolvedValue(undefined);
     const app = buildApp({

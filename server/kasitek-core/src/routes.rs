@@ -101,6 +101,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::post().to(agent_platform::grant_installation_tool),
                 )
                 .route(
+                    "/installations/{installationId}/runs",
+                    web::get().to(agent_platform::list_installation_runs),
+                )
+                .route(
                     "/{agentId}/versions",
                     web::get().to(agent_platform::list_agent_versions),
                 )

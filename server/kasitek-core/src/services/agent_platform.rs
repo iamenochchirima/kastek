@@ -341,6 +341,28 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_installation_runs(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let path = match limit {
+            Some(limit) => format!("/v1/installations/{installation_id}/runs?limit={limit}"),
+            None => format!("/v1/installations/{installation_id}/runs"),
+        };
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn list_agent_versions(
         &self,
         organization_id: &str,

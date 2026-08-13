@@ -108,6 +108,35 @@ pub struct ConversationQuery {
     pub before: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RunQuery {
+    pub limit: Option<u32>,
+}
+
+pub async fn list_installation_runs(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    query: web::Query<RunQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=200).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Run limit must be between 1 and 200".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .list_installation_runs(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            query.limit,
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn list_conversations(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

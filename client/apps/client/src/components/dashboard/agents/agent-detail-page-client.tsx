@@ -24,6 +24,8 @@ import {
   grantAgentInstallationTool,
   listAgentInstallationCapabilities,
   type AgentCapability,
+  listAgentInstallationRuns,
+  type AgentInstallationRun,
   type AgentDefinition,
   type AgentVersion,
   type AgentMessage,
@@ -119,6 +121,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {agent.installation_id ? <InstallationCredentials installationId={agent.installation_id} /> : null}
 
         {agent.installation_id ? <InstallationCapabilities installationId={agent.installation_id} /> : null}
+
+        {agent.installation_id ? <InstallationRuns installationId={agent.installation_id} /> : null}
 
         {agent.installation_id ? <AgentTestChat installationId={agent.installation_id} active={agent.installation_status === "active"} /> : null}
 
@@ -253,6 +257,35 @@ function InstallationCapabilities({ installationId }: { installationId: string }
       <div><h2 className="text-lg font-semibold text-foreground">Capabilities</h2><p className="mt-1 text-sm text-muted-foreground">These are the platform tools this installation may expose to KasiAi or external agents. Grants are enforced again at invocation time.</p></div>
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
       {loading ? <p className="text-sm text-muted-foreground">Loading capabilities…</p> : capabilities.length ? <div className="space-y-2">{capabilities.map((capability) => <div key={capability.name} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{capability.name}</p><p className="mt-1 text-xs text-muted-foreground">{capability.description} · {capability.riskClass}{capability.requiresApproval ? " · approval required" : ""}</p></div><Button type="button" size="sm" variant={capability.availability === "available" ? "outline" : "default"} disabled={capability.availability === "available" || busy !== null} onClick={() => void grant(capability)}>{capability.availability === "available" ? "Granted" : busy === capability.name ? "Granting…" : "Grant"}</Button></div>)}</div> : <p className="text-sm text-muted-foreground">No capabilities are registered for this installation.</p>}
+    </CardContent>
+  </Card>;
+}
+
+function InstallationRuns({ installationId }: { installationId: string }) {
+  const [runs, setRuns] = useState<AgentInstallationRun[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listAgentInstallationRuns(installationId, 50);
+      setRuns(response.runs);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load agent runs");
+    } finally {
+      setLoading(false);
+    }
+  }, [installationId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  return <Card>
+    <CardContent className="space-y-4 p-6">
+      <div><h2 className="text-lg font-semibold text-foreground">Recent runs</h2><p className="mt-1 text-sm text-muted-foreground">Durable runs for this installation, including channel and external-agent activity.</p></div>
+      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      {loading ? <p className="text-sm text-muted-foreground">Loading runs…</p> : runs.length ? <div className="space-y-2">{runs.map((run) => <div key={run.id} className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono text-xs text-foreground">{run.id}</p><p className="mt-1 text-xs text-muted-foreground">{run.trigger_type ?? "manual"}{run.created_at ? ` · ${new Date(run.created_at).toLocaleString()}` : ""}</p>{run.error?.message ? <p className="mt-1 text-xs text-destructive">{run.error.message}</p> : null}</div><Badge className={run.status === "completed" ? "border-accent/30 bg-accent/10 text-accent" : run.status === "failed" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border bg-secondary text-muted-foreground"}>{run.status}</Badge></div>)}</div> : <p className="text-sm text-muted-foreground">No runs have been recorded for this installation.</p>}
     </CardContent>
   </Card>;
 }

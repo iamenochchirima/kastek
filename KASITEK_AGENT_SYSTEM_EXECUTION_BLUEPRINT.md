@@ -690,6 +690,8 @@ REST where permitted, and equivalent operations share business behavior without 
   human handoff using the shared runtime.
 - [ ] Build hosted agent detail/configuration UI covering overview, versions, capabilities,
   connections, knowledge/memory, channels, runs, approvals, usage, and settings.
+- [x] Add the installation operations slice: capability grants, credential lifecycle, and recent
+  durable run history are available from the authenticated core-proxied Agent details view.
 - [ ] Preserve the later visual workflow builder as an editor over the same graph/version/runtime,
   with validation, test runs, publishing, rollback, and secret-safe import/export.
 
@@ -784,6 +786,8 @@ every success, denial, failure, or ambiguous outcome has a durable operator-visi
   channels, limits, testing access, and approval behavior.
 - [ ] Build common detail views for overview, configuration, versions, capabilities, connections,
   knowledge/memory, channels, conversations, runs, approvals, usage, credentials, and settings.
+- [x] Add per-installation recent run history with status and safe error visibility; keep the broader
+  detail-view areas open until their corresponding controls and tests are implemented.
 - [x] Build credential create/copy-once/rotate/revoke and installation suspend/resume/archive UX.
 - [x] Show safe run/tool/model/effect timelines, errors, recovery actions, usage, cost estimates, and
   current service readiness without exposing chain-of-thought or secrets.

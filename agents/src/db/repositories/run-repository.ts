@@ -350,6 +350,18 @@ export class RunRepository {
     return result.rows[0] ?? null;
   }
 
+  public async listInstallationRuns(organizationId: string, installationId: string, limit = 50): Promise<RunRecord[]> {
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 200);
+    const result = await query<RunRecord>(
+      this.pool,
+      `SELECT * FROM agent_runs
+       WHERE organization_id = $1 AND installation_id = $2
+       ORDER BY created_at DESC LIMIT $3`,
+      [organizationId, installationId, boundedLimit],
+    );
+    return result.rows;
+  }
+
   public async listEvents(organizationId: string, runId: string): Promise<Array<Record<string, unknown>>> {
     const result = await query(this.pool, "SELECT * FROM agent_events WHERE organization_id = $1 AND run_id = $2 ORDER BY sequence_number", [organizationId, runId]);
     return result.rows as Array<Record<string, unknown>>;
