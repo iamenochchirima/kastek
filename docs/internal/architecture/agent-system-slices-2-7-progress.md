@@ -114,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **122 checked and 102 unchecked items out of 224**. This is a
+The primary blueprint currently has **123 checked and 101 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -122,6 +122,11 @@ ES256 assertion verification with bounded timestamps and audience, atomic per-cr
 replay consumption, key registration in the Agent API and dashboard, and the documented exchange
 contract. Focused auth, HTTP, migration, full Agent Platform, client typecheck, lint, and build
 verification passed; database/Temporal/hosted-browser gates remain separately tracked.
+
+Capability consumers now use generated projections from the authoritative manifest registry.
+`2952291` adds MCP and public discovery projections, permission/audit/documentation metadata for
+the Agent UI, a deterministic checked-in capability catalog, a regeneration command, and parity
+tests. Core-owned REST/OpenAPI contracts remain separate as required by the blueprint.
 
 The initial approval separation-of-duties rule is implemented: a run initiator cannot approve their
 own pending action, with an HTTP regression in `22b2748`. The broader workspace approver/resource

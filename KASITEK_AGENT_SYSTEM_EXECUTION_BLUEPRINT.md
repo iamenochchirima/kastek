@@ -280,7 +280,7 @@ The Agent Platform database suite passed locally with 39 files / 113 tests, and 
 core format/check/library tests passed. A checked implementation item does **not** assert that its
 slice completion gate or production-release verification has passed.
 
-At this reconciliation point, 121 of 224 implementation/verification items are checked. The count
+At this reconciliation point, 123 of 224 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -473,9 +473,11 @@ authenticated, scoped, audited, suspended, and revoked without a human browser s
 - [x] Make one versioned `CapabilityManifest` registry authoritative for schemas, scopes, resources,
   risk, approval policy, idempotency, availability, errors, receipts, and redaction metadata.
 - [x] Define common invocation, result, error, pagination, batch-result, and effect-receipt envelopes.
-- [ ] Generate internal tools, MCP tools, permission UI, audit descriptions, and agent documentation
+- [x] Generate internal tools, MCP tools, permission UI, audit descriptions, and agent documentation
   from capability manifests. Keep public REST/OpenAPI contracts core-owned, while sharing or
-  contract-testing overlapping business/action schemas.
+  contract-testing overlapping business/action schemas. Evidence: `2952291` adds the manifest
+  surface projector, generated catalog command/output, MCP/public discovery projections, UI
+  permission/audit metadata, and parity tests.
 - [x] Implement central policy evaluation using installation grants, credential restrictions,
   resource scope, availability, approval, and limits with structured denial reasons.
 - [x] Implement filtered capability discovery for the authenticated installation. Evidence:
