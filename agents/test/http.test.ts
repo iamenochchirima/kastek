@@ -245,23 +245,33 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
-  it("does not let a read-only public API credential invoke tools", async () => {
+  it("lets a read-only public API credential invoke reads but not mutations", async () => {
+    const startWorkflow = vi.fn().mockResolvedValue(undefined);
     const app = buildApp({
       config: { ...mcpConfig, TEMPORAL_ENABLED: true },
       pool: fakePool,
+      runs: { createRun: vi.fn().mockResolvedValue({ id: "run-read-1", status: "received", created: true }) } as unknown as RunRepository,
       agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => ({ ...mcpCredential(), api_scopes: ["api:read"] }) } as never,
-      toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
-      startWorkflow: vi.fn(),
+      toolGrants: { effectiveTools: async () => new Set(["platform.current_time", "kasitek.core.content_post_draft"]) } as never,
+      startWorkflow,
     });
-    const response = await app.inject({
+    const read = await app.inject({
       method: "POST",
       url: "/v1/installations/install-1/tools/call",
       headers: { authorization: `Bearer ${publicApiToken()}` },
       payload: { name: "platform.current_time", arguments: {}, idempotencyKey: "api-read-only-1" },
     });
-    expect(response.statusCode).toBe(403);
-    expect(response.json()).toMatchObject({ error: "Public API credential is missing scope: api:write" });
+    expect(read.statusCode).toBe(202);
+    const write = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/tools/call",
+      headers: { authorization: `Bearer ${publicApiToken()}` },
+      payload: { name: "kasitek.core.content_post_draft", arguments: { content: { text: "draft" } }, idempotencyKey: "api-read-only-2" },
+    });
+    expect(write.statusCode).toBe(403);
+    expect(write.json()).toMatchObject({ error: "Public API credential is missing scope: api:write" });
+    expect(startWorkflow).toHaveBeenCalledTimes(1);
     await app.close();
   });
 

@@ -12,8 +12,9 @@ event timeline as the MCP transport.
    `{ "audience": "kasitek-public-api" }`.
 4. Send the returned short-lived bearer token to the endpoints below.
 
-Credentials are independently revocable and carry `api:read` and/or `api:write` scopes. A write
-credential is still constrained by the installation's tool grants and the tool's approval policy.
+Credentials are independently revocable and carry `api:read` and/or `api:write` scopes. Read tools
+require `api:read`; drafts, writes, and external effects require `api:write`. Both are constrained by
+the installation's tool grants and the tool's approval policy.
 
 ## Invoke a tool
 

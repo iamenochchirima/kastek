@@ -379,7 +379,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/tools/call", async (request, reply) => {
     const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
     if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "installation_not_found" });
-    requireApiScope(auth, "api:write");
     const input = z.object({
       name: z.string().trim().min(1).max(160),
       arguments: z.record(z.string(), z.unknown()).default({}),
@@ -392,6 +391,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const manifest = toolRegistry.get(input.name);
     if (!manifest) return reply.code(404).send({ error: "tool_not_found" });
     if (!granted.has(input.name)) return reply.code(403).send({ error: "tool_not_granted" });
+    requireApiScope(auth, manifest.riskClass === "read" ? "api:read" : "api:write");
     if (!dependencies.config.TEMPORAL_ENABLED || !dependencies.startWorkflow) {
       return reply.code(503).send({ error: "durable_api_execution_unavailable" });
     }
