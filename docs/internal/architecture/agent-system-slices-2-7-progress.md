@@ -226,6 +226,12 @@ controllers and callers (`07069a4`). Connection lifecycle, contacts, campaigns, 
 webhooks, calls, and delivery workers remain separate follow-up work; the broad WhatsApp blueprint
 item is intentionally still open.
 
+WhatsApp connection ownership is now explicit in `whatsapp_connections`: Meta OAuth/WABA and phone
+resolution, encrypted manual/embedded connection setup, token refresh, webhook subscription, health
+diagnostics, and organization-scoped reads live behind that boundary. Existing controller-facing
+`whatsapp::` exports and the shared SQL projection remain stable (`7be54cf`). Contacts, campaigns,
+inbox transport, provider webhooks, calls, and delivery workers are still open decomposition work.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
