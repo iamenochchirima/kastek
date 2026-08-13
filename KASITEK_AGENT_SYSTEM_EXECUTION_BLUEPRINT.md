@@ -790,8 +790,11 @@ conversation history, delivery, knowledge, and memory remain correctly scoped an
   `reconciliation_required` and prohibit blind retry.
 - [x] Implement safe retry, cancellation, compensation where supported, scheduled-action revision,
   and kill-switch cancellation.
-- [ ] Present approvals, receipts, reconciliation, and recovery consistently in customer and
-  operator interfaces.
+- [x] Present approvals, receipts, reconciliation, and recovery consistently in the shared Agents
+  experience. Run details expose immutable approval previews plus safe step/tool/effect evidence;
+  Activity exposes audited effect reconciliation and organization/agent/installation/tool kill
+  switches through the authenticated core proxy. Evidence: `f345261`, `2b29142`, `4e63f82`,
+  `c05e506`.
 
 ### Verification
 

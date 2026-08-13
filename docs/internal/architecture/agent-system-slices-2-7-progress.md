@@ -93,13 +93,16 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **119 checked and 105 unchecked items out of 224**. This is a
+The primary blueprint currently has **120 checked and 104 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The initial approval separation-of-duties rule is implemented: a run initiator cannot approve their
 own pending action, with an HTTP regression in `22b2748`. The broader workspace approver/resource
 role matrix remains blocked by `BLOCKERS.md` B-007. The run page now shows the argument hash and
 preview revision and disables self-approval in the browser before submission (`2b29142`).
+
+The shared Activity experience now exposes audited effect reconciliation controls and scoped kill
+switches through the Rust core proxy (`4e63f82`, `c05e506`).
 
 ## Remaining work
 
