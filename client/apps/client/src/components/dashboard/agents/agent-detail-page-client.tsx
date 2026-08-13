@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   archiveAgent,
   publishAgentVersion,
+  createAgentVersion,
   rollbackAgentVersion,
   retireAgentVersion,
   updateAgentInstallationSettings,
@@ -56,6 +57,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const [tone, setTone] = useState(String(agent.installation_settings?.tone ?? "balanced"));
   const [responseDetail, setResponseDetail] = useState(String(agent.installation_settings?.responseDetail ?? "standard"));
   const [savingSettings, setSavingSettings] = useState(false);
+  const [instructions, setInstructions] = useState(initialVersions.find((version) => version.status === "published")?.instructions ?? initialVersions[0]?.instructions ?? "");
+  const [creatingVersion, setCreatingVersion] = useState(false);
   const protectedAgent = agent.protected;
 
   const mutate = async (action: string, operation: () => Promise<unknown>) => {
@@ -88,6 +91,20 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       setError(cause instanceof Error ? cause.message : "Unable to save agent settings");
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const createVersion = async () => {
+    if (!instructions.trim() || creatingVersion || protectedAgent) return;
+    setCreatingVersion(true);
+    setError(null);
+    try {
+      const created = await createAgentVersion(agent.id, { instructions: instructions.trim(), configuration: {}, policy: {} });
+      setVersions((current) => [created, ...current]);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to create agent version");
+    } finally {
+      setCreatingVersion(false);
     }
   };
 
@@ -139,6 +156,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {agent.installation_id ? <InstallationChannels installationId={agent.installation_id} /> : null}
 
         {agent.installation_id ? <AgentTestChat installationId={agent.installation_id} active={agent.installation_status === "active"} /> : null}
+
+        {!protectedAgent ? <Card><CardContent className="space-y-4 p-6"><div><h2 className="text-lg font-semibold text-foreground">Create a draft version</h2><p className="mt-1 text-sm text-muted-foreground">Drafts are immutable after creation. Publish the new version from the version history once you are ready.</p></div><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm leading-6" aria-label="Agent instructions" /><div className="flex justify-end"><Button type="button" disabled={creatingVersion || !instructions.trim()} onClick={() => void createVersion()}>{creatingVersion ? "Creating draft…" : "Create draft version"}</Button></div></CardContent></Card> : null}
 
         <section className="space-y-3" aria-labelledby="agent-versions-title">
           <div><h2 id="agent-versions-title" className="text-lg font-semibold text-foreground">Version history</h2><p className="text-sm text-muted-foreground">Published versions are immutable. Drafts can be published; retired versions can be rolled back.</p></div>
