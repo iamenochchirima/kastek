@@ -1316,6 +1316,24 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn signal_external_event(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        run_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/runs/{run_id}/external-event"),
+            organization_id,
+            actor_id,
+            &["runs:write"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn approve_run(
         &self,
         organization_id: &str,

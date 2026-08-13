@@ -1478,6 +1478,44 @@ pub async fn cancel_run(
     Ok(HttpResponse::Accepted().json(response))
 }
 
+pub async fn signal_external_event(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    run_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "External event body must be an object".to_string(),
+        ));
+    }
+    let key = body
+        .get("key")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("External event key is required".to_string()))?;
+    if key.len() > 160 {
+        return Err(AppError::BadRequest(
+            "External event key is too long".to_string(),
+        ));
+    }
+    if body
+        .get("payload")
+        .is_some_and(|payload| !payload.is_object())
+    {
+        return Err(AppError::BadRequest(
+            "External event payload must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .signal_external_event(&organization_id, &user.id, &run_id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Accepted().json(response))
+}
+
 pub async fn approve_run(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

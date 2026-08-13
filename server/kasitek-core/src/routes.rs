@@ -308,6 +308,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::post().to(agent_platform::cancel_run),
                 )
                 .route(
+                    "/runs/{runId}/external-event",
+                    web::post().to(agent_platform::signal_external_event),
+                )
+                .route(
                     "/runs/{runId}/approval",
                     web::post().to(agent_platform::approve_run),
                 )
