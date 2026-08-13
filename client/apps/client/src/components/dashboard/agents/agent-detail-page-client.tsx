@@ -47,6 +47,8 @@ import {
   type AgentKnowledgeSource,
   type AgentMemory,
   listKasiAiChannels,
+  createAgentChannelConnection,
+  issueAgentChannelPairing,
   disconnectKasiAiChannel,
   type AgentChannelConnection,
   type AgentChannelBinding,
@@ -606,6 +608,10 @@ function InstallationSchedules({ installationId }: { installationId: string }) {
 function InstallationChannels({ installationId }: { installationId: string }) {
   const [connections, setConnections] = useState<AgentChannelConnection[]>([]);
   const [bindings, setBindings] = useState<AgentChannelBinding[]>([]);
+  const [channelType, setChannelType] = useState("telegram");
+  const [channelKey, setChannelKey] = useState("");
+  const [credentialReference, setCredentialReference] = useState("");
+  const [pairing, setPairing] = useState<{ token: string; expires_at: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -626,6 +632,41 @@ function InstallationChannels({ installationId }: { installationId: string }) {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  const createConnection = async () => {
+    if (!channelKey.trim() || busy) return;
+    setBusy("create");
+    setError(null);
+    try {
+      const connection = await createAgentChannelConnection(installationId, {
+        channelType,
+        channelKey: channelKey.trim(),
+        ...(credentialReference.trim() ? { credentialReference: credentialReference.trim() } : {}),
+        metadata: { configuredFrom: "agent-detail" },
+      });
+      setConnections((current) => [connection, ...current.filter((entry) => entry.id !== connection.id)]);
+      setChannelKey("");
+      setCredentialReference("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to register channel connection");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const issuePairing = async (connection: AgentChannelConnection) => {
+    if (busy) return;
+    setBusy(`pair:${connection.id}`);
+    setPairing(null);
+    setError(null);
+    try {
+      setPairing(await issueAgentChannelPairing(installationId, connection.id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to issue pairing token");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const disconnect = async (binding: AgentChannelBinding) => {
     if (busy || !window.confirm(`Disconnect ${binding.external_identity}?`)) return;
     setBusy(binding.id);
@@ -641,9 +682,11 @@ function InstallationChannels({ installationId }: { installationId: string }) {
 
   return <Card>
     <CardContent className="space-y-4 p-6">
-      <div><h2 className="text-lg font-semibold text-foreground">Connected channels</h2><p className="mt-1 text-sm text-muted-foreground">Channel connections and user bindings that can deliver messages to this installation. Secrets stay in the provider connection vault.</p></div>
+      <div><h2 className="text-lg font-semibold text-foreground">Connected channels</h2><p className="mt-1 text-sm text-muted-foreground">Register a provider connection for this installation, then pair an external identity. Only opaque credential references are accepted here; provider secrets stay in the connection vault.</p></div>
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-      {loading ? <p className="text-sm text-muted-foreground">Loading channels…</p> : connections.length || bindings.length ? <div className="space-y-2">{connections.map((connection: AgentChannelConnection) => <div key={connection.id} className="rounded-lg border border-border p-3"><div className="flex items-center justify-between gap-3"><div><p className="font-medium capitalize text-foreground">{connection.channel_type}</p><p className="mt-1 text-xs text-muted-foreground">{connection.channel_key} · {connection.status}</p></div><Badge className="border-border bg-secondary text-muted-foreground">connection</Badge></div></div>)}{bindings.map((binding: AgentChannelBinding) => <div key={binding.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className="font-medium text-foreground">{binding.external_identity}</p><p className="mt-1 text-xs text-muted-foreground">{binding.channel_type} · {binding.status}</p></div>{binding.status === "active" ? <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void disconnect(binding)}>{busy === binding.id ? "Disconnecting…" : "Disconnect"}</Button> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No channels are connected to this installation.</p>}
+      <div className="grid gap-2 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-[0.7fr_1fr_1fr_auto] sm:items-end"><label className="text-xs font-medium text-foreground">Channel type<select value={channelType} onChange={(event) => setChannelType(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="telegram">Telegram</option><option value="discord">Discord</option><option value="whatsapp">WhatsApp</option><option value="webhook">Webhook</option></select></label><label className="text-xs font-medium text-foreground">Channel key<input value={channelKey} onChange={(event) => setChannelKey(event.target.value)} placeholder="bot or provider connection key" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground">Credential reference (optional)<input value={credentialReference} onChange={(event) => setCredentialReference(event.target.value)} placeholder="vault://connections/…" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><Button type="button" size="sm" disabled={busy !== null || !channelKey.trim()} onClick={() => void createConnection()}>{busy === "create" ? "Registering…" : "Register channel"}</Button></div>
+      {pairing ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="text-sm font-semibold text-status-attention">One-time pairing token</p><p className="mt-1 text-xs text-muted-foreground">Share this token with the external identity. It expires {new Date(pairing.expires_at).toLocaleString()} and will not be shown again.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-background px-3 py-2 text-xs text-foreground">{pairing.token}</code><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(pairing.token)}>Copy</Button></div></div> : null}
+      {loading ? <p className="text-sm text-muted-foreground">Loading channels…</p> : connections.length || bindings.length ? <div className="space-y-2">{connections.map((connection: AgentChannelConnection) => <div key={connection.id} className="rounded-lg border border-border p-3"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium capitalize text-foreground">{connection.channel_type}</p><p className="mt-1 text-xs text-muted-foreground">{connection.channel_key} · {connection.status}</p></div><div className="flex gap-2"><Badge className="border-border bg-secondary text-muted-foreground">connection</Badge><Button type="button" variant="outline" size="sm" disabled={busy !== null || connection.status !== "active"} onClick={() => void issuePairing(connection)}>{busy === `pair:${connection.id}` ? "Issuing…" : "Issue pairing"}</Button></div></div></div>)}{bindings.map((binding: AgentChannelBinding) => <div key={binding.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className="font-medium text-foreground">{binding.external_identity}</p><p className="mt-1 text-xs text-muted-foreground">{binding.channel_type} · {binding.status}</p></div>{binding.status === "active" ? <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void disconnect(binding)}>{busy === binding.id ? "Disconnecting…" : "Disconnect"}</Button> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No channels are connected to this installation.</p>}
     </CardContent>
   </Card>;
 }

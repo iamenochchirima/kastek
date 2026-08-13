@@ -255,6 +255,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::get().to(agent_platform::list_channels),
                 )
                 .route(
+                    "/installations/{installationId}/channels",
+                    web::post().to(agent_platform::create_channel_connection),
+                )
+                .route(
+                    "/installations/{installationId}/channels/{connectionId}/pairing",
+                    web::post().to(agent_platform::issue_channel_pairing),
+                )
+                .route(
                     "/kasiai/channels/whatsapp/pairing",
                     web::post().to(agent_platform::issue_kasiai_whatsapp_pairing),
                 )

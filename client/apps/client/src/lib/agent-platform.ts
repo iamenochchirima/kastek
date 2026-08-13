@@ -601,6 +601,20 @@ export function listKasiAiChannels(installationId: string): Promise<{ connection
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels`);
 }
 
+export function createAgentChannelConnection(installationId: string, input: { channelType: string; channelKey: string; credentialReference?: string; metadata?: Record<string, unknown> }): Promise<AgentChannelConnection> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function issueAgentChannelPairing(installationId: string, connectionId: string): Promise<{ token: string; expires_at: string }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels/${encodeURIComponent(connectionId)}/pairing`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 export function disconnectKasiAiChannel(bindingId: string): Promise<{ disconnected: boolean }> {
   return request(`/api/agents/channel-bindings/${encodeURIComponent(bindingId)}`, { method: "DELETE" });
 }

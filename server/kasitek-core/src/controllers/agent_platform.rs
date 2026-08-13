@@ -600,6 +600,69 @@ pub async fn list_channels(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn create_channel_connection(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Channel connection body must be an object".to_string(),
+        ));
+    }
+    for field in ["channelType", "channelKey"] {
+        if body
+            .get(field)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+        {
+            return Err(AppError::BadRequest(format!("{field} is required")));
+        }
+    }
+    let response = client(config.get_ref())?
+        .ensure_channel_connection(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn issue_channel_pairing(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+    body: Option<web::Json<Value>>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, connection_id) = path.into_inner();
+    let body = body
+        .map(|value| value.into_inner())
+        .unwrap_or_else(|| serde_json::json!({}));
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Pairing body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .issue_channel_pairing(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            connection_id.trim(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
 pub async fn disconnect_channel(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
