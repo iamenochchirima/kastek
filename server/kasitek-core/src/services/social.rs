@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 use crypto_utils::{decrypt_with_aes256_gcm, encrypt_with_aes256_gcm};
 use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 use sqlx::{PgPool, Postgres, Transaction};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -49,8 +49,6 @@ const TIKTOK_PUBLISH_URL: &str = "https://open.tiktokapis.com/v2/post/publish/co
 const TIKTOK_STATUS_URL: &str = "https://open.tiktokapis.com/v2/post/publish/status/fetch/";
 
 type HmacSha256 = Hmac<Sha256>;
-
-const TIKTOK_WEBHOOK_MAX_AGE_SECONDS: i64 = 300;
 
 pub const X_STATE_COOKIE: &str = "kasitek_social_x_state";
 pub const X_VERIFIER_COOKIE: &str = "kasitek_social_x_verifier";
@@ -303,101 +301,9 @@ pub fn threads_data_deletion_status_url(config: &AppConfig, confirmation_code: &
     )
 }
 
-pub fn verify_tiktok_webhook_signature(
-    signature_header: Option<&str>,
-    body: &[u8],
-) -> Result<(), AppError> {
-    let secret = required_env("AUTH_TIKTOK_CLIENT_SECRET")?;
-    let max_age = std::env::var("TIKTOK_WEBHOOK_MAX_AGE_SECONDS")
-        .ok()
-        .and_then(|value| value.parse::<i64>().ok())
-        .unwrap_or(TIKTOK_WEBHOOK_MAX_AGE_SECONDS)
-        .clamp(30, 3600);
-    verify_tiktok_webhook_signature_at(
-        signature_header,
-        body,
-        &secret,
-        Utc::now().timestamp(),
-        max_age,
-    )
-}
-
-fn verify_tiktok_webhook_signature_at(
-    signature_header: Option<&str>,
-    body: &[u8],
-    secret: &str,
-    now_timestamp: i64,
-    max_age: i64,
-) -> Result<(), AppError> {
-    let header = signature_header.ok_or(AppError::Unauthorized)?;
-    let mut timestamp = None;
-    let mut signature = None;
-    for item in header.split(',') {
-        let Some((key, value)) = item.trim().split_once('=') else {
-            continue;
-        };
-        match key.trim() {
-            "t" => timestamp = value.trim().parse::<i64>().ok(),
-            "s" => signature = Some(value.trim()),
-            _ => {}
-        }
-    }
-    let timestamp = timestamp.ok_or(AppError::Unauthorized)?;
-    if (now_timestamp - timestamp).abs() > max_age {
-        return Err(AppError::Unauthorized);
-    }
-    let received = hex::decode(signature.ok_or(AppError::Unauthorized)?)
-        .map_err(|_| AppError::Unauthorized)?;
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .map_err(|_| AppError::Internal("Invalid TikTok client secret".to_string()))?;
-    mac.update(timestamp.to_string().as_bytes());
-    mac.update(b".");
-    mac.update(body);
-    mac.verify_slice(&received)
-        .map_err(|_| AppError::Unauthorized)
-}
-
-pub fn parse_tiktok_webhook_envelope(body: &[u8]) -> Result<Value, AppError> {
-    let payload: Value = serde_json::from_slice(body)
-        .map_err(|_| AppError::BadRequest("Invalid TikTok webhook payload".to_string()))?;
-    let expected_key = required_env("AUTH_TIKTOK_CLIENT_KEY")?;
-    let client_key = payload
-        .get("client_key")
-        .and_then(Value::as_str)
-        .ok_or_else(|| AppError::BadRequest("TikTok webhook is missing client_key".to_string()))?;
-    if client_key != expected_key {
-        return Err(AppError::Forbidden(
-            "TikTok webhook client key mismatch".to_string(),
-        ));
-    }
-    if payload.get("event").and_then(Value::as_str).is_none() {
-        return Err(AppError::BadRequest(
-            "TikTok webhook is missing event".to_string(),
-        ));
-    }
-    Ok(payload)
-}
-
-pub async fn record_tiktok_webhook_event(
-    pool: &PgPool,
-    payload: &Value,
-    body: &[u8],
-) -> Result<bool, AppError> {
-    let event_key = hex::encode(Sha256::digest(body));
-    let event_type = payload
-        .get("event")
-        .and_then(Value::as_str)
-        .unwrap_or("unknown");
-    let external_account_id = payload.get("user_openid").and_then(Value::as_str);
-    let result = sqlx::query(r#"
-        INSERT INTO "SocialWebhookEvent" (id, provider, "eventKey", "eventType", "externalAccountId", payload, status, attempts, "nextAttemptAt", "receivedAt", "createdAt", "updatedAt")
-        VALUES ($1, 'TIKTOK', $2, $3, $4, $5, 'RECEIVED', 0, NOW(), NOW(), NOW(), NOW())
-        ON CONFLICT (provider, "eventKey") DO NOTHING
-    "#)
-    .bind(cuid2::create_id()).bind(event_key).bind(event_type).bind(external_account_id).bind(payload)
-    .execute(pool).await?;
-    Ok(result.rows_affected() == 1)
-}
+pub use super::social_webhooks::{
+    parse_tiktok_webhook_envelope, record_tiktok_webhook_event, verify_tiktok_webhook_signature,
+};
 
 fn encryption_secret() -> Result<String, AppError> {
     std::env::var("SOCIAL_TOKEN_ENCRYPTION_KEY")
@@ -4254,10 +4160,7 @@ async fn reconcile_tiktok_publish_jobs(pool: &PgPool, limit: i64) -> Result<i64,
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        decode_threads_signed_request, verify_tiktok_webhook_signature_at, HmacSha256,
-        InstagramProfile, Value,
-    };
+    use super::{decode_threads_signed_request, HmacSha256, InstagramProfile, Value};
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use base64::Engine as _;
     use hmac::Mac;
@@ -4350,58 +4253,5 @@ mod tests {
         let tampered = format!("{request}A");
 
         assert!(decode_threads_signed_request(&tampered, secret).is_err());
-    }
-
-    fn tiktok_signature(timestamp: i64, body: &[u8], secret: &str) -> String {
-        let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
-        mac.update(timestamp.to_string().as_bytes());
-        mac.update(b".");
-        mac.update(body);
-        format!(
-            "t={timestamp},s={}",
-            hex::encode(mac.finalize().into_bytes())
-        )
-    }
-
-    #[test]
-    fn tiktok_webhook_signature_verifies_the_raw_body() {
-        let secret = "test-tiktok-secret";
-        let timestamp = 1_700_000_000;
-        let body = br#"{\"event\":\"post.publish.complete\"}"#;
-        let signature = tiktok_signature(timestamp, body, secret);
-
-        assert!(verify_tiktok_webhook_signature_at(
-            Some(&signature),
-            body,
-            secret,
-            timestamp + 60,
-            300,
-        )
-        .is_ok());
-        assert!(verify_tiktok_webhook_signature_at(
-            Some(&signature),
-            br#"{\"event\":\"post.publish.failed\"}"#,
-            secret,
-            timestamp + 60,
-            300,
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn tiktok_webhook_signature_rejects_stale_events() {
-        let secret = "test-tiktok-secret";
-        let timestamp = 1_700_000_000;
-        let body = br#"{}"#;
-        let signature = tiktok_signature(timestamp, body, secret);
-
-        assert!(verify_tiktok_webhook_signature_at(
-            Some(&signature),
-            body,
-            secret,
-            timestamp + 301,
-            300,
-        )
-        .is_err());
     }
 }
