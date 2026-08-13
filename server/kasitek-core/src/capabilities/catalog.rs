@@ -95,7 +95,7 @@ fn social_action(
 }
 
 pub fn social_list_posts() -> ActionDefinition {
-    social_action(
+    let mut action = social_action(
         "content.posts.list",
         Version::new(1, 0, 0),
         "List content posts",
@@ -106,11 +106,13 @@ pub fn social_list_posts() -> ActionDefinition {
         json!({"type":"object","properties":{"posts":{"type":"array"}},"required":["posts"],"additionalProperties":false}),
         ["content.read"],
         IdempotencyRule::NotApplicable,
-    )
+    );
+    action.lifecycle = ActionLifecycle::Public;
+    action
 }
 
 pub fn content_create_draft() -> ActionDefinition {
-    social_action(
+    let mut action = social_action(
         "content.posts.draft.create",
         Version::new(1, 0, 0),
         "Create content draft",
@@ -121,7 +123,9 @@ pub fn content_create_draft() -> ActionDefinition {
         json!({"type":"object","required":["post"],"additionalProperties":true}),
         ["content.write"],
         IdempotencyRule::Required,
-    )
+    );
+    action.lifecycle = ActionLifecycle::Public;
+    action
 }
 
 pub fn content_publish() -> ActionDefinition {

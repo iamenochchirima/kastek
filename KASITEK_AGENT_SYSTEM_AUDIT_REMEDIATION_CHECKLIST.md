@@ -421,6 +421,8 @@ Relevant starting points:
   contract.
 - [ ] Put `/v1/capabilities` behind the dedicated public principal/authentication boundary required
   by the blueprint.
+- [x] Protect the initial capability route with the normalized authenticated direct-user context;
+  machine principal exchange remains open for the broader public API boundary.
 - [ ] If anonymous discovery is desired, record and approve that product/security decision before
   implementation rather than assuming it.
 - [ ] Filter discovery by lifecycle, authenticated principal type, organization entitlements,
@@ -428,11 +430,13 @@ Relevant starting points:
 - [x] Never expose `Internal`, disabled, retired, unentitled, or incompatible actions.
 
 **Partial evidence:** `server/kasitek-core/src/controllers/public_v1.rs`,
-`server/kasitek-core/src/capabilities/catalog.rs`; `4b8cd4f`. Dedicated public-principal
-authentication, DTOs, OpenAPI, metering, and broader policy filtering remain open.
-- [ ] Return a stable public DTO rather than serializing the internal `ActionDefinition` directly.
+`server/kasitek-core/src/capabilities/catalog.rs`, and `docs/api/public-v1.openapi.json`.
+Machine public-principal authentication, metering, and broader entitlement/resource filtering remain
+open; the initial direct-user capability contract is authenticated and DTO-backed.
+- [x] Return a stable public DTO rather than serializing the internal `ActionDefinition` directly.
 - [ ] Add pagination/versioning where required by the public API contract.
-- [ ] Generate or update core-owned OpenAPI 3.1 with authentication and response schemas.
+- [x] Generate or update the initial core-owned OpenAPI 3.1 capability contract with authentication
+  and response schemas; broader resource/action coverage remains open.
 - [ ] Add metering, rate-limit, audit, and metrics middleware before calling the endpoint complete.
 
 ### Required tests

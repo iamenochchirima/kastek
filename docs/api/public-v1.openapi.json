@@ -6,17 +6,68 @@
     "description": "Versioned public core contracts. Business handlers reuse the shared action catalog and normalized request context."
   },
   "servers": [{ "url": "https://api.kasitek.co.za/v1" }],
+  "security": [{ "kasitekSession": [] }],
   "paths": {
     "/health": {
       "get": {
         "operationId": "getApiHealth",
+        "security": [],
         "responses": { "200": { "description": "Service health" } }
       }
     },
     "/capabilities": {
       "get": {
         "operationId": "listCapabilities",
-        "responses": { "200": { "description": "Discoverable action catalog" } }
+        "responses": {
+          "200": {
+            "description": "Discoverable action catalog for the authenticated direct-user workspace",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CapabilityResponse" } } }
+          },
+          "401": { "description": "Missing or invalid KasiTek user session" },
+          "403": { "description": "Authenticated user has no available organization" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "kasitekSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "KasiTek session token"
+      }
+    },
+    "schemas": {
+      "CapabilityResponse": {
+        "type": "object",
+        "required": ["version", "principal", "actions"],
+        "properties": {
+          "version": { "const": "v1" },
+          "principal": { "type": "object", "required": ["kind", "id", "organizationId"], "properties": { "kind": { "const": "direct_user" }, "id": { "type": "string" }, "organizationId": { "type": "string" } } },
+          "actions": { "type": "array", "items": { "$ref": "#/components/schemas/Capability" } }
+        }
+      },
+      "Capability": {
+        "type": "object",
+        "required": ["name", "version", "owningDomain", "title", "description", "inputSchema", "outputSchema", "risk", "approval", "idempotency"],
+        "properties": {
+          "name": { "type": "string" },
+          "version": { "type": "string" },
+          "owningDomain": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "inputSchema": { "type": "object" },
+          "outputSchema": { "type": "object" },
+          "risk": { "type": "string" },
+          "approval": { "type": "string" },
+          "idempotency": { "type": "string" },
+          "requiredGrants": { "type": "array", "items": { "type": "string" } },
+          "requiredOAuthScopes": { "type": "array", "items": { "type": "string" } },
+          "requiredEntitlements": { "type": "array", "items": { "type": "string" } },
+          "dataClassification": { "type": "string" },
+          "audit": { "type": "string" },
+          "usage": { "type": "string" }
+        }
       }
     }
   }
