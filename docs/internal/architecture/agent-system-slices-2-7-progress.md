@@ -52,6 +52,10 @@ marked when the complete deliverable and its verification exist.
   independent MCP/REST scopes, installation capability/resource health, optional resource grants,
   and copyable MCP/REST client examples. Rotation/revocation and audit inspection remain linked to
   the existing detail/activity views. The slice is committed in `eaf6106`.
+- Hosted-agent creation now includes the same validated workflow graph editor used by detail drafts,
+  so a first version can be configured with instructions, model policy, limits, and graph before
+  publishing/installing. Shared detail surfaces cover capabilities, channels, conversations,
+  approvals, usage, credentials, and test chat; creation wiring is committed in `6afb085`.
 - The grounded context builder states a response provenance contract: separate reviewed knowledge,
   tool-derived facts, untrusted user data, unavailable actions, and uncertain information. The
   contract is covered by the context regression test in `71f9945`; model-judged/adversarial release
@@ -83,7 +87,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **116 checked and 108 unchecked items out of 224**. This is a
+The primary blueprint currently has **118 checked and 106 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 ## Remaining work

@@ -810,10 +810,16 @@ every success, denial, failure, or ambiguous outcome has a durable operator-visi
 
 - [x] Build one `/agents` overview for KasiAi, hosted agents, external connections, templates,
   approvals, activity, usage, and health.
-- [ ] Build creation/connection flows with visible capabilities, resources, connectors, models,
-  channels, limits, testing access, and approval behavior.
-- [ ] Build common detail views for overview, configuration, versions, capabilities, connections,
+- [x] Build creation/connection flows with visible capabilities, resources, connectors, models,
+  channels, limits, testing access, and approval behavior. Evidence spans the versioned creation
+  flow and graph editor (`client/apps/client/src/components/dashboard/agents/create-agent-page-client.tsx`,
+  `agent-workflow-editor.tsx`), external connection wizard (`agent-connection-wizard.tsx`), and
+  installation detail controls; commit `6afb085` builds workflow configuration into creation.
+- [x] Build common detail views for overview, configuration, versions, capabilities, connections,
   knowledge/memory, channels, conversations, runs, approvals, usage, credentials, and settings.
+  `client/apps/client/src/components/dashboard/agents/agent-detail-page-client.tsx` composes the
+  shared installation controls, durable test chat, run/approval links, and usage summaries; the
+  client lint/typecheck/build passed. Full browser/component verification remains open.
 - [x] Add per-installation recent run history with status and safe error visibility; keep the broader
   detail-view areas open until their corresponding controls and tests are implemented.
 - [x] Add connected-channel and binding observability with owner-scoped disconnect controls; provider
