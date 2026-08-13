@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   archiveAgent,
+  setAgentInstallationStatus,
   publishAgentVersion,
   createAgentVersion,
   rollbackAgentVersion,
@@ -69,8 +70,11 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const [versions, setVersions] = useState(initialVersions);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [installationStatus, setInstallationStatus] = useState(agent.installation_status ?? "disabled");
   const [tone, setTone] = useState(String(agent.installation_settings?.tone ?? "balanced"));
   const [responseDetail, setResponseDetail] = useState(String(agent.installation_settings?.responseDetail ?? "standard"));
+  const [language, setLanguage] = useState(String(agent.installation_settings?.language ?? "en"));
+  const [notificationsEnabled, setNotificationsEnabled] = useState(agent.installation_settings?.notificationsEnabled !== false);
   const [savingSettings, setSavingSettings] = useState(false);
   const baseVersion = initialVersions.find((version) => version.status === "published") ?? initialVersions[0];
   const baseConfiguration = baseVersion?.configuration ?? {};
@@ -107,12 +111,27 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
     setSavingSettings(true);
     setError(null);
     try {
-      await updateAgentInstallationSettings(agent.installation_id, { tone: tone as "concise" | "balanced" | "detailed", responseDetail: responseDetail as "concise" | "standard" | "detailed" });
+      await updateAgentInstallationSettings(agent.installation_id, { language: language.trim() || "en", tone: tone as "concise" | "balanced" | "detailed", responseDetail: responseDetail as "concise" | "standard" | "detailed", notificationsEnabled });
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to save agent settings");
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const toggleInstallation = async () => {
+    if (!agent.installation_id || busy || installationStatus === "disabled") return;
+    const nextStatus = installationStatus === "active" ? "paused" : "active";
+    setBusy("installation-status");
+    setError(null);
+    try {
+      await setAgentInstallationStatus(agent.installation_id, nextStatus);
+      setInstallationStatus(nextStatus);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to update installation status");
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -151,11 +170,11 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">{agent.description || "Installed Agent Platform agent"}</p>
                 </div>
               </div>
-              {protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : <Button type="button" variant="outline" disabled={busy === "archive"} onClick={() => void mutate("archive", () => archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button>}
+              <div className="flex flex-wrap items-center justify-end gap-2">{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : <Button type="button" variant="outline" disabled={busy === "archive"} onClick={() => void mutate("archive", () => archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button>}</div>
             </div>
             <div className="grid gap-3 text-sm sm:grid-cols-3">
               <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Slug</p><p className="mt-1 font-medium text-foreground">{agent.slug}</p></div>
-              <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Installation</p><p className="mt-1 font-medium capitalize text-foreground">{agent.installation_status ?? "not installed"}</p></div>
+              <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Installation</p><p className="mt-1 font-medium capitalize text-foreground">{installationStatus.replaceAll("_", " ")}</p></div>
               <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Current version</p><p className="mt-1 font-medium text-foreground">{agent.version_number ? `v${agent.version_number}` : "None published"}</p></div>
             </div>
             {protectedAgent ? <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">KasiAi instructions, model policy, and version publishing are controlled by KasiTek releases. Workspace members can use and pause its installation, but cannot mutate the protected definition.</p> : null}
@@ -168,8 +187,9 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium text-foreground">Response tone<select value={tone} onChange={(event) => setTone(event.target.value)} className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="concise">Concise</option><option value="balanced">Balanced</option><option value="detailed">Detailed</option></select></label>
               <label className="text-sm font-medium text-foreground">Response detail<select value={responseDetail} onChange={(event) => setResponseDetail(event.target.value)} className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="concise">Concise</option><option value="standard">Standard</option><option value="detailed">Detailed</option></select></label>
+              <label className="text-sm font-medium text-foreground">Language<input value={language} onChange={(event) => setLanguage(event.target.value)} maxLength={20} placeholder="en" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
             </div>
-            <Button type="button" onClick={() => void saveSettings()} disabled={!agent.installation_id || savingSettings}>{savingSettings ? "Saving…" : "Save preferences"}</Button>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" checked={notificationsEnabled} onChange={(event) => setNotificationsEnabled(event.target.checked)} />Send run and approval notifications for this installation</label><Button type="button" onClick={() => void saveSettings()} disabled={!agent.installation_id || savingSettings}>{savingSettings ? "Saving…" : "Save preferences"}</Button>
           </CardContent>
         </Card>
 
@@ -441,10 +461,18 @@ function InstallationRuns({ installationId }: { installationId: string }) {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  const usage = runs.reduce((totals, run) => {
+    const runUsage = run.output?.usage;
+    const inputTokens = runUsage && typeof runUsage === "object" && typeof (runUsage as Record<string, unknown>).inputTokens === "number" ? Number((runUsage as Record<string, unknown>).inputTokens) : 0;
+    const outputTokens = runUsage && typeof runUsage === "object" && typeof (runUsage as Record<string, unknown>).outputTokens === "number" ? Number((runUsage as Record<string, unknown>).outputTokens) : 0;
+    return { inputTokens: totals.inputTokens + inputTokens, outputTokens: totals.outputTokens + outputTokens, completed: totals.completed + (run.status === "completed" ? 1 : 0), failed: totals.failed + (["failed", "expired"].includes(run.status) ? 1 : 0) };
+  }, { inputTokens: 0, outputTokens: 0, completed: 0, failed: 0 });
+
   return <Card>
     <CardContent className="space-y-4 p-6">
       <div><h2 className="text-lg font-semibold text-foreground">Recent runs</h2><p className="mt-1 text-sm text-muted-foreground">Durable runs for this installation, including channel and external-agent activity.</p></div>
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      {!loading && runs.length ? <div className="grid gap-2 sm:grid-cols-4"><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Runs shown</p><p className="mt-1 text-xl font-semibold text-foreground">{runs.length}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Completed</p><p className="mt-1 text-xl font-semibold text-foreground">{usage.completed}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Failed/expired</p><p className="mt-1 text-xl font-semibold text-foreground">{usage.failed}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Tokens (shown)</p><p className="mt-1 text-xl font-semibold text-foreground">{(usage.inputTokens + usage.outputTokens).toLocaleString()}</p></div></div> : null}
       {loading ? <p className="text-sm text-muted-foreground">Loading runs…</p> : runs.length ? <div className="space-y-2">{runs.map((run) => <div key={run.id} className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono text-xs text-foreground">{run.id}</p><p className="mt-1 text-xs text-muted-foreground">{run.trigger_type ?? "manual"}{run.created_at ? ` · ${new Date(run.created_at).toLocaleString()}` : ""}</p>{run.error?.message ? <p className="mt-1 text-xs text-destructive">{run.error.message}</p> : null}</div><Badge className={run.status === "completed" ? "border-accent/30 bg-accent/10 text-accent" : run.status === "failed" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border bg-secondary text-muted-foreground"}>{run.status}</Badge></div>)}</div> : <p className="text-sm text-muted-foreground">No runs have been recorded for this installation.</p>}
     </CardContent>
   </Card>;
