@@ -258,6 +258,11 @@ controller-facing exports remain stable and the core suite passes (`ca89e40`). T
 adapter remains in `whatsapp_calls`; the broad checklist item still needs its final cross-provider
 delivery-worker and target-environment E2E evidence.
 
+The WhatsApp model follow-up moves the completed connection, template, campaign, contact/list, and
+inbox transport DTOs/rows into `db::whatsapp_models`; `db::models` re-exports them during migration
+so existing adapters retain source compatibility (`7daf4da`). Call-specific models and the broader
+global model cleanup remain open under the next decomposition checklist item.
+
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`
 controller/service modules. Route tests assert the ownership split and representative legacy mounts.
