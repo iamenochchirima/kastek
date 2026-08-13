@@ -261,6 +261,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 function InstallationCredentials({ installationId }: { installationId: string }) {
   const [credentials, setCredentials] = useState<AgentInstallationCredential[]>([]);
   const [label, setLabel] = useState("");
+  const [clientKeyId, setClientKeyId] = useState("");
+  const [clientPublicKey, setClientPublicKey] = useState("");
   const [mcpWrite, setMcpWrite] = useState(false);
   const [apiWrite, setApiWrite] = useState(false);
   const [secret, setSecret] = useState<string | null>(null);
@@ -294,9 +296,13 @@ function InstallationCredentials({ installationId }: { installationId: string })
         label: label.trim(),
         mcpScopes: ["mcp:read", ...(mcpWrite ? ["mcp:write" as const] : [])],
         apiScopes: ["api:read", ...(apiWrite ? ["api:write" as const] : [])],
+        ...(clientKeyId.trim() ? { clientKeyId: clientKeyId.trim() } : {}),
+        ...(clientPublicKey.trim() ? { clientPublicKey: clientPublicKey.trim() } : {}),
       });
       setCredentials((current) => [created.credential, ...current]);
       setLabel("");
+      setClientKeyId("");
+      setClientPublicKey("");
       setSecret(created.secret);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create credential");
@@ -333,15 +339,17 @@ function InstallationCredentials({ installationId }: { installationId: string })
   return <Card>
     <CardContent className="space-y-4 p-6">
       <div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-lg font-semibold text-foreground">External agent credentials</h2><p className="mt-1 text-sm text-muted-foreground">Create named credentials for Codex, Claude, n8n, or your own agent. Secrets are shown once and can be revoked independently.</p></div></div>
-      <div className="grid gap-3 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+      <div className="grid gap-3 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-[1fr_1fr_2fr_auto_auto_auto] sm:items-end">
         <label className="text-sm font-medium text-foreground">Credential name<input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Local Codex" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
+        <label className="text-sm font-medium text-foreground">Client key id<span className="ml-1 text-xs font-normal text-muted-foreground">(optional)</span><input value={clientKeyId} onChange={(event) => setClientKeyId(event.target.value)} placeholder="codex-prod-1" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
+        <label className="text-sm font-medium text-foreground">Client public key<span className="ml-1 text-xs font-normal text-muted-foreground">(SPKI PEM, optional)</span><textarea value={clientPublicKey} onChange={(event) => setClientPublicKey(event.target.value)} placeholder="-----BEGIN PUBLIC KEY-----" rows={3} className="mt-2 block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs" /></label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={apiWrite} onChange={(event) => setApiWrite(event.target.checked)} />API write</label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={mcpWrite} onChange={(event) => setMcpWrite(event.target.checked)} />MCP write</label>
         <Button type="button" onClick={() => void create()} disabled={creating || !label.trim()}>{creating ? "Creating…" : "Create credential"}</Button>
       </div>
       {secret ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="text-sm font-semibold text-status-attention">Copy this secret now. It will not be shown again.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-background px-3 py-2 text-xs text-foreground">{secret}</code><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(secret)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy</Button></div><ExternalConnectionSetup secret={secret} /></div> : null}
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-      {loading ? <p className="text-sm text-muted-foreground">Loading credentials…</p> : credentials.length ? <div className="space-y-2">{credentials.map((credential) => <div key={credential.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{credential.label}</p><p className="mt-1 text-xs text-muted-foreground">{credential.status} · API {credential.api_scopes?.join(", ") ?? "api:read"} · MCP {credential.mcp_scopes.join(", ")}</p></div>{credential.status === "active" ? <div className="flex gap-2"><Button type="button" variant="outline" size="sm" disabled={rotating !== null} onClick={() => void rotate(credential)}>{rotating === credential.id ? "Rotating…" : "Rotate"}</Button><Button type="button" variant="outline" size="sm" disabled={rotating !== null} onClick={() => void revoke(credential)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button></div> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No external credentials yet.</p>}
+      {loading ? <p className="text-sm text-muted-foreground">Loading credentials…</p> : credentials.length ? <div className="space-y-2">{credentials.map((credential) => <div key={credential.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{credential.label}</p><p className="mt-1 text-xs text-muted-foreground">{credential.status} · API {credential.api_scopes?.join(", ") ?? "api:read"} · MCP {credential.mcp_scopes.join(", ")}{credential.client_key_id ? ` · key ${credential.client_key_id}` : ""}</p></div>{credential.status === "active" ? <div className="flex gap-2"><Button type="button" variant="outline" size="sm" disabled={rotating !== null} onClick={() => void rotate(credential)}>{rotating === credential.id ? "Rotating…" : "Rotate"}</Button><Button type="button" variant="outline" size="sm" disabled={rotating !== null} onClick={() => void revoke(credential)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button></div> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No external credentials yet.</p>}
     </CardContent>
   </Card>;
 }

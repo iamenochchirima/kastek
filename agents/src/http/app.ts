@@ -37,7 +37,7 @@ import { PlatformChatRepository } from "../db/repositories/platform-chat-reposit
 import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { availableKasiAiModels, getKasiAiModelCatalog, isAllowedKasiAiModel } from "../system/kasiai-models";
-import { installationTokenJwks, issueInstallationToken, verifyInstallationToken } from "../auth/installation-token";
+import { installationTokenJwks, issueInstallationToken, readClientAssertionSubject, verifyClientAssertion, verifyInstallationToken } from "../auth/installation-token";
 import { createPublicKey } from "node:crypto";
 import { createDefaultTools } from "../temporal/activities";
 import { KasitekCoreReadClient } from "../core/client";
@@ -316,10 +316,34 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   }));
 
   app.post("/v1/installation-tokens/exchange", async (request, reply) => {
-    const body = z.object({ secret: z.string().trim().min(20).max(1_000), audience: z.enum(["mcp", "kasitek-public-api"]) }).parse(request.body);
+    const body = z.object({
+      secret: z.string().trim().min(20).max(1_000).optional(),
+      clientAssertion: z.string().trim().min(1).max(10_000).optional(),
+      audience: z.enum(["mcp", "kasitek-public-api"]),
+    }).superRefine((value, context) => {
+      if ((value.secret === undefined) === (value.clientAssertion === undefined)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ["secret"], message: "Provide exactly one of secret or clientAssertion" });
+      }
+    }).parse(request.body);
     if (!dependencies.config.INSTALLATION_TOKEN_PRIVATE_KEY) return reply.code(503).send({ error: "installation_token_exchange_unavailable" });
-    const credential = await installationCredentials.authenticate(body.secret);
-    if (!credential) return reply.code(401).send({ error: "invalid_installation_credential" });
+    let credential;
+    if (body.secret) {
+      credential = await installationCredentials.authenticate(body.secret);
+      if (!credential) return reply.code(401).send({ error: "invalid_installation_credential" });
+    } else {
+      try {
+        const subject = readClientAssertionSubject(body.clientAssertion!);
+        const registered = await installationCredentials.getActiveForClientAssertion({ credentialId: subject.credentialId, clientKeyId: subject.keyId });
+        if (!registered?.client_public_key || registered.client_key_id !== subject.keyId) throw new Error("Client assertion credential not active");
+        const claims = verifyClientAssertion(body.clientAssertion!, registered.client_public_key, { keyId: subject.keyId, credentialId: registered.id });
+        const consumed = await installationCredentials.consumeClientAssertionReplay({ credentialId: registered.id, jti: claims.jti, expiresAt: new Date(claims.exp * 1000).toISOString() });
+        if (!consumed) throw new Error("Client assertion replayed");
+        await installationCredentials.markUsed(registered.id);
+        credential = registered;
+      } catch {
+        return reply.code(401).send({ error: "invalid_installation_client_assertion" });
+      }
+    }
     const token = issueInstallationToken({
       privateKeyPem: dependencies.config.INSTALLATION_TOKEN_PRIVATE_KEY,
       issuer: dependencies.config.INSTALLATION_TOKEN_ISSUER,

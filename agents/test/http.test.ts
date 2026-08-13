@@ -5,10 +5,11 @@ import type { RunRepository } from "../src/db/repositories/run-repository";
 import type { AppConfig } from "../src/config";
 import type { PlatformChatRepository } from "../src/db/repositories/platform-chat-repository";
 import { signInternalToken } from "../src/http/auth";
-import { generateKeyPairSync } from "node:crypto";
+import { generateKeyPairSync, sign } from "node:crypto";
 import { issueInstallationToken } from "../src/auth/installation-token";
 
 const installationTokenKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+const clientAssertionKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 
 const config: AppConfig = {
   NODE_ENV: "test",
@@ -57,6 +58,15 @@ function publicApiToken(input: { installationId?: string; organizationId?: strin
   }).accessToken;
 }
 
+function clientAssertion(): string {
+  const now = Math.floor(Date.now() / 1000);
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const header = encode({ alg: "ES256", typ: "JWT", kid: "client-key-1" });
+  const payload = encode({ iss: "client-key-1", sub: "credential-1", aud: "kasitek-agents-token", iat: now, exp: now + 120, jti: `assertion-${now}` });
+  const signature = sign("sha256", Buffer.from(`${header}.${payload}`), { key: clientAssertionKeyPair.privateKey, dsaEncoding: "ieee-p1363" });
+  return `${header}.${payload}.${signature.toString("base64url")}`;
+}
+
 function mcpCredential(scopes: Array<"mcp:read" | "mcp:write"> = ["mcp:read", "mcp:write"]) {
   return {
     id: "credential-1",
@@ -103,6 +113,27 @@ describe("Agent Platform HTTP foundation", () => {
       bearer_methods_supported: ["header"],
       installation_token_exchange_endpoint: "/v1/installation-tokens/exchange",
     });
+    await app.close();
+  });
+
+  it("exchanges a registered client assertion once and rejects its replay", async () => {
+    const getActiveForClientAssertion = vi.fn(async () => ({ ...mcpCredential(), client_key_id: "client-key-1", client_public_key: clientAssertionKeyPair.publicKey.export({ type: "spki", format: "pem" }).toString() }));
+    const consumeClientAssertionReplay = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const markUsed = vi.fn().mockResolvedValue(undefined);
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      installationCredentials: { getActiveForClientAssertion, consumeClientAssertionReplay, markUsed } as never,
+    });
+    const payload = { clientAssertion: clientAssertion(), audience: "mcp" };
+    const first = await app.inject({ method: "POST", url: "/v1/installation-tokens/exchange", payload });
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).toMatchObject({ tokenType: "Bearer", audience: "mcp" });
+    expect(getActiveForClientAssertion).toHaveBeenCalledWith({ credentialId: "credential-1", clientKeyId: "client-key-1" });
+    expect(markUsed).toHaveBeenCalledWith("credential-1");
+    const replay = await app.inject({ method: "POST", url: "/v1/installation-tokens/exchange", payload });
+    expect(replay.statusCode).toBe(401);
+    expect(replay.json()).toEqual({ error: "invalid_installation_client_assertion" });
     await app.close();
   });
 

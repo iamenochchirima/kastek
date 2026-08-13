@@ -14,6 +14,30 @@ The gateway rejects invalid, expired, revoked, suspended, wrong-audience, and cr
 tokens. MCP and REST credential scopes are independent; `mcp:read` is required for discovery and
 `mcp:write` is required for tool calls.
 
+### Key-bound exchange
+
+For agents that should not transmit the copy-once secret on every bootstrap, register a P-256
+SPKI public key with the credential (`clientKeyId` and `clientPublicKey`). The key id is unique
+among active credentials for an installation. The agent keeps the matching private key and signs a
+compact ES256 JWT for each exchange:
+
+```json
+{
+  "iss": "codex-prod-1",
+  "sub": "<credential-id>",
+  "aud": "kasitek-agents-token",
+  "iat": 1730000000,
+  "exp": 1730000120,
+  "jti": "<new-random-id>"
+}
+```
+
+Use `POST /v1/installation-tokens/exchange` with
+`{ "clientAssertion": "<header>.<payload>.<signature>", "audience": "mcp" }` (or
+`kasitek-public-api`). Assertions use the registered `kid`, expire within five minutes, and each
+`jti` is consumed once in the Agent database. The legacy secret exchange remains available for
+initial enrollment and key recovery; never send the private key to KasiTek.
+
 ## Streamable HTTP lifecycle
 
 The current protocol revision is `2025-06-18`. The gateway accepts JSON-RPC POST requests at

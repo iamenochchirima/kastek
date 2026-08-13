@@ -320,6 +320,8 @@ export type AgentInstallationCredential = {
   revoked_at?: string | null;
   mcp_scopes: Array<"mcp:read" | "mcp:write">;
   api_scopes?: Array<"api:read" | "api:write">;
+  client_key_id?: string | null;
+  client_public_key?: string | null;
 };
 
 export function listAgentInstallationCredentials(installationId: string): Promise<{ credentials: AgentInstallationCredential[] }> {
@@ -331,6 +333,8 @@ export function createAgentInstallationCredential(installationId: string, input:
   expiresAt?: string;
   mcpScopes: Array<"mcp:read" | "mcp:write">;
   apiScopes: Array<"api:read" | "api:write">;
+  clientKeyId?: string;
+  clientPublicKey?: string;
 }): Promise<{ credential: AgentInstallationCredential; secret: string }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/credentials`, {
     method: "POST",

@@ -102,5 +102,9 @@ describe("foundation migration", () => {
     expect(receiptStateSql).toContain("'unknown'");
     const legacyApprovalSql = await readFile(new URL("../migrations/035_remove_legacy_tool_approval.sql", import.meta.url), "utf8");
     expect(legacyApprovalSql).toContain("DROP COLUMN IF EXISTS approval");
+    const clientAssertionsSql = await readFile(new URL("../migrations/036_installation_client_assertions.sql", import.meta.url), "utf8");
+    expect(clientAssertionsSql).toContain("client_public_key");
+    expect(clientAssertionsSql).toContain("agent_client_assertion_replays");
+    expect(clientAssertionsSql).toContain("ON agent_installation_credentials (installation_id, client_key_id)");
   });
 });

@@ -12,12 +12,111 @@ export interface InstallationTokenClaims {
   jti: string;
 }
 
+export interface ClientAssertionClaims {
+  iss: string;
+  sub: string;
+  aud: "kasitek-agents-token";
+  iat: number;
+  exp: number;
+  jti: string;
+}
+
+export interface ClientAssertionSubject {
+  keyId: string;
+  credentialId: string;
+}
+
 function encode(value: Buffer | string): string {
   return Buffer.from(value).toString("base64url");
 }
 
 function decode<T>(value: string): T {
   return JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as T;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseClientAssertion(assertion: string): {
+  header: { alg?: unknown; typ?: unknown; kid?: unknown };
+  claims: Partial<ClientAssertionClaims> & Record<string, unknown>;
+  signingInput: string;
+  signature: Buffer;
+} {
+  const [headerPart, payloadPart, signaturePart, extra] = assertion.split(".");
+  if (!headerPart || !payloadPart || !signaturePart || extra) throw new Error("Malformed client assertion");
+  try {
+    const header = decode<unknown>(headerPart);
+    const claims = decode<unknown>(payloadPart);
+    if (!isRecord(header) || !isRecord(claims)) throw new Error("Malformed client assertion");
+    const signature = Buffer.from(signaturePart, "base64url");
+    if (signature.length !== 64) throw new Error("Malformed client assertion");
+    return {
+      header,
+      claims: claims as Partial<ClientAssertionClaims> & Record<string, unknown>,
+      signingInput: `${headerPart}.${payloadPart}`,
+      signature,
+    };
+  } catch {
+    throw new Error("Malformed client assertion");
+  }
+}
+
+/** Reads only the untrusted identifiers needed to find a registered key. */
+export function readClientAssertionSubject(assertion: string): ClientAssertionSubject {
+  const { header, claims } = parseClientAssertion(assertion);
+  if (header.alg !== "ES256" || header.typ !== "JWT" || typeof header.kid !== "string" || !header.kid || typeof claims.sub !== "string" || !claims.sub) {
+    throw new Error("Invalid client assertion subject");
+  }
+  return { keyId: header.kid, credentialId: claims.sub };
+}
+
+export function validateClientAssertionPublicKey(publicKeyPem: string): void {
+  try {
+    const key = createPublicKey(publicKeyPem);
+    const jwk = key.export({ format: "jwk" }) as JsonWebKey;
+    if (key.asymmetricKeyType !== "ec" || jwk.crv !== "P-256" || !jwk.x || !jwk.y) throw new Error("Client assertion key must be P-256");
+  } catch {
+    throw new Error("Invalid client assertion public key");
+  }
+}
+
+export function verifyClientAssertion(
+  assertion: string,
+  publicKeyPem: string,
+  input: { keyId: string; credentialId: string; now?: number },
+): ClientAssertionClaims {
+  const { header, claims, signingInput, signature } = parseClientAssertion(assertion);
+  const now = input.now ?? Math.floor(Date.now() / 1000);
+  if (
+    header.alg !== "ES256"
+    || header.typ !== "JWT"
+    || header.kid !== input.keyId
+    || claims.iss !== input.keyId
+    || claims.sub !== input.credentialId
+    || claims.aud !== "kasitek-agents-token"
+    || typeof claims.iat !== "number"
+    || !Number.isSafeInteger(claims.iat)
+    || typeof claims.exp !== "number"
+    || !Number.isSafeInteger(claims.exp)
+    || typeof claims.jti !== "string"
+    || claims.jti.length < 1
+    || claims.jti.length > 200
+    || claims.iat < now - 300
+    || claims.iat > now + 60
+    || claims.exp <= now
+    || claims.exp <= claims.iat
+    || claims.exp > now + 300
+  ) throw new Error("Invalid client assertion claims");
+  let valid = false;
+  try {
+    valid = verify("sha256", Buffer.from(signingInput), { key: createPublicKey(publicKeyPem), dsaEncoding: "ieee-p1363" }, signature);
+  } catch {
+    throw new Error("Invalid client assertion signature");
+  }
+  if (!valid) throw new Error("Invalid client assertion signature");
+  return claims as ClientAssertionClaims;
 }
 
 export function issueInstallationToken(input: {

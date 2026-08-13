@@ -84,6 +84,12 @@ export const createInstallationCredentialInputSchema = z.object({
   expiresAt: z.string().datetime().optional(),
   mcpScopes: z.array(z.enum(["mcp:read", "mcp:write"])).min(1).max(2).default(["mcp:read"]),
   apiScopes: z.array(z.enum(["api:read", "api:write"])).min(1).max(2).default(["api:read"]),
+  clientKeyId: z.string().trim().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/).optional(),
+  clientPublicKey: z.string().trim().min(1).max(16_000).optional(),
+}).superRefine((value, context) => {
+  if ((value.clientKeyId === undefined) !== (value.clientPublicKey === undefined)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: [value.clientKeyId === undefined ? "clientKeyId" : "clientPublicKey"], message: "Client key id and public key must be provided together" });
+  }
 });
 
 export const startRunInputSchema = z.object({

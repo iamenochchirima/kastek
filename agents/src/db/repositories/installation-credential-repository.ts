@@ -1,6 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
+import { validateClientAssertionPublicKey } from "../../auth/installation-token";
 
 export interface InstallationCredentialRecord {
   id: string;
@@ -14,6 +15,8 @@ export interface InstallationCredentialRecord {
   revoked_at: string | null;
   mcp_scopes: Array<"mcp:read" | "mcp:write">;
   api_scopes?: Array<"api:read" | "api:write">;
+  client_key_id: string | null;
+  client_public_key: string | null;
 }
 
 export interface CreatedInstallationCredential {
@@ -47,7 +50,13 @@ export class InstallationCredentialRepository {
     expiresAt?: string;
     mcpScopes: Array<"mcp:read" | "mcp:write">;
     apiScopes?: Array<"api:read" | "api:write">;
+    clientKeyId?: string;
+    clientPublicKey?: string;
   }): Promise<CreatedInstallationCredential> {
+    const clientKeyId = input.clientKeyId?.trim() || null;
+    const clientPublicKey = input.clientPublicKey?.trim() || null;
+    if ((clientKeyId === null) !== (clientPublicKey === null)) throw new Error("Client key id and public key must be provided together");
+    if (clientPublicKey) validateClientAssertionPublicKey(clientPublicKey);
     const secret = `ksi_${randomBytes(32).toString("base64url")}`;
     const credential = await withTransaction(this.pool, async (client) => {
       const installation = await client.query<{ id: string }>(
@@ -57,10 +66,10 @@ export class InstallationCredentialRepository {
       if (!installation.rows[0]) throw new Error("Active installation not found");
       const result = await client.query<InstallationCredentialRecord>(
         `INSERT INTO agent_installation_credentials
-          (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, api_scopes, created_by)
-         VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7::jsonb, $8)
-         RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes`,
-        [input.installationId, input.organizationId, input.label.trim(), hashSecret(secret), input.expiresAt ?? null, JSON.stringify(input.mcpScopes), JSON.stringify(input.apiScopes ?? ["api:read"]), input.actorId],
+          (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, api_scopes, client_key_id, client_public_key, created_by)
+         VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7::jsonb, $8, $9, $10)
+         RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes, client_key_id, client_public_key`,
+        [input.installationId, input.organizationId, input.label.trim(), hashSecret(secret), input.expiresAt ?? null, JSON.stringify(input.mcpScopes), JSON.stringify(input.apiScopes ?? ["api:read"]), clientKeyId, clientPublicKey, input.actorId],
       );
       await client.query(
         `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -75,7 +84,7 @@ export class InstallationCredentialRepository {
   public async list(organizationId: string, installationId: string): Promise<InstallationCredentialRecord[]> {
     const result = await query<InstallationCredentialRecord>(
       this.pool,
-      `SELECT id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes
+      `SELECT id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes, client_key_id, client_public_key
        FROM agent_installation_credentials WHERE organization_id = $1 AND installation_id = $2 ORDER BY created_at DESC`,
       [organizationId, installationId],
     );
@@ -86,7 +95,7 @@ export class InstallationCredentialRepository {
     const candidates = await query<InstallationCredentialRecord & { secret_hash: string; installation_status: string }>(
       this.pool,
       `SELECT credential.id, credential.installation_id, credential.organization_id, credential.label, credential.status,
-              credential.expires_at, credential.last_used_at, credential.created_at, credential.revoked_at, credential.mcp_scopes, credential.api_scopes,
+              credential.expires_at, credential.last_used_at, credential.created_at, credential.revoked_at, credential.mcp_scopes, credential.api_scopes, credential.client_key_id, credential.client_public_key,
               credential.secret_hash, installation.status AS installation_status
        FROM agent_installation_credentials credential
        JOIN agent_installations installation ON installation.id = credential.installation_id
@@ -111,7 +120,7 @@ export class InstallationCredentialRepository {
       this.pool,
       `SELECT credential.id, credential.installation_id, credential.organization_id, credential.label,
               credential.status, credential.expires_at, credential.last_used_at, credential.created_at,
-              credential.revoked_at, credential.mcp_scopes, credential.api_scopes
+              credential.revoked_at, credential.mcp_scopes, credential.api_scopes, credential.client_key_id, credential.client_public_key
        FROM agent_installation_credentials credential
        JOIN agent_installations installation ON installation.id = credential.installation_id
        WHERE credential.id = $1 AND credential.organization_id = $2 AND credential.installation_id = $3
@@ -121,6 +130,44 @@ export class InstallationCredentialRepository {
       [input.credentialId, input.organizationId, input.installationId],
     );
     return result.rows[0] ?? null;
+  }
+
+  public async getActiveForClientAssertion(input: {
+    credentialId: string;
+    clientKeyId: string;
+  }): Promise<InstallationCredentialRecord | null> {
+    const result = await query<InstallationCredentialRecord>(
+      this.pool,
+      `SELECT credential.id, credential.installation_id, credential.organization_id, credential.label,
+              credential.status, credential.expires_at, credential.last_used_at, credential.created_at,
+              credential.revoked_at, credential.mcp_scopes, credential.api_scopes, credential.client_key_id,
+              credential.client_public_key
+       FROM agent_installation_credentials credential
+       JOIN agent_installations installation ON installation.id = credential.installation_id
+       WHERE credential.id = $1 AND credential.client_key_id = $2
+         AND credential.status = 'active' AND credential.revoked_at IS NULL
+         AND (credential.expires_at IS NULL OR credential.expires_at > now())
+         AND installation.status = 'active'`,
+      [input.credentialId, input.clientKeyId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  public async consumeClientAssertionReplay(input: { credentialId: string; jti: string; expiresAt: string }): Promise<boolean> {
+    return withTransaction(this.pool, async (client) => {
+      await client.query(`DELETE FROM agent_client_assertion_replays WHERE expires_at <= now()`);
+      const result = await client.query(
+        `INSERT INTO agent_client_assertion_replays (credential_id, jti, expires_at)
+         VALUES ($1, $2, $3::timestamptz)
+         ON CONFLICT (credential_id, jti) DO NOTHING`,
+        [input.credentialId, input.jti, input.expiresAt],
+      );
+      return result.rowCount === 1;
+    });
+  }
+
+  public async markUsed(credentialId: string): Promise<void> {
+    await query(this.pool, `UPDATE agent_installation_credentials SET last_used_at = now() WHERE id = $1`, [credentialId]);
   }
 
   public async revoke(input: { organizationId: string; installationId: string; credentialId: string; actorId: string }): Promise<void> {
@@ -143,7 +190,7 @@ export class InstallationCredentialRepository {
     const secret = `ksi_${randomBytes(32).toString("base64url")}`;
     const credential = await withTransaction(this.pool, async (client) => {
       const current = await client.query<InstallationCredentialRecord>(
-        `SELECT id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes
+        `SELECT id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes, client_key_id, client_public_key
          FROM agent_installation_credentials
          WHERE id = $1 AND installation_id = $2 AND organization_id = $3 AND status = 'active'
          FOR UPDATE`,
@@ -158,10 +205,10 @@ export class InstallationCredentialRepository {
       );
       const created = await client.query<InstallationCredentialRecord>(
         `INSERT INTO agent_installation_credentials
-          (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, api_scopes, created_by)
-         VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7::jsonb, $8)
-         RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes`,
-        [input.installationId, input.organizationId, existing.label, hashSecret(secret), existing.expires_at, JSON.stringify(existing.mcp_scopes), JSON.stringify(existing.api_scopes ?? ["api:read"]), input.actorId],
+          (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, api_scopes, client_key_id, client_public_key, created_by)
+         VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7::jsonb, $8, $9, $10)
+         RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes, client_key_id, client_public_key`,
+        [input.installationId, input.organizationId, existing.label, hashSecret(secret), existing.expires_at, JSON.stringify(existing.mcp_scopes), JSON.stringify(existing.api_scopes ?? ["api:read"]), existing.client_key_id, existing.client_public_key, input.actorId],
       );
       await client.query(
         `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
