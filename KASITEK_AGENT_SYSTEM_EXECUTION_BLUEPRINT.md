@@ -408,14 +408,17 @@ the first complete agent-capability domain in Slice 5.
   the registry or capability transport.
 - [x] Establish typed conversion between `actions::Actor`/`Scope` and core `RequestContext`, with
   explicit rejection of realm, runtime, organization, and client-scope mismatches.
-- [ ] Establish a repeatable domain migration template covering models, commands, queries, policy,
+- [x] Establish a repeatable domain migration template covering models, commands, queries, policy,
   Postgres/provider adapters, product adapter, internal capability adapter, tests, and evidence.
+  Evidence: `docs/internal/architecture/domain-migration-template.md` defines the migration,
+  adapter, verification, completion, and evidence gates.
 
 ### Large-domain decomposition order
 
-- [ ] Record the migration order after the bookings pilot: contacts/customers, connections,
+- [x] Record the migration order after the bookings pilot: contacts/customers, connections,
   content/social posts, campaigns, conversations/inbox, social providers/publishing, WhatsApp,
-  billing, then auth/admin; change the order only with documented dependency evidence.
+  billing, then auth/admin; change the order only with documented dependency evidence. Evidence:
+  `docs/internal/architecture/domain-migration-template.md` records the ordered dependency list.
 - [ ] Split social into channels, posts, publishing, OAuth, webhooks, and per-provider adapters rather
   than moving the existing `services/social.rs` unchanged.
 - [ ] Split WhatsApp into connections, contacts, templates, campaigns, inbox transport, provider
