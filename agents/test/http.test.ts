@@ -170,7 +170,7 @@ describe("Agent Platform HTTP foundation", () => {
       payload: { jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "platform.current_time", arguments: {}, idempotencyKey: "request-1" } },
     });
     expect(response.json()).toMatchObject({ result: { structuredContent: { runId: "run-mcp-1", status: "received" } } });
-    expect(runs.createRun).toHaveBeenCalledWith("org-1", "installation:install-1", expect.objectContaining({ installationId: "install-1", input: { mcpTool: expect.objectContaining({ name: "platform.current_time" }) } }));
+    expect(runs.createRun).toHaveBeenCalledWith("org-1", "installation:install-1", expect.objectContaining({ installationId: "install-1", idempotencyKey: "mcp:credential-1:request-1", input: { mcpTool: expect.objectContaining({ name: "platform.current_time" }) } }));
     expect(startWorkflow).toHaveBeenCalledWith("run-mcp-1");
     await app.close();
   });
