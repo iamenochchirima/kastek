@@ -114,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **132 checked and 92 unchecked items out of 224**. This is a
+The primary blueprint currently has **133 checked and 91 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -174,6 +174,13 @@ membership lookup (`7d93685`). Existing Agent Platform suites cover revoked cred
 grants, suspended installations, and cross-organization operation access. The remaining core
 database-backed membership and untrusted-header cases stay open until the seeded integration
 environment is available.
+
+Social provider capability metadata and OAuth state/authorize-url construction now have separate
+service ownership. `1f2bc42` moves channel capability metadata into `social_channels`; `c16727f`
+moves PKCE/state generation and provider authorize URL builders into `social_oauth` while preserving
+the existing controller-facing `social::` exports and Instagram token-exchange helpers. The core
+library suite passes 85 tests with three explicitly ignored infrastructure-gated cases. The broader
+social decomposition (posts, publishing, webhooks, and per-provider adapters) remains open.
 
 The content adapter now also supports a safe draft-only update path. The internal core boundary
 accepts `PATCH /api/internal/agents/v1/content/posts/{id}` under the normalized delegated context,
