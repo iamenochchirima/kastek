@@ -11,7 +11,7 @@ import type { ModelPricing } from "../model/types";
 import { runBoundedAgentLoop } from "../runtime/loop";
 import { buildAgentContext } from "../runtime/context";
 import { retrievalGate } from "../runtime/context";
-import { ToolRegistry } from "../tools/registry";
+import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { KasitekCoreReadClient } from "../core/client";
 import type { AppConfig } from "../config";
 import { ToolInvocationRepository } from "../db/repositories/tool-invocation-repository";
@@ -139,6 +139,20 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async executeLoop(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
+      if (isMcpToolRun(run.input)) {
+        return executeMcpToolRun(
+          run,
+          input.resumeApprovedToolCall,
+          runs,
+          toolInvocations,
+          approvals,
+          effectReceipts,
+          runSteps,
+          toolGrants,
+          killSwitches,
+          tools,
+        );
+      }
       return executeLoopForRun(run, input.resumeApprovedToolCall, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools);
     },
     async pauseRun(input) {
@@ -268,6 +282,180 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       await runs.failRun(input.runId, input.error);
     },
   };
+}
+
+function isMcpToolRun(input: Record<string, unknown>): input is Record<string, unknown> & { mcpTool: { name: string; arguments: Record<string, unknown>; toolCallId: string } } {
+  const tool = input.mcpTool;
+  return Boolean(
+    tool
+      && typeof tool === "object"
+      && typeof (tool as Record<string, unknown>).name === "string"
+      && typeof (tool as Record<string, unknown>).toolCallId === "string"
+      && (tool as Record<string, unknown>).arguments
+      && typeof (tool as Record<string, unknown>).arguments === "object"
+      && !Array.isArray((tool as Record<string, unknown>).arguments),
+  );
+}
+
+async function executeMcpToolRun(
+  run: Awaited<ReturnType<RunRepository["getRuntimeRun"]>> & object,
+  resumeApprovedToolCall: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"],
+  runs: RunRepository,
+  toolInvocations: ToolInvocationRepository,
+  approvals: ApprovalRepository,
+  effectReceipts: EffectReceiptRepository,
+  runSteps: RunStepRepository,
+  toolGrants: ToolGrantRepository,
+  killSwitches: KillSwitchRepository,
+  tools: ToolRegistry,
+) {
+  if (!isMcpToolRun(run.input)) throw new Error("Invalid MCP run input");
+  const invocation = resumeApprovedToolCall ?? {
+    id: run.input.mcpTool.toolCallId,
+    name: run.input.mcpTool.name,
+    arguments: run.input.mcpTool.arguments,
+  };
+  const manifest = tools.get(invocation.name);
+  if (!manifest) throw new Error(`Tool is not registered: ${invocation.name}`);
+  const argumentsHash = hashToolArguments(invocation.arguments);
+  const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
+  if (!grantedTools.has(invocation.name)) throw new Error(`Tool is not granted: ${invocation.name}`);
+  if (await killSwitches.isBlocked({
+    organizationId: run.organization_id,
+    agentId: run.agent_definition_id,
+    installationId: run.installation_id,
+    toolNames: [invocation.name],
+  })) throw new Error("AGENT_KILL_SWITCH_ACTIVE");
+
+  let stepId: string | undefined;
+  if (!resumeApprovedToolCall) {
+    await toolInvocations.recordProposal({
+      organizationId: run.organization_id,
+      runId: run.id,
+      providerToolCallId: invocation.id,
+      sequenceNumber: 1,
+      toolName: invocation.name,
+      toolVersion: manifest.version,
+      riskClass: manifest.riskClass,
+      argumentsHash,
+      arguments: invocation.arguments,
+      requiresApproval: manifest.requiresApproval,
+    });
+    if (manifest.riskClass === "external-effect") {
+      await effectReceipts.reserve({
+        organizationId: run.organization_id,
+        installationId: run.installation_id,
+        runId: run.id,
+        providerToolCallId: invocation.id,
+        capability: invocation.name,
+        capabilityVersion: manifest.version,
+        argumentsHash,
+        idempotencyKey: `${run.id}:${invocation.name}:${argumentsHash}`,
+      });
+    }
+    const step = await runSteps.startStep({
+      runId: run.id,
+      organizationId: run.organization_id,
+      stepType: "tool",
+      input: { toolCallId: invocation.id, name: invocation.name, argumentsHash },
+    });
+    stepId = step.id;
+    if (manifest.requiresApproval) {
+      await approvals.createPending({
+        organizationId: run.organization_id,
+        installationId: run.installation_id,
+        runId: run.id,
+        providerToolCallId: invocation.id,
+        capability: invocation.name,
+        capabilityVersion: manifest.version,
+        argumentsHash,
+        resourceSnapshot: {},
+        previewRevision: argumentsHash,
+        policyRevision: "v1",
+        permittedEffectKey: `${run.id}:${invocation.id}`,
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      });
+      return {
+        status: "awaiting_approval" as const,
+        messages: [],
+        pendingToolCalls: [{ id: invocation.id, name: invocation.name, arguments: invocation.arguments, argumentsHash }],
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+        iterations: 0,
+        toolCalls: 1,
+      };
+    }
+  }
+
+  try {
+    if (manifest.requiresApproval) {
+      await approvals.consume({
+        organizationId: run.organization_id,
+        runId: run.id,
+        providerToolCallId: invocation.id,
+        capability: invocation.name,
+        capabilityVersion: manifest.version,
+        argumentsHash,
+        permittedEffectKey: `${run.id}:${invocation.id}`,
+      });
+    }
+    if (manifest.riskClass === "external-effect") {
+      await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`);
+    }
+    const result = await tools.invoke({
+      name: invocation.name,
+      arguments: invocation.arguments,
+      grantedTools,
+      approval: resumeApprovedToolCall?.approval,
+      context: {
+        organizationId: run.organization_id,
+        agentId: run.agent_definition_id,
+        agentVersionId: run.agent_version_id,
+        installationId: run.installation_id,
+        runId: run.id,
+        actorId: run.created_by,
+        correlationId: run.correlation_id,
+      },
+    });
+    await toolInvocations.recordCompleted({
+      runId: run.id,
+      providerToolCallId: invocation.id,
+      output: result.output,
+      latencyMs: result.latencyMs,
+      effectId: result.effectId,
+      approval: resumeApprovedToolCall?.approval,
+    });
+    if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`, result.output);
+    if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
+    await runs.appendEvent({
+      organizationId: run.organization_id,
+      runId: run.id,
+      installationId: run.installation_id,
+      eventType: "mcp.tool.completed",
+      payload: { toolCallId: invocation.id, name: invocation.name },
+    });
+    return {
+      status: "completed" as const,
+      messages: [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+      iterations: 0,
+      toolCalls: 1,
+    };
+  } catch (error) {
+    const normalized = { code: "MCP_TOOL_FAILED", message: error instanceof Error ? error.message : "MCP tool failed" };
+    await toolInvocations.recordFailed({ runId: run.id, providerToolCallId: invocation.id, error: normalized });
+    if (manifest.riskClass === "external-effect") {
+      await effectReceipts.markFailedByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`, normalized, false);
+    }
+    if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: normalized });
+    return {
+      status: "failed" as const,
+      messages: [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+      iterations: 0,
+      toolCalls: 1,
+      error: normalized,
+    };
+  }
 }
 
 async function executeLoopForRun(

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/http/app";
 import type { AgentRepository } from "../src/db/repositories/agent-repository";
 import type { RunRepository } from "../src/db/repositories/run-repository";
@@ -148,6 +148,30 @@ describe("Agent Platform HTTP foundation", () => {
     });
     const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "platform.current_time", arguments: {} } } });
     expect(response.json()).toMatchObject({ error: { code: -32003, message: "MCP credential is missing scope: mcp:write" } });
+    await app.close();
+  });
+
+  it("routes MCP tool calls through a durable Agent run", async () => {
+    const startWorkflow = vi.fn().mockResolvedValue(undefined);
+    const runs = { createRun: vi.fn().mockResolvedValue({ id: "run-mcp-1", status: "received", created: true }) } as unknown as RunRepository;
+    const app = buildApp({
+      config: { ...mcpConfig, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      runs,
+      startWorkflow,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+      toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/mcp",
+      headers: { authorization: `Bearer ${mcpToken()}` },
+      payload: { jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "platform.current_time", arguments: {}, idempotencyKey: "request-1" } },
+    });
+    expect(response.json()).toMatchObject({ result: { structuredContent: { runId: "run-mcp-1", status: "received" } } });
+    expect(runs.createRun).toHaveBeenCalledWith("org-1", "installation:install-1", expect.objectContaining({ installationId: "install-1", input: { mcpTool: expect.objectContaining({ name: "platform.current_time" }) } }));
+    expect(startWorkflow).toHaveBeenCalledWith("run-mcp-1");
     await app.close();
   });
 

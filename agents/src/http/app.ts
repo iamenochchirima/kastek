@@ -273,23 +273,35 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const name = typeof params.name === "string" ? params.name : "";
       const args = params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments) ? params.arguments as Record<string, unknown> : {};
       if (!name) return failure(-32602, "name is required");
-      const runId = typeof params.runId === "string" && params.runId.length <= 120 ? params.runId : randomUUID();
+      const toolCallId = typeof params.toolCallId === "string" && params.toolCallId.length <= 240 ? params.toolCallId : `mcp:${randomUUID()}`;
+      const idempotencyKey = typeof params.idempotencyKey === "string" && params.idempotencyKey.length >= 8 && params.idempotencyKey.length <= 240
+        ? `mcp:${auth.credentialId}:${params.idempotencyKey}`
+        : undefined;
+      const manifest = toolRegistry.get(name);
+      if (!manifest) return failure(-32602, "tool_not_found");
+      if (!granted.has(name)) return failure(-32001, "tool_not_granted");
+      if (!dependencies.config.TEMPORAL_ENABLED || !dependencies.startWorkflow) {
+        return failure(-32004, "durable_mcp_execution_unavailable");
+      }
       try {
-        const result = await toolRegistry.invoke({
-          name,
-          arguments: args,
-          grantedTools: granted,
-          context: {
-            organizationId: auth.organizationId,
-            agentId: installation.agent_definition_id,
-            agentVersionId: installation.agent_version_id,
-            installationId: installation.id,
-            runId,
-            actorId: auth.actorId,
-            correlationId: auth.correlationId ?? randomUUID(),
+        const accepted = await runs.createRun(auth.organizationId, auth.actorId, {
+          installationId: installation.id,
+          triggerType: "manual",
+          idempotencyKey,
+          input: {
+            mcpTool: { name, arguments: args, toolCallId },
           },
         });
-        return respond({ content: [{ type: "text", text: JSON.stringify(result.output) }], isError: false, structuredContent: result.output });
+        if (accepted.created !== false && accepted.status === "received") await dependencies.startWorkflow(accepted.id);
+        return respond({
+          content: [{ type: "text", text: `Accepted ${name} as operation ${accepted.id}.` }],
+          isError: false,
+          structuredContent: {
+            runId: accepted.id,
+            status: accepted.status,
+            approvalRequired: manifest.requiresApproval,
+          },
+        });
       } catch (error) {
         return failure(-32001, error instanceof Error ? error.message : "tool_call_failed", { code: error && typeof error === "object" && "code" in error ? error.code : "TOOL_FAILED" });
       }
