@@ -25,6 +25,12 @@ pub async fn health(state: web::Data<AppState>) -> HttpResponse {
     }))
 }
 
+pub async fn openapi() -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(include_str!("../../openapi/v1.json"))
+}
+
 async fn public_context(req: &HttpRequest, state: &AppState) -> Result<RequestContext, AppError> {
     // Product user sessions are opaque bearer values. A JWT-shaped bearer value
     // is an attempted Agent installation credential and must never fall through
@@ -479,6 +485,34 @@ mod tests {
                 .supported_runtimes
                 .contains(&ProductRuntime::Direct));
         }
+    }
+
+    #[test]
+    fn public_openapi_document_is_valid_and_covers_current_v1_routes() {
+        let document: serde_json::Value =
+            serde_json::from_str(include_str!("../../openapi/v1.json"))
+                .expect("valid OpenAPI JSON");
+        assert_eq!(
+            document.get("openapi").and_then(|value| value.as_str()),
+            Some("3.1.0")
+        );
+        for path in [
+            "/health",
+            "/capabilities",
+            "/content/posts",
+            "/content/posts/{id}",
+        ] {
+            assert!(
+                document
+                    .get("paths")
+                    .and_then(|paths| paths.get(path))
+                    .is_some(),
+                "missing {path}"
+            );
+        }
+        assert!(document
+            .pointer("/components/securitySchemes/bearerInstallation")
+            .is_some());
     }
 
     #[test]

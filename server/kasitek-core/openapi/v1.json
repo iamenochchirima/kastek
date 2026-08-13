@@ -1,0 +1,92 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KasiTek Public API",
+    "version": "1.0.0",
+    "description": "Core-owned public v1 contracts for authenticated product sessions and installation REST clients. Capability discovery is filtered for the authenticated principal."
+  },
+  "servers": [{ "url": "/v1" }],
+  "security": [{ "bearerInstallation": [] }, { "productSession": [] }],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getPublicHealth",
+        "security": [],
+        "responses": { "200": { "description": "Service health", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } } } }
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "operationId": "listCapabilities",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" },
+          { "$ref": "#/components/parameters/Version" }
+        ],
+        "responses": {
+          "200": { "description": "Principal-filtered public actions", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CapabilityPage" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/content/posts": {
+      "get": {
+        "operationId": "listContentPosts",
+        "responses": {
+          "200": { "description": "Organization-scoped content posts", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PostList" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "post": {
+        "operationId": "createContentDraft",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContentDraftInput" } } } },
+        "responses": {
+          "201": { "description": "Draft created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PostResponse" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/content/posts/{id}": {
+      "get": {
+        "operationId": "getContentPost",
+        "parameters": [{ "$ref": "#/components/parameters/PostId" }],
+        "responses": {
+          "200": { "description": "Content post", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PostResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerInstallation": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "Short-lived audience-bound installation token for kasitek-public-api." },
+      "productSession": { "type": "apiKey", "in": "cookie", "name": "kasitek_session", "description": "Authenticated KasiTek product session cookie." }
+    },
+    "parameters": {
+      "Limit": { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 100 } },
+      "Cursor": { "name": "cursor", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } },
+      "Version": { "name": "version", "in": "query", "schema": { "type": "string", "enum": ["v1"] } },
+      "PostId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unauthorized": { "description": "Authentication required or invalid", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Forbidden": { "description": "Action is not available to this principal", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "NotFound": { "description": "Resource not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "Health": { "type": "object", "required": ["status", "service", "apiVersion"], "properties": { "status": { "type": "string" }, "service": { "type": "string" }, "apiVersion": { "type": "string" }, "actionCatalogSize": { "type": "integer" } }, "additionalProperties": true },
+      "Error": { "type": "object", "properties": { "error": { "type": "string" }, "code": { "type": "string" } }, "additionalProperties": true },
+      "CapabilityPage": { "type": "object", "required": ["version", "principal", "actions", "pagination"], "properties": { "version": { "const": "v1" }, "principal": { "type": "object", "additionalProperties": true }, "actions": { "type": "array", "items": { "type": "object", "additionalProperties": true } }, "pagination": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
+      "PostList": { "type": "object", "required": ["posts"], "properties": { "posts": { "type": "array", "items": { "type": "object", "additionalProperties": true } } }, "additionalProperties": false },
+      "PostResponse": { "type": "object", "required": ["post"], "properties": { "post": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
+      "ContentDraftInput": { "type": "object", "description": "Core SocialPostUpsertRequest contract. The core validates the complete domain shape and organization ownership.", "additionalProperties": true }
+    }
+  }
+}

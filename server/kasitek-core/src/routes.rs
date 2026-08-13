@@ -14,6 +14,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/v1")
                 .route("/health", web::get().to(public_v1::health))
+                .route("/openapi.json", web::get().to(public_v1::openapi))
                 .route("/capabilities", web::get().to(public_v1::capabilities))
                 .route(
                     "/content/posts",

@@ -84,6 +84,10 @@ marked when the complete deliverable and its verification exist.
 - Run inspection now streams the durable event timeline through the existing authenticated SSE
   route, refreshes on terminal events, and presents a retry state when the stream is unavailable;
   the cursor remains stable for the lifetime of one stream session (`4466439`, `9d0635a`).
+- Core now publishes a checked-in OpenAPI 3.1 document for the current public `/v1` health,
+  capability, and content resource routes at `/v1/openapi.json`, with bearer-installation and
+  product-session security schemes and a Rust validity/coverage regression (`server/kasitek-core/openapi/v1.json`).
+  Broader principal, webhook, and parity conformance remains open.
 
 ## Verification evidence
 
