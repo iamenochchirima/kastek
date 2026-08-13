@@ -660,14 +660,26 @@ describe("Agent Platform HTTP foundation", () => {
     const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
     const noScopeToken = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: [] }, "test-secret");
     const app = buildApp({ config: hmacConfig, pool: fakePool });
-    const denied = await app.inject({
-      method: "POST",
-      url: "/v1/agents",
-      headers: { authorization: `Bearer ${noScopeToken}` },
-      payload: { name: "should-not-create", slug: "should-not-create" },
-    });
-    expect(denied.statusCode).toBe(403);
-    expect(denied.json()).toMatchObject({ error: "Missing internal scope: agents:write" });
+    const headers = { authorization: `Bearer ${noScopeToken}` };
+    const deniedRoutes: Array<{ method: "GET" | "POST"; url: string; payload?: Record<string, unknown> }> = [
+      { method: "POST", url: "/v1/agents", payload: { name: "should-not-create", slug: "should-not-create" } },
+      { method: "GET", url: "/v1/agents/agent-1/versions" },
+      { method: "POST", url: "/v1/installations", payload: { agentVersionId: "version-1", scopeType: "organization" } },
+      { method: "GET", url: "/v1/installations/install-1/credentials" },
+      { method: "GET", url: "/v1/installations/install-1/grants" },
+      { method: "GET", url: "/v1/installations/install-1/schedules" },
+      { method: "POST", url: "/v1/installations/install-1/schedules", payload: { expression: "every 5 minutes" } },
+      { method: "GET", url: "/v1/knowledge/sources?agentId=00000000-0000-0000-0000-000000000001" },
+      { method: "POST", url: "/v1/knowledge/sources", payload: { name: "blocked", sourceType: "manual", agentId: "00000000-0000-0000-0000-000000000001" } },
+      { method: "GET", url: "/v1/memory?agentId=00000000-0000-0000-0000-000000000001" },
+      { method: "POST", url: "/v1/runs", payload: { installationId: "install-1", triggerType: "manual", input: {} } },
+      { method: "POST", url: "/v1/evaluations/scenarios", payload: { name: "blocked" } },
+    ];
+    for (const route of deniedRoutes) {
+      const denied = await app.inject({ ...route, headers, ...(route.payload ? { payload: route.payload } : {}) });
+      expect(denied.statusCode, `${route.method} ${route.url}`).toBe(403);
+      expect(denied.json(), `${route.method} ${route.url}`).toMatchObject({ error: expect.stringContaining("Missing internal scope") });
+    }
     await app.close();
   });
 
