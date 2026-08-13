@@ -88,7 +88,7 @@ marked when the complete deliverable and its verification exist.
 ## Verification evidence
 
 On 2026-08-13, Agent Platform migrations through `035` applied to the local Agent PostgreSQL
-database. The latest default `pnpm --dir agents test` run passed 32 files / 139 tests with 10
+database. The latest default `pnpm --dir agents test` run passed 32 files / 140 tests with 10
 environment-gated files (24 tests) skipped; with `RUN_AGENTS_DB_INTEGRATION_TESTS=true`, the
 previously recorded database run passed 41 files /
 156 tests (one explicitly skipped Temporal recovery integration) under Node 22.22.2, and
