@@ -274,6 +274,14 @@ The follow-on bookings read slice `6fc9c00` exposes the existing shared booking 
 no booking mutation or agent-side identity impersonation is introduced. The same Rust and Agent
 verification gates pass, and generated capability documentation is refreshed.
 
+The campaign read follow-up `73fec2b` exposes organization-scoped WhatsApp campaign inventory and
+single-campaign summaries through `kasitek.core.campaigns_list` and
+`kasitek.core.campaign_summary`. It reuses the existing campaign service queries, keeps recipient
+and template-sensitive fields classified in the manifest, and leaves send/pause/resume/retry
+mutations behind their existing product and approval paths. Rust format/check/library tests pass
+(85 passed, 3 infrastructure-gated ignored); Agent tests pass (33 files, 149 passed, 24
+environment-gated skipped); and the Agent TypeScript build passes.
+
 The WhatsApp model follow-up moves the completed connection, template, campaign, contact/list, and
 inbox transport DTOs/rows into `db::whatsapp_models`; `db::models` re-exports them during migration
 so existing adapters retain source compatibility (`7daf4da`). Call-specific models and the broader
