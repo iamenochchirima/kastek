@@ -8,7 +8,11 @@ describe("capability discovery", () => {
       "platform.current_time",
       "kasitek.core.customer_get",
       "kasitek.core.workspace_status",
+      "kasitek.core.content_posts_list",
+      "kasitek.core.content_post_get",
+      "kasitek.core.content_post_draft",
     ]);
     expect(manifests[1]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "customers.read" });
+    expect(manifests[5]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "required" });
   });
 });
