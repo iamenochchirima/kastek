@@ -135,6 +135,44 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       return coreClient.getContentPost(context, String(args.postId));
     },
   });
+  tools.register({
+    name: "kasitek.core.content_post_draft",
+    version: "1.0.0",
+    description: "Create a workspace content draft without publishing it to any provider.",
+    riskClass: "draft",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", maxLength: 240 },
+        prompt: { type: "string", maxLength: 4_000 },
+        content: { type: "string", minLength: 1, maxLength: 100_000 },
+        channels: { type: "array", items: { type: "string", minLength: 1, maxLength: 80 }, minItems: 1, maxItems: 20 },
+        primaryChannelId: { type: "string", minLength: 1, maxLength: 160 },
+        channelSelections: { type: "object", additionalProperties: { type: "string", minLength: 1, maxLength: 160 } },
+        variants: { type: "array", items: { type: "object" }, maxItems: 20 },
+        metadata: { type: "object" },
+      },
+      required: ["content", "channels"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["post"], additionalProperties: true },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.write", execution: "immediate", idempotency: "required", approval: "none", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt"] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.createContentDraft(context, {
+        title: typeof args.title === "string" ? args.title : undefined,
+        prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+        content: String(args.content),
+        channels: Array.isArray(args.channels) ? args.channels.map(String) : [],
+        primaryChannelId: typeof args.primaryChannelId === "string" ? args.primaryChannelId : undefined,
+        channelSelections: args.channelSelections && typeof args.channelSelections === "object" ? args.channelSelections as Record<string, string> : undefined,
+        variants: Array.isArray(args.variants) ? args.variants as Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }> : undefined,
+        metadata: args.metadata && typeof args.metadata === "object" ? args.metadata as Record<string, unknown> : undefined,
+      });
+    },
+  });
   return tools;
 }
 

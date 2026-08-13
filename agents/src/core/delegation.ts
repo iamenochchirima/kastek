@@ -10,6 +10,7 @@ export interface DelegationClaims {
   runId: string;
   invocationId: string;
   correlationId: string;
+  actorId?: string;
   idempotencyKey?: string;
   argumentsHash?: string;
   aud: string;
@@ -31,6 +32,7 @@ export function issueCoreDelegation(input: {
   runId: string;
   invocationId: string;
   correlationId: string;
+  actorId?: string;
   audience: string;
   idempotencyKey?: string;
   argumentsHash?: string;
@@ -47,6 +49,7 @@ export function issueCoreDelegation(input: {
     runId: input.runId,
     invocationId: input.invocationId,
     correlationId: input.correlationId,
+    actorId: input.actorId,
     idempotencyKey: input.idempotencyKey,
     argumentsHash: input.argumentsHash,
     aud: input.audience,

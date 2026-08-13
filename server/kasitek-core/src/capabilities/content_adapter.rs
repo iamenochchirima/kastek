@@ -34,5 +34,12 @@ pub async fn create_draft(
         .as_deref()
         .or(context.principal.subject_user_id.as_deref())
         .unwrap_or(&context.principal.id);
-    social::create_social_post(pool, actor_id, &context.organization_id, request).await
+    social::create_social_post_idempotent(
+        pool,
+        actor_id,
+        &context.organization_id,
+        request,
+        context.idempotency_key.as_deref(),
+    )
+    .await
 }

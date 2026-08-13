@@ -40,6 +40,17 @@ export interface CoreContentPosts {
   posts: CoreContentPost[];
 }
 
+export interface CoreContentDraftInput {
+  title?: string;
+  prompt?: string;
+  content: string;
+  channels: string[];
+  primaryChannelId?: string;
+  channelSelections?: Record<string, string>;
+  variants?: Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }>;
+  metadata?: Record<string, unknown>;
+}
+
 export interface CoreChannelDeliveryResult {
   providerMessageId?: string;
   status: "sent" | "unknown";
@@ -122,6 +133,13 @@ export class KasitekCoreReadClient {
     return this.getJson<{ post: CoreContentPost }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}`, "Content post");
   }
 
+  public async createContentDraft(context: ToolInvocationContext, input: CoreContentDraftInput): Promise<{ post: CoreContentPost }> {
+    return this.requestJson<{ post: CoreContentPost }>(context, "/api/internal/agents/v1/content/posts", "Content draft", {
+      method: "POST",
+      body: JSON.stringify({ ...input, status: "DRAFT" }),
+    });
+  }
+
   public async deliverChannelMessage(input: {
     organizationId: string;
     installationId: string;
@@ -172,11 +190,12 @@ export class KasitekCoreReadClient {
       const response = await fetch(`${baseUrl}${path}`, {
         ...init,
         headers: {
-          authorization: `Bearer ${this.token(context, this.capabilityFor(path), "1.0.0", init.body)}`,
+          authorization: `Bearer ${this.token(context, this.capabilityFor(path, init.method), "1.0.0", init.body)}`,
           "x-organization-id": context.organizationId,
           "x-actor-id": context.actorId ?? "kasitek-agent-platform",
           "x-agent-run-id": context.runId,
           "x-correlation-id": context.correlationId,
+          ...(this.idempotencyKeyFor(path, context, init.body) ? { "idempotency-key": this.idempotencyKeyFor(path, context, init.body)! } : {}),
           accept: "application/json",
           ...(init.body ? { "content-type": "application/json" } : {}),
           ...(init.headers ?? {}),
@@ -199,13 +218,21 @@ export class KasitekCoreReadClient {
     }
   }
 
-  private capabilityFor(path: string): string {
+  private capabilityFor(path: string, method?: string): string {
     if (path.includes("/customers/")) return "kasitek.core.customer_get";
     if (path.includes("workspace/status")) return "kasitek.core.workspace_status";
+    if (method === "POST" && path.endsWith("/content/posts")) return "kasitek.core.content_post_draft";
     if (path.endsWith("/content/posts")) return "kasitek.core.content_posts_list";
     if (path.includes("/content/posts/")) return "kasitek.core.content_post_get";
     if (path.includes("channels/deliver")) return "kasitek.core.channel_deliver";
     throw new CoreToolError("CORE_INVALID_REQUEST", "Unknown kasitek-core capability route");
+  }
+
+  private idempotencyKeyFor(path: string, context: CoreRequestContext, body?: BodyInit | null): string | undefined {
+    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : undefined;
+    if (!capability) return undefined;
+    const bodyText = typeof body === "string" ? body : "";
+    return `${context.runId}:${capability}:${createHash("sha256").update(bodyText).digest("hex")}`;
   }
 
   private token(context: CoreRequestContext, capability: string, version: string, body?: BodyInit | null): string {
@@ -220,13 +247,14 @@ export class KasitekCoreReadClient {
         subject: context.installationId,
         organizationId: context.organizationId,
         installationId: context.installationId,
+        actorId: context.actorId,
         capability,
         capabilityVersion: version,
         runId: context.runId,
         invocationId: `${context.runId}:${capability}`,
         correlationId: context.correlationId,
         audience: this.config.KASITEK_CORE_DELEGATION_AUDIENCE,
-        idempotencyKey: capability === "kasitek.core.channel_deliver" ? `${context.runId}:${capability}:${argumentsHash ?? "empty"}` : undefined,
+        idempotencyKey: capability === "kasitek.core.channel_deliver" || capability === "kasitek.core.content_post_draft" ? `${context.runId}:${capability}:${argumentsHash ?? "empty"}` : undefined,
         argumentsHash,
       });
     }

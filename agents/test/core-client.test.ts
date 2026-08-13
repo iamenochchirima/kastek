@@ -70,6 +70,23 @@ describe("kasitek-core read boundary", () => {
     expect(fetchMock).toHaveBeenLastCalledWith("https://core.example.test/api/internal/agents/v1/content/posts/post%2F1", expect.any(Object));
   });
 
+  it("creates content drafts with actor and idempotency propagation", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => new Response(JSON.stringify({ post: { id: "post-2", content: "Draft", channels: ["threads"], status: "DRAFT" } }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    const draft = await new KasitekCoreReadClient(config).createContentDraft({ ...context, actorId: "user-1" }, { content: "Draft", channels: ["threads"] });
+    expect(draft.post.id).toBe("post-2");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/content/posts");
+    expect(init.headers).toMatchObject({ "x-actor-id": "user-1" });
+    expect(init.headers).toHaveProperty("idempotency-key");
+    expect(JSON.parse(String(init.body))).toMatchObject({ content: "Draft", channels: ["threads"], status: "DRAFT" });
+  });
+
   it("binds a delegation token to the installation and the exact core capability", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ customer: { id: "cust-1" }, identities: [] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

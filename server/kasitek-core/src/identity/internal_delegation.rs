@@ -32,6 +32,8 @@ pub struct DelegationClaims {
     pub invocation_id: String,
     #[serde(rename = "correlationId")]
     pub correlation_id: String,
+    #[serde(rename = "actorId")]
+    pub actor_id: Option<String>,
     #[serde(rename = "idempotencyKey")]
     pub idempotency_key: Option<String>,
     #[serde(rename = "argumentsHash")]
@@ -97,11 +99,11 @@ pub async fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestCon
         principal: Principal {
             kind: PrincipalKind::AgentInstallation,
             id: subject.clone(),
-            subject_user_id: None,
+            subject_user_id: claims.custom.actor_id.clone(),
             client_id: Some(subject),
         },
         organization_id: claims.custom.organization_id,
-        user_id: None,
+        user_id: claims.custom.actor_id,
         client_id: None,
         installation_id: Some(claims.custom.installation_id),
         effective_grants: [claims.custom.capability].into_iter().collect(),

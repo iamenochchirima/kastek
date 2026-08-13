@@ -13,6 +13,7 @@ use sqlx::{PgPool, Row};
 
 use crate::capabilities::content_adapter;
 use crate::config::AppConfig;
+use crate::db::models::SocialPostUpsertRequest;
 use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
@@ -119,6 +120,13 @@ async fn resolve_internal_agent_context(
         .map(str::trim)
         .unwrap_or("kasitek-agent-platform")
         .to_string();
+    let idempotency_key = req
+        .headers()
+        .get("idempotency-key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
     Ok(RequestContext {
         principal: crate::identity::principal::Principal {
             kind: crate::identity::principal::PrincipalKind::TrustedInternalService,
@@ -133,7 +141,7 @@ async fn resolve_internal_agent_context(
         effective_grants: [required_capability.to_string()].into_iter().collect(),
         correlation_id: None,
         causation_id: None,
-        idempotency_key: None,
+        idempotency_key,
     })
 }
 
@@ -222,6 +230,32 @@ pub async fn get_content_post(
         .await?
         .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
     Ok(HttpResponse::Ok().json(json!({ "post": post })))
+}
+
+pub async fn create_content_draft(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<SocialPostUpsertRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_post_draft",
+    )
+    .await?;
+    if context.idempotency_key.is_none() {
+        return Err(AppError::BadRequest(
+            "idempotency-key is required for content drafts".to_string(),
+        ));
+    }
+    if body.status.as_deref().is_some_and(|status| status != "DRAFT") {
+        return Err(AppError::BadRequest(
+            "Agent content drafts must use DRAFT status".to_string(),
+        ));
+    }
+    let post = content_adapter::create_draft(pool.get_ref(), &context, &body).await?;
+    Ok(HttpResponse::Created().json(json!({ "post": post })))
 }
 
 #[derive(Debug, Deserialize)]
