@@ -24,3 +24,4 @@ pub mod social_webhooks;
 pub mod website;
 pub mod whatsapp;
 pub mod whatsapp_calls;
+pub mod whatsapp_templates;
