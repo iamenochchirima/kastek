@@ -281,7 +281,7 @@ Agent build and core format/check/library tests pass. A checked
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 167 of 226 implementation/verification items are checked. The count
+At this reconciliation point, 169 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -383,9 +383,12 @@ the first complete agent-capability domain in Slice 5.
   `15d3f77`, `f63cdc3`).
 - [x] Preserve the active-organization cookie only as a product-session preference and continue to
   verify organization membership from durable state.
-- [ ] Add negative tests for wrong organization, wrong realm, missing membership, wrong principal
+- [x] Add negative tests for wrong organization, wrong realm, missing membership, wrong principal
   kind, revoked/suspended machine identity, and attempts to supply organization scope through an
-  untrusted body or header.
+  untrusted body or header. Core principal/realm and product-scope tests live in
+  `identity/principal.rs`, `middleware/mod.rs`, and `db/social_models.rs`; workspace and booking
+  fixtures cover missing membership and organization isolation; Agent HTTP/run integration tests
+  cover cross-organization access plus revoked and suspended installations.
 
 ### Pilot domain: bookings
 
