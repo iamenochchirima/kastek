@@ -237,7 +237,7 @@ pub async fn list_bookings(
             .await?;
     let mut bookings = core_adapter::list_bookings(pool.get_ref(), &context).await?;
     let total = bookings.len();
-    let limit = query.bounded_limit();
+    let limit = query.bounded_limit()?;
     bookings.truncate(limit);
     Ok(HttpResponse::Ok().json(json!({
         "bookings": bookings,
@@ -272,7 +272,7 @@ pub async fn list_campaigns(
     Ok(HttpResponse::Ok().json(bound_collection_payload(
         campaigns,
         "campaigns",
-        query.bounded_limit(),
+        query.bounded_limit()?,
     )?))
 }
 
@@ -329,8 +329,14 @@ pub struct AgentCollectionQuery {
 }
 
 impl AgentCollectionQuery {
-    fn bounded_limit(&self) -> usize {
-        self.limit.unwrap_or(100).clamp(1, 200) as usize
+    fn bounded_limit(&self) -> Result<usize, AppError> {
+        match self.limit {
+            None => Ok(100),
+            Some(value) if (1..=200).contains(&value) => Ok(value as usize),
+            Some(_) => Err(AppError::BadRequest(
+                "limit must be between 1 and 200".to_string(),
+            )),
+        }
     }
 }
 
@@ -368,7 +374,7 @@ pub async fn list_inbox_conversations(
     let result = crate::services::inbox::list_inbox_conversations_bounded(
         pool.get_ref(),
         &context.organization_id,
-        query.bounded_limit(),
+        query.bounded_limit()?,
     )
     .await?;
     Ok(HttpResponse::Ok().json(result))
@@ -390,7 +396,7 @@ pub async fn list_inbox_messages(
         pool.get_ref(),
         &context.organization_id,
         &path.into_inner(),
-        query.bounded_limit(),
+        query.bounded_limit()?,
     )
     .await?;
     Ok(HttpResponse::Ok().json(result))
@@ -605,4 +611,31 @@ pub async fn deliver_channel_message(
         actor_id
     );
     Ok(HttpResponse::Ok().json(result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AgentCollectionQuery;
+
+    #[test]
+    fn agent_collection_limits_are_bounded_without_silent_clamping() {
+        assert_eq!(
+            AgentCollectionQuery { limit: None }
+                .bounded_limit()
+                .unwrap(),
+            100
+        );
+        assert_eq!(
+            AgentCollectionQuery { limit: Some(200) }
+                .bounded_limit()
+                .unwrap(),
+            200
+        );
+        assert!(AgentCollectionQuery { limit: Some(0) }
+            .bounded_limit()
+            .is_err());
+        assert!(AgentCollectionQuery { limit: Some(201) }
+            .bounded_limit()
+            .is_err());
+    }
 }
