@@ -28,6 +28,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 "/bookings/services",
                 web::get().to(agent_internal::list_booking_services),
             )
+            .route("/bookings/{id}", web::get().to(agent_internal::get_booking))
             .route("/bookings", web::get().to(agent_internal::list_bookings))
             .route("/campaigns", web::get().to(agent_internal::list_campaigns))
             .route(

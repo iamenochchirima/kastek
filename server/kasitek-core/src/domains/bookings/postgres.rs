@@ -254,7 +254,7 @@ pub async fn update_booking(
         .await?)
 }
 
-async fn get_booking(
+pub async fn get_booking(
     pool: &PgPool,
     org_id: &str,
     booking_id: &str,

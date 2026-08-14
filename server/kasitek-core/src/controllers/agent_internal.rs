@@ -238,6 +238,20 @@ pub async fn list_bookings(
     Ok(HttpResponse::Ok().json(BookingListResponse::new(bookings)))
 }
 
+pub async fn get_booking(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.booking_get").await?;
+    let booking = core_adapter::get_booking(pool.get_ref(), &context, &path.into_inner())
+        .await?
+        .ok_or_else(|| AppError::NotFound("Booking not found".to_string()))?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "booking": booking })))
+}
+
 pub async fn list_campaigns(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

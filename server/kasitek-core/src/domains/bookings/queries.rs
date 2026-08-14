@@ -20,3 +20,11 @@ pub async fn list_bookings(
 ) -> Result<Vec<Booking>, AppError> {
     postgres::list_bookings(pool, &context.organization_id).await
 }
+
+pub async fn get_booking(
+    pool: &PgPool,
+    context: &RequestContext,
+    booking_id: &str,
+) -> Result<Option<Booking>, AppError> {
+    postgres::get_booking(pool, &context.organization_id, booking_id).await
+}

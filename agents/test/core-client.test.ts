@@ -82,6 +82,14 @@ describe("kasitek-core read boundary", () => {
     expect(fetchMock).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/bookings", expect.any(Object));
   });
 
+  it("reads one booking for an immutable approval preview", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ booking: { id: "booking-1", status: "SCHEDULED" } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).getBooking(context, "booking/1")).resolves.toMatchObject({ booking: { id: "booking-1" } });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/bookings/booking%2F1");
+  });
+
   it("reads campaign inventory and a scoped campaign summary", async () => {
     const fetchMock = vi.fn().mockImplementation((input: string) => new Response(
       JSON.stringify(input.includes("/campaigns/") ? { campaign: { id: "campaign-1", status: "COMPLETED" } } : { campaigns: [{ id: "campaign-1" }] }),

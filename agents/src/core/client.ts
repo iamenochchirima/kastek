@@ -39,7 +39,21 @@ export interface CoreBookingServices {
 }
 
 export interface CoreBookings {
-  bookings: unknown[];
+  bookings: CoreBooking[];
+}
+
+export interface CoreBooking {
+  id: string;
+  serviceId?: string;
+  serviceName?: string | null;
+  customerId?: string | null;
+  customerName?: string | null;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
+  timezone?: string | null;
+  status?: string | null;
 }
 
 export interface CoreCampaigns {
@@ -191,6 +205,10 @@ export class KasitekCoreReadClient {
 
   public async listBookings(context: ToolInvocationContext): Promise<CoreBookings> {
     return this.getJson<CoreBookings>(context, "/api/internal/agents/v1/bookings", "Bookings");
+  }
+
+  public async getBooking(context: ToolInvocationContext, bookingId: string): Promise<{ booking: CoreBooking }> {
+    return this.getJson<{ booking: CoreBooking }>(context, `/api/internal/agents/v1/bookings/${encodeURIComponent(bookingId)}`, "Booking");
   }
 
   public async listCampaigns(context: ToolInvocationContext): Promise<CoreCampaigns> {
@@ -389,6 +407,7 @@ export class KasitekCoreReadClient {
     if (path.includes("/customers/")) return "kasitek.core.customer_get";
     if (path.includes("workspace/status")) return "kasitek.core.workspace_status";
     if (path.includes("bookings/services")) return "kasitek.core.booking_services_list";
+    if (path.includes("/bookings/") && !path.endsWith("/bookings/services")) return "kasitek.core.booking_get";
     if (path.endsWith("/bookings")) return "kasitek.core.bookings_list";
     if (path.includes("/campaigns/")) return "kasitek.core.campaign_summary";
     if (path.endsWith("/campaigns")) return "kasitek.core.campaigns_list";

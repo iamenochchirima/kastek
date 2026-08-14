@@ -920,11 +920,13 @@ conversation history, delivery, knowledge, and memory remain correctly scoped an
 **Slice 10 evidence (2026-08-14):** Enabled content effects now capture an explicit, bounded
 operation preview alongside the immutable content-post projection: publish includes its target
 platform, schedule includes its requested time, unschedule includes the reviewed scheduled time,
-and delete records the reviewed-to-deleted transition. `agents/test/approval-preview.test.ts`
-covers all four transitions, the persisted operation preview, and fail-closed behavior when the
-resource cannot be read. The full PostgreSQL + Temporal suite passed 49 files / 204 tests / 0
-skipped. Sending/replying, campaigns, bookings, and later-domain previews remain intentionally
-open until their real effect handlers and provider boundaries are enabled.
+and delete records the reviewed-to-deleted transition. The shared domain preview adapter now also
+projects channel send/reply steps, campaign transitions, booking transitions, destructive actions,
+and future-domain requests while omitting provider credentials and recipient secrets; campaign and
+booking resources are loaded through organization-scoped Core reads. Channel replies persist the
+preview on their durable delivery step. `agents/test/approval-preview.test.ts` and
+`agents/test/core-client.test.ts` cover the bounded projections and fail-closed resource reads.
+Real campaign/booking write handlers remain disabled until their provider boundaries are enabled.
 
 ## Slice 10 — Approvals, effects, and operational recovery
 
@@ -936,8 +938,11 @@ open until their real effect handlers and provider boundaries are enabled.
   resources, immutable preview revision, approver, expiry, and one permitted effect.
 - [x] Implement authenticated web approval, denial, cancellation, expiration, execution-time
   reauthorization, polling/wait/webhook status, and structured `APPROVAL_REQUIRED` responses.
-- [ ] Implement domain previews for publishing, sending/replying, campaigns, bookings, destructive
-  actions, and later domains before enabling their real effects.
+- [x] Implement domain previews for publishing, sending/replying, campaigns, bookings, destructive
+  actions, and later domains before enabling their real effects. Evidence: content approval
+  projections, the shared `agents/src/approval/domain-preview.ts` adapter, organization-scoped
+  campaign/booking Core reads, and durable channel-delivery step previews; campaign/booking write
+  handlers remain disabled until provider boundaries are enabled.
 - [x] Persist effect state and provider receipts; classify ambiguous outcomes as
   `reconciliation_required` and prohibit blind retry.
 - [x] Implement safe retry, cancellation, compensation where supported, scheduled-action revision,

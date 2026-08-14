@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildApprovalResourceSnapshot, buildApprovalResourceSnapshotFromCore, projectContentApprovalOperation, projectContentApprovalResource } from "../src/temporal/activities";
+import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCampaignApprovalResource, projectDomainApprovalOperation } from "../src/approval/domain-preview";
 
 describe("approval preview projection", () => {
   it("keeps stable resource selectors and excludes content, credentials, and metadata", () => {
@@ -135,5 +136,38 @@ describe("approval preview projection", () => {
       runId: "run-1",
       correlationId: "corr-1",
     }, "kasitek.core.content_post_delete", { postId: "post-123" })).rejects.toThrow("CONTENT_PREVIEW_UNAVAILABLE");
+  });
+
+  it("projects send/reply operations without persisting provider credentials", () => {
+    const preview = buildDomainApprovalSnapshot("kasitek.core.channel_deliver", {
+      channelType: "whatsapp",
+      externalConversationId: "thread-1",
+      text: "A customer-facing reply",
+      accessToken: "must not persist",
+    });
+    expect(preview).toMatchObject({ operation: { domain: "channel", type: "send_or_reply", channelType: "whatsapp", targetStatus: "sent" }, request: { channelType: "whatsapp", externalConversationId: "thread-1" } });
+    expect(JSON.stringify(preview)).not.toContain("accessToken");
+    expect(JSON.stringify(preview)).toContain("A customer-facing reply");
+  });
+
+  it("projects bounded campaign and booking resource previews", () => {
+    const campaign = projectCampaignApprovalResource({ id: "campaign-1", name: "Launch", status: "SCHEDULED", scheduledAt: "2026-08-20T10:00:00Z", totalRecipients: 40, recipientPhone: "+secret" });
+    expect(campaign).toMatchObject({ campaignId: "campaign-1", name: "Launch", status: "SCHEDULED", totalRecipients: 40 });
+    expect(JSON.stringify(campaign)).not.toContain("recipientPhone");
+    const booking = projectBookingApprovalResource({ id: "booking-1", serviceName: "Consultation", customerName: "Ada", contactName: "Ada", contactPhone: "+secret", scheduledStart: "2026-08-20T10:00:00Z", scheduledEnd: "2026-08-20T11:00:00Z", timezone: "Africa/Johannesburg", status: "SCHEDULED" });
+    expect(booking).toMatchObject({ bookingId: "booking-1", serviceName: "Consultation", customerName: "Ada", status: "SCHEDULED" });
+    expect(JSON.stringify(booking)).not.toContain("contactPhone");
+    expect(projectDomainApprovalOperation("kasitek.core.campaign_pause", { campaignId: "campaign-1", action: "pause" }, campaign)).toMatchObject({ domain: "campaign", type: "campaign_transition", fromStatus: "SCHEDULED", targetStatus: "PAUSED" });
+    expect(projectDomainApprovalOperation("kasitek.core.booking_cancel", { bookingId: "booking-1", action: "cancel" }, booking)).toMatchObject({ domain: "booking", targetStatus: "CANCELLED" });
+  });
+
+  it("loads campaign and booking previews through organization-scoped core reads", async () => {
+    const coreClient = {
+      getCampaignSummary: async () => ({ campaign: { id: "campaign-1", name: "Launch", status: "SCHEDULED" } }),
+      getBooking: async () => ({ booking: { id: "booking-1", serviceName: "Consultation", status: "SCHEDULED" } }),
+    } as never;
+    const context = { organizationId: "org-1", agentId: "agent-1", agentVersionId: "version-1", installationId: "install-1", runId: "run-1", correlationId: "corr-1" };
+    await expect(buildApprovalResourceSnapshotFromCore(coreClient, context, "kasitek.core.campaign_pause", { campaignId: "campaign-1", action: "pause" })).resolves.toMatchObject({ resource: { kind: "campaign", campaignId: "campaign-1", status: "SCHEDULED" }, operation: { targetStatus: "PAUSED" } });
+    await expect(buildApprovalResourceSnapshotFromCore(coreClient, context, "kasitek.core.booking_cancel", { bookingId: "booking-1", action: "cancel" })).resolves.toMatchObject({ resource: { kind: "booking", bookingId: "booking-1", status: "SCHEDULED" }, operation: { targetStatus: "CANCELLED" } });
   });
 });

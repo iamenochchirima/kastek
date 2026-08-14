@@ -36,6 +36,7 @@ import type { ModelCredentials, ModelResponse } from "../model/types";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import type { ToolInvocationContext } from "../tools/types";
 import type { CoreContentPost } from "../core/client";
+import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCampaignApprovalResource } from "../approval/domain-preview";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -546,6 +547,22 @@ const contentPreviewCapabilities = new Set([
   "kasitek.core.content_post_delete",
 ]);
 
+const campaignPreviewCapabilities = new Set([
+  "kasitek.core.campaign_launch",
+  "kasitek.core.campaign_pause",
+  "kasitek.core.campaign_resume",
+  "kasitek.core.campaign_cancel",
+  "kasitek.core.campaign_delete",
+]);
+
+const bookingPreviewCapabilities = new Set([
+  "kasitek.core.booking_create",
+  "kasitek.core.booking_update",
+  "kasitek.core.booking_cancel",
+]);
+
+const channelPreviewCapabilities = new Set(["kasitek.core.channel_deliver"]);
+
 function boundedPreviewString(value: unknown, maxLength = 256): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -658,21 +675,41 @@ export async function buildApprovalResourceSnapshotFromCore(
   capability: string,
   argumentsValue: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  if (!coreClient || !contentPreviewCapabilities.has(capability) || typeof argumentsValue.postId !== "string") {
+  if (contentPreviewCapabilities.has(capability) && (!coreClient || typeof argumentsValue.postId !== "string")) {
+    throw new Error("CONTENT_PREVIEW_UNAVAILABLE");
+  }
+  if (campaignPreviewCapabilities.has(capability) && (!coreClient || typeof argumentsValue.campaignId !== "string")) {
+    throw new Error("CAMPAIGN_PREVIEW_UNAVAILABLE");
+  }
+  if (bookingPreviewCapabilities.has(capability) && capability !== "kasitek.core.booking_create" && (!coreClient || typeof argumentsValue.bookingId !== "string")) {
+    throw new Error("BOOKING_PREVIEW_UNAVAILABLE");
+  }
+  if (channelPreviewCapabilities.has(capability)) {
+    return buildDomainApprovalSnapshot(capability, argumentsValue);
+  }
+  if (!contentPreviewCapabilities.has(capability) && !campaignPreviewCapabilities.has(capability) && !bookingPreviewCapabilities.has(capability)) {
     return buildApprovalResourceSnapshot(capability, argumentsValue);
   }
   try {
-    const response = await coreClient.getContentPost(context, argumentsValue.postId);
-    const resource = projectContentApprovalResource(response.post);
-    return buildApprovalResourceSnapshot(capability, argumentsValue, {
-      kind: "content_post",
-      revision: "content-post.v1",
-      ...resource,
-      operation: projectContentApprovalOperation(capability, argumentsValue, response.post),
-    });
+    if (contentPreviewCapabilities.has(capability)) {
+      const response = await coreClient!.getContentPost(context, argumentsValue.postId as string);
+      const resource = projectContentApprovalResource(response.post);
+      return buildApprovalResourceSnapshot(capability, argumentsValue, { kind: "content_post", revision: "content-post.v1", ...resource, operation: projectContentApprovalOperation(capability, argumentsValue, response.post) });
+    }
+    if (campaignPreviewCapabilities.has(capability)) {
+      const response = await coreClient!.getCampaignSummary(context, argumentsValue.campaignId as string);
+      const resource = projectCampaignApprovalResource(response.campaign);
+      return buildDomainApprovalSnapshot(capability, argumentsValue, { kind: "campaign", revision: "campaign.v1", ...resource });
+    }
+    if (capability !== "kasitek.core.booking_create") {
+      const response = await coreClient!.getBooking(context, argumentsValue.bookingId as string);
+      const resource = projectBookingApprovalResource(response.booking);
+      return buildDomainApprovalSnapshot(capability, argumentsValue, { kind: "booking", revision: "booking.v1", ...resource });
+    }
+    return buildDomainApprovalSnapshot(capability, argumentsValue, { kind: "booking", revision: "booking.v1", status: "NEW" });
   } catch {
     // A missing/unavailable preview must never turn into an unreviewed effect.
-    throw new Error("CONTENT_PREVIEW_UNAVAILABLE");
+    throw new Error(contentPreviewCapabilities.has(capability) ? "CONTENT_PREVIEW_UNAVAILABLE" : campaignPreviewCapabilities.has(capability) ? "CAMPAIGN_PREVIEW_UNAVAILABLE" : "BOOKING_PREVIEW_UNAVAILABLE");
   }
 }
 
@@ -840,13 +877,19 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       if (await controls.isHeld({ organizationId: pending.organization_id, installationId: pending.installation_id, runId: pending.run_id, holdType: "delivery" })) {
         throw new Error("AGENT_DELIVERY_HOLD_ACTIVE");
       }
+      const text = typeof pending.content.text === "string" ? pending.content.text.trim() : "";
+      if (!text) throw new Error("External channel reply has no text content");
+      const deliveryStep = await runSteps.startStep({
+        runId: pending.run_id,
+        organizationId: pending.organization_id,
+        stepType: "delivery",
+        input: { preview: buildDomainApprovalSnapshot("kasitek.core.channel_deliver", { channelType: pending.channel_type, externalConversationId: pending.external_conversation_id, text }) },
+      });
       let claimed = false;
       try {
         await channels.claimDelivery(pending.organization_id, pending.attempt_id);
         claimed = true;
         if (!coreClient) throw new Error("kasitek-core channel delivery boundary is not configured");
-        const text = typeof pending.content.text === "string" ? pending.content.text.trim() : "";
-        if (!text) throw new Error("External channel reply has no text content");
         const result = await coreClient.deliverChannelMessage({
           organizationId: pending.organization_id,
           installationId: pending.installation_id,
@@ -862,6 +905,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           attemptId: pending.attempt_id,
           providerMessageId: result.providerMessageId,
         });
+        await runSteps.finishStep({ stepId: deliveryStep.id, status: "completed", output: { status: result.status } });
         await runs.appendEvent({
           organizationId: pending.organization_id,
           runId: pending.run_id,
@@ -877,6 +921,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             error: { code: "CHANNEL_DELIVERY_FAILED", message: error instanceof Error ? error.message : "Channel delivery failed" },
           });
         }
+        await runSteps.finishStep({ stepId: deliveryStep.id, status: "failed", error: { code: "CHANNEL_DELIVERY_FAILED", message: error instanceof Error ? error.message : "Channel delivery failed" } });
         await runs.appendEvent({
           organizationId: pending.organization_id,
           runId: pending.run_id,
