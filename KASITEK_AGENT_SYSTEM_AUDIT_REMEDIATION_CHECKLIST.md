@@ -735,6 +735,11 @@ skips and the Core library suite passes 123 tests with 3 infrastructure-gated ig
 results improve the executable local surface but do not close the audit's seeded-core, Redis,
 hosted/provider, browser, MCP/REST conformance, or public-principal gates.
 
+The Core database path now also has a committed historical Prisma baseline and a repeatable seeded
+fixture. All 50 client migrations, six guarded Core SQL fixtures, and the two previously ignored
+organization-ownership tests pass against a newly migrated disposable local database. The full
+Core ignored suite still retains the separate Redis replay gate tracked in B-008.
+
 ## 14. Required verification matrix
 
 Run targeted tests after each section, then run this full matrix before declaring audit remediation
@@ -797,8 +802,8 @@ runtime verification.
   whitespace; the generated directory was restored after verification.
 - [x] Record every skipped/ignored test with an explicit blocker; do not summarize a suite as fully
   passing while required integration tests are skipped. Agent Temporal recovery is locally resolved
- (240 tests / 0 skips); core seeded-database/Redis ignores remain B-008/B-010, and the evidence
-  documents the exact commands.
+  (240 tests / 0 skips); the seeded Core ownership tests are now repeatable, while the remaining
+  Core ignored gate is Redis replay in B-008, and the evidence documents the exact commands.
 
 ## 15. Resume the primary blueprint after remediation
 
