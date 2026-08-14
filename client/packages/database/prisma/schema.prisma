@@ -636,6 +636,40 @@ model AdminSupportAccessAuditEvent {
   @@index([grantId, createdAt])
 }
 
+model AdminWebhookReplayCommand {
+  id                   String   @id @default(cuid())
+  idempotencyKey       String   @unique
+  deliveryId           String
+  actorId              String
+  expectedStatus       String
+  expectedAttemptCount Int
+  approverIds          String[] @default([])
+  status               String   @default("awaiting_approval")
+  error                String?  @db.Text
+  result               Json?
+  completedAt          DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  auditEvents AdminWebhookReplayAuditEvent[]
+
+  @@index([status, updatedAt])
+  @@index([deliveryId, createdAt])
+}
+
+model AdminWebhookReplayAuditEvent {
+  id        String   @id @default(cuid())
+  commandId String
+  actorId   String
+  action    String
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  command AdminWebhookReplayCommand @relation(fields: [commandId], references: [id], onDelete: Restrict)
+
+  @@index([commandId, createdAt])
+}
+
 // ─── KasiTek Domain Tables ──────────────────────────────────
 
 model BusinessProfile {

@@ -1096,6 +1096,19 @@ memory identifier and lifecycle state, with the deletion action hidden from read
 cross-role E2E, external hosted checks, and the remaining broad admin command matrix (assign, safe
 webhook replay, feature flags, holds, export workflow, and full version/resource checks) remain open.
 
+**Core webhook replay evidence (2026-08-14):** Core now owns a separate durable
+`AdminWebhookReplayCommand` ledger and `AdminWebhookReplayAuditEvent` table for public API webhook
+deliveries. The protected Operations routes list only failed deliveries with redacted identifiers,
+create idempotent replay requests, and require a distinct second operator. Approval locks the command
+and delivery rows, checks the expected `FAILED` status and attempt count plus an active subscription,
+then clears the prior error and queues the delivery as `PENDING`; stale, deleted, inactive, or already
+changed deliveries fail closed. The core Operations UI exposes this recovery control without payloads,
+URLs, secrets, or provider response data. Prisma migration
+`20260814180000_add_admin_webhook_replay` and the core SQL inventory are applied locally; core unit
+tests (112 passed / 3 infrastructure tests ignored), Prisma validation, and admin lint/typecheck pass.
+The broad admin command item remains open for the other command families (assign, flags, holds, export,
+and full version/resource checks).
+
 ## Slice 13 — Security, observability, expansion, and production release
 
 **Layers covered:** 12, 13, and 14

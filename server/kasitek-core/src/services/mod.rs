@@ -1,5 +1,6 @@
 pub mod admin_policy;
 pub mod admin_support_access;
+pub mod admin_webhook_replay;
 pub mod agent_platform;
 pub mod ai;
 pub mod auth;

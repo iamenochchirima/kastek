@@ -48,6 +48,22 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         web::post().to(admin_operations::approve_command),
                     )
                     .route(
+                        "/webhooks/deliveries",
+                        web::get().to(admin_operations::webhook_deliveries),
+                    )
+                    .route(
+                        "/webhooks/replays",
+                        web::post().to(admin_operations::create_webhook_replay),
+                    )
+                    .route(
+                        "/webhooks/replays/{commandId}",
+                        web::get().to(admin_operations::get_webhook_replay),
+                    )
+                    .route(
+                        "/webhooks/replays/{commandId}/approve",
+                        web::post().to(admin_operations::approve_webhook_replay),
+                    )
+                    .route(
                         "/support-grants",
                         web::get().to(admin_operations::list_support_grants),
                     )

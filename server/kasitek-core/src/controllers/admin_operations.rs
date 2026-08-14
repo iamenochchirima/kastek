@@ -17,6 +17,7 @@ use crate::identity::admin_session::{
 use crate::middleware::{extract_admin, require_admin_role};
 use crate::services::admin_policy::can_use_emergency_access;
 use crate::services::admin_support_access::{self, CreateSupportAccessRequest};
+use crate::services::admin_webhook_replay::{self, CreateReplayRequest};
 use crate::services::agent_platform::AgentPlatformClient;
 
 async fn operator(
@@ -270,6 +271,71 @@ pub async fn approve_command(
         .operator_approve_command(&admin.id, command_id.trim())
         .await?;
     Ok(HttpResponse::Accepted().json(response))
+}
+
+pub async fn webhook_deliveries(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<LimitQuery>,
+) -> Result<HttpResponse, AppError> {
+    let _admin = operator(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=100).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Webhook delivery limit must be between 1 and 100".to_string(),
+        ));
+    }
+    let deliveries = admin_webhook_replay::list_failed_deliveries(
+        pool.get_ref(),
+        query.limit.unwrap_or(50) as i64,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "deliveries": deliveries })))
+}
+
+pub async fn create_webhook_replay(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    body: web::Json<CreateReplayRequest>,
+) -> Result<HttpResponse, AppError> {
+    let admin = command_operator(&req, pool.get_ref()).await?;
+    let idempotency_key = req
+        .headers()
+        .get("idempotency-key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| value.len() >= 8 && value.len() <= 240)
+        .ok_or_else(|| {
+            AppError::BadRequest("idempotency-key must be 8-240 characters".to_string())
+        })?;
+    let command = admin_webhook_replay::create(
+        pool.get_ref(),
+        &admin.id,
+        idempotency_key,
+        body.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Accepted().json(command))
+}
+
+pub async fn get_webhook_replay(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    command_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let _admin = operator(&req, pool.get_ref()).await?;
+    let command = admin_webhook_replay::get(pool.get_ref(), command_id.trim()).await?;
+    Ok(HttpResponse::Ok().json(command))
+}
+
+pub async fn approve_webhook_replay(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    command_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let admin = command_operator(&req, pool.get_ref()).await?;
+    let command =
+        admin_webhook_replay::approve(pool.get_ref(), command_id.trim(), &admin.id).await?;
+    Ok(HttpResponse::Accepted().json(command))
 }
 
 #[derive(Debug, Deserialize)]

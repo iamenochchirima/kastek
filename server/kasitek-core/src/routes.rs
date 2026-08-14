@@ -68,6 +68,12 @@ mod tests {
             ),
             (Method::GET, "/api/agents"),
             (Method::GET, "/api/admin/me"),
+            (Method::GET, "/api/admin/operations/webhooks/deliveries"),
+            (Method::POST, "/api/admin/operations/webhooks/replays"),
+            (
+                Method::POST,
+                "/api/admin/operations/webhooks/replays/replay-1/approve",
+            ),
             (Method::POST, "/api/quote-requests"),
         ];
         let app = test::init_service(App::new().configure(super::configure)).await;
