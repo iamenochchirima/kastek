@@ -38,6 +38,23 @@ describe("content capability contract", () => {
     expect(registry.validateArguments("kasitek.core.contact_update", { contactId: "contact-1", optIn: true })).toBe(true);
     expect(registry.validateArguments("kasitek.core.contact_update", { contactId: "contact-1" })).toBe(false);
 
+    expect(registry.get("kasitek.core.inbox_conversation_update")?.manifest).toMatchObject({
+      ownerService: "kasitek-core",
+      requiredScope: "inbox.write",
+      execution: "immediate",
+      approval: "none",
+      resourceSelector: { type: "conversation", argument: "conversationId" },
+    });
+    expect(registry.validateArguments("kasitek.core.inbox_conversation_update", { conversationId: "conversation-1", starred: true })).toBe(true);
+    expect(registry.get("kasitek.core.inbox_conversation_mark_read")?.manifest).toMatchObject({
+      ownerService: "kasitek-core",
+      requiredScope: "inbox.write",
+      execution: "durable",
+      idempotency: "required",
+      approval: "always",
+    });
+    expect(registry.get("kasitek.core.inbox_conversation_mark_read")?.riskClass).toBe("external-effect");
+
     const booking = registry.get("kasitek.core.booking_get");
     expect(booking?.manifest).toMatchObject({
       ownerService: "kasitek-core",

@@ -645,6 +645,99 @@ Read the organization-scoped message timeline for one inbox conversation.
   "additionalProperties": true
 }
 ```
+## kasitek.core.inbox_conversation_update (1.0.0)
+
+Star or unstar one organization-scoped inbox conversation.
+
+- Owner: `kasitek-core`
+- Permission: `inbox.write` (Inbox Write permission)
+- Risk: `controlled-write`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Resource scope: `conversation`
+- Audit: `full`; redacts: `conversation.phone`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "conversationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "starred": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "conversationId",
+    "starred"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "success",
+    "conversationId",
+    "starred"
+  ],
+  "additionalProperties": false
+}
+```
+## kasitek.core.inbox_conversation_mark_read (1.0.0)
+
+Mark one organization-scoped WhatsApp inbox conversation read after approval.
+
+- Owner: `kasitek-core`
+- Permission: `inbox.write` (Inbox Write permission)
+- Risk: `external-effect`; execution: `durable`; approval: `always`
+- Idempotency: `required`; timeout: 30000ms
+- Resource scope: `conversation`
+- Audit: `full`; redacts: `conversation.phone`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "conversationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "conversationId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "success"
+  ],
+  "additionalProperties": false
+}
+```
 ## kasitek.core.channel_deliver (1.0.0)
 
 Send an approved reply to an organization-scoped WhatsApp conversation.

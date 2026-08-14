@@ -54,6 +54,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_internal::list_inbox_messages),
             )
             .route(
+                "/inbox/conversations/{id}",
+                web::patch().to(agent_internal::update_inbox_conversation),
+            )
+            .route(
+                "/inbox/conversations/{id}/read",
+                web::post().to(agent_internal::mark_inbox_conversation_read),
+            )
+            .route(
                 "/content/posts",
                 web::get().to(agent_internal::list_content_posts),
             )

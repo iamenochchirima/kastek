@@ -19,6 +19,8 @@ describe("capability discovery", () => {
       "kasitek.core.contact_update",
       "kasitek.core.inbox_conversations_list",
       "kasitek.core.inbox_messages_list",
+      "kasitek.core.inbox_conversation_update",
+      "kasitek.core.inbox_conversation_mark_read",
       "kasitek.core.channel_deliver",
       "kasitek.core.content_posts_list",
       "kasitek.core.content_post_get",
@@ -41,10 +43,12 @@ describe("capability discovery", () => {
     expect(manifests[11]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "contacts.write", idempotency: "required", approval: "always", execution: "durable", resourceSelector: { type: "contact" } });
     expect(manifests[12]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "inbox.read", idempotency: "not_applicable" });
     expect(manifests[13]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "inbox.read", idempotency: "not_applicable" });
-    expect(manifests[14]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "channels.write", approval: "always", execution: "durable", resourceSelector: { type: "conversation" } });
-    expect(manifests[17]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "not_applicable" });
-    expect(manifests[18]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "required" });
-    expect(manifests[19]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
-    expect(manifests[20]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
+    expect(manifests[14]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "inbox.write", approval: "none", execution: "immediate", resourceSelector: { type: "conversation" } });
+    expect(manifests[15]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "inbox.write", approval: "always", execution: "durable", idempotency: "required", resourceSelector: { type: "conversation" } });
+    expect(manifests[16]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "channels.write", approval: "always", execution: "durable", resourceSelector: { type: "conversation" } });
+    expect(manifests[19]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "not_applicable" });
+    expect(manifests[20]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "required" });
+    expect(manifests[21]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
+    expect(manifests[22]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
   });
 });

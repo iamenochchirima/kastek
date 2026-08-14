@@ -14,8 +14,8 @@ use sqlx::{PgPool, Row};
 use crate::capabilities::{content_adapter, core_adapter};
 use crate::config::AppConfig;
 use crate::db::models::{
-    SocialPostUpsertRequest, WhatsappContactListQuery, WhatsappContactUpdateRequest,
-    WhatsappTemplateListQuery,
+    ConversationUpdateRequest, SocialPostUpsertRequest, WhatsappContactListQuery,
+    WhatsappContactUpdateRequest, WhatsappTemplateListQuery,
 };
 use crate::domains::bookings::transport::BookingServicesResponse;
 use crate::error::AppError;
@@ -468,6 +468,66 @@ pub async fn list_inbox_messages(
         &context.organization_id,
         &path.into_inner(),
         query.bounded_limit()?,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+/// Update the workspace-owned conversation presentation state. This is a
+/// local, reversible write and does not expose provider credentials.
+pub async fn update_inbox_conversation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<ConversationUpdateRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.inbox_conversation_update",
+    )
+    .await?;
+    if body.starred.is_none() {
+        return Err(AppError::BadRequest(
+            "Conversation update requires starred".to_string(),
+        ));
+    }
+    let result = whatsapp::update_conversation(
+        pool.get_ref(),
+        &context.principal.id,
+        &context.organization_id,
+        &path.into_inner(),
+        body.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+/// Mark a conversation read in core and, when configured, propagate the read
+/// receipt to WhatsApp. The idempotency key binds the approved durable call.
+pub async fn mark_inbox_conversation_read(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.inbox_conversation_mark_read",
+    )
+    .await?;
+    if context.idempotency_key.is_none() {
+        return Err(AppError::BadRequest(
+            "idempotency-key is required for marking a conversation read".to_string(),
+        ));
+    }
+    let result = whatsapp::mark_conversation_read(
+        pool.get_ref(),
+        &context.principal.id,
+        &context.organization_id,
+        &path.into_inner(),
     )
     .await?;
     Ok(HttpResponse::Ok().json(result))

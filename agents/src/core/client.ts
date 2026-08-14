@@ -119,6 +119,10 @@ export interface CoreInboxMessages {
   hasMore?: boolean;
 }
 
+export interface CoreInboxConversationUpdateInput {
+  starred: boolean;
+}
+
 export interface CoreContentPost {
   id: string;
   title?: string | null;
@@ -345,6 +349,31 @@ export class KasitekCoreReadClient {
     );
   }
 
+  public async updateInboxConversation(
+    context: ToolInvocationContext,
+    conversationId: string,
+    input: CoreInboxConversationUpdateInput,
+  ): Promise<{ success: boolean; conversationId: string; starred: boolean }> {
+    return this.requestJson<{ success: boolean; conversationId: string; starred: boolean }>(
+      context,
+      `/api/internal/agents/v1/inbox/conversations/${encodeURIComponent(conversationId)}`,
+      "Inbox conversation update",
+      { method: "PATCH", body: JSON.stringify(input) },
+    );
+  }
+
+  public async markInboxConversationRead(
+    context: ToolInvocationContext,
+    conversationId: string,
+  ): Promise<{ success: boolean }> {
+    return this.requestJson<{ success: boolean }>(
+      context,
+      `/api/internal/agents/v1/inbox/conversations/${encodeURIComponent(conversationId)}/read`,
+      "Mark inbox conversation read",
+      { method: "POST" },
+    );
+  }
+
   public async listContentPosts(context: ToolInvocationContext): Promise<CoreContentPosts> {
     return this.getJson<CoreContentPosts>(context, "/api/internal/agents/v1/content/posts", "Content posts");
   }
@@ -483,6 +512,8 @@ export class KasitekCoreReadClient {
     if (routePath.endsWith("/campaigns")) return "kasitek.core.campaigns_list";
     if (routePath.startsWith("/api/internal/agents/v1/templates")) return "kasitek.core.templates_list";
     if (method === "PATCH" && routePath.includes("/contacts/")) return "kasitek.core.contact_update";
+    if (method === "POST" && routePath.includes("/inbox/conversations/") && routePath.endsWith("/read")) return "kasitek.core.inbox_conversation_mark_read";
+    if (method === "PATCH" && routePath.includes("/inbox/conversations/")) return "kasitek.core.inbox_conversation_update";
     if (routePath.includes("/inbox/conversations/") && routePath.endsWith("/messages")) return "kasitek.core.inbox_messages_list";
     if (routePath.includes("/inbox/conversations")) return "kasitek.core.inbox_conversations_list";
     if (routePath.includes("/contacts")) return "kasitek.core.contacts_list";
@@ -499,7 +530,7 @@ export class KasitekCoreReadClient {
   }
 
   private idempotencyKeyFor(path: string, method: string | undefined, context: CoreRequestContext, body?: BodyInit | null): string | undefined {
-    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("/content/posts/") && path.endsWith("/publish") ? "kasitek.core.content_post_publish" : path.includes("/content/posts/") && path.endsWith("/schedule") ? "kasitek.core.content_post_schedule" : path.includes("/content/posts/") && path.endsWith("/unschedule") ? "kasitek.core.content_post_unschedule" : method === "DELETE" && path.includes("/content/posts/") ? "kasitek.core.content_post_delete" : method === "PATCH" && path.includes("/contacts/") ? "kasitek.core.contact_update" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : undefined;
+    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("/content/posts/") && path.endsWith("/publish") ? "kasitek.core.content_post_publish" : path.includes("/content/posts/") && path.endsWith("/schedule") ? "kasitek.core.content_post_schedule" : path.includes("/content/posts/") && path.endsWith("/unschedule") ? "kasitek.core.content_post_unschedule" : method === "DELETE" && path.includes("/content/posts/") ? "kasitek.core.content_post_delete" : method === "PATCH" && path.includes("/contacts/") ? "kasitek.core.contact_update" : method === "POST" && path.includes("/inbox/conversations/") && path.endsWith("/read") ? "kasitek.core.inbox_conversation_mark_read" : method === "PATCH" && path.includes("/inbox/conversations/") ? "kasitek.core.inbox_conversation_update" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : undefined;
     if (!capability) return undefined;
     const bodyText = typeof body === "string" ? body : "";
     return `${context.runId}:${capability}:${createHash("sha256").update(bodyText).digest("hex")}`;

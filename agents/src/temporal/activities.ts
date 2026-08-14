@@ -455,6 +455,67 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     },
   });
   tools.register({
+    name: "kasitek.core.inbox_conversation_update",
+    version: "1.0.0",
+    description: "Star or unstar one organization-scoped inbox conversation.",
+    riskClass: "controlled-write",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        conversationId: { type: "string", minLength: 1, maxLength: 160 },
+        starred: { type: "boolean" },
+      },
+      required: ["conversationId", "starred"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["success", "conversationId", "starred"], additionalProperties: false },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "inbox.write",
+      resourceSelector: { type: "conversation", argument: "conversationId" },
+      execution: "immediate",
+      idempotency: "not_applicable",
+      approval: "none",
+      auditClassification: "full",
+      redaction: ["conversation.phone"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.updateInboxConversation(context, String(args.conversationId), { starred: Boolean(args.starred) });
+    },
+  });
+  tools.register({
+    name: "kasitek.core.inbox_conversation_mark_read",
+    version: "1.0.0",
+    description: "Mark one organization-scoped WhatsApp inbox conversation read after approval.",
+    riskClass: "external-effect",
+    requiresApproval: true,
+    timeoutMs: 30_000,
+    inputSchema: {
+      type: "object",
+      properties: { conversationId: { type: "string", minLength: 1, maxLength: 160 } },
+      required: ["conversationId"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", properties: { success: { type: "boolean" } }, required: ["success"], additionalProperties: false },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "inbox.write",
+      resourceSelector: { type: "conversation", argument: "conversationId" },
+      execution: "durable",
+      idempotency: "required",
+      approval: "always",
+      auditClassification: "full",
+      redaction: ["conversation.phone"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.markInboxConversationRead(context, String(args.conversationId));
+    },
+  });
+  tools.register({
     name: "kasitek.core.channel_deliver",
     version: "1.0.0",
     description: "Send an approved reply to an organization-scoped WhatsApp conversation.",
