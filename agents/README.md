@@ -9,6 +9,7 @@ actions will go through authenticated internal contracts exposed by `kasitek-cor
 
 - `pnpm run dev:api` starts the HTTP API.
 - `pnpm run dev:gateway` starts the stateless external MCP gateway.
+- `pnpm run dev:stdio` starts the local line-delimited stdio bridge to that gateway.
 - `pnpm run dev:worker` starts the Temporal worker.
 - `pnpm run migrate` applies PostgreSQL migrations.
 - `pnpm run test:e2e:local` exercises a real local installation through REST, Temporal, and MCP.
@@ -40,6 +41,12 @@ claim GET streaming or resumable session support.
 
 The machine-readable integration guide for external MCP clients is in
 [`docs/mcp-integration.md`](docs/mcp-integration.md).
+
+Clients that only support local MCP stdio can run `pnpm run start:stdio` with
+`MCP_STDIO_TOKEN` set to an exchanged MCP installation token and, when needed,
+`MCP_STDIO_URL` pointed at the hosted `/mcp` endpoint. The bridge owns no state; it forwards one
+JSON-RPC message per input line, bounds messages/responses, preserves notifications, and never logs
+the bearer token.
 
 The capability catalog used by MCP discovery, public tool discovery, permission UI, audit
 descriptions, and agent documentation is generated from the runtime manifest registry. Regenerate
