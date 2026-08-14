@@ -12,8 +12,10 @@ describe.skipIf(!runIntegration)("operator projections (integration)", () => {
   let notificationId = "";
 
   it("rebuilds snapshots with monotonic revisions and acknowledges safe notifications", async () => {
-    const first = await rebuildOperatorProjections(pool, ["summary", "health", "delivery_health", "alerts", "projection_lag"]);
-    expect(first.map((projection) => projection.projectionKey)).toEqual(["summary", "health", "delivery_health", "alerts", "projection_lag"]);
+    const first = await rebuildOperatorProjections(pool, ["summary", "health", "retention", "delivery_health", "alerts", "projection_lag"]);
+    expect(first.map((projection) => projection.projectionKey)).toEqual(["summary", "health", "retention", "delivery_health", "alerts", "projection_lag"]);
+    expect(first.find((projection) => projection.projectionKey === "health")?.payload).toEqual(expect.objectContaining({ overallStatus: expect.any(String), checks: expect.objectContaining({ database: expect.objectContaining({ status: "ready" }), temporal: expect.objectContaining({ status: "unknown" }) }) }));
+    expect(first.find((projection) => projection.projectionKey === "retention")?.payload).toEqual(expect.objectContaining({ policy: expect.objectContaining({ version: "agent-lifecycle-v1" }), datasets: expect.arrayContaining([expect.objectContaining({ key: "audit_records" })]), deletionJobs: expect.any(Object), exportRequests: expect.any(Object) }));
     expect(first.find((projection) => projection.projectionKey === "delivery_health")?.payload).toEqual(expect.objectContaining({ deliveries: expect.any(Object), failedAttempts: expect.any(Array) }));
     expect(first.find((projection) => projection.projectionKey === "alerts")?.payload).toEqual(expect.objectContaining({
       providerFailuresLast24h: expect.any(Object),

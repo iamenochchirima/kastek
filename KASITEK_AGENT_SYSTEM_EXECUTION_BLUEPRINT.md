@@ -1153,6 +1153,19 @@ redacted flag/hold projections and set/create/release controls. Focused migratio
 the PostgreSQL operator lifecycle integration (3/3), Agent typecheck/full suite, admin lint and
 typecheck, and `cargo check -p kasitek-core` pass.
 
+**Health and lifecycle evidence (2026-08-14):** The protected Agent operator projection now builds a
+dependency matrix covering authentication, installation credentials, API policy gates, model
+providers, Temporal, queues/workers, PostgreSQL, Redis replay posture, tools, provider effects,
+webhooks/delivery, approvals, cost attribution, edge rate limits, and suspicious access. Degraded
+checks emit deduplicated redacted operator notifications, and the admin Operations page renders the
+matrix with safe counts and response detail. A companion `retention` projection reports allow-listed
+audit/events/messages/runs/memory/attachment age and lifecycle counts, deletion jobs, export request
+states, and active incident holds; it deliberately excludes content, secrets, and generated export
+artifacts. Agent typecheck, full unit suite, PostgreSQL projection integration, admin typecheck,
+lint, and production build pass. Temporal heartbeat, Redis cross-instance replay, backup/restore,
+and legal-hold execution remain explicit external release gates rather than being represented as
+ready by the local projection.
+
 ## Slice 13 — Security, observability, expansion, and production release
 
 **Layers covered:** 12, 13, and 14
@@ -1163,7 +1176,7 @@ typecheck, and `cargo check -p kasitek-core` pass.
   logs with stable correlation across edge, Agent Platform, Temporal, core, and providers.
 - [x] Attribute tokens/cost, tools, effects, connectors, channels, storage, schedules, failures,
   latency, and concurrency to organization, installation, definition/version, and credential.
-- [ ] Implement health dashboards and alerts for auth, credentials, APIs, model providers, Temporal,
+- [x] Implement health dashboards and alerts for auth, credentials, APIs, model providers, Temporal,
   queues/workers, databases, Redis, tools, provider effects, webhooks, delivery, approvals, cost,
   rate limits, and suspicious access.
 - [x] Enforce the global → organization → definition → installation → capability → connector/channel

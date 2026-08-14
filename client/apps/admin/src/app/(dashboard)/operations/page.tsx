@@ -22,7 +22,8 @@ type Summary = {
   channels?: number;
   approvals?: Record<string, number>;
 };
-type Health = { status: string; database?: { status: string; latencyMs: number }; temporal?: { enabled: boolean; mode: string; address?: string; namespace?: string; taskQueue?: string }; model?: { provider: string; model: string; credentialConfigured: boolean } };
+type HealthCheck = { status: string; detail?: string; latencyMs?: number; active?: number; expiring7d?: number; failed24h?: number; unknown24h?: number; expiredPending?: number; events24h?: number; staleQueued?: number; staleRunning?: number; queued?: number; unknown?: number; executing?: number; providers?: Array<{ name: string; status: string; calls24h: number; failures24h: number; failureRate: number }>; agent?: string; mcp?: string; rest?: string };
+type Health = { overallStatus?: string; degradedChecks?: number; checks?: Record<string, HealthCheck>; status?: string; database?: { status: string; latencyMs: number }; temporal?: { enabled: boolean; mode: string; address?: string; namespace?: string; taskQueue?: string }; model?: { provider: string; model: string; credentialConfigured: boolean } };
 type Run = { id: string; organization_id: string; installation_id: string; conversation_id?: string | null; status: string; trigger_type: string; created_at: string; correlation_id: string; assignee_id?: string | null; assignment_revision?: number | null };
 type Effect = { id: string; organization_id: string; installation_id?: string; run_id: string; capability: string; status: string; updated_at: string };
 type Grant = { id: string; adminId: string; organizationId: string; resourceType: string; resourceId?: string | null; reason: string; expiresAt: string; revokedAt?: string | null };
@@ -35,6 +36,7 @@ type ExportRequest = { id: string; command_id: string; organization_id: string; 
 type KillSwitch = { id: string; organization_id?: string | null; scope_type: string; scope_id: string; reason: string; enabled: boolean; created_by: string; created_at: string; disabled_at?: string | null };
 type FeatureFlag = { id: string; scope_type: string; scope_id: string; organization_id?: string | null; flag_key: string; enabled: boolean; reason: string; expires_at: string; revision: number; updated_at: string };
 type OperatorHold = { id: string; organization_id: string; scope_type: string; scope_id: string; hold_type: string; reason: string; status: "active" | "released"; expires_at: string; created_at: string; released_at?: string | null; revision: number };
+type Retention = { generatedAt: string; policy?: { version: string; redaction: string; deletion: string; export: string; backupRestore: string; legalHold: string }; datasets?: Array<{ key: string; count?: number; oldestAt?: string | null; active?: number; expired?: number; deleted?: number; total?: number; immutable: boolean }>; deletionJobs?: Record<string, number>; exportRequests?: Record<string, number>; activeIncidentHolds?: number };
 
 function countValue(payload: Record<string, unknown>, key: string): number {
   const value = payload[key];
@@ -57,9 +59,10 @@ async function readJson<T>(path: string, fallback: T): Promise<T> {
 
 export default async function OperationsPage() {
   const admin = await requireAdminSession();
-  const [summary, health, runs, exports, killSwitches, featureFlags, holds, effects, grants, alerts, runHealth, deliveryHealth, providerWorkers, usageCost, projectionLag, audit, notifications, coreWebhookDeliveries] = await Promise.all([
+  const [summary, health, retention, runs, exports, killSwitches, featureFlags, holds, effects, grants, alerts, runHealth, deliveryHealth, providerWorkers, usageCost, projectionLag, audit, notifications, coreWebhookDeliveries] = await Promise.all([
     readJson<Summary>("/api/admin/operations/summary", { scope: "platform", generatedAt: "", runs: {}, installations: {}, definitions: {}, effects: [], auditRecords: 0, estimatedModelCostUsd: "0" }),
     readJson<Health>("/api/admin/operations/health", { status: "unavailable" }),
+    readJson<Retention>("/api/admin/operations/projections/retention", { generatedAt: "", datasets: [], deletionJobs: {}, exportRequests: {} }),
     readJson<{ runs: Run[] }>("/api/admin/operations/runs?limit=12", { runs: [] }),
     readJson<{ exports: ExportRequest[] }>("/api/admin/operations/exports?limit=12", { exports: [] }),
     readJson<{ killSwitches: KillSwitch[] }>("/api/admin/operations/kill-switches?limit=24", { killSwitches: [] }),
@@ -86,6 +89,9 @@ export default async function OperationsPage() {
   const failedDeliveryAttempts = Array.isArray(deliveryHealth.payload.failedAttempts) ? deliveryHealth.payload.failedAttempts as FailedDeliveryAttempt[] : [];
   const providerEntries = countEntries(providerWorkers.payload.providers);
   const projectionEntries = Array.isArray(projectionLag.payload.projections) ? projectionLag.payload.projections as Array<{ projectionKey?: string; ageSeconds?: number }> : [];
+  const healthChecks = Object.entries(health.checks ?? {});
+  const healthStatus = health.overallStatus ?? health.status ?? "unknown";
+  const lifecycleDatasets = retention.datasets ?? [];
   return <div className="admin-page">
     <AdminPageHeader eyebrow="Platform operations" title="Agent operations" description="Safe, platform-scoped health and recovery evidence. Customer secrets, prompts, and provider receipts stay behind the service boundary." />
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -99,16 +105,24 @@ export default async function OperationsPage() {
       <article className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-semibold text-foreground">Service readiness</h2><p className="mt-1 text-xs text-muted-foreground">Checked by the protected core operator proxy.</p></div>
         <div className="space-y-4 px-5 py-5 text-sm">
-          <div className="flex items-center justify-between"><span className="text-muted-foreground">Agent service</span><StatusBadge value={health.status} /></div>
-          <div className="flex items-center justify-between"><span className="text-muted-foreground">Database</span><StatusBadge value={health.database?.status ?? "unknown"} /></div>
-          <div className="flex items-center justify-between"><span className="text-muted-foreground">Temporal</span><span className="text-foreground">{health.temporal?.enabled ? `${health.temporal.mode} · ${health.temporal.address ?? "configured"}` : "disabled"}</span></div>
-          <div className="flex items-center justify-between"><span className="text-muted-foreground">Model credential</span><StatusBadge value={health.model?.credentialConfigured ? "configured" : "missing"} /></div>
+          <div className="flex items-center justify-between"><span className="text-muted-foreground">Overall</span><StatusBadge value={healthStatus} /></div>
+          <div className="flex items-center justify-between"><span className="text-muted-foreground">Checks degraded</span><span className="text-foreground">{health.degradedChecks ?? "—"}</span></div>
+          {healthChecks.slice(0, 6).map(([name, check]) => <div key={name} className="flex items-center justify-between"><span className="capitalize text-muted-foreground">{name.replace(/([A-Z])/g, " $1")}</span><StatusBadge value={check.status} /></div>)}
         </div>
+      </article>
+      <article className="rounded-lg border border-border bg-card">
+        <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-semibold text-foreground">Dependency health matrix</h2><p className="mt-1 text-xs text-muted-foreground">Safe operational signals for auth, providers, queues, tools, effects, delivery, approvals, and access review.</p></div>
+        <div className="grid gap-2 p-5 sm:grid-cols-2">{healthChecks.length === 0 ? <p className="text-sm text-muted-foreground">Health projection is not available.</p> : healthChecks.map(([name, check]) => <div key={name} className="rounded-md border border-border bg-background px-3 py-2"><div className="flex items-center justify-between gap-2"><span className="capitalize text-sm text-foreground">{name.replace(/([A-Z])/g, " $1")}</span><StatusBadge value={check.status} /></div>{check.detail ? <p className="mt-1 text-[11px] text-muted-foreground">{check.detail}</p> : null}{typeof check.failed24h === "number" || typeof check.staleQueued === "number" || typeof check.events24h === "number" ? <p className="mt-1 text-[11px] text-muted-foreground">{typeof check.failed24h === "number" ? `${check.failed24h} failures/24h` : typeof check.staleQueued === "number" ? `${check.staleQueued} stale queued` : `${check.events24h} access events/24h`}</p> : null}</div>)}</div>
       </article>
       <article className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-semibold text-foreground">Effect reconciliation queue</h2><p className="mt-1 text-xs text-muted-foreground">Provider outcome is withheld from this projection; operators see only safe identifiers and state.</p></div>
         {effects.effects.length === 0 ? <p className="px-5 py-10 text-sm text-muted-foreground">No effects currently require reconciliation.</p> : <div className="divide-y divide-border">{effects.effects.map((effect) => <div key={effect.id} className="flex items-center justify-between gap-4 px-5 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-foreground">{effect.capability}</p><p className="truncate text-xs text-muted-foreground">{effect.organization_id} · run {effect.run_id}</p></div><div className="flex items-center gap-3"><StatusBadge value={effect.status} /><OperatorReconcileButton effectId={effect.id} expectedOrganizationId={effect.organization_id} expectedInstallationId={effect.installation_id} /></div></div>)}</div>}
       </article>
+    </section>
+    <section className="rounded-lg border border-border bg-card">
+      <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-semibold text-foreground">Data lifecycle and retention posture</h2><p className="mt-1 text-xs text-muted-foreground">Redacted counts and lifecycle queues only. Content, secrets, and export artifacts never enter this projection.</p></div>
+      <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-md border border-border bg-background p-3"><p className="text-xs text-muted-foreground">Policy</p><p className="mt-1 text-sm font-semibold text-foreground">{retention.policy?.version ?? "Not built"}</p><p className="mt-1 text-[11px] text-muted-foreground">{retention.policy?.deletion ?? "—"}</p></div><div className="rounded-md border border-border bg-background p-3"><p className="text-xs text-muted-foreground">Deletion jobs</p><p className="mt-1 text-lg font-semibold text-foreground">{Object.values(retention.deletionJobs ?? {}).reduce((total, value) => total + value, 0)}</p><p className="mt-1 text-[11px] text-muted-foreground">{Object.entries(retention.deletionJobs ?? {}).map(([key, value]) => `${key}: ${value}`).join(" · ") || "No jobs"}</p></div><div className="rounded-md border border-border bg-background p-3"><p className="text-xs text-muted-foreground">Export requests</p><p className="mt-1 text-lg font-semibold text-foreground">{Object.values(retention.exportRequests ?? {}).reduce((total, value) => total + value, 0)}</p><p className="mt-1 text-[11px] text-muted-foreground">{Object.entries(retention.exportRequests ?? {}).map(([key, value]) => `${key}: ${value}`).join(" · ") || "No requests"}</p></div><div className="rounded-md border border-border bg-background p-3"><p className="text-xs text-muted-foreground">Active incident holds</p><p className="mt-1 text-lg font-semibold text-foreground">{retention.activeIncidentHolds ?? 0}</p><p className="mt-1 text-[11px] text-muted-foreground">Legal-hold readiness remains an explicit release gate.</p></div></div>
+      <div className="grid gap-2 border-t border-border p-5 sm:grid-cols-2 lg:grid-cols-3">{lifecycleDatasets.map((dataset) => <div key={dataset.key} className="rounded-md border border-border px-3 py-2"><div className="flex items-center justify-between gap-2"><span className="text-sm text-foreground">{dataset.key.replaceAll("_", " ")}</span><span className="text-[11px] text-muted-foreground">{dataset.immutable ? "immutable" : "managed"}</span></div><p className="mt-1 text-[11px] text-muted-foreground">{typeof dataset.count === "number" ? `${dataset.count} records` : typeof dataset.total === "number" ? `${dataset.total} total` : `${dataset.active ?? 0} active · ${dataset.expired ?? 0} expired · ${dataset.deleted ?? 0} deleted`}{dataset.oldestAt ? ` · oldest ${new Date(dataset.oldestAt).toLocaleDateString()}` : ""}</p></div>)}</div>
     </section>
     <section className="rounded-lg border border-border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4"><div><h2 className="text-sm font-semibold text-foreground">Rebuildable operator projections</h2><p className="mt-1 text-xs text-muted-foreground">Snapshots are generated by Agent Platform and can be rebuilt after a dependency recovery.</p></div>{["operator", "admin", "superadmin", "owner"].includes(admin.role.toLowerCase()) ? <ProjectionRebuildButton /> : <span className="text-xs text-muted-foreground">Read-only</span>}</div>

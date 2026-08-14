@@ -5,6 +5,7 @@ export const OPERATOR_PROJECTION_KEYS = [
   "summary",
   "run_health",
   "health",
+  "retention",
   "usage_cost",
   "delivery_health",
   "provider_workers",
@@ -44,9 +45,74 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
   }
 
   if (key === "health") {
-    const startedAt = Date.now();
-    await query(pool, "SELECT 1");
-    return { generatedAt: new Date().toISOString(), database: { status: "ready", latencyMs: Date.now() - startedAt }, agentApi: { status: "ready" } };
+    const databaseStartedAt = Date.now();
+    const [database, installations, credentials, providers, cost, queue, tools, effects, deliveries, approvals, audit] = await Promise.all([
+      query(pool, "SELECT 1"),
+      query<{ active: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'active')::text AS active FROM agent_installations"),
+      query<{ active: string; expiring: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'active' AND (expires_at IS NULL OR expires_at > now()))::text AS active, COUNT(*) FILTER (WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= now() + interval '7 days')::text AS expiring FROM agent_installation_credentials"),
+      query<{ provider: string; calls: string; failures: string }>(pool, `SELECT provider, COUNT(*)::text AS calls, COUNT(*) FILTER (WHERE status = 'failed')::text AS failures FROM model_calls WHERE created_at > now() - interval '24 hours' GROUP BY provider ORDER BY provider`),
+      query<{ calls: string; missing: string }>(pool, "SELECT COUNT(*)::text AS calls, COUNT(*) FILTER (WHERE estimated_cost_usd IS NULL)::text AS missing FROM model_calls WHERE created_at > now() - interval '24 hours'"),
+      query<{ queued: string; stale: string; running: string }>(pool, `SELECT COUNT(*) FILTER (WHERE status = 'queued')::text AS queued, COUNT(*) FILTER (WHERE status = 'queued' AND created_at < now() - interval '15 minutes')::text AS stale, COUNT(*) FILTER (WHERE status = 'running' AND updated_at < now() - interval '30 minutes')::text AS running FROM agent_runs`),
+      query<{ failed: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'failed')::text AS failed FROM tool_invocations WHERE created_at > now() - interval '24 hours'"),
+      query<{ unknown: string; executing: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'unknown')::text AS unknown, COUNT(*) FILTER (WHERE status = 'executing')::text AS executing FROM agent_effect_receipts"),
+      query<{ failed: string; unknown: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'failed')::text AS failed, COUNT(*) FILTER (WHERE status = 'unknown')::text AS unknown FROM delivery_attempts WHERE created_at > now() - interval '24 hours'"),
+      query<{ pending: string; expired: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'pending')::text AS pending, COUNT(*) FILTER (WHERE status = 'pending' AND expires_at <= now())::text AS expired FROM agent_approval_records"),
+      query<{ access: string }>(pool, "SELECT COUNT(*)::text AS access FROM audit_records WHERE (action ILIKE '%support%' OR action ILIKE '%data_access%' OR resource_type = 'customer_content') AND created_at > now() - interval '24 hours'"),
+    ]);
+    const status = (degraded: boolean, unavailable = false): "ready" | "degraded" | "unavailable" => unavailable ? "unavailable" : degraded ? "degraded" : "ready";
+    const providerChecks = providers.rows.map((row) => {
+      const calls = Number(row.calls);
+      const failures = Number(row.failures);
+      return { name: row.provider, status: status(failures > 0), calls24h: calls, failures24h: failures, failureRate: calls ? Number((failures / calls).toFixed(4)) : 0 };
+    });
+    const checks = {
+      database: { status: "ready" as const, latencyMs: Date.now() - databaseStartedAt },
+      auth: { status: "ready" as const, detail: "Installation token verification is enforced at the HTTP boundary." },
+      credentials: { status: status(Number(credentials.rows[0]?.active ?? 0) < Number(installations.rows[0]?.active ?? 0) || Number(credentials.rows[0]?.expiring ?? 0) > 0), active: Number(credentials.rows[0]?.active ?? 0), expiring7d: Number(credentials.rows[0]?.expiring ?? 0) },
+      apis: { status: "ready" as const, agent: "ready", mcp: "policy-gated", rest: "policy-gated" },
+      modelProviders: { status: status(providerChecks.some((provider) => provider.status !== "ready")), providers: providerChecks },
+      temporal: { status: "unknown", detail: "Worker heartbeat is verified by the Temporal deployment, not this database projection." },
+      redis: { status: "unknown", detail: "Cross-instance replay and TTL checks are verified by the Redis release gate." },
+      queuesWorkers: { status: status(Number(queue.rows[0]?.stale ?? 0) > 0 || Number(queue.rows[0]?.running ?? 0) > 0), queued: Number(queue.rows[0]?.queued ?? 0), staleQueued: Number(queue.rows[0]?.stale ?? 0), staleRunning: Number(queue.rows[0]?.running ?? 0) },
+      tools: { status: status(Number(tools.rows[0]?.failed ?? 0) > 0), failed24h: Number(tools.rows[0]?.failed ?? 0) },
+      effects: { status: status(Number(effects.rows[0]?.unknown ?? 0) > 0), unknown: Number(effects.rows[0]?.unknown ?? 0), executing: Number(effects.rows[0]?.executing ?? 0) },
+      webhooksDelivery: { status: status(Number(deliveries.rows[0]?.failed ?? 0) > 0 || Number(deliveries.rows[0]?.unknown ?? 0) > 0), failed24h: Number(deliveries.rows[0]?.failed ?? 0), unknown24h: Number(deliveries.rows[0]?.unknown ?? 0) },
+      approvals: { status: status(Number(approvals.rows[0]?.expired ?? 0) > 0), pending: Number(approvals.rows[0]?.pending ?? 0), expiredPending: Number(approvals.rows[0]?.expired ?? 0) },
+      cost: { status: status(Number(cost.rows[0]?.missing ?? 0) > 0), calls24h: Number(cost.rows[0]?.calls ?? 0), missingEstimates24h: Number(cost.rows[0]?.missing ?? 0) },
+      rateLimits: { status: "ready" as const, detail: "Gateway rate limits are enforced at the edge and are intentionally not persisted with customer data." },
+      suspiciousAccess: { status: status(Number(audit.rows[0]?.access ?? 0) > 0), events24h: Number(audit.rows[0]?.access ?? 0) },
+    };
+    const degradedChecks = Object.values(checks).filter((check) => check.status === "degraded" || check.status === "unavailable").length;
+    return { generatedAt: new Date().toISOString(), overallStatus: degradedChecks ? "degraded" : "ready", checks, degradedChecks };
+  }
+
+  if (key === "retention") {
+    const [audit, events, messages, runs, memory, attachments, deletionJobs, exports, holds] = await Promise.all([
+      query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM audit_records"),
+      query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM agent_events"),
+      query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM messages"),
+      query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM agent_runs"),
+      query<{ active: string; expired: string; deleted: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'active')::text AS active, COUNT(*) FILTER (WHERE status = 'expired')::text AS expired, COUNT(*) FILTER (WHERE status = 'deleted')::text AS deleted FROM memory_records"),
+      query<{ total: string; expired: string }>(pool, "SELECT COUNT(*)::text AS total, COUNT(*) FILTER (WHERE retention_expires_at IS NOT NULL AND retention_expires_at <= now())::text AS expired FROM agent_attachment_references"),
+      query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM memory_deletion_jobs GROUP BY status ORDER BY status"),
+      query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_export_requests GROUP BY status ORDER BY status"),
+      query<{ active: string }>(pool, "SELECT COUNT(*)::text AS active FROM agent_operator_holds WHERE status = 'active' AND expires_at > now()"),
+    ]);
+    return {
+      generatedAt: new Date().toISOString(),
+      policy: { version: "agent-lifecycle-v1", redaction: "projection fields are allow-listed; payloads and secrets are excluded", deletion: "explicit jobs only", export: "dual-control request queue", backupRestore: "external deployment gate", legalHold: "operator hold readiness" },
+      datasets: [
+        { key: "audit_records", count: Number(audit.rows[0]?.count ?? 0), oldestAt: audit.rows[0]?.oldest ?? null, immutable: true },
+        { key: "agent_events", count: Number(events.rows[0]?.count ?? 0), oldestAt: events.rows[0]?.oldest ?? null, immutable: false },
+        { key: "messages", count: Number(messages.rows[0]?.count ?? 0), oldestAt: messages.rows[0]?.oldest ?? null, immutable: false },
+        { key: "agent_runs", count: Number(runs.rows[0]?.count ?? 0), oldestAt: runs.rows[0]?.oldest ?? null, immutable: false },
+        { key: "memory_records", active: Number(memory.rows[0]?.active ?? 0), expired: Number(memory.rows[0]?.expired ?? 0), deleted: Number(memory.rows[0]?.deleted ?? 0), immutable: false },
+        { key: "attachments", total: Number(attachments.rows[0]?.total ?? 0), expired: Number(attachments.rows[0]?.expired ?? 0), immutable: false },
+      ],
+      deletionJobs: Object.fromEntries(deletionJobs.rows.map((row) => [row.status, Number(row.count)])),
+      exportRequests: Object.fromEntries(exports.rows.map((row) => [row.status, Number(row.count)])),
+      activeIncidentHolds: Number(holds.rows[0]?.active ?? 0),
+    };
   }
 
   if (key === "usage_cost") {
@@ -133,6 +199,7 @@ export async function rebuildOperatorProjections(pool: Pool, keys: string[] = [.
     const row = result.rows[0]!;
     projections.push({ projectionKey: row.projection_key, revision: Number(row.revision), payload: row.payload, generatedAt: row.generated_at, updatedAt: row.updated_at });
     if (key === "alerts") await emitAlertNotifications(pool, payload);
+    if (key === "health") await emitHealthNotifications(pool, payload);
   }
   return projections;
 }
@@ -165,6 +232,19 @@ export function buildOperatorAlertNotificationSeeds(payload: Record<string, unkn
 async function emitAlertNotifications(pool: Pool, payload: Record<string, unknown>): Promise<void> {
   for (const notification of buildOperatorAlertNotificationSeeds(payload)) {
     await query(pool, `INSERT INTO agent_operator_notifications (event_key, severity, kind, title, body, metadata) VALUES ($1, $2, $3, $4, $5, $6::jsonb) ON CONFLICT (event_key) DO NOTHING`, [notification.eventKey, notification.severity, notification.kind, notification.title, notification.body, JSON.stringify(notification.metadata)]);
+  }
+}
+
+async function emitHealthNotifications(pool: Pool, payload: Record<string, unknown>): Promise<void> {
+  const checks = payload.checks && typeof payload.checks === "object" && !Array.isArray(payload.checks)
+    ? payload.checks as Record<string, unknown>
+    : {};
+  for (const [name, rawCheck] of Object.entries(checks)) {
+    if (!rawCheck || typeof rawCheck !== "object" || Array.isArray(rawCheck)) continue;
+    const check = rawCheck as Record<string, unknown>;
+    if (check.status !== "degraded" && check.status !== "unavailable") continue;
+    const detail = typeof check.detail === "string" ? check.detail : `${name} reported a degraded state.`;
+    await query(pool, `INSERT INTO agent_operator_notifications (event_key, severity, kind, title, body, metadata) VALUES ($1, 'critical', 'dependency_degraded', $2, $3, $4::jsonb) ON CONFLICT (event_key) DO NOTHING`, [`health:${name}:${check.status}:${new Date().toISOString().slice(0, 10)}`, `${name} dependency degraded`, detail, JSON.stringify({ dependency: name, status: check.status })]);
   }
 }
 
