@@ -602,7 +602,12 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
 - [x] Record run, tool, approval, effect, provider, delivery, usage, and audit events with shared IDs.
 - [ ] Expose the same content capabilities to KasiAi tools, hosted agents, MCP, and REST without
   duplicating handlers.
-- [ ] Add customer activity and operator investigation views for content actions and failures.
+- [x] Add customer activity and content-operator investigation views for content actions and failures.
+  Evidence: `GET /api/social/posts/{id}/activity` returns an organization-scoped, secret-safe
+  durable timeline, and `client/apps/client/src/components/social/posts-workspace.tsx` now shows
+  provider job status/error details with retry, run-now, and cancel recovery controls that refresh
+  the activity projection after each action. Global KasiTek admin investigation remains a separate
+  Slice 12 deliverable.
 
 ### Verification
 

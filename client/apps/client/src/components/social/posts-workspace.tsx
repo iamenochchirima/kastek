@@ -731,6 +731,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       setPosts((current) =>
         current.map((post) => (post.id === payload.post?.id ? payload.post : post)),
       );
+      setActivityPost((current) => current && current.post.id === payload.post?.id
+        ? { ...current, post: payload.post }
+        : current);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to publish post");
     } finally {
@@ -758,6 +761,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       setPosts((current) =>
         current.map((post) => (post.id === payload.post?.id ? payload.post : post)),
       );
+      setActivityPost((current) => current && current.post.id === payload.post?.id
+        ? { ...current, post: payload.post }
+        : current);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update publish job");
     } finally {
