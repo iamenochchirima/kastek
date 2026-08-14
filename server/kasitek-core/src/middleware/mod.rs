@@ -8,6 +8,12 @@ use crate::services::orgs;
 
 pub const ACTIVE_ORG_COOKIE: &str = "kasitek_active_org";
 
+pub(crate) fn active_org_cookie(req: &HttpRequest) -> Option<String> {
+    req.cookie(ACTIVE_ORG_COOKIE)
+        .map(|cookie| cookie.value().trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
 fn extract_bearer_token(req: &HttpRequest) -> Option<String> {
     req.headers()
         .get("Authorization")
@@ -83,11 +89,7 @@ pub async fn resolve_active_org_id(
     pool: &PgPool,
     user_id: &str,
 ) -> Result<String, AppError> {
-    if let Some(org_id) = req
-        .cookie(ACTIVE_ORG_COOKIE)
-        .map(|cookie| cookie.value().trim().to_string())
-        .filter(|value| !value.is_empty())
-    {
+    if let Some(org_id) = active_org_cookie(req) {
         orgs::require_member(pool, &org_id, user_id).await?;
         return Ok(org_id);
     }
@@ -131,5 +133,30 @@ pub fn require_admin_role(admin: &AdminUser, roles: &[&str]) -> Result<(), AppEr
         Ok(())
     } else {
         Err(AppError::Forbidden("Insufficient permissions".to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::active_org_cookie;
+    use actix_web::test::TestRequest;
+
+    #[test]
+    fn organization_headers_cannot_supply_product_scope() {
+        let request = TestRequest::default()
+            .insert_header(("x-organization-id", "attacker-org"))
+            .to_http_request();
+        assert_eq!(active_org_cookie(&request), None);
+    }
+
+    #[test]
+    fn active_workspace_scope_only_comes_from_the_bounded_cookie() {
+        let request = TestRequest::default()
+            .cookie(actix_web::cookie::Cookie::new(
+                super::ACTIVE_ORG_COOKIE,
+                " org-a ",
+            ))
+            .to_http_request();
+        assert_eq!(active_org_cookie(&request).as_deref(), Some("org-a"));
     }
 }
