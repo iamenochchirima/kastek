@@ -703,8 +703,13 @@ real capabilities, preserves independent chats, and never invents platform featu
   `8a68bab`, `81912a5`, `2480e6e`, `753d84f`, and `859ec5e` add durable signed webhook
   subscriptions/deliveries, redacted content domain events, idempotent subscription creation,
   delivery diagnostics, route feature flags, standard deprecation headers, explicit
-  capability-discovery policy metadata, and focused REST/OpenAPI contract assertions. The approved
-  principal matrix and full REST conformance remain open.
+  capability-discovery policy metadata, and focused REST/OpenAPI contract assertions. `90c2bf5`
+  centralizes the executable boundary policy for `direct_user` and `agent_installation`, gives
+  unsupported workspace API-key, service-account, and OAuth issuer kinds a stable
+  `unsupported_principal` denial before resource lookup, and expands OpenAPI coverage to the
+  anonymous document route, concrete principal/transport policy schemas, and every mounted `/v1`
+  operation. The approved issuer matrix, action feature/resource policy, and full external REST
+  conformance remain open.
 - [x] Require each `/v1` operation to enter through normalized `RequestContext`; no public handler
   may call a legacy product controller, inspect product session cookies, or duplicate domain SQL,
   provider calls, authorization, validation, or idempotency behavior. All authenticated public data
@@ -712,6 +717,10 @@ real capabilities, preserves independent chats, and never invents platform featu
   only the intentionally anonymous health/OpenAPI documents bypass context resolution.
 - [ ] Support the approved public API principals—workspace API keys, service accounts, OAuth
   user/application grants, and agent installations—through explicit scopes and resource policy.
+  `90c2bf5` makes the current boundary explicit and testable: direct users and agent installations
+  are supported, while the not-yet-implemented workspace API-key, service-account, and OAuth issuer
+  kinds are rejected deterministically with `unsupported_principal`; adding those issuers and their
+  scope/resource policy remains required.
 - [x] Publish typed public resource/action endpoints and only add a generic versioned action route
   where it benefits non-agent API consumers. A direct REST call does not automatically create an
   `AgentRun`; it always creates API/action audit and usage records and links an AgentRun when one
@@ -723,9 +732,10 @@ real capabilities, preserves independent chats, and never invents platform featu
   The current public resource contract is served at `/v1/openapi.json` from
   `server/kasitek-core/openapi/v1.json`; MCP authentication, discovery, protocol, idempotency,
   and structured outcomes are documented in `agents/docs/mcp-integration.md` and covered by the
-  gateway/core contract suites (`c5c48a4`). The core OpenAPI contract test now enumerates every
-  mounted `/v1` operation, required success/error responses, and the protected/anonymous security
-  contract. Broader principal and provider conformance remains open.
+  gateway/core contract suites (`c5c48a4`). `90c2bf5` adds the anonymous OpenAPI document operation,
+  concrete principal/transport policy schemas, and the core contract assertion that enumerates every
+  mounted `/v1` operation with required success/error responses and protected/anonymous security
+  behavior. Broader principal and provider conformance remains open.
 - [x] Protect the initial `/v1/capabilities` route with the normalized direct-user request context,
   exclude non-public/unsupported actions, return a stable public capability DTO, and document the
   current session-authenticated contract in the core-owned OpenAPI file.
@@ -774,6 +784,8 @@ real capabilities, preserves independent chats, and never invents platform featu
   operational counters/latency metrics without introducing business-state ownership.
 - [ ] Add REST/OpenAPI conformance tests for every principal type, scope/resource authorization,
   pagination, validation, idempotency, rate limits, metering, webhooks, versioning, and deprecation.
+  The route/status/security matrix and direct-user/agent-installation policy assertions now pass in
+  `90c2bf5`; issuer-specific, resource-policy, and external-client verification remains open.
 - [x] Add focused installation REST tests for audience authentication, API scope enforcement,
   installation isolation, durable invocation/idempotency, operation inspection, and cancellation.
 - [ ] Add behavior-parity tests proving equivalent MCP and REST operations converge on the same core

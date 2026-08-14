@@ -517,8 +517,14 @@ remain open. `8a68bab`, `81912a5`, `2480e6e`, `753d84f`, and `859ec5e` add the s
 subscription/delivery pipeline with encrypted secrets, idempotent request/content event enqueueing
 and subscription creation, HMAC signatures, retry/disable recovery, delivery diagnostics,
 configurable route flags, and standard deprecation headers; focused webhook and public OpenAPI tests
-pass. The broader principal and external conformance gates remain intentionally unchecked pending
-their policy and runtime verification dependencies.
+pass. `90c2bf5` centralizes the executable public principal policy: `direct_user` and
+`agent_installation` are the only currently supported boundary principals, while workspace API-key,
+service-account, and OAuth issuer kinds fail before resource or capability lookup with the stable
+`unsupported_principal` error. It also makes the principal/transport policy concrete in OpenAPI,
+publishes the anonymous `/v1/openapi.json` contract, and expands the contract assertion matrix across
+the mounted `/v1` operations. The broader approved-issuer, action feature/resource policy, and
+external runtime conformance gates remain intentionally unchecked pending their policy and runtime
+verification dependencies.
 - [x] Return a stable public DTO rather than serializing the internal `ActionDefinition` directly.
 - [x] Add pagination/versioning where required by the public API contract. `/v1/capabilities`
   and every paginated resource list now accept bounded `limit`, offset `cursor`, and `version=v1`,
