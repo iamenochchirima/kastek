@@ -42,6 +42,7 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
     holdId = String((createdHold.result as { legalHoldId: string }).legalHoldId);
     expect(createdHold).toMatchObject({ status: "completed", result: { status: "active", legalHoldId: holdId } });
     expect((await retention.preview(organizationId)).eligible).toMatchObject({ memory: 0 });
+    expect(await retention.applyMemoryRetention(organizationId, actorId)).toEqual({ expired: 0, skippedByHold: 1 });
 
     const releaseCommand = await createOperatorCommand({
       actorId,

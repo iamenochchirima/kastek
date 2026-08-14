@@ -367,8 +367,14 @@ exports were retained because callers and parity tests still depend on them.
 
 The structural migration verification gate is now recorded as complete: every coherent backend
 slice in this run was followed by `cargo fmt --check`, `cargo check -p kasitek-core`, and
-`cargo test -p kasitek-core --lib`; the current result is 123 passed and 3 explicitly ignored
+`cargo test -p kasitek-core --lib`; the current result is 125 passed and 3 explicitly ignored
 infrastructure cases.
+
+The 2026-08-15 retention/operator regression pass adds hold-aware accounting to
+`RetentionRepository.applyMemoryRetention` and verifies it against PostgreSQL. Core support-access
+validation now has explicit tests for resource-type, reason-length, and narrow-grant resource-ID
+boundaries. The full Agent PostgreSQL + Temporal matrix remains green at 58 files / 249 tests / 0
+skips; these local checks do not close the policy-dependent or external release gates.
 
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`

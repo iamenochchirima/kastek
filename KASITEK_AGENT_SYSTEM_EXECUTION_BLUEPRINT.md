@@ -1251,15 +1251,26 @@ lint, and production build pass. Temporal heartbeat, Redis cross-instance replay
 and legal-hold execution remain explicit external release gates rather than being represented as
 ready by the local projection.
 
-**Retention control evidence (2026-08-14):** Migration `045_retention_legal_holds.sql` adds
+**Retention control evidence (2026-08-15):** Migration `045_retention_legal_holds.sql` adds
 organization-scoped retention policy rows and installation/conversation/organization legal holds.
 `RetentionRepository` provides bounded policy writes, safe redacted previews, hold-aware memory
-expiry, and queued deletion jobs; the operator command boundary requires dual approval and records
-immutable audit metadata for policy changes, retention application, and hold create/release. Agent
-and Core operator routes plus the Operations page expose only policy/count/state projections and
-provide controls for policy updates, retention application, and legal-hold release. The focused
-retention integration passes against PostgreSQL. Backup/restore execution and periodic external
-access-review evidence remain release gates, so the broad Slice 13 retention checkbox stays open.
+expiry, and queued deletion jobs; `applyMemoryRetention` now reports the number of eligible records
+skipped by active, unexpired legal holds instead of silently returning zero. The PostgreSQL retention
+integration asserts both the hold-protected preview and the `{ expired: 0, skippedByHold: 1 }`
+execution result. The operator command boundary requires dual approval and records immutable audit
+metadata for policy changes, retention application, and hold create/release. Agent and Core operator
+routes plus the Operations page expose only policy/count/state projections and provide controls for
+policy updates, retention application, and legal-hold release. Backup/restore execution and periodic
+external access-review evidence remain release gates, so the broad Slice 13 retention checkbox stays
+open.
+
+**Operator boundary regression evidence (2026-08-15):** Core support-access validation now has
+explicit regression coverage for unknown resource types, bounded reasons, and the distinction between
+organization-wide grants and narrow run/conversation/customer grants. `cargo test -p kasitek-core
+--lib` passes 125 tests with three infrastructure-gated ignores; the full Agent PostgreSQL + Temporal
+matrix passes 58 files / 249 tests / 0 skips. These tests strengthen the local Slice 12 boundary but
+do not replace the still-open role-matrix, immutable-audit, browser, provider, or hosted verification
+gates.
 
 **Local capability expansion evidence (2026-08-14):** Commits `720a47c`, `81d0284`, `3b26830`,
 `1b2eee9`, `d422444`, and `0631818` extend the organization-scoped Agent/Core boundary with aggregate workspace
@@ -1269,7 +1280,7 @@ WhatsApp channel delivery. Each capability is registered once and projects into 
 Agent/MCP/permission/audit documentation; Core routes require the delegated capability and
 organization scope. The full local verification passes with `cd agents && pnpm test` (58 files,
 213 passed, 36 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
-`cargo test -p kasitek-core --lib` (123 passed, 3 infrastructure-gated ignores), and Core check.
+`cargo test -p kasitek-core --lib` (125 passed, 3 infrastructure-gated ignores), and Core check.
 Seeded database, Redis replay, provider sandbox, hosted, browser, and external-client gates remain
 open and are not represented as complete by this local evidence.
 

@@ -294,4 +294,54 @@ mod tests {
         })
         .is_err());
     }
+
+    #[test]
+    fn rejects_unknown_resources_and_unbounded_reasons() {
+        let base = CreateSupportAccessRequest {
+            admin_id: "admin-1".to_string(),
+            organization_id: "org-1".to_string(),
+            resource_type: "organization".to_string(),
+            resource_id: None,
+            reason: "Incident review".to_string(),
+            duration_minutes: 30,
+        };
+        assert!(validate_request(&CreateSupportAccessRequest {
+            resource_type: "workspace".to_string(),
+            ..base.clone()
+        })
+        .is_err());
+        assert!(validate_request(&CreateSupportAccessRequest {
+            reason: "short".to_string(),
+            ..base.clone()
+        })
+        .is_err());
+        assert!(validate_request(&CreateSupportAccessRequest {
+            reason: "x".repeat(501),
+            ..base
+        })
+        .is_err());
+    }
+
+    #[test]
+    fn requires_resource_ids_only_for_narrow_grants() {
+        let base = CreateSupportAccessRequest {
+            admin_id: "admin-1".to_string(),
+            organization_id: "org-1".to_string(),
+            resource_type: "organization".to_string(),
+            resource_id: None,
+            reason: "Incident review".to_string(),
+            duration_minutes: 30,
+        };
+        assert!(validate_request(&base).is_ok());
+        assert!(validate_request(&CreateSupportAccessRequest {
+            resource_id: Some("org-1".to_string()),
+            ..base.clone()
+        })
+        .is_err());
+        assert!(validate_request(&CreateSupportAccessRequest {
+            resource_type: "run".to_string(),
+            ..base
+        })
+        .is_err());
+    }
 }

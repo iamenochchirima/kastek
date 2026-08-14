@@ -735,6 +735,15 @@ skips and the Core library suite passes 123 tests with 3 infrastructure-gated ig
 results improve the executable local surface but do not close the audit's seeded-core, Redis,
 hosted/provider, browser, MCP/REST conformance, or public-principal gates.
 
+**Retention and operator regression evidence (2026-08-15):** The retention integration now proves
+that an active, unexpired legal hold is counted as a skipped retention candidate (`expired: 0,
+skippedByHold: 1`) rather than being reported as an unexplained zero. Core support-access unit tests
+also reject unknown resource types, unbounded reasons, organization grants carrying narrow resource
+IDs, and narrow grants without a resource ID. The current Core library result is 125 passed / 3
+infrastructure-gated ignores, and the complete Agent PostgreSQL + Temporal matrix is 58 files / 249
+tests / 0 skips. These are bounded regression improvements; the role/resource policy, immutable audit
+storage proof, browser, provider, hosted, and external protocol gates remain unchecked.
+
 The Core database path now also has a committed historical Prisma baseline and a repeatable seeded
 fixture. All 50 client migrations, six guarded Core SQL fixtures, and the two previously ignored
 organization-ownership tests pass against a newly migrated disposable local database. The full
