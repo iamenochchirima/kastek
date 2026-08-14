@@ -516,8 +516,10 @@ resource policy, the approved principal matrix, metrics export, and external RES
 remain open.
 - [x] Return a stable public DTO rather than serializing the internal `ActionDefinition` directly.
 - [x] Add pagination/versioning where required by the public API contract. `/v1/capabilities`
-  now accepts bounded `limit`, offset `cursor`, and `version=v1`, returns stable pagination
-  metadata, and documents the contract in `docs/api/public-v1.openapi.json`.
+  and every paginated resource list now accept bounded `limit`, offset `cursor`, and `version=v1`,
+  return stable pagination metadata, and document the contract in the core-owned OpenAPI file.
+  `ffdf7bf`, `6b9f5bb`, and `587f101` cover the list envelopes, filtered contacts, and explicit
+  unsupported-version rejection.
 - [x] Generate or update the initial core-owned OpenAPI 3.1 capability contract with authentication
   and response schemas; broader resource/action coverage remains open.
 - [x] Add the first typed `/v1/content/posts` list/detail/draft routes over the shared organization-
@@ -525,7 +527,9 @@ remain open.
   external approval/effect gate.
 - [x] Add durable request-level usage/audit reservations and distributed per-principal rate-limit
   middleware. The reservation is created before dispatch and finalized with action/status after the
-  handler; `KASITEK_PUBLIC_API_RATE_LIMIT_PER_MINUTE` controls the one-minute budget.
+  handler; `KASITEK_PUBLIC_API_RATE_LIMIT_PER_MINUTE` controls the one-minute budget. `59ad609`
+  also emits correlation/version/rate-limit headers on every public response and stable machine error
+  codes while preserving `Retry-After` on 429 responses.
 - [x] Add a separately exported public-API metrics surface and metrics conformance tests. Authenticated
   `/v1/metrics` returns only the caller's one-hour request counters; the payload helper test verifies
   principal scoping and that routes, organization IDs, and request data are not exposed.

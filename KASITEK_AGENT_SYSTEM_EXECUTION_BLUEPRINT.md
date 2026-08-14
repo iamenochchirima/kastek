@@ -697,7 +697,10 @@ real capabilities, preserves independent chats, and never invents platform featu
   do not create a separate public API deployment during the initial implementation.
 - [ ] Give `/v1` dedicated routes, authentication, contracts, middleware, OpenAPI, webhooks,
   metering, rate limits, flags, metrics, versioning, deprecation, and tests while reusing shared core
-  domain commands and queries.
+  domain commands and queries. Current partial evidence: `59ad609` adds centralized correlation,
+  stable error codes, rate-limit response metadata, and required draft idempotency; `587f101`
+  validates `version=v1` across every paginated resource list and updates the core OpenAPI contract.
+  Signed webhooks, feature flags, deprecation policy, and the approved principal matrix remain open.
 - [x] Require each `/v1` operation to enter through normalized `RequestContext`; no public handler
   may call a legacy product controller, inspect product session cookies, or duplicate domain SQL,
   provider calls, authorization, validation, or idempotency behavior. All authenticated public data
