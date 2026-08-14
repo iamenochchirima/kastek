@@ -14,6 +14,7 @@ pub enum AppError {
     Forbidden(String),
     NotFound(String),
     Conflict(String),
+    TooManyRequests(String),
     ServiceUnavailable(String),
     BadGateway(String),
     GatewayTimeout(String),
@@ -28,6 +29,7 @@ impl fmt::Display for AppError {
             Self::Forbidden(message) => write!(f, "forbidden: {message}"),
             Self::NotFound(message) => write!(f, "not found: {message}"),
             Self::Conflict(message) => write!(f, "conflict: {message}"),
+            Self::TooManyRequests(message) => write!(f, "too many requests: {message}"),
             Self::ServiceUnavailable(message) => write!(f, "service unavailable: {message}"),
             Self::BadGateway(message) => write!(f, "bad gateway: {message}"),
             Self::GatewayTimeout(message) => write!(f, "gateway timeout: {message}"),
@@ -54,6 +56,11 @@ impl ResponseError for AppError {
             Self::Conflict(message) => HttpResponse::Conflict().json(ErrorResponse {
                 error: message.clone(),
             }),
+            Self::TooManyRequests(message) => HttpResponse::TooManyRequests()
+                .insert_header(("retry-after", "60"))
+                .json(ErrorResponse {
+                    error: message.clone(),
+                }),
             Self::ServiceUnavailable(message) => {
                 HttpResponse::ServiceUnavailable().json(ErrorResponse {
                     error: message.clone(),

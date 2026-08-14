@@ -1,12 +1,13 @@
 //! Versioned public REST API route registration.
 
-use actix_web::web;
+use actix_web::{middleware, web};
 
 use crate::controllers::public_v1;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/v1")
+            .wrap(middleware::from_fn(crate::services::public_api::middleware))
             .route("/health", web::get().to(public_v1::health))
             .route("/openapi.json", web::get().to(public_v1::openapi))
             .route("/capabilities", web::get().to(public_v1::capabilities))

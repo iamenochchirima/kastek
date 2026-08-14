@@ -163,9 +163,13 @@ The current slice evidence is recorded as follows:
   reuses the existing core query/service boundary, and removes restricted provider/customer fields
   before serialization. The public action catalog now has explicit read definitions and the core
   and docs OpenAPI contracts, route inventory, billing capability registry, and redaction regression
-  coverage are updated. This is still a read-only public slice: rate/meter/audit middleware,
-  feature/resource policy, broader principal types, webhooks, and external conformance remain open
-  under AR-006/B-011 and Slice 7.
+  coverage are updated. The follow-up public API accounting slice adds a migrated
+  `PublicApiRequest` table, pre-dispatch reservation, post-response action/status finalization, and
+  a database-backed per-principal one-minute rate limit
+  (`KASITEK_PUBLIC_API_RATE_LIMIT_PER_MINUTE`) in the shared `/v1` middleware. Each reservation
+  also writes the registered `public_api_requests` workspace meter with an idempotency key.
+  Feature/resource policy, broader principal types, metrics export, webhooks, and external
+  conformance remain open under AR-006/B-011 and Slice 7.
 
 - The booking transport parity follow-up `41778a7` moves product request normalization, timestamp,
   status, duration, and optional-field validation into the shared bookings transport/domain policy.

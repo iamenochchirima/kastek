@@ -57,7 +57,13 @@ fields classified as restricted before returning the response:
 - `GET /campaigns` and `GET /campaigns/{id}` — campaign status and delivery summaries (template and recipient fields redacted);
 - `GET /templates?status=...` — template inventory and approval status (message body/buttons redacted).
 
-These are read-only resources. Writes, provider effects, webhooks, rate/meter enforcement, and
-additional principal types remain separate release gates in the audit checklist.
+These are read-only resources. Every authenticated request reserves a durable `PublicApiRequest`
+row before dispatch, keyed by organization and principal. The shared `/v1` middleware finalizes the
+row with the action and HTTP status, and uses those reservations for a distributed per-principal
+one-minute rate limit. The default limit is 120 requests per minute and can be changed with
+`KASITEK_PUBLIC_API_RATE_LIMIT_PER_MINUTE`; a rejected request returns `429` with `Retry-After: 60`.
+The reservation also writes the registered `public_api_requests` workspace meter with a stable
+idempotency key. It is request-level usage, not a provider-effect meter. Writes, provider effects,
+webhooks, and additional principal types remain separate release gates in the audit checklist.
 
 The canonical OpenAPI document is [`public-v1.openapi.json`](./public-v1.openapi.json).

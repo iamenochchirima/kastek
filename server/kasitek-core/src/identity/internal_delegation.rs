@@ -171,6 +171,7 @@ mod tests {
             frontend_url: "http://localhost:3000".to_string(),
             admin_frontend_url: "http://localhost:3001".to_string(),
             public_api_url: "http://localhost:4000".to_string(),
+            public_api_rate_limit_per_minute: 120,
             auth_url: "http://localhost:3000".to_string(),
             private_release_mode: true,
             session_secret: "test".to_string(),

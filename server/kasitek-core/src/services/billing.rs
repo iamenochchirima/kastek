@@ -27,6 +27,7 @@ pub mod meters {
     pub const AGENT_DEPLOYMENTS: &str = "agent_deployments";
     pub const CAMPAIGN_RECIPIENTS: &str = "campaign_recipients";
     pub const SOCIAL_PUBLISHES: &str = "social_publishes";
+    pub const PUBLIC_API_REQUESTS: &str = "public_api_requests";
 }
 
 struct CapabilityDefinition {
@@ -120,6 +121,11 @@ const METER_DEFINITIONS: &[MeterDefinition] = &[
         key: meters::SOCIAL_PUBLISHES,
         name: "Published content",
         description: "Social publishing operations during the current month.",
+    },
+    MeterDefinition {
+        key: meters::PUBLIC_API_REQUESTS,
+        name: "Public API requests",
+        description: "Authenticated public API requests during the current month.",
     },
 ];
 

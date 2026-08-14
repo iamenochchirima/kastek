@@ -504,9 +504,10 @@ issuer, audience, claims, public filtering, and this auth-selection boundary.
 
 The public read-resource follow-up `9276fae` now adds typed `/v1` contacts, inbox, bookings,
 campaign, and template routes over the shared core queries with catalog action definitions and
-restricted-field redaction. This expands the implemented read surface but does not close AR-006:
-rate/meter/audit middleware, feature/resource policy, approved principal matrix, and external
-REST conformance remain open.
+restricted-field redaction. The follow-up public API accounting slice adds durable
+`PublicApiRequest` reservations/finalization and a distributed per-principal rate limit. Feature/
+resource policy, the approved principal matrix, metrics export, and external REST conformance
+remain open.
 - [x] Return a stable public DTO rather than serializing the internal `ActionDefinition` directly.
 - [x] Add pagination/versioning where required by the public API contract. `/v1/capabilities`
   now accepts bounded `limit`, offset `cursor`, and `version=v1`, returns stable pagination
@@ -516,7 +517,10 @@ REST conformance remain open.
 - [x] Add the first typed `/v1/content/posts` list/detail/draft routes over the shared organization-
   scoped content adapter with required idempotency for drafts; publish remains withheld pending the
   external approval/effect gate.
-- [ ] Add metering, rate-limit, audit, and metrics middleware before calling the endpoint complete.
+- [x] Add durable request-level usage/audit reservations and distributed per-principal rate-limit
+  middleware. The reservation is created before dispatch and finalized with action/status after the
+  handler; `KASITEK_PUBLIC_API_RATE_LIMIT_PER_MINUTE` controls the one-minute budget.
+- [ ] Add a separately exported public-API metrics surface and metrics conformance tests.
 
 ### Required tests
 
@@ -662,7 +666,7 @@ metrics/readiness, deployment, protocol cancellation, and hosted smoke remain op
   unchecked checklist item. Current entries are limited to unavailable infrastructure or explicit
   product/security policy decisions.
 - [x] Recount checked and unchecked primary-blueprint items and record the count in the handoff.
-  The current count is 138 checked / 86 unchecked of 224 in
+  The current count is 139 checked / 85 unchecked of 224 in
   `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
 - [ ] Add evidence to primary-blueprint items only when their full deliverable and verification gate
   pass.

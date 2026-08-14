@@ -12,6 +12,7 @@ pub mod message_domain;
 pub mod notifications;
 pub mod orgs;
 pub mod paystack;
+pub mod public_api;
 pub mod push;
 pub mod realtime;
 pub mod social;

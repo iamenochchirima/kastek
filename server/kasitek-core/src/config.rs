@@ -14,6 +14,8 @@ pub struct AppConfig {
     pub frontend_url: String,
     pub admin_frontend_url: String,
     pub public_api_url: String,
+    /// Durable per-principal request budget for the public `/v1` API.
+    pub public_api_rate_limit_per_minute: u32,
     pub auth_url: String,
     pub private_release_mode: bool,
     #[allow(dead_code)]
@@ -108,6 +110,11 @@ impl AppConfig {
             frontend_url: frontend_url.clone(),
             admin_frontend_url,
             public_api_url,
+            public_api_rate_limit_per_minute: env_u32_or(
+                "KASITEK_PUBLIC_API_RATE_LIMIT_PER_MINUTE",
+                120,
+            )
+            .clamp(1, 10_000),
             auth_url: frontend_url,
             private_release_mode,
             session_secret: env_optional("SESSION_SECRET")

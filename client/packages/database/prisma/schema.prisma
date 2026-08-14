@@ -38,6 +38,7 @@ model Organization {
   subscriptions                  OrganizationSubscription[]
   entitlementGrants              OrganizationEntitlementGrant[]
   usageEvents                    UsageEvent[]
+  publicApiRequests              PublicApiRequest[]
   billingCheckouts               BillingCheckout[]
   billingInvoices                BillingInvoice[]
   billingIssues                  BillingReconciliationIssue[]
@@ -334,6 +335,25 @@ model UsageEvent {
   createdAt DateTime @default(now())
 
   @@index([orgId, productKey, metricKey, occurredAt])
+}
+
+model PublicApiRequest {
+  id             String       @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  principalType  String
+  principalId    String
+  route          String
+  method         String
+  action         String?
+  statusCode     Int
+  correlationId  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([orgId, createdAt])
+  @@index([orgId, principalId, createdAt])
+  @@index([action, createdAt])
 }
 
 model BillingCheckout {

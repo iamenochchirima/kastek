@@ -2,7 +2,7 @@
 //! legacy `/api/*` composition so the migration can be reviewed independently.
 
 use actions::{ActionDefinition, ActionLifecycle, ActorKind, ProductRuntime};
-use actix_web::{web, HttpRequest, HttpResponse, HttpResponseBuilder};
+use actix_web::{web, HttpMessage, HttpRequest, HttpResponse, HttpResponseBuilder};
 use jwt_simple::algorithms::ECDSAP256PublicKeyLike;
 use jwt_simple::prelude::{ES256PublicKey, VerificationOptions};
 use serde::Deserialize;
@@ -18,7 +18,7 @@ use crate::domains::bookings::transport::BookingListResponse;
 use crate::error::AppError;
 use crate::identity::{product_session, request_context::RequestContext};
 use crate::services::agent_platform::AgentPlatformClient;
-use crate::services::{inbox, whatsapp};
+use crate::services::{inbox, public_api, whatsapp};
 
 pub async fn health(state: web::Data<AppState>) -> HttpResponse {
     HttpResponse::Ok().json(json!({
@@ -39,10 +39,21 @@ async fn public_context(req: &HttpRequest, state: &AppState) -> Result<RequestCo
     // Product user sessions are opaque bearer values. A JWT-shaped bearer value
     // is an attempted Agent installation credential and must never fall through
     // to cookie/session authentication when signature or claim validation fails.
-    if installation_bearer_token(req).is_some() {
-        return installation_context(req, state);
-    }
-    product_session::resolve(req, &state.pool).await
+    let context = if installation_bearer_token(req).is_some() {
+        installation_context(req, state)?
+    } else {
+        product_session::resolve(req, &state.pool).await?
+    };
+    let audit = public_api::begin_request(
+        &state.pool,
+        state.config.public_api_rate_limit_per_minute,
+        &context,
+        req.method().as_str(),
+        req.path(),
+    )
+    .await?;
+    req.extensions_mut().insert(audit);
+    Ok(context)
 }
 
 fn installation_bearer_token(req: &HttpRequest) -> Option<&str> {
@@ -205,6 +216,7 @@ fn installation_action_allowed(
 }
 
 async fn require_public_action(
+    req: &HttpRequest,
     state: &AppState,
     context: &RequestContext,
     name: &str,
@@ -217,6 +229,7 @@ async fn require_public_action(
                 && is_public_action_for_actor(definition, actor_for_context(context))
         })
         .ok_or_else(|| AppError::Forbidden(format!("Public capability is unavailable: {name}")))?;
+    set_public_audit_action(req, name);
     if !matches!(
         context.principal.kind,
         crate::identity::principal::PrincipalKind::AgentInstallation
@@ -240,6 +253,19 @@ async fn require_public_action(
         Err(AppError::Forbidden(format!(
             "Public capability is unavailable: {name}"
         )))
+    }
+}
+
+fn set_public_audit_action(req: &HttpRequest, action: &str) {
+    if let Some(audit) = req
+        .extensions()
+        .get::<public_api::RequestAuditHandle>()
+        .cloned()
+    {
+        req.extensions_mut().insert(public_api::RequestAuditHandle {
+            id: audit.id,
+            action: Some(action.to_string()),
+        });
     }
 }
 
@@ -399,6 +425,7 @@ pub async fn capabilities(
         ));
     }
     let context = public_context(&req, &state).await?;
+    set_public_audit_action(&req, "capabilities.list");
     let actor = actor_for_context(&context);
     let entitlements = active_entitlements(&state, &context.organization_id).await?;
     let mut allowed_grants: Option<HashSet<String>> = None;
@@ -511,7 +538,7 @@ pub async fn list_content_posts(
     state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "content.posts.list").await?;
+    require_public_action(&req, &state, &context, "content.posts.list").await?;
     let posts = content_adapter::list_posts(&state.pool, &context).await?;
     Ok(response_with_context(&context).json(json!({ "posts": posts })))
 }
@@ -522,7 +549,7 @@ pub async fn get_content_post(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "content.posts.list").await?;
+    require_public_action(&req, &state, &context, "content.posts.list").await?;
     let post = content_adapter::get_post(&state.pool, &context, &path.into_inner())
         .await?
         .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
@@ -535,7 +562,7 @@ pub async fn create_content_draft(
     body: web::Json<SocialPostUpsertRequest>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "content.posts.draft.create").await?;
+    require_public_action(&req, &state, &context, "content.posts.draft.create").await?;
     let post = content_adapter::create_draft(&state.pool, &context, &body).await?;
     Ok(response_with_context(&context)
         .status(actix_web::http::StatusCode::CREATED)
@@ -549,7 +576,7 @@ pub async fn update_content_draft(
     body: web::Json<SocialPostUpsertRequest>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "content.posts.draft.update").await?;
+    require_public_action(&req, &state, &context, "content.posts.draft.update").await?;
     let post =
         content_adapter::update_draft(&state.pool, &context, &path.into_inner(), &body).await?;
     Ok(response_with_context(&context).json(json!({ "post": post })))
@@ -561,7 +588,7 @@ pub async fn list_contacts(
     query: web::Query<WhatsappContactListQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "contacts.list").await?;
+    require_public_action(&req, &state, &context, "contacts.list").await?;
     let contacts =
         whatsapp::list_contacts(&state.pool, &context.organization_id, query.into_inner()).await?;
     Ok(response_with_context(&context).json(redacted(
@@ -575,7 +602,7 @@ pub async fn list_inbox_conversations(
     state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "inbox.conversations.list").await?;
+    require_public_action(&req, &state, &context, "inbox.conversations.list").await?;
     let conversations =
         inbox::list_inbox_conversations(&state.pool, &context.organization_id).await?;
     Ok(response_with_context(&context).json(redacted(
@@ -590,7 +617,7 @@ pub async fn list_inbox_messages(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "inbox.messages.list").await?;
+    require_public_action(&req, &state, &context, "inbox.messages.list").await?;
     let messages = inbox::list_conversation_messages(
         &state.pool,
         &context.organization_id,
@@ -608,7 +635,7 @@ pub async fn list_bookings(
     state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "bookings.list").await?;
+    require_public_action(&req, &state, &context, "bookings.list").await?;
     let bookings = crate::domains::bookings::queries::list_bookings(&state.pool, &context).await?;
     let payload = serde_json::to_value(BookingListResponse::new(bookings))
         .map_err(|_| AppError::Internal("Failed to serialize bookings".to_string()))?;
@@ -620,7 +647,7 @@ pub async fn list_campaigns(
     state: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "campaigns.list").await?;
+    require_public_action(&req, &state, &context, "campaigns.list").await?;
     let campaigns = whatsapp::list_campaigns(&state.pool, &context.organization_id).await?;
     Ok(response_with_context(&context).json(redacted(
         campaigns,
@@ -639,7 +666,7 @@ pub async fn get_campaign_summary(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "campaigns.get").await?;
+    require_public_action(&req, &state, &context, "campaigns.get").await?;
     let campaign =
         whatsapp::get_campaign_summary(&state.pool, &context.organization_id, &path.into_inner())
             .await?;
@@ -660,7 +687,7 @@ pub async fn list_templates(
     query: web::Query<WhatsappTemplateListQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
-    require_public_action(&state, &context, "templates.list").await?;
+    require_public_action(&req, &state, &context, "templates.list").await?;
     let templates =
         whatsapp::list_templates(&state.pool, &context.organization_id, query.into_inner()).await?;
     Ok(response_with_context(&context).json(redacted(
