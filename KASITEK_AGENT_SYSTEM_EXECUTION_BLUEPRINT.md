@@ -595,8 +595,14 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
   (33 files, 145 passed, 24 environment-gated skips) pass.
 - [x] Apply organization, capability, ownership, and resource checks to the current read, draft,
   and approval-gated publish handlers.
-- [ ] Implement draft operations as immediate safe writes and real publish/schedule effects through
+- [x] Implement draft operations as immediate safe writes and real publish/schedule effects through
   immutable preview, approval, idempotent core action/outbox, provider receipt, and reconciliation.
+  Evidence: `server/kasitek-core/src/capabilities/content_adapter.rs` routes draft, publish, schedule,
+  unschedule, and delete actions through organization-scoped durable content jobs with idempotency
+  markers and provider receipt/reconciliation state; `agents/src/temporal/activities.ts` captures
+  bounded content projections before approval and reuses the persisted snapshot on resume; commit
+  `61a514c` adds the cross-runtime preview and review UI. Agent suite (161 passed, 24 gated skips),
+  Agent build, client targeted lint, and client TypeScript checks pass.
 - [x] Return platform capability differences and partial batch results explicitly rather than
   claiming unsupported behavior.
 - [x] Record run, tool, approval, effect, provider, delivery, usage, and audit events with shared IDs.
