@@ -1085,8 +1085,9 @@ Runbooks cover the provider/model, queue/stuck-run, duplicate-effect, credential
 delivery-storm response paths. Migration `agents/migrations/040_operator_recovery_commands.sql`
 adds dual-control `retry_run` and safe `replay_delivery` commands; terminal-run retry dispatches a
 new durable run with command-bound idempotency, while delivery replay locks the message, rejects
-sent/superseded attempts, and requires explicit confirmation for unknown outcomes. The Operations UI
-now exposes terminal-run retry and redacted failed-delivery replay controls. Verification passes the
+sent/superseded attempts, requires explicit confirmation for unknown outcomes, and supports an
+expected-state guard so stale operator requests fail closed. The Operations UI now exposes
+terminal-run retry and redacted failed-delivery replay controls. Verification passes the
 full Agent suite (54 files / 216 tests / 0 skips with local PostgreSQL and Temporal), core library tests (110 passed / 3 infrastructure tests
 ignored), Prisma validation/migrations, and the admin lint/typecheck/build. Full cross-role E2E,
 external hosted checks, and the remaining broad admin command matrix (assign, safe webhook replay,

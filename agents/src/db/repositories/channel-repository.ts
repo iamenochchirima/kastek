@@ -221,6 +221,7 @@ export class ChannelRepository {
     organizationId: string;
     attemptId: string;
     confirmUnknown?: boolean;
+    expectedStatus?: "failed" | "unknown";
   }): Promise<{ previous: DeliveryAttemptRecord; replay: DeliveryAttemptRecord }> {
     return withTransaction(this.pool, async (client) => {
       const target = (await client.query<DeliveryAttemptRecord>(
@@ -230,6 +231,9 @@ export class ChannelRepository {
         [input.attemptId, input.organizationId],
       )).rows[0];
       if (!target) throw Object.assign(new Error("Delivery attempt not found"), { statusCode: 404 });
+      if (input.expectedStatus && target.status !== input.expectedStatus) {
+        throw Object.assign(new Error(`Delivery attempt state changed from expected ${input.expectedStatus}`), { statusCode: 409 });
+      }
       if (target.status !== "failed" && target.status !== "unknown") {
         throw Object.assign(new Error("Only failed or explicitly unknown delivery attempts can be replayed"), { statusCode: 409 });
       }

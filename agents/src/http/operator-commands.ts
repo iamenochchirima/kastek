@@ -91,6 +91,22 @@ function requireIdempotencyKey(value: string | undefined): string {
   return key;
 }
 
+function expectedStatus(command: OperatorCommandRecord): string | undefined {
+  const value = command.payload.expectedStatus;
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.trim().length < 1 || value.trim().length > 80) {
+    throw Object.assign(new Error("expectedStatus must be a non-empty string of at most 80 characters"), { statusCode: 400 });
+  }
+  return value.trim();
+}
+
+function assertExpectedStatus(command: OperatorCommandRecord, actual: string): void {
+  const expected = expectedStatus(command);
+  if (expected && expected !== actual) {
+    throw Object.assign(new Error(`Target state changed from expected ${expected} to ${actual}`), { statusCode: 409 });
+  }
+}
+
 async function auditCommand(pool: Pool, input: { organizationId?: string | null; actorId: string; action: string; commandId: string; metadata?: Record<string, unknown> }): Promise<void> {
   await pool.query(
     `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -103,6 +119,7 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
   if (command.command_type === "cancel_run") {
     const run = await dependencies.runs.getRunById(command.target_id);
     if (!run) throw Object.assign(new Error("Run not found"), { statusCode: 404 });
+    assertExpectedStatus(command, run.status);
     if (["completed", "failed", "cancelled", "expired"].includes(run.status)) return { status: run.status, runId: run.id };
     if (!dependencies.signalCancellation) throw new Error("Temporal cancellation is unavailable");
     const reason = typeof command.payload.reason === "string" ? command.payload.reason.trim().slice(0, 500) : "cancelled by platform operator";
@@ -112,8 +129,9 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
   }
 
   if (command.command_type === "reconcile_effect") {
-    const effect = (await query<{ organization_id: string }>(dependencies.pool, "SELECT organization_id FROM agent_effect_receipts WHERE id = $1", [command.target_id])).rows[0];
+    const effect = (await query<{ organization_id: string; status: string }>(dependencies.pool, "SELECT organization_id, status FROM agent_effect_receipts WHERE id = $1", [command.target_id])).rows[0];
     if (!effect) throw Object.assign(new Error("Effect receipt not found"), { statusCode: 404 });
+    assertExpectedStatus(command, effect.status);
     const outcome = command.payload.outcome;
     if (outcome !== "succeeded" && outcome !== "failed") throw Object.assign(new Error("Reconciliation outcome must be succeeded or failed"), { statusCode: 400 });
     await dependencies.effectReceipts.reconcile({
@@ -130,6 +148,7 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
   if (command.command_type === "retry_run") {
     const run = await dependencies.runs.getRunById(command.target_id);
     if (!run) throw Object.assign(new Error("Run not found"), { statusCode: 404 });
+    assertExpectedStatus(command, run.status);
     if (!["failed", "cancelled", "expired"].includes(run.status)) {
       throw Object.assign(new Error("Only failed, cancelled, or expired runs can be retried"), { statusCode: 409 });
     }
@@ -166,6 +185,11 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
 
   if (command.command_type === "replay_delivery") {
     if (!dependencies.channels) throw Object.assign(new Error("Delivery replay is unavailable"), { statusCode: 503 });
+    const expectedDeliveryStatus = expectedStatus(command);
+    if (expectedDeliveryStatus && expectedDeliveryStatus !== "failed" && expectedDeliveryStatus !== "unknown") {
+      throw Object.assign(new Error("replay_delivery expectedStatus must be failed or unknown"), { statusCode: 400 });
+    }
+    const boundedExpectedDeliveryStatus = expectedDeliveryStatus as "failed" | "unknown" | undefined;
     const target = (await query<{ organization_id: string }>(
       dependencies.pool,
       "SELECT organization_id FROM delivery_attempts WHERE id = $1",
@@ -176,6 +200,7 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
       organizationId: target.organization_id,
       attemptId: command.target_id,
       confirmUnknown: command.payload.confirmUnknown === true,
+      expectedStatus: boundedExpectedDeliveryStatus,
     });
     await auditCommand(dependencies.pool, {
       organizationId: target.organization_id,
@@ -193,8 +218,9 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
 
   if (command.command_type === "suspend_installation" || command.command_type === "resume_installation") {
     if (!dependencies.agents) throw new Error("Installation lifecycle commands are unavailable");
-    const target = (await query<{ organization_id: string }>(dependencies.pool, "SELECT organization_id FROM agent_installations WHERE id = $1", [command.target_id])).rows[0];
+    const target = (await query<{ organization_id: string; status: string }>(dependencies.pool, "SELECT organization_id, status FROM agent_installations WHERE id = $1", [command.target_id])).rows[0];
     if (!target) throw Object.assign(new Error("Installation not found"), { statusCode: 404 });
+    assertExpectedStatus(command, target.status);
     const status = command.command_type === "suspend_installation" ? "paused" : "active";
     await dependencies.agents.setInstallationStatus(target.organization_id, command.target_id, status, actorId);
     await auditCommand(dependencies.pool, { organizationId: target.organization_id, actorId, action: `operator_command.installation_${status}`, commandId: command.id, metadata: { installationId: command.target_id } });
@@ -203,8 +229,9 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
 
   if (command.command_type === "revoke_credential") {
     if (!dependencies.installationCredentials) throw new Error("Credential lifecycle commands are unavailable");
-    const target = (await query<{ organization_id: string; installation_id: string }>(dependencies.pool, "SELECT organization_id, installation_id FROM agent_installation_credentials WHERE id = $1", [command.target_id])).rows[0];
+    const target = (await query<{ organization_id: string; installation_id: string; status: string }>(dependencies.pool, "SELECT organization_id, installation_id, status FROM agent_installation_credentials WHERE id = $1", [command.target_id])).rows[0];
     if (!target) throw Object.assign(new Error("Installation credential not found"), { statusCode: 404 });
+    assertExpectedStatus(command, target.status);
     await dependencies.installationCredentials.revoke({ organizationId: target.organization_id, installationId: target.installation_id, credentialId: command.target_id, actorId });
     await auditCommand(dependencies.pool, { organizationId: target.organization_id, actorId, action: "operator_command.credential_revoked", commandId: command.id, metadata: { credentialId: command.target_id, installationId: target.installation_id } });
     return { status: "revoked", credentialId: command.target_id };
@@ -212,8 +239,9 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
 
   if (command.command_type === "pause_schedule" || command.command_type === "resume_schedule") {
     if (!dependencies.schedules) throw new Error("Schedule lifecycle commands are unavailable");
-    const target = (await query<{ organization_id: string }>(dependencies.pool, "SELECT organization_id FROM agent_schedules WHERE id = $1", [command.target_id])).rows[0];
+    const target = (await query<{ organization_id: string; status: string }>(dependencies.pool, "SELECT organization_id, status FROM agent_schedules WHERE id = $1", [command.target_id])).rows[0];
     if (!target) throw Object.assign(new Error("Schedule not found"), { statusCode: 404 });
+    assertExpectedStatus(command, target.status);
     const status = command.command_type === "pause_schedule" ? "paused" : "active";
     await dependencies.schedules.setStatus(target.organization_id, command.target_id, status, actorId);
     await auditCommand(dependencies.pool, { organizationId: target.organization_id, actorId, action: `operator_command.schedule_${status}`, commandId: command.id, metadata: { scheduleId: command.target_id } });
@@ -231,8 +259,9 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
     return { status: "enabled", switchId: record.id };
   }
 
-  const switchRow = (await query<{ organization_id: string | null }>(dependencies.pool, "SELECT organization_id FROM agent_kill_switches WHERE id = $1", [command.target_id])).rows[0];
+  const switchRow = (await query<{ organization_id: string | null; enabled: boolean }>(dependencies.pool, "SELECT organization_id, enabled FROM agent_kill_switches WHERE id = $1", [command.target_id])).rows[0];
   if (!switchRow) throw Object.assign(new Error("Kill switch not found"), { statusCode: 404 });
+  assertExpectedStatus(command, switchRow.enabled ? "enabled" : "disabled");
   await dependencies.killSwitches.disable(switchRow.organization_id ?? undefined, command.target_id, actorId);
   await auditCommand(dependencies.pool, { organizationId: switchRow.organization_id, actorId, action: "operator_command.kill_switch_disabled", commandId: command.id, metadata: { switchId: command.target_id } });
   return { status: "disabled", switchId: command.target_id };

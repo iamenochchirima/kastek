@@ -132,10 +132,18 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
 
     const failed = await runs.createRun(organizationId, actorId, { installationId, triggerType: "manual", input: { source: "operator-recovery" } });
     await runs.failRun(failed.id, { code: "TEST_FAILURE" });
+    const staleRetry = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `retry-run-stale-${randomUUID()}`,
+      command: { commandType: "retry_run", targetId: failed.id, payload: { expectedStatus: "running" } },
+      dependencies: { ...dependencies, startWorkflow: async () => undefined },
+    });
+    runCommandIds.push(String(staleRetry.command.id));
+    await expect(approveOperatorCommand({ actorId: secondActorId, commandId: String(staleRetry.command.id), dependencies: { ...dependencies, startWorkflow: async () => undefined } })).rejects.toThrow("expected running");
     const retryCommand = await createOperatorCommand({
       actorId,
       idempotencyKey: `retry-run-${randomUUID()}`,
-      command: { commandType: "retry_run", targetId: failed.id, payload: {} },
+      command: { commandType: "retry_run", targetId: failed.id, payload: { expectedStatus: "failed" } },
       dependencies: { ...dependencies, startWorkflow: async (runId) => { startedRunIds.push(runId); } },
     });
     runCommandIds.push(String(retryCommand.command.id));
@@ -154,10 +162,18 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     const message = await conversations.appendMessage({ organizationId, conversationId: conversation.id, direction: "outbound", content: { text: "replay me" }, sourceChannel: "telegram", deliveryStatus: "queued" });
     const queued = await channels.queueDelivery({ organizationId, conversationId: conversation.id, messageId: message.id, channelType: "telegram" });
     const failedDelivery = await channels.markDeliveryFailed({ organizationId, attemptId: queued.id, error: { code: "TEST_PROVIDER_FAILURE" } });
+    const staleReplay = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `replay-delivery-stale-${randomUUID()}`,
+      command: { commandType: "replay_delivery", targetId: failedDelivery.id, payload: { expectedStatus: "unknown" } },
+      dependencies,
+    });
+    runCommandIds.push(String(staleReplay.command.id));
+    await expect(approveOperatorCommand({ actorId: secondActorId, commandId: String(staleReplay.command.id), dependencies })).rejects.toThrow("expected unknown");
     const replayCommand = await createOperatorCommand({
       actorId,
       idempotencyKey: `replay-delivery-${randomUUID()}`,
-      command: { commandType: "replay_delivery", targetId: failedDelivery.id, payload: {} },
+      command: { commandType: "replay_delivery", targetId: failedDelivery.id, payload: { expectedStatus: "failed" } },
       dependencies,
     });
     runCommandIds.push(String(replayCommand.command.id));
@@ -187,11 +203,24 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     const confirmedUnknown = await createOperatorCommand({
       actorId,
       idempotencyKey: `replay-unknown-confirmed-${randomUUID()}`,
-      command: { commandType: "replay_delivery", targetId: replayAttemptId, payload: { confirmUnknown: true } },
+      command: { commandType: "replay_delivery", targetId: replayAttemptId, payload: { confirmUnknown: true, expectedStatus: "unknown" } },
       dependencies,
     });
     runCommandIds.push(String(confirmedUnknown.command.id));
     expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(confirmedUnknown.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "queued", originalDeliveryAttemptId: replayAttemptId } });
+
+    const recoveryAudit = (await pool.query<{ action: string; metadata: Record<string, unknown> }>(
+      `SELECT action, metadata FROM audit_records
+       WHERE organization_id = $1 AND resource_type = 'operator_command'
+         AND action IN ('operator_command.run_retried', 'operator_command.delivery_replayed')
+       ORDER BY created_at ASC`,
+      [organizationId],
+    )).rows;
+    expect(recoveryAudit.map((entry) => entry.action)).toEqual(expect.arrayContaining([
+      "operator_command.run_retried",
+      "operator_command.delivery_replayed",
+    ]));
+    expect(JSON.stringify(recoveryAudit)).not.toContain("replay me");
 
     await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [runCommandIds]);
