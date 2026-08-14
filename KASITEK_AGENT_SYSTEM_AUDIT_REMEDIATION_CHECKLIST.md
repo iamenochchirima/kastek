@@ -501,6 +501,12 @@ capability contract is authenticated and DTO-backed. A JWT-shaped
 Bearer value now selects Agent-installation validation exclusively, so an invalid installation
 credential cannot fall through to an otherwise valid product session. Core tests cover signature,
 issuer, audience, claims, public filtering, and this auth-selection boundary.
+
+The public read-resource follow-up `9276fae` now adds typed `/v1` contacts, inbox, bookings,
+campaign, and template routes over the shared core queries with catalog action definitions and
+restricted-field redaction. This expands the implemented read surface but does not close AR-006:
+rate/meter/audit middleware, feature/resource policy, approved principal matrix, and external
+REST conformance remain open.
 - [x] Return a stable public DTO rather than serializing the internal `ActionDefinition` directly.
 - [x] Add pagination/versioning where required by the public API contract. `/v1/capabilities`
   now accepts bounded `limit`, offset `cursor`, and `version=v1`, returns stable pagination
