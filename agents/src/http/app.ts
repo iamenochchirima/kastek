@@ -73,6 +73,12 @@ export interface AppDependencies {
   connectorRegistry?: ConnectorRegistry;
   effectReceipts?: EffectReceiptRepository;
   approvals?: ApprovalRepository;
+  /**
+   * Optional protocol-neutral installation invocation boundary. Keeping this
+   * injectable makes the MCP and public REST adapters contract-testable
+   * without replacing the production policy/runtime service.
+   */
+  installationInvocations?: Pick<InstallationCapabilityInvocationService, "accept">;
   knowledge?: KnowledgeRepository;
   memory?: MemoryRepository;
   evaluations?: EvaluationRepository;
@@ -263,7 +269,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS,
   );
   const immediateReads = new InstallationImmediateReadService({ runs, toolInvocations, tools: toolRegistry });
-  const installationInvocations = new InstallationCapabilityInvocationService({
+  const installationInvocations = dependencies.installationInvocations ?? new InstallationCapabilityInvocationService({
     agents,
     runs,
     toolGrants,

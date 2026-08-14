@@ -129,7 +129,9 @@ export function buildGateway(input: {
       if (error) metrics.errors += 1;
       metrics.totalLatencyMs += Date.now() - startedAt;
     };
-    reply.raw.once("finish", () => finish(reply.statusCode >= 500));
+    // Count all protocol/transport failures, including bounded client errors
+    // and rate limits, while keeping the response body free of credentials.
+    reply.raw.once("finish", () => finish(reply.statusCode >= 400));
     if (!enabled) return jsonRpcError(reply, -32030, "mcp_gateway_disabled");
     const authorization = typeof request.headers.authorization === "string" ? request.headers.authorization : "";
     const rateKey = authorization.startsWith("Bearer ")

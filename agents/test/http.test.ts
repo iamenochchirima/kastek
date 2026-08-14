@@ -387,6 +387,66 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("keeps MCP and public REST protocol adapters on the same acceptance contract", async () => {
+    const accept = vi.fn().mockResolvedValue({
+      accepted: { id: "run-parity-1", status: "received" },
+      manifest: { requiresApproval: false },
+    });
+    const app = buildApp({
+      config: { ...mcpConfig, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      installationInvocations: { accept } as never,
+      killSwitches: { isBlocked: async () => false } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+      toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
+    });
+
+    const mcp = await app.inject({
+      method: "POST",
+      url: "/mcp",
+      headers: { authorization: `Bearer ${mcpToken()}` },
+      payload: {
+        jsonrpc: "2.0",
+        id: 31,
+        method: "tools/call",
+        params: { name: "platform.current_time", arguments: {}, toolCallId: "shared-call-1", idempotencyKey: "shared-key-1" },
+      },
+    });
+    const rest = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/tools/call",
+      headers: { authorization: `Bearer ${publicApiToken()}` },
+      payload: { name: "platform.current_time", arguments: {}, toolCallId: "shared-call-1", idempotencyKey: "shared-key-1" },
+    });
+
+    expect(mcp.statusCode).toBe(200);
+    expect(rest.statusCode).toBe(202);
+    expect(mcp.json()).toMatchObject({ result: { structuredContent: { runId: "run-parity-1", status: "received" } } });
+    expect(rest.json()).toMatchObject({ operationId: "run-parity-1", runId: "run-parity-1", status: "received" });
+    expect(accept).toHaveBeenCalledTimes(2);
+    const [mcpInput, restInput] = accept.mock.calls.map(([input]) => input as Record<string, unknown>);
+    expect(mcpInput).toMatchObject({
+      organizationId: "org-1",
+      actorId: "installation:install-1",
+      installationId: "install-1",
+      name: "platform.current_time",
+      argumentsValue: {},
+      toolCallId: "shared-call-1",
+    });
+    expect(restInput).toMatchObject({
+      organizationId: mcpInput?.organizationId,
+      actorId: mcpInput?.actorId,
+      installationId: mcpInput?.installationId,
+      name: mcpInput?.name,
+      argumentsValue: mcpInput?.argumentsValue,
+      toolCallId: mcpInput?.toolCallId,
+    });
+    expect(mcpInput?.idempotencyKey).toBe("mcp:credential-1:shared-key-1");
+    expect(restInput?.idempotencyKey).toBe("api:credential-1:shared-key-1");
+    await app.close();
+  });
+
   it("discovers only the tools granted to an installation over the public API", async () => {
     const app = buildApp({
       config: mcpConfig,

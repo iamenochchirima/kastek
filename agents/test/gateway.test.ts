@@ -162,6 +162,20 @@ describe("agent gateway", () => {
     fetchMock.mockRestore();
   });
 
+  it("counts bounded client and rate-limit failures in redacted metrics", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: {} }), { status: 200, headers: { "content-type": "application/json" } }));
+    const app = buildGateway({ agentPlatformUrl: "http://agent-platform:4100", rateLimitPerWindow: 1, preAuthRateLimitPerWindow: 1 });
+    const malformed = await app.inject({ method: "POST", url: "/mcp", headers: { "mcp-protocol-version": "2099-01-01" }, payload: { jsonrpc: "2.0", id: 1, method: "initialize" } });
+    const limited = await app.inject({ method: "POST", url: "/mcp", payload: { jsonrpc: "2.0", id: 1, method: "initialize" } });
+    const metrics = await app.inject({ method: "GET", url: "/metrics" });
+    expect(malformed.statusCode).toBe(400);
+    expect(limited.statusCode).toBe(429);
+    expect(metrics.body).toContain("kasitek_gateway_errors_total 2");
+    expect(metrics.body).not.toContain("authorization");
+    await app.close();
+    fetchMock.mockRestore();
+  });
+
   it("keeps replica behavior stateless and equivalent", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: {} }), { status: 200, headers: { "content-type": "application/json" } }));
     const first = buildGateway({ agentPlatformUrl: "http://agent-platform:4100", rateLimitPerWindow: 1, preAuthRateLimitPerWindow: 1 });
