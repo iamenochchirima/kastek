@@ -103,7 +103,10 @@
     "/contacts": {
       "get": {
         "operationId": "listContacts",
-        "parameters": [{ "$ref": "#/components/parameters/Limit" }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
         "responses": {
           "200": { "description": "Redacted organization-scoped contacts", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" },

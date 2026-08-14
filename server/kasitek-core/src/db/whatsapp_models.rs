@@ -315,6 +315,9 @@ pub struct WhatsappCampaignRecipientDetailRow {
 
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct WhatsappListContactRow {
+    #[serde(skip)]
+    #[sqlx(rename = "total_count")]
+    pub total_count: i64,
     pub id: String,
     #[serde(rename = "contactId")]
     #[sqlx(rename = "contact_id")]
@@ -406,6 +409,7 @@ pub struct WhatsappContactListQuery {
     #[serde(rename = "listLabel")]
     pub list_label: Option<String>,
     pub limit: Option<i64>,
+    pub cursor: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -102,6 +102,16 @@ fn paginate_collection(
         .cloned()
         .collect::<Vec<_>>();
     *values = page;
+    attach_pagination_metadata(payload, cursor, limit, next_cursor, total)
+}
+
+fn attach_pagination_metadata(
+    mut payload: Value,
+    cursor: usize,
+    limit: usize,
+    next_cursor: Option<usize>,
+    total: usize,
+) -> Result<Value, AppError> {
     let object = payload.as_object_mut().ok_or_else(|| {
         AppError::Internal("Public API response must be an object envelope".to_string())
     })?;
@@ -687,8 +697,34 @@ pub async fn list_contacts(
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_public_action(&req, &state, &context, "contacts.list").await?;
-    let query = query.into_inner();
+    let mut query = query.into_inner();
+    let requested_limit = match query.limit {
+        Some(value) if value > 0 => value as usize,
+        Some(_) => {
+            return Err(AppError::BadRequest(
+                "pagination limit must be between 1 and 100".to_string(),
+            ));
+        }
+        None => PUBLIC_PAGE_DEFAULT_LIMIT,
+    };
+    if requested_limit > PUBLIC_PAGE_MAX_LIMIT {
+        return Err(AppError::BadRequest(
+            "pagination limit must be between 1 and 100".to_string(),
+        ));
+    }
+    let cursor = query.cursor.unwrap_or(0);
+    query.limit = Some(requested_limit as i64);
     let contacts = whatsapp::list_contacts(&state.pool, &context.organization_id, query).await?;
+    let total = contacts["stats"]["filteredTotal"].as_u64().unwrap_or(0) as usize;
+    let (_, _, next_cursor) = page_window(
+        PublicPageQuery {
+            cursor: Some(cursor),
+            limit: Some(requested_limit),
+        },
+        total,
+    )?;
+    let contacts =
+        attach_pagination_metadata(contacts, cursor, requested_limit, next_cursor, total)?;
     Ok(response_with_context(&context).json(redacted(
         contacts,
         &["phone", "metadata", "lastMarketingSent"],
@@ -956,6 +992,7 @@ mod tests {
                 .expect("valid OpenAPI JSON");
         for path in [
             "/content/posts",
+            "/contacts",
             "/inbox/conversations",
             "/inbox/conversations/{id}/messages",
             "/bookings",

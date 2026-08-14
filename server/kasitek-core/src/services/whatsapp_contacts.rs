@@ -34,6 +34,7 @@ pub async fn list_contacts(
     let contacts = sqlx::query_as::<_, WhatsappListContactRow>(
         r#"
         SELECT
+            COUNT(*) OVER() AS total_count,
             m.id,
             m."contactId" AS contact_id,
             c."customerId" AS customer_id,
@@ -98,7 +99,7 @@ pub async fn list_contacts(
             OR m."listLabel" = $7
           )
         ORDER BY m."createdAt" DESC
-        LIMIT $8
+        LIMIT $8 OFFSET $9
         "#,
     )
     .bind(org_id)
@@ -133,6 +134,7 @@ pub async fn list_contacts(
             .filter(|value| !value.is_empty()),
     )
     .bind(normalized_limit)
+    .bind(query.cursor.unwrap_or(0) as i64)
     .fetch_all(pool)
     .await?;
 
@@ -205,6 +207,7 @@ pub async fn list_contacts(
             "totalContacts": total_contacts,
             "optedInContacts": opted_in_contacts,
             "excludedContacts": excluded_contacts,
+            "filteredTotal": contacts.first().map(|contact| contact.total_count).unwrap_or(0),
         }
     }))
 }
@@ -218,6 +221,7 @@ pub async fn export_contact_list(
     let contacts = sqlx::query_as::<_, WhatsappListContactRow>(
         r#"
         SELECT
+            COUNT(*) OVER() AS total_count,
             m.id,
             m."contactId" AS contact_id,
             c."customerId" AS customer_id,
