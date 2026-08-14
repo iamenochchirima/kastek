@@ -32,10 +32,6 @@ export async function forwardStdioMessage(input: StdioForwardInput): Promise<str
   return body.length > 0 ? body : null;
 }
 
-function writeMessage(message: unknown): void {
-  stdout.write(`${JSON.stringify(message)}\n`);
-}
-
 export async function runStdioBridge(input: {
   endpoint: string;
   token: string;
