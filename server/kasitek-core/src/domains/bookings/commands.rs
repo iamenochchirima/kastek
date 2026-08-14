@@ -88,14 +88,16 @@ pub async fn update_booking(
     booking_id: &str,
     input: UpdateBookingInput,
 ) -> Result<Booking, AppError> {
-    if let Some(status) = input.status.as_deref() {
-        policy::validate_status(status)?;
-    }
+    let status = input
+        .status
+        .as_deref()
+        .map(policy::normalize_status)
+        .transpose()?;
     postgres::update_booking(
         pool,
         &context.organization_id,
         booking_id,
-        input.status.as_deref(),
+        status.as_deref(),
         input.notes.as_ref().map(|value| value.as_deref()),
     )
     .await?

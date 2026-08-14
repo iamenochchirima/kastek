@@ -16,7 +16,7 @@ use crate::config::AppConfig;
 use crate::db::models::{
     SocialPostUpsertRequest, WhatsappContactListQuery, WhatsappTemplateListQuery,
 };
-use crate::domains::bookings::transport::BookingServicesResponse;
+use crate::domains::bookings::transport::{BookingListResponse, BookingServicesResponse};
 use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
@@ -235,7 +235,7 @@ pub async fn list_bookings(
         resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.bookings_list")
             .await?;
     let bookings = core_adapter::list_bookings(pool.get_ref(), &context).await?;
-    Ok(HttpResponse::Ok().json(json!({ "bookings": bookings })))
+    Ok(HttpResponse::Ok().json(BookingListResponse::new(bookings)))
 }
 
 pub async fn list_campaigns(

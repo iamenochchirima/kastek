@@ -47,6 +47,12 @@ pub fn validate_status(value: &str) -> Result<(), AppError> {
     }
 }
 
+pub fn normalize_status(value: &str) -> Result<String, AppError> {
+    let normalized = value.trim().to_ascii_uppercase();
+    validate_status(&normalized)?;
+    Ok(normalized)
+}
+
 pub async fn require_workspace_admin(
     context: &RequestContext,
     pool: &PgPool,
@@ -76,8 +82,8 @@ mod tests {
     };
 
     use super::{
-        normalize_required_text, require_workspace_admin, validate_duration_minutes,
-        validate_future_start, validate_status,
+        normalize_required_text, normalize_status, require_workspace_admin,
+        validate_duration_minutes, validate_future_start, validate_status,
     };
 
     #[test]
@@ -103,6 +109,8 @@ mod tests {
         assert!(validate_future_start(Utc::now() - Duration::minutes(1)).is_err());
         assert!(validate_status("CONFIRMED").is_ok());
         assert!(validate_status("PUBLISHED").is_err());
+        assert_eq!(normalize_status(" confirmed ").unwrap(), "CONFIRMED");
+        assert!(normalize_status("published").is_err());
     }
 
     #[tokio::test]
