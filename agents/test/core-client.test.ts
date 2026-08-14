@@ -200,6 +200,18 @@ describe("kasitek-core read boundary", () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/inbox/conversations/conversation%2F1/messages");
   });
 
+  it("updates a contact through the approval-scoped idempotent core boundary", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ contact: { id: "contact-1", optIn: true } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).updateContact(context, "contact/1", { optIn: true })).resolves.toMatchObject({ contact: { optIn: true } });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/contacts/contact%2F1");
+    expect(init.method).toBe("PATCH");
+    expect(init.headers).toMatchObject({ authorization: "Bearer internal-token", "idempotency-key": expect.any(String) });
+    expect(JSON.parse(String(init.body))).toEqual({ optIn: true });
+  });
+
   it("passes bounded inbox projections through the typed capability boundary", async () => {
     const fetchMock = vi.fn().mockImplementation((input: string) => new Response(
       JSON.stringify(input.includes("/messages?") ? { messages: [{ id: "message-1" }], total: 3, hasMore: true } : { conversations: [{ id: "conversation-1" }], total: 3, hasMore: true }),

@@ -28,7 +28,7 @@ pub use super::whatsapp_connections::{
 pub(crate) use super::whatsapp_connections::{get_connection_row_for_org, select_connection_sql};
 pub use super::whatsapp_contacts::{
     delete_contact_list, export_contact_list, import_contacts, list_contacts, rename_contact_list,
-    update_contact,
+    update_agent_contact, update_contact,
 };
 pub use super::whatsapp_inbox::{
     delete_conversation, delete_conversation_message, deliver_agent_message,

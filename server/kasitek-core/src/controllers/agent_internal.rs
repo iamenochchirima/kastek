@@ -14,7 +14,8 @@ use sqlx::{PgPool, Row};
 use crate::capabilities::{content_adapter, core_adapter};
 use crate::config::AppConfig;
 use crate::db::models::{
-    SocialPostUpsertRequest, WhatsappContactListQuery, WhatsappTemplateListQuery,
+    SocialPostUpsertRequest, WhatsappContactListQuery, WhatsappContactUpdateRequest,
+    WhatsappTemplateListQuery,
 };
 use crate::domains::bookings::transport::BookingServicesResponse;
 use crate::error::AppError;
@@ -352,6 +353,33 @@ pub async fn list_contacts(
     object.insert("total".to_string(), json!(filtered_total));
     object.insert("hasMore".to_string(), json!(filtered_total > limit));
     Ok(HttpResponse::Ok().json(result))
+}
+
+/// Apply an approval-gated, organization-scoped contact update. Contact
+/// consent and exclusion changes are persisted with the Agent idempotency key
+/// so a retry cannot apply a different update to the same membership.
+pub async fn update_contact(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<WhatsappContactUpdateRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.contact_update")
+            .await?;
+    let idempotency_key = context.idempotency_key.as_deref().ok_or_else(|| {
+        AppError::BadRequest("idempotency-key is required for agent contact updates".to_string())
+    })?;
+    let contact = whatsapp::update_agent_contact(
+        pool.get_ref(),
+        &context.organization_id,
+        &path.into_inner(),
+        body.into_inner(),
+        idempotency_key,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(contact))
 }
 
 fn bounded_agent_contact_limit(value: Option<i64>) -> Result<i64, AppError> {

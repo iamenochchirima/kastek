@@ -25,6 +25,19 @@ describe("content capability contract", () => {
     expect(registry.validateArguments("kasitek.core.workspace_report", {})).toBe(true);
     expect(registry.validateArguments("kasitek.core.workspace_report", { limit: 10 })).toBe(false);
 
+    const contactUpdate = registry.get("kasitek.core.contact_update");
+    expect(contactUpdate?.manifest).toMatchObject({
+      ownerService: "kasitek-core",
+      requiredScope: "contacts.write",
+      resourceSelector: { type: "contact", argument: "contactId" },
+      execution: "durable",
+      idempotency: "required",
+      approval: "always",
+    });
+    expect(contactUpdate?.riskClass).toBe("controlled-write");
+    expect(registry.validateArguments("kasitek.core.contact_update", { contactId: "contact-1", optIn: true })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.contact_update", { contactId: "contact-1" })).toBe(false);
+
     const booking = registry.get("kasitek.core.booking_get");
     expect(booking?.manifest).toMatchObject({
       ownerService: "kasitek-core",

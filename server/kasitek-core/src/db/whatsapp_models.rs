@@ -489,7 +489,7 @@ pub struct WhatsappReactionRequest {
     pub emoji: Option<String>,
     pub remove: Option<bool>,
 }
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct WhatsappContactUpdateRequest {
     #[serde(rename = "fullName")]
     pub full_name: Option<String>,

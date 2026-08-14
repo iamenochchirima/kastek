@@ -85,11 +85,25 @@ export interface CoreTemplates {
 
 export interface CoreContacts {
   contacts: unknown[];
+  total?: number;
+  hasMore?: boolean;
   totalContacts?: number;
   optedInContacts?: number;
   excludedContacts?: number;
   lists?: unknown[];
   tags?: unknown[];
+}
+
+export interface CoreContactUpdateInput {
+  fullName?: string;
+  phone?: string;
+  location?: string;
+  tags?: string[];
+  notes?: string;
+  listLabel?: string;
+  metadata?: Record<string, unknown>;
+  optIn?: boolean;
+  excluded?: boolean;
 }
 
 export interface CoreInboxConversations {
@@ -283,6 +297,32 @@ export class KasitekCoreReadClient {
     return this.getJson<CoreContacts>(context, `/api/internal/agents/v1/contacts${suffix}`, "Contacts");
   }
 
+  public async updateContact(
+    context: ToolInvocationContext,
+    contactId: string,
+    input: CoreContactUpdateInput,
+  ): Promise<{ contact: unknown }> {
+    return this.requestJson<{ contact: unknown }>(
+      context,
+      `/api/internal/agents/v1/contacts/${encodeURIComponent(contactId)}`,
+      "Contact update",
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...(input.fullName !== undefined ? { fullName: input.fullName } : {}),
+          ...(input.phone !== undefined ? { phone: input.phone } : {}),
+          ...(input.location !== undefined ? { location: input.location } : {}),
+          ...(input.tags !== undefined ? { tags: input.tags } : {}),
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+          ...(input.listLabel !== undefined ? { listLabel: input.listLabel } : {}),
+          ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+          ...(input.optIn !== undefined ? { optIn: input.optIn } : {}),
+          ...(input.excluded !== undefined ? { excluded: input.excluded } : {}),
+        }),
+      },
+    );
+  }
+
   public async listInboxConversations(context: ToolInvocationContext, input: { limit?: number } = {}): Promise<CoreInboxConversations> {
     const suffix = input.limit ? `?limit=${encodeURIComponent(String(input.limit))}` : "";
     return this.getJson<CoreInboxConversations>(
@@ -442,6 +482,7 @@ export class KasitekCoreReadClient {
     if (routePath.includes("/campaigns/")) return "kasitek.core.campaign_summary";
     if (routePath.endsWith("/campaigns")) return "kasitek.core.campaigns_list";
     if (routePath.startsWith("/api/internal/agents/v1/templates")) return "kasitek.core.templates_list";
+    if (method === "PATCH" && routePath.includes("/contacts/")) return "kasitek.core.contact_update";
     if (routePath.includes("/inbox/conversations/") && routePath.endsWith("/messages")) return "kasitek.core.inbox_messages_list";
     if (routePath.includes("/inbox/conversations")) return "kasitek.core.inbox_conversations_list";
     if (routePath.includes("/contacts")) return "kasitek.core.contacts_list";
@@ -458,7 +499,7 @@ export class KasitekCoreReadClient {
   }
 
   private idempotencyKeyFor(path: string, method: string | undefined, context: CoreRequestContext, body?: BodyInit | null): string | undefined {
-    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("/content/posts/") && path.endsWith("/publish") ? "kasitek.core.content_post_publish" : path.includes("/content/posts/") && path.endsWith("/schedule") ? "kasitek.core.content_post_schedule" : path.includes("/content/posts/") && path.endsWith("/unschedule") ? "kasitek.core.content_post_unschedule" : method === "DELETE" && path.includes("/content/posts/") ? "kasitek.core.content_post_delete" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : undefined;
+    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("/content/posts/") && path.endsWith("/publish") ? "kasitek.core.content_post_publish" : path.includes("/content/posts/") && path.endsWith("/schedule") ? "kasitek.core.content_post_schedule" : path.includes("/content/posts/") && path.endsWith("/unschedule") ? "kasitek.core.content_post_unschedule" : method === "DELETE" && path.includes("/content/posts/") ? "kasitek.core.content_post_delete" : method === "PATCH" && path.includes("/contacts/") ? "kasitek.core.contact_update" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : undefined;
     if (!capability) return undefined;
     const bodyText = typeof body === "string" ? body : "";
     return `${context.runId}:${capability}:${createHash("sha256").update(bodyText).digest("hex")}`;

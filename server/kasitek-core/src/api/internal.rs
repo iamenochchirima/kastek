@@ -42,6 +42,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/templates", web::get().to(agent_internal::list_templates))
             .route("/contacts", web::get().to(agent_internal::list_contacts))
             .route(
+                "/contacts/{id}",
+                web::patch().to(agent_internal::update_contact),
+            )
+            .route(
                 "/inbox/conversations",
                 web::get().to(agent_internal::list_inbox_conversations),
             )

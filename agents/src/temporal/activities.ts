@@ -345,6 +345,57 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     },
   });
   tools.register({
+    name: "kasitek.core.contact_update",
+    version: "1.0.0",
+    description: "Update one workspace contact's profile, consent, exclusion, or list membership after approval.",
+    riskClass: "controlled-write",
+    requiresApproval: true,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        contactId: { type: "string", minLength: 1, maxLength: 160 },
+        fullName: { type: "string", maxLength: 240 },
+        phone: { type: "string", maxLength: 80 },
+        location: { type: "string", maxLength: 160 },
+        tags: { type: "array", items: { type: "string", minLength: 1, maxLength: 120 }, maxItems: 50 },
+        notes: { type: "string", maxLength: 4_000 },
+        listLabel: { type: "string", maxLength: 160 },
+        metadata: { type: "object", additionalProperties: true },
+        optIn: { type: "boolean" },
+        excluded: { type: "boolean" },
+      },
+      required: ["contactId"],
+      minProperties: 2,
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["contact"], additionalProperties: true },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "contacts.write",
+      resourceSelector: { type: "contact", argument: "contactId" },
+      execution: "durable",
+      idempotency: "required",
+      approval: "always",
+      auditClassification: "full",
+      redaction: ["contact.phone", "contact.metadata", "contact.notes"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.updateContact(context, String(args.contactId), {
+        fullName: typeof args.fullName === "string" ? args.fullName : undefined,
+        phone: typeof args.phone === "string" ? args.phone : undefined,
+        location: typeof args.location === "string" ? args.location : undefined,
+        tags: Array.isArray(args.tags) ? args.tags.map(String) : undefined,
+        notes: typeof args.notes === "string" ? args.notes : undefined,
+        listLabel: typeof args.listLabel === "string" ? args.listLabel : undefined,
+        metadata: args.metadata && typeof args.metadata === "object" && !Array.isArray(args.metadata) ? args.metadata as Record<string, unknown> : undefined,
+        optIn: typeof args.optIn === "boolean" ? args.optIn : undefined,
+        excluded: typeof args.excluded === "boolean" ? args.excluded : undefined,
+      });
+    },
+  });
+  tools.register({
     name: "kasitek.core.inbox_conversations_list",
     version: "1.0.0",
     description: "List the current KasiTek workspace's inbox conversations and unread counts.",

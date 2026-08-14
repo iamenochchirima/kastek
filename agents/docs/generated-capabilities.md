@@ -481,6 +481,87 @@ Search the current KasiTek workspace's WhatsApp contacts and consent state.
   "additionalProperties": true
 }
 ```
+## kasitek.core.contact_update (1.0.0)
+
+Update one workspace contact's profile, consent, exclusion, or list membership after approval.
+
+- Owner: `kasitek-core`
+- Permission: `contacts.write` (Contacts Write permission)
+- Risk: `controlled-write`; execution: `durable`; approval: `always`
+- Idempotency: `required`; timeout: 15000ms
+- Resource scope: `contact`
+- Audit: `full`; redacts: `contact.phone`, `contact.metadata`, `contact.notes`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "contactId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "fullName": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "phone": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "location": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "maxItems": 50
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "listLabel": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "optIn": {
+      "type": "boolean"
+    },
+    "excluded": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "contactId"
+  ],
+  "minProperties": 2,
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "contact"
+  ],
+  "additionalProperties": true
+}
+```
 ## kasitek.core.inbox_conversations_list (1.0.0)
 
 List the current KasiTek workspace's inbox conversations and unread counts.

@@ -23,6 +23,9 @@ use super::whatsapp::{
     parse_csv_tags, pick_first, sanitize_filename, sanitize_list_label, sanitize_tags,
     select_list_contact_row,
 };
+
+const AGENT_CONTACT_UPDATE_IDEMPOTENCY_METADATA_KEY: &str =
+    "_kasitek_agent_contact_update_idempotency_key";
 pub async fn list_contacts(
     pool: &PgPool,
     org_id: &str,
@@ -489,6 +492,101 @@ pub async fn update_contact(
     .await?;
 
     Ok(json!({ "contact": contact }))
+}
+
+/// Apply an Agent-originated contact update exactly once for a given
+/// organization/contact/idempotency key. The marker is stored in the
+/// organization-owned membership metadata and never returned to callers.
+pub async fn update_agent_contact(
+    pool: &PgPool,
+    org_id: &str,
+    contact_id: &str,
+    input: WhatsappContactUpdateRequest,
+    idempotency_key: &str,
+) -> Result<Value, AppError> {
+    let idempotency_key = idempotency_key.trim();
+    if idempotency_key.len() < 8 || idempotency_key.len() > 240 {
+        return Err(AppError::BadRequest(
+            "A valid agent contact idempotency key is required".to_string(),
+        ));
+    }
+    if input
+        .metadata
+        .as_ref()
+        .is_some_and(|metadata| !metadata.is_object())
+    {
+        return Err(AppError::BadRequest(
+            "Agent contact metadata must be a JSON object".to_string(),
+        ));
+    }
+
+    let claimed = sqlx::query_scalar::<_, Value>(
+        r#"
+        UPDATE "WhatsappContactListMembership"
+        SET metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            $3::text[],
+            to_jsonb($4::text),
+            true
+        ), "updatedAt" = NOW()
+        WHERE id = $1
+          AND "orgId" = $2
+          AND (
+            metadata->>'_kasitek_agent_contact_update_idempotency_key' IS NULL
+            OR metadata->>'_kasitek_agent_contact_update_idempotency_key' = $4
+          )
+        RETURNING metadata
+        "#,
+    )
+    .bind(contact_id)
+    .bind(org_id)
+    .bind(vec![AGENT_CONTACT_UPDATE_IDEMPOTENCY_METADATA_KEY])
+    .bind(idempotency_key)
+    .fetch_optional(pool)
+    .await?;
+
+    if claimed.is_none() {
+        let existing = sqlx::query_scalar::<_, Option<String>>(
+            r#"SELECT metadata->>'_kasitek_agent_contact_update_idempotency_key'
+               FROM "WhatsappContactListMembership"
+               WHERE id = $1 AND "orgId" = $2"#,
+        )
+        .bind(contact_id)
+        .bind(org_id)
+        .fetch_optional(pool)
+        .await?;
+        return match existing {
+            None => Err(AppError::NotFound("Contact not found".to_string())),
+            Some(Some(_)) => Err(AppError::Conflict(
+                "This contact update is already claimed by another execution".to_string(),
+            )),
+            Some(None) => Err(AppError::Conflict(
+                "This contact update could not be claimed".to_string(),
+            )),
+        };
+    }
+
+    let mut input = input;
+    let mut metadata = input
+        .metadata
+        .take()
+        .or(claimed)
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+    metadata.insert(
+        AGENT_CONTACT_UPDATE_IDEMPOTENCY_METADATA_KEY.to_string(),
+        Value::String(idempotency_key.to_string()),
+    );
+    input.metadata = Some(Value::Object(metadata));
+    let mut result = update_contact(pool, org_id, contact_id, input).await?;
+    if let Some(metadata) = result
+        .get_mut("contact")
+        .and_then(|contact| contact.get_mut("metadata"))
+        .and_then(Value::as_object_mut)
+    {
+        metadata.remove(AGENT_CONTACT_UPDATE_IDEMPOTENCY_METADATA_KEY);
+    }
+    Ok(result)
 }
 
 pub async fn import_contacts(
