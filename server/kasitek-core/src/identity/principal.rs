@@ -14,6 +14,66 @@ pub enum PrincipalKind {
     TrustedInternalService,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PublicApiPrincipalPolicy {
+    pub wire_name: &'static str,
+    pub actor_kind: ActorKind,
+    pub supports_direct_reads: bool,
+    pub supports_direct_writes: bool,
+    pub requires_installation_capabilities: bool,
+}
+
+pub const SUPPORTED_PUBLIC_API_PRINCIPALS: [&str; 2] = ["direct_user", "agent_installation"];
+pub const UNSUPPORTED_PUBLIC_API_PRINCIPALS: [&str; 4] = [
+    "workspace_api_key",
+    "service_account",
+    "oauth_user",
+    "oauth_application",
+];
+
+impl PrincipalKind {
+    pub fn wire_name(&self) -> &'static str {
+        match self {
+            Self::DirectUser => "direct_user",
+            Self::PlatformAdmin => "platform_admin",
+            Self::WorkspaceApiKey => "workspace_api_key",
+            Self::ServiceAccount => "service_account",
+            Self::OAuthUser => "oauth_user",
+            Self::OAuthApplication => "oauth_application",
+            Self::AgentInstallation => "agent_installation",
+            Self::TrustedInternalService => "trusted_internal_service",
+        }
+    }
+}
+
+impl Principal {
+    /// The public REST boundary deliberately has a narrower principal matrix
+    /// than the internal action runtime. Unsupported issuers fail here before
+    /// any resource query or capability lookup can run.
+    pub fn public_api_policy(&self) -> Result<PublicApiPrincipalPolicy, AppError> {
+        match self.kind {
+            PrincipalKind::DirectUser => Ok(PublicApiPrincipalPolicy {
+                wire_name: "direct_user",
+                actor_kind: ActorKind::DirectUser,
+                supports_direct_reads: true,
+                supports_direct_writes: true,
+                requires_installation_capabilities: false,
+            }),
+            PrincipalKind::AgentInstallation => Ok(PublicApiPrincipalPolicy {
+                wire_name: "agent_installation",
+                actor_kind: ActorKind::ExternalAgent,
+                supports_direct_reads: true,
+                supports_direct_writes: true,
+                requires_installation_capabilities: true,
+            }),
+            _ => Err(AppError::UnsupportedPrincipal(format!(
+                "Public API principal type {} is not supported",
+                self.kind.wire_name()
+            ))),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Principal {
     pub kind: PrincipalKind,
@@ -70,6 +130,7 @@ impl Principal {
 #[cfg(test)]
 mod tests {
     use super::{Principal, PrincipalKind};
+    use crate::error::AppError;
     use actions::{ActorKind, IdentityRealm};
 
     #[test]
@@ -108,6 +169,44 @@ mod tests {
             }
             .to_direct_actor();
             assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn public_api_principal_matrix_is_explicit_and_stable() {
+        let direct = Principal::direct_user("user-1")
+            .public_api_policy()
+            .expect("direct user is supported");
+        assert_eq!(direct.wire_name, "direct_user");
+        assert_eq!(direct.actor_kind, ActorKind::DirectUser);
+        assert!(!direct.requires_installation_capabilities);
+
+        let installation = Principal {
+            kind: PrincipalKind::AgentInstallation,
+            id: "installation-1".to_string(),
+            subject_user_id: None,
+            client_id: Some("credential-1".to_string()),
+        }
+        .public_api_policy()
+        .expect("installation is supported");
+        assert_eq!(installation.wire_name, "agent_installation");
+        assert_eq!(installation.actor_kind, ActorKind::ExternalAgent);
+        assert!(installation.requires_installation_capabilities);
+
+        for kind in [
+            PrincipalKind::WorkspaceApiKey,
+            PrincipalKind::ServiceAccount,
+            PrincipalKind::OAuthUser,
+            PrincipalKind::OAuthApplication,
+        ] {
+            let result = Principal {
+                kind,
+                id: "principal-1".to_string(),
+                subject_user_id: None,
+                client_id: None,
+            }
+            .public_api_policy();
+            assert!(matches!(result, Err(AppError::UnsupportedPrincipal(_))));
         }
     }
 }

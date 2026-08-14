@@ -8,6 +8,15 @@
   "servers": [{ "url": "/v1" }],
   "security": [{ "bearerInstallation": [] }, { "productSession": [] }],
   "paths": {
+    "/openapi.json": {
+      "get": {
+        "operationId": "getPublicOpenApi",
+        "security": [],
+        "responses": {
+          "200": { "description": "Core-owned OpenAPI 3.1 document", "content": { "application/json": { "schema": { "type": "object", "required": ["openapi", "info", "paths"], "additionalProperties": true } } } }
+        }
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getPublicHealth",
@@ -323,8 +332,10 @@
     "schemas": {
       "Health": { "type": "object", "required": ["status", "service", "apiVersion"], "properties": { "status": { "type": "string" }, "service": { "type": "string" }, "apiVersion": { "type": "string" }, "actionCatalogSize": { "type": "integer" } }, "additionalProperties": true },
       "PublicMetrics": { "type": "object", "required": ["schema", "windowSeconds", "principal", "requests"], "properties": { "schema": { "const": "kasitek-public-metrics-v1" }, "windowSeconds": { "const": 3600 }, "principal": { "type": "object", "required": ["kind"], "properties": { "kind": { "type": "string" } }, "additionalProperties": false }, "requests": { "type": "object", "required": ["total", "successful", "clientErrors", "serverErrors", "inFlight"], "properties": { "total": { "type": "integer", "minimum": 0 }, "successful": { "type": "integer", "minimum": 0 }, "clientErrors": { "type": "integer", "minimum": 0 }, "serverErrors": { "type": "integer", "minimum": 0 }, "inFlight": { "type": "integer", "minimum": 0 } }, "additionalProperties": false } }, "additionalProperties": false },
-      "Error": { "type": "object", "required": ["error", "code"], "properties": { "error": { "type": "string" }, "code": { "type": "string", "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "conflict", "rate_limited", "service_unavailable", "bad_gateway", "gateway_timeout", "internal_error"] } }, "additionalProperties": true },
-      "CapabilityPage": { "type": "object", "required": ["version", "principal", "principalPolicy", "transportPolicy", "actions", "pagination"], "properties": { "version": { "const": "v1" }, "principal": { "type": "object", "additionalProperties": true }, "principalPolicy": { "type": "object", "additionalProperties": true }, "transportPolicy": { "type": "object", "additionalProperties": true }, "actions": { "type": "array", "items": { "type": "object", "additionalProperties": true } }, "pagination": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
+      "Error": { "type": "object", "required": ["error", "code"], "properties": { "error": { "type": "string" }, "code": { "type": "string", "enum": ["bad_request", "unauthorized", "unsupported_principal", "forbidden", "not_found", "conflict", "rate_limited", "service_unavailable", "bad_gateway", "gateway_timeout", "internal_error"] } }, "additionalProperties": true },
+      "CapabilityPage": { "type": "object", "required": ["version", "principal", "principalPolicy", "transportPolicy", "actions", "pagination"], "properties": { "version": { "const": "v1" }, "principal": { "type": "object", "additionalProperties": true }, "principalPolicy": { "$ref": "#/components/schemas/PublicPrincipalPolicy" }, "transportPolicy": { "$ref": "#/components/schemas/PublicTransportPolicy" }, "actions": { "type": "array", "items": { "type": "object", "additionalProperties": true } }, "pagination": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
+      "PublicPrincipalPolicy": { "type": "object", "required": ["supported", "notYetSupported", "agentInstallationRequirements"], "properties": { "supported": { "type": "array", "items": { "type": "string", "enum": ["direct_user", "agent_installation"] } }, "notYetSupported": { "type": "array", "items": { "type": "string", "enum": ["workspace_api_key", "service_account", "oauth_user", "oauth_application"] } }, "agentInstallationRequirements": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false },
+      "PublicTransportPolicy": { "type": "object", "required": ["featureFlag", "deprecationRoutes", "deprecationHeaders"], "properties": { "featureFlag": { "const": "PUBLIC_API_DISABLED_ROUTES" }, "deprecationRoutes": { "const": "PUBLIC_API_DEPRECATED_ROUTES" }, "deprecationHeaders": { "type": "array", "items": { "type": "string", "enum": ["Deprecation", "Sunset", "Link"] } } }, "additionalProperties": false },
       "PostList": { "type": "object", "required": ["posts", "pagination"], "properties": { "posts": { "type": "array", "items": { "type": "object", "additionalProperties": true } }, "pagination": { "$ref": "#/components/schemas/Pagination" } }, "additionalProperties": false },
       "PostResponse": { "type": "object", "required": ["post"], "properties": { "post": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
       "ResourceList": { "type": "object", "description": "Resource-specific list envelope. Sensitive provider and customer fields are redacted by the core boundary.", "additionalProperties": true },

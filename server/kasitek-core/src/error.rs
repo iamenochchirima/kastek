@@ -12,6 +12,7 @@ pub struct ErrorResponse {
 pub enum AppError {
     BadRequest(String),
     Unauthorized,
+    UnsupportedPrincipal(String),
     Forbidden(String),
     NotFound(String),
     Conflict(String),
@@ -27,6 +28,7 @@ impl fmt::Display for AppError {
         match self {
             Self::BadRequest(message) => write!(f, "bad request: {message}"),
             Self::Unauthorized => write!(f, "unauthorized"),
+            Self::UnsupportedPrincipal(message) => write!(f, "unsupported principal: {message}"),
             Self::Forbidden(message) => write!(f, "forbidden: {message}"),
             Self::NotFound(message) => write!(f, "not found: {message}"),
             Self::Conflict(message) => write!(f, "conflict: {message}"),
@@ -49,6 +51,10 @@ impl ResponseError for AppError {
             }),
             Self::Unauthorized => HttpResponse::Unauthorized().json(ErrorResponse {
                 error: "Unauthorized".to_string(),
+                code,
+            }),
+            Self::UnsupportedPrincipal(message) => HttpResponse::Forbidden().json(ErrorResponse {
+                error: message.clone(),
                 code,
             }),
             Self::Forbidden(message) => HttpResponse::Forbidden().json(ErrorResponse {
@@ -99,6 +105,7 @@ impl AppError {
         match self {
             Self::BadRequest(_) => "bad_request",
             Self::Unauthorized => "unauthorized",
+            Self::UnsupportedPrincipal(_) => "unsupported_principal",
             Self::Forbidden(_) => "forbidden",
             Self::NotFound(_) => "not_found",
             Self::Conflict(_) => "conflict",
@@ -119,6 +126,16 @@ mod tests {
     #[test]
     fn public_error_codes_are_stable_and_rate_limits_are_retryable() {
         assert_eq!(AppError::BadRequest("x".to_string()).code(), "bad_request");
+        assert_eq!(
+            AppError::UnsupportedPrincipal("x".to_string()).code(),
+            "unsupported_principal"
+        );
+        assert_eq!(
+            AppError::UnsupportedPrincipal("x".to_string())
+                .error_response()
+                .status(),
+            actix_web::http::StatusCode::FORBIDDEN
+        );
         assert_eq!(
             AppError::TooManyRequests("x".to_string()).code(),
             "rate_limited"

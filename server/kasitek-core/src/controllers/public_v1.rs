@@ -64,10 +64,8 @@ async fn require_webhook_scope(
             "webhooks.list"
         },
     );
-    if !matches!(
-        context.principal.kind,
-        crate::identity::principal::PrincipalKind::AgentInstallation
-    ) {
+    let policy = context.principal.public_api_policy()?;
+    if !policy.requires_installation_capabilities {
         return Ok(());
     }
     let capabilities = AgentPlatformClient::from_config(&state.config)?
@@ -322,6 +320,7 @@ async fn public_context(req: &HttpRequest, state: &AppState) -> Result<RequestCo
     } else {
         product_session::resolve(req, &state.pool).await?
     };
+    context.principal.public_api_policy()?;
     if let Some(correlation_id) = req
         .extensions()
         .get::<public_api::PublicCorrelationId>()
@@ -445,10 +444,11 @@ fn is_public_action_for_actor(definition: &ActionDefinition, actor: ActorKind) -
 }
 
 fn actor_for_context(context: &RequestContext) -> ActorKind {
-    match context.principal.kind {
-        crate::identity::principal::PrincipalKind::AgentInstallation => ActorKind::ExternalAgent,
-        _ => ActorKind::DirectUser,
-    }
+    context
+        .principal
+        .public_api_policy()
+        .map(|policy| policy.actor_kind)
+        .unwrap_or(ActorKind::DirectUser)
 }
 
 fn installation_action_allowed(
@@ -515,10 +515,11 @@ async fn require_public_action(
         })
         .ok_or_else(|| AppError::Forbidden(format!("Public capability is unavailable: {name}")))?;
     set_public_audit_action(req, name);
-    if !matches!(
-        context.principal.kind,
-        crate::identity::principal::PrincipalKind::AgentInstallation
-    ) {
+    if context
+        .principal
+        .public_api_policy()
+        .is_ok_and(|policy| !policy.requires_installation_capabilities)
+    {
         return Ok(());
     }
     let capabilities = AgentPlatformClient::from_config(&state.config)?
@@ -726,10 +727,11 @@ pub async fn capabilities(
     let entitlements = active_entitlements(&state, &context.organization_id).await?;
     let mut allowed_grants: Option<HashSet<String>> = None;
     let mut allowed_api_scopes: Option<HashSet<String>> = None;
-    if matches!(
-        context.principal.kind,
-        crate::identity::principal::PrincipalKind::AgentInstallation
-    ) {
+    if context
+        .principal
+        .public_api_policy()
+        .is_ok_and(|policy| policy.requires_installation_capabilities)
+    {
         let credential_id = context.principal.client_id.as_deref();
         let capability_payload = AgentPlatformClient::from_config(&state.config)?
             .list_installation_capabilities(
@@ -808,20 +810,19 @@ pub async fn capabilities(
     if let Some(correlation_id) = context.correlation_id.as_deref() {
         response.insert_header(("x-correlation-id", correlation_id.to_string()));
     }
+    let supported_principals = crate::identity::principal::SUPPORTED_PUBLIC_API_PRINCIPALS;
+    let unsupported_principals = crate::identity::principal::UNSUPPORTED_PUBLIC_API_PRINCIPALS;
     Ok(response.json(json!({
         "version": "v1",
         "principal": {
-            "kind": match context.principal.kind {
-                crate::identity::principal::PrincipalKind::AgentInstallation => "agent_installation",
-                _ => "direct_user",
-            },
+            "kind": context.principal.kind.wire_name(),
             "id": context.principal.id,
             "organizationId": context.organization_id,
         },
         "principalPolicy": {
-            "supported": ["direct_user", "agent_installation"],
+            "supported": supported_principals,
             "agentInstallationRequirements": ["api:read or api:write", "capability grant"],
-            "notYetSupported": ["workspace_api_key", "service_account", "oauth_user", "oauth_application"],
+            "notYetSupported": unsupported_principals,
         },
         "transportPolicy": {
             "featureFlag": "PUBLIC_API_DISABLED_ROUTES",
@@ -1300,6 +1301,9 @@ mod tests {
         assert!(error_schema["required"]
             .as_array()
             .is_some_and(|required| required.iter().any(|value| value == "code")));
+        assert!(error_schema["properties"]["code"]["enum"]
+            .as_array()
+            .is_some_and(|codes| codes.iter().any(|value| value == "unsupported_principal")));
         assert!(document
             .pointer("/components/headers/CorrelationId")
             .is_some());
@@ -1322,6 +1326,16 @@ mod tests {
         assert!(capability_required
             .iter()
             .any(|value| value == "transportPolicy"));
+        assert_eq!(
+            document["components"]["schemas"]["CapabilityPage"]["properties"]["principalPolicy"]
+                ["$ref"],
+            "#/components/schemas/PublicPrincipalPolicy"
+        );
+        assert_eq!(
+            document["components"]["schemas"]["CapabilityPage"]["properties"]["transportPolicy"]
+                ["$ref"],
+            "#/components/schemas/PublicTransportPolicy"
+        );
         let webhook_events = document["components"]["schemas"]["WebhookSubscriptionInput"]
             ["properties"]["eventTypes"]["items"]["enum"]
             .as_array()
@@ -1351,6 +1365,7 @@ mod tests {
             Some("3.1.0")
         );
         let operations = [
+            ("/openapi.json", "get", &["200"][..]),
             ("/health", "get", &["200"][..]),
             ("/capabilities", "get", &["200", "400", "401", "403"][..]),
             ("/metrics", "get", &["200", "401"][..]),
@@ -1425,7 +1440,7 @@ mod tests {
                     .unwrap_or_else(|| panic!("missing response {status} for {method} {path}"));
                 assert!(response.get("$ref").is_some() || response.get("description").is_some(), "response {status} for {method} {path} has no description or component reference");
             }
-            if path == "/health" {
+            if path == "/health" || path == "/openapi.json" {
                 assert_eq!(
                     operation
                         .get("security")

@@ -87,11 +87,7 @@ pub async fn begin_request(
     method: &str,
     route: &str,
 ) -> Result<RequestAuditHandle, AppError> {
-    let principal_type = match context.principal.kind {
-        crate::identity::principal::PrincipalKind::AgentInstallation => "agent_installation",
-        crate::identity::principal::PrincipalKind::DirectUser => "direct_user",
-        _ => "unknown",
-    };
+    let principal_type = context.principal.kind.wire_name();
     let mut transaction = pool.begin().await?;
     let lock_key = format!("{}:{}", context.organization_id, context.principal.id);
     sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)")
@@ -228,11 +224,7 @@ fn metrics_payload(
         "schema": "kasitek-public-metrics-v1",
         "windowSeconds": 3_600,
         "principal": {
-            "kind": match context.principal.kind {
-                crate::identity::principal::PrincipalKind::AgentInstallation => "agent_installation",
-                crate::identity::principal::PrincipalKind::DirectUser => "direct_user",
-                _ => "unknown",
-            },
+            "kind": context.principal.kind.wire_name(),
         },
         "requests": {
             "total": total,
