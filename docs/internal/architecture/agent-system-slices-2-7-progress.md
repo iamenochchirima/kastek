@@ -114,7 +114,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **138 checked and 86 unchecked items out of 224**. This is a
+The primary blueprint currently has **139 checked and 85 unchecked items out of 224**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -156,6 +156,14 @@ The repeatable domain migration template and post-bookings dependency order are 
 operation, isolation, adapter, verification, and evidence gates.
 
 The current slice evidence is recorded as follows:
+
+- The booking transport parity follow-up `41778a7` moves product request normalization, timestamp,
+  status, duration, and optional-field validation into the shared bookings transport/domain policy.
+  Product and delegated booking list handlers now use the same typed service/booking response
+  envelopes, preventing drift in wire shape while retaining their distinct authentication paths.
+  The focused booking suite passes 11 tests and the full core library suite passes 90 tests with
+  three explicitly ignored infrastructure-gated cases; seeded transactional overlap and
+  organization-isolation coverage remains open under `BLOCKERS.md` B-010.
 
 - Booking transport/internal capability and product response parity: `15d3f77`, `21317c0`,
   `7f4d89c`; verified with `cargo fmt --check`, `cargo check -p kasitek-core`, `cargo test -p

@@ -452,8 +452,11 @@ the first complete agent-capability domain in Slice 5.
   and assert `/v1` ownership in `api::public_v1`.
 - [ ] Add booking unit tests for normalization, validation, policy, status, overlap, and organization
   isolation plus database integration tests for transactional outcomes.
-- [ ] Add product-versus-internal booking parity tests proving both adapters invoke the same business
-  behavior while preserving their distinct authentication and response envelopes.
+- [x] Add product-versus-internal booking parity tests proving both adapters invoke the same business
+  behavior while preserving their distinct authentication and response envelopes. Evidence:
+  `41778a7` centralizes request normalization and typed list envelopes in the shared bookings
+  transport; product and delegated handlers call the same query boundary and serialize identical
+  service/booking response contracts, with focused parity tests in `domains/bookings/transport.rs`.
 - [ ] Run existing workspace, customer, connection, and billing database suites to detect unrelated
   regressions caused by application-state or route restructuring.
 - [x] Record the changed paths, preserved contracts, test commands, and commit for the slice.
