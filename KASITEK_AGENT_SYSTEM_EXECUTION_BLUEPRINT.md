@@ -770,6 +770,8 @@ real capabilities, preserves independent chats, and never invents platform featu
 - [x] Add installation capability discovery and grant controls through the authenticated core proxy;
   keep invocation-time grant checks as the final enforcement boundary.
 - [x] Add a local stdio bridge only for clients that cannot connect to hosted Streamable HTTP.
+  `1efd1bb` adds the stateless line-delimited JSON-RPC proxy at `agents/src/gateway/stdio.ts` with
+  bounded request/response size, bearer/protocol forwarding, notification silence, and unit tests.
 - [x] Add gateway transport hardening: bounded pre-authenticated/authenticated rate windows,
   explicit emergency disable configuration, protocol revision negotiation, and explicit unsupported
   GET/session behavior; keep policy and kill-switch ownership in Agent API/runtime.
@@ -777,7 +779,11 @@ real capabilities, preserves independent chats, and never invents platform featu
 ### Verification
 
 - [ ] Add MCP protocol, authentication, discovery filtering, cancellation, error, instance-isolation,
-  stateless scaling, and Agent Platform adapter tests.
+  stateless scaling, and Agent Platform adapter tests. Focused coverage now includes the Agent API
+  and gateway HTTP matrices, protocol notifications/cancellation, structured errors, token claim
+  ownership checks, MCP/REST acceptance parity, gateway replica behavior, and the stdio bridge
+  (`8dfa645`, `187b427`, `773b250`, `1efd1bb`); full external-client and live infrastructure proof
+  remains open.
 - [x] Add focused gateway tests for rate limiting, protocol negotiation, transport disable, bounded
   lifecycle methods, and upstream header propagation.
 - [x] Add gateway readiness against the Agent API, correlation-id propagation, and redacted
@@ -785,7 +791,10 @@ real capabilities, preserves independent chats, and never invents platform featu
 - [ ] Add REST/OpenAPI conformance tests for every principal type, scope/resource authorization,
   pagination, validation, idempotency, rate limits, metering, webhooks, versioning, and deprecation.
   The route/status/security matrix and direct-user/agent-installation policy assertions now pass in
-  `90c2bf5`; issuer-specific, resource-policy, and external-client verification remains open.
+  `90c2bf5`; Agent installation REST now also shares the protocol-neutral acceptance service with MCP,
+  rejects malformed idempotency keys, verifies token-record ownership, and has a runnable generic
+  Python smoke client (`8dfa645`, `74a43ec`, `773b250`, `730fc2b`). Issuer-specific, resource-policy,
+  n8n, and external-client verification remains open.
 - [x] Add focused installation REST tests for audience authentication, API scope enforcement,
   installation isolation, durable invocation/idempotency, operation inspection, and cancellation.
 - [ ] Add behavior-parity tests proving equivalent MCP and REST operations converge on the same core

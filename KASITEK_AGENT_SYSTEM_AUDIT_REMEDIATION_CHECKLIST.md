@@ -662,8 +662,11 @@ Relevant starting points:
 
 **Partial evidence:** `agents/src/gateway/app.ts`, `agents/src/gateway/server.ts`,
 `agents/src/db/repositories/kill-switch-repository.ts`, `agents/src/http/app.ts`,
-`agents/test/gateway.test.ts`, and `agents/test/http.test.ts`; `5d3787e`. Distributed limits,
-metrics/readiness, deployment, protocol cancellation, and hosted smoke remain open.
+`agents/test/gateway.test.ts`, and `agents/test/http.test.ts`; `5d3787e`. Follow-up commits
+`8dfa645`, `187b427`, `773b250`, `1efd1bb`, and `f4d236d` add MCP/REST acceptance parity,
+deterministic idempotency validation, token-record ownership checks, a local stdio bridge, and
+checked-in API/worker/gateway Railway descriptors with deployment-contract tests. Distributed
+limits, full Streamable HTTP lifecycle, and hosted smoke remain open.
 - [x] Rate, body, timeout, disconnect/cancellation, upstream failure, and kill-switch tests pass.
   `agents/test/gateway.test.ts` covers all transport cases and `agents/test/http.test.ts` covers
   Agent-side scoped switch enforcement and recovery after clearing the switch.

@@ -75,6 +75,12 @@ original operation rather than starting a second effect. Approval-required and d
 continue through Temporal; immediate read manifests may use the explicit local fallback while
 still recording run, tool, audit, and usage evidence.
 
+Clients that only support local stdio can use `pnpm run start:stdio` with `MCP_STDIO_TOKEN` set to an
+exchanged MCP installation token. The bridge forwards one JSON-RPC message per input line to the
+hosted endpoint, preserves notification silence, and bounds both request and response size. It is a
+transport proxy only; authentication, discovery, policy, and durable state remain at the gateway and
+Agent API.
+
 ## Safety and inspection
 
 Capability policy is evaluated at discovery, invocation, approval, and execution boundaries. The
