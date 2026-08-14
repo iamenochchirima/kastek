@@ -464,8 +464,13 @@ the first complete agent-capability domain in Slice 5.
   migration and that `/v1` is not accidentally served by product or website modules. Evidence:
   `c5c2cb7` and `62e2ec2` preserve the 225 path inventory, exercise representative route mounts,
   and assert `/v1` ownership in `api::public_v1`.
-- [ ] Add booking unit tests for normalization, validation, policy, status, overlap, and organization
-  isolation plus database integration tests for transactional outcomes.
+- [x] Add booking unit tests for normalization, validation, policy, status, overlap, and organization
+  isolation plus database integration tests for transactional outcomes. `domains/bookings/transport.rs`
+  and `domains/bookings/policy.rs` cover request normalization, boundaries, status transitions, and
+  principal policy; `server/kasitek-core/scripts/test-bookings-db.sh` runs the disposable-local
+  `tests/bookings_integration.sql` fixture, which passed against a cloned local schema and verifies
+  organization-scoped reads, overlap exclusion for cancelled bookings, and cross-organization
+  customer rejection inside a transactional rollback.
 - [x] Add product-versus-internal booking parity tests proving both adapters invoke the same business
   behavior while preserving their distinct authentication and response envelopes. Evidence:
   `41778a7` centralizes request normalization and typed list envelopes in the shared bookings
