@@ -7,6 +7,7 @@ export const KASIAI_RELEASE_ACTOR = "kasiai-bootstrap";
 export const KASIAI_ALLOWED_TOOLS = [
   "platform.current_time",
   "kasitek.core.workspace_status",
+  "kasitek.core.workspace_report",
   "kasitek.core.content_posts_list",
   "kasitek.core.content_post_get",
   "kasitek.core.content_post_draft",
@@ -47,7 +48,7 @@ export function kasiaiInitialVersion(config: AppConfig) {
     policy: {
       allowedTools: [...KASIAI_ALLOWED_TOOLS],
       modelPolicy: {
-        version: "kasiai-initial-v3-content-actions",
+        version: "kasiai-initial-v4-workspace-reporting",
         primary: {
           provider: config.KASIAI_MODEL_PROVIDER,
           model: config.KASIAI_MODEL,
