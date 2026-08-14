@@ -281,7 +281,7 @@ Agent build and core format/check/library tests pass. A checked
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 174 of 226 implementation/verification items are checked. The count
+At this reconciliation point, 175 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -1329,7 +1329,11 @@ gates because the basic commands above cannot prove those integrations.
   pass.
 - [ ] Direct client lint, typecheck, component tests, and production build pass.
 - [ ] Admin client lint, typecheck, component tests, and production build pass.
-- [ ] Relevant migrations apply from a clean database and from the supported previous schema.
+- [x] Relevant migrations apply from a clean database and from the supported previous schema.
+  Evidence: `client/packages/database/prisma/migrations/20260301000000_initial_client_schema`
+  captures the pre-incremental schema at `f964059^`; all 50 current Prisma migrations applied
+  successfully to a newly-created disposable local PostgreSQL database on 2026-08-14. Existing
+  databases require the documented one-time baseline resolve after schema review.
 - [x] Relevant local Temporal workflow/recovery tests pass against an isolated dev server; hosted
   Temporal and provider-side crash recovery remain separate release gates.
 - [ ] Relevant provider sandbox or live smoke tests pass without logging credentials.

@@ -72,7 +72,13 @@ BILLING_TEST_DATABASE_URL=postgresql://.../disposable_db server/kasitek-core/scr
 
 The script refuses non-local database URLs. It checks organisation isolation, usage and checkout idempotency, plan entitlements, and reconciliation issue lifecycle inside a rolled-back transaction.
 
-The repository migration directory does not contain the historical baseline that originally created core tables such as `User`. A fresh empty database must currently be initialized with `prisma db push` before running the integration SQL. Existing deployed databases already contain that baseline. Do not run `prisma migrate deploy` against a remote database until its migration status and backup have been reviewed.
+The repository now includes the historical client-schema baseline in
+`client/packages/database/prisma/migrations/20260301000000_initial_client_schema`.
+Fresh disposable databases can use `prisma migrate deploy` before running the
+integration SQL. Existing deployed databases already contain those baseline
+tables; review migration status and backup before resolving that baseline as
+applied once, as described in
+[`client-database-migration-baseline.md`](internal/architecture/client-database-migration-baseline.md).
 
 ## Support checks
 
