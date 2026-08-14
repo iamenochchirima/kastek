@@ -513,11 +513,12 @@ campaign, and template routes over the shared core queries with catalog action d
 restricted-field redaction. The follow-up public API accounting slice adds durable
 `PublicApiRequest` reservations/finalization and a distributed per-principal rate limit. Feature/
 resource policy, the approved principal matrix, metrics export, and external REST conformance
-remain open. `8a68bab`, `81912a5`, and `2480e6e` add the signed outbound webhook subscription/delivery pipeline
-with encrypted secrets, idempotent request/content event enqueueing, HMAC signatures, retry/disable
-recovery, delivery diagnostics, configurable route flags, and standard deprecation headers; focused
-webhook and public OpenAPI tests pass. The broader principal and external conformance gates remain
-intentionally unchecked pending their policy and runtime verification dependencies.
+remain open. `8a68bab`, `81912a5`, `2480e6e`, and `753d84f` add the signed outbound webhook
+subscription/delivery pipeline with encrypted secrets, idempotent request/content event enqueueing
+and subscription creation, HMAC signatures, retry/disable recovery, delivery diagnostics,
+configurable route flags, and standard deprecation headers; focused webhook and public OpenAPI tests
+pass. The broader principal and external conformance gates remain intentionally unchecked pending
+their policy and runtime verification dependencies.
 - [x] Return a stable public DTO rather than serializing the internal `ActionDefinition` directly.
 - [x] Add pagination/versioning where required by the public API contract. `/v1/capabilities`
   and every paginated resource list now accept bounded `limit`, offset `cursor`, and `version=v1`,

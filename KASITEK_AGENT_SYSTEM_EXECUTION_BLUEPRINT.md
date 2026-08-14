@@ -700,10 +700,11 @@ real capabilities, preserves independent chats, and never invents platform featu
   domain commands and queries. Current partial evidence: `59ad609` adds centralized correlation,
   stable error codes, rate-limit response metadata, and required draft idempotency; `587f101`
   validates `version=v1` across every paginated resource list and updates the core OpenAPI contract.
-  `8a68bab`, `81912a5`, and `2480e6e` add durable signed webhook subscriptions/deliveries, redacted
-  content domain events, delivery diagnostics, route feature flags, standard deprecation headers,
-  explicit capability-discovery policy metadata, and focused REST/OpenAPI contract assertions. The
-  approved principal matrix and full REST conformance remain open.
+  `8a68bab`, `81912a5`, `2480e6e`, and `753d84f` add durable signed webhook
+  subscriptions/deliveries, redacted content domain events, idempotent subscription creation,
+  delivery diagnostics, route feature flags, standard deprecation headers, explicit
+  capability-discovery policy metadata, and focused REST/OpenAPI contract assertions. The approved
+  principal matrix and full REST conformance remain open.
 - [x] Require each `/v1` operation to enter through normalized `RequestContext`; no public handler
   may call a legacy product controller, inspect product session cookies, or duplicate domain SQL,
   provider calls, authorization, validation, or idempotency behavior. All authenticated public data
@@ -742,11 +743,12 @@ real capabilities, preserves independent chats, and never invents platform featu
   cancellation. Keep its grants and API scopes separate from MCP scopes while reusing the same
   tool-run acceptance boundary.
 - [x] Implement signed outbound webhooks with subscription scope, delivery records, exponential
-  retry, replay protection, disable/re-enable policy, and diagnostics. `8a68bab` and `81912a5` add
-  encrypted organization-scoped subscriptions, HMAC-SHA256 delivery signatures over timestamp
-  plus raw body, idempotent request/content event enqueueing, stale-claim recovery, capped retries,
-  automatic disablement after ten failures, and `/v1/webhooks/subscriptions/{id}/deliveries`;
-  focused core tests, cargo check, OpenAPI parsing, and Prisma schema validation pass.
+  retry, replay protection, disable/re-enable policy, and diagnostics. `8a68bab`, `81912a5`, and
+  `753d84f` add encrypted organization-scoped subscriptions, HMAC-SHA256 delivery signatures over
+  timestamp plus raw body, idempotent request/content event enqueueing and subscription creation,
+  stale-claim recovery, capped retries, automatic disablement after ten failures, and
+  `/v1/webhooks/subscriptions/{id}/deliveries`; focused core tests, cargo check, OpenAPI parsing,
+  and Prisma schema validation pass.
 - [x] Add an external-agent connection wizard with named credentials, copy-once setup, grants,
   resource scope, health diagnostics, rotation/revocation, examples, and audit activity. The
   `/agents/connect` flow reuses installation credential/grant APIs, shows capability availability
