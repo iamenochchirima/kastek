@@ -108,18 +108,20 @@ export function OperatorReconcileButton({ effectId }: { effectId: string }) {
   </div>;
 }
 
-function OperatorRecoveryCommandButton({ commandType, targetId, label, completedMessage, payload = {} }: {
+function OperatorRecoveryCommandButton({ commandType, targetId, label, completedMessage, payload = {}, confirmMessage }: {
   commandType: "retry_run" | "replay_delivery" | "delete_memory";
   targetId: string;
   label: string;
   completedMessage: string;
   payload?: Record<string, unknown>;
+  confirmMessage?: string;
 }) {
   const [command, setCommand] = useState<Command | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   async function start() {
+    if (confirmMessage && typeof window !== "undefined" && !window.confirm(confirmMessage)) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -184,5 +186,6 @@ export function OperatorDeleteMemoryButton({ memoryId }: { memoryId: string }) {
     label="Request deletion"
     completedMessage="Memory deletion completed."
     payload={{ expectedStatus: "active" }}
+    confirmMessage="Request deletion of this memory? A second operator must approve the request."
   />;
 }
