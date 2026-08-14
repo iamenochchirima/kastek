@@ -12,8 +12,9 @@ describe.skipIf(!runIntegration)("operator projections (integration)", () => {
   let notificationId = "";
 
   it("rebuilds snapshots with monotonic revisions and acknowledges safe notifications", async () => {
-    const first = await rebuildOperatorProjections(pool, ["summary", "health", "alerts", "projection_lag"]);
-    expect(first.map((projection) => projection.projectionKey)).toEqual(["summary", "health", "alerts", "projection_lag"]);
+    const first = await rebuildOperatorProjections(pool, ["summary", "health", "delivery_health", "alerts", "projection_lag"]);
+    expect(first.map((projection) => projection.projectionKey)).toEqual(["summary", "health", "delivery_health", "alerts", "projection_lag"]);
+    expect(first.find((projection) => projection.projectionKey === "delivery_health")?.payload).toEqual(expect.objectContaining({ deliveries: expect.any(Object), failedAttempts: expect.any(Array) }));
     expect(first.find((projection) => projection.projectionKey === "alerts")?.payload).toEqual(expect.objectContaining({
       providerFailuresLast24h: expect.any(Object),
       queuedRunsOver15m: expect.any(Number),

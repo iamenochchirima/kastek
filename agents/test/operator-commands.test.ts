@@ -9,6 +9,8 @@ import {
 describe("operator command contract", () => {
   it("requires a second operator for effect and kill-switch mutations", () => {
     expect(requiredApprovals("cancel_run")).toBe(1);
+    expect(requiredApprovals("retry_run")).toBe(2);
+    expect(requiredApprovals("replay_delivery")).toBe(2);
     expect(requiredApprovals("reconcile_effect")).toBe(2);
     expect(requiredApprovals("kill_switch_enable")).toBe(2);
     expect(requiredApprovals("kill_switch_disable")).toBe(2);

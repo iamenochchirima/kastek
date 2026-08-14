@@ -118,5 +118,8 @@ describe("foundation migration", () => {
     const lifecycleCommandsSql = await readFile(new URL("../migrations/039_operator_lifecycle_commands.sql", import.meta.url), "utf8");
     expect(lifecycleCommandsSql).toContain("suspend_installation");
     expect(lifecycleCommandsSql).toContain("revoke_credential");
+    const recoveryCommandsSql = await readFile(new URL("../migrations/040_operator_recovery_commands.sql", import.meta.url), "utf8");
+    expect(recoveryCommandsSql).toContain("retry_run");
+    expect(recoveryCommandsSql).toContain("replay_delivery");
   });
 });

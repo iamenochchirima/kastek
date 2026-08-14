@@ -8,9 +8,10 @@ import { RunRepository } from "../db/repositories/run-repository";
 import { AgentRepository } from "../db/repositories/agent-repository";
 import { InstallationCredentialRepository } from "../db/repositories/installation-credential-repository";
 import { ScheduleRepository } from "../db/repositories/schedule-repository";
+import { ChannelRepository } from "../db/repositories/channel-repository";
 
 export const operatorCommandInputSchema = z.object({
-  commandType: z.enum(["cancel_run", "reconcile_effect", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
+  commandType: z.enum(["cancel_run", "retry_run", "replay_delivery", "reconcile_effect", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
   targetId: z.string().trim().min(1).max(240),
   payload: z.record(z.string(), z.unknown()).default({}),
 }).strict();
@@ -43,6 +44,8 @@ export interface OperatorCommandDependencies {
   agents?: AgentRepository;
   installationCredentials?: InstallationCredentialRepository;
   schedules?: ScheduleRepository;
+  channels?: ChannelRepository;
+  startWorkflow?: (runId: string) => Promise<void>;
   signalCancellation?: (runId: string, signal: { reason?: string }) => Promise<void>;
 }
 
@@ -57,7 +60,18 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
     requiredApprovals: command.required_approvals,
     approvers: command.approvers,
     idempotencyKey: command.idempotency_key,
-    result: command.result ? { status: command.result.status, effectId: command.result.effectId, runId: command.result.runId, switchId: command.result.switchId, installationId: command.result.installationId, credentialId: command.result.credentialId, scheduleId: command.result.scheduleId } : null,
+    result: command.result ? {
+      status: command.result.status,
+      effectId: command.result.effectId,
+      runId: command.result.runId,
+      sourceRunId: command.result.sourceRunId,
+      switchId: command.result.switchId,
+      installationId: command.result.installationId,
+      credentialId: command.result.credentialId,
+      scheduleId: command.result.scheduleId,
+      deliveryAttemptId: command.result.deliveryAttemptId,
+      originalDeliveryAttemptId: command.result.originalDeliveryAttemptId,
+    } : null,
     error: command.error ? { code: command.error.code, message: command.error.message } : null,
     createdAt: command.created_at,
     updatedAt: command.updated_at,
@@ -111,6 +125,70 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
     });
     await auditCommand(dependencies.pool, { organizationId: effect.organization_id, actorId, action: "operator_command.effect_reconciled", commandId: command.id, metadata: { effectId: command.target_id, outcome } });
     return { status: outcome, effectId: command.target_id };
+  }
+
+  if (command.command_type === "retry_run") {
+    const run = await dependencies.runs.getRunById(command.target_id);
+    if (!run) throw Object.assign(new Error("Run not found"), { statusCode: 404 });
+    if (!["failed", "cancelled", "expired"].includes(run.status)) {
+      throw Object.assign(new Error("Only failed, cancelled, or expired runs can be retried"), { statusCode: 409 });
+    }
+    if (!dependencies.startWorkflow) throw Object.assign(new Error("Temporal workflow dispatch is unavailable"), { statusCode: 503 });
+    const retried = await dependencies.runs.createRun(run.organization_id, actorId, {
+      installationId: run.installation_id,
+      conversationId: run.conversation_id ?? undefined,
+      triggerType: ["message", "schedule", "webhook", "manual"].includes(run.trigger_type)
+        ? run.trigger_type as "message" | "schedule" | "webhook" | "manual"
+        : "manual",
+      input: run.input,
+      idempotencyKey: `operator-retry:${command.id}`,
+    });
+    if (retried.created !== false) {
+      try {
+        await dependencies.startWorkflow(retried.id);
+      } catch (error) {
+        await dependencies.runs.failRun(retried.id, {
+          code: "WORKFLOW_DISPATCH_FAILED",
+          message: error instanceof Error ? error.message : "Workflow dispatch failed",
+        });
+        throw error;
+      }
+    }
+    await auditCommand(dependencies.pool, {
+      organizationId: run.organization_id,
+      actorId,
+      action: "operator_command.run_retried",
+      commandId: command.id,
+      metadata: { sourceRunId: run.id, runId: retried.id },
+    });
+    return { status: "started", runId: retried.id, sourceRunId: run.id };
+  }
+
+  if (command.command_type === "replay_delivery") {
+    if (!dependencies.channels) throw Object.assign(new Error("Delivery replay is unavailable"), { statusCode: 503 });
+    const target = (await query<{ organization_id: string }>(
+      dependencies.pool,
+      "SELECT organization_id FROM delivery_attempts WHERE id = $1",
+      [command.target_id],
+    )).rows[0];
+    if (!target) throw Object.assign(new Error("Delivery attempt not found"), { statusCode: 404 });
+    const replay = await dependencies.channels.replayDelivery({
+      organizationId: target.organization_id,
+      attemptId: command.target_id,
+      confirmUnknown: command.payload.confirmUnknown === true,
+    });
+    await auditCommand(dependencies.pool, {
+      organizationId: target.organization_id,
+      actorId,
+      action: "operator_command.delivery_replayed",
+      commandId: command.id,
+      metadata: { originalDeliveryAttemptId: replay.previous.id, deliveryAttemptId: replay.replay.id },
+    });
+    return {
+      status: "queued",
+      deliveryAttemptId: replay.replay.id,
+      originalDeliveryAttemptId: replay.previous.id,
+    };
   }
 
   if (command.command_type === "suspend_installation" || command.command_type === "resume_installation") {

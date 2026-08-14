@@ -211,6 +211,70 @@ export class ChannelRepository {
     });
   }
 
+  /**
+   * Queue a new attempt for a terminal delivery only after taking a lock on
+   * the message and verifying that the requested attempt is still the latest
+   * one. This makes an operator replay safe under concurrent workers and
+   * prevents replaying a delivery that has already been sent or superseded.
+   */
+  public async replayDelivery(input: {
+    organizationId: string;
+    attemptId: string;
+    confirmUnknown?: boolean;
+  }): Promise<{ previous: DeliveryAttemptRecord; replay: DeliveryAttemptRecord }> {
+    return withTransaction(this.pool, async (client) => {
+      const target = (await client.query<DeliveryAttemptRecord>(
+        `SELECT * FROM delivery_attempts
+         WHERE id = $1 AND organization_id = $2
+         FOR UPDATE`,
+        [input.attemptId, input.organizationId],
+      )).rows[0];
+      if (!target) throw Object.assign(new Error("Delivery attempt not found"), { statusCode: 404 });
+      if (target.status !== "failed" && target.status !== "unknown") {
+        throw Object.assign(new Error("Only failed or explicitly unknown delivery attempts can be replayed"), { statusCode: 409 });
+      }
+      if (target.status === "unknown" && input.confirmUnknown !== true) {
+        throw Object.assign(new Error("Replaying an unknown delivery requires confirmUnknown"), { statusCode: 400 });
+      }
+
+      const message = (await client.query<{ id: string; conversation_id: string; organization_id: string }>(
+        `SELECT id, conversation_id, organization_id
+         FROM messages
+         WHERE id = $1 AND conversation_id = $2 AND organization_id = $3
+         FOR UPDATE`,
+        [target.message_id, target.conversation_id, input.organizationId],
+      )).rows[0];
+      if (!message) throw Object.assign(new Error("Delivery message not found"), { statusCode: 404 });
+
+      const latest = (await client.query<{ id: string }>(
+        `SELECT id FROM delivery_attempts
+         WHERE message_id = $1
+         ORDER BY attempt_number DESC
+         LIMIT 1`,
+        [target.message_id],
+      )).rows[0];
+      if (!latest || latest.id !== target.id) {
+        throw Object.assign(new Error("Delivery attempt has already been superseded"), { statusCode: 409 });
+      }
+
+      const replay = (await client.query<DeliveryAttemptRecord>(
+        `INSERT INTO delivery_attempts
+          (organization_id, conversation_id, message_id, channel_type, status, attempt_number)
+         SELECT $1, $2, $3, $4, 'queued',
+                COALESCE((SELECT MAX(attempt_number) FROM delivery_attempts WHERE message_id = $3), 0) + 1
+         RETURNING *`,
+        [input.organizationId, message.conversation_id, message.id, target.channel_type],
+      )).rows[0];
+      if (!replay) throw new Error("Delivery replay could not be queued");
+      await client.query(
+        `UPDATE messages SET delivery_status = 'queued'
+         WHERE id = $1 AND conversation_id = $2 AND organization_id = $3`,
+        [message.id, message.conversation_id, input.organizationId],
+      );
+      return { previous: target, replay };
+    });
+  }
+
   public async getRunReplyDelivery(runId: string): Promise<RunReplyDeliveryRecord | null> {
     const result = await query<RunReplyDeliveryRecord>(
       this.pool,

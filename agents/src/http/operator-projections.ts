@@ -55,8 +55,19 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
   }
 
   if (key === "delivery_health") {
-    const result = await query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM delivery_attempts GROUP BY status ORDER BY status");
-    return { generatedAt: new Date().toISOString(), deliveries: Object.fromEntries(result.rows.map((row) => [row.status, Number(row.count)])) };
+    const [result, failures] = await Promise.all([
+      query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM delivery_attempts GROUP BY status ORDER BY status"),
+      query<{ id: string; organization_id: string; status: string; attempt_number: number; created_at: string }>(pool, `SELECT id::text, organization_id, status, attempt_number, created_at
+        FROM delivery_attempts
+        WHERE status IN ('failed', 'unknown')
+        ORDER BY created_at DESC
+        LIMIT 50`),
+    ]);
+    return {
+      generatedAt: new Date().toISOString(),
+      deliveries: Object.fromEntries(result.rows.map((row) => [row.status, Number(row.count)])),
+      failedAttempts: failures.rows.map((row) => ({ id: row.id, organizationId: row.organization_id, status: row.status, attemptNumber: row.attempt_number, createdAt: row.created_at })),
+    };
   }
 
   if (key === "provider_workers") {

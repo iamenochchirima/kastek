@@ -1072,7 +1072,7 @@ idempotency keys, immutable request/execution audit records, one-operator cancel
 two-operator reconciliation/kill-switch approval. The core proxy forwards idempotency keys, command
 inspection uses a read-only delegation scope, and the reconciliation UI requires an explicit outcome
 before requesting a second approval. Focused command tests and the PostgreSQL-backed lifecycle test
-pass; the full Agent suite passes 51 files / 210 tests / 0 skips with local PostgreSQL and Temporal.
+pass; the full Agent suite passes 54 files / 216 tests / 0 skips with local PostgreSQL and Temporal.
 **Slice 12 implementation evidence (2026-08-14):** The admin chunk now includes durable support
 grants and audit tables in both the client database schema and core SQL inventory, active-grant
 enforcement on customer conversation reads, eight persisted Agent operator projections, expanded
@@ -1082,10 +1082,15 @@ the full safe read-model/audit surface. Migration `agents/migrations/039_operato
 extends the audited command constraint for installation, credential, and schedule lifecycle actions;
 dual-control integration tests cover each action and verify the resulting state transitions.
 Runbooks cover the provider/model, queue/stuck-run, duplicate-effect, credential/data-access, and
-delivery-storm response paths. Verification passes the full Agent suite (54 files / 215 tests / 0
-skips with local PostgreSQL and Temporal), core library tests (110 passed / 3 infrastructure tests
+delivery-storm response paths. Migration `agents/migrations/040_operator_recovery_commands.sql`
+adds dual-control `retry_run` and safe `replay_delivery` commands; terminal-run retry dispatches a
+new durable run with command-bound idempotency, while delivery replay locks the message, rejects
+sent/superseded attempts, and requires explicit confirmation for unknown outcomes. The Operations UI
+now exposes terminal-run retry and redacted failed-delivery replay controls. Verification passes the
+full Agent suite (54 files / 216 tests / 0 skips with local PostgreSQL and Temporal), core library tests (110 passed / 3 infrastructure tests
 ignored), Prisma validation/migrations, and the admin lint/typecheck/build. Full cross-role E2E,
-external hosted checks, and the remaining broad admin command matrix remain open.
+external hosted checks, and the remaining broad admin command matrix (assign, safe webhook replay,
+feature flags, holds, export/deletion workflow, and full version/resource checks) remain open.
 
 ## Slice 13 — Security, observability, expansion, and production release
 
