@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApprovalResourceSnapshot, projectContentApprovalResource } from "../src/temporal/activities";
+import { buildApprovalResourceSnapshot, buildApprovalResourceSnapshotFromCore, projectContentApprovalOperation, projectContentApprovalResource } from "../src/temporal/activities";
 
 describe("approval preview projection", () => {
   it("keeps stable resource selectors and excludes content, credentials, and metadata", () => {
@@ -54,5 +54,86 @@ describe("approval preview projection", () => {
     });
     expect(JSON.stringify(preview)).not.toContain("providerReceipt");
     expect(JSON.stringify(preview)).not.toContain("must not persist");
+  });
+
+  it("projects the requested transition for every enabled content effect", () => {
+    const post = {
+      id: "post-123",
+      content: "Reviewed copy",
+      channels: ["X"],
+      status: "DRAFT",
+      scheduled_for: "2026-08-15T12:00:00Z",
+    };
+    expect(projectContentApprovalOperation("kasitek.core.content_post_publish", { platform: "X" }, post)).toEqual({
+      type: "publish",
+      postId: "post-123",
+      fromStatus: "DRAFT",
+      platform: "X",
+      targetStatus: "PUBLISHED",
+    });
+    expect(projectContentApprovalOperation("kasitek.core.content_post_schedule", { scheduledFor: "2026-08-16T12:00:00Z" }, post)).toEqual({
+      type: "schedule",
+      postId: "post-123",
+      fromStatus: "DRAFT",
+      scheduledFor: "2026-08-16T12:00:00Z",
+      targetStatus: "SCHEDULED",
+    });
+    expect(projectContentApprovalOperation("kasitek.core.content_post_unschedule", {}, { ...post, status: "SCHEDULED" })).toEqual({
+      type: "unschedule",
+      postId: "post-123",
+      fromStatus: "SCHEDULED",
+      currentScheduledFor: "2026-08-15T12:00:00Z",
+      targetStatus: "DRAFT",
+    });
+    expect(projectContentApprovalOperation("kasitek.core.content_post_delete", {}, post)).toEqual({
+      type: "delete",
+      postId: "post-123",
+      fromStatus: "DRAFT",
+      targetStatus: "DELETED",
+    });
+  });
+
+  it("includes the operation in the immutable content resource preview", async () => {
+    const coreClient = {
+      getContentPost: async () => ({
+        post: {
+          id: "post-123",
+          content: "Reviewed copy",
+          channels: ["X"],
+          status: "DRAFT",
+          variants: [],
+        },
+      }),
+    } as never;
+    const preview = await buildApprovalResourceSnapshotFromCore(coreClient, {
+      organizationId: "org-1",
+      agentId: "agent-1",
+      agentVersionId: "version-1",
+      installationId: "install-1",
+      runId: "run-1",
+      correlationId: "corr-1",
+    }, "kasitek.core.content_post_publish", { postId: "post-123", platform: "X" });
+    expect(preview).toMatchObject({
+      resource: {
+        revision: "content-post.v1",
+        operation: {
+          type: "publish",
+          platform: "X",
+          targetStatus: "PUBLISHED",
+        },
+      },
+    });
+  });
+
+  it("fails closed when an enabled content effect cannot load its preview", async () => {
+    const coreClient = { getContentPost: async () => { throw new Error("unavailable"); } } as never;
+    await expect(buildApprovalResourceSnapshotFromCore(coreClient, {
+      organizationId: "org-1",
+      agentId: "agent-1",
+      agentVersionId: "version-1",
+      installationId: "install-1",
+      runId: "run-1",
+      correlationId: "corr-1",
+    }, "kasitek.core.content_post_delete", { postId: "post-123" })).rejects.toThrow("CONTENT_PREVIEW_UNAVAILABLE");
   });
 });

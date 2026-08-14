@@ -582,6 +582,56 @@ export function projectContentApprovalResource(post: CoreContentPost): Record<st
 }
 
 /**
+ * Describe the requested state transition separately from the read projection.
+ * Keeping the operation in the immutable preview makes an approval legible
+ * without exposing provider payloads or relying on the model to infer the
+ * effect from a capability name.
+ */
+export function projectContentApprovalOperation(
+  capability: string,
+  argumentsValue: Record<string, unknown>,
+  post: CoreContentPost,
+): Record<string, unknown> {
+  const postId = boundedPreviewString(post.id, 160) ?? "";
+  const fromStatus = boundedPreviewString(post.status, 40) ?? "UNKNOWN";
+  switch (capability) {
+    case "kasitek.core.content_post_publish":
+      return {
+        type: "publish",
+        postId,
+        fromStatus,
+        ...(boundedPreviewString(argumentsValue.platform, 80) ? { platform: boundedPreviewString(argumentsValue.platform, 80) } : {}),
+        targetStatus: "PUBLISHED",
+      };
+    case "kasitek.core.content_post_schedule":
+      return {
+        type: "schedule",
+        postId,
+        fromStatus,
+        ...(boundedPreviewString(argumentsValue.scheduledFor, 64) ? { scheduledFor: boundedPreviewString(argumentsValue.scheduledFor, 64) } : {}),
+        targetStatus: "SCHEDULED",
+      };
+    case "kasitek.core.content_post_unschedule":
+      return {
+        type: "unschedule",
+        postId,
+        fromStatus,
+        ...(boundedPreviewString(post.scheduled_for, 64) ? { currentScheduledFor: boundedPreviewString(post.scheduled_for, 64) } : {}),
+        targetStatus: "DRAFT",
+      };
+    case "kasitek.core.content_post_delete":
+      return {
+        type: "delete",
+        postId,
+        fromStatus,
+        targetStatus: "DELETED",
+      };
+    default:
+      return { type: "unknown", postId, fromStatus };
+  }
+}
+
+/**
  * Build the immutable, safe portion of an approval preview. Provider payloads,
  * credentials, and arbitrary metadata never enter the approval record; the
  * exact arguments hash still binds the eventual effect. A domain adapter may
@@ -612,10 +662,12 @@ export async function buildApprovalResourceSnapshotFromCore(
   }
   try {
     const response = await coreClient.getContentPost(context, argumentsValue.postId);
+    const resource = projectContentApprovalResource(response.post);
     return buildApprovalResourceSnapshot(capability, argumentsValue, {
       kind: "content_post",
       revision: "content-post.v1",
-      ...projectContentApprovalResource(response.post),
+      ...resource,
+      operation: projectContentApprovalOperation(capability, argumentsValue, response.post),
     });
   } catch {
     // A missing/unavailable preview must never turn into an unreviewed effect.

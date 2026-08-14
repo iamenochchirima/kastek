@@ -731,7 +731,7 @@ runtime verification.
 - [ ] Run the complete Temporal approval, retry, worker-restart, crash-after-provider-call,
   cancellation, and replay recovery matrix. Local approval continuation, worker replacement,
   signal recovery, cancellation, and durable-run coverage now pass in the full Agent suite
-  (49 files / 199 tests / 0 skipped) against isolated Temporal; provider crash and Redis replay
+  (49 files / 202 tests / 0 skipped) against isolated Temporal; provider crash and Redis replay
   recovery remain open.
 - [ ] Run MCP authentication, protocol, filtering, approval, cancellation, idempotency, isolation,
   and parity tests through the separate gateway.
@@ -764,7 +764,7 @@ runtime verification.
   whitespace; the generated directory was restored after verification.
 - [x] Record every skipped/ignored test with an explicit blocker; do not summarize a suite as fully
   passing while required integration tests are skipped. Agent Temporal recovery is locally resolved
-  (199 tests / 0 skips); core seeded-database/Redis ignores remain B-008/B-010, and the evidence
+  (202 tests / 0 skips); core seeded-database/Redis ignores remain B-008/B-010, and the evidence
   documents the exact commands.
 
 ## 15. Resume the primary blueprint after remediation
