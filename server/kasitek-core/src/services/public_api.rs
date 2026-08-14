@@ -32,6 +32,54 @@ pub struct RequestAuditHandle {
 #[derive(Clone, Debug)]
 pub struct PublicCorrelationId(pub String);
 
+/// A deployment can turn off a route without rebuilding the core binary. The
+/// value is a comma-separated list of exact `/v1/...` paths; an empty or
+/// missing value leaves every route enabled.
+pub fn route_enabled(path: &str) -> bool {
+    !std::env::var("PUBLIC_API_DISABLED_ROUTES")
+        .ok()
+        .is_some_and(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|entry| !entry.is_empty())
+                .any(|entry| entry == path)
+        })
+}
+
+/// Apply the standard deprecation contract when an operator has configured a
+/// sunset. Routes are selected by `PUBLIC_API_DEPRECATED_ROUTES`; the sunset
+/// date and documentation link are supplied by `PUBLIC_API_SUNSET` and
+/// `PUBLIC_API_DEPRECATION_LINK` respectively.
+fn apply_deprecation_headers(path: &str, headers: &mut actix_web::http::header::HeaderMap) {
+    let selected = std::env::var("PUBLIC_API_DEPRECATED_ROUTES")
+        .ok()
+        .is_some_and(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|entry| !entry.is_empty())
+                .any(|entry| entry == path)
+        });
+    if !selected {
+        return;
+    }
+    headers.insert(
+        HeaderName::from_static("deprecation"),
+        HeaderValue::from_static("true"),
+    );
+    if let Ok(sunset) = std::env::var("PUBLIC_API_SUNSET") {
+        if let Ok(value) = HeaderValue::from_str(sunset.trim()) {
+            headers.insert(HeaderName::from_static("sunset"), value);
+        }
+    }
+    if let Ok(link) = std::env::var("PUBLIC_API_DEPRECATION_LINK") {
+        if let Ok(value) = HeaderValue::from_str(link.trim()) {
+            headers.insert(HeaderName::from_static("link"), value);
+        }
+    }
+}
+
 pub async fn begin_request(
     pool: &PgPool,
     limit_per_minute: u32,
@@ -235,7 +283,27 @@ pub async fn middleware(
                 error
             );
         }
+        // Do not emit a webhook about webhook administration itself. Every
+        // other authenticated request is a durable, signed event source.
+        if !response.request().path().starts_with("/v1/webhooks") {
+            if let Err(error) = crate::services::public_webhooks::enqueue_request_event(
+                &state.pool,
+                &handle.id,
+                response.status().as_u16(),
+            )
+            .await
+            {
+                log::warn!(
+                    "failed to enqueue public webhook event for {}: {}",
+                    handle.id,
+                    error
+                );
+            }
+        }
     }
+
+    let request_path = response.request().path().to_string();
+    apply_deprecation_headers(&request_path, response.response_mut().headers_mut());
 
     // These headers are part of the public transport contract and are added
     // centrally so success, validation, authorization, and database errors

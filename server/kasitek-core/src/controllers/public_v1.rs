@@ -18,7 +18,7 @@ use crate::domains::bookings::transport::BookingListResponse;
 use crate::error::AppError;
 use crate::identity::{product_session, request_context::RequestContext};
 use crate::services::agent_platform::AgentPlatformClient;
-use crate::services::{inbox, public_api, whatsapp};
+use crate::services::{inbox, public_api, public_webhooks, whatsapp};
 
 pub async fn health(state: web::Data<AppState>) -> HttpResponse {
     HttpResponse::Ok().json(json!({
@@ -42,6 +42,165 @@ pub async fn metrics(
     let context = public_context(&req, &state).await?;
     let metrics = public_api::metrics(&state.pool, &context).await?;
     Ok(response_with_context(&context).json(metrics))
+}
+
+async fn require_webhook_scope(
+    req: &HttpRequest,
+    state: &AppState,
+    context: &RequestContext,
+    write: bool,
+) -> Result<(), AppError> {
+    let required_api_scope = if write { "api:write" } else { "api:read" };
+    let required_grant = if write {
+        "webhooks.manage"
+    } else {
+        "webhooks.read"
+    };
+    set_public_audit_action(
+        req,
+        if write {
+            "webhooks.manage"
+        } else {
+            "webhooks.list"
+        },
+    );
+    if !matches!(
+        context.principal.kind,
+        crate::identity::principal::PrincipalKind::AgentInstallation
+    ) {
+        return Ok(());
+    }
+    let capabilities = AgentPlatformClient::from_config(&state.config)?
+        .list_installation_capabilities(
+            &context.organization_id,
+            &context.principal.id,
+            context
+                .installation_id
+                .as_deref()
+                .ok_or(AppError::Unauthorized)?,
+            context.principal.client_id.as_deref(),
+        )
+        .await?;
+    let has_api_scope = capabilities
+        .get("apiScopes")
+        .and_then(Value::as_array)
+        .is_some_and(|scopes| {
+            scopes
+                .iter()
+                .any(|scope| scope.as_str() == Some(required_api_scope))
+        });
+    let has_grant = capabilities
+        .get("capabilities")
+        .and_then(Value::as_array)
+        .is_some_and(|items| {
+            items.iter().any(|item| {
+                item.get("availability").and_then(Value::as_str) == Some("available")
+                    && item
+                        .get("manifest")
+                        .and_then(|manifest| manifest.get("requiredScope"))
+                        .and_then(Value::as_str)
+                        == Some(required_grant)
+            })
+        });
+    if has_api_scope && has_grant {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(format!(
+            "Public webhook capability requires {required_api_scope} and {required_grant}"
+        )))
+    }
+}
+
+pub async fn list_webhook_subscriptions(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    query: web::Query<PublicPageQuery>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_webhook_scope(&req, &state, &context, false).await?;
+    let values = public_webhooks::list_subscriptions(&state.pool, &context.organization_id).await?;
+    let payload = paginate_collection(
+        json!({ "subscriptions": values }),
+        "subscriptions",
+        query.into_inner(),
+    )?;
+    Ok(response_with_context(&context).json(payload))
+}
+
+pub async fn create_webhook_subscription(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    body: web::Json<public_webhooks::CreateSubscriptionInput>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_webhook_scope(&req, &state, &context, true).await?;
+    let (subscription, secret) = public_webhooks::create_subscription(
+        &state.pool,
+        &context.organization_id,
+        body.into_inner(),
+        &state.config,
+    )
+    .await?;
+    Ok(response_with_context(&context)
+        .status(actix_web::http::StatusCode::CREATED)
+        .json(json!({
+            "subscription": subscription,
+            "secret": secret,
+            "secretDelivery": "returned_once"
+        })))
+}
+
+pub async fn update_webhook_subscription(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+    body: web::Json<public_webhooks::UpdateSubscriptionInput>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_webhook_scope(&req, &state, &context, true).await?;
+    let subscription = public_webhooks::update_subscription(
+        &state.pool,
+        &context.organization_id,
+        &path.into_inner(),
+        body.into_inner(),
+        &state.config,
+    )
+    .await?;
+    Ok(response_with_context(&context).json(json!({ "subscription": subscription })))
+}
+
+pub async fn delete_webhook_subscription(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_webhook_scope(&req, &state, &context, true).await?;
+    public_webhooks::delete_subscription(&state.pool, &context.organization_id, &path.into_inner())
+        .await?;
+    Ok(response_with_context(&context).json(json!({ "status": "disabled" })))
+}
+
+pub async fn list_webhook_deliveries(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+    query: web::Query<PublicPageQuery>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_webhook_scope(&req, &state, &context, false).await?;
+    let values = public_webhooks::list_deliveries(
+        &state.pool,
+        &context.organization_id,
+        Some(&path.into_inner()),
+    )
+    .await?;
+    let payload = paginate_collection(
+        json!({ "deliveries": values }),
+        "deliveries",
+        query.into_inner(),
+    )?;
+    Ok(response_with_context(&context).json(payload))
 }
 
 const PUBLIC_PAGE_DEFAULT_LIMIT: usize = 50;
@@ -148,6 +307,11 @@ fn attach_pagination_metadata(
 }
 
 async fn public_context(req: &HttpRequest, state: &AppState) -> Result<RequestContext, AppError> {
+    if !public_api::route_enabled(req.path()) {
+        return Err(AppError::ServiceUnavailable(
+            "This public API route is disabled by deployment policy".to_string(),
+        ));
+    }
     // Product user sessions are opaque bearer values. A JWT-shaped bearer value
     // is an attempted Agent installation credential and must never fall through
     // to cookie/session authentication when signature or claim validation fails.
@@ -652,6 +816,16 @@ pub async fn capabilities(
             "id": context.principal.id,
             "organizationId": context.organization_id,
         },
+        "principalPolicy": {
+            "supported": ["direct_user", "agent_installation"],
+            "agentInstallationRequirements": ["api:read or api:write", "capability grant"],
+            "notYetSupported": ["workspace_api_key", "service_account", "oauth_user", "oauth_application"],
+        },
+        "transportPolicy": {
+            "featureFlag": "PUBLIC_API_DISABLED_ROUTES",
+            "deprecationRoutes": "PUBLIC_API_DEPRECATED_ROUTES",
+            "deprecationHeaders": ["Deprecation", "Sunset", "Link"]
+        },
         "actions": actions,
         "pagination": {
             "limit": limit,
@@ -1055,6 +1229,8 @@ mod tests {
             "/bookings",
             "/campaigns",
             "/templates",
+            "/webhooks/subscriptions",
+            "/webhooks/subscriptions/{id}/deliveries",
         ] {
             let operation = document["paths"][path]["get"]
                 .as_object()
@@ -1144,6 +1320,31 @@ mod tests {
             ("/campaigns", "get", &["200", "400", "401", "403"][..]),
             ("/campaigns/{id}", "get", &["200", "401", "403", "404"][..]),
             ("/templates", "get", &["200", "400", "401", "403"][..]),
+            (
+                "/webhooks/subscriptions",
+                "get",
+                &["200", "400", "401", "403"][..],
+            ),
+            (
+                "/webhooks/subscriptions",
+                "post",
+                &["201", "400", "401", "403"][..],
+            ),
+            (
+                "/webhooks/subscriptions/{id}",
+                "patch",
+                &["200", "400", "401", "403", "404"][..],
+            ),
+            (
+                "/webhooks/subscriptions/{id}",
+                "delete",
+                &["200", "401", "403", "404"][..],
+            ),
+            (
+                "/webhooks/subscriptions/{id}/deliveries",
+                "get",
+                &["200", "400", "401", "403", "404"][..],
+            ),
         ];
         for (path, method, statuses) in operations {
             let operation = document

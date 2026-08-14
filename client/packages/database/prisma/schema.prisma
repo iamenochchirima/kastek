@@ -39,6 +39,7 @@ model Organization {
   entitlementGrants              OrganizationEntitlementGrant[]
   usageEvents                    UsageEvent[]
   publicApiRequests              PublicApiRequest[]
+  publicApiWebhookSubscriptions  PublicApiWebhookSubscription[]
   billingCheckouts               BillingCheckout[]
   billingInvoices                BillingInvoice[]
   billingIssues                  BillingReconciliationIssue[]
@@ -354,6 +355,47 @@ model PublicApiRequest {
   @@index([orgId, createdAt])
   @@index([orgId, principalId, createdAt])
   @@index([action, createdAt])
+}
+
+model PublicApiWebhookSubscription {
+  id               String   @id @default(cuid())
+  orgId            String
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  url              String
+  secretCiphertext String   @db.Text
+  eventTypes       Json
+  status           String   @default("ACTIVE")
+  failureCount     Int      @default(0)
+  lastDeliveredAt  DateTime?
+  lastFailureAt    DateTime?
+  disabledAt       DateTime?
+  disabledReason   String?  @db.Text
+  deliveries       PublicApiWebhookDelivery[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([orgId, status])
+}
+
+model PublicApiWebhookDelivery {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  subscription   PublicApiWebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  eventId        String
+  eventType      String
+  payload        Json
+  status         String   @default("PENDING")
+  attemptCount   Int      @default(0)
+  nextAttemptAt  DateTime @default(now())
+  lastStatusCode Int?
+  lastError      String?  @db.Text
+  deliveredAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([subscriptionId, eventId])
+  @@index([status, nextAttemptAt])
+  @@index([subscriptionId, createdAt])
 }
 
 model BillingCheckout {

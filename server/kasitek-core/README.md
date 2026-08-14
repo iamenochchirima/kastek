@@ -58,6 +58,31 @@ KASITEK_PROCESS=billing-reconciliation-worker cargo run
 KASITEK_PROCESS=all-workers cargo run
 ```
 
+### Public v1 API webhooks
+
+Authenticated `/v1` clients can create organization-scoped subscriptions at
+`/v1/webhooks/subscriptions`. The initial event is
+`public_api.request.completed`. Core stores the signing secret encrypted,
+returns it only from the create response, and signs the exact JSON body with
+`HMAC-SHA256` over `{unixTimestamp}.{body}`. Receivers should reject stale
+timestamps and duplicate event ids. Delivery attempts are durable, use capped
+exponential backoff, disable a subscription after ten failed attempts, and are
+visible at `/v1/webhooks/subscriptions/{id}/deliveries`.
+
+Set `PUBLIC_WEBHOOK_ENCRYPTION_KEY` in production (the existing social/WhatsApp
+encryption key is only a development fallback). A local non-production process
+may target `http://localhost`; production destinations must be public HTTPS.
+The worker can run embedded or independently with
+`KASITEK_PROCESS=public-webhooks-worker`.
+
+The deployment policy knobs `PUBLIC_API_DISABLED_ROUTES`,
+`PUBLIC_API_DEPRECATED_ROUTES`, `PUBLIC_API_SUNSET`, and
+`PUBLIC_API_DEPRECATION_LINK` control route flags and standard deprecation
+headers without changing the contract. `/v1/capabilities` exposes the current
+principal matrix: direct product users and agent installations are supported;
+workspace API keys, service accounts, and OAuth grants remain explicitly
+unsupported until their issuers and resource policies are approved.
+
 Server runs on `http://localhost:8080` by default unless `PORT` is set.
 
 ## Content provider setup
@@ -65,6 +90,12 @@ Server runs on `http://localhost:8080` by default unless `PORT` is set.
 Social credentials are encrypted with `SOCIAL_TOKEN_ENCRYPTION_KEY` (or the existing
 `WHATSAPP_TOKEN_ENCRYPTION_KEY` fallback). Configure the following values in the shared
 vault-backed environment; do not commit provider secrets.
+
+All social OAuth callback URLs must be reachable at the public API origin. Set
+`KASITEK_CORE_PUBLIC_URL` to the public HTTPS origin whose `/api` routes reach
+`kasitek-core` (either directly or through the client API proxy). For local testing,
+use an active HTTPS tunnel. Set `NEXT_PUBLIC_API_BASE_URL` to the API origin the browser
+uses. `FRONTEND_URL` remains the browser app origin used after an OAuth callback completes.
 
 ### Threads
 
@@ -116,6 +147,11 @@ and request approval for `user.info.basic` and `video.publish`:
 https://YOUR_APP_HOST/api/social/oauth/tiktok/callback
 ```
 
+For a TikTok sandbox app configured only for **Upload**, use
+`AUTH_TIKTOK_SCOPES=user.info.basic,video.upload`. This allows the creator to receive
+a draft in their TikTok inbox for final editing and posting. Direct publishing requires
+the separate `video.publish` scope and Direct Post configuration.
+
 Add every media host used by Content to TikTok's verified URL properties. Direct posts
 from an unaudited client are restricted to private visibility. Public posting requires
 TikTok's Content Posting API audit. The composer queries the creator's current privacy
@@ -164,6 +200,17 @@ Generate a 32-byte P-256 private scalar, encode it as unpadded base64url, and co
 AUTH_BLUESKY_OAUTH_CLIENT_PRIVATE_KEY=
 AUTH_BLUESKY_OAUTH_CLIENT_KEY_ID=kasitek-bluesky-oauth-1
 ```
+
+Before showing Bluesky as connectable, verify this endpoint returns JSON (not a proxy
+404 page) from outside your network:
+
+```bash
+curl --fail https://YOUR_CORE_API_HOST/api/social/oauth/bluesky/client-metadata
+```
+
+The Connections screen performs this same check before opening Bluesky. If it fails,
+fix the public backend route or tunnel first; changing only `FRONTEND_URL` will not
+make the OAuth callback reachable.
 
 The connection flow resolves the user's handle and PDS, uses PAR and PKCE, and stores a
 separate encrypted DPoP key for every authorized account. Access and refresh tokens are

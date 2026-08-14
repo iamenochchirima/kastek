@@ -47,6 +47,26 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 "/campaigns/{id}",
                 web::get().to(public_v1::get_campaign_summary),
             )
-            .route("/templates", web::get().to(public_v1::list_templates)),
+            .route("/templates", web::get().to(public_v1::list_templates))
+            .route(
+                "/webhooks/subscriptions",
+                web::get().to(public_v1::list_webhook_subscriptions),
+            )
+            .route(
+                "/webhooks/subscriptions",
+                web::post().to(public_v1::create_webhook_subscription),
+            )
+            .route(
+                "/webhooks/subscriptions/{id}",
+                web::patch().to(public_v1::update_webhook_subscription),
+            )
+            .route(
+                "/webhooks/subscriptions/{id}",
+                web::delete().to(public_v1::delete_webhook_subscription),
+            )
+            .route(
+                "/webhooks/subscriptions/{id}/deliveries",
+                web::get().to(public_v1::list_webhook_deliveries),
+            ),
     );
 }

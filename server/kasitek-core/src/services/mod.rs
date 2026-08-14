@@ -13,6 +13,7 @@ pub mod notifications;
 pub mod orgs;
 pub mod paystack;
 pub mod public_api;
+pub mod public_webhooks;
 pub mod push;
 pub mod realtime;
 pub mod social;
