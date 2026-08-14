@@ -84,6 +84,18 @@
         }
       }
     },
+    "/content/posts/{id}/activity": {
+      "get": {
+        "operationId": "getContentPostActivity",
+        "parameters": [{ "$ref": "#/components/parameters/PostId" }],
+        "responses": {
+          "200": { "description": "Secret-safe durable content activity", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/contacts": {
       "get": {
         "operationId": "listContacts",

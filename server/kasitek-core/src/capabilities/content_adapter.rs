@@ -5,7 +5,7 @@ use crate::{
     db::models::{SocialPost, SocialPostUpsertRequest},
     error::AppError,
     identity::request_context::RequestContext,
-    services::social,
+    services::{social, social_posts},
 };
 
 const SUPPORTED_PLATFORMS: [&str; 7] = [
@@ -33,6 +33,17 @@ pub async fn get_post(
     post_id: &str,
 ) -> Result<Option<SocialPost>, AppError> {
     social::get_social_post(pool, &context.organization_id, post_id).await
+}
+
+/// Return the organization-scoped, provider-safe activity projection used by
+/// product and public REST clients. The projection contains durable state and
+/// safe error text only; credentials and provider payloads remain internal.
+pub async fn get_activity(
+    pool: &PgPool,
+    context: &RequestContext,
+    post_id: &str,
+) -> Result<Option<serde_json::Value>, AppError> {
+    social_posts::get_social_post_activity(pool, &context.organization_id, post_id).await
 }
 
 pub async fn create_draft(

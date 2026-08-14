@@ -565,6 +565,19 @@ pub async fn get_content_post(
     Ok(response_with_context(&context).json(json!({ "post": post })))
 }
 
+pub async fn get_content_post_activity(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&req, &state, &context, "content.posts.list").await?;
+    let activity = content_adapter::get_activity(&state.pool, &context, &path.into_inner())
+        .await?
+        .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
+    Ok(response_with_context(&context).json(activity))
+}
+
 pub async fn create_content_draft(
     req: HttpRequest,
     state: web::Data<AppState>,
@@ -807,6 +820,11 @@ mod tests {
                 "/content/posts/{id}",
                 "patch",
                 &["200", "400", "401", "403", "404"][..],
+            ),
+            (
+                "/content/posts/{id}/activity",
+                "get",
+                &["200", "401", "403", "404"][..],
             ),
             ("/contacts", "get", &["200", "401", "403"][..]),
             ("/inbox/conversations", "get", &["200", "401", "403"][..]),

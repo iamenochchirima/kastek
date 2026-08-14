@@ -25,6 +25,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(public_v1::get_content_post),
             )
             .route(
+                "/content/posts/{id}/activity",
+                web::get().to(public_v1::get_content_post_activity),
+            )
+            .route(
                 "/content/posts/{id}",
                 web::patch().to(public_v1::update_content_draft),
             )
