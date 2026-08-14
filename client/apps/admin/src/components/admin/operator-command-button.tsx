@@ -5,7 +5,7 @@ import { buttonClassName } from "@/components/ui/button";
 
 type Command = { id: string; status: string; requiredApprovals: number; approvers: string[]; result?: { status?: string } | null; error?: { message?: string } | null };
 
-export function OperatorInstallationButton({ installationId, action }: { installationId: string; action: "suspend" | "resume" }) {
+export function OperatorInstallationButton({ installationId, action, expectedOrganizationId }: { installationId: string; action: "suspend" | "resume"; expectedOrganizationId?: string }) {
   const [command, setCommand] = useState<Command | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -18,7 +18,7 @@ export function OperatorInstallationButton({ installationId, action }: { install
       const response = await fetch("/api/operations/commands", {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": `admin-${commandType}-${installationId}-${Date.now()}` },
-        body: JSON.stringify({ commandType, targetId: installationId, payload: {} }),
+        body: JSON.stringify({ commandType, targetId: installationId, payload: expectedOrganizationId ? { expectedOrganizationId } : {} }),
       });
       const data = await response.json() as Command & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Unable to create operator command");
@@ -51,7 +51,7 @@ export function OperatorInstallationButton({ installationId, action }: { install
   return <div className="flex flex-col items-end gap-1"><button type="button" disabled={busy || Boolean(command && command.status !== "failed")} onClick={() => void start()} className={buttonClassName({ variant: "ghost", size: "sm" })}>{busy ? "Submitting…" : action === "suspend" ? "Suspend" : "Resume"}</button>{command?.status === "awaiting_approval" ? <button type="button" disabled={busy} onClick={() => void approve()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Approving…" : "Approve"}</button> : null}{message ? <span className="max-w-48 text-right text-[11px] text-muted-foreground">{message}</span> : null}</div>;
 }
 
-export function OperatorReconcileButton({ effectId }: { effectId: string }) {
+export function OperatorReconcileButton({ effectId, expectedOrganizationId, expectedInstallationId }: { effectId: string; expectedOrganizationId?: string; expectedInstallationId?: string }) {
   const [command, setCommand] = useState<Command | null>(null);
   const [outcome, setOutcome] = useState<"succeeded" | "failed">("failed");
   const [busy, setBusy] = useState(false);
@@ -64,7 +64,7 @@ export function OperatorReconcileButton({ effectId }: { effectId: string }) {
       const response = await fetch("/api/operations/commands", {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": `admin-reconcile-${effectId}-${Date.now()}` },
-        body: JSON.stringify({ commandType: "reconcile_effect", targetId: effectId, payload: outcome === "failed" ? { outcome, error: { code: "OPERATOR_CONFIRMED_FAILURE" } } : { outcome } }),
+        body: JSON.stringify({ commandType: "reconcile_effect", targetId: effectId, payload: { ...(expectedOrganizationId ? { expectedOrganizationId } : {}), ...(expectedInstallationId ? { expectedInstallationId } : {}), ...(outcome === "failed" ? { outcome, error: { code: "OPERATOR_CONFIRMED_FAILURE" } } : { outcome }) } }),
       });
       const data = await response.json() as Command & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Unable to create operator command");
@@ -165,11 +165,11 @@ function OperatorRecoveryCommandButton({ commandType, targetId, label, completed
   </div>;
 }
 
-export function OperatorRetryButton({ runId }: { runId: string }) {
-  return <OperatorRecoveryCommandButton commandType="retry_run" targetId={runId} label="Retry run" completedMessage="Run retry dispatched." />;
+export function OperatorRetryButton({ runId, expectedOrganizationId, expectedInstallationId, expectedConversationId }: { runId: string; expectedOrganizationId?: string; expectedInstallationId?: string; expectedConversationId?: string | null }) {
+  return <OperatorRecoveryCommandButton commandType="retry_run" targetId={runId} label="Retry run" completedMessage="Run retry dispatched." payload={{ ...(expectedOrganizationId ? { expectedOrganizationId } : {}), ...(expectedInstallationId ? { expectedInstallationId } : {}), ...(expectedConversationId ? { expectedConversationId } : {}) }} />;
 }
 
-export function OperatorAssignRunButton({ runId, expectedStatus, assigneeId }: { runId: string; expectedStatus: string; assigneeId: string }) {
+export function OperatorAssignRunButton({ runId, expectedStatus, assigneeId, expectedOrganizationId, expectedInstallationId, expectedConversationId }: { runId: string; expectedStatus: string; assigneeId: string; expectedOrganizationId?: string; expectedInstallationId?: string; expectedConversationId?: string | null }) {
   const [command, setCommand] = useState<Command | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -181,7 +181,7 @@ export function OperatorAssignRunButton({ runId, expectedStatus, assigneeId }: {
       const response = await fetch("/api/operations/commands", {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": `admin-assign-run-${runId}-${assigneeId}-${Date.now()}` },
-        body: JSON.stringify({ commandType: "assign_run", targetId: runId, payload: { assigneeId, expectedStatus } }),
+        body: JSON.stringify({ commandType: "assign_run", targetId: runId, payload: { assigneeId, expectedStatus, ...(expectedOrganizationId ? { expectedOrganizationId } : {}), ...(expectedInstallationId ? { expectedInstallationId } : {}), ...(expectedConversationId ? { expectedConversationId } : {}) } }),
       });
       const data = await response.json() as Command & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Unable to assign run");
@@ -214,23 +214,23 @@ export function OperatorAssignRunButton({ runId, expectedStatus, assigneeId }: {
   return <div className="flex flex-col items-end gap-1">{!command || command.status === "failed" ? <button type="button" disabled={busy} onClick={() => void start()} className={buttonClassName({ variant: "ghost", size: "sm" })}>{busy ? "Submitting…" : "Assign to me"}</button> : null}{command?.status === "awaiting_approval" ? <button type="button" disabled={busy} onClick={() => void approve()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Approving…" : "Approve assignment"}</button> : null}{message ? <span className="max-w-48 text-right text-[11px] text-muted-foreground">{message}</span> : null}</div>;
 }
 
-export function OperatorDeliveryReplayButton({ attemptId, status }: { attemptId: string; status: "failed" | "unknown" }) {
+export function OperatorDeliveryReplayButton({ attemptId, status, expectedOrganizationId, expectedInstallationId, expectedConversationId }: { attemptId: string; status: "failed" | "unknown"; expectedOrganizationId?: string; expectedInstallationId?: string; expectedConversationId?: string }) {
   return <OperatorRecoveryCommandButton
     commandType="replay_delivery"
     targetId={attemptId}
     label={status === "unknown" ? "Confirm & replay" : "Replay delivery"}
     completedMessage="Delivery replay queued."
-    payload={status === "unknown" ? { confirmUnknown: true } : {}}
+    payload={{ ...(status === "unknown" ? { confirmUnknown: true } : {}), ...(expectedOrganizationId ? { expectedOrganizationId } : {}), ...(expectedInstallationId ? { expectedInstallationId } : {}), ...(expectedConversationId ? { expectedConversationId } : {}) }}
   />;
 }
 
-export function OperatorDeleteMemoryButton({ memoryId }: { memoryId: string }) {
+export function OperatorDeleteMemoryButton({ memoryId, expectedOrganizationId, expectedAgentId, expectedInstallationId, expectedConversationId }: { memoryId: string; expectedOrganizationId?: string; expectedAgentId?: string | null; expectedInstallationId?: string | null; expectedConversationId?: string | null }) {
   return <OperatorRecoveryCommandButton
     commandType="delete_memory"
     targetId={memoryId}
     label="Request deletion"
     completedMessage="Memory deletion completed."
-    payload={{ expectedStatus: "active" }}
+    payload={{ expectedStatus: "active", ...(expectedOrganizationId ? { expectedOrganizationId } : {}), ...(expectedAgentId ? { expectedAgentId } : {}), ...(expectedInstallationId ? { expectedInstallationId } : {}), ...(expectedConversationId ? { expectedConversationId } : {}) }}
     confirmMessage="Request deletion of this memory? A second operator must approve the request."
   />;
 }
