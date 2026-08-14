@@ -169,6 +169,51 @@ export function OperatorRetryButton({ runId }: { runId: string }) {
   return <OperatorRecoveryCommandButton commandType="retry_run" targetId={runId} label="Retry run" completedMessage="Run retry dispatched." />;
 }
 
+export function OperatorAssignRunButton({ runId, expectedStatus, assigneeId }: { runId: string; expectedStatus: string; assigneeId: string }) {
+  const [command, setCommand] = useState<Command | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function start() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/operations/commands", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": `admin-assign-run-${runId}-${assigneeId}-${Date.now()}` },
+        body: JSON.stringify({ commandType: "assign_run", targetId: runId, payload: { assigneeId, expectedStatus } }),
+      });
+      const data = await response.json() as Command & { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Unable to assign run");
+      setCommand(data);
+      setMessage(data.status === "awaiting_approval" ? "Second operator approval required." : "Run assigned.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to assign run");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function approve() {
+    if (!command) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/operations/commands/${encodeURIComponent(command.id)}/approve`, { method: "POST" });
+      const data = await response.json() as Command & { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Unable to approve run assignment");
+      setCommand(data);
+      setMessage(data.status === "completed" ? "Run assigned." : "Approval recorded.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to approve run assignment");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <div className="flex flex-col items-end gap-1">{!command || command.status === "failed" ? <button type="button" disabled={busy} onClick={() => void start()} className={buttonClassName({ variant: "ghost", size: "sm" })}>{busy ? "Submitting…" : "Assign to me"}</button> : null}{command?.status === "awaiting_approval" ? <button type="button" disabled={busy} onClick={() => void approve()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Approving…" : "Approve assignment"}</button> : null}{message ? <span className="max-w-48 text-right text-[11px] text-muted-foreground">{message}</span> : null}</div>;
+}
+
 export function OperatorDeliveryReplayButton({ attemptId, status }: { attemptId: string; status: "failed" | "unknown" }) {
   return <OperatorRecoveryCommandButton
     commandType="replay_delivery"

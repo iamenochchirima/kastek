@@ -12,7 +12,7 @@ import { ChannelRepository } from "../db/repositories/channel-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
 
 export const operatorCommandInputSchema = z.object({
-  commandType: z.enum(["cancel_run", "retry_run", "replay_delivery", "delete_memory", "reconcile_effect", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
+  commandType: z.enum(["cancel_run", "retry_run", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
   targetId: z.string().trim().min(1).max(240),
   payload: z.record(z.string(), z.unknown()).default({}),
 }).strict();
@@ -74,6 +74,8 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
       deliveryAttemptId: command.result.deliveryAttemptId,
       originalDeliveryAttemptId: command.result.originalDeliveryAttemptId,
       memoryId: command.result.memoryId,
+      assignmentId: command.result.assignmentId,
+      assigneeId: command.result.assigneeId,
     } : null,
     error: command.error ? { code: command.error.code, message: command.error.message } : null,
     createdAt: command.created_at,
@@ -184,6 +186,45 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
       metadata: { sourceRunId: run.id, runId: retried.id },
     });
     return { status: "started", runId: retried.id, sourceRunId: run.id };
+  }
+
+  if (command.command_type === "assign_run") {
+    const assigneeId = typeof command.payload.assigneeId === "string" ? command.payload.assigneeId.trim() : "";
+    if (assigneeId.length < 1 || assigneeId.length > 240) {
+      throw Object.assign(new Error("assigneeId must be between 1 and 240 characters"), { statusCode: 400 });
+    }
+    const assignment = await withTransaction(dependencies.pool, async (client) => {
+      const run = (await client.query<{ organization_id: string; status: string }>(
+        "SELECT organization_id, status FROM agent_runs WHERE id = $1 FOR UPDATE",
+        [command.target_id],
+      )).rows[0];
+      if (!run) throw Object.assign(new Error("Run not found"), { statusCode: 404 });
+      assertExpectedStatus(command, run.status);
+      const result = await client.query<{ id: string; revision: number }>(
+        `INSERT INTO agent_operator_run_assignments
+          (run_id, organization_id, assignee_id, assigned_by, expected_status)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (run_id) DO UPDATE SET
+           organization_id = EXCLUDED.organization_id,
+           assignee_id = EXCLUDED.assignee_id,
+           assigned_by = EXCLUDED.assigned_by,
+           expected_status = EXCLUDED.expected_status,
+           revision = agent_operator_run_assignments.revision + 1,
+           assigned_at = now(),
+           updated_at = now()
+         RETURNING id, revision`,
+        [command.target_id, run.organization_id, assigneeId, actorId, run.status],
+      );
+      return { organizationId: run.organization_id, assignmentId: result.rows[0]!.id, revision: result.rows[0]!.revision, status: run.status };
+    });
+    await auditCommand(dependencies.pool, {
+      organizationId: assignment.organizationId,
+      actorId,
+      action: "operator_command.run_assigned",
+      commandId: command.id,
+      metadata: { runId: command.target_id, assigneeId, revision: assignment.revision, expectedStatus: assignment.status },
+    });
+    return { status: "assigned", runId: command.target_id, assignmentId: assignment.assignmentId, assigneeId };
   }
 
   if (command.command_type === "replay_delivery") {

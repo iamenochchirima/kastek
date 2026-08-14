@@ -1109,6 +1109,13 @@ tests (112 passed / 3 infrastructure tests ignored), Prisma validation, and admi
 The broad admin command item remains open for the other command families (assign, flags, holds, export,
 and full version/resource checks).
 
+The Agent admin command surface now also includes `assign_run`: migration
+`agents/migrations/042_operator_run_assignments.sql` persists the current assignee and revision per
+run, the command locks the run row, checks the expected lifecycle state, upserts the assignment, and
+records only safe run/assignee/revision metadata. The Operations page exposes the dual-control
+“Assign to me” action. Assignment integration and migration tests pass; the aggregate command item
+remains open for flags, holds, export workflow, and full version/resource checks.
+
 ## Slice 13 — Security, observability, expansion, and production release
 
 **Layers covered:** 12, 13, and 14

@@ -357,10 +357,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator run limit");
     const result = await dependencies.pool.query(
-      `SELECT id, organization_id, agent_definition_id, agent_version_id, installation_id,
-              conversation_id, trigger_type, status, correlation_id, created_by,
-              created_at, started_at, finished_at, updated_at
-       FROM agent_runs ORDER BY created_at DESC LIMIT $1`,
+      `SELECT runs.id, runs.organization_id, runs.agent_definition_id, runs.agent_version_id,
+              runs.installation_id, runs.conversation_id, runs.trigger_type, runs.status,
+              runs.correlation_id, runs.created_by, runs.created_at, runs.started_at,
+              runs.finished_at, runs.updated_at, assignments.assignee_id,
+              assignments.revision AS assignment_revision
+       FROM agent_runs runs
+       LEFT JOIN agent_operator_run_assignments assignments ON assignments.run_id = runs.id
+       ORDER BY runs.created_at DESC LIMIT $1`,
       [limit],
     );
     return { runs: result.rows };

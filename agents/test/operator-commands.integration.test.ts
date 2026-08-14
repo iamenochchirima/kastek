@@ -135,6 +135,16 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
 
     const failed = await runs.createRun(organizationId, actorId, { installationId, triggerType: "manual", input: { source: "operator-recovery" } });
     await runs.failRun(failed.id, { code: "TEST_FAILURE" });
+    const assignCommand = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `assign-run-${randomUUID()}`,
+      command: { commandType: "assign_run", targetId: failed.id, payload: { assigneeId: secondActorId, expectedStatus: "failed" } },
+      dependencies,
+    });
+    runCommandIds.push(String(assignCommand.command.id));
+    const assigned = await approveOperatorCommand({ actorId: secondActorId, commandId: String(assignCommand.command.id), dependencies });
+    expect(assigned).toMatchObject({ status: "completed", result: { status: "assigned", runId: failed.id, assigneeId: secondActorId } });
+    expect((await pool.query<{ assignee_id: string; revision: number }>("SELECT assignee_id, revision FROM agent_operator_run_assignments WHERE run_id = $1", [failed.id])).rows[0]).toMatchObject({ assignee_id: secondActorId, revision: 1 });
     const staleRetry = await createOperatorCommand({
       actorId,
       idempotencyKey: `retry-run-stale-${randomUUID()}`,
@@ -254,6 +264,7 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_operator_run_assignments WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM memory_deletion_jobs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM memory_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_installations WHERE id = $1", [installationId]);
