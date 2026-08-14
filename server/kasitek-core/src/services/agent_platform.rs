@@ -33,6 +33,8 @@ struct InternalClaims<'a> {
     audience: &'a str,
     expires_at: u64,
     scopes: &'a [&'a str],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    operator: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -326,6 +328,92 @@ impl AgentPlatformClient {
             None,
         )
         .await
+    }
+
+    pub async fn operator_summary(&self, operator_id: &str) -> Result<Value, AppError> {
+        self.request_operator_json(
+            Method::GET,
+            "/v1/operator/summary",
+            operator_id,
+            &["operator:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn operator_runs(
+        &self,
+        operator_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let path = limit
+            .map(|value| format!("/v1/operator/runs?limit={value}"))
+            .unwrap_or_else(|| "/v1/operator/runs".to_string());
+        self.request_operator_json(Method::GET, &path, operator_id, &["operator:read"], None)
+            .await
+    }
+
+    pub async fn operator_health(&self, operator_id: &str) -> Result<Value, AppError> {
+        self.request_operator_json(
+            Method::GET,
+            "/v1/operator/health",
+            operator_id,
+            &["operator:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn operator_effects_reconciliation(
+        &self,
+        operator_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let path = limit
+            .map(|value| format!("/v1/operator/effects/reconciliation?limit={value}"))
+            .unwrap_or_else(|| "/v1/operator/effects/reconciliation".to_string());
+        self.request_operator_json(Method::GET, &path, operator_id, &["operator:read"], None)
+            .await
+    }
+
+    pub async fn operator_audit(
+        &self,
+        operator_id: &str,
+        action: Option<&str>,
+        resource_type: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let mut query = Vec::new();
+        if let Some(value) = action.filter(|value| !value.trim().is_empty()) {
+            query.push(format!("action={}", urlencoding::encode(value)));
+        }
+        if let Some(value) = resource_type.filter(|value| !value.trim().is_empty()) {
+            query.push(format!("resourceType={}", urlencoding::encode(value)));
+        }
+        if let Some(value) = limit {
+            query.push(format!("limit={value}"));
+        }
+        let path = if query.is_empty() {
+            "/v1/operator/audit".to_string()
+        } else {
+            format!("/v1/operator/audit?{}", query.join("&"))
+        };
+        self.request_operator_json(Method::GET, &path, operator_id, &["operator:read"], None)
+            .await
+    }
+
+    pub async fn operator_search(
+        &self,
+        operator_id: &str,
+        query: &str,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let mut path = format!("/v1/operator/search?q={}", urlencoding::encode(query));
+        if let Some(value) = limit {
+            path.push_str(&format!("&limit={value}"));
+        }
+        self.request_operator_json(Method::GET, &path, operator_id, &["operator:read"], None)
+            .await
     }
 
     pub async fn list_templates(
@@ -1462,9 +1550,78 @@ impl AgentPlatformClient {
             audience: &self.audience,
             expires_at,
             scopes,
+            operator: None,
         };
         let payload = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&claims).map_err(|_| {
             AppError::Internal("Unable to encode Agent Platform claims".to_string())
+        })?);
+        let mut mac = HmacSha256::new_from_slice(self.secret.as_bytes())
+            .map_err(|_| AppError::Internal("Invalid Agent Platform signing secret".to_string()))?;
+        mac.update(payload.as_bytes());
+        let signature = URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
+        Ok(format!("{payload}.{signature}"))
+    }
+
+    async fn request_operator_json(
+        &self,
+        method: Method,
+        path: &str,
+        operator_id: &str,
+        scopes: &[&str],
+        body: Option<Value>,
+    ) -> Result<Value, AppError> {
+        let correlation_id = new_correlation_id();
+        let token = self.operator_token(operator_id, scopes, &correlation_id)?;
+        let mut request = self
+            .client
+            .request(method, format!("{}{}", self.base_url, path))
+            .timeout(self.timeout)
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-organization-id", "platform")
+            .header("x-actor-id", operator_id)
+            .header("x-kasitek-operator", "true")
+            .header("x-correlation-id", &correlation_id);
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|error| self.map_request_error(error))?;
+        if !response.status().is_success() {
+            return Err(self.map_status(response).await);
+        }
+        if response.status() == StatusCode::NO_CONTENT {
+            return Ok(Value::Null);
+        }
+        response.json::<Value>().await.map_err(|error| {
+            log::error!("Agent Platform returned invalid operator JSON: {error}");
+            AppError::BadGateway("Agent Platform returned an invalid response".to_string())
+        })
+    }
+
+    fn operator_token(
+        &self,
+        operator_id: &str,
+        scopes: &[&str],
+        correlation_id: &str,
+    ) -> Result<String, AppError> {
+        let expires_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| AppError::Internal("System clock is before Unix epoch".to_string()))?
+            .as_secs()
+            + 60;
+        let claims = InternalClaims {
+            organization_id: "platform",
+            actor_id: operator_id,
+            correlation_id: correlation_id.to_string(),
+            audience: &self.audience,
+            expires_at,
+            scopes,
+            operator: Some(true),
+        };
+        let payload = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&claims).map_err(|_| {
+            AppError::Internal("Unable to encode Agent Platform operator claims".to_string())
         })?);
         let mut mac = HmacSha256::new_from_slice(self.secret.as_bytes())
             .map_err(|_| AppError::Internal("Invalid Agent Platform signing secret".to_string()))?;
@@ -1519,6 +1676,7 @@ mod tests {
             audience: "kasitek-agents",
             expires_at: 1_900_000_000,
             scopes: &["chat:write"],
+            operator: None,
         };
         let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&claims).unwrap());
         let value: Value =
@@ -1530,5 +1688,6 @@ mod tests {
             "00000000-0000-4000-8000-000000000001"
         );
         assert_eq!(value["scopes"][0], "chat:write");
+        assert!(value.get("operator").is_none());
     }
 }

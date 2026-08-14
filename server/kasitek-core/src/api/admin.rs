@@ -5,9 +5,10 @@ use actix_web::web;
 #[allow(unused_imports)]
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
-    admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai, auth,
-    billing, bookings, calls, connections, customers, health, inbox, notifications, onboarding,
-    orgs, product_tour, profile, public_v1, realtime, social, whatsapp, whatsapp_calls, workspace,
+    admin_operations, admin_outreach, admin_quotations, admin_web_services, agent_internal,
+    agent_platform, ai, auth, billing, bookings, calls, connections, customers, health, inbox,
+    notifications, onboarding, orgs, product_tour, profile, public_v1, realtime, social, whatsapp,
+    whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -23,6 +24,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/reset-password", web::post().to(admin::reset_password))
             .route("/password", web::patch().to(admin::change_password))
             .route("/stats", web::get().to(admin::stats))
+            .service(
+                web::scope("/operations")
+                    .route("/summary", web::get().to(admin_operations::summary))
+                    .route("/runs", web::get().to(admin_operations::runs))
+                    .route("/health", web::get().to(admin_operations::health))
+                    .route(
+                        "/effects/reconciliation",
+                        web::get().to(admin_operations::effects),
+                    )
+                    .route("/audit", web::get().to(admin_operations::audit))
+                    .route("/search", web::get().to(admin_operations::search)),
+            )
             .route("/access", web::get().to(admin::list_launch_access))
             .route("/access", web::post().to(admin::provision_launch_user))
             .route(

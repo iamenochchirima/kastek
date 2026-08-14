@@ -116,6 +116,16 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("keeps platform operator projections behind a distinct operator principal", async () => {
+    const app = buildApp({ config, pool: fakePool });
+    const denied = await app.inject({ method: "GET", url: "/v1/operator/health", headers: { "x-organization-id": "platform", "x-actor-id": "admin-1" } });
+    expect(denied.statusCode).toBe(403);
+    const allowed = await app.inject({ method: "GET", url: "/v1/operator/health", headers: { "x-organization-id": "platform", "x-actor-id": "admin-1", "x-kasitek-operator": "true" } });
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.json()).toMatchObject({ scope: "platform", status: "ready", database: { status: "ready" } });
+    await app.close();
+  });
+
   it("exchanges a registered client assertion once and rejects its replay", async () => {
     const getActiveForClientAssertion = vi.fn(async () => ({ ...mcpCredential(), client_key_id: "client-key-1", client_public_key: clientAssertionKeyPair.publicKey.export({ type: "spki", format: "pem" }).toString() }));
     const consumeClientAssertionReplay = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);

@@ -30,4 +30,10 @@ describe("internal auth boundary", () => {
     expect(() => verifyInternalToken(expired, "test-secret", "kasitek-agents")).toThrow("expired");
     expect(authenticateRequest({ organizationId: "org", actorId: "actor" }, { ...baseConfig, AUTH_MODE: "headers" })).toMatchObject({ organizationId: "org", actorId: "actor" });
   });
+
+  it("keeps platform-operator authentication distinct from workspace tokens", () => {
+    const token = signInternalToken({ organizationId: "platform", actorId: "admin-1", audience: "kasitek-agents", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["operator:read"], operator: true }, "test-secret");
+    expect(verifyInternalToken(token, "test-secret", "kasitek-agents")).toMatchObject({ organizationId: "platform", actorId: "admin-1", scopes: ["operator:read"], operator: true });
+    expect(authenticateRequest({ organizationId: "platform", actorId: "admin-1", operator: "true" }, { ...baseConfig, AUTH_MODE: "headers" })).toMatchObject({ organizationId: "platform", actorId: "admin-1", operator: true });
+  });
 });

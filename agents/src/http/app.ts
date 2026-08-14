@@ -104,6 +104,7 @@ function requireAuth(request: FastifyRequest, config: AppConfig): AuthContext {
       organizationId: headerValue(request, "x-organization-id"),
       actorId: headerValue(request, "x-actor-id"),
       correlationId: headerValue(request, "x-correlation-id"),
+      operator: headerValue(request, "x-kasitek-operator"),
     },
     config,
   );
@@ -113,6 +114,15 @@ function requireScope(auth: AuthContext, config: AppConfig, scope: string): void
   if (config.AUTH_MODE === "headers") return;
   if (!auth.scopes.includes(scope)) {
     throw Object.assign(new Error(`Missing internal scope: ${scope}`), { statusCode: 403 });
+  }
+}
+
+function requireOperatorScope(auth: AuthContext, config: AppConfig, scope: "operator:read" | "operator:write"): void {
+  if (auth.organizationId !== "platform" || auth.operator !== true) {
+    throw Object.assign(new Error("Platform operator authentication required"), { statusCode: 403 });
+  }
+  if (config.AUTH_MODE !== "headers" && !auth.scopes.includes(scope)) {
+    throw Object.assign(new Error(`Missing operator scope: ${scope}`), { statusCode: 403 });
   }
 }
 
@@ -314,6 +324,127 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       app.log.error(error);
       return reply.code(503).send({ status: "not_ready" });
     }
+  });
+
+  app.get("/v1/operator/summary", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const [runs, installations, definitions, effects, audits, modelCost] = await Promise.all([
+      dependencies.pool.query<{ status: string; count: string }>("SELECT status, COUNT(*)::text AS count FROM agent_runs GROUP BY status ORDER BY status"),
+      dependencies.pool.query<{ status: string; count: string }>("SELECT status, COUNT(*)::text AS count FROM agent_installations GROUP BY status ORDER BY status"),
+      dependencies.pool.query<{ status: string; count: string }>("SELECT status, COUNT(*)::text AS count FROM agent_definitions GROUP BY status ORDER BY status"),
+      dependencies.pool.query<{ status: string; count: string; reconciliation_required: boolean }>("SELECT status, COUNT(*)::text AS count, reconciliation_required FROM agent_effect_receipts GROUP BY status, reconciliation_required ORDER BY status"),
+      dependencies.pool.query<{ count: string }>("SELECT COUNT(*)::text AS count FROM audit_records"),
+      dependencies.pool.query<{ total: string }>("SELECT COALESCE(SUM(estimated_cost_usd), 0)::text AS total FROM model_calls"),
+    ]);
+    return {
+      scope: "platform",
+      generatedAt: new Date().toISOString(),
+      runs: Object.fromEntries(runs.rows.map((row) => [row.status, Number(row.count)])),
+      installations: Object.fromEntries(installations.rows.map((row) => [row.status, Number(row.count)])),
+      definitions: Object.fromEntries(definitions.rows.map((row) => [row.status, Number(row.count)])),
+      effects: effects.rows.map((row) => ({ status: row.status, count: Number(row.count), reconciliationRequired: row.reconciliation_required })),
+      auditRecords: Number(audits.rows[0]?.count ?? 0),
+      estimatedModelCostUsd: modelCost.rows[0]?.total ?? "0",
+    };
+  });
+
+  app.get<{ Querystring: { limit?: string } }>("/v1/operator/runs", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator run limit");
+    const result = await dependencies.pool.query(
+      `SELECT id, organization_id, agent_definition_id, agent_version_id, installation_id,
+              conversation_id, trigger_type, status, correlation_id, created_by,
+              created_at, started_at, finished_at, updated_at
+       FROM agent_runs ORDER BY created_at DESC LIMIT $1`,
+      [limit],
+    );
+    return { runs: result.rows };
+  });
+
+  app.get("/v1/operator/health", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const checkedAt = new Date().toISOString();
+    const startedAt = Date.now();
+    try {
+      await dependencies.pool.query("SELECT 1");
+      const provider = dependencies.config.KASIAI_MODEL_PROVIDER ?? "openrouter";
+      const credentialKey = { openrouter: "OPENROUTER_API_KEY", openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY", gemini: "GEMINI_API_KEY" }[provider];
+      return {
+        scope: "platform",
+        status: "ready",
+        checkedAt,
+        database: { status: "ready", latencyMs: Date.now() - startedAt },
+        temporal: { enabled: dependencies.config.TEMPORAL_ENABLED, mode: dependencies.config.TEMPORAL_MODE, address: dependencies.config.TEMPORAL_ADDRESS, namespace: dependencies.config.TEMPORAL_NAMESPACE, taskQueue: dependencies.config.TEMPORAL_TASK_QUEUE },
+        model: { provider, model: dependencies.config.KASIAI_MODEL, credentialConfigured: Boolean(process.env[credentialKey]?.trim()) },
+      };
+    } catch (error) {
+      app.log.error(error);
+      return { scope: "platform", status: "degraded", checkedAt, database: { status: "unavailable", latencyMs: Date.now() - startedAt }, temporal: { enabled: dependencies.config.TEMPORAL_ENABLED, mode: dependencies.config.TEMPORAL_MODE }, model: { provider: dependencies.config.KASIAI_MODEL_PROVIDER, model: dependencies.config.KASIAI_MODEL, credentialConfigured: false } };
+    }
+  });
+
+  app.get<{ Querystring: { limit?: string } }>("/v1/operator/effects/reconciliation", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator reconciliation limit");
+    const result = await dependencies.pool.query(
+      `SELECT id, organization_id, installation_id, run_id, provider_tool_call_id,
+              capability, capability_version, status, reconciliation_required,
+              created_at, updated_at, completed_at
+       FROM agent_effect_receipts
+       WHERE reconciliation_required = TRUE
+       ORDER BY updated_at ASC LIMIT $1`,
+      [limit],
+    );
+    return { effects: result.rows };
+  });
+
+  app.get<{ Querystring: { action?: string; resourceType?: string; limit?: string } }>("/v1/operator/audit", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator audit limit");
+    const action = request.query.action?.trim() || null;
+    const resourceType = request.query.resourceType?.trim() || null;
+    const result = await dependencies.pool.query(
+      `SELECT id, organization_id, actor_type, actor_id, action, resource_type,
+              resource_id, correlation_id, created_at
+       FROM audit_records
+       WHERE ($1::text IS NULL OR action = $1)
+         AND ($2::text IS NULL OR resource_type = $2)
+       ORDER BY created_at DESC LIMIT $3`,
+      [action, resourceType, limit],
+    );
+    return { records: result.rows };
+  });
+
+  app.get<{ Querystring: { q: string; limit?: string } }>("/v1/operator/search", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const q = request.query.q?.trim() ?? "";
+    if (q.length < 2 || q.length > 160) throw new Error("Operator search requires 2-160 characters");
+    const limit = request.query.limit === undefined ? 50 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error("Invalid operator search limit");
+    const result = await dependencies.pool.query(
+      `SELECT 'run' AS kind, id::text AS id, organization_id, status AS state,
+              'agent_run' AS resource_type, created_at
+       FROM agent_runs
+       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR correlation_id::text ILIKE $1
+       UNION ALL
+       SELECT 'audit' AS kind, id::text AS id, organization_id, action AS state,
+              resource_type, created_at
+       FROM audit_records
+       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR resource_id ILIKE $1
+          OR action ILIKE $1
+       ORDER BY created_at DESC LIMIT $2`,
+      [`%${q}%`, limit],
+    );
+    return { query: q, results: result.rows };
   });
 
   app.get("/.well-known/agent-installation-jwks.json", async () => {
