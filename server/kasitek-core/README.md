@@ -61,8 +61,9 @@ KASITEK_PROCESS=all-workers cargo run
 ### Public v1 API webhooks
 
 Authenticated `/v1` clients can create organization-scoped subscriptions at
-`/v1/webhooks/subscriptions`. The initial event is
-`public_api.request.completed`. Core stores the signing secret encrypted,
+`/v1/webhooks/subscriptions`. The supported events are
+`public_api.request.completed`, `content.post.created`, and
+`content.post.updated`. Core stores the signing secret encrypted,
 returns it only from the create response, and signs the exact JSON body with
 `HMAC-SHA256` over `{unixTimestamp}.{body}`. Receivers should reject stale
 timestamps and duplicate event ids. Delivery attempts are durable, use capped

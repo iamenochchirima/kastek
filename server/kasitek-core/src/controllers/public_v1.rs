@@ -884,6 +884,21 @@ pub async fn create_content_draft(
     require_public_action(&req, &state, &context, "content.posts.draft.create").await?;
     require_idempotency(&context, "content draft creation")?;
     let post = content_adapter::create_draft(&state.pool, &context, &body).await?;
+    if let Err(error) = public_webhooks::enqueue_domain_event(
+        &state.pool,
+        &context.organization_id,
+        public_webhooks::CONTENT_POST_CREATED_EVENT,
+        json!({
+            "postId": post.row.id,
+            "status": post.row.status,
+            "title": post.row.title,
+            "updatedAt": post.row.updated_at,
+        }),
+    )
+    .await
+    {
+        log::warn!("failed to enqueue content.created webhook: {error}");
+    }
     Ok(response_with_context(&context)
         .status(actix_web::http::StatusCode::CREATED)
         .json(json!({ "post": post })))
@@ -899,6 +914,21 @@ pub async fn update_content_draft(
     require_public_action(&req, &state, &context, "content.posts.draft.update").await?;
     let post =
         content_adapter::update_draft(&state.pool, &context, &path.into_inner(), &body).await?;
+    if let Err(error) = public_webhooks::enqueue_domain_event(
+        &state.pool,
+        &context.organization_id,
+        public_webhooks::CONTENT_POST_UPDATED_EVENT,
+        json!({
+            "postId": post.row.id,
+            "status": post.row.status,
+            "title": post.row.title,
+            "updatedAt": post.row.updated_at,
+        }),
+    )
+    .await
+    {
+        log::warn!("failed to enqueue content.updated webhook: {error}");
+    }
     Ok(response_with_context(&context).json(json!({ "post": post })))
 }
 

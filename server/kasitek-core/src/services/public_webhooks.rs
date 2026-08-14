@@ -21,6 +21,8 @@ use crate::{config::AppConfig, error::AppError};
 type HmacSha256 = Hmac<Sha256>;
 
 pub const REQUEST_COMPLETED_EVENT: &str = "public_api.request.completed";
+pub const CONTENT_POST_CREATED_EVENT: &str = "content.post.created";
+pub const CONTENT_POST_UPDATED_EVENT: &str = "content.post.updated";
 const MAX_EVENT_TYPES: usize = 8;
 const MAX_DELIVERY_ATTEMPTS: i32 = 10;
 
@@ -125,7 +127,10 @@ pub fn supported_event_types(event_types: Option<Vec<String>>) -> Result<Vec<Str
     let mut normalized = Vec::with_capacity(event_types.len());
     for event_type in event_types {
         let event_type = event_type.trim();
-        if event_type != REQUEST_COMPLETED_EVENT {
+        if !matches!(
+            event_type,
+            REQUEST_COMPLETED_EVENT | CONTENT_POST_CREATED_EVENT | CONTENT_POST_UPDATED_EVENT
+        ) {
             return Err(AppError::BadRequest(format!(
                 "unsupported webhook event type: {event_type}"
             )));
@@ -401,13 +406,57 @@ pub async fn enqueue_request_event(
     else {
         return Ok(());
     };
-    let subscriptions = sqlx::query_as::<_, (String, String)>(
-        r#"SELECT "id", "secretCiphertext" FROM "PublicApiWebhookSubscription"
+    enqueue_event(
+        pool,
+        &organization_id,
+        REQUEST_COMPLETED_EVENT,
+        json!({
+            "requestId": audit_id,
+            "route": route,
+            "method": method,
+            "action": action,
+            "statusCode": status_code,
+            "principalType": principal_type,
+            "principalId": principal_id,
+            "correlationId": correlation_id,
+        }),
+    )
+    .await
+}
+
+/// Queue an organization-scoped domain event for every active subscription.
+/// Callers pass a redacted data projection; provider credentials and raw
+/// upstream payloads never enter the public webhook envelope.
+pub async fn enqueue_domain_event(
+    pool: &PgPool,
+    organization_id: &str,
+    event_type: &str,
+    data: Value,
+) -> Result<(), AppError> {
+    if !matches!(
+        event_type,
+        CONTENT_POST_CREATED_EVENT | CONTENT_POST_UPDATED_EVENT
+    ) {
+        return Err(AppError::BadRequest(
+            "unsupported public webhook event type".to_string(),
+        ));
+    }
+    enqueue_event(pool, organization_id, event_type, data).await
+}
+
+async fn enqueue_event(
+    pool: &PgPool,
+    organization_id: &str,
+    event_type: &str,
+    data: Value,
+) -> Result<(), AppError> {
+    let subscriptions = sqlx::query_scalar::<_, String>(
+        r#"SELECT "id" FROM "PublicApiWebhookSubscription"
            WHERE "orgId" = $1 AND "status" = 'ACTIVE'
              AND "eventTypes" @> $2::jsonb"#,
     )
-    .bind(&organization_id)
-    .bind(json!([REQUEST_COMPLETED_EVENT]))
+    .bind(organization_id)
+    .bind(json!([event_type]))
     .fetch_all(pool)
     .await?;
     if subscriptions.is_empty() {
@@ -416,21 +465,11 @@ pub async fn enqueue_request_event(
     let event_id = cuid2::create_id();
     let payload = json!({
         "id": event_id,
-        "type": REQUEST_COMPLETED_EVENT,
+        "type": event_type,
         "occurredAt": Utc::now().to_rfc3339(),
-        "data": {
-            "requestId": audit_id,
-            "organizationId": organization_id,
-            "route": route,
-            "method": method,
-            "action": action,
-            "statusCode": status_code,
-            "principalType": principal_type,
-            "principalId": principal_id,
-            "correlationId": correlation_id,
-        }
+        "data": data,
     });
-    for (subscription_id, _) in subscriptions {
+    for subscription_id in subscriptions {
         sqlx::query(
             r#"
             INSERT INTO "PublicApiWebhookDelivery"
@@ -442,7 +481,7 @@ pub async fn enqueue_request_event(
         .bind(cuid2::create_id())
         .bind(subscription_id)
         .bind(&event_id)
-        .bind(REQUEST_COMPLETED_EVENT)
+        .bind(event_type)
         .bind(&payload)
         .execute(pool)
         .await?;
@@ -603,7 +642,10 @@ pub async fn process_due_deliveries(
 
 #[cfg(test)]
 mod tests {
-    use super::{retry_delay, signature, supported_event_types, REQUEST_COMPLETED_EVENT};
+    use super::{
+        retry_delay, signature, supported_event_types, CONTENT_POST_CREATED_EVENT,
+        CONTENT_POST_UPDATED_EVENT, REQUEST_COMPLETED_EVENT,
+    };
 
     #[test]
     fn only_documented_events_are_accepted() {
@@ -611,6 +653,11 @@ mod tests {
             supported_event_types(None).unwrap(),
             vec![REQUEST_COMPLETED_EVENT]
         );
+        assert!(supported_event_types(Some(vec![
+            CONTENT_POST_CREATED_EVENT.to_string(),
+            CONTENT_POST_UPDATED_EVENT.to_string(),
+        ]))
+        .is_ok());
         assert!(supported_event_types(Some(vec!["unknown".to_string()])).is_err());
     }
 
