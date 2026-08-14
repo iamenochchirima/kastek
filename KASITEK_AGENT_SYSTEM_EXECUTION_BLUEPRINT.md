@@ -272,16 +272,16 @@ provider coupling does not complete the reorganization.
 
 ## 4. Implementation order and checklist
 
-### Reconciliation evidence — 2026-08-13
+### Reconciliation evidence — 2026-08-14
 
 The checked items below were reconciled against the current repository, migrations, focused tests,
 and the commits listed in `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
-The Agent Platform suite now passes 49 files / 204 tests / 0 skips against isolated PostgreSQL and
-local Temporal, and the Agent build and core format/check/library tests pass. A checked
+The Agent Platform suite now passes 56 files / 201 tests / 34 expected integration skips, and the
+Agent build and core format/check/library tests pass. A checked
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 166 of 226 implementation/verification items are checked. The count
+At this reconciliation point, 167 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -620,8 +620,12 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
 - [x] Return platform capability differences and partial batch results explicitly rather than
   claiming unsupported behavior.
 - [x] Record run, tool, approval, effect, provider, delivery, usage, and audit events with shared IDs.
-- [ ] Expose the same content capabilities to KasiAi tools, hosted agents, MCP, and REST without
-  duplicating handlers.
+- [x] Expose the same content capabilities to KasiAi tools, hosted agents, MCP, and REST without
+  duplicating handlers. The protected KasiAi grant list and hosted runtime use the shared registry;
+  MCP and public REST content-draft calls converge on the same invocation acceptance boundary, with
+  shared argument/context assertions in `agents/test/content-capability-contract.test.ts` and
+  `agents/test/http.test.ts`. Typed Agent-to-core routes remain covered by
+  `agents/test/core-client.test.ts` and the core content adapter.
 - [x] Add customer activity and content-operator investigation views for content actions and failures.
   Evidence: `GET /api/social/posts/{id}/activity` returns an organization-scoped, secret-safe
   durable timeline, and `client/apps/client/src/components/social/posts-workspace.tsx` now shows
@@ -649,7 +653,9 @@ point to the provider and back to a durable, auditable result with no duplicate 
 ### Deliverables
 
 - [x] Replace generic product claims with reviewed, versioned KasiTek knowledge and remove all
-  unsupported projects/resources/repositories guidance.
+  unsupported projects/resources/repositories guidance. The scoped content policy is pinned as
+  knowledge corpus v2 in `agents/src/system/kasiai-knowledge.ts` with regression coverage in
+  `agents/test/kasiai-knowledge.test.ts`.
 - [x] Build minimal dynamic context from the authenticated user, organization, enabled modules,
   route/entity, current conversation, and currently available capabilities. The shared context
   builder now includes authenticated actor/organization identity, granted capability names and
