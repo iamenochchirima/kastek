@@ -702,6 +702,18 @@ limits, full Streamable HTTP lifecycle, and hosted smoke remain open.
   behavior rather than intended future behavior.
 - [x] Reconciled in this documentation update and committed with the audit/blueprint evidence.
 
+**Admin continuation evidence (2026-08-14):** The Slice 12 command implementation continued in
+commits `dd15723`, `3c83ebd`, and `f3f622d`. Existing retry/cancel/reconcile/assign/lifecycle,
+delivery-replay, deletion, export-request, and kill-switch paths now carry expected organization
+and resource guards; export requests persist as dual-control, organization-scoped queue records;
+and the protected Core/Agent Operations surface exposes export and kill-switch status plus active
+run cancellation. Agent operator integration is 3/3, the default Agent suite is 54 files / 183
+passed / 33 expected integration skips, admin lint has zero errors (34 existing warnings), admin
+typecheck/build pass, and `cargo check -p kasitek-core` passes. The aggregate blueprint command item
+remains unchecked for the separately undefined feature-flag and incident-hold policy, and hosted,
+Redis, seeded-core, provider, and browser gates remain explicit blockers rather than being claimed
+as complete.
+
 ## 14. Required verification matrix
 
 Run targeted tests after each section, then run this full matrix before declaring audit remediation
