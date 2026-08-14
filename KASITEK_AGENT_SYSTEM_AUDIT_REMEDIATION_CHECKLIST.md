@@ -537,7 +537,9 @@ remain open.
   permit discovery. The public filter requires `ActionLifecycle::Public`, direct runtime support,
   and the caller actor; core unit coverage exercises internal booking and pilot publish actions.
 - [ ] Cross-organization entitlements/grants cannot affect discovery.
-- [ ] OpenAPI conformance covers status codes, authentication, and response schema.
+- [x] OpenAPI conformance covers status codes, authentication, and response schema. The core-owned
+  contract test enumerates every mounted `/v1` operation, required success/error responses, the
+  anonymous health exception, and the document-level protected principal schemes.
 
 ### Completion gate
 

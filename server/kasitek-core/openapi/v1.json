@@ -25,8 +25,18 @@
         ],
         "responses": {
           "200": { "description": "Principal-filtered public actions", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CapabilityPage" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "getPublicMetrics",
+        "responses": {
+          "200": { "description": "Principal-scoped one-hour request metrics", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PublicMetrics" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
     },
@@ -173,6 +183,7 @@
     },
     "schemas": {
       "Health": { "type": "object", "required": ["status", "service", "apiVersion"], "properties": { "status": { "type": "string" }, "service": { "type": "string" }, "apiVersion": { "type": "string" }, "actionCatalogSize": { "type": "integer" } }, "additionalProperties": true },
+      "PublicMetrics": { "type": "object", "required": ["schema", "windowSeconds", "principal", "requests"], "properties": { "schema": { "const": "kasitek-public-metrics-v1" }, "windowSeconds": { "const": 3600 }, "principal": { "type": "object", "required": ["kind"], "properties": { "kind": { "type": "string" } }, "additionalProperties": false }, "requests": { "type": "object", "required": ["total", "successful", "clientErrors", "serverErrors", "inFlight"], "properties": { "total": { "type": "integer", "minimum": 0 }, "successful": { "type": "integer", "minimum": 0 }, "clientErrors": { "type": "integer", "minimum": 0 }, "serverErrors": { "type": "integer", "minimum": 0 }, "inFlight": { "type": "integer", "minimum": 0 } }, "additionalProperties": false } }, "additionalProperties": false },
       "Error": { "type": "object", "properties": { "error": { "type": "string" }, "code": { "type": "string" } }, "additionalProperties": true },
       "CapabilityPage": { "type": "object", "required": ["version", "principal", "actions", "pagination"], "properties": { "version": { "const": "v1" }, "principal": { "type": "object", "additionalProperties": true }, "actions": { "type": "array", "items": { "type": "object", "additionalProperties": true } }, "pagination": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
       "PostList": { "type": "object", "required": ["posts"], "properties": { "posts": { "type": "array", "items": { "type": "object", "additionalProperties": true } } }, "additionalProperties": false },

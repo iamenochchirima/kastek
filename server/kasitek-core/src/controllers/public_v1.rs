@@ -35,6 +35,15 @@ pub async fn openapi() -> HttpResponse {
         .body(include_str!("../../openapi/v1.json"))
 }
 
+pub async fn metrics(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    let metrics = public_api::metrics(&state.pool, &context).await?;
+    Ok(response_with_context(&context).json(metrics))
+}
+
 async fn public_context(req: &HttpRequest, state: &AppState) -> Result<RequestContext, AppError> {
     // Product user sessions are opaque bearer values. A JWT-shaped bearer value
     // is an attempted Agent installation credential and must never fall through
@@ -783,26 +792,64 @@ mod tests {
             document.get("openapi").and_then(|value| value.as_str()),
             Some("3.1.0")
         );
-        for path in [
-            "/health",
-            "/capabilities",
-            "/content/posts",
-            "/content/posts/{id}",
-            "/contacts",
-            "/inbox/conversations",
-            "/inbox/conversations/{id}/messages",
-            "/bookings",
-            "/campaigns",
-            "/campaigns/{id}",
-            "/templates",
-        ] {
-            assert!(
-                document
-                    .get("paths")
-                    .and_then(|paths| paths.get(path))
-                    .is_some(),
-                "missing {path}"
-            );
+        let operations = [
+            ("/health", "get", &["200"][..]),
+            ("/capabilities", "get", &["200", "400", "401", "403"][..]),
+            ("/metrics", "get", &["200", "401"][..]),
+            ("/content/posts", "get", &["200", "401", "403"][..]),
+            ("/content/posts", "post", &["201", "400", "401", "403"][..]),
+            (
+                "/content/posts/{id}",
+                "get",
+                &["200", "401", "403", "404"][..],
+            ),
+            (
+                "/content/posts/{id}",
+                "patch",
+                &["200", "400", "401", "403", "404"][..],
+            ),
+            ("/contacts", "get", &["200", "401", "403"][..]),
+            ("/inbox/conversations", "get", &["200", "401", "403"][..]),
+            (
+                "/inbox/conversations/{id}/messages",
+                "get",
+                &["200", "401", "403", "404"][..],
+            ),
+            ("/bookings", "get", &["200", "401", "403"][..]),
+            ("/campaigns", "get", &["200", "401", "403"][..]),
+            ("/campaigns/{id}", "get", &["200", "401", "403", "404"][..]),
+            ("/templates", "get", &["200", "401", "403"][..]),
+        ];
+        for (path, method, statuses) in operations {
+            let operation = document
+                .get("paths")
+                .and_then(|paths| paths.get(path))
+                .and_then(|path_item| path_item.get(method))
+                .unwrap_or_else(|| panic!("missing OpenAPI operation {method} {path}"));
+            for status in statuses {
+                let response = operation
+                    .get("responses")
+                    .and_then(|responses| responses.get(status))
+                    .unwrap_or_else(|| panic!("missing response {status} for {method} {path}"));
+                assert!(response.get("$ref").is_some() || response.get("description").is_some(), "response {status} for {method} {path} has no description or component reference");
+            }
+            if path == "/health" {
+                assert_eq!(
+                    operation
+                        .get("security")
+                        .and_then(|security| security.as_array())
+                        .map(Vec::len),
+                    Some(0)
+                );
+            } else {
+                assert!(
+                    document
+                        .get("security")
+                        .and_then(|security| security.as_array())
+                        .is_some(),
+                    "protected operation {method} {path} has no document security contract"
+                );
+            }
         }
         assert!(document
             .pointer("/components/securitySchemes/bearerInstallation")

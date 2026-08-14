@@ -705,7 +705,9 @@ real capabilities, preserves independent chats, and never invents platform featu
   The current public resource contract is served at `/v1/openapi.json` from
   `server/kasitek-core/openapi/v1.json`; MCP authentication, discovery, protocol, idempotency,
   and structured outcomes are documented in `agents/docs/mcp-integration.md` and covered by the
-  gateway/core contract suites (`c5c48a4`). Broader principal and provider conformance remains open.
+  gateway/core contract suites (`c5c48a4`). The core OpenAPI contract test now enumerates every
+  mounted `/v1` operation, required success/error responses, and the protected/anonymous security
+  contract. Broader principal and provider conformance remains open.
 - [x] Protect the initial `/v1/capabilities` route with the normalized direct-user request context,
   exclude non-public/unsupported actions, return a stable public capability DTO, and document the
   current session-authenticated contract in the core-owned OpenAPI file.
