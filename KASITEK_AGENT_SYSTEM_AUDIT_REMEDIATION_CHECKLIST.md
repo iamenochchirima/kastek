@@ -513,7 +513,7 @@ campaign, and template routes over the shared core queries with catalog action d
 restricted-field redaction. The follow-up public API accounting slice adds durable
 `PublicApiRequest` reservations/finalization and a distributed per-principal rate limit. Feature/
 resource policy, the approved principal matrix, metrics export, and external REST conformance
-remain open. `8a68bab` and `81912a5` add the signed outbound webhook subscription/delivery pipeline
+remain open. `8a68bab`, `81912a5`, and `2480e6e` add the signed outbound webhook subscription/delivery pipeline
 with encrypted secrets, idempotent request/content event enqueueing, HMAC signatures, retry/disable
 recovery, delivery diagnostics, configurable route flags, and standard deprecation headers; focused
 webhook and public OpenAPI tests pass. The broader principal and external conformance gates remain
