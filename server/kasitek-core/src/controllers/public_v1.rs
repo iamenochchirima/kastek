@@ -1304,6 +1304,33 @@ mod tests {
         assert!(document
             .pointer("/components/headers/RateLimitRemaining")
             .is_some());
+        assert!(document
+            .pointer("/components/headers/Deprecation")
+            .is_some());
+        assert!(document.pointer("/components/headers/Sunset").is_some());
+        assert!(document
+            .pointer("/components/headers/DeprecationLink")
+            .is_some());
+        let capability_required = document["components"]["schemas"]["CapabilityPage"]["required"]
+            .as_array()
+            .expect("capability policy fields");
+        assert!(capability_required
+            .iter()
+            .any(|value| value == "principalPolicy"));
+        assert!(capability_required
+            .iter()
+            .any(|value| value == "transportPolicy"));
+        let webhook_events = document["components"]["schemas"]["WebhookSubscriptionInput"]
+            ["properties"]["eventTypes"]["items"]["enum"]
+            .as_array()
+            .expect("webhook event enum");
+        for event in [
+            "public_api.request.completed",
+            "content.post.created",
+            "content.post.updated",
+        ] {
+            assert!(webhook_events.iter().any(|value| value == event));
+        }
         let create_parameters = document["paths"]["/content/posts"]["post"]["parameters"]
             .as_array()
             .expect("draft creation headers");
