@@ -194,11 +194,14 @@ export class ChannelRepository {
       const result = await client.query<DeliveryAttemptRecord>(
         `INSERT INTO delivery_attempts
           (organization_id, conversation_id, message_id, channel_type, status, attempt_number)
-         SELECT $1, $2, $3, $4, 'queued', COALESCE(MAX(attempt_number), 0) + 1
-         FROM delivery_attempts WHERE message_id = $3
+         SELECT $1, $2, $3, $4, 'queued',
+                COALESCE((SELECT MAX(attempt_number) FROM delivery_attempts WHERE message_id = $3), 0) + 1
+         FROM messages
+         WHERE id = $3 AND conversation_id = $2 AND organization_id = $1
          RETURNING *`,
         [input.organizationId, input.conversationId, input.messageId, input.channelType],
       );
+      if (!result.rows[0]) throw new Error("Message not found");
       await client.query(
         `UPDATE messages SET delivery_status = 'queued'
          WHERE id = $1 AND conversation_id = $2 AND organization_id = $3`,

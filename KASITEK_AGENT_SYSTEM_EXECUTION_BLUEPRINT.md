@@ -276,7 +276,7 @@ provider coupling does not complete the reorganization.
 
 The checked items below were reconciled against the current repository, migrations, focused tests,
 and the commits listed in `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
-The Agent Platform suite now passes 49 files / 198 tests / 0 skips against isolated PostgreSQL and
+The Agent Platform suite now passes 49 files / 199 tests / 0 skips against isolated PostgreSQL and
 local Temporal, and the Agent build and core format/check/library tests pass. A checked
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
@@ -311,7 +311,7 @@ and `BLOCKERS.md`; they must not be converted to checked items merely because a 
 Pending environment and pre-existing frontend verification gaps are tracked in [`BLOCKERS.md`](BLOCKERS.md).
 
 **Reconciliation evidence:** Agent migrations `027`–`035` applied locally and the complete Agent
-suite passed 49 files / 198 tests / 0 skipped with PostgreSQL and an isolated Temporal dev server
+suite passed 49 files / 199 tests / 0 skipped with PostgreSQL and an isolated Temporal dev server
 (`RUN_AGENTS_DB_INTEGRATION_TESTS=true RUN_TEMPORAL_INTEGRATION_TESTS=true`). `pnpm build` passed;
 `cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core --lib` passed
 105 tests with three explicitly ignored seeded/infrastructure cases. Local Temporal recovery is
@@ -860,13 +860,13 @@ REST where permitted, and equivalent operations share business behavior without 
   installation status/settings, resource and connector grants, schedules, and workflow validation;
   `agent-lifecycle.integration.test.ts`, `template.integration.test.ts`, `credential.integration.test.ts`,
   and `workflow-graph.test.ts` cover rollback/template/credential/workflow-handoff paths. The full
-  PostgreSQL + Temporal suite passed 49 files / 198 tests / 0 skipped.
+  PostgreSQL + Temporal suite passed 49 files / 199 tests / 0 skipped.
 - [ ] Add tests proving hosted agents cannot escape declared capabilities, resources, connectors,
   budgets, concurrency, or approval policy.
 - [ ] Run a complete template scenario from creation through test, publish, channel/connector use,
   approval, effect, activity, and rollback.
 - [x] Run Agent Platform/core/client suites, typechecks, lint/format, and production builds. Current
-  verification: Agent suite 198 passed with zero skips against isolated PostgreSQL and local
+  verification: Agent suite 199 passed with zero skips against isolated PostgreSQL and local
   Temporal, Agent build and client typecheck/lint/production build pass, and `kasitek-core`
   format/check/unit suite is green (105 passed, 3 seeded/infrastructure ignores).
 
@@ -904,6 +904,15 @@ agent that safely combines KasiTek capabilities with approved external services.
   injection tests/evaluations.
 - [ ] Run browser plus configured WhatsApp/Telegram/Discord end-to-end scenarios, service tests,
   typechecks, and builds.
+
+**Slice 9 evidence (2026-08-14):** `MemoryRepository` deletion and revalidation now enforce
+namespace-specific installation, conversation, and user ownership; `KnowledgeRepository` source
+lookup, ingestion, listing, and deletion now enforce agent/installation scope; and channel delivery
+attempt creation verifies the message's organization and conversation before inserting a retry. The
+new cross-scope regressions live in `agents/test/memory.integration.test.ts` and
+`agents/test/channel.integration.test.ts`. The full PostgreSQL + Temporal suite passed 49 files /
+199 tests / 0 skipped. Browser/provider scenarios, opt-out, reconnect, and the complete channel
+matrix remain open.
 
 **Complete when:** every supported channel reaches the same durable agent runtime while identity,
 conversation history, delivery, knowledge, and memory remain correctly scoped and recoverable.

@@ -137,8 +137,14 @@ export class MemoryRepository {
       const result = await client.query<MemoryRecord>(
         `UPDATE memory_records SET status = 'deleted', deleted_at = now(), updated_at = now()
          WHERE id = $1 AND organization_id = $2 AND (agent_definition_id IS NULL OR agent_definition_id = $3)
+           AND (
+             namespace = 'organization_shared'
+             OR (namespace = 'agent_private' AND installation_id = $4)
+             OR (namespace = 'conversation' AND conversation_id = $5)
+             OR (namespace = 'user_private' AND owner_user_id = $6)
+           )
          RETURNING *`,
-        [memoryId, scope.organizationId, scope.agentId],
+        [memoryId, scope.organizationId, scope.agentId, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null],
       );
       if (!result.rows[0]) throw new Error("Memory not found");
       await client.query(
@@ -170,8 +176,14 @@ export class MemoryRepository {
       `UPDATE memory_records SET expires_at = $4, last_revalidated_at = now(), updated_at = now()
        WHERE id = $1 AND organization_id = $2 AND status = 'active'
          AND (agent_definition_id IS NULL OR agent_definition_id = $3)
+         AND (
+           namespace = 'organization_shared'
+           OR (namespace = 'agent_private' AND installation_id = $5)
+           OR (namespace = 'conversation' AND conversation_id = $6)
+           OR (namespace = 'user_private' AND owner_user_id = $7)
+         )
        RETURNING *`,
-      [memoryId, scope.organizationId, scope.agentId, expiresAt],
+      [memoryId, scope.organizationId, scope.agentId, expiresAt, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null],
     );
     if (!result.rows[0]) throw new Error("Memory not found");
     return result.rows[0];

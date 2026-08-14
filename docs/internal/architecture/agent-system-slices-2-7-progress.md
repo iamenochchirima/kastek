@@ -95,7 +95,7 @@ marked when the complete deliverable and its verification exist.
 ## Verification evidence
 
 On 2026-08-14, Agent Platform migrations through `035` applied to the local Agent PostgreSQL
-database. With an isolated local Temporal dev server, the complete suite passed 49 files / 198
+database. With an isolated local Temporal dev server, the complete suite passed 49 files / 199
 tests / 0 skips under Node 22.22.2, and `pnpm --dir agents build` passed. Hosted-agent boundary
 integration now covers organization-scoped lifecycle, grants, schedules, and workflow validation.
 Gateway tests now cover

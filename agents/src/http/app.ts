@@ -1663,16 +1663,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.delete<{ Params: { memoryId: string } }>("/v1/memory/:memoryId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional() }).parse(request.body);
-    await memory.deleteMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, actorId: auth.actorId }, request.params.memoryId, auth.actorId);
+    const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional(), conversationId: z.string().uuid().optional() }).parse(request.body);
+    await memory.deleteMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, actorId: auth.actorId }, request.params.memoryId, auth.actorId);
     return reply.code(204).send();
   });
 
   app.post<{ Params: { memoryId: string } }>("/v1/memory/:memoryId/revalidate", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional(), expiresAt: z.string().datetime().nullable() }).parse(request.body);
-    return memory.revalidateMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, actorId: auth.actorId }, request.params.memoryId, input.expiresAt);
+    const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional(), conversationId: z.string().uuid().optional(), expiresAt: z.string().datetime().nullable() }).parse(request.body);
+    return memory.revalidateMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, actorId: auth.actorId }, request.params.memoryId, input.expiresAt);
   });
 
   app.get<{ Querystring: { agentId?: string; installationId?: string; limit?: string } }>("/v1/knowledge/sources", async (request) => {

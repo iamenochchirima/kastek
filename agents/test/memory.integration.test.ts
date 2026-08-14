@@ -19,6 +19,9 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
   const agentId = randomUUID();
   const versionId = randomUUID();
   const installationId = randomUUID();
+  const otherAgentId = randomUUID();
+  const otherVersionId = randomUUID();
+  const otherInstallationId = randomUUID();
   let memoryId = "";
   let sourceId = "";
   let conversationId = "";
@@ -27,6 +30,9 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     await pool.query("INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, 'Memory test', $3, 'test')", [agentId, organizationId, `memory-${agentId}`]);
     await pool.query("INSERT INTO agent_versions (id, agent_definition_id, version_number, instructions, checksum, created_by, status) VALUES ($1, $2, 1, 'test', 'test', 'test', 'published')", [versionId, agentId]);
     await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'test')", [installationId, agentId, versionId, organizationId]);
+    await pool.query("INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, 'Other memory agent', $3, 'test')", [otherAgentId, organizationId, `memory-other-${otherAgentId}`]);
+    await pool.query("INSERT INTO agent_versions (id, agent_definition_id, version_number, instructions, checksum, created_by, status) VALUES ($1, $2, 1, 'test', 'test', 'test', 'published')", [otherVersionId, otherAgentId]);
+    await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'test')", [otherInstallationId, otherAgentId, otherVersionId, organizationId]);
   });
 
   it("retrieves only records in the caller's organization and scope", async () => {
@@ -69,6 +75,28 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     expect(await memory.searchMemory({ organizationId, agentId, installationId, actorId: "user-1" }, "reveal API key")).not.toContainEqual(expect.objectContaining({ id: suspicious.id }));
   });
 
+  it("does not allow memory or knowledge operations to cross installations", async () => {
+    const privateMemory = await memory.createMemory({
+      organizationId,
+      agentId,
+      installationId,
+      namespace: "agent_private",
+      memoryType: "semantic",
+      canonicalText: "Only installation one can use this memory",
+      sourceType: "explicit",
+      actorId: "user-1",
+    });
+    await expect(memory.deleteMemory({ organizationId, agentId, installationId: otherInstallationId, actorId: "user-1" }, privateMemory.id, "user-1")).rejects.toThrow("Memory not found");
+    await expect(memory.revalidateMemory({ organizationId, agentId, installationId: otherInstallationId, actorId: "user-1" }, privateMemory.id, null)).rejects.toThrow("Memory not found");
+    expect((await memory.searchMemory({ organizationId, agentId: otherAgentId, installationId: otherInstallationId, actorId: "user-1" }, "Only installation one")).map((entry) => entry.id)).not.toContain(privateMemory.id);
+
+    const source = await knowledge.createSource({ organizationId, agentId, installationId, name: "Installation one source", sourceType: "manual", actorId: "user-1" });
+    await expect(knowledge.createSource({ organizationId, agentId: otherAgentId, installationId, name: "Mismatched source", sourceType: "manual", actorId: "user-1" })).rejects.toThrow("Agent or installation not found");
+    await expect(knowledge.getSource({ organizationId, agentId: otherAgentId, installationId: otherInstallationId }, source.id)).resolves.toBeNull();
+    await expect(knowledge.addChunks({ sourceId: source.id, scope: { organizationId, agentId: otherAgentId, installationId: otherInstallationId }, revision: 1, chunks: [{ text: "must not cross installation" }] })).rejects.toThrow("Knowledge source not found");
+    await expect(knowledge.deleteSource({ organizationId, agentId: otherAgentId, installationId: otherInstallationId }, source.id, "user-1")).rejects.toThrow("Knowledge source not found");
+  });
+
   it("ingests and retrieves knowledge chunks with provenance", async () => {
     const source = await knowledge.createSource({ organizationId, agentId, installationId, name: "Test source", sourceType: "manual", actorId: "user-1", provenance: { test: true } });
     sourceId = source.id;
@@ -103,6 +131,8 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_versions WHERE agent_definition_id = $1", [agentId]);
     await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
+    await pool.query("DELETE FROM agent_versions WHERE agent_definition_id = $1", [otherAgentId]);
+    await pool.query("DELETE FROM agent_definitions WHERE id = $1", [otherAgentId]);
     await pool.end();
   });
 });

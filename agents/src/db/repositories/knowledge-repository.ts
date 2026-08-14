@@ -45,10 +45,21 @@ export class KnowledgeRepository {
       this.pool,
       `INSERT INTO knowledge_sources
         (organization_id, agent_definition_id, installation_id, name, source_type, source_uri, provenance, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+       SELECT $1, $2, $3, $4, $5, $6, $7::jsonb, $8
+       WHERE EXISTS (
+         SELECT 1 FROM agent_definitions
+         WHERE id = $2 AND organization_id = $1 AND status = 'active'
+       )
+         AND (
+           $3::uuid IS NULL OR EXISTS (
+             SELECT 1 FROM agent_installations
+             WHERE id = $3 AND organization_id = $1 AND agent_definition_id = $2 AND status <> 'disabled'
+           )
+         )
        RETURNING *`,
       [input.organizationId, input.agentId, input.installationId ?? null, input.name, input.sourceType, input.sourceUri ?? null, JSON.stringify(input.provenance ?? {}), input.actorId],
     );
+    if (!result.rows[0]) throw new Error("Agent or installation not found");
     return result.rows[0]!;
   }
 
@@ -56,8 +67,10 @@ export class KnowledgeRepository {
     const result = await query<KnowledgeSourceRecord>(
       this.pool,
       `SELECT * FROM knowledge_sources
-       WHERE id = $1 AND organization_id = $2 AND status = 'active'`,
-      [sourceId, scope.organizationId],
+       WHERE id = $1 AND organization_id = $2 AND status = 'active'
+         AND ($3::uuid IS NULL OR agent_definition_id IS NULL OR agent_definition_id = $3)
+         AND ($4::uuid IS NULL OR installation_id IS NULL OR installation_id = $4)`,
+      [sourceId, scope.organizationId, scope.agentId ?? null, scope.installationId ?? null],
     );
     return result.rows[0] ?? null;
   }
@@ -70,8 +83,12 @@ export class KnowledgeRepository {
   }): Promise<KnowledgeChunkRecord[]> {
     return withTransaction(this.pool, async (client) => {
       const source = await client.query<KnowledgeSourceRecord>(
-        `SELECT * FROM knowledge_sources WHERE id = $1 AND organization_id = $2 AND status = 'active' FOR UPDATE`,
-        [input.sourceId, input.scope.organizationId],
+        `SELECT * FROM knowledge_sources
+         WHERE id = $1 AND organization_id = $2 AND status = 'active'
+           AND ($3::uuid IS NULL OR agent_definition_id IS NULL OR agent_definition_id = $3)
+           AND ($4::uuid IS NULL OR installation_id IS NULL OR installation_id = $4)
+         FOR UPDATE`,
+        [input.sourceId, input.scope.organizationId, input.scope.agentId ?? null, input.scope.installationId ?? null],
       );
       if (!source.rows[0]) throw new Error("Knowledge source not found");
       const chunks: KnowledgeChunkRecord[] = [];
@@ -109,7 +126,7 @@ export class KnowledgeRepository {
   }
 
   public async listSources(scope: { organizationId: string; agentId?: string; installationId?: string }, limit = 100): Promise<KnowledgeSourceRecord[]> {
-    const result = await query<KnowledgeSourceRecord>(this.pool, `SELECT * FROM knowledge_sources WHERE organization_id = $1 AND status <> 'deleted' AND ($2::uuid IS NULL OR agent_definition_id = $2) AND ($3::uuid IS NULL OR installation_id = $3) ORDER BY created_at DESC LIMIT $4`, [scope.organizationId, scope.agentId ?? null, scope.installationId ?? null, Math.max(1, Math.min(limit, 500))]);
+    const result = await query<KnowledgeSourceRecord>(this.pool, `SELECT * FROM knowledge_sources WHERE organization_id = $1 AND status <> 'deleted' AND ($2::uuid IS NULL OR agent_definition_id IS NULL OR agent_definition_id = $2) AND ($3::uuid IS NULL OR installation_id IS NULL OR installation_id = $3) ORDER BY created_at DESC LIMIT $4`, [scope.organizationId, scope.agentId ?? null, scope.installationId ?? null, Math.max(1, Math.min(limit, 500))]);
     return result.rows;
   }
 
@@ -117,9 +134,11 @@ export class KnowledgeRepository {
     await withTransaction(this.pool, async (client) => {
       const result = await client.query<KnowledgeSourceRecord>(
         `UPDATE knowledge_sources SET status = 'deleted', deleted_at = now(), updated_at = now()
-         WHERE id = $1 AND organization_id = $2 AND (agent_definition_id IS NULL OR agent_definition_id = $3)
+         WHERE id = $1 AND organization_id = $2
+           AND (agent_definition_id IS NULL OR agent_definition_id = $3)
+           AND (installation_id IS NULL OR installation_id = $4)
          RETURNING *`,
-        [sourceId, scope.organizationId, scope.agentId],
+        [sourceId, scope.organizationId, scope.agentId, scope.installationId ?? null],
       );
       if (!result.rows[0]) throw new Error("Knowledge source not found");
       await client.query(

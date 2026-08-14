@@ -14,6 +14,7 @@ describe.skipIf(!runIntegration)("channel routing contracts (integration)", () =
   const channels = new ChannelRepository(pool);
   const conversations = new ConversationRepository(pool);
   const organizationId = `channel-test-${randomUUID()}`;
+  const otherOrganizationId = `channel-other-${randomUUID()}`;
   let agentId = "";
   let versionId = "";
   let installationId = "";
@@ -36,13 +37,25 @@ describe.skipIf(!runIntegration)("channel routing contracts (integration)", () =
     await expect(channels.consumePairingToken({ organizationId, token: pairing.token!, externalIdentity: "user:test" })).rejects.toThrow("invalid");
     const conversation = await conversations.createConversation({ organizationId, installationId, channelType: "platform", channelKey: "sidebar", externalConversationId: "conversation:test" });
     conversationId = conversation.id;
+    expect(await conversations.getConversation(otherOrganizationId, conversation.id)).toBeNull();
+    expect(await conversations.listMessages(otherOrganizationId, conversation.id)).toEqual([]);
+    await expect(conversations.appendMessage({ organizationId: otherOrganizationId, conversationId: conversation.id, direction: "inbound", content: { text: "cross-org" } })).rejects.toThrow("Active conversation not found");
+    await expect(conversations.createConversation({ organizationId: otherOrganizationId, installationId, externalConversationId: "cross-org" })).rejects.toThrow("Active installation not found");
     const participant = await conversations.createParticipant({ organizationId, conversationId, participantType: "user", externalId: "user:test", displayName: "Test" });
     const message = await conversations.appendMessage({ organizationId, conversationId, participantId: participant.id, direction: "outbound", content: { text: "hello" }, provider: "platform", providerMessageId: "message:test" });
     const attempt = await channels.queueDelivery({ organizationId, conversationId, messageId: message.id, channelType: "platform" });
     expect(attempt.status).toBe("queued");
+    await expect(channels.queueDelivery({ organizationId: "other-organization", conversationId, messageId: message.id, channelType: "platform" })).rejects.toThrow("Message not found");
+    await expect(channels.queueDelivery({ organizationId, conversationId: randomUUID(), messageId: message.id, channelType: "platform" })).rejects.toThrow("Message not found");
     const claimed = await channels.claimDelivery(organizationId, attempt.id);
     expect(claimed.status).toBe("sending");
-    const delivered = await channels.markDelivered({ organizationId, attemptId: attempt.id, providerMessageId: "provider-message:1" });
+    const failed = await channels.markDeliveryFailed({ organizationId, attemptId: claimed.id, error: { code: "provider_timeout" } });
+    expect(failed.status).toBe("failed");
+    const retry = await channels.queueDelivery({ organizationId, conversationId, messageId: message.id, channelType: "platform" });
+    expect(retry).toMatchObject({ status: "queued", attempt_number: 2 });
+    const retryClaimed = await channels.claimDelivery(organizationId, retry.id);
+    expect(retryClaimed.status).toBe("sending");
+    const delivered = await channels.markDelivered({ organizationId, attemptId: retry.id, providerMessageId: "provider-message:1" });
     expect(delivered.status).toBe("sent");
     expect((await conversations.listMessages(organizationId, conversationId))[0]).toMatchObject({
       delivery_status: "sent",
