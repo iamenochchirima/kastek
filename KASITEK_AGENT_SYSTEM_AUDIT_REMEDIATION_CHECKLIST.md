@@ -716,6 +716,12 @@ execution, external effects, and channel delivery by migration `044` and the ope
 integration. Hosted, Redis, seeded-core, provider, and browser gates remain explicit blockers rather
 than being claimed as complete.
 
+The follow-on operator verification also covers the protected feature-flag and incident-hold read
+routes and the structured MCP response when a scoped runtime flag disables the transport;
+`agents/test/http.test.ts` keeps both paths behind `operator:read` and asserts that the redacted
+projection shape is preserved. Domain-preview tests cover channel send/reply, campaign, booking,
+destructive, and later-domain projections without provider credentials.
+
 ## 14. Required verification matrix
 
 Run targeted tests after each section, then run this full matrix before declaring audit remediation

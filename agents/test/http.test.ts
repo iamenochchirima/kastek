@@ -97,6 +97,20 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("returns a structured MCP error when the scoped MCP feature flag is disabled", async () => {
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      controls: { isFeatureEnabled: vi.fn(async (_organizationId: string, flagKey: string) => flagKey !== "mcp_enabled") } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+    });
+    const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 9, method: "initialize" } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ error: { code: -32031, message: "mcp_feature_disabled", data: { code: "MCP_FEATURE_DISABLED" } } });
+    await app.close();
+  });
+
   it("requires the configured gateway secret before accepting MCP traffic", async () => {
     const app = buildApp({ config: { ...mcpConfig, AGENT_GATEWAY_SHARED_SECRET: "gateway-secret" }, pool: fakePool });
     const response = await app.inject({ method: "POST", url: "/mcp", payload: { jsonrpc: "2.0", id: 4, method: "initialize" } });
@@ -123,6 +137,26 @@ describe("Agent Platform HTTP foundation", () => {
     const allowed = await app.inject({ method: "GET", url: "/v1/operator/health", headers: { "x-organization-id": "platform", "x-actor-id": "admin-1", "x-kasitek-operator": "true" } });
     expect(allowed.statusCode).toBe(200);
     expect(allowed.json()).toMatchObject({ scope: "platform", status: "ready", database: { status: "ready" } });
+    await app.close();
+  });
+
+  it("keeps feature-flag and incident-hold projections behind operator:read", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      controls: {
+        listFeatureFlags: vi.fn(async () => [{ id: "flag-1", scope_type: "organization", scope_id: "org-1", flag_key: "mcp_enabled", enabled: false }]),
+        listHolds: vi.fn(async () => [{ id: "hold-1", organization_id: "org-1", scope_type: "run", scope_id: "run-1", hold_type: "execution", status: "active" }]),
+      } as never,
+    });
+    const denied = await app.inject({ method: "GET", url: "/v1/operator/feature-flags", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(denied.statusCode).toBe(403);
+    const flags = await app.inject({ method: "GET", url: "/v1/operator/feature-flags?limit=10", headers: { "x-organization-id": "platform", "x-actor-id": "admin-1", "x-kasitek-operator": "true" } });
+    expect(flags.statusCode).toBe(200);
+    expect(flags.json()).toEqual({ featureFlags: [{ id: "flag-1", scope_type: "organization", scope_id: "org-1", flag_key: "mcp_enabled", enabled: false }] });
+    const holds = await app.inject({ method: "GET", url: "/v1/operator/holds?limit=10", headers: { "x-organization-id": "platform", "x-actor-id": "admin-1", "x-kasitek-operator": "true" } });
+    expect(holds.statusCode).toBe(200);
+    expect(holds.json()).toMatchObject({ holds: [{ id: "hold-1", organization_id: "org-1", status: "active" }] });
     await app.close();
   });
 
