@@ -920,9 +920,9 @@ REST where permitted, and equivalent operations share business behavior without 
 - [ ] Run a complete template scenario from creation through test, publish, channel/connector use,
   approval, effect, activity, and rollback.
 - [x] Run Agent Platform/core/client suites, typechecks, lint/format, and production builds. Current
-  verification: Agent suite 204 passed with zero skips against isolated PostgreSQL and local
+  verification: Agent suite 208 passed with zero skips against isolated PostgreSQL and local
   Temporal, Agent build and client typecheck/lint/production build pass, and `kasitek-core`
-  format/check/unit suite is green (105 passed, 3 seeded/infrastructure ignores).
+  format/check/unit suite is green (123 passed, 3 seeded/infrastructure ignores).
 
 **Complete when:** a user can create, test, publish, observe, pause, update, and roll back a hosted
 agent that safely combines KasiTek capabilities with approved external services.

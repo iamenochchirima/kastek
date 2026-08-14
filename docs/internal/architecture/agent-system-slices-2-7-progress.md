@@ -400,8 +400,8 @@ response close, and stream error now stop the polling timer. Provider recovery r
 gate.
 
 Telegram and Discord adapters now normalize provider attachments into bounded canonical IDs, MIME
-types, filenames, and captions while excluding temporary provider URLs; four adapter contract tests
-cover text, document/photo, attachment, and connector-unavailable paths.
+types, filenames, and captions while excluding temporary provider URLs; six adapter contract tests
+cover text, document/photo, attachment, malformed payload, and connector-unavailable paths.
 
 ## Remaining work
 

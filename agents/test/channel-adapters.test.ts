@@ -16,6 +16,10 @@ describe("thin external channel adapters", () => {
     expect(photo.message.content).not.toHaveProperty("url");
   });
 
+  it("rejects Telegram updates without stable routing identifiers", () => {
+    expect(() => new TelegramChannelAdapter().normalizeInbound({ update_id: 12, message: { message_id: 13, chat: { id: 14 } } })).toThrow("Invalid Telegram update");
+  });
+
   it("normalizes Discord messages and keeps delivery connector-owned", async () => {
     const adapter = new DiscordChannelAdapter();
     const event = adapter.normalizeInbound({ id: "msg-1", channel_id: "channel-1", content: "hello", author: { id: "user-1", username: "Ada" } });
@@ -27,5 +31,9 @@ describe("thin external channel adapters", () => {
     const event = new DiscordChannelAdapter().normalizeInbound({ id: "msg-2", channel_id: "channel-1", content: "see this", author: { id: "user-1" }, attachments: [{ id: "attachment-1", filename: "photo.png", content_type: "image/png", url: "https://cdn.discord.test/temporary" }] });
     expect(event.message).toMatchObject({ messageType: "attachment", content: { attachmentId: "attachment-1", fileName: "photo.png", mimeType: "image/png", text: "see this" } });
     expect(event.message.content).not.toHaveProperty("url");
+  });
+
+  it("rejects Discord messages without an author identity", () => {
+    expect(() => new DiscordChannelAdapter().normalizeInbound({ id: "msg-3", channel_id: "channel-1", content: "hello", author: {} })).toThrow("Invalid Discord message");
   });
 });
