@@ -86,6 +86,14 @@ describe("kasitek-core read boundary", () => {
     expect(init.headers).toMatchObject({ authorization: "Bearer internal-token", "x-organization-id": "org-1" });
   });
 
+  it("passes a bounded booking-service inventory limit", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ services: [], total: 3, hasMore: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).listBookingServices(context, { limit: 25 })).resolves.toMatchObject({ total: 3, hasMore: true });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/bookings/services?limit=25");
+  });
+
   it("reads bookings through the shared scoped booking query", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ bookings: [{ id: "booking-1" }] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

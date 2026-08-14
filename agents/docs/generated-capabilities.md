@@ -93,6 +93,13 @@ Read connection providers and health statuses for the current KasiTek workspace.
 ```json
 {
   "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
   "additionalProperties": false
 }
 ```
@@ -195,6 +202,13 @@ List the booking services configured for the current KasiTek workspace.
 ```json
 {
   "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
   "additionalProperties": false
 }
 ```
@@ -207,6 +221,12 @@ List the booking services configured for the current KasiTek workspace.
   "properties": {
     "services": {
       "type": "array"
+    },
+    "total": {
+      "type": "integer"
+    },
+    "hasMore": {
+      "type": "boolean"
     }
   },
   "required": [

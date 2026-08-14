@@ -102,7 +102,11 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     riskClass: "read",
     requiresApproval: false,
     timeoutMs: 12_000,
-    inputSchema: { type: "object", additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { limit: { type: "integer", minimum: 1, maximum: 200 } },
+      additionalProperties: false,
+    },
     outputSchema: {
       type: "object",
       properties: { organizationId: { type: "string" }, connections: { type: "array" } },
@@ -110,7 +114,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       additionalProperties: false,
     },
     manifest: { ownerService: "kasitek-core", requiredScope: "connections.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "access", redaction: ["connections.credentials"] },
-    handler: async (context) => {
+    handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
       return coreClient.getWorkspaceStatus(context);
     },
@@ -151,12 +155,16 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     riskClass: "read",
     requiresApproval: false,
     timeoutMs: 12_000,
-    inputSchema: { type: "object", additionalProperties: false },
-    outputSchema: { type: "object", properties: { services: { type: "array" } }, required: ["services"], additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { limit: { type: "integer", minimum: 1, maximum: 200 } },
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", properties: { services: { type: "array" }, total: { type: "integer" }, hasMore: { type: "boolean" } }, required: ["services"], additionalProperties: false },
     manifest: { ownerService: "kasitek-core", requiredScope: "bookings.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: [] },
-    handler: async (context) => {
+    handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
-      return coreClient.listBookingServices(context);
+      return coreClient.listBookingServices(context, { limit: typeof args.limit === "number" ? args.limit : undefined });
     },
   });
   tools.register({

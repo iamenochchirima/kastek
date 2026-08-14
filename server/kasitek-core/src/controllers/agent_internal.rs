@@ -17,7 +17,6 @@ use crate::db::models::{
     ConversationUpdateRequest, SocialPostUpsertRequest, WhatsappContactListQuery,
     WhatsappContactUpdateRequest, WhatsappTemplateListQuery,
 };
-use crate::domains::bookings::transport::BookingServicesResponse;
 use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
@@ -237,6 +236,7 @@ pub async fn list_booking_services(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
     req: HttpRequest,
+    query: web::Query<AgentCollectionQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = resolve_internal_agent_context(
         config.get_ref(),
@@ -244,8 +244,15 @@ pub async fn list_booking_services(
         "kasitek.core.booking_services_list",
     )
     .await?;
-    let services = core_adapter::list_booking_services(pool.get_ref(), &context).await?;
-    Ok(HttpResponse::Ok().json(BookingServicesResponse::new(services)))
+    let mut services = core_adapter::list_booking_services(pool.get_ref(), &context).await?;
+    let total = services.len();
+    let limit = query.bounded_limit()?;
+    services.truncate(limit);
+    Ok(HttpResponse::Ok().json(json!({
+        "services": services,
+        "total": total,
+        "hasMore": total > limit,
+    })))
 }
 
 pub async fn list_bookings(

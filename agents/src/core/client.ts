@@ -47,6 +47,8 @@ export interface CoreBookingService {
 
 export interface CoreBookingServices {
   services: CoreBookingService[];
+  total?: number;
+  hasMore?: boolean;
 }
 
 export interface CoreBookings {
@@ -242,8 +244,9 @@ export class KasitekCoreReadClient {
     return this.getJson<CoreWorkspaceReport>(context, "/api/internal/agents/v1/workspace/report", "Workspace report");
   }
 
-  public async listBookingServices(context: ToolInvocationContext): Promise<CoreBookingServices> {
-    return this.getJson<CoreBookingServices>(context, "/api/internal/agents/v1/bookings/services", "Booking services");
+  public async listBookingServices(context: ToolInvocationContext, input: { limit?: number } = {}): Promise<CoreBookingServices> {
+    const suffix = input.limit ? `?limit=${encodeURIComponent(String(input.limit))}` : "";
+    return this.getJson<CoreBookingServices>(context, `/api/internal/agents/v1/bookings/services${suffix}`, "Booking services");
   }
 
   public async listBookings(context: ToolInvocationContext, input: { limit?: number } = {}): Promise<CoreBookings> {
