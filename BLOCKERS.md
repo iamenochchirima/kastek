@@ -78,19 +78,19 @@ verified or completed. Work on independent items continues.
   successfully in this environment. Prisma-generated verification output was
   restored because it was a command artifact and not part of this task's changes.
 
-## B-005 — Core route-surface migration overlaps active unrelated edits
+## B-005 — Core route-surface migration overlaps active unrelated edits (resolved)
 
 - **Blueprint:** Slice 1 application shell and route-surface split.
-- **Evidence:** `server/kasitek-core/src/routes.rs` has active uncommitted
-  social/OAuth route changes outside this programme. A minimal `/v1/health` and
-  `/v1/capabilities` mount was staged independently; the route table remains
-  the shared target for splitting `api::product`, `api::admin`, `api::internal`,
-  `api::provider_webhooks`, and `api::website`.
-- **Impact:** I can add the shell and independently migrate domains, but cannot
-  safely replace the central route table or claim route-surface parity until
-  those edits are committed or explicitly handed over.
-- **Next action:** Rebase the route split on the completed social/OAuth change,
-  preserving its endpoint additions and response contracts.
+- **Evidence:** the route registry is now a compatibility entry point that mounts
+  `api::product`, `api::public_v1`, `api::internal`, `api::provider_webhooks`,
+  `api::website`, and `api::admin` independently. The representative route
+  inventory and `/v1` ownership tests pass in `server/kasitek-core/src/routes.rs`;
+  active social/OAuth edits are confined to service modules and no longer overlap
+  the route-surface migration.
+- **Resolution:** route-surface parity work can continue without touching the
+  user's active social/OAuth worktree changes. The remaining route/API gaps are
+  tracked as their own unchecked blueprint items rather than as a worktree
+  preservation blocker.
 
 ## B-006 — Admin operator policy is not yet defined
 
