@@ -9,6 +9,7 @@ import { RunRepository } from "../src/db/repositories/run-repository";
 import { ChannelRepository } from "../src/db/repositories/channel-repository";
 import { ConversationRepository } from "../src/db/repositories/conversation-repository";
 import { MemoryRepository } from "../src/db/repositories/memory-repository";
+import { OperatorControlRepository } from "../src/db/repositories/operator-control-repository";
 import { createOperatorCommand, approveOperatorCommand } from "../src/http/operator-commands";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
@@ -24,6 +25,7 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
   const channels = new ChannelRepository(pool);
   const conversations = new ConversationRepository(pool);
   const memory = new MemoryRepository(pool);
+  const controls = new OperatorControlRepository(pool);
   const actorId = `operator-${randomUUID()}`;
   const secondActorId = `operator-${randomUUID()}`;
   const organizationId = `operator-test-${randomUUID()}`;
@@ -40,6 +42,7 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     schedules,
     channels,
     memory,
+    controls,
   };
 
   it("persists a dual-control command, executes once, and binds idempotency to its actor and payload", async () => {
@@ -123,7 +126,49 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     lifecycleCommandIds.push(String(staleLifecycle.command.id));
     await expect(approveOperatorCommand({ actorId: secondActorId, commandId: String(staleLifecycle.command.id), dependencies })).rejects.toThrow("organization");
 
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const disabledFlag = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `disable-execution-${randomUUID()}`,
+      command: { commandType: "set_feature_flag", targetId: `${organizationId}:agent_execution_enabled`, payload: { flagKey: "agent_execution_enabled", scopeType: "organization", scopeId: organizationId, organizationId, enabled: false, reason: "integration hold", expiresAt } },
+      dependencies,
+    });
+    lifecycleCommandIds.push(String(disabledFlag.command.id));
+    expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(disabledFlag.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "cleared" } });
+    await expect(runs.createRun(organizationId, actorId, { installationId, triggerType: "manual", input: { source: "feature-flag-blocked" } })).rejects.toThrow("AGENT_EXECUTION_FLAG_DISABLED");
+
+    const enabledFlag = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `enable-execution-${randomUUID()}`,
+      command: { commandType: "set_feature_flag", targetId: `${organizationId}:agent_execution_enabled`, payload: { flagKey: "agent_execution_enabled", scopeType: "organization", scopeId: organizationId, organizationId, enabled: true, reason: "integration resume", expiresAt } },
+      dependencies,
+    });
+    lifecycleCommandIds.push(String(enabledFlag.command.id));
+    expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(enabledFlag.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "enabled" } });
+
+    const hold = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `execution-hold-${randomUUID()}`,
+      command: { commandType: "create_hold", targetId: organizationId, payload: { organizationId, scopeType: "organization", scopeId: organizationId, holdType: "execution", reason: "integration incident", expiresAt } },
+      dependencies,
+    });
+    lifecycleCommandIds.push(String(hold.command.id));
+    const createdHold = await approveOperatorCommand({ actorId: secondActorId, commandId: String(hold.command.id), dependencies });
+    expect(createdHold).toMatchObject({ status: "completed", result: { status: "active" } });
+    const holdId = String((createdHold.result as { holdId: string }).holdId);
+    await expect(runs.createRun(organizationId, actorId, { installationId, triggerType: "manual", input: { source: "execution-hold-blocked" } })).rejects.toThrow("AGENT_EXECUTION_HOLD_ACTIVE");
+    const release = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `release-execution-hold-${randomUUID()}`,
+      command: { commandType: "release_hold", targetId: holdId, payload: { expectedOrganizationId: organizationId, expectedStatus: "active" } },
+      dependencies,
+    });
+    lifecycleCommandIds.push(String(release.command.id));
+    expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(release.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "released", holdId } });
+
     await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_operator_holds WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_operator_feature_flags WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [lifecycleCommandIds]);
     await pool.query("DELETE FROM agent_schedules WHERE id = $1", [scheduleId]);
     await pool.query("DELETE FROM agent_installation_credentials WHERE id = $1", [credentialId]);

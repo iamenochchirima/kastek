@@ -377,6 +377,30 @@ impl AgentPlatformClient {
             .await
     }
 
+    pub async fn operator_feature_flags(
+        &self,
+        operator_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let path = limit
+            .map(|value| format!("/v1/operator/feature-flags?limit={value}"))
+            .unwrap_or_else(|| "/v1/operator/feature-flags".to_string());
+        self.request_operator_json(Method::GET, &path, operator_id, &["operator:read"], None)
+            .await
+    }
+
+    pub async fn operator_holds(
+        &self,
+        operator_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let path = limit
+            .map(|value| format!("/v1/operator/holds?limit={value}"))
+            .unwrap_or_else(|| "/v1/operator/holds".to_string());
+        self.request_operator_json(Method::GET, &path, operator_id, &["operator:read"], None)
+            .await
+    }
+
     pub async fn operator_health(&self, operator_id: &str) -> Result<Value, AppError> {
         self.request_operator_json(
             Method::GET,

@@ -33,6 +33,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         "/kill-switches",
                         web::get().to(admin_operations::kill_switches),
                     )
+                    .route(
+                        "/feature-flags",
+                        web::get().to(admin_operations::feature_flags),
+                    )
+                    .route("/holds", web::get().to(admin_operations::holds))
                     .route("/health", web::get().to(admin_operations::health))
                     .route(
                         "/effects/reconciliation",

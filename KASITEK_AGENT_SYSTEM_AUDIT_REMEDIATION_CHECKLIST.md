@@ -709,10 +709,12 @@ and resource guards; export requests persist as dual-control, organization-scope
 and the protected Core/Agent Operations surface exposes export and kill-switch status plus active
 run cancellation. Agent operator integration is 3/3, the default Agent suite is 54 files / 183
 passed / 33 expected integration skips, admin lint has zero errors (34 existing warnings), admin
-typecheck/build pass, and `cargo check -p kasitek-core` passes. The new feature-flag/incident-hold
-subitem remains unchecked for its separately undefined runtime policy, and hosted,
-Redis, seeded-core, provider, and browser gates remain explicit blockers rather than being claimed
-as complete.
+typecheck/build pass, and `cargo check -p kasitek-core` passes. Feature flags and incident holds
+are now also durable, expiring, dual-controlled, audited, resource-bound, surfaced through the
+protected Operations page, and enforced before Agent run creation, MCP/REST access, Temporal
+execution, external effects, and channel delivery by migration `044` and the operator lifecycle
+integration. Hosted, Redis, seeded-core, provider, and browser gates remain explicit blockers rather
+than being claimed as complete.
 
 ## 14. Required verification matrix
 

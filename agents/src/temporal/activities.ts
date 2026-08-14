@@ -21,6 +21,7 @@ import { SummaryRepository } from "../db/repositories/summary-repository";
 import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
 import { resolveModelTarget } from "../model/policy";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
+import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
@@ -704,6 +705,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const toolGrants = new ToolGrantRepository(pool);
   const summaries = new SummaryRepository(pool);
   const killSwitches = new KillSwitchRepository(pool);
+  const controls = new OperatorControlRepository(pool);
   const channels = new ChannelRepository(pool);
   const kasiaiPreferences = new KasiAiPreferenceRepository(pool);
   const effectReceipts = new EffectReceiptRepository(pool);
@@ -735,11 +737,12 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           toolGrants,
           installationGrants,
           killSwitches,
+          controls,
           tools,
           coreClient,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools, workflowState, coreClient);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, coreClient);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -834,6 +837,9 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async deliverRunReply(input) {
       const pending = await channels.getRunReplyDelivery(input.runId);
       if (!pending) return;
+      if (await controls.isHeld({ organizationId: pending.organization_id, installationId: pending.installation_id, runId: pending.run_id, holdType: "delivery" })) {
+        throw new Error("AGENT_DELIVERY_HOLD_ACTIVE");
+      }
       let claimed = false;
       try {
         await channels.claimDelivery(pending.organization_id, pending.attempt_id);
@@ -910,6 +916,7 @@ async function executeMcpToolRun(
   toolGrants: ToolGrantRepository,
   installationGrants: InstallationGrantRepository,
   killSwitches: KillSwitchRepository,
+  controls: OperatorControlRepository,
   tools: ToolRegistry,
   coreClient: KasitekCoreReadClient | undefined,
 ) {
@@ -1011,6 +1018,10 @@ async function executeMcpToolRun(
       installationId: run.installation_id,
       toolNames: [invocation.name],
     })) throw new Error("AGENT_KILL_SWITCH_ACTIVE");
+    if (manifest.riskClass === "external-effect") {
+      if (!(await controls.isFeatureEnabled(run.organization_id, "effect_execution_enabled", run.installation_id))) throw new Error("AGENT_EFFECT_FLAG_DISABLED");
+      if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "effects" })) throw new Error("AGENT_EFFECT_HOLD_ACTIVE");
+    }
     await assertCurrentCapabilityPolicy({
       organizationId: run.organization_id,
       installationId: run.installation_id,
@@ -1139,6 +1150,7 @@ async function executeLoopForRun(
   installationGrants: InstallationGrantRepository,
   summaries: SummaryRepository,
   killSwitches: KillSwitchRepository,
+  controls: OperatorControlRepository,
   kasiaiPreferences: KasiAiPreferenceRepository,
   gateway: ModelGateway,
   credentials: CredentialResolver,
@@ -1160,6 +1172,8 @@ async function executeLoopForRun(
   if (await killSwitches.isBlocked({ organizationId: run.organization_id, agentId: run.agent_definition_id, installationId: run.installation_id, toolNames: [...allowedTools] })) {
     throw new Error("AGENT_KILL_SWITCH_ACTIVE");
   }
+  if (!(await controls.isFeatureEnabled(run.organization_id, "agent_execution_enabled", run.installation_id))) throw new Error("AGENT_EXECUTION_FLAG_DISABLED");
+  if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "execution" })) throw new Error("AGENT_EXECUTION_HOLD_ACTIVE");
   const credentialReference = typeof configuration.credentialReference === "string" ? configuration.credentialReference : undefined;
   const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
   const currentMessage = typeof run.input.message === "string" ? run.input.message : JSON.stringify(run.input);
@@ -1290,6 +1304,7 @@ async function executeLoopForRun(
       runSteps,
       installationGrants,
       killSwitches,
+      controls,
       workflowState,
       resumeApprovedToolCall,
       resumeExternalEvent,
@@ -1412,6 +1427,7 @@ async function executeLoopForRun(
     },
     onToolExecuting: async (execution) => {
       if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
+      const manifest = tools.get(execution.name);
       const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
         ? approvedResourceSnapshot
         : await buildApprovalResourceSnapshotFromCore(coreClient, {
@@ -1433,6 +1449,10 @@ async function executeLoopForRun(
         installationGrants,
         approved: execution.requiresApproval,
       });
+      if (manifest?.riskClass === "external-effect") {
+        if (!(await controls.isFeatureEnabled(run.organization_id, "effect_execution_enabled", run.installation_id))) throw new Error("AGENT_EFFECT_FLAG_DISABLED");
+        if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "effects" })) throw new Error("AGENT_EFFECT_HOLD_ACTIVE");
+      }
       if (execution.requiresApproval) {
         await approvals.consumeAndStartEffect({
           organizationId: run.organization_id,
@@ -1541,6 +1561,7 @@ async function executeConfiguredWorkflow(input: {
   runSteps: RunStepRepository;
   installationGrants: InstallationGrantRepository;
   killSwitches: KillSwitchRepository;
+  controls: OperatorControlRepository;
   workflowState: WorkflowStateRepository;
   coreClient?: KasitekCoreReadClient;
   resumeApprovedToolCall?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"];
@@ -1637,6 +1658,8 @@ async function executeConfiguredWorkflow(input: {
         grantedTools: input.allowedTools,
         approval: request.approved as Parameters<ToolRegistry["invoke"]>[0]["approval"],
         beforeEffect: manifest.riskClass === "external-effect" ? async () => {
+          if (!(await input.controls.isFeatureEnabled(input.run.organization_id, "effect_execution_enabled", input.run.installation_id))) throw new Error("AGENT_EFFECT_FLAG_DISABLED");
+          if (await input.controls.isHeld({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, holdType: "effects" })) throw new Error("AGENT_EFFECT_HOLD_ACTIVE");
           await input.approvals.consumeAndStartEffect({
             organizationId: input.run.organization_id,
             installationId: input.run.installation_id,

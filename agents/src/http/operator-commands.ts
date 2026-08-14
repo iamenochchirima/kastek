@@ -10,9 +10,10 @@ import { InstallationCredentialRepository } from "../db/repositories/installatio
 import { ScheduleRepository } from "../db/repositories/schedule-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
+import { OperatorControlRepository, type OperatorFlagKey, type OperatorFlagScope, type OperatorHoldScope, type OperatorHoldType } from "../db/repositories/operator-control-repository";
 
 export const operatorCommandInputSchema = z.object({
-  commandType: z.enum(["cancel_run", "retry_run", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "request_export", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
+  commandType: z.enum(["cancel_run", "retry_run", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
   targetId: z.string().trim().min(1).max(240),
   payload: z.record(z.string(), z.unknown()).default({}),
 }).strict();
@@ -47,6 +48,7 @@ export interface OperatorCommandDependencies {
   schedules?: ScheduleRepository;
   channels?: ChannelRepository;
   memory?: MemoryRepository;
+  controls?: OperatorControlRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalCancellation?: (runId: string, signal: { reason?: string }) => Promise<void>;
 }
@@ -79,6 +81,8 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
       exportRequestId: command.result.exportRequestId,
       scopeType: command.result.scopeType,
       scopeId: command.result.scopeId,
+      featureFlagId: command.result.featureFlagId,
+      holdId: command.result.holdId,
     } : null,
     error: command.error ? { code: command.error.code, message: command.error.message } : null,
     createdAt: command.created_at,
@@ -129,6 +133,44 @@ function assertExpectedResource(command: OperatorCommandRecord, key: string, act
   if (expected && expected !== actual) {
     throw Object.assign(new Error(`${label} changed from expected ${expected} to ${actual ?? "none"}`), { statusCode: 409 });
   }
+}
+
+function boundedExpiry(command: OperatorCommandRecord, maximumDays: number): string {
+  const value = command.payload.expiresAt;
+  if (typeof value !== "string" || !value.trim()) throw Object.assign(new Error("expiresAt is required"), { statusCode: 400 });
+  const expiresAt = new Date(value);
+  if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now() || expiresAt.getTime() > Date.now() + maximumDays * 24 * 60 * 60 * 1000) {
+    throw Object.assign(new Error(`expiresAt must be in the future and no more than ${maximumDays} days away`), { statusCode: 400 });
+  }
+  return expiresAt.toISOString();
+}
+
+function operatorFlagKey(command: OperatorCommandRecord): OperatorFlagKey {
+  const value = command.payload.flagKey;
+  if (value !== "agent_execution_enabled" && value !== "effect_execution_enabled" && value !== "mcp_enabled" && value !== "rest_enabled") {
+    throw Object.assign(new Error("Unsupported feature flag"), { statusCode: 400 });
+  }
+  return value;
+}
+
+function operatorFlagScope(command: OperatorCommandRecord): { scopeType: OperatorFlagScope; scopeId: string; organizationId?: string } {
+  const scopeType = command.payload.scopeType;
+  const scopeId = typeof command.payload.scopeId === "string" ? command.payload.scopeId.trim() : "";
+  const organizationId = typeof command.payload.organizationId === "string" ? command.payload.organizationId.trim() : undefined;
+  if (scopeType !== "global" && scopeType !== "organization" && scopeType !== "installation") throw Object.assign(new Error("scopeType must be global, organization, or installation"), { statusCode: 400 });
+  if (!scopeId || scopeId.length > 240) throw Object.assign(new Error("scopeId is required"), { statusCode: 400 });
+  if (scopeType === "global" && scopeId !== "global") throw Object.assign(new Error("Global feature flags use scopeId global"), { statusCode: 400 });
+  if (scopeType !== "global" && !organizationId) throw Object.assign(new Error("organizationId is required for scoped feature flags"), { statusCode: 400 });
+  if (scopeType === "organization" && scopeId !== organizationId) throw Object.assign(new Error("Organization feature flag scope must match organizationId"), { statusCode: 400 });
+  return { scopeType, scopeId, organizationId };
+}
+
+function operatorHoldScope(command: OperatorCommandRecord): { scopeType: OperatorHoldScope; scopeId: string } {
+  const scopeType = command.payload.scopeType;
+  const scopeId = typeof command.payload.scopeId === "string" ? command.payload.scopeId.trim() : "";
+  if (scopeType !== "organization" && scopeType !== "installation" && scopeType !== "run") throw Object.assign(new Error("scopeType must be organization, installation, or run"), { statusCode: 400 });
+  if (!scopeId || scopeId.length > 240 || (scopeType !== "organization" && scopeId !== command.target_id)) throw Object.assign(new Error("Hold scopeId must match targetId for resource-scoped holds"), { statusCode: 400 });
+  return { scopeType, scopeId };
 }
 
 async function auditCommand(pool: Pool, input: { organizationId?: string | null; actorId: string; action: string; commandId: string; metadata?: Record<string, unknown> }): Promise<void> {
@@ -426,6 +468,62 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
       metadata: { exportRequestId: exportRequest.id, scopeType, scopeId: scopeId ?? null },
     });
     return { status: "requested", exportRequestId: exportRequest.id, scopeType, scopeId: scopeId ?? null };
+  }
+
+  if (command.command_type === "set_feature_flag" || command.command_type === "clear_feature_flag") {
+    if (!dependencies.controls) throw Object.assign(new Error("Feature flag controls are unavailable"), { statusCode: 503 });
+    const flagKey = operatorFlagKey(command);
+    const scope = operatorFlagScope(command);
+    const reason = typeof command.payload.reason === "string" ? command.payload.reason.trim() : "";
+    if (!reason || reason.length > 500) throw Object.assign(new Error("reason is required"), { statusCode: 400 });
+    if (command.command_type === "set_feature_flag" && typeof command.payload.enabled !== "boolean") throw Object.assign(new Error("enabled must be boolean"), { statusCode: 400 });
+    const expiresAt = boundedExpiry(command, 30);
+    if (scope.scopeType === "installation") {
+      const installation = (await query<{ organization_id: string }>(dependencies.pool, "SELECT organization_id FROM agent_installations WHERE id = $1", [scope.scopeId])).rows[0];
+      if (!installation) throw Object.assign(new Error("Installation not found"), { statusCode: 404 });
+      if (installation.organization_id !== scope.organizationId) throw Object.assign(new Error("Feature flag installation belongs to a different organization"), { statusCode: 409 });
+    }
+    const record = await dependencies.controls.setFeatureFlag({
+      ...scope,
+      flagKey,
+      enabled: command.command_type === "set_feature_flag" && command.payload.enabled === true,
+      reason,
+      expiresAt,
+      actorId,
+    });
+    await auditCommand(dependencies.pool, { organizationId: record.organization_id, actorId, action: `operator_command.feature_flag_${record.enabled ? "enabled" : "cleared"}`, commandId: command.id, metadata: { featureFlagId: record.id, flagKey: record.flag_key, scopeType: record.scope_type, scopeId: record.scope_id, revision: record.revision } });
+    return { status: record.enabled ? "enabled" : "cleared", featureFlagId: record.id };
+  }
+
+  if (command.command_type === "create_hold") {
+    if (!dependencies.controls) throw Object.assign(new Error("Incident holds are unavailable"), { statusCode: 503 });
+    const organizationId = typeof command.payload.organizationId === "string" ? command.payload.organizationId.trim() : "";
+    const reason = typeof command.payload.reason === "string" ? command.payload.reason.trim() : "";
+    const holdType = command.payload.holdType;
+    const scope = operatorHoldScope(command);
+    if (!organizationId || organizationId.length > 240 || !reason || reason.length > 500) throw Object.assign(new Error("organizationId and reason are required"), { statusCode: 400 });
+    if (holdType !== "execution" && holdType !== "effects" && holdType !== "delivery") throw Object.assign(new Error("holdType must be execution, effects, or delivery"), { statusCode: 400 });
+    if (scope.scopeType === "organization" && scope.scopeId !== organizationId) throw Object.assign(new Error("Organization hold scope must match organizationId"), { statusCode: 400 });
+    if (scope.scopeType === "installation" || scope.scopeType === "run") {
+      const table = scope.scopeType === "installation" ? "agent_installations" : "agent_runs";
+      const resource = (await query<{ organization_id: string }>(dependencies.pool, `SELECT organization_id FROM ${table} WHERE id = $1`, [scope.scopeId])).rows[0];
+      if (!resource) throw Object.assign(new Error(`${scope.scopeType} not found`), { statusCode: 404 });
+      if (resource.organization_id !== organizationId) throw Object.assign(new Error("Hold resource belongs to a different organization"), { statusCode: 409 });
+    }
+    const record = await dependencies.controls.createHold({ organizationId, ...scope, holdType, reason, expiresAt: boundedExpiry(command, 7), actorId });
+    await auditCommand(dependencies.pool, { organizationId, actorId, action: "operator_command.hold_created", commandId: command.id, metadata: { holdId: record.id, holdType, scopeType: scope.scopeType, scopeId: scope.scopeId, expiresAt: record.expires_at } });
+    return { status: "active", holdId: record.id };
+  }
+
+  if (command.command_type === "release_hold") {
+    if (!dependencies.controls) throw Object.assign(new Error("Incident holds are unavailable"), { statusCode: 503 });
+    const hold = await dependencies.controls.getHold(command.target_id);
+    if (!hold) throw Object.assign(new Error("Operator hold not found"), { statusCode: 404 });
+    assertExpectedResource(command, "expectedOrganizationId", hold.organization_id, "Hold organization");
+    assertExpectedStatus(command, hold.status);
+    const record = await dependencies.controls.releaseHold(command.target_id, actorId);
+    await auditCommand(dependencies.pool, { organizationId: record.organization_id, actorId, action: "operator_command.hold_released", commandId: command.id, metadata: { holdId: record.id, revision: record.revision } });
+    return { status: "released", holdId: record.id };
   }
 
   if (command.command_type === "kill_switch_enable") {

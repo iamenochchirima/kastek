@@ -28,6 +28,7 @@ import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../e
 import { AuditRepository } from "../db/repositories/audit-repository";
 import { ScheduleRepository } from "../db/repositories/schedule-repository";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
+import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
@@ -87,6 +88,7 @@ export interface AppDependencies {
   audits?: AuditRepository;
   schedules?: ScheduleRepository;
   killSwitches?: KillSwitchRepository;
+  controls?: OperatorControlRepository;
   kasiaiPreferences?: KasiAiPreferenceRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
@@ -219,6 +221,12 @@ function requireApiScope(auth: McpAuthContext, scope: "api:read" | "api:write"):
   }
 }
 
+async function requireRestFeature(controls: OperatorControlRepository, auth: McpAuthContext): Promise<void> {
+  if (!(await controls.isFeatureEnabled(auth.organizationId, "rest_enabled", auth.installationId))) {
+    throw Object.assign(new Error("Public REST API is disabled by an active feature policy"), { statusCode: 403, code: "REST_FEATURE_DISABLED" });
+  }
+}
+
 function publicApprovalStatus(approval: { status: string; provider_tool_call_id: string; capability: string; arguments_hash: string; resource_snapshot?: Record<string, unknown>; preview_revision?: string; expires_at: string } | null) {
   if (!approval) return null;
   return {
@@ -282,6 +290,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const audits = dependencies.audits ?? new AuditRepository(dependencies.pool);
   const schedules = dependencies.schedules ?? new ScheduleRepository(dependencies.pool);
   const killSwitches = dependencies.killSwitches ?? new KillSwitchRepository(dependencies.pool);
+  const controls = dependencies.controls ?? new OperatorControlRepository(dependencies.pool);
   const kasiaiPreferences = dependencies.kasiaiPreferences ?? new KasiAiPreferenceRepository(dependencies.pool);
   const approvalDecisionRateLimiter = new ApprovalDecisionRateLimiter(
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW,
@@ -398,6 +407,22 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       [limit],
     );
     return { killSwitches: result.rows };
+  });
+
+  app.get<{ Querystring: { limit?: string } }>("/v1/operator/feature-flags", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator feature-flag limit");
+    return { featureFlags: await controls.listFeatureFlags(limit) };
+  });
+
+  app.get<{ Querystring: { limit?: string } }>("/v1/operator/holds", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator hold limit");
+    return { holds: await controls.listHolds(limit) };
   });
 
   app.get("/v1/operator/health", async (request) => {
@@ -555,7 +580,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       actorId: auth.actorId,
       idempotencyKey: headerValue(request, "idempotency-key"),
       command,
-      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
+      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
     });
     return reply.code(result.replayed ? 200 : result.command.status === "awaiting_approval" ? 202 : 201).send(result.command);
   });
@@ -569,7 +594,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { commandId: string } }>("/v1/operator/commands/:commandId/approve", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:write");
-    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
+    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
   });
 
   app.get<{ Params: { projectionKey: string } }>("/v1/operator/projections/:projectionKey", async (request) => {
@@ -677,6 +702,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       requireMcpScope(auth, "mcp:read");
     } catch (error) {
       return failure(-32003, error instanceof Error ? error.message : "mcp_authentication_failed");
+    }
+    if (!(await controls.isFeatureEnabled(auth.organizationId, "mcp_enabled", auth.installationId))) {
+      return failure(-32031, "mcp_feature_disabled", { code: "MCP_FEATURE_DISABLED" });
     }
     // Global, organization, agent, and installation kill switches are checked
     // after bearer revalidation and before any MCP method is served. Tool-level
@@ -789,6 +817,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/tools/call", async (request, reply) => {
     const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
+    await requireRestFeature(controls, auth);
     if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "installation_not_found" });
     const input = z.object({
       name: z.string().trim().min(1).max(160),
@@ -829,6 +858,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/tools", async (request, reply) => {
     const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
+    await requireRestFeature(controls, auth);
     if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "installation_not_found" });
     requireApiScope(auth, "api:read");
     const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
@@ -853,6 +883,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { installationId: string; runId: string } }>("/v1/installations/:installationId/operations/:runId", async (request, reply) => {
     const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
+    await requireRestFeature(controls, auth);
     if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
     requireApiScope(auth, "api:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
@@ -866,6 +897,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.get<{ Params: { installationId: string; runId: string }; Querystring: { after?: string } }>("/v1/installations/:installationId/operations/:runId/events", async (request, reply) => {
     const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
+    await requireRestFeature(controls, auth);
     if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
     requireApiScope(auth, "api:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
@@ -880,6 +912,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
   app.post<{ Params: { installationId: string; runId: string } }>("/v1/installations/:installationId/operations/:runId/cancel", async (request, reply) => {
     const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
+    await requireRestFeature(controls, auth);
     if (request.params.installationId !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
     requireApiScope(auth, "api:write");
     const run = await runs.getRun(auth.organizationId, request.params.runId);

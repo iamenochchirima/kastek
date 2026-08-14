@@ -1043,8 +1043,12 @@ agent type from one consistent product area.
   on the completed operator command families; stale or cross-organization approvals fail closed.
   Evidence: `agents/src/http/operator-commands.ts`, protected Operations controls, and the operator
   integration tests for stale status, stale organization, and cross-organization export rejection.
-- [ ] Implement feature flags and incident holds with explicit expiry, scope policy, and runtime
-  consumers; do not expose an administrative toggle until those semantics are approved.
+- [x] Implement feature flags and incident holds with explicit expiry, scope policy, and runtime
+  consumers. Evidence: Agent migration `044_operator_feature_flags_holds.sql` persists scoped,
+  expiring feature flags and organization/installation/run holds; dual-control operator commands
+  validate scope, ownership, expiry, and expected state; Agent run creation, MCP/REST entrypoints,
+  Temporal execution, external effects, and channel delivery enforce the current policy; the
+  protected Operations page exposes redacted reads and release/set controls.
 - [x] Require time-limited audited support access for customer content; never reveal secrets, raw
   tokens, hidden prompts, or unrestricted customer data. Evidence: core support grants are scoped
   to organization/conversation/customer/run, expire within 60 minutes, can be revoked, emit audit
@@ -1102,8 +1106,9 @@ ignored), Prisma validation/migrations, and the admin lint/typecheck/build. Migr
 `agents/migrations/041_operator_memory_deletion.sql` adds a dual-control `delete_memory` command
 over the existing organization/install-scoped memory deletion job; operator search exposes only the
 memory identifier and lifecycle state, with the deletion action hidden from read-only roles. Full
-cross-role E2E, external hosted checks, and the remaining broad admin command matrix (assign, safe
-webhook replay, feature flags, holds, export workflow, and full version/resource checks) remain open.
+cross-role E2E, external hosted checks, and the remaining broad version/resource verification matrix
+remain open; the local assign, safe webhook replay, feature-flag, hold, and export command families
+are implemented and covered by focused integration evidence.
 
 **Core webhook replay evidence (2026-08-14):** Core now owns a separate durable
 `AdminWebhookReplayCommand` ledger and `AdminWebhookReplayAuditEvent` table for public API webhook
@@ -1115,15 +1120,14 @@ changed deliveries fail closed. The core Operations UI exposes this recovery con
 URLs, secrets, or provider response data. Prisma migration
 `20260814180000_add_admin_webhook_replay` and the core SQL inventory are applied locally; core unit
 tests (112 passed / 3 infrastructure tests ignored), Prisma validation, and admin lint/typecheck pass.
-The remaining admin control gap is the separately scoped feature-flag and incident-hold policy;
-assignment, export workflow, and resource/version guard evidence is recorded below.
+The admin control surface now includes scoped, expiring feature flags and incident holds in addition
+to assignment, export workflow, and resource/version guards; the evidence is recorded below.
 
 The Agent admin command surface now also includes `assign_run`: migration
 `agents/migrations/042_operator_run_assignments.sql` persists the current assignee and revision per
 run, the command locks the run row, checks the expected lifecycle state, upserts the assignment, and
 records only safe run/assignee/revision metadata. The Operations page exposes the dual-control
-“Assign to me” action. Assignment integration and migration tests pass; the remaining control
-subitem is feature flags and incident holds with approved runtime consumers.
+“Assign to me” action. Assignment integration and migration tests pass.
 
 **Admin command guard and export evidence (2026-08-14):** Existing Agent operator mutations now
 accept optional expected organization, installation, conversation, run, agent, and lifecycle values;
@@ -1133,10 +1137,16 @@ projection, and the integration suite covers stale status and cross-organization
 `agents/migrations/043_operator_export_requests.sql` adds a durable, dual-control export-request queue
 with organization/resource scope validation, redacted audit evidence, and a read-only Agent/Core
 proxy. The Operations page can queue a run-scoped export request and shows its durable status without
-claiming that an artifact has been generated. Verification includes the Agent typecheck, focused unit
-and migration tests, PostgreSQL operator lifecycle integration (3/3), and `cargo check -p
-kasitek-core`; feature-flag and incident-hold controls remain open because their runtime policy and
-consumer contract are not yet defined.
+claiming that an artifact has been generated.
+
+**Feature-flag and incident-hold evidence (2026-08-14):** Migration `044` adds durable, expiring
+global/organization/installation feature flags and organization/installation/run execution,
+effects, and delivery holds. Commands are dual-controlled, idempotent, audited, and resource-bound;
+the runtime checks flag precedence and active holds before run creation, MCP/REST access, Temporal
+model/tool work, external effects, and channel delivery. The protected Operations page exposes
+redacted flag/hold projections and set/create/release controls. Focused migration and command tests,
+the PostgreSQL operator lifecycle integration (3/3), Agent typecheck/full suite, admin lint and
+typecheck, and `cargo check -p kasitek-core` pass.
 
 ## Slice 13 — Security, observability, expansion, and production release
 

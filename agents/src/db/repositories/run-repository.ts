@@ -68,6 +68,27 @@ export class RunRepository {
       );
       const target = installation.rows[0];
       if (!target || target.status !== "active") throw new Error("Active installation not found");
+      const flag = await client.query<{ enabled: boolean }>(
+        `SELECT enabled
+         FROM agent_operator_feature_flags
+         WHERE flag_key = 'agent_execution_enabled' AND expires_at > now()
+           AND ((scope_type = 'global')
+             OR (scope_type = 'organization' AND scope_id = $1)
+             OR (scope_type = 'installation' AND scope_id = $2 AND organization_id = $1))
+         ORDER BY CASE scope_type WHEN 'installation' THEN 3 WHEN 'organization' THEN 2 ELSE 1 END DESC
+         LIMIT 1`,
+        [organizationId, input.installationId],
+      );
+      if (flag.rows[0] && !flag.rows[0].enabled) throw new Error("AGENT_EXECUTION_FLAG_DISABLED");
+      const hold = await client.query<{ held: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM agent_operator_holds
+           WHERE organization_id = $1 AND status = 'active' AND hold_type = 'execution' AND expires_at > now()
+             AND ((scope_type = 'organization' AND scope_id = $1) OR (scope_type = 'installation' AND scope_id = $2))
+         ) AS held`,
+        [organizationId, input.installationId],
+      );
+      if (hold.rows[0]?.held) throw new Error("AGENT_EXECUTION_HOLD_ACTIVE");
       const created = await client.query<RunRecord>(
         `INSERT INTO agent_runs
           (organization_id, agent_definition_id, agent_version_id, installation_id,

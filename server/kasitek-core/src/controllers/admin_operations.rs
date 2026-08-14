@@ -150,6 +150,42 @@ pub async fn kill_switches(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn feature_flags(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<LimitQuery>,
+) -> Result<HttpResponse, AppError> {
+    let admin = operator(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=500).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Operator feature-flag limit must be between 1 and 500".to_string(),
+        ));
+    }
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_feature_flags(&admin.id, query.limit)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn holds(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<LimitQuery>,
+) -> Result<HttpResponse, AppError> {
+    let admin = operator(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=500).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Operator hold limit must be between 1 and 500".to_string(),
+        ));
+    }
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_holds(&admin.id, query.limit)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn health(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

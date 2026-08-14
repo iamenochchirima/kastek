@@ -128,5 +128,10 @@ describe("foundation migration", () => {
     const exportRequestsSql = await readFile(new URL("../migrations/043_operator_export_requests.sql", import.meta.url), "utf8");
     expect(exportRequestsSql).toContain("agent_export_requests");
     expect(exportRequestsSql).toContain("request_export");
+    const operatorControlsSql = await readFile(new URL("../migrations/044_operator_feature_flags_holds.sql", import.meta.url), "utf8");
+    expect(operatorControlsSql).toContain("agent_operator_feature_flags");
+    expect(operatorControlsSql).toContain("agent_operator_holds");
+    expect(operatorControlsSql).toContain("set_feature_flag");
+    expect(operatorControlsSql).toContain("release_hold");
   });
 });
