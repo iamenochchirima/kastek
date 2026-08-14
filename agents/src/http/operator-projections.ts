@@ -20,12 +20,15 @@ function isProjectionKey(value: string): value is OperatorProjectionKey {
 
 async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Record<string, unknown>> {
   if (key === "summary" || key === "run_health") {
-    const [runs, installations, definitions, effects, events] = await Promise.all([
+    const [runs, installations, definitions, effects, events, conversations, channels, approvals] = await Promise.all([
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_runs GROUP BY status ORDER BY status"),
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_installations GROUP BY status ORDER BY status"),
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_definitions GROUP BY status ORDER BY status"),
       query<{ status: string; count: string; reconciliation_required: boolean }>(pool, "SELECT status, COUNT(*)::text AS count, reconciliation_required FROM agent_effect_receipts GROUP BY status, reconciliation_required ORDER BY status"),
       query<{ event_type: string; count: string }>(pool, "SELECT event_type, COUNT(*)::text AS count FROM agent_events GROUP BY event_type ORDER BY event_type"),
+      query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM conversations WHERE status <> 'deleted'"),
+      query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM channel_connections WHERE status <> 'revoked'"),
+      query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_approval_records GROUP BY status ORDER BY status"),
     ]);
     const payload = {
       generatedAt: new Date().toISOString(),
@@ -33,6 +36,9 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
       installations: Object.fromEntries(installations.rows.map((row) => [row.status, Number(row.count)])),
       definitions: Object.fromEntries(definitions.rows.map((row) => [row.status, Number(row.count)])),
       effects: effects.rows.map((row) => ({ status: row.status, count: Number(row.count), reconciliationRequired: row.reconciliation_required })),
+      conversations: Number(conversations.rows[0]?.count ?? 0),
+      channels: Number(channels.rows[0]?.count ?? 0),
+      approvals: Object.fromEntries(approvals.rows.map((row) => [row.status, Number(row.count)])),
     };
     return key === "summary" ? payload : { generatedAt: payload.generatedAt, runs: payload.runs, eventTypes: Object.fromEntries(events.rows.map((row) => [row.event_type, Number(row.count)])) };
   }

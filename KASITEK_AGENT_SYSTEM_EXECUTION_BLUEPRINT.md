@@ -1027,9 +1027,12 @@ agent type from one consistent product area.
   wildcard input, and returns only kind/id/organization/state/resource/timestamp fields; the
   PostgreSQL integration test exercises organization, workspace, user, agent, installation,
   conversation, run, delivery, message, and audit results without payload leakage.
-- [ ] Build admin Operations pages for overview, organizations, agents/installations, runs/workflows,
+- [x] Build admin Operations pages for overview, organizations, agents/installations, runs/workflows,
   conversations/channels, approvals/effects, providers/connectors, queues/workers, usage/cost,
-  alerts/incidents, audit/security, support access, and controls.
+  alerts/incidents, audit/security, support access, and controls. Evidence: the protected
+  Operations page now renders each area from the core proxy using redacted summary, run-health,
+  delivery, provider/worker, usage, projection-lag, notification, support-grant, and audit data;
+  no browser route queries Agent storage or Temporal directly.
 - [ ] Implement idempotent, version-checked, audited commands for retry, cancel, reconcile, assign,
   suspend/resume, credential revoke, safe webhook replay, scoped pause, feature flags, holds,
   export/deletion workflow requests, and hierarchical kill switches.
@@ -1074,12 +1077,15 @@ pass; the full Agent suite passes 51 files / 210 tests / 0 skips with local Post
 grants and audit tables in both the client database schema and core SQL inventory, active-grant
 enforcement on customer conversation reads, eight persisted Agent operator projections, expanded
 operator search over the Agent investigation entities, deduplicated alert notifications, and an
-admin Operations UI for projection rebuilds, support access, search, and incident notifications.
+admin Operations UI for projection rebuilds, support access, search, incident notifications, and
+the full safe read-model/audit surface. Migration `agents/migrations/039_operator_lifecycle_commands.sql`
+extends the audited command constraint for installation, credential, and schedule lifecycle actions;
+dual-control integration tests cover each action and verify the resulting state transitions.
 Runbooks cover the provider/model, queue/stuck-run, duplicate-effect, credential/data-access, and
-delivery-storm response paths. Verification passes the full Agent suite (54 files / 214 tests / 0
+delivery-storm response paths. Verification passes the full Agent suite (54 files / 215 tests / 0
 skips with local PostgreSQL and Temporal), core library tests (110 passed / 3 infrastructure tests
 ignored), Prisma validation/migrations, and the admin lint/typecheck/build. Full cross-role E2E,
-external hosted checks, and the remaining broad admin pages/commands remain open.
+external hosted checks, and the remaining broad admin command matrix remain open.
 
 ## Slice 13 — Security, observability, expansion, and production release
 

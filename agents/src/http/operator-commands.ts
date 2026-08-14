@@ -5,9 +5,12 @@ import { query, withTransaction } from "../db/pool";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 import { RunRepository } from "../db/repositories/run-repository";
+import { AgentRepository } from "../db/repositories/agent-repository";
+import { InstallationCredentialRepository } from "../db/repositories/installation-credential-repository";
+import { ScheduleRepository } from "../db/repositories/schedule-repository";
 
 export const operatorCommandInputSchema = z.object({
-  commandType: z.enum(["cancel_run", "reconcile_effect", "kill_switch_enable", "kill_switch_disable"]),
+  commandType: z.enum(["cancel_run", "reconcile_effect", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
   targetId: z.string().trim().min(1).max(240),
   payload: z.record(z.string(), z.unknown()).default({}),
 }).strict();
@@ -37,6 +40,9 @@ export interface OperatorCommandDependencies {
   runs: RunRepository;
   effectReceipts: EffectReceiptRepository;
   killSwitches: KillSwitchRepository;
+  agents?: AgentRepository;
+  installationCredentials?: InstallationCredentialRepository;
+  schedules?: ScheduleRepository;
   signalCancellation?: (runId: string, signal: { reason?: string }) => Promise<void>;
 }
 
@@ -51,7 +57,7 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
     requiredApprovals: command.required_approvals,
     approvers: command.approvers,
     idempotencyKey: command.idempotency_key,
-    result: command.result ? { status: command.result.status, effectId: command.result.effectId, runId: command.result.runId, switchId: command.result.switchId } : null,
+    result: command.result ? { status: command.result.status, effectId: command.result.effectId, runId: command.result.runId, switchId: command.result.switchId, installationId: command.result.installationId, credentialId: command.result.credentialId, scheduleId: command.result.scheduleId } : null,
     error: command.error ? { code: command.error.code, message: command.error.message } : null,
     createdAt: command.created_at,
     updatedAt: command.updated_at,
@@ -105,6 +111,35 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
     });
     await auditCommand(dependencies.pool, { organizationId: effect.organization_id, actorId, action: "operator_command.effect_reconciled", commandId: command.id, metadata: { effectId: command.target_id, outcome } });
     return { status: outcome, effectId: command.target_id };
+  }
+
+  if (command.command_type === "suspend_installation" || command.command_type === "resume_installation") {
+    if (!dependencies.agents) throw new Error("Installation lifecycle commands are unavailable");
+    const target = (await query<{ organization_id: string }>(dependencies.pool, "SELECT organization_id FROM agent_installations WHERE id = $1", [command.target_id])).rows[0];
+    if (!target) throw Object.assign(new Error("Installation not found"), { statusCode: 404 });
+    const status = command.command_type === "suspend_installation" ? "paused" : "active";
+    await dependencies.agents.setInstallationStatus(target.organization_id, command.target_id, status, actorId);
+    await auditCommand(dependencies.pool, { organizationId: target.organization_id, actorId, action: `operator_command.installation_${status}`, commandId: command.id, metadata: { installationId: command.target_id } });
+    return { status, installationId: command.target_id };
+  }
+
+  if (command.command_type === "revoke_credential") {
+    if (!dependencies.installationCredentials) throw new Error("Credential lifecycle commands are unavailable");
+    const target = (await query<{ organization_id: string; installation_id: string }>(dependencies.pool, "SELECT organization_id, installation_id FROM agent_installation_credentials WHERE id = $1", [command.target_id])).rows[0];
+    if (!target) throw Object.assign(new Error("Installation credential not found"), { statusCode: 404 });
+    await dependencies.installationCredentials.revoke({ organizationId: target.organization_id, installationId: target.installation_id, credentialId: command.target_id, actorId });
+    await auditCommand(dependencies.pool, { organizationId: target.organization_id, actorId, action: "operator_command.credential_revoked", commandId: command.id, metadata: { credentialId: command.target_id, installationId: target.installation_id } });
+    return { status: "revoked", credentialId: command.target_id };
+  }
+
+  if (command.command_type === "pause_schedule" || command.command_type === "resume_schedule") {
+    if (!dependencies.schedules) throw new Error("Schedule lifecycle commands are unavailable");
+    const target = (await query<{ organization_id: string }>(dependencies.pool, "SELECT organization_id FROM agent_schedules WHERE id = $1", [command.target_id])).rows[0];
+    if (!target) throw Object.assign(new Error("Schedule not found"), { statusCode: 404 });
+    const status = command.command_type === "pause_schedule" ? "paused" : "active";
+    await dependencies.schedules.setStatus(target.organization_id, command.target_id, status, actorId);
+    await auditCommand(dependencies.pool, { organizationId: target.organization_id, actorId, action: `operator_command.schedule_${status}`, commandId: command.id, metadata: { scheduleId: command.target_id } });
+    return { status, scheduleId: command.target_id };
   }
 
   if (command.command_type === "kill_switch_enable") {

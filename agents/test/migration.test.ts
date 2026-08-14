@@ -114,5 +114,9 @@ describe("foundation migration", () => {
     expect(operatorProjectionsSql).toContain("CREATE TABLE IF NOT EXISTS agent_operator_projections");
     expect(operatorProjectionsSql).toContain("projection_key TEXT PRIMARY KEY");
     expect(operatorProjectionsSql).toContain("CREATE TABLE IF NOT EXISTS agent_operator_notifications");
+
+    const lifecycleCommandsSql = await readFile(new URL("../migrations/039_operator_lifecycle_commands.sql", import.meta.url), "utf8");
+    expect(lifecycleCommandsSql).toContain("suspend_installation");
+    expect(lifecycleCommandsSql).toContain("revoke_credential");
   });
 });

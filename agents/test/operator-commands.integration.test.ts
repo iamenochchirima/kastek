@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 import { KillSwitchRepository } from "../src/db/repositories/kill-switch-repository";
+import { AgentRepository } from "../src/db/repositories/agent-repository";
+import { InstallationCredentialRepository } from "../src/db/repositories/installation-credential-repository";
+import { ScheduleRepository } from "../src/db/repositories/schedule-repository";
 import { createOperatorCommand, approveOperatorCommand } from "../src/http/operator-commands";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
@@ -10,6 +13,9 @@ const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRAT
 describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () => {
   const pool = new Pool({ connectionString: databaseUrl });
   const killSwitches = new KillSwitchRepository(pool);
+  const agents = new AgentRepository(pool);
+  const installationCredentials = new InstallationCredentialRepository(pool);
+  const schedules = new ScheduleRepository(pool);
   const actorId = `operator-${randomUUID()}`;
   const secondActorId = `operator-${randomUUID()}`;
   const organizationId = `operator-test-${randomUUID()}`;
@@ -21,6 +27,9 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     runs: undefined as never,
     effectReceipts: undefined as never,
     killSwitches,
+    agents,
+    installationCredentials,
+    schedules,
   };
 
   it("persists a dual-control command, executes once, and binds idempotency to its actor and payload", async () => {
@@ -65,6 +74,43 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
       },
       dependencies,
     })).rejects.toThrow("already bound");
+  });
+
+  it("executes dual-control installation, credential, and schedule lifecycle commands", async () => {
+    const definitionId = randomUUID();
+    const versionId = randomUUID();
+    const installationId = randomUUID();
+    const credentialId = randomUUID();
+    const scheduleId = randomUUID();
+    const lifecycleCommandIds: string[] = [];
+    await pool.query(`INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, $3, $4, $5)`, [definitionId, organizationId, "Operator lifecycle test", `operator-${definitionId}`, actorId]);
+    await pool.query(`INSERT INTO agent_versions (id, agent_definition_id, version_number, status, instructions, checksum, created_by) VALUES ($1, $2, 1, 'published', 'test', $3, $4)`, [versionId, definitionId, `checksum-${versionId}`, actorId]);
+    await pool.query(`INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, $5)`, [installationId, definitionId, versionId, organizationId, actorId]);
+    await pool.query(`INSERT INTO agent_installation_credentials (id, installation_id, organization_id, label, secret_hash, created_by) VALUES ($1, $2, $3, 'operator test credential', 'scrypt$test$safe', $4)`, [credentialId, installationId, organizationId, actorId]);
+    await pool.query(`INSERT INTO agent_schedules (id, organization_id, installation_id, expression, created_by) VALUES ($1, $2, $3, '@hourly', $4)`, [scheduleId, organizationId, installationId, actorId]);
+
+    const runLifecycleCommand = async (commandType: "suspend_installation" | "resume_installation" | "revoke_credential" | "pause_schedule" | "resume_schedule", targetId: string) => {
+      const created = await createOperatorCommand({ actorId, idempotencyKey: `${commandType}-${randomUUID()}`, command: { commandType, targetId, payload: {} }, dependencies });
+      lifecycleCommandIds.push(String(created.command.id));
+      expect(created.command).toMatchObject({ status: "awaiting_approval", requiredApprovals: 2 });
+      return approveOperatorCommand({ actorId: secondActorId, commandId: String(created.command.id), dependencies });
+    };
+
+    expect(await runLifecycleCommand("suspend_installation", installationId)).toMatchObject({ status: "completed", result: { status: "paused", installationId } });
+    expect((await pool.query<{ status: string }>("SELECT status FROM agent_installations WHERE id = $1", [installationId])).rows[0]?.status).toBe("paused");
+    expect(await runLifecycleCommand("resume_installation", installationId)).toMatchObject({ status: "completed", result: { status: "active", installationId } });
+    expect(await runLifecycleCommand("revoke_credential", credentialId)).toMatchObject({ status: "completed", result: { status: "revoked", credentialId } });
+    expect((await pool.query<{ status: string }>("SELECT status FROM agent_installation_credentials WHERE id = $1", [credentialId])).rows[0]?.status).toBe("revoked");
+    expect(await runLifecycleCommand("pause_schedule", scheduleId)).toMatchObject({ status: "completed", result: { status: "paused", scheduleId } });
+    expect(await runLifecycleCommand("resume_schedule", scheduleId)).toMatchObject({ status: "completed", result: { status: "active", scheduleId } });
+
+    await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [lifecycleCommandIds]);
+    await pool.query("DELETE FROM agent_schedules WHERE id = $1", [scheduleId]);
+    await pool.query("DELETE FROM agent_installation_credentials WHERE id = $1", [credentialId]);
+    await pool.query("DELETE FROM agent_installations WHERE id = $1", [installationId]);
+    await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
+    await pool.query("DELETE FROM agent_definitions WHERE id = $1", [definitionId]);
   });
 
   afterAll(async () => {

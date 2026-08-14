@@ -12,6 +12,11 @@ describe("operator command contract", () => {
     expect(requiredApprovals("reconcile_effect")).toBe(2);
     expect(requiredApprovals("kill_switch_enable")).toBe(2);
     expect(requiredApprovals("kill_switch_disable")).toBe(2);
+    expect(requiredApprovals("suspend_installation")).toBe(2);
+    expect(requiredApprovals("resume_installation")).toBe(2);
+    expect(requiredApprovals("revoke_credential")).toBe(2);
+    expect(requiredApprovals("pause_schedule")).toBe(2);
+    expect(requiredApprovals("resume_schedule")).toBe(2);
   });
 
   it("defaults payloads but rejects unknown command fields", () => {

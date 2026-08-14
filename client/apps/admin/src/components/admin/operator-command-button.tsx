@@ -5,6 +5,52 @@ import { buttonClassName } from "@/components/ui/button";
 
 type Command = { id: string; status: string; requiredApprovals: number; approvers: string[]; result?: { status?: string } | null; error?: { message?: string } | null };
 
+export function OperatorInstallationButton({ installationId, action }: { installationId: string; action: "suspend" | "resume" }) {
+  const [command, setCommand] = useState<Command | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const commandType = action === "suspend" ? "suspend_installation" : "resume_installation";
+
+  async function start() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/operations/commands", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": `admin-${commandType}-${installationId}-${Date.now()}` },
+        body: JSON.stringify({ commandType, targetId: installationId, payload: {} }),
+      });
+      const data = await response.json() as Command & { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Unable to create operator command");
+      setCommand(data);
+      setMessage(data.status === "awaiting_approval" ? "Second operator approval required." : "Installation command accepted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to create operator command");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function approve() {
+    if (!command) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/operations/commands/${encodeURIComponent(command.id)}/approve`, { method: "POST" });
+      const data = await response.json() as Command & { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Unable to approve operator command");
+      setCommand(data);
+      setMessage("Installation command completed.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to approve operator command");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <div className="flex flex-col items-end gap-1"><button type="button" disabled={busy || Boolean(command && command.status !== "failed")} onClick={() => void start()} className={buttonClassName({ variant: "ghost", size: "sm" })}>{busy ? "Submitting…" : action === "suspend" ? "Suspend" : "Resume"}</button>{command?.status === "awaiting_approval" ? <button type="button" disabled={busy} onClick={() => void approve()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Approving…" : "Approve"}</button> : null}{message ? <span className="max-w-48 text-right text-[11px] text-muted-foreground">{message}</span> : null}</div>;
+}
+
 export function OperatorReconcileButton({ effectId }: { effectId: string }) {
   const [command, setCommand] = useState<Command | null>(null);
   const [outcome, setOutcome] = useState<"succeeded" | "failed">("failed");
