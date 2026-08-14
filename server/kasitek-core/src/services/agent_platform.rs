@@ -365,6 +365,18 @@ impl AgentPlatformClient {
             .await
     }
 
+    pub async fn operator_kill_switches(
+        &self,
+        operator_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let path = limit
+            .map(|value| format!("/v1/operator/kill-switches?limit={value}"))
+            .unwrap_or_else(|| "/v1/operator/kill-switches".to_string());
+        self.request_operator_json(Method::GET, &path, operator_id, &["operator:read"], None)
+            .await
+    }
+
     pub async fn operator_health(&self, operator_id: &str) -> Result<Value, AppError> {
         self.request_operator_json(
             Method::GET,

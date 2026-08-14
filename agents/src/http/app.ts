@@ -385,6 +385,21 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { exports: result.rows };
   });
 
+  app.get<{ Querystring: { limit?: string } }>("/v1/operator/kill-switches", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator kill-switch limit");
+    const result = await dependencies.pool.query(
+      `SELECT id, organization_id, scope_type, scope_id, reason, enabled,
+              created_by, created_at, disabled_at
+       FROM agent_kill_switches
+       ORDER BY enabled DESC, created_at DESC LIMIT $1`,
+      [limit],
+    );
+    return { killSwitches: result.rows };
+  });
+
   app.get("/v1/operator/health", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:read");

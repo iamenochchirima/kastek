@@ -1116,6 +1116,19 @@ records only safe run/assignee/revision metadata. The Operations page exposes th
 “Assign to me” action. Assignment integration and migration tests pass; the aggregate command item
 remains open for flags, holds, export workflow, and full version/resource checks.
 
+**Admin command guard and export evidence (2026-08-14):** Existing Agent operator mutations now
+accept optional expected organization, installation, conversation, run, agent, and lifecycle values;
+execution compares those values inside the target lookup/lock and fails closed with a conflict when
+the resource moved or changed. The Operations controls pass the identities from the protected Core
+projection, and the integration suite covers stale status and cross-organization rejection. Migration
+`agents/migrations/043_operator_export_requests.sql` adds a durable, dual-control export-request queue
+with organization/resource scope validation, redacted audit evidence, and a read-only Agent/Core
+proxy. The Operations page can queue a run-scoped export request and shows its durable status without
+claiming that an artifact has been generated. Verification includes the Agent typecheck, focused unit
+and migration tests, PostgreSQL operator lifecycle integration (3/3), and `cargo check -p
+kasitek-core`; feature-flag and incident-hold controls remain open because their runtime policy and
+consumer contract are not yet defined.
+
 ## Slice 13 — Security, observability, expansion, and production release
 
 **Layers covered:** 12, 13, and 14

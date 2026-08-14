@@ -109,7 +109,7 @@ export function OperatorReconcileButton({ effectId, expectedOrganizationId, expe
 }
 
 function OperatorRecoveryCommandButton({ commandType, targetId, label, completedMessage, payload = {}, confirmMessage }: {
-  commandType: "retry_run" | "replay_delivery" | "delete_memory" | "request_export";
+  commandType: "cancel_run" | "retry_run" | "replay_delivery" | "delete_memory" | "request_export" | "kill_switch_disable";
   targetId: string;
   label: string;
   completedMessage: string;
@@ -169,6 +169,17 @@ export function OperatorRetryButton({ runId, expectedOrganizationId, expectedIns
   return <OperatorRecoveryCommandButton commandType="retry_run" targetId={runId} label="Retry run" completedMessage="Run retry dispatched." payload={{ ...(expectedOrganizationId ? { expectedOrganizationId } : {}), ...(expectedInstallationId ? { expectedInstallationId } : {}), ...(expectedConversationId ? { expectedConversationId } : {}) }} />;
 }
 
+export function OperatorCancelRunButton({ runId, expectedOrganizationId, expectedInstallationId, expectedConversationId }: { runId: string; expectedOrganizationId?: string; expectedInstallationId?: string; expectedConversationId?: string | null }) {
+  return <OperatorRecoveryCommandButton
+    commandType="cancel_run"
+    targetId={runId}
+    label="Cancel run"
+    completedMessage="Cancellation signal sent."
+    payload={{ ...(expectedOrganizationId ? { expectedOrganizationId } : {}), ...(expectedInstallationId ? { expectedInstallationId } : {}), ...(expectedConversationId ? { expectedConversationId } : {}) }}
+    confirmMessage="Send a cancellation signal to this run?"
+  />;
+}
+
 export function OperatorExportRequestButton({ runId, organizationId }: { runId: string; organizationId: string }) {
   return <OperatorRecoveryCommandButton
     commandType="request_export"
@@ -178,6 +189,66 @@ export function OperatorExportRequestButton({ runId, organizationId }: { runId: 
     payload={{ scopeType: "run", scopeId: runId, organizationId }}
     confirmMessage="Queue a metadata export request for this run? A second operator must approve the request."
   />;
+}
+
+export function OperatorKillSwitchDisableButton({ switchId, expectedOrganizationId }: { switchId: string; expectedOrganizationId?: string | null }) {
+  return <OperatorRecoveryCommandButton
+    commandType="kill_switch_disable"
+    targetId={switchId}
+    label="Disable"
+    completedMessage="Kill switch disabled."
+    payload={expectedOrganizationId ? { expectedOrganizationId } : {}}
+    confirmMessage="Disable this kill switch?"
+  />;
+}
+
+export function OperatorKillSwitchEnableButton({ organizationId }: { organizationId?: string }) {
+  const [scopeType, setScopeType] = useState<"organization" | "agent" | "installation" | "tool">("organization");
+  const [scopeId, setScopeId] = useState(organizationId ?? "");
+  const [reason, setReason] = useState("");
+  const [command, setCommand] = useState<Command | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function start() {
+    if (!scopeId.trim() || !reason.trim()) { setMessage("Scope ID and reason are required."); return; }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/operations/commands", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": `admin-kill-switch-${scopeType}-${scopeId}-${Date.now()}` },
+        body: JSON.stringify({ commandType: "kill_switch_enable", targetId: `${scopeType}:${scopeId}`, payload: { scopeType, scopeId: scopeId.trim(), reason: reason.trim(), ...(organizationId ? { organizationId } : {}) } }),
+      });
+      const data = await response.json() as Command & { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Unable to create kill-switch command");
+      setCommand(data);
+      setMessage(data.status === "awaiting_approval" ? "Second operator approval required." : "Kill switch enabled.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to create kill-switch command");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function approve() {
+    if (!command) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/operations/commands/${encodeURIComponent(command.id)}/approve`, { method: "POST" });
+      const data = await response.json() as Command & { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Unable to approve kill-switch command");
+      setCommand(data);
+      setMessage("Kill switch enabled.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to approve kill-switch command");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <div className="flex flex-wrap items-center justify-end gap-2"><select value={scopeType} onChange={(event) => setScopeType(event.target.value as typeof scopeType)} disabled={busy} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"><option value="organization">Organization</option><option value="agent">Agent</option><option value="installation">Installation</option><option value="tool">Tool</option></select><input value={scopeId} onChange={(event) => setScopeId(event.target.value)} disabled={busy} placeholder="Scope ID" className="h-8 w-36 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy} placeholder="Reason" className="h-8 w-40 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><button type="button" disabled={busy || Boolean(command && command.status !== "failed")} onClick={() => void start()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Submitting…" : "Enable kill switch"}</button>{command?.status === "awaiting_approval" ? <button type="button" disabled={busy} onClick={() => void approve()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Approving…" : "Approve"}</button> : null}{message ? <span className="w-full text-right text-[11px] text-muted-foreground">{message}</span> : null}</div>;
 }
 
 export function OperatorAssignRunButton({ runId, expectedStatus, assigneeId, expectedOrganizationId, expectedInstallationId, expectedConversationId }: { runId: string; expectedStatus: string; assigneeId: string; expectedOrganizationId?: string; expectedInstallationId?: string; expectedConversationId?: string | null }) {

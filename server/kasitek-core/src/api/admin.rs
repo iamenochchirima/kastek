@@ -29,6 +29,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/summary", web::get().to(admin_operations::summary))
                     .route("/runs", web::get().to(admin_operations::runs))
                     .route("/exports", web::get().to(admin_operations::exports))
+                    .route(
+                        "/kill-switches",
+                        web::get().to(admin_operations::kill_switches),
+                    )
                     .route("/health", web::get().to(admin_operations::health))
                     .route(
                         "/effects/reconciliation",

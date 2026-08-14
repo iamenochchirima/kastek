@@ -114,6 +114,15 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     expect(await runLifecycleCommand("pause_schedule", scheduleId)).toMatchObject({ status: "completed", result: { status: "paused", scheduleId } });
     expect(await runLifecycleCommand("resume_schedule", scheduleId)).toMatchObject({ status: "completed", result: { status: "active", scheduleId } });
 
+    const staleLifecycle = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `suspend-installation-stale-org-${randomUUID()}`,
+      command: { commandType: "suspend_installation", targetId: installationId, payload: { expectedOrganizationId: "different-organization" } },
+      dependencies,
+    });
+    lifecycleCommandIds.push(String(staleLifecycle.command.id));
+    await expect(approveOperatorCommand({ actorId: secondActorId, commandId: String(staleLifecycle.command.id), dependencies })).rejects.toThrow("organization");
+
     await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [lifecycleCommandIds]);
     await pool.query("DELETE FROM agent_schedules WHERE id = $1", [scheduleId]);
@@ -132,6 +141,18 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     await pool.query(`INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, $3, $4, $5)`, [definitionId, organizationId, "Operator recovery test", `operator-recovery-${definitionId}`, actorId]);
     await pool.query(`INSERT INTO agent_versions (id, agent_definition_id, version_number, status, instructions, checksum, created_by) VALUES ($1, $2, 1, 'published', 'test', $3, $4)`, [versionId, definitionId, `checksum-${versionId}`, actorId]);
     await pool.query(`INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, $5)`, [installationId, definitionId, versionId, organizationId, actorId]);
+
+    const cancellable = await runs.createRun(organizationId, actorId, { installationId, triggerType: "manual", input: { source: "operator-cancel" } });
+    let cancellationSignalled = false;
+    const cancelCommand = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `cancel-run-${randomUUID()}`,
+      command: { commandType: "cancel_run", targetId: cancellable.id, payload: { expectedOrganizationId: organizationId, expectedInstallationId: installationId } },
+      dependencies: { ...dependencies, signalCancellation: async () => { cancellationSignalled = true; } },
+    });
+    runCommandIds.push(String(cancelCommand.command.id));
+    expect(cancelCommand.command).toMatchObject({ status: "completed", requiredApprovals: 1, result: { status: "cancellation_signalled", runId: cancellable.id } });
+    expect(cancellationSignalled).toBe(true);
 
     const failed = await runs.createRun(organizationId, actorId, { installationId, triggerType: "manual", input: { source: "operator-recovery" } });
     await runs.failRun(failed.id, { code: "TEST_FAILURE" });

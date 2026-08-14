@@ -132,6 +132,24 @@ pub async fn exports(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn kill_switches(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<LimitQuery>,
+) -> Result<HttpResponse, AppError> {
+    let admin = operator(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=500).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Operator kill-switch limit must be between 1 and 500".to_string(),
+        ));
+    }
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_kill_switches(&admin.id, query.limit)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn health(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
