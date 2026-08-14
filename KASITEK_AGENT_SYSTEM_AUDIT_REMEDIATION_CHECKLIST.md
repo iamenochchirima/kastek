@@ -526,7 +526,9 @@ remain open.
 - [x] Add durable request-level usage/audit reservations and distributed per-principal rate-limit
   middleware. The reservation is created before dispatch and finalized with action/status after the
   handler; `KASITEK_PUBLIC_API_RATE_LIMIT_PER_MINUTE` controls the one-minute budget.
-- [ ] Add a separately exported public-API metrics surface and metrics conformance tests.
+- [x] Add a separately exported public-API metrics surface and metrics conformance tests. Authenticated
+  `/v1/metrics` returns only the caller's one-hour request counters; the payload helper test verifies
+  principal scoping and that routes, organization IDs, and request data are not exposed.
 
 ### Required tests
 
