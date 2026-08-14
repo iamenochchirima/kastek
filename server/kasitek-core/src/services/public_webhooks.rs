@@ -462,7 +462,7 @@ async fn enqueue_event(
     if subscriptions.is_empty() {
         return Ok(());
     }
-    let event_id = cuid2::create_id();
+    let event_id = stable_event_id(event_type, &data);
     let payload = json!({
         "id": event_id,
         "type": event_type,
@@ -487,6 +487,15 @@ async fn enqueue_event(
         .await?;
     }
     Ok(())
+}
+
+fn stable_event_id(event_type: &str, data: &Value) -> String {
+    let key = data
+        .get("requestId")
+        .or_else(|| data.get("postId"))
+        .and_then(Value::as_str);
+    key.map(|key| format!("{event_type}:{key}"))
+        .unwrap_or_else(|| cuid2::create_id())
 }
 
 fn signature(secret: &str, timestamp: i64, body: &[u8]) -> Result<String, AppError> {
@@ -643,7 +652,7 @@ pub async fn process_due_deliveries(
 #[cfg(test)]
 mod tests {
     use super::{
-        retry_delay, signature, supported_event_types, CONTENT_POST_CREATED_EVENT,
+        retry_delay, signature, stable_event_id, supported_event_types, CONTENT_POST_CREATED_EVENT,
         CONTENT_POST_UPDATED_EVENT, REQUEST_COMPLETED_EVENT,
     };
 
@@ -674,5 +683,14 @@ mod tests {
         assert_eq!(retry_delay(1), 30);
         assert_eq!(retry_delay(2), 60);
         assert_eq!(retry_delay(10), 7_680.min(3600));
+    }
+
+    #[test]
+    fn event_ids_are_stable_for_replayed_domain_mutations() {
+        let data = serde_json::json!({"postId": "post-1"});
+        assert_eq!(
+            stable_event_id(CONTENT_POST_CREATED_EVENT, &data),
+            "content.post.created:post-1"
+        );
     }
 }
