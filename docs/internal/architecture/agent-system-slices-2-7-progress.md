@@ -383,6 +383,11 @@ terminal publish-state protection from duplicate/late callbacks, and usage-event
 This is local state-transition evidence only; partial-batch/ambiguous-outcome approval tests and
 provider sandbox execution remain release gates.
 
+The Agent event stream now advances reconnect cursors monotonically through
+`agents/src/http/sse.ts::advanceSseCursor`, ignoring malformed, duplicate, and out-of-order
+sequence values. The focused SSE suite passes three tests; live disconnect/reconciliation and
+worker/provider recovery remain separate gates.
+
 ## Remaining work
 
 The hosted gateway route/deployment smoke, public Rust `/v1` middleware and principal matrix,

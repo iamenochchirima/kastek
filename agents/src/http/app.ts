@@ -33,7 +33,7 @@ import { RetentionRepository } from "../db/repositories/retention-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
-import { formatSseComment, formatSseEvent, toPublicEvent } from "./sse";
+import { advanceSseCursor, formatSseComment, formatSseEvent, toPublicEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
 import { PlatformChatRepository } from "../db/repositories/platform-chat-repository";
 import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
@@ -2103,9 +2103,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         const events = await runs.listEventsAfter(auth.organizationId, run.id, cursor);
         for (const event of events) {
           response.write(formatSseEvent(event));
-          const sequence = Number(event.sequence_number);
-          if (Number.isSafeInteger(sequence)) cursor = sequence;
         }
+        cursor = advanceSseCursor(cursor, events);
         if (!events.length) response.write(formatSseComment("keep-alive"));
         const latest = await runs.getRun(auth.organizationId, run.id);
         if (latest && ["completed", "failed", "cancelled", "expired"].includes(latest.status) && !events.length) close();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSseComment, formatSseEvent } from "../src/http/sse";
+import { advanceSseCursor, formatSseComment, formatSseEvent } from "../src/http/sse";
 
 describe("run event SSE formatting", () => {
   it("emits resumable event IDs and JSON data", () => {
@@ -10,5 +10,16 @@ describe("run event SSE formatting", () => {
 
   it("emits keep-alive comments", () => {
     expect(formatSseComment("keep-alive")).toBe(": keep-alive\n\n");
+  });
+
+  it("advances reconnect cursors monotonically across duplicate and out-of-order rows", () => {
+    expect(advanceSseCursor(10, [
+      { sequence_number: "12" },
+      { sequence_number: 12 },
+      { sequence_number: "11" },
+      { sequence_number: "not-a-sequence" },
+      {},
+    ])).toBe(12);
+    expect(advanceSseCursor(12, [{ sequence_number: 7 }, { sequence_number: "12" }])).toBe(12);
   });
 });

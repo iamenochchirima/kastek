@@ -599,6 +599,10 @@ domain commands and queries with no direct database or special-agent bypass.
   secret redaction.
 - [ ] Test stream interruption followed by polling/reconciliation without false network errors or
   duplicate messages.
+  Local resumable-stream evidence now uses `advanceSseCursor` in
+  `agents/src/http/sse.ts`/`agents/src/http/app.ts`; `agents/test/sse.test.ts` proves malformed,
+  duplicate, and out-of-order event rows cannot move a reconnect cursor backwards. Full live
+  disconnect/reconciliation and worker/provider recovery remain open.
 - [ ] Run Agent Platform tests, Temporal tests, typecheck/build, and at least one configured live
   provider smoke test.
 

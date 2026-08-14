@@ -4,6 +4,29 @@ export function formatSseEvent(event: Record<string, unknown>): string {
   return `${sequence}event: ${String(publicEvent.event_type)}\ndata: ${JSON.stringify(publicEvent)}\n\n`;
 }
 
+/**
+ * Advance a reconnect cursor without allowing malformed, duplicate, or
+ * out-of-order event rows to move it backwards. The stream endpoint persists
+ * the returned cursor only in the connection; clients resume from the last
+ * emitted event id on the next request.
+ */
+export function advanceSseCursor(
+  current: number,
+  events: readonly Record<string, unknown>[],
+): number {
+  let cursor = current;
+  for (const event of events) {
+    const value = event.sequence_number;
+    const sequence = typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim().length > 0
+        ? Number(value)
+        : Number.NaN;
+    if (Number.isSafeInteger(sequence) && sequence > cursor) cursor = sequence;
+  }
+  return cursor;
+}
+
 export function toPublicEvent(event: Record<string, unknown>): Record<string, unknown> {
   const type = typeof event.event_type === "string" ? event.event_type : "agent.event";
   const payload = event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
