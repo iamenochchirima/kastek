@@ -157,6 +157,16 @@ operation, isolation, adapter, verification, and evidence gates.
 
 The current slice evidence is recorded as follows:
 
+- The typed public read-resource follow-up `9276fae` extends core-owned `/v1` with organization-
+  scoped contacts, inbox conversations/messages, bookings, campaign summaries, and template
+  inventory. Each route enters through the normalized public context and catalog action policy,
+  reuses the existing core query/service boundary, and removes restricted provider/customer fields
+  before serialization. The public action catalog now has explicit read definitions and the core
+  and docs OpenAPI contracts, route inventory, billing capability registry, and redaction regression
+  coverage are updated. This is still a read-only public slice: rate/meter/audit middleware,
+  feature/resource policy, broader principal types, webhooks, and external conformance remain open
+  under AR-006/B-011 and Slice 7.
+
 - The booking transport parity follow-up `41778a7` moves product request normalization, timestamp,
   status, duration, and optional-field validation into the shared bookings transport/domain policy.
   Product and delegated booking list handlers now use the same typed service/booking response
