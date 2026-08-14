@@ -700,7 +700,7 @@ real capabilities, preserves independent chats, and never invents platform featu
   domain commands and queries. Current partial evidence: `59ad609` adds centralized correlation,
   stable error codes, rate-limit response metadata, and required draft idempotency; `587f101`
   validates `version=v1` across every paginated resource list and updates the core OpenAPI contract.
-  `8a68bab`, `81912a5`, `2480e6e`, and `753d84f` add durable signed webhook
+  `8a68bab`, `81912a5`, `2480e6e`, `753d84f`, and `859ec5e` add durable signed webhook
   subscriptions/deliveries, redacted content domain events, idempotent subscription creation,
   delivery diagnostics, route feature flags, standard deprecation headers, explicit
   capability-discovery policy metadata, and focused REST/OpenAPI contract assertions. The approved
@@ -744,11 +744,11 @@ real capabilities, preserves independent chats, and never invents platform featu
   tool-run acceptance boundary.
 - [x] Implement signed outbound webhooks with subscription scope, delivery records, exponential
   retry, replay protection, disable/re-enable policy, and diagnostics. `8a68bab`, `81912a5`, and
-  `753d84f` add encrypted organization-scoped subscriptions, HMAC-SHA256 delivery signatures over
-  timestamp plus raw body, idempotent request/content event enqueueing and subscription creation,
-  stale-claim recovery, capped retries, automatic disablement after ten failures, and
-  `/v1/webhooks/subscriptions/{id}/deliveries`; focused core tests, cargo check, OpenAPI parsing,
-  and Prisma schema validation pass.
+  `753d84f` and `859ec5e` add encrypted organization-scoped subscriptions, HMAC-SHA256 delivery
+  signatures over timestamp plus raw body, idempotent request/content event enqueueing and
+  subscription creation, stale-claim recovery, capped retries, automatic disablement after ten
+  failures, redirect-disabled SSRF protection, and `/v1/webhooks/subscriptions/{id}/deliveries`;
+  focused core tests, cargo check, OpenAPI parsing, and Prisma schema validation pass.
 - [x] Add an external-agent connection wizard with named credentials, copy-once setup, grants,
   resource scope, health diagnostics, rotation/revocation, examples, and audit activity. The
   `/agents/connect` flow reuses installation credential/grant APIs, shows capability availability
