@@ -44,23 +44,74 @@ pub async fn resolve(req: &HttpRequest, pool: &PgPool) -> Result<RequestContext,
 pub fn grants_for_role(role: &str) -> BTreeSet<String> {
     match role.trim().to_ascii_lowercase().as_str() {
         "viewer" => ["admin:read".to_string()].into_iter().collect(),
-        "admin" | "superadmin" => ["admin:read".to_string(), "admin:write".to_string()]
+        "support" => ["admin:read".to_string(), "admin:support".to_string()]
             .into_iter()
             .collect(),
+        "security" => ["admin:read".to_string(), "admin:security".to_string()]
+            .into_iter()
+            .collect(),
+        "operator" => [
+            "admin:read".to_string(),
+            "admin:write".to_string(),
+            "admin:operate".to_string(),
+        ]
+        .into_iter()
+        .collect(),
+        "admin" => [
+            "admin:read".to_string(),
+            "admin:write".to_string(),
+            "admin:operate".to_string(),
+        ]
+        .into_iter()
+        .collect(),
+        "superadmin" | "owner" => [
+            "admin:read".to_string(),
+            "admin:write".to_string(),
+            "admin:operate".to_string(),
+            "admin:support".to_string(),
+            "admin:security".to_string(),
+            "admin:emergency".to_string(),
+        ]
+        .into_iter()
+        .collect(),
         _ => BTreeSet::new(),
     }
 }
 
+pub fn can_view_customer_content(role: &str) -> bool {
+    matches!(
+        role.trim().to_ascii_lowercase().as_str(),
+        "support" | "operator" | "admin" | "superadmin" | "owner"
+    )
+}
+
+pub fn can_execute_operator_command(role: &str) -> bool {
+    grants_for_role(role).contains("admin:operate")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::grants_for_role;
+    use super::{can_execute_operator_command, can_view_customer_content, grants_for_role};
 
     #[test]
     fn maps_admin_roles_to_narrow_platform_grants() {
         assert!(grants_for_role("viewer").contains("admin:read"));
         assert!(!grants_for_role("viewer").contains("admin:write"));
         assert!(grants_for_role("admin").contains("admin:write"));
+        assert!(grants_for_role("operator").contains("admin:operate"));
+        assert!(grants_for_role("support").contains("admin:support"));
+        assert!(!grants_for_role("support").contains("admin:operate"));
+        assert!(grants_for_role("owner").contains("admin:emergency"));
         assert!(grants_for_role("superadmin").contains("admin:write"));
         assert!(grants_for_role("unknown").is_empty());
+    }
+
+    #[test]
+    fn separates_content_access_from_mutating_operator_commands() {
+        assert!(!can_view_customer_content("viewer"));
+        assert!(can_view_customer_content("support"));
+        assert!(can_view_customer_content("OWNER"));
+        assert!(!can_execute_operator_command("support"));
+        assert!(can_execute_operator_command("operator"));
     }
 }

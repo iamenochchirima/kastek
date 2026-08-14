@@ -18,7 +18,18 @@ async fn operator(
     pool: &PgPool,
 ) -> Result<crate::db::models::AdminUser, AppError> {
     let admin = extract_admin(req, pool).await?;
-    require_admin_role(&admin, &["viewer", "admin", "superadmin"])?;
+    require_admin_role(
+        &admin,
+        &[
+            "viewer",
+            "support",
+            "operator",
+            "security",
+            "admin",
+            "superadmin",
+            "owner",
+        ],
+    )?;
     Ok(admin)
 }
 

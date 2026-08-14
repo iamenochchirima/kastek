@@ -1041,10 +1041,12 @@ model/tool → approval → effect → delivery and perform only safe, attributa
 **Slice 12 foundation evidence (2026-08-14):** Admin sessions now reach a protected core-only
 operator boundary. Core issues a short-lived operator-scoped internal token to safe Agent global
 projections for summary, runs, health, reconciliation, audit, and identifier search; the Agent
-surface rejects non-platform or non-operator principals. The admin Operations page consumes only
-the core proxy and deliberately exposes no customer content, prompts, secrets, or provider
-receipts. Role/dual-control commands, rebuildable projections, support grants, and incident
-runbooks remain open for the rest of Slice 12.
+surface rejects non-platform or non-operator principals. Core now has an explicit viewer/support/
+operator/security/admin/superadmin/owner grant matrix and separates customer-content access from
+mutating operator commands. The admin Operations page consumes only the core proxy and deliberately
+exposes no customer content, prompts, secrets, or provider receipts. Dual-control commands,
+rebuildable projections, time-limited support grants, and incident runbooks remain open for the
+rest of Slice 12.
 
 ## Slice 13 — Security, observability, expansion, and production release
 

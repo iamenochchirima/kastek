@@ -124,7 +124,10 @@ pub async fn extract_admin(req: &HttpRequest, pool: &PgPool) -> Result<AdminUser
 }
 
 pub fn require_admin_role(admin: &AdminUser, roles: &[&str]) -> Result<(), AppError> {
-    if roles.contains(&admin.role.as_str()) {
+    if roles
+        .iter()
+        .any(|role| role.eq_ignore_ascii_case(admin.role.trim()))
+    {
         Ok(())
     } else {
         Err(AppError::Forbidden("Insufficient permissions".to_string()))
