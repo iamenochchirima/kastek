@@ -10,7 +10,12 @@ pub async fn run(pool: PgPool) {
         .ok()
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or(25);
-    let client = reqwest::Client::new();
+    // Redirects are disabled so a destination that passed the public-host
+    // check cannot bounce the worker into a private network address later.
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("public webhook HTTP client must build");
 
     loop {
         match crate::services::public_webhooks::process_due_deliveries(&pool, &client, batch_size)
