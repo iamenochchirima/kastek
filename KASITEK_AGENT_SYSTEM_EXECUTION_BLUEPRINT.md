@@ -1215,9 +1215,9 @@ reporting, bounded contacts/templates/bookings/campaigns/inbox projections, appr
 idempotent contact updates, conversation starring, provider-backed mark-read, and approved
 WhatsApp channel delivery. Each capability is registered once and projects into the generated
 Agent/MCP/permission/audit documentation; Core routes require the delegated capability and
-organization scope. The full local verification passes with `cd agents && pnpm test` (40 files,
-197 passed, 34 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
-`cargo test -p kasitek-core --lib` (118 passed, 3 infrastructure-gated ignores), and Core check.
+organization scope. The full local verification passes with `cd agents && pnpm test` (56 files,
+201 passed, 34 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
+`cargo test -p kasitek-core --lib` (121 passed, 3 infrastructure-gated ignores), and Core check.
 Seeded database, Redis replay, provider sandbox, hosted, browser, and external-client gates remain
 open and are not represented as complete by this local evidence.
 

@@ -360,7 +360,7 @@ exports were retained because callers and parity tests still depend on them.
 
 The structural migration verification gate is now recorded as complete: every coherent backend
 slice in this run was followed by `cargo fmt --check`, `cargo check -p kasitek-core`, and
-`cargo test -p kasitek-core --lib`; the current result is 85 passed and 3 explicitly ignored
+`cargo test -p kasitek-core --lib`; the current result is 121 passed and 3 explicitly ignored
 infrastructure cases.
 
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
