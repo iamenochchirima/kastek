@@ -252,6 +252,31 @@ pub async fn list_inbox_conversations(pool: &PgPool, org_id: &str) -> Result<Val
     Ok(json!({ "conversations": conversations }))
 }
 
+/// Return a bounded newest-first conversation projection for integration
+/// callers. The product inbox keeps its full projection; Agent callers get a
+/// safe limit and explicit truncation metadata.
+pub async fn list_inbox_conversations_bounded(
+    pool: &PgPool,
+    org_id: &str,
+    limit: usize,
+) -> Result<Value, AppError> {
+    let mut payload = list_inbox_conversations(pool, org_id).await?;
+    let object = payload.as_object_mut().ok_or_else(|| {
+        AppError::Internal("Inbox conversation projection is invalid".to_string())
+    })?;
+    let conversations = object
+        .get_mut("conversations")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| {
+            AppError::Internal("Inbox conversation projection is invalid".to_string())
+        })?;
+    let total = conversations.len();
+    conversations.truncate(limit);
+    object.insert("total".to_string(), json!(total));
+    object.insert("hasMore".to_string(), json!(total > limit));
+    Ok(payload)
+}
+
 pub async fn list_conversation_messages(
     pool: &PgPool,
     org_id: &str,
@@ -271,6 +296,30 @@ pub async fn list_conversation_messages(
         "messages": mapped,
         "capabilities": message_domain::channel_capabilities(&conversation.channel),
     }))
+}
+
+pub async fn list_conversation_messages_bounded(
+    pool: &PgPool,
+    org_id: &str,
+    conversation_id: &str,
+    limit: usize,
+) -> Result<Value, AppError> {
+    let mut payload = list_conversation_messages(pool, org_id, conversation_id).await?;
+    let object = payload
+        .as_object_mut()
+        .ok_or_else(|| AppError::Internal("Inbox message projection is invalid".to_string()))?;
+    let messages = object
+        .get_mut("messages")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| AppError::Internal("Inbox message projection is invalid".to_string()))?;
+    let total = messages.len();
+    if total > limit {
+        let start = total - limit;
+        *messages = messages.split_off(start);
+    }
+    object.insert("total".to_string(), json!(total));
+    object.insert("hasMore".to_string(), json!(total > limit));
+    Ok(payload)
 }
 
 fn meta_attachment_data(payload: &Value) -> Option<&Vec<Value>> {

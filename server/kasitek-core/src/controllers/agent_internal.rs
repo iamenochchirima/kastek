@@ -310,10 +310,22 @@ pub async fn list_contacts(
 
 /// List the organisation's inbox conversations. Conversation records remain
 /// owned by core; this boundary only returns the redacted list projection.
+#[derive(Debug, Deserialize)]
+pub struct AgentInboxListQuery {
+    pub limit: Option<u16>,
+}
+
+impl AgentInboxListQuery {
+    fn bounded_limit(&self) -> usize {
+        self.limit.unwrap_or(100).clamp(1, 200) as usize
+    }
+}
+
 pub async fn list_inbox_conversations(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
     req: HttpRequest,
+    query: web::Query<AgentInboxListQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = resolve_internal_agent_context(
         config.get_ref(),
@@ -321,9 +333,12 @@ pub async fn list_inbox_conversations(
         "kasitek.core.inbox_conversations_list",
     )
     .await?;
-    let result =
-        crate::services::inbox::list_inbox_conversations(pool.get_ref(), &context.organization_id)
-            .await?;
+    let result = crate::services::inbox::list_inbox_conversations_bounded(
+        pool.get_ref(),
+        &context.organization_id,
+        query.bounded_limit(),
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -334,14 +349,16 @@ pub async fn list_inbox_messages(
     config: web::Data<AppConfig>,
     req: HttpRequest,
     path: web::Path<String>,
+    query: web::Query<AgentInboxListQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context =
         resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.inbox_messages_list")
             .await?;
-    let result = crate::services::inbox::list_conversation_messages(
+    let result = crate::services::inbox::list_conversation_messages_bounded(
         pool.get_ref(),
         &context.organization_id,
         &path.into_inner(),
+        query.bounded_limit(),
     )
     .await?;
     Ok(HttpResponse::Ok().json(result))

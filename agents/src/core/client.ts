@@ -79,11 +79,15 @@ export interface CoreContacts {
 
 export interface CoreInboxConversations {
   conversations: unknown[];
+  total?: number;
+  hasMore?: boolean;
 }
 
 export interface CoreInboxMessages {
   messages: unknown[];
   capabilities?: Record<string, unknown>;
+  total?: number;
+  hasMore?: boolean;
 }
 
 export interface CoreContentPost {
@@ -258,10 +262,11 @@ export class KasitekCoreReadClient {
     return this.getJson<CoreContacts>(context, `/api/internal/agents/v1/contacts${suffix}`, "Contacts");
   }
 
-  public async listInboxConversations(context: ToolInvocationContext): Promise<CoreInboxConversations> {
+  public async listInboxConversations(context: ToolInvocationContext, input: { limit?: number } = {}): Promise<CoreInboxConversations> {
+    const suffix = input.limit ? `?limit=${encodeURIComponent(String(input.limit))}` : "";
     return this.getJson<CoreInboxConversations>(
       context,
-      "/api/internal/agents/v1/inbox/conversations",
+      `/api/internal/agents/v1/inbox/conversations${suffix}`,
       "Inbox conversations",
     );
   }
@@ -269,10 +274,12 @@ export class KasitekCoreReadClient {
   public async listInboxMessages(
     context: ToolInvocationContext,
     conversationId: string,
+    input: { limit?: number } = {},
   ): Promise<CoreInboxMessages> {
+    const suffix = input.limit ? `?limit=${encodeURIComponent(String(input.limit))}` : "";
     return this.getJson<CoreInboxMessages>(
       context,
-      `/api/internal/agents/v1/inbox/conversations/${encodeURIComponent(conversationId)}/messages`,
+      `/api/internal/agents/v1/inbox/conversations/${encodeURIComponent(conversationId)}/messages${suffix}`,
       "Inbox messages",
     );
   }

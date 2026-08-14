@@ -170,6 +170,20 @@ describe("kasitek-core read boundary", () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/inbox/conversations/conversation%2F1/messages");
   });
 
+  it("passes bounded inbox projections through the typed capability boundary", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string) => new Response(
+      JSON.stringify(input.includes("/messages?") ? { messages: [{ id: "message-1" }], total: 3, hasMore: true } : { conversations: [{ id: "conversation-1" }], total: 3, hasMore: true }),
+      { status: 200 },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    const client = new KasitekCoreReadClient(config);
+    await expect(client.listInboxConversations(context, { limit: 25 })).resolves.toMatchObject({ total: 3, hasMore: true });
+    await expect(client.listInboxMessages(context, "conversation-1", { limit: 50 })).resolves.toMatchObject({ total: 3, hasMore: true });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/inbox/conversations?limit=25");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/inbox/conversations/conversation-1/messages?limit=50");
+  });
+
   it("reads content through the same scoped core boundary", async () => {
     const fetchMock = vi.fn().mockImplementation((input: string) => new Response(JSON.stringify(input.endsWith("/post%2F1") ? { post: { id: "post-1", content: "Hello", channels: ["threads"], status: "DRAFT" } } : { posts: [{ id: "post-1", content: "Hello", channels: ["threads"], status: "DRAFT" }] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

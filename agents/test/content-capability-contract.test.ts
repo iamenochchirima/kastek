@@ -39,6 +39,10 @@ describe("content capability contract", () => {
     expect(registry.validateArguments("kasitek.core.channel_deliver", { channelType: "whatsapp", externalConversationId: "conversation-1", text: "Hello" })).toBe(true);
     expect(registry.validateArguments("kasitek.core.channel_deliver", { channelType: "telegram", externalConversationId: "conversation-1", text: "Hello" })).toBe(false);
     expect(registry.validateArguments("kasitek.core.channel_deliver", { channelType: "whatsapp", externalConversationId: "conversation-1", text: "" })).toBe(false);
+    expect(registry.validateArguments("kasitek.core.inbox_conversations_list", { limit: 100 })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.inbox_conversations_list", { limit: 201 })).toBe(false);
+    expect(registry.validateArguments("kasitek.core.inbox_messages_list", { conversationId: "conversation-1", limit: 100 })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.inbox_messages_list", { conversationId: "conversation-1", limit: 0 })).toBe(false);
   });
 
   it("keeps every content capability owned, scoped, redacted, and classified", () => {

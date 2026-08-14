@@ -419,6 +419,13 @@ List the current KasiTek workspace's inbox conversations and unread counts.
 ```json
 {
   "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
   "additionalProperties": false
 }
 ```
@@ -455,6 +462,11 @@ Read the organization-scoped message timeline for one inbox conversation.
       "type": "string",
       "minLength": 1,
       "maxLength": 160
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
     }
   },
   "required": [

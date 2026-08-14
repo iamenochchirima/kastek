@@ -314,7 +314,11 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     riskClass: "read",
     requiresApproval: false,
     timeoutMs: 15_000,
-    inputSchema: { type: "object", additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { limit: { type: "integer", minimum: 1, maximum: 200 } },
+      additionalProperties: false,
+    },
     outputSchema: { type: "object", required: ["conversations"], additionalProperties: false },
     manifest: {
       ownerService: "kasitek-core",
@@ -325,9 +329,9 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       auditClassification: "restricted",
       redaction: ["conversations.phone", "conversations.lastMessage"],
     },
-    handler: async (context) => {
+    handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
-      return coreClient.listInboxConversations(context);
+      return coreClient.listInboxConversations(context, { limit: typeof args.limit === "number" ? args.limit : undefined });
     },
   });
   tools.register({
@@ -339,7 +343,10 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     timeoutMs: 15_000,
     inputSchema: {
       type: "object",
-      properties: { conversationId: { type: "string", minLength: 1, maxLength: 160 } },
+      properties: {
+        conversationId: { type: "string", minLength: 1, maxLength: 160 },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
       required: ["conversationId"],
       additionalProperties: false,
     },
@@ -356,7 +363,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
-      return coreClient.listInboxMessages(context, String(args.conversationId));
+      return coreClient.listInboxMessages(context, String(args.conversationId), { limit: typeof args.limit === "number" ? args.limit : undefined });
     },
   });
   tools.register({
