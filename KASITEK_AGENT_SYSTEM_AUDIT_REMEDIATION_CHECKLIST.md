@@ -454,6 +454,11 @@ typed Agent-to-core routes (`agents/test/content-capability-contract.test.ts`,
 inputs and missing idempotency before database access. Grounding provenance is persisted on durable
 run output as a redacted summary; it contains only workspace scope, reviewed-source counts, tool
 names, unavailable actions, and an explicit no-unsupported-certainty marker.
+The local content database fixture (`server/kasitek-core/tests/social_content_integration.sql`,
+run by `scripts/test-social-content-db.sh`) additionally verifies organization isolation, duplicate
+TikTok webhook event-key handling, terminal publish transitions against duplicate/late callbacks,
+and usage idempotency. It is intentionally recorded as local evidence only; provider sandbox,
+partial-batch/ambiguous-outcome, and full approval-mutation proof remain open.
 - [ ] Real Codex, Claude Code, and a generic MCP client are verified before checking the relevant
   primary-blueprint item.
 

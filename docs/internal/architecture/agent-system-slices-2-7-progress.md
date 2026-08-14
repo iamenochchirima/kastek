@@ -375,6 +375,14 @@ preview revision and disables self-approval in the browser before submission (`2
 The shared Activity experience now exposes audited effect reconciliation controls and scoped kill
 switches through the Rust core proxy (`4e63f82`, `c05e506`).
 
+The content verification slice now includes a guarded disposable-DB fixture at
+`server/kasitek-core/tests/social_content_integration.sql` (runner:
+`server/kasitek-core/scripts/test-social-content-db.sh`). Against the cloned local schema it
+passed organization-scoped content checks, duplicate TikTok webhook event-key insertion,
+terminal publish-state protection from duplicate/late callbacks, and usage-event idempotency.
+This is local state-transition evidence only; partial-batch/ambiguous-outcome approval tests and
+provider sandbox execution remain release gates.
+
 ## Remaining work
 
 The hosted gateway route/deployment smoke, public Rust `/v1` middleware and principal matrix,

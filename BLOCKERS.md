@@ -183,6 +183,11 @@ verified or completed. Work on independent items continues.
   with `prisma migrate deploy`: migration `20260326143000_add_whatsapp_contact_list_memberships`
   stops with `relation "User" does not exist`. The booking fixture therefore runs against a cloned
   local schema, not an empty migration target.
+- **Additional content evidence (2026-08-14):** the guarded rollback fixture
+  `scripts/test-social-content-db.sh` passed against the cloned local schema. It verifies content
+  organization isolation, duplicate TikTok event-key ingestion, duplicate/late publish callbacks,
+  and usage-event idempotency. It does not replace the empty-migration, seeded-suite, or provider
+  sandbox gates.
 - **Next action:** repair or baseline the empty-database migration chain, provision/load the
   documented isolated core fixture dataset, and rerun `cargo test -p kasitek-core --lib -- --include-ignored`;
   provide an isolated Redis URL for B-008.

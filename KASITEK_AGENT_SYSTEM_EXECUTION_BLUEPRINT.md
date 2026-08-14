@@ -648,6 +648,11 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
   platforms, and content ownership.
 - [ ] Add idempotency, duplicate provider callback, delayed/out-of-order callback, partial batch,
   ambiguous outcome, reconciliation, and approval mutation tests.
+  Local disposable-DB evidence now covers the organization-scoped content projection, duplicate
+  TikTok event-key insertion, terminal publish transitions rejecting duplicate/late callbacks, and
+  usage idempotency in `server/kasitek-core/tests/social_content_integration.sql`, executed by
+  `server/kasitek-core/scripts/test-social-content-db.sh`; partial-batch, ambiguous-outcome,
+  approval-mutation, and provider-sandbox coverage remain open.
 - [ ] Run database migrations, TypeScript/Rust suites, typechecks, lint/format, builds, and provider
   sandbox smoke tests for each configured social platform.
 
