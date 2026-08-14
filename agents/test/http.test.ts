@@ -177,6 +177,24 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("returns a structured method-not-found error for an authenticated MCP client", async () => {
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/mcp",
+      headers: { authorization: `Bearer ${mcpToken()}` },
+      payload: { jsonrpc: "2.0", id: 33, method: "not/a/method" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ jsonrpc: "2.0", id: 33, error: { code: -32601, message: "method_not_found" } });
+    await app.close();
+  });
+
   it("filters MCP tools by the installation grant set", async () => {
     const app = buildApp({
       config: mcpConfig,
@@ -466,6 +484,27 @@ describe("Agent Platform HTTP foundation", () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ jsonrpc: "2.0", id: 32, error: { code: -32602, message: "idempotencyKey must be 8-240 characters when provided" } });
+    expect(accept).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it("rejects malformed REST idempotency keys before capability dispatch", async () => {
+    const accept = vi.fn();
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      installationInvocations: { accept } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/tools/call",
+      headers: { authorization: `Bearer ${publicApiToken()}` },
+      payload: { name: "platform.current_time", arguments: {}, idempotencyKey: "short" },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toBe("Invalid request");
     expect(accept).not.toHaveBeenCalled();
     await app.close();
   });
