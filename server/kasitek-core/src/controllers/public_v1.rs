@@ -6,7 +6,7 @@ use actix_web::{web, HttpMessage, HttpRequest, HttpResponse, HttpResponseBuilder
 use jwt_simple::algorithms::ECDSAP256PublicKeyLike;
 use jwt_simple::prelude::{ES256PublicKey, VerificationOptions};
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashSet;
 
 use crate::bootstrap::state::AppState;
@@ -42,6 +42,80 @@ pub async fn metrics(
     let context = public_context(&req, &state).await?;
     let metrics = public_api::metrics(&state.pool, &context).await?;
     Ok(response_with_context(&context).json(metrics))
+}
+
+const PUBLIC_PAGE_DEFAULT_LIMIT: usize = 50;
+const PUBLIC_PAGE_MAX_LIMIT: usize = 100;
+
+#[derive(Debug, Deserialize)]
+pub struct PublicPageQuery {
+    pub cursor: Option<usize>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PublicTemplateQuery {
+    pub status: Option<String>,
+    pub cursor: Option<usize>,
+    pub limit: Option<usize>,
+}
+
+fn page_window(
+    query: PublicPageQuery,
+    total: usize,
+) -> Result<(usize, usize, Option<usize>), AppError> {
+    let cursor = query.cursor.unwrap_or(0);
+    if cursor > total {
+        return Err(AppError::BadRequest(
+            "pagination cursor is past the end of the result".to_string(),
+        ));
+    }
+    let limit = query.limit.unwrap_or(PUBLIC_PAGE_DEFAULT_LIMIT);
+    if limit == 0 || limit > PUBLIC_PAGE_MAX_LIMIT {
+        return Err(AppError::BadRequest(format!(
+            "pagination limit must be between 1 and {PUBLIC_PAGE_MAX_LIMIT}"
+        )));
+    }
+    let next_cursor = (cursor + limit < total).then_some(cursor + limit);
+    Ok((cursor, limit, next_cursor))
+}
+
+fn paginate_collection(
+    mut payload: Value,
+    key: &str,
+    query: PublicPageQuery,
+) -> Result<Value, AppError> {
+    let values = payload
+        .get_mut(key)
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| {
+            AppError::Internal(format!(
+                "Public API response is missing the {key} collection"
+            ))
+        })?;
+    let total = values.len();
+    let (cursor, limit, next_cursor) = page_window(query, total)?;
+    let page = values
+        .iter()
+        .skip(cursor)
+        .take(limit)
+        .cloned()
+        .collect::<Vec<_>>();
+    *values = page;
+    let object = payload.as_object_mut().ok_or_else(|| {
+        AppError::Internal("Public API response must be an object envelope".to_string())
+    })?;
+    object.insert(
+        "pagination".to_string(),
+        json!({
+            "limit": limit,
+            "cursor": cursor,
+            "nextCursor": next_cursor,
+            "total": total,
+            "version": "v1",
+        }),
+    );
+    Ok(payload)
 }
 
 async fn public_context(req: &HttpRequest, state: &AppState) -> Result<RequestContext, AppError> {
@@ -545,11 +619,13 @@ pub async fn capabilities(
 pub async fn list_content_posts(
     req: HttpRequest,
     state: web::Data<AppState>,
+    query: web::Query<PublicPageQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_public_action(&req, &state, &context, "content.posts.list").await?;
     let posts = content_adapter::list_posts(&state.pool, &context).await?;
-    Ok(response_with_context(&context).json(json!({ "posts": posts })))
+    let payload = paginate_collection(json!({ "posts": posts }), "posts", query.into_inner())?;
+    Ok(response_with_context(&context).json(payload))
 }
 
 pub async fn get_content_post(
@@ -611,8 +687,8 @@ pub async fn list_contacts(
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_public_action(&req, &state, &context, "contacts.list").await?;
-    let contacts =
-        whatsapp::list_contacts(&state.pool, &context.organization_id, query.into_inner()).await?;
+    let query = query.into_inner();
+    let contacts = whatsapp::list_contacts(&state.pool, &context.organization_id, query).await?;
     Ok(response_with_context(&context).json(redacted(
         contacts,
         &["phone", "metadata", "lastMarketingSent"],
@@ -622,11 +698,13 @@ pub async fn list_contacts(
 pub async fn list_inbox_conversations(
     req: HttpRequest,
     state: web::Data<AppState>,
+    query: web::Query<PublicPageQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_public_action(&req, &state, &context, "inbox.conversations.list").await?;
     let conversations =
         inbox::list_inbox_conversations(&state.pool, &context.organization_id).await?;
+    let conversations = paginate_collection(conversations, "conversations", query.into_inner())?;
     Ok(response_with_context(&context).json(redacted(
         conversations,
         &["phone", "lastMessage", "customerIdentifier"],
@@ -637,6 +715,7 @@ pub async fn list_inbox_messages(
     req: HttpRequest,
     state: web::Data<AppState>,
     path: web::Path<String>,
+    query: web::Query<PublicPageQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_public_action(&req, &state, &context, "inbox.messages.list").await?;
@@ -646,6 +725,7 @@ pub async fn list_inbox_messages(
         &path.into_inner(),
     )
     .await?;
+    let messages = paginate_collection(messages, "messages", query.into_inner())?;
     Ok(response_with_context(&context).json(redacted(
         messages,
         &["content", "attachments", "customerIdentifier"],
@@ -655,22 +735,26 @@ pub async fn list_inbox_messages(
 pub async fn list_bookings(
     req: HttpRequest,
     state: web::Data<AppState>,
+    query: web::Query<PublicPageQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_public_action(&req, &state, &context, "bookings.list").await?;
     let bookings = crate::domains::bookings::queries::list_bookings(&state.pool, &context).await?;
     let payload = serde_json::to_value(BookingListResponse::new(bookings))
         .map_err(|_| AppError::Internal("Failed to serialize bookings".to_string()))?;
+    let payload = paginate_collection(payload, "bookings", query.into_inner())?;
     Ok(response_with_context(&context).json(redacted(payload, &["contactPhone", "notes"])))
 }
 
 pub async fn list_campaigns(
     req: HttpRequest,
     state: web::Data<AppState>,
+    query: web::Query<PublicPageQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_public_action(&req, &state, &context, "campaigns.list").await?;
     let campaigns = whatsapp::list_campaigns(&state.pool, &context.organization_id).await?;
+    let campaigns = paginate_collection(campaigns, "campaigns", query.into_inner())?;
     Ok(response_with_context(&context).json(redacted(
         campaigns,
         &[
@@ -706,12 +790,27 @@ pub async fn get_campaign_summary(
 pub async fn list_templates(
     req: HttpRequest,
     state: web::Data<AppState>,
-    query: web::Query<WhatsappTemplateListQuery>,
+    query: web::Query<PublicTemplateQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_public_action(&req, &state, &context, "templates.list").await?;
-    let templates =
-        whatsapp::list_templates(&state.pool, &context.organization_id, query.into_inner()).await?;
+    let query = query.into_inner();
+    let templates = whatsapp::list_templates(
+        &state.pool,
+        &context.organization_id,
+        WhatsappTemplateListQuery {
+            status: query.status,
+        },
+    )
+    .await?;
+    let templates = paginate_collection(
+        templates,
+        "templates",
+        PublicPageQuery {
+            cursor: query.cursor,
+            limit: query.limit,
+        },
+    )?;
     Ok(response_with_context(&context).json(redacted(
         templates,
         &["body", "buttons", "header", "footer"],
@@ -724,7 +823,8 @@ mod tests {
 
     use super::{
         installation_action_allowed, installation_bearer_token, is_public_action_for_actor,
-        public_action_allowed, redacted, verify_installation_token,
+        page_window, paginate_collection, public_action_allowed, redacted,
+        verify_installation_token, PublicPageQuery,
     };
     use actions::{catalog::initial_registry, ActionLifecycle, ActorKind, ProductRuntime};
     use actix_web::test::TestRequest;
@@ -794,6 +894,93 @@ mod tests {
                 "capabilities": [{ "availability": "revoked", "manifest": { "requiredScope": "content.read" } }]
             })
         ));
+    }
+
+    #[test]
+    fn public_pagination_has_bounded_windows_and_stable_next_cursor() {
+        let (cursor, limit, next) = page_window(
+            PublicPageQuery {
+                cursor: Some(2),
+                limit: Some(2),
+            },
+            5,
+        )
+        .expect("valid page");
+        assert_eq!((cursor, limit, next), (2, 2, Some(4)));
+        let payload = paginate_collection(
+            serde_json::json!({ "posts": ["a", "b", "c", "d", "e"] }),
+            "posts",
+            PublicPageQuery {
+                cursor: Some(2),
+                limit: Some(2),
+            },
+        )
+        .expect("page envelope");
+        assert_eq!(payload["posts"], serde_json::json!(["c", "d"]));
+        assert_eq!(payload["pagination"]["total"], 5);
+        assert_eq!(payload["pagination"]["nextCursor"], 4);
+    }
+
+    #[test]
+    fn public_pagination_rejects_unbounded_or_past_end_requests() {
+        assert!(page_window(
+            PublicPageQuery {
+                cursor: Some(6),
+                limit: Some(10)
+            },
+            5
+        )
+        .is_err());
+        assert!(page_window(
+            PublicPageQuery {
+                cursor: Some(0),
+                limit: Some(101)
+            },
+            5
+        )
+        .is_err());
+        assert!(page_window(
+            PublicPageQuery {
+                cursor: Some(0),
+                limit: Some(0)
+            },
+            5
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn public_list_openapi_operations_advertise_pagination() {
+        let document: serde_json::Value =
+            serde_json::from_str(include_str!("../../openapi/v1.json"))
+                .expect("valid OpenAPI JSON");
+        for path in [
+            "/content/posts",
+            "/inbox/conversations",
+            "/inbox/conversations/{id}/messages",
+            "/bookings",
+            "/campaigns",
+            "/templates",
+        ] {
+            let operation = document["paths"][path]["get"]
+                .as_object()
+                .expect("list operation");
+            let parameters = operation["parameters"]
+                .as_array()
+                .expect("pagination parameters");
+            let refs = parameters
+                .iter()
+                .filter_map(|parameter| parameter.get("$ref").and_then(serde_json::Value::as_str))
+                .collect::<Vec<_>>();
+            assert!(
+                refs.contains(&"#/components/parameters/Limit"),
+                "{path} is missing limit"
+            );
+            assert!(
+                refs.contains(&"#/components/parameters/Cursor"),
+                "{path} is missing cursor"
+            );
+        }
     }
 
     #[test]

@@ -43,6 +43,10 @@
     "/content/posts": {
       "get": {
         "operationId": "listContentPosts",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
         "responses": {
           "200": { "description": "Organization-scoped content posts", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PostList" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" },
@@ -110,6 +114,10 @@
     "/inbox/conversations": {
       "get": {
         "operationId": "listInboxConversations",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
         "responses": {
           "200": { "description": "Redacted organization-scoped conversations", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" },
@@ -120,7 +128,11 @@
     "/inbox/conversations/{id}/messages": {
       "get": {
         "operationId": "listInboxMessages",
-        "parameters": [{ "$ref": "#/components/parameters/ConversationId" }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ConversationId" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
         "responses": {
           "200": { "description": "Redacted conversation messages", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" },
@@ -132,6 +144,10 @@
     "/bookings": {
       "get": {
         "operationId": "listBookings",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
         "responses": {
           "200": { "description": "Organization-scoped bookings", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" },
@@ -142,6 +158,10 @@
     "/campaigns": {
       "get": {
         "operationId": "listCampaigns",
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
         "responses": {
           "200": { "description": "Redacted organization-scoped campaigns", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" },
@@ -164,7 +184,11 @@
     "/templates": {
       "get": {
         "operationId": "listTemplates",
-        "parameters": [{ "$ref": "#/components/parameters/TemplateStatus" }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TemplateStatus" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
         "responses": {
           "200": { "description": "Redacted organization-scoped templates", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" },
@@ -179,7 +203,7 @@
       "productSession": { "type": "apiKey", "in": "cookie", "name": "kasitek_session", "description": "Authenticated KasiTek product session cookie." }
     },
     "parameters": {
-      "Limit": { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 100 } },
+      "Limit": { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } },
       "Cursor": { "name": "cursor", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } },
       "Version": { "name": "version", "in": "query", "schema": { "type": "string", "enum": ["v1"] } },
       "PostId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
@@ -198,9 +222,10 @@
       "PublicMetrics": { "type": "object", "required": ["schema", "windowSeconds", "principal", "requests"], "properties": { "schema": { "const": "kasitek-public-metrics-v1" }, "windowSeconds": { "const": 3600 }, "principal": { "type": "object", "required": ["kind"], "properties": { "kind": { "type": "string" } }, "additionalProperties": false }, "requests": { "type": "object", "required": ["total", "successful", "clientErrors", "serverErrors", "inFlight"], "properties": { "total": { "type": "integer", "minimum": 0 }, "successful": { "type": "integer", "minimum": 0 }, "clientErrors": { "type": "integer", "minimum": 0 }, "serverErrors": { "type": "integer", "minimum": 0 }, "inFlight": { "type": "integer", "minimum": 0 } }, "additionalProperties": false } }, "additionalProperties": false },
       "Error": { "type": "object", "properties": { "error": { "type": "string" }, "code": { "type": "string" } }, "additionalProperties": true },
       "CapabilityPage": { "type": "object", "required": ["version", "principal", "actions", "pagination"], "properties": { "version": { "const": "v1" }, "principal": { "type": "object", "additionalProperties": true }, "actions": { "type": "array", "items": { "type": "object", "additionalProperties": true } }, "pagination": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
-      "PostList": { "type": "object", "required": ["posts"], "properties": { "posts": { "type": "array", "items": { "type": "object", "additionalProperties": true } } }, "additionalProperties": false },
+      "PostList": { "type": "object", "required": ["posts", "pagination"], "properties": { "posts": { "type": "array", "items": { "type": "object", "additionalProperties": true } }, "pagination": { "$ref": "#/components/schemas/Pagination" } }, "additionalProperties": false },
       "PostResponse": { "type": "object", "required": ["post"], "properties": { "post": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
       "ResourceList": { "type": "object", "description": "Resource-specific list envelope. Sensitive provider and customer fields are redacted by the core boundary.", "additionalProperties": true },
+      "Pagination": { "type": "object", "required": ["limit", "cursor", "nextCursor", "total", "version"], "properties": { "limit": { "type": "integer", "minimum": 1, "maximum": 100 }, "cursor": { "type": "integer", "minimum": 0 }, "nextCursor": { "type": ["integer", "null"], "minimum": 0 }, "total": { "type": "integer", "minimum": 0 }, "version": { "const": "v1" } }, "additionalProperties": false },
       "ResourceResponse": { "type": "object", "description": "Resource-specific response envelope with sensitive fields redacted by the core boundary.", "additionalProperties": true },
       "ContentDraftInput": { "type": "object", "description": "Core SocialPostUpsertRequest contract. The core validates the complete domain shape and organization ownership.", "additionalProperties": true }
     }
