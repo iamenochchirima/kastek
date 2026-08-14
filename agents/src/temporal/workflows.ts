@@ -99,6 +99,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             usage: result.usage,
             iterations: result.iterations,
             toolCalls: result.toolCalls,
+            provenance: result.provenance ?? {},
           },
         });
         status = "awaiting_approval";
@@ -152,7 +153,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         continue;
       }
       if (result.status === "awaiting_external_event") {
-        await activities.pauseRun({ runId: input.runId, status: "awaiting_external_event", output: { status: result.status, waitingFor: result.waitingFor, usage: result.usage, iterations: result.iterations, toolCalls: result.toolCalls } });
+        await activities.pauseRun({ runId: input.runId, status: "awaiting_external_event", output: { status: result.status, waitingFor: result.waitingFor, usage: result.usage, iterations: result.iterations, toolCalls: result.toolCalls, provenance: result.provenance ?? {} } });
         status = "awaiting_external_event";
         await condition(() => externalEvent !== undefined || cancellation !== undefined || expiration !== undefined);
         if (cancellation) { await transition("awaiting_external_event", "cancelled"); return; }
@@ -177,6 +178,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
           usage: result.usage,
           iterations: result.iterations,
           toolCalls: result.toolCalls,
+          provenance: result.provenance ?? {},
         },
       });
       status = "completed";

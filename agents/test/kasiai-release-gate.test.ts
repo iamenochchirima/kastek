@@ -8,8 +8,11 @@ const safeVersion = {
 };
 
 describe("KasiAi release gate", () => {
-  it("accepts a bounded read-only protected version", () => {
-    expect(evaluateKasiAiRelease(safeVersion).passed).toBe(true);
+  it("accepts bounded read and approval-gated content capabilities", () => {
+    expect(evaluateKasiAiRelease({
+      ...safeVersion,
+      policy: { allowedTools: ["platform.current_time", "kasitek.core.content_post_draft", "kasitek.core.content_post_publish"] },
+    }).passed).toBe(true);
   });
 
   it("rejects an unbounded or externally effective tool policy", () => {
@@ -19,6 +22,6 @@ describe("KasiAi release gate", () => {
       policy: { allowedTools: ["kasitek.core.customer_create"] },
     });
     expect(result.passed).toBe(false);
-    expect(result.checks.some((check) => check.name === "read-only initial tool policy" && !check.passed)).toBe(true);
+    expect(result.checks.some((check) => check.name === "bounded KasiAi capability policy" && !check.passed)).toBe(true);
   });
 });

@@ -32,6 +32,7 @@ import { executeWorkflowGraph } from "../workflows/executor";
 import { WorkflowStateRepository } from "../db/repositories/workflow-state-repository";
 import { redactSensitiveValue } from "../tools/redaction";
 import type { ModelCredentials, ModelResponse } from "../model/types";
+import { buildGroundingProvenance } from "../runtime/provenance";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -828,6 +829,7 @@ async function executeMcpToolRun(
         usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
         iterations: 0,
         toolCalls: 1,
+        provenance: buildGroundingProvenance({ authorizedTools: grantedTools, usedTools: [invocation.name], retrievalRequested: false, knowledgeMatchCount: 0 }),
       };
     }
   }
@@ -927,6 +929,7 @@ async function executeMcpToolRun(
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
       iterations: 0,
       toolCalls: 1,
+      provenance: buildGroundingProvenance({ authorizedTools: grantedTools, usedTools: [invocation.name], retrievalRequested: false, knowledgeMatchCount: 0 }),
     };
   } catch (error) {
     const normalized = { code: "MCP_TOOL_FAILED", message: error instanceof Error ? error.message : "MCP tool failed" };
@@ -947,6 +950,7 @@ async function executeMcpToolRun(
       iterations: 0,
       toolCalls: 1,
       error: normalized,
+      provenance: buildGroundingProvenance({ authorizedTools: grantedTools, usedTools: [invocation.name], retrievalRequested: false, knowledgeMatchCount: 0 }),
     };
   }
 }
@@ -1125,6 +1129,8 @@ async function executeLoopForRun(
   }
   const toolSteps = new Map<string, string>();
   const startedExternalEffects = new Set<string>();
+  const usedTools = new Set<string>();
+  const unavailableTools = new Set<string>();
   const loopResult = await runBoundedAgentLoop({
     model: { provider, model, temperature: typeof configuration.temperature === "number" ? configuration.temperature : undefined },
     messages: context.messages,
@@ -1178,6 +1184,7 @@ async function executeLoopForRun(
       payload: event.payload,
     }),
     onToolProposed: async (proposal) => {
+      usedTools.add(proposal.name);
       await toolInvocations.recordProposal({
         organizationId: run.organization_id,
         runId: run.id,
@@ -1266,6 +1273,7 @@ async function executeLoopForRun(
       if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
     },
     onToolFailed: async (failure) => {
+      if (["TOOL_NOT_FOUND", "TOOL_NOT_GRANTED", "CAPABILITY_NOT_GRANTED", "UNAVAILABLE", "NOT_CONFIGURED"].some((code) => failure.error.code.includes(code))) unavailableTools.add(failure.name);
       await toolInvocations.recordFailed({
         runId: run.id,
         providerToolCallId: failure.toolCallId,
@@ -1309,6 +1317,13 @@ async function executeLoopForRun(
       await runSteps.finishStep({ stepId: step.id, status: "failed", error });
     },
   });
+  loopResult.provenance = buildGroundingProvenance({
+    authorizedTools: allowedTools,
+    usedTools,
+    unavailableTools,
+    retrievalRequested,
+    knowledgeMatchCount: knowledgeMatches.length,
+  });
   return loopResult;
 }
 
@@ -1351,9 +1366,11 @@ async function executeConfiguredWorkflow(input: {
   const pausedNodeId = typeof persistedState?.__workflowNodeId === "string" ? persistedState.__workflowNodeId : undefined;
   const executionGraph = pausedNodeId && graph.nodes.some((node) => node.id === pausedNodeId) ? { ...graph, entryNodeId: pausedNodeId } : graph;
   const toolSequence = { value: 0 };
+  const usedTools = new Set<string>();
   let lastModelResponse: ModelResponse | undefined;
 
   const executeTool = async (request: { name: string; arguments: Record<string, unknown>; nodeId: string; approved?: unknown }): Promise<unknown> => {
+    usedTools.add(request.name);
     const manifest = input.tools.get(request.name);
     if (!manifest) throw new Error(`WORKFLOW_TOOL_NOT_FOUND:${request.name}`);
     if (manifest.requiresApproval && !request.approved) throw new Error(`WORKFLOW_APPROVAL_REQUIRED:${request.name}`);
@@ -1474,18 +1491,18 @@ async function executeConfiguredWorkflow(input: {
     if (manifest.riskClass === "external-effect") await input.effectReceipts.reserve({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, idempotencyKey: `${input.run.id}:${pending.name}:${pending.argumentsHash}` });
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
     await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.approval.pending", payload: { nodeId: result.pausedAt, capability: pending.name, providerToolCallId: pending.id } });
-    return { status: "awaiting_approval", messages: [], pendingToolCalls: [pending], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value };
+    return { status: "awaiting_approval", messages: [], pendingToolCalls: [pending], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
   if (result.status === "awaiting_external_event") {
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
     await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.external_event.pending", payload: { nodeId: result.pausedAt, waitingFor: result.waitingFor } });
-    return { status: "awaiting_external_event", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, waitingFor: result.waitingFor };
+    return { status: "awaiting_external_event", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, waitingFor: result.waitingFor, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
-  if (result.status === "failed") return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, error: { code: "WORKFLOW_FAILED", message: result.error ?? "Workflow execution failed" } };
+  if (result.status === "failed") return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, error: { code: "WORKFLOW_FAILED", message: result.error ?? "Workflow execution failed" }, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: null, __workflowState: result.state } });
   const output = typeof result.state.output === "string" ? result.state.output : typeof result.state.answer === "string" ? result.state.answer : lastModelResponse?.message.content ?? "Workflow completed";
   const response = lastModelResponse ?? { provider: input.modelProvider, model: input.model, message: { role: "assistant" as const, content: output }, toolCalls: [], finishReason: "workflow", usage: emptyWorkflowUsage(), latencyMs: 0 };
-  return { status: "completed", messages: [response.message], response, usage: { ...response.usage, estimatedCostUsd: response.usage.estimatedCostUsd ?? 0 }, iterations: result.trace.length, toolCalls: toolSequence.value };
+  return { status: "completed", messages: [response.message], response, usage: { ...response.usage, estimatedCostUsd: response.usage.estimatedCostUsd ?? 0 }, iterations: result.trace.length, toolCalls: toolSequence.value, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
 }
 
 function emptyWorkflowUsage(): { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number } {

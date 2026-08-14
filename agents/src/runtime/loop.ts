@@ -5,6 +5,7 @@ import { ToolPolicyError, type ToolApproval, type ToolInvocationContext } from "
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { classifyFailureCode } from "./failures";
 import { redactSensitiveValue } from "../tools/redaction";
+import type { GroundingProvenance } from "./provenance";
 
 export interface AgentLoopLimits {
   maxIterations: number;
@@ -85,6 +86,7 @@ export interface AgentLoopResult {
   toolCalls: number;
   error?: { code: string; message: string; failureClass?: "retryable" | "terminal" };
   waitingFor?: string;
+  provenance?: GroundingProvenance;
 }
 
 const defaultLimits: AgentLoopLimits = {

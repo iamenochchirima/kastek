@@ -213,6 +213,22 @@ describe("kasitek-core read boundary", () => {
     expect(JSON.parse(String(init.body))).toEqual({ scheduledFor: "2030-01-01T12:00:00.000Z" });
   });
 
+  it("routes unscheduling and unpublished deletion through idempotent content actions", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ post: { id: "post-1", status: "DRAFT" }, status: "DRAFT" }), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ postId: "post-1", deleted: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    const client = new KasitekCoreReadClient(config);
+    await expect(client.unscheduleContentPost(context, "post-1")).resolves.toMatchObject({ status: "DRAFT" });
+    await expect(client.deleteContentPost(context, "post-1")).resolves.toEqual({ postId: "post-1", deleted: true });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/content/posts/post-1/unschedule");
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).headers).toHaveProperty("idempotency-key");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/content/posts/post-1");
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe("DELETE");
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).headers).toHaveProperty("idempotency-key");
+  });
+
   it("binds a delegation token to the installation and the exact core capability", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ customer: { id: "cust-1" }, identities: [] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

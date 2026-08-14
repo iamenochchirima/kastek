@@ -360,3 +360,73 @@ pub async fn delete_post(
     let deleted = social::delete_social_post(pool, &context.organization_id, post_id).await?;
     Ok(serde_json::json!({ "postId": post_id, "deleted": deleted }))
 }
+
+#[cfg(test)]
+mod tests {
+    use sqlx::postgres::PgPoolOptions;
+
+    use crate::identity::{
+        principal::{Principal, PrincipalKind},
+        request_context::RequestContext,
+    };
+
+    use super::{delete_post, publish, schedule, unschedule};
+
+    fn context(idempotency_key: Option<&str>) -> RequestContext {
+        RequestContext {
+            principal: Principal {
+                kind: PrincipalKind::AgentInstallation,
+                id: "installation-1".to_string(),
+                subject_user_id: Some("actor-1".to_string()),
+                client_id: Some("credential-1".to_string()),
+            },
+            organization_id: "org-1".to_string(),
+            user_id: Some("actor-1".to_string()),
+            client_id: Some("credential-1".to_string()),
+            installation_id: Some("installation-1".to_string()),
+            effective_grants: Default::default(),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: idempotency_key.map(str::to_string),
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_publish_platform_before_database_access() {
+        let pool = PgPoolOptions::new()
+            .connect_lazy("postgres://localhost/kasitek")
+            .expect("lazy pool");
+        let error = publish(&pool, &context(Some("publish-1")), "post-1", "mastodon")
+            .await
+            .expect_err("unsupported platform must be rejected");
+        assert!(error.to_string().contains("Publishing is not available"));
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_schedule_timestamp_before_database_access() {
+        let pool = PgPoolOptions::new()
+            .connect_lazy("postgres://localhost/kasitek")
+            .expect("lazy pool");
+        let error = schedule(&pool, &context(Some("schedule-1")), "post-1", "tomorrow")
+            .await
+            .expect_err("non-RFC3339 schedule must be rejected");
+        assert!(error.to_string().contains("RFC3339"));
+    }
+
+    #[tokio::test]
+    async fn requires_idempotency_for_unschedule_and_delete() {
+        let pool = PgPoolOptions::new()
+            .connect_lazy("postgres://localhost/kasitek")
+            .expect("lazy pool");
+        assert!(unschedule(&pool, &context(None), "post-1")
+            .await
+            .expect_err("unschedule must require idempotency")
+            .to_string()
+            .contains("idempotency-key"));
+        assert!(delete_post(&pool, &context(None), "post-1")
+            .await
+            .expect_err("delete must require idempotency")
+            .to_string()
+            .contains("idempotency-key"));
+    }
+}

@@ -448,6 +448,12 @@ explicit immediate-read path; it does not replace worker-restart or hosted proof
 **Additional transport evidence:** the installation REST transport carries an audience-specific API
 scope policy and then enters the same `InstallationCapabilityInvocationService` as MCP; it does not
 own a second invocation/run-acceptance path.
+Content capability contract evidence now covers all eight registered content manifests and their
+typed Agent-to-core routes (`agents/test/content-capability-contract.test.ts`,
+`agents/test/core-client.test.ts`), while core adapter unit checks cover invalid provider/schedule
+inputs and missing idempotency before database access. Grounding provenance is persisted on durable
+run output as a redacted summary; it contains only workspace scope, reviewed-source counts, tool
+names, unavailable actions, and an explicit no-unsupported-certainty marker.
 - [ ] Real Codex, Claude Code, and a generic MCP client are verified before checking the relevant
   primary-blueprint item.
 

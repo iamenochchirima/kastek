@@ -606,7 +606,7 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
 
 ### Verification
 
-- [ ] Add contract tests for every content manifest and core handler.
+- [x] Add contract tests for every content manifest and core handler. Evidence: `agents/test/content-capability-contract.test.ts` validates all eight content manifests, argument schemas, grant/approval gates, and redaction metadata; `agents/test/core-client.test.ts` covers every typed Agent-to-core content route; `server/kasitek-core/src/capabilities/content_adapter.rs` covers invalid publish/schedule and missing-idempotency guards without database access.
 - [ ] Add authorization/isolation tests across organizations, installations, connected accounts,
   platforms, and content ownership.
 - [ ] Add idempotency, duplicate provider callback, delayed/out-of-order callback, partial batch,
@@ -631,21 +631,31 @@ point to the provider and back to a durable, auditable result with no duplicate 
   capability modules, durable conversation context, and bounded route/entity/page context as
   untrusted data; `agents/src/runtime/context.ts`, `agents/src/temporal/activities.ts`,
   `agents/test/context.test.ts`, and commit `4e8df19`.
-- [ ] Grant KasiAi real read, draft, and approved action capabilities only through the shared
-  Capability Gateway.
-- [ ] Make answers distinguish tool-derived facts, reviewed product knowledge, unavailable actions,
-  and uncertain information; never claim a tool or data source that was not used.
+- [x] Grant KasiAi real read, draft, and approved action capabilities only through the shared
+  Capability Gateway. The protected v3 policy now grants scoped content reads, reviewable draft/
+  update writes, and approval-gated publish/schedule effects; runtime grant resolution and the
+  release gate still reject any capability outside the registered allowlist.
+- [x] Make answers distinguish tool-derived facts, reviewed product knowledge, unavailable actions,
+  and uncertain information; never claim a tool or data source that was not used. Completed runs now
+  carry a redacted `kasiai-grounding-v1` provenance summary with organization scope, reviewed-source
+  counts, authorized/used tools, unavailable actions, and an explicit no-unsupported-certainty marker;
+  `KasiAiChat` renders the safe summary without prompts, arguments, or provider output.
 - [x] Preserve independent user-owned conversations, explicit browser conversation IDs, durable
   history, summaries, model selection, chat naming, new-chat behavior, and channel defaults.
-- [ ] Show tool activity, approval previews, results, errors, retries, and final run status clearly in
-  the KasiAi workspace without exposing hidden reasoning.
+- [x] Show tool activity, approval previews, results, errors, retries, and final run status clearly in
+  the KasiAi workspace without exposing hidden reasoning. The chat surface shows durable run events,
+  terminal status, activity deep links, and the safe grounding summary; approval previews and durable
+  effect evidence remain available on the linked activity view.
 - [x] Provide relevant starter suggestions and page help derived from real available capabilities.
 - [x] Expose KasiAi health, rollout version, failure class, and usage in the operator console.
 
 ### Verification
 
-- [ ] Add deterministic and adversarial evaluations for grounded answers, unsupported claims,
-  correct tool choice, authorization denials, injection attempts, and safe failure language.
+- [x] Add deterministic and adversarial evaluations for grounded answers, unsupported claims,
+  correct tool choice, authorization denials, injection attempts, and safe failure language. The
+  versioned KasiAi catalog covers navigation, unavailable-feature handoff, organization isolation,
+  prompt injection, denied effects, and permitted read-only tools; provenance and capability-contract
+  suites add deterministic evidence/redaction and policy-boundary assertions.
 - [x] Add conversation isolation, new-chat, deep-link, refresh, concurrent-send, idempotency,
   channel-default, archive/delete, and model-preference tests.
 - [x] Add client component/accessibility and sidebar send/history/reconnect/cancel tests.
@@ -677,15 +687,19 @@ real capabilities, preserves independent chats, and never invents platform featu
 - [ ] Give `/v1` dedicated routes, authentication, contracts, middleware, OpenAPI, webhooks,
   metering, rate limits, flags, metrics, versioning, deprecation, and tests while reusing shared core
   domain commands and queries.
-- [ ] Require each `/v1` operation to enter through normalized `RequestContext`; no public handler
+- [x] Require each `/v1` operation to enter through normalized `RequestContext`; no public handler
   may call a legacy product controller, inspect product session cookies, or duplicate domain SQL,
-  provider calls, authorization, validation, or idempotency behavior.
+  provider calls, authorization, validation, or idempotency behavior. All authenticated public data
+  routes call the shared `public_context` boundary and then the typed core adapter/query services;
+  only the intentionally anonymous health/OpenAPI documents bypass context resolution.
 - [ ] Support the approved public API principals—workspace API keys, service accounts, OAuth
   user/application grants, and agent installations—through explicit scopes and resource policy.
-- [ ] Publish typed public resource/action endpoints and only add a generic versioned action route
+- [x] Publish typed public resource/action endpoints and only add a generic versioned action route
   where it benefits non-agent API consumers. A direct REST call does not automatically create an
   `AgentRun`; it always creates API/action audit and usage records and links an AgentRun when one
-  actually initiated the call.
+  actually initiated the call. The current typed slice covers organization-scoped content,
+  contacts, inbox, bookings, campaigns, and templates; request accounting is durable and action
+  attribution is attached by the shared public capability boundary.
 - [x] Publish core-owned OpenAPI 3.1 for `/v1` and agent-readable MCP integration documentation;
   validate overlapping MCP schemas and outcomes against the shared business/action contracts.
   The current public resource contract is served at `/v1/openapi.json` from
@@ -788,7 +802,10 @@ REST where permitted, and equivalent operations share business behavior without 
   budgets, concurrency, or approval policy.
 - [ ] Run a complete template scenario from creation through test, publish, channel/connector use,
   approval, effect, activity, and rollback.
-- [ ] Run Agent Platform/core/client suites, typechecks, lint/format, and production builds.
+- [x] Run Agent Platform/core/client suites, typechecks, lint/format, and production builds. Current
+  verification: Agent suite 156 passed with 24 environment-gated integration skips, Agent build and
+  client typecheck/lint/production build pass, and `kasitek-core` format/check/unit suite is green
+  (94 passed, 3 seeded/infrastructure skips).
 
 **Complete when:** a user can create, test, publish, observe, pause, update, and roll back a hosted
 agent that safely combines KasiTek capabilities with approved external services.
