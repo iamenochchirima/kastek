@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Archive, ArrowLeft, Bot, ChevronDown, ChevronRight, Copy, LoaderCircle, MessageCircle,
   MoreHorizontal, PanelLeft, Pin, Plus, Search, Send, Settings2, SlidersHorizontal,
@@ -143,6 +144,7 @@ async function waitForRunTerminal(runId: string, signal: AbortSignal): Promise<A
 }
 
 export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boolean; onOpenChange: (open: boolean) => void; leftOffset?: number }) {
+  const pathname = usePathname() ?? "";
   const [installation, setInstallation] = useState<AgentInstallation | null>(null);
   const [home, setHome] = useState<KasiAiHome | null>(null);
   const [conversation, setConversation] = useState<AgentConversation | null>(null);
@@ -373,7 +375,7 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const disconnect = async (binding: AgentChannelBinding) => { if (!window.confirm(`Disconnect ${channelLabel(binding.channel_type)}? Existing history will remain.`)) return; await disconnectKasiAiChannel(binding.id); await refreshHome(installation!.id); };
   const visibleMessages = channelFilter === "all" ? messages : messages.filter((message) => messageChannel(message) === channelFilter);
   const availableChannels = Array.from(new Set(messages.map(messageChannel).filter((channel) => channel !== "platform"))).sort();
-  const suggestions = window.location.pathname.includes("campaign") ? ["Help me create a campaign", "What should I check before sending?", "Explain this page", "Show my recent campaign activity"] : ["What needs my attention?", "Show me around this page", "Check my connected accounts", "Help me get started"];
+  const suggestions = pathname.includes("campaign") ? ["Help me create a campaign", "What should I check before sending?", "Explain this page", "Show my recent campaign activity"] : ["What needs my attention?", "Show me around this page", "Check my connected accounts", "Help me get started"];
   const beginResize = (event: React.PointerEvent<HTMLDivElement>) => { if (window.innerWidth < 640) return; event.currentTarget.setPointerCapture(event.pointerId); resizeStart.current = { x: event.clientX, width }; setResizing(true); };
   const moveResize = (event: React.PointerEvent<HTMLDivElement>) => { if (!resizeStart.current) return; const bounds = panelBounds(leftOffset); setWidth(Math.min(bounds.max, Math.max(bounds.min, resizeStart.current.width + resizeStart.current.x - event.clientX))); };
   const finishResize = () => { resizeStart.current = null; setResizing(false); window.localStorage.setItem(PANEL_WIDTH_KEY, String(width)); };

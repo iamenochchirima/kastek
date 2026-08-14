@@ -46,17 +46,26 @@ verified or completed. Work on independent items continues.
   `TEMPORAL_ENABLED=false`. This exercised the explicit-immediate read path
   against the real PostgreSQL database, including REST idempotency and MCP
   gateway negotiation, without touching the other session's stack.
-- **Remaining evidence:** the standard local-stack launcher now starts the
-  gateway, but the default `agents/.env` still needs a dedicated development
-  ES256 installation-token key before that smoke can run without temporary
-  setup. Real provider effects/recovery, hosted routing/scaling, and
-  authenticated client/admin browser scenarios remain unverified.
-- **Impact:** basic installation REST/MCP end-to-end verification is now
-  available. Hosted/provider recovery and user-interface release gates remain
-  open.
+- **Additional local evidence (2026-08-14):** an isolated local stack started
+  core (`:4000`), Agent API (`:4110` and standard `:4100`), Temporal worker,
+  MCP gateways (`:4210` and standard `:4200`), client (`:3000`), and admin
+  (`:3001`). Core, Agent, gateway, client, and admin liveness/readiness or
+  route checks returned successfully. The real smoke passed on the isolated
+  ports. A temporary verified local product session rendered the authenticated
+  `/agents` page with HTTP 200, and a local admin principal rendered
+  `/dashboard` with HTTP 200. The smoke used an ephemeral ES256 key and
+  deleted its temporary product session after the request.
+- **Remaining evidence:** this is HTTP/SSR route verification, not a browser
+  automation run. Real provider effects/recovery, hosted routing/scaling, and
+  cross-browser client/admin scenarios remain unverified. The default
+  `agents/.env` still needs a dedicated development ES256 installation-token
+  key before the standard launcher can run the installation smoke without
+  temporary setup.
+- **Impact:** local service and authenticated route health are verified;
+  hosted/provider recovery and browser automation release gates remain open.
 - **Next action:** add the development signing key to the standard local setup,
-  then run approved/denied publication, worker-restart,
-  and authenticated browser smoke scenarios.
+  then run approved/denied publication, worker-restart, provider recovery, and
+  authenticated browser smoke scenarios.
 
 ## B-004 — Client production build cannot run in this sandbox (resolved)
 
@@ -128,7 +137,10 @@ verified or completed. Work on independent items continues.
 - **Blueprint:** Slice 7/13 delegation replay verification; remediation AR-007.
 - **Evidence:** `services::realtime::delegation_replay_tests::replay_store_is_shared_across_instances_and_expires`
   requires `REDIS_REPLAY_TEST_URL`. No local Redis server is installed, and attempting to start the
-  isolated `redis:7-alpine` container failed because the Docker daemon is unavailable.
+  isolated `redis:7-alpine` container failed because the Docker daemon is unavailable. On
+  2026-08-14, running the test against the configured remote `REDIS_URL` with
+  `REDIS_REPLAY_TEST_URL="$REDIS_URL"` failed the second-instance assertion (`second.claim(...)`
+  returned true), so that endpoint is not accepted as an isolated replay-test target.
 - **Impact:** replay-store code and its cross-instance/expiry regression test compile, but the test
   remains explicitly ignored and AR-007's multi-instance, restart, and expiry checks remain open.
 - **Next action:** provide an isolated Redis URL or start Docker, then run
@@ -153,11 +165,14 @@ verified or completed. Work on independent items continues.
 ## B-010 — Core seeded-database integration tests are unavailable in the current run
 
 - **Blueprint:** Slice 0/1 core database verification.
-- **Evidence:** `cargo test --manifest-path server/Cargo.toml -p kasitek-core --lib` passed **105 tests**
-  and explicitly ignored three
-  seeded-database cases: connection capability synchronization, conversation organization
-  isolation, and Redis replay integration (the latter is also tracked as B-008).
-- **Impact:** core unit and contract tests are green, but those database isolation checks cannot be
-  represented as zero-ignore verification without a seeded core PostgreSQL database and Redis.
-- **Next action:** provision the isolated core test database and Redis, then rerun
-  `cargo test -p kasitek-core --lib -- --include-ignored` with the appropriate environment.
+- **Evidence:** `cargo test -p kasitek-core --lib -- --include-ignored` on 2026-08-14 reached the
+  configured PostgreSQL database and passed **118 tests**, but the two seeded-data cases failed
+  because the expected fixtures were absent: `services::connections::tests::database_sync_preserves_organization_ownership`
+  expected two records for `org_connections_a` and found zero, while
+  `services::inbox::tests::conversation_reads_are_isolated_by_organization` could not find
+  `conversation_meta_a`. The third failure is the separate Redis replay gate in B-008.
+- **Impact:** core unit and contract coverage is green, but zero-failure seeded database
+  verification cannot be claimed until the fixture dataset is loaded into an isolated test
+  database. The run did confirm the current core library total is 118 passing tests.
+- **Next action:** provision/load the documented isolated core fixture dataset and rerun
+  `cargo test -p kasitek-core --lib -- --include-ignored`; provide an isolated Redis URL for B-008.

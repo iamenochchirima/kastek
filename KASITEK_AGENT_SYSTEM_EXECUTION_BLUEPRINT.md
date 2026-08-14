@@ -281,7 +281,7 @@ local Temporal, and the Agent build and core format/check/library tests pass. A 
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 162 of 226 implementation/verification items are checked. The count
+At this reconciliation point, 165 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
