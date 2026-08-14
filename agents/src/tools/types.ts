@@ -29,6 +29,8 @@ export interface ToolApproval {
   approvedBy: string;
   argumentsHash: string;
   expiresAt: string;
+  /** The exact resource projection the approver reviewed, when available. */
+  resourceSnapshot?: Record<string, unknown>;
 }
 
 export interface ToolDefinition {

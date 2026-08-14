@@ -148,6 +148,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             approvedBy: decision.approvedBy,
             argumentsHash: decision.argumentsHash,
             expiresAt: decision.expiresAt,
+            resourceSnapshot: decision.resourceSnapshot,
           },
         };
         continue;

@@ -15,6 +15,7 @@ export interface ApprovalSignal {
   argumentsHash: string;
   providerToolCallId: string;
   expiresAt: string;
+  resourceSnapshot?: Record<string, unknown>;
 }
 
 export interface CancellationSignal {

@@ -1827,7 +1827,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         message: "The requested effect was denied before execution",
       });
     }
-    await dependencies.signalApproval(request.params.runId, { ...input, approvedBy: auth.actorId, expiresAt: approval.expires_at });
+    await dependencies.signalApproval(request.params.runId, {
+      ...input,
+      approvedBy: auth.actorId,
+      expiresAt: approval.expires_at,
+      resourceSnapshot: approval.resource_snapshot,
+    });
     return reply.code(202).send({ runId: request.params.runId, status: "approval_signalled" });
   });
 

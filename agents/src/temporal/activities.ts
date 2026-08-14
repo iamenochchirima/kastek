@@ -33,6 +33,8 @@ import { WorkflowStateRepository } from "../db/repositories/workflow-state-repos
 import { redactSensitiveValue } from "../tools/redaction";
 import type { ModelCredentials, ModelResponse } from "../model/types";
 import { buildGroundingProvenance } from "../runtime/provenance";
+import type { ToolInvocationContext } from "../tools/types";
+import type { CoreContentPost } from "../core/client";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -536,12 +538,56 @@ const approvalPreviewKeys = new Set([
   "action",
 ]);
 
+const contentPreviewCapabilities = new Set([
+  "kasitek.core.content_post_publish",
+  "kasitek.core.content_post_schedule",
+  "kasitek.core.content_post_unschedule",
+  "kasitek.core.content_post_delete",
+]);
+
+function boundedPreviewString(value: unknown, maxLength = 256): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, maxLength) : undefined;
+}
+
+function projectContentVariant(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const variant = value as Record<string, unknown>;
+  const platform = boundedPreviewString(variant.platform, 80);
+  const content = boundedPreviewString(variant.content, 2_000);
+  if (!platform && !content) return null;
+  return {
+    ...(platform ? { platform } : {}),
+    ...(content ? { contentPreview: content } : {}),
+    ...(boundedPreviewString(variant.status, 40) ? { status: boundedPreviewString(variant.status, 40) } : {}),
+  };
+}
+
+/** Project only the fields an authenticated approver needs to understand a content effect. */
+export function projectContentApprovalResource(post: CoreContentPost): Record<string, unknown> {
+  const variants = Array.isArray(post.variants)
+    ? post.variants.map(projectContentVariant).filter((value): value is Record<string, unknown> => Boolean(value)).slice(0, 20)
+    : [];
+  return {
+    postId: boundedPreviewString(post.id, 160) ?? "",
+    ...(boundedPreviewString(post.title, 240) ? { title: boundedPreviewString(post.title, 240) } : {}),
+    status: boundedPreviewString(post.status, 40) ?? "UNKNOWN",
+    ...(boundedPreviewString(post.content, 2_000) ? { contentPreview: boundedPreviewString(post.content, 2_000) } : {}),
+    channels: Array.isArray(post.channels) ? post.channels.filter((value): value is string => typeof value === "string").map((value) => value.slice(0, 80)).slice(0, 20) : [],
+    ...(boundedPreviewString(post.scheduled_for, 64) ? { scheduledFor: boundedPreviewString(post.scheduled_for, 64) } : {}),
+    ...(boundedPreviewString(post.published_at, 64) ? { publishedAt: boundedPreviewString(post.published_at, 64) } : {}),
+    ...(variants.length ? { variants } : {}),
+  };
+}
+
 /**
  * Build the immutable, safe portion of an approval preview. Provider payloads,
- * credentials, message bodies, and arbitrary metadata never enter the approval
- * record; the exact arguments hash still binds the eventual effect.
+ * credentials, and arbitrary metadata never enter the approval record; the
+ * exact arguments hash still binds the eventual effect. A domain adapter may
+ * provide a read projection captured at proposal time.
  */
-export function buildApprovalResourceSnapshot(capability: string, argumentsValue: Record<string, unknown>): Record<string, unknown> {
+export function buildApprovalResourceSnapshot(capability: string, argumentsValue: Record<string, unknown>, resource?: Record<string, unknown>): Record<string, unknown> {
   const request = Object.fromEntries(
     Object.entries(argumentsValue)
       .filter(([key, value]) => approvalPreviewKeys.has(key) && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"))
@@ -550,7 +596,31 @@ export function buildApprovalResourceSnapshot(capability: string, argumentsValue
   return {
     capability,
     request,
+    ...(resource ? { resource } : {}),
   };
+}
+
+/** Read the current resource once, at proposal time, so approval is bound to what was reviewed. */
+export async function buildApprovalResourceSnapshotFromCore(
+  coreClient: KasitekCoreReadClient | undefined,
+  context: ToolInvocationContext,
+  capability: string,
+  argumentsValue: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (!coreClient || !contentPreviewCapabilities.has(capability) || typeof argumentsValue.postId !== "string") {
+    return buildApprovalResourceSnapshot(capability, argumentsValue);
+  }
+  try {
+    const response = await coreClient.getContentPost(context, argumentsValue.postId);
+    return buildApprovalResourceSnapshot(capability, argumentsValue, {
+      kind: "content_post",
+      revision: "content-post.v1",
+      ...projectContentApprovalResource(response.post),
+    });
+  } catch {
+    // A missing/unavailable preview must never turn into an unreviewed effect.
+    throw new Error("CONTENT_PREVIEW_UNAVAILABLE");
+  }
 }
 
 function restrictiveLimit(...values: unknown[]): number | undefined {
@@ -614,9 +684,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           installationGrants,
           killSwitches,
           tools,
+          coreClient,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools, workflowState);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, kasiaiPreferences, gateway, credentials, tools, workflowState, coreClient);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -788,6 +859,7 @@ async function executeMcpToolRun(
   installationGrants: InstallationGrantRepository,
   killSwitches: KillSwitchRepository,
   tools: ToolRegistry,
+  coreClient: KasitekCoreReadClient | undefined,
 ) {
   if (!isMcpToolRun(run.input)) throw new Error("Invalid MCP run input");
   const invocation = resumeApprovedToolCall ?? {
@@ -798,7 +870,18 @@ async function executeMcpToolRun(
   const manifest = tools.get(invocation.name);
   if (!manifest) throw new Error(`Tool is not registered: ${invocation.name}`);
   const argumentsHash = hashToolArguments(invocation.arguments);
-  const resourceSnapshot = buildApprovalResourceSnapshot(invocation.name, invocation.arguments);
+  const approvalRecord = resumeApprovedToolCall ? await approvals.getForRun(run.organization_id, run.id) : null;
+  const resourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
+    ?? approvalRecord?.resource_snapshot
+    ?? await buildApprovalResourceSnapshotFromCore(coreClient, {
+      organizationId: run.organization_id,
+      agentId: run.agent_definition_id,
+      agentVersionId: run.agent_version_id,
+      installationId: run.installation_id,
+      runId: run.id,
+      actorId: run.created_by,
+      correlationId: run.correlation_id,
+    }, invocation.name, invocation.arguments);
   const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
   // New direct calls must be granted before a proposal is created. Resumed
   // approvals are re-authorized in the guarded path below so revocation closes
@@ -1009,6 +1092,7 @@ async function executeLoopForRun(
   credentials: CredentialResolver,
   tools: ToolRegistry,
   workflowState: WorkflowStateRepository,
+  coreClient: KasitekCoreReadClient | undefined,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const configuration = run.configuration;
@@ -1157,8 +1241,11 @@ async function executeLoopForRun(
       workflowState,
       resumeApprovedToolCall,
       resumeExternalEvent,
+      coreClient,
     });
   }
+  const approvedResourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
+    ?? (resumeApprovedToolCall ? (await approvals.getForRun(run.organization_id, run.id))?.resource_snapshot : undefined);
   const toolSteps = new Map<string, string>();
   const startedExternalEffects = new Set<string>();
   const usedTools = new Set<string>();
@@ -1217,7 +1304,17 @@ async function executeLoopForRun(
     }),
     onToolProposed: async (proposal) => {
       usedTools.add(proposal.name);
-      const resourceSnapshot = buildApprovalResourceSnapshot(proposal.name, proposal.arguments);
+      const resourceSnapshot = proposal.requiresApproval && approvedResourceSnapshot
+        ? approvedResourceSnapshot
+        : await buildApprovalResourceSnapshotFromCore(coreClient, {
+          organizationId: run.organization_id,
+          agentId: run.agent_definition_id,
+          agentVersionId: run.agent_version_id,
+          installationId: run.installation_id,
+          runId: run.id,
+          actorId: run.created_by,
+          correlationId: run.correlation_id,
+        }, proposal.name, proposal.arguments);
       await toolInvocations.recordProposal({
         organizationId: run.organization_id,
         runId: run.id,
@@ -1263,7 +1360,17 @@ async function executeLoopForRun(
     },
     onToolExecuting: async (execution) => {
       if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
-      const resourceSnapshot = buildApprovalResourceSnapshot(execution.name, execution.arguments);
+      const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
+        ? approvedResourceSnapshot
+        : await buildApprovalResourceSnapshotFromCore(coreClient, {
+          organizationId: run.organization_id,
+          agentId: run.agent_definition_id,
+          agentVersionId: run.agent_version_id,
+          installationId: run.installation_id,
+          runId: run.id,
+          actorId: run.created_by,
+          correlationId: run.correlation_id,
+        }, execution.name, execution.arguments);
       await assertCurrentCapabilityPolicy({
         organizationId: run.organization_id,
         installationId: run.installation_id,
@@ -1383,6 +1490,7 @@ async function executeConfiguredWorkflow(input: {
   installationGrants: InstallationGrantRepository;
   killSwitches: KillSwitchRepository;
   workflowState: WorkflowStateRepository;
+  coreClient?: KasitekCoreReadClient;
   resumeApprovedToolCall?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"];
   resumeExternalEvent?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeExternalEvent"];
 }): Promise<AgentLoopResult> {
@@ -1420,8 +1528,19 @@ async function executeConfiguredWorkflow(input: {
       approved: Boolean(request.approved),
     });
     const argumentsHash = hashToolArguments(request.arguments);
-    const resourceSnapshot = buildApprovalResourceSnapshot(request.name, request.arguments);
     const providerToolCallId = `workflow:${request.nodeId}`;
+    const persistedApproval = manifest.requiresApproval ? await input.approvals.getForRun(input.run.organization_id, input.run.id) : null;
+    const resourceSnapshot = request.approved && persistedApproval?.provider_tool_call_id === providerToolCallId
+      ? persistedApproval.resource_snapshot
+      : await buildApprovalResourceSnapshotFromCore(input.coreClient, {
+        organizationId: input.run.organization_id,
+        agentId: input.run.agent_definition_id,
+        agentVersionId: input.run.agent_version_id,
+        installationId: input.run.installation_id,
+        runId: input.run.id,
+        actorId: input.run.created_by,
+        correlationId: input.run.correlation_id,
+      }, request.name, request.arguments);
     const step = await input.runSteps.startStep({ runId: input.run.id, organizationId: input.run.organization_id, stepType: "tool", input: { toolCallId: providerToolCallId, name: request.name, argumentsHash } });
     await input.toolInvocations.recordProposal({
       organizationId: input.run.organization_id,
@@ -1522,7 +1641,15 @@ async function executeConfiguredWorkflow(input: {
     const manifest = input.tools.get(pending.name);
     if (!manifest) return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: 0, error: { code: "WORKFLOW_TOOL_NOT_FOUND", message: `Workflow tool is not registered: ${pending.name}` } };
     await input.toolInvocations.recordProposal({ organizationId: input.run.organization_id, runId: input.run.id, providerToolCallId: pending.id, sequenceNumber: toolSequence.value + 1, toolName: pending.name, toolVersion: manifest.version, riskClass: manifest.riskClass, argumentsHash: pending.argumentsHash, arguments: pending.arguments, requiresApproval: true });
-    await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: buildApprovalResourceSnapshot(pending.name, pending.arguments), previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
+    await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: await buildApprovalResourceSnapshotFromCore(input.coreClient, {
+      organizationId: input.run.organization_id,
+      agentId: input.run.agent_definition_id,
+      agentVersionId: input.run.agent_version_id,
+      installationId: input.run.installation_id,
+      runId: input.run.id,
+      actorId: input.run.created_by,
+      correlationId: input.run.correlation_id,
+    }, pending.name, pending.arguments), previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
     if (manifest.riskClass === "external-effect") await input.effectReceipts.reserve({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, idempotencyKey: `${input.run.id}:${pending.name}:${pending.argumentsHash}` });
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
     await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.approval.pending", payload: { nodeId: result.pausedAt, capability: pending.name, providerToolCallId: pending.id } });

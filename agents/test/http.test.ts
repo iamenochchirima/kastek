@@ -780,8 +780,8 @@ describe("Agent Platform HTTP foundation", () => {
       runs,
       agents: { getInstallation: async () => ({ id: "install-1", status: "active", agent_version_id: "version-1" }) } as never,
       approvals: {
-        getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }),
-        decide: async () => ({ approval: { expires_at: new Date(Date.now() + 60_000).toISOString() }, accepted: true }),
+        getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending", resource_snapshot: { capability: "kasitek.core.content_post_draft", request: { postId: "post-1" } } }),
+        decide: async () => ({ approval: { expires_at: new Date(Date.now() + 60_000).toISOString(), resource_snapshot: { capability: "kasitek.core.content_post_draft", request: { postId: "post-1" } } }, accepted: true }),
       } as never,
       toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-run", providerToolCallId: "approval-call", toolName: "kasitek.core.content_post_draft", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: { content: "draft", channels: ["threads"] } }) } as never,
       toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
@@ -804,7 +804,7 @@ describe("Agent Platform HTTP foundation", () => {
     expect(approval.statusCode).toBe(202);
     expect(cancellation.statusCode).toBe(202);
     expect(signals).toEqual([
-      { type: "approval:approval-run", value: expect.objectContaining({ decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64), approvedBy: "user-1" }) },
+      { type: "approval:approval-run", value: expect.objectContaining({ decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64), approvedBy: "user-1", resourceSnapshot: { capability: "kasitek.core.content_post_draft", request: { postId: "post-1" } } }) },
       { type: "cancel:running-run", value: { reason: "user-1: operator stop" } },
     ]);
     await app.close();
