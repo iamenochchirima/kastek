@@ -179,5 +179,10 @@ verified or completed. Work on independent items continues.
 - **Impact:** core unit and contract coverage is green, but zero-failure seeded database
   verification cannot be claimed until the fixture dataset is loaded into an isolated test
   database. The run did confirm the current core library total is 118 passing tests.
-- **Next action:** provision/load the documented isolated core fixture dataset and rerun
-  `cargo test -p kasitek-core --lib -- --include-ignored`; provide an isolated Redis URL for B-008.
+- **Additional environment evidence:** a fresh disposable database cannot currently be provisioned
+  with `prisma migrate deploy`: migration `20260326143000_add_whatsapp_contact_list_memberships`
+  stops with `relation "User" does not exist`. The booking fixture therefore runs against a cloned
+  local schema, not an empty migration target.
+- **Next action:** repair or baseline the empty-database migration chain, provision/load the
+  documented isolated core fixture dataset, and rerun `cargo test -p kasitek-core --lib -- --include-ignored`;
+  provide an isolated Redis URL for B-008.
