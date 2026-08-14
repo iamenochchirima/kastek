@@ -120,7 +120,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **178 checked and 48 unchecked items out of 226**. This is a
+The primary blueprint currently has **179 checked and 47 unchecked items out of 226**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds

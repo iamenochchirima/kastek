@@ -281,7 +281,7 @@ Agent build and core format/check/library tests pass. A checked
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 178 of 226 implementation/verification items are checked. The count
+At this reconciliation point, 179 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -953,17 +953,19 @@ agent that safely combines KasiTek capabilities with approved external services.
 
 ### Verification
 
-- [ ] Add channel signature, replay, duplicate, ordering, reconnect, delivery retry, opt-out,
-  attachment, handoff, and identity-mapping tests. Local evidence now covers webhook signatures and
-  attachment normalization (`server/kasitek-core/src/services/inbox.rs`), WhatsApp opt-out keyword
-  handling (`server/kasitek-core/src/services/whatsapp_webhooks.rs`), signed webhook replay
-  protection (`agents/test/webhook-security.test.ts`), delivery retry/status ordering and pairing
-  replay (`agents/test/channel.integration.test.ts`), external identity/thread mapping and
-  duplicate delivery suppression (`agents/test/platform-chat.integration.test.ts`), handoff
-  resumption (`agents/test/workflow-graph.test.ts`, `agents/test/http.test.ts`), and monotonic
-  reconnect cursors (`agents/test/sse.test.ts`). Telegram and Discord attachment envelopes are
-  normalized without copying provider URLs in `agents/test/channel-adapters.test.ts`. Live provider
-  reconnect and browser/end-to-end channel matrix coverage remain open.
+- [x] Add channel signature, replay, duplicate, ordering, reconnect, delivery retry, opt-out,
+  attachment, handoff, and identity-mapping tests. Local evidence covers webhook signatures and
+  attachment normalization (`server/kasitek-core/src/services/inbox.rs`,
+  `agents/test/channel-adapters.test.ts`), WhatsApp opt-out keywords
+  (`server/kasitek-core/src/services/whatsapp_webhooks.rs`), signed webhook replay protection
+  (`agents/test/webhook-security.test.ts`), delivery retry/status ordering and pairing replay
+  (`agents/test/channel.integration.test.ts`), external identity/thread mapping and duplicate
+  delivery suppression (`agents/test/platform-chat.integration.test.ts`), handoff resumption
+  (`agents/test/workflow-graph.test.ts`, `agents/test/http.test.ts`), and monotonic reconnect
+  cursors plus durable polling (`agents/test/sse.test.ts`, `agents/test/sse.integration.test.ts`).
+  The focused Agent channel suite passes 18 tests and the Core inbox/opt-out unit suites pass 25
+  tests with one seeded-database ignore. Live provider reconnect and browser end-to-end matrix
+  coverage remain open in the following unchecked item.
 - [x] Add cross-user, cross-organization, cross-installation, cross-channel, and customer/thread
   isolation tests. Evidence: `agents/test/platform-chat.integration.test.ts` proves independent
   user-owned chats, external WhatsApp thread routing, duplicate provider-message suppression,
