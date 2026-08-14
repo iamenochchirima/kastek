@@ -1850,11 +1850,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "runs:write");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
-    if (run.status !== "awaiting_external_event") return reply.code(409).send({ error: "run_not_waiting_for_external_event", status: run.status });
+    if (run.status !== "awaiting_external_event" && run.status !== "awaiting_human") return reply.code(409).send({ error: "run_not_waiting_for_event", status: run.status });
     if (!dependencies.signalExternalEvent) return reply.code(503).send({ error: "temporal_not_configured" });
     const input = z.object({ key: z.string().trim().min(1).max(160), payload: z.record(z.string(), z.unknown()).default({}) }).strict().parse(request.body ?? {});
     await dependencies.signalExternalEvent(request.params.runId, input);
-    return reply.code(202).send({ runId: request.params.runId, status: "external_event_signalled", key: input.key });
+    return reply.code(202).send({ runId: request.params.runId, status: run.status === "awaiting_human" ? "handoff_signalled" : "external_event_signalled", key: input.key });
   });
 
   return app;

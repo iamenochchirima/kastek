@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const nodeTypeSchema = z.enum(["deterministic", "model", "agent_loop", "tool", "route", "fan_out", "fan_in", "approval", "wait"]);
+const nodeTypeSchema = z.enum(["deterministic", "model", "agent_loop", "tool", "route", "fan_out", "fan_in", "approval", "wait", "handoff"]);
 
 const graphNodeSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9_-]+$/).max(120),

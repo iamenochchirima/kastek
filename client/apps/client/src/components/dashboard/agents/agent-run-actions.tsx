@@ -8,7 +8,7 @@ import { cancelAgentRun, signalAgentRunExternalEvent } from "@/lib/agent-platfor
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
 
-export function AgentRunActions({ runId, status }: { runId: string; status: string }) {
+export function AgentRunActions({ runId, status, waitingFor }: { runId: string; status: string; waitingFor?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +31,7 @@ export function AgentRunActions({ runId, status }: { runId: string; status: stri
 
   const signalExternalEvent = async () => {
     if (busy) return;
-    const key = window.prompt("Event key", "external.event");
+    const key = window.prompt(status === "awaiting_human" ? "Handoff resolution key" : "Event key", waitingFor || (status === "awaiting_human" ? "handoff.resolved" : "external.event"));
     if (!key?.trim()) return;
     const payloadText = window.prompt("Event payload JSON", "{}");
     if (payloadText === null) return;
@@ -56,5 +56,5 @@ export function AgentRunActions({ runId, status }: { runId: string; status: stri
     }
   };
 
-  return <div className="flex flex-col items-end gap-1"><div className="flex flex-wrap justify-end gap-2">{status === "awaiting_external_event" ? <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void signalExternalEvent()}><PlayCircle className="mr-1.5 h-3.5 w-3.5" />{busy ? "Resuming…" : "Send event"}</Button> : null}<Button type="button" size="sm" variant="outline" disabled={busy || terminalStatuses.has(status)} onClick={() => void cancel()}><Ban className="mr-1.5 h-3.5 w-3.5" />{busy ? "Cancelling…" : "Cancel run"}</Button></div>{error ? <span className="max-w-48 text-right text-[11px] text-destructive" role="alert">{error}</span> : null}</div>;
+  return <div className="flex flex-col items-end gap-1"><div className="flex flex-wrap justify-end gap-2">{status === "awaiting_external_event" || status === "awaiting_human" ? <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void signalExternalEvent()}><PlayCircle className="mr-1.5 h-3.5 w-3.5" />{busy ? "Resuming…" : status === "awaiting_human" ? "Resolve handoff" : "Send event"}</Button> : null}<Button type="button" size="sm" variant="outline" disabled={busy || terminalStatuses.has(status)} onClick={() => void cancel()}><Ban className="mr-1.5 h-3.5 w-3.5" />{busy ? "Cancelling…" : "Cancel run"}</Button></div>{error ? <span className="max-w-48 text-right text-[11px] text-destructive" role="alert">{error}</span> : null}</div>;
 }

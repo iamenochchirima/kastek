@@ -17,7 +17,7 @@ export interface GraphExecutorDependencies {
 }
 
 export interface GraphExecutionResult {
-  status: "completed" | "awaiting_approval" | "awaiting_external_event" | "failed";
+  status: "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "failed";
   state: Record<string, unknown>;
   trace: Array<{ nodeId: string; type: string; status: string }>;
   pausedAt?: string;
@@ -144,6 +144,17 @@ export async function executeWorkflowGraph(
         if (!dependencies.resumeExternalEvent || dependencies.resumeExternalEvent.key !== eventKey) {
           trace.push({ nodeId: node.id, type: node.type, status: "awaiting_external_event" });
           return { status: "awaiting_external_event", state, trace, pausedAt: node.id, waitingFor: eventKey };
+        }
+        result = dependencies.resumeExternalEvent.payload;
+        applyConfiguredWrites(state, node, result);
+      } else if (node.type === "handoff") {
+        const handoffConfig = node.config ?? {};
+        const handoffKey = typeof handoffConfig.handoffKey === "string" && handoffConfig.handoffKey.trim()
+          ? handoffConfig.handoffKey.trim()
+          : node.id;
+        if (!dependencies.resumeExternalEvent || dependencies.resumeExternalEvent.key !== handoffKey) {
+          trace.push({ nodeId: node.id, type: node.type, status: "awaiting_human" });
+          return { status: "awaiting_human", state, trace, pausedAt: node.id, waitingFor: handoffKey };
         }
         result = dependencies.resumeExternalEvent.payload;
         applyConfiguredWrites(state, node, result);

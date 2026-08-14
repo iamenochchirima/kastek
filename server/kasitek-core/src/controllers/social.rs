@@ -8,7 +8,7 @@ use crate::db::models::{
 };
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{billing, bluesky_oauth, connections, orgs, social};
+use crate::services::{bluesky_oauth, connections, orgs, social, social_posts};
 
 async fn require_social_access(
     pool: &PgPool,
@@ -238,6 +238,20 @@ pub async fn get_post(
         .await?
         .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "post": post })))
+}
+
+pub async fn get_post_activity(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let post_id = path.into_inner();
+    let activity = social_posts::get_social_post_activity(pool.get_ref(), &org_id, &post_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+    Ok(HttpResponse::Ok().json(activity))
 }
 
 pub async fn update_post(

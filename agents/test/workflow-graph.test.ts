@@ -62,6 +62,25 @@ describe("workflow graph validation", () => {
     expect(resumed).toMatchObject({ status: "completed", state: { prepared: true, provider: { id: "evt-1" }, result: "evt-1" } });
   });
 
+  it("pauses for a human handoff and resumes only with the configured handoff key", async () => {
+    const graph = {
+      version: 1 as const,
+      entryNodeId: "handoff",
+      nodes: [
+        { id: "handoff", type: "handoff" as const, config: { handoffKey: "support.resolved" }, writes: ["handoff"] },
+        { id: "done", type: "deterministic" as const, config: { operation: "set", path: "done", value: true } },
+      ],
+      edges: [{ from: "handoff", to: "done" }],
+      stateSchema: {},
+    };
+    const pending = await executeWorkflowGraph(graph, { ticket: "T-1" });
+    expect(pending).toMatchObject({ status: "awaiting_human", pausedAt: "handoff", waitingFor: "support.resolved", state: { ticket: "T-1" } });
+    const wrongKey = await executeWorkflowGraph(graph, pending.state, { resumeExternalEvent: { key: "other.event", payload: {} } });
+    expect(wrongKey.status).toBe("awaiting_human");
+    const resumed = await executeWorkflowGraph(graph, pending.state, { resumeExternalEvent: { key: "support.resolved", payload: { owner: "operator-1" } } });
+    expect(resumed).toMatchObject({ status: "completed", state: { handoff: { owner: "operator-1" }, done: true } });
+  });
+
   it("validates a graph and returns a deterministic order", () => {
     const result = validateWorkflowGraph({
       version: 1,

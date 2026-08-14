@@ -3,7 +3,7 @@
 import { apiUrl } from "@/lib/server-api";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BarChart3, CalendarDays, CalendarClock, Check, CircleAlert, FileClock, Pencil, Plus, RotateCcw, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, BarChart3, CalendarDays, CalendarClock, Check, CircleAlert, FileClock, Pencil, Plus, RotateCcw, Search, Sparkles, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +64,16 @@ type GeneratedIdea = {
   hook: string;
   draft: string;
   suggestedChannels?: SocialPlatform[];
+};
+
+type SocialPostActivityEvent = {
+  id: string;
+  type: string;
+  status?: string;
+  platform?: SocialPlatform;
+  message?: string;
+  occurredAt: string;
+  source: "content" | "provider";
 };
 
 const defaultChannels: SocialPlatform[] = ["FACEBOOK", "INSTAGRAM", "THREADS", "TIKTOK", "BLUESKY", "LINKEDIN", "X"];
@@ -162,6 +172,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [activeVariantPlatform, setActiveVariantPlatform] = useState<SocialPlatform>("FACEBOOK");
   const [composerStep, setComposerStep] = useState<ComposerStep>(1);
   const [tiktokPrivacyOptions, setTiktokPrivacyOptions] = useState<ComposerState["tiktokPrivacyLevel"][]>([]);
+  const [activityPost, setActivityPost] = useState<{ post: SocialPost; events: SocialPostActivityEvent[] } | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
   const refreshedChannelIdentities = useRef(new Set<string>());
 
   useEffect(() => {
@@ -752,6 +765,22 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }
   }
 
+  async function openActivity(post: SocialPost) {
+    setActivityPost({ post, events: [] });
+    setActivityLoading(true);
+    setActivityError(null);
+    try {
+      const response = await fetch(apiUrl(`/api/social/posts/${post.id}/activity`), { credentials: "include", cache: "no-store" });
+      const payload = await response.json() as { events?: SocialPostActivityEvent[]; error?: string };
+      if (!response.ok) throw new Error(payload.error || "Failed to load post activity");
+      setActivityPost({ post, events: payload.events || [] });
+    } catch (err) {
+      setActivityError(err instanceof Error ? err.message : "Failed to load post activity");
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1520px] space-y-6">
@@ -1002,6 +1031,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                           <Pencil className="h-4 w-4" />
                           Edit
                         </Button>
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => void openActivity(post)}>
+                          <Activity className="h-4 w-4" />
+                          Activity
+                        </Button>
                         <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => void deletePost(post.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1055,6 +1088,27 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                   ))}
                 </div>
               ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {activityPost ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button type="button" className="absolute inset-0 bg-overlay" onClick={() => setActivityPost(null)} aria-label="Close post activity" />
+          <div className="relative max-h-[min(760px,calc(100vh-2rem))] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="post-activity-title">
+            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div><p className="text-lg font-semibold text-foreground" id="post-activity-title">Post activity</p><p className="mt-1 text-sm text-muted-foreground">{activityPost.post.title || "Untitled social post"} · durable content and provider job state</p></div>
+              <Button variant="ghost" size="icon" onClick={() => setActivityPost(null)} aria-label="Close post activity"><X className="h-4 w-4" /></Button>
+            </div>
+            <div className="space-y-3 px-5 py-5">
+              {activityError ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{activityError}</p> : null}
+              {activityLoading ? <p className="text-sm text-muted-foreground">Loading durable activity…</p> : activityPost.events.length ? activityPost.events.map((event) => (
+                <div key={event.id} className="flex gap-3 rounded-lg border border-border p-3">
+                  <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${event.status === "FAILED" ? "bg-destructive" : event.status === "PUBLISHED" ? "bg-accent" : "bg-primary"}`} aria-hidden="true" />
+                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium capitalize text-foreground">{event.type.replaceAll(".", " ")}</p>{event.platform ? <Badge className="border-border bg-secondary text-muted-foreground">{getPlatformLabel(event.platform)}</Badge> : null}{event.status ? <span className="text-xs text-muted-foreground">{event.status}</span> : null}</div><p className="mt-1 text-xs text-muted-foreground">{formatDateTime(event.occurredAt)}</p>{event.message ? <p className="mt-1 text-xs text-destructive">{event.message}</p> : null}</div>
+                </div>
+              )) : <p className="text-sm text-muted-foreground">No activity has been recorded for this post yet.</p>}
             </div>
           </div>
         </div>

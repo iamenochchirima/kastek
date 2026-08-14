@@ -540,6 +540,26 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("resumes a human handoff through the scoped event boundary", async () => {
+    const signalExternalEvent = vi.fn().mockResolvedValue(undefined);
+    const app = buildApp({
+      config: { ...config, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      runs: { getRun: async () => ({ id: "handoff-1", organization_id: "org-1", installation_id: "install-1", status: "awaiting_human" }) } as unknown as RunRepository,
+      signalExternalEvent,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/runs/handoff-1/external-event",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "operator-1" },
+      payload: { key: "support.resolved", payload: { resolution: "accepted" } },
+    });
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ runId: "handoff-1", status: "handoff_signalled", key: "support.resolved" });
+    expect(signalExternalEvent).toHaveBeenCalledWith("handoff-1", { key: "support.resolved", payload: { resolution: "accepted" } });
+    await app.close();
+  });
+
   it("requires an explicit organization and actor scope", async () => {
     const app = buildApp({ config, pool: fakePool });
     const response = await app.inject({ method: "POST", url: "/v1/agents", payload: { name: "Test" } });

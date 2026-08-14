@@ -77,7 +77,7 @@ export interface AgentLoopInput {
 }
 
 export interface AgentLoopResult {
-  status: "completed" | "awaiting_approval" | "awaiting_external_event" | "limited" | "failed";
+  status: "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "limited" | "failed";
   messages: ModelMessage[];
   response?: ModelResponse;
   pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;

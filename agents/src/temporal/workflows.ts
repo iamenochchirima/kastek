@@ -165,6 +165,19 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         resumeExternalEvent = event;
         continue;
       }
+      if (result.status === "awaiting_human") {
+        await activities.pauseRun({ runId: input.runId, status: "awaiting_human", output: { status: result.status, waitingFor: result.waitingFor, usage: result.usage, iterations: result.iterations, toolCalls: result.toolCalls, provenance: result.provenance ?? {} } });
+        status = "awaiting_human";
+        await condition(() => externalEvent !== undefined || cancellation !== undefined || expiration !== undefined);
+        if (cancellation) { await transition("awaiting_human", "cancelled"); return; }
+        if (expiration) { await transition("awaiting_human", "expired"); return; }
+        const event = externalEvent;
+        externalEvent = undefined;
+        if (!event) { await activities.failRun({ runId: input.runId, error: { code: "HANDOFF_EVENT_MISSING", message: "Handoff resolution was not available" } }); status = "failed"; return; }
+        await transition("awaiting_human", "running");
+        resumeExternalEvent = event;
+        continue;
+      }
       if (result.status === "failed") {
         await activities.failRun({ runId: input.runId, error: result.error ?? { code: "AGENT_LOOP_FAILED", message: "Agent loop failed" } });
         status = "failed";

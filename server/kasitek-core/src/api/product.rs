@@ -226,6 +226,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("", web::get().to(social::list_posts))
                     .route("", web::post().to(social::create_post))
                     .route("/{id}", web::get().to(social::get_post))
+                    .route("/{id}/activity", web::get().to(social::get_post_activity))
                     .route("/{id}", web::patch().to(social::update_post))
                     .route("/{id}", web::delete().to(social::delete_post))
                     .route("/{id}/publish", web::post().to(social::publish_post)),

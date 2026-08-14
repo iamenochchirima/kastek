@@ -188,6 +188,102 @@ pub async fn get_social_post(
         .next())
 }
 
+/// Build a safe, organization-scoped activity projection for a content post.
+/// The social tables retain the durable post and provider-job state; this
+/// projection turns those records into a stable timeline without exposing
+/// provider payloads or credentials.
+pub async fn get_social_post_activity(
+    pool: &PgPool,
+    org_id: &str,
+    post_id: &str,
+) -> Result<Option<Value>, AppError> {
+    let Some(post) = get_social_post(pool, org_id, post_id).await? else {
+        return Ok(None);
+    };
+    let mut events = vec![json!({
+        "id": format!("post:{}:created", post.row.id),
+        "type": "post.created",
+        "status": "DRAFT",
+        "occurredAt": post.row.created_at.to_rfc3339(),
+        "source": "content",
+    })];
+    if post.row.updated_at > post.row.created_at {
+        events.push(json!({
+            "id": format!("post:{}:updated", post.row.id),
+            "type": "post.updated",
+            "status": post.row.status.clone(),
+            "occurredAt": post.row.updated_at.to_rfc3339(),
+            "source": "content",
+        }));
+    }
+    if let Some(scheduled_for) = post.row.scheduled_for {
+        events.push(json!({
+            "id": format!("post:{}:scheduled", post.row.id),
+            "type": "post.scheduled",
+            "status": "SCHEDULED",
+            "occurredAt": scheduled_for.to_rfc3339(),
+            "source": "content",
+        }));
+    }
+    if let Some(published_at) = post.row.published_at {
+        events.push(json!({
+            "id": format!("post:{}:published", post.row.id),
+            "type": "post.published",
+            "status": "PUBLISHED",
+            "occurredAt": published_at.to_rfc3339(),
+            "source": "content",
+        }));
+    }
+    for job in post.publish_jobs {
+        events.push(json!({
+            "id": format!("job:{}:created", job.id),
+            "type": "provider.job.created",
+            "platform": job.platform.clone(),
+            "status": job.status.clone(),
+            "occurredAt": job.created_at.to_rfc3339(),
+            "source": "provider",
+        }));
+        if let Some(scheduled_for) = job.scheduled_for {
+            events.push(json!({
+                "id": format!("job:{}:scheduled", job.id),
+                "type": "provider.job.scheduled",
+                "platform": job.platform.clone(),
+                "status": "QUEUED",
+                "occurredAt": scheduled_for.to_rfc3339(),
+                "source": "provider",
+            }));
+        }
+        if let Some(published_at) = job.published_at {
+            events.push(json!({
+                "id": format!("job:{}:published", job.id),
+                "type": "provider.job.published",
+                "platform": job.platform.clone(),
+                "status": "PUBLISHED",
+                "occurredAt": published_at.to_rfc3339(),
+                "source": "provider",
+            }));
+        }
+        if let Some(error_message) = job.error_message {
+            events.push(json!({
+                "id": format!("job:{}:failure", job.id),
+                "type": "provider.job.failed",
+                "platform": job.platform.clone(),
+                "status": "FAILED",
+                "message": error_message,
+                "occurredAt": job.updated_at.to_rfc3339(),
+                "source": "provider",
+            }));
+        }
+    }
+    events.sort_by(|left, right| {
+        right
+            .get("occurredAt")
+            .and_then(Value::as_str)
+            .cmp(&left.get("occurredAt").and_then(Value::as_str))
+    });
+    Ok(Some(json!({ "postId": post.row.id, "events": events })))
+}
+
 async fn validate_primary_channel(
     pool: &PgPool,
     org_id: &str,
