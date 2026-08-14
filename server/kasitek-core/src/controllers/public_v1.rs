@@ -132,11 +132,18 @@ async fn public_context(req: &HttpRequest, state: &AppState) -> Result<RequestCo
     // Product user sessions are opaque bearer values. A JWT-shaped bearer value
     // is an attempted Agent installation credential and must never fall through
     // to cookie/session authentication when signature or claim validation fails.
-    let context = if installation_bearer_token(req).is_some() {
+    let mut context = if installation_bearer_token(req).is_some() {
         installation_context(req, state)?
     } else {
         product_session::resolve(req, &state.pool).await?
     };
+    if let Some(correlation_id) = req
+        .extensions()
+        .get::<public_api::PublicCorrelationId>()
+        .map(|value| value.0.clone())
+    {
+        context.correlation_id = Some(correlation_id);
+    }
     let audit = public_api::begin_request(
         &state.pool,
         state.config.public_api_rate_limit_per_minute,
@@ -351,15 +358,26 @@ async fn require_public_action(
 
 fn set_public_audit_action(req: &HttpRequest, action: &str) {
     if let Some(audit) = req
-        .extensions()
-        .get::<public_api::RequestAuditHandle>()
-        .cloned()
+        .extensions_mut()
+        .get_mut::<public_api::RequestAuditHandle>()
     {
-        req.extensions_mut().insert(public_api::RequestAuditHandle {
-            id: audit.id,
-            action: Some(action.to_string()),
-        });
+        audit.action = Some(action.to_string());
     }
+}
+
+fn require_idempotency(context: &RequestContext, action: &str) -> Result<(), AppError> {
+    if context
+        .idempotency_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_none()
+    {
+        return Err(AppError::BadRequest(format!(
+            "idempotency-key is required for {action}"
+        )));
+    }
+    Ok(())
 }
 
 fn public_action_allowed(
@@ -671,6 +689,7 @@ pub async fn create_content_draft(
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_public_action(&req, &state, &context, "content.posts.draft.create").await?;
+    require_idempotency(&context, "content draft creation")?;
     let post = content_adapter::create_draft(&state.pool, &context, &body).await?;
     Ok(response_with_context(&context)
         .status(actix_web::http::StatusCode::CREATED)
@@ -1025,6 +1044,24 @@ mod tests {
         let document: serde_json::Value =
             serde_json::from_str(include_str!("../../openapi/v1.json"))
                 .expect("valid OpenAPI JSON");
+        let error_schema = document
+            .pointer("/components/schemas/Error")
+            .expect("stable error schema");
+        assert!(error_schema["required"]
+            .as_array()
+            .is_some_and(|required| required.iter().any(|value| value == "code")));
+        assert!(document
+            .pointer("/components/headers/CorrelationId")
+            .is_some());
+        assert!(document
+            .pointer("/components/headers/RateLimitRemaining")
+            .is_some());
+        let create_parameters = document["paths"]["/content/posts"]["post"]["parameters"]
+            .as_array()
+            .expect("draft creation headers");
+        assert!(create_parameters.iter().any(|parameter| {
+            parameter["$ref"] == "#/components/parameters/IdempotencyKey"
+        }));
         assert_eq!(
             document.get("openapi").and_then(|value| value.as_str()),
             Some("3.1.0")
@@ -1168,6 +1205,27 @@ mod tests {
         assert!(value["contacts"][0].get("phone").is_none());
         assert!(value["contacts"][0].get("metadata").is_none());
         assert_eq!(value["stats"]["totalContacts"], 1);
+    }
+
+    #[test]
+    fn public_draft_creation_requires_a_non_empty_idempotency_key() {
+        let context = crate::identity::request_context::RequestContext {
+            principal: crate::identity::principal::Principal::direct_user("user-1".to_string()),
+            organization_id: "org-1".to_string(),
+            user_id: Some("user-1".to_string()),
+            client_id: None,
+            installation_id: None,
+            effective_grants: Default::default(),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: None,
+        };
+        assert!(super::require_idempotency(&context, "content draft creation").is_err());
+        let mut with_key = context;
+        with_key.idempotency_key = Some("draft-1".to_string());
+        assert!(super::require_idempotency(&with_key, "content draft creation").is_ok());
+        with_key.idempotency_key = Some(" ".to_string());
+        assert!(super::require_idempotency(&with_key, "content draft creation").is_err());
     }
 
     #[test]

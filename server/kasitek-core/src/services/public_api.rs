@@ -4,7 +4,13 @@
 //! middleware. The reservation is what makes the rate limit safe across
 //! multiple core processes instead of relying on an in-memory counter.
 
-use actix_web::{dev::ServiceRequest, dev::ServiceResponse, middleware::Next, Error, HttpMessage};
+use actix_web::{
+    dev::ServiceRequest,
+    dev::ServiceResponse,
+    http::header::{HeaderName, HeaderValue},
+    middleware::Next,
+    Error, HttpMessage,
+};
 use sqlx::PgPool;
 
 use crate::{
@@ -15,7 +21,16 @@ use crate::{
 pub struct RequestAuditHandle {
     pub id: String,
     pub action: Option<String>,
+    pub rate_limit: u32,
+    pub rate_remaining: u32,
+    pub rate_reset_seconds: u32,
+    pub correlation_id: Option<String>,
 }
+
+/// Request-scoped correlation id installed before authentication so even
+/// rejected public requests can be traced by the caller and in server logs.
+#[derive(Clone, Debug)]
+pub struct PublicCorrelationId(pub String);
 
 pub async fn begin_request(
     pool: &PgPool,
@@ -92,7 +107,17 @@ pub async fn begin_request(
     .execute(&mut *transaction)
     .await?;
     transaction.commit().await?;
-    Ok(RequestAuditHandle { id, action: None })
+    Ok(RequestAuditHandle {
+        id,
+        action: None,
+        rate_limit: limit_per_minute,
+        rate_remaining: limit_per_minute.saturating_sub(recent_requests as u32 + 1),
+        // The budget is a rolling one-minute window. This bounded value is
+        // intentionally expressed as seconds until the next possible reset;
+        // the exact oldest-request timestamp is not exposed to clients.
+        rate_reset_seconds: 60,
+        correlation_id: context.correlation_id.clone(),
+    })
 }
 
 pub async fn finish_request(
@@ -177,23 +202,80 @@ pub async fn middleware(
     request: ServiceRequest,
     next: Next<impl actix_web::body::MessageBody>,
 ) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
-    let response = next.call(request).await?;
+    let correlation_id = request
+        .headers()
+        .get("x-correlation-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.len() <= 256)
+        .map(str::to_string)
+        .unwrap_or_else(cuid2::create_id);
+    request
+        .extensions_mut()
+        .insert(PublicCorrelationId(correlation_id.clone()));
+
+    let mut response = next.call(request).await?;
     let handle = response
         .request()
         .extensions()
         .get::<RequestAuditHandle>()
         .cloned();
-    if let (Some(handle), Some(state)) = (
-        handle,
-        response
-            .request()
-            .app_data::<actix_web::web::Data<AppState>>(),
-    ) {
+    let state = response
+        .request()
+        .app_data::<actix_web::web::Data<AppState>>()
+        .cloned();
+    let public_rate_limit = state
+        .as_ref()
+        .map(|state| state.config.public_api_rate_limit_per_minute);
+    if let (Some(handle), Some(state)) = (handle.as_ref(), state.as_ref()) {
         if let Err(error) = finish_request(&state.pool, &handle, response.status().as_u16()).await {
             log::warn!(
                 "failed to finalize public API audit {}: {}",
                 handle.id,
                 error
+            );
+        }
+    }
+
+    // These headers are part of the public transport contract and are added
+    // centrally so success, validation, authorization, and database errors
+    // expose the same tracing/version metadata.
+    response.response_mut().headers_mut().insert(
+        HeaderName::from_static("x-api-version"),
+        HeaderValue::from_static("v1"),
+    );
+    if response.headers().get("x-correlation-id").is_none() {
+        if let Ok(value) = HeaderValue::from_str(&correlation_id) {
+            response
+                .response_mut()
+                .headers_mut()
+                .insert(HeaderName::from_static("x-correlation-id"), value);
+        }
+    }
+    if let Some(handle) = handle {
+        let headers = response.response_mut().headers_mut();
+        if let Ok(value) = HeaderValue::from_str(&handle.rate_limit.to_string()) {
+            headers.insert(HeaderName::from_static("x-ratelimit-limit"), value);
+        }
+        if let Ok(value) = HeaderValue::from_str(&handle.rate_remaining.to_string()) {
+            headers.insert(HeaderName::from_static("x-ratelimit-remaining"), value);
+        }
+        if let Ok(value) = HeaderValue::from_str(&handle.rate_reset_seconds.to_string()) {
+            headers.insert(HeaderName::from_static("x-ratelimit-reset"), value);
+        }
+    } else if response.status() == actix_web::http::StatusCode::TOO_MANY_REQUESTS {
+        if let Some(public_rate_limit) = public_rate_limit {
+            let headers = response.response_mut().headers_mut();
+            if let Ok(value) = HeaderValue::from_str(&public_rate_limit.to_string()) {
+                headers.insert(HeaderName::from_static("x-ratelimit-limit"), value);
+            }
+            headers.insert(
+                HeaderName::from_static("x-ratelimit-remaining"),
+                HeaderValue::from_static("0"),
+            );
+            headers.insert(
+                HeaderName::from_static("x-ratelimit-reset"),
+                HeaderValue::from_static("60"),
             );
         }
     }

@@ -5,6 +5,7 @@ use std::fmt;
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
     pub error: String,
+    pub code: &'static str,
 }
 
 #[derive(Debug)]
@@ -40,42 +41,94 @@ impl fmt::Display for AppError {
 
 impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse {
+        let code = self.code();
         match self {
             Self::BadRequest(message) => HttpResponse::BadRequest().json(ErrorResponse {
                 error: message.clone(),
+                code,
             }),
             Self::Unauthorized => HttpResponse::Unauthorized().json(ErrorResponse {
                 error: "Unauthorized".to_string(),
+                code,
             }),
             Self::Forbidden(message) => HttpResponse::Forbidden().json(ErrorResponse {
                 error: message.clone(),
+                code,
             }),
             Self::NotFound(message) => HttpResponse::NotFound().json(ErrorResponse {
                 error: message.clone(),
+                code,
             }),
             Self::Conflict(message) => HttpResponse::Conflict().json(ErrorResponse {
                 error: message.clone(),
+                code,
             }),
             Self::TooManyRequests(message) => HttpResponse::TooManyRequests()
                 .insert_header(("retry-after", "60"))
                 .json(ErrorResponse {
                     error: message.clone(),
+                    code,
                 }),
             Self::ServiceUnavailable(message) => {
                 HttpResponse::ServiceUnavailable().json(ErrorResponse {
                     error: message.clone(),
+                    code,
                 })
             }
             Self::BadGateway(message) => HttpResponse::BadGateway().json(ErrorResponse {
                 error: message.clone(),
+                code,
             }),
             Self::GatewayTimeout(message) => HttpResponse::GatewayTimeout().json(ErrorResponse {
                 error: message.clone(),
+                code,
             }),
             Self::Internal(message) => HttpResponse::InternalServerError().json(ErrorResponse {
                 error: message.clone(),
+                code,
             }),
         }
+    }
+}
+
+impl AppError {
+    /// Stable machine-readable error code for API clients. The human message
+    /// remains useful for logs/UI, while callers can branch on this value
+    /// without parsing wording that may evolve.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::BadRequest(_) => "bad_request",
+            Self::Unauthorized => "unauthorized",
+            Self::Forbidden(_) => "forbidden",
+            Self::NotFound(_) => "not_found",
+            Self::Conflict(_) => "conflict",
+            Self::TooManyRequests(_) => "rate_limited",
+            Self::ServiceUnavailable(_) => "service_unavailable",
+            Self::BadGateway(_) => "bad_gateway",
+            Self::GatewayTimeout(_) => "gateway_timeout",
+            Self::Internal(_) => "internal_error",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppError;
+    use actix_web::ResponseError;
+
+    #[test]
+    fn public_error_codes_are_stable_and_rate_limits_are_retryable() {
+        assert_eq!(AppError::BadRequest("x".to_string()).code(), "bad_request");
+        assert_eq!(
+            AppError::TooManyRequests("x".to_string()).code(),
+            "rate_limited"
+        );
+        let response = AppError::TooManyRequests("x".to_string()).error_response();
+        assert_eq!(
+            response.status(),
+            actix_web::http::StatusCode::TOO_MANY_REQUESTS
+        );
+        assert_eq!(response.headers().get("retry-after").unwrap(), "60");
     }
 }
 
