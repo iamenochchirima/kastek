@@ -96,6 +96,19 @@ run and do not start a second Temporal workflow. Run inspection is available at
 invocations. The timeline is organization-scoped and backed by PostgreSQL, so it does not rely
 on API process memory or sticky sessions.
 
+For a plain external REST-client check, use the dependency-free Python harness after creating an
+installation credential and starting the Agent API:
+
+```bash
+AGENTS_REST_SMOKE_INSTALLATION_ID=... \\
+AGENTS_REST_SMOKE_SECRET=... \\
+python3 scripts/rest-client-smoke.py
+```
+
+Set `AGENTS_REST_SMOKE_TOKEN` instead when a public-API token has already been exchanged. The
+harness verifies discovery, a durable tool acceptance, idempotent retry, and operation inspection;
+it does not claim the n8n or hosted-client gates.
+
 Platform chat clients first call
 `POST /v1/installations/:installationId/platform/conversation` to resolve the authenticated
 user's durable conversation. They send text through
