@@ -25,6 +25,22 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/content/posts/{id}",
                 web::patch().to(public_v1::update_content_draft),
-            ),
+            )
+            .route("/contacts", web::get().to(public_v1::list_contacts))
+            .route(
+                "/inbox/conversations",
+                web::get().to(public_v1::list_inbox_conversations),
+            )
+            .route(
+                "/inbox/conversations/{id}/messages",
+                web::get().to(public_v1::list_inbox_messages),
+            )
+            .route("/bookings", web::get().to(public_v1::list_bookings))
+            .route("/campaigns", web::get().to(public_v1::list_campaigns))
+            .route(
+                "/campaigns/{id}",
+                web::get().to(public_v1::get_campaign_summary),
+            )
+            .route("/templates", web::get().to(public_v1::list_templates)),
     );
 }

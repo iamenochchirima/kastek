@@ -44,4 +44,20 @@ internal tools:
 These routes do not publish content. Publishing remains an approval-controlled capability and is
 not exposed through this initial public resource slice.
 
+## Organization read routes
+
+Authenticated callers can also use the typed read resources below. They all resolve a normalized
+organization context, apply the catalog grant and entitlement policy, and remove provider/customer
+fields classified as restricted before returning the response:
+
+- `GET /contacts` — contact inventory and consent/list summaries (phone and metadata redacted);
+- `GET /inbox/conversations` — conversation and unread summaries (phone and last-message content redacted);
+- `GET /inbox/conversations/{id}/messages` — a scoped message timeline with message content and attachments redacted;
+- `GET /bookings` — organization bookings (contact phone and notes redacted);
+- `GET /campaigns` and `GET /campaigns/{id}` — campaign status and delivery summaries (template and recipient fields redacted);
+- `GET /templates?status=...` — template inventory and approval status (message body/buttons redacted).
+
+These are read-only resources. Writes, provider effects, webhooks, rate/meter enforcement, and
+additional principal types remain separate release gates in the audit checklist.
+
 The canonical OpenAPI document is [`public-v1.openapi.json`](./public-v1.openapi.json).

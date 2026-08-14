@@ -25,6 +25,7 @@ Capability keys describe stable user actions:
 - `feature.analytics.view`
 - `feature.campaigns.manage`
 - `feature.campaigns.send`
+- `feature.bookings.access`
 - `feature.contacts.access`
 - `feature.content.manage`
 - `feature.content.publish`

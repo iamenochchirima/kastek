@@ -14,6 +14,7 @@ pub mod capabilities {
     pub const AGENTS_MANAGE: &str = "feature.agents.manage";
     pub const CAMPAIGNS_MANAGE: &str = "feature.campaigns.manage";
     pub const CAMPAIGNS_SEND: &str = "feature.campaigns.send";
+    pub const BOOKINGS_ACCESS: &str = "feature.bookings.access";
     pub const CONTACTS_ACCESS: &str = "feature.contacts.access";
     pub const CONTENT_MANAGE: &str = "feature.content.manage";
     pub const CONTENT_PUBLISH: &str = "feature.content.publish";
@@ -53,6 +54,12 @@ const CAPABILITY_DEFINITIONS: &[CapabilityDefinition] = &[
         name: "Campaign sending",
         description: "Launch campaigns and send messages to campaign recipients.",
         legacy_entitlement: "product.reach.enabled",
+    },
+    CapabilityDefinition {
+        key: capabilities::BOOKINGS_ACCESS,
+        name: "Bookings",
+        description: "Manage workspace booking services and appointments.",
+        legacy_entitlement: "product.bookings.enabled",
     },
     CapabilityDefinition {
         key: capabilities::TEMPLATES_MANAGE,

@@ -73,6 +73,82 @@
           "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
+    },
+    "/contacts": {
+      "get": {
+        "operationId": "listContacts",
+        "parameters": [{ "$ref": "#/components/parameters/Limit" }],
+        "responses": {
+          "200": { "description": "Redacted organization-scoped contacts", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/inbox/conversations": {
+      "get": {
+        "operationId": "listInboxConversations",
+        "responses": {
+          "200": { "description": "Redacted organization-scoped conversations", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/inbox/conversations/{id}/messages": {
+      "get": {
+        "operationId": "listInboxMessages",
+        "parameters": [{ "$ref": "#/components/parameters/ConversationId" }],
+        "responses": {
+          "200": { "description": "Redacted conversation messages", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/bookings": {
+      "get": {
+        "operationId": "listBookings",
+        "responses": {
+          "200": { "description": "Organization-scoped bookings", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/campaigns": {
+      "get": {
+        "operationId": "listCampaigns",
+        "responses": {
+          "200": { "description": "Redacted organization-scoped campaigns", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/campaigns/{id}": {
+      "get": {
+        "operationId": "getCampaignSummary",
+        "parameters": [{ "$ref": "#/components/parameters/CampaignId" }],
+        "responses": {
+          "200": { "description": "Redacted campaign summary", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/templates": {
+      "get": {
+        "operationId": "listTemplates",
+        "parameters": [{ "$ref": "#/components/parameters/TemplateStatus" }],
+        "responses": {
+          "200": { "description": "Redacted organization-scoped templates", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
     }
   },
   "components": {
@@ -84,7 +160,10 @@
       "Limit": { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 100 } },
       "Cursor": { "name": "cursor", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } },
       "Version": { "name": "version", "in": "query", "schema": { "type": "string", "enum": ["v1"] } },
-      "PostId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } }
+      "PostId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
+      "ConversationId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
+      "CampaignId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
+      "TemplateStatus": { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["APPROVED", "PENDING", "REJECTED", "DISABLED"] } }
     },
     "responses": {
       "BadRequest": { "description": "Invalid request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
@@ -98,6 +177,8 @@
       "CapabilityPage": { "type": "object", "required": ["version", "principal", "actions", "pagination"], "properties": { "version": { "const": "v1" }, "principal": { "type": "object", "additionalProperties": true }, "actions": { "type": "array", "items": { "type": "object", "additionalProperties": true } }, "pagination": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
       "PostList": { "type": "object", "required": ["posts"], "properties": { "posts": { "type": "array", "items": { "type": "object", "additionalProperties": true } } }, "additionalProperties": false },
       "PostResponse": { "type": "object", "required": ["post"], "properties": { "post": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
+      "ResourceList": { "type": "object", "description": "Resource-specific list envelope. Sensitive provider and customer fields are redacted by the core boundary.", "additionalProperties": true },
+      "ResourceResponse": { "type": "object", "description": "Resource-specific response envelope with sensitive fields redacted by the core boundary.", "additionalProperties": true },
       "ContentDraftInput": { "type": "object", "description": "Core SocialPostUpsertRequest contract. The core validates the complete domain shape and organization ownership.", "additionalProperties": true }
     }
   }

@@ -94,6 +94,150 @@ fn social_action(
     }
 }
 
+fn public_read_action(
+    name: &str,
+    title: &str,
+    description: &str,
+    grant: &str,
+    entitlement: &str,
+    input_schema: serde_json::Value,
+    output_schema: serde_json::Value,
+) -> ActionDefinition {
+    ActionDefinition {
+        id: ActionId::new(name, Version::new(1, 0, 0))
+            .expect("built-in public read action name is valid"),
+        owning_domain: name.split('.').next().unwrap_or("core").to_string(),
+        title: title.to_string(),
+        description: description.to_string(),
+        input_schema,
+        output_schema,
+        risk: RiskClass::Read,
+        approval: ApprovalRule::None,
+        supported_runtimes: [ProductRuntime::Direct].into_iter().collect(),
+        supported_actors: [
+            ActorKind::DirectUser,
+            ActorKind::ApiClient,
+            ActorKind::ExternalAgent,
+        ]
+        .into_iter()
+        .collect(),
+        client_scope: ClientScopeRule::NotApplicable,
+        required_grants: strings([grant]),
+        required_oauth_scopes: BTreeSet::new(),
+        required_entitlements: strings([entitlement]),
+        idempotency: IdempotencyRule::NotApplicable,
+        data_classification: DataClassification::Restricted,
+        audit: AuditRule::Access,
+        usage: UsageRule::Count,
+        lifecycle: ActionLifecycle::Public,
+    }
+}
+
+pub fn contacts_list() -> ActionDefinition {
+    public_read_action(
+        "contacts.list",
+        "List contacts",
+        "List the caller's organization-scoped contacts without provider secrets.",
+        "contacts.read",
+        "feature.contacts.access",
+        json!({
+            "type": "object",
+            "properties": {
+                "q": { "type": "string", "maxLength": 200 },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 200 }
+            },
+            "additionalProperties": false
+        }),
+        json!({ "type": "object", "required": ["contacts"], "additionalProperties": true }),
+    )
+}
+
+pub fn inbox_conversations_list() -> ActionDefinition {
+    public_read_action(
+        "inbox.conversations.list",
+        "List inbox conversations",
+        "List organization-scoped inbox conversations and safe unread state.",
+        "inbox.read",
+        "feature.inbox.access",
+        json!({ "type": "object", "additionalProperties": false }),
+        json!({ "type": "object", "required": ["conversations"], "additionalProperties": true }),
+    )
+}
+
+pub fn inbox_messages_list() -> ActionDefinition {
+    public_read_action(
+        "inbox.messages.list",
+        "List inbox messages",
+        "Read a redacted organization-scoped inbox conversation timeline.",
+        "inbox.read",
+        "feature.inbox.access",
+        json!({
+            "type": "object",
+            "properties": { "conversationId": { "type": "string", "minLength": 1, "maxLength": 160 } },
+            "required": ["conversationId"],
+            "additionalProperties": false
+        }),
+        json!({ "type": "object", "required": ["messages"], "additionalProperties": true }),
+    )
+}
+
+pub fn bookings_list() -> ActionDefinition {
+    public_read_action(
+        "bookings.list",
+        "List bookings",
+        "List organization-scoped booking services and appointments.",
+        "bookings.read",
+        "feature.bookings.access",
+        json!({ "type": "object", "additionalProperties": false }),
+        json!({ "type": "object", "required": ["bookings"], "additionalProperties": true }),
+    )
+}
+
+pub fn campaigns_list() -> ActionDefinition {
+    public_read_action(
+        "campaigns.list",
+        "List campaigns",
+        "List organization-scoped WhatsApp campaign status and delivery summaries.",
+        "campaigns.read",
+        "feature.campaigns.manage",
+        json!({ "type": "object", "additionalProperties": false }),
+        json!({ "type": "object", "required": ["campaigns"], "additionalProperties": true }),
+    )
+}
+
+pub fn campaign_get() -> ActionDefinition {
+    public_read_action(
+        "campaigns.get",
+        "Get campaign summary",
+        "Read one organization-scoped WhatsApp campaign summary without recipient details.",
+        "campaigns.read",
+        "feature.campaigns.manage",
+        json!({
+            "type": "object",
+            "properties": { "campaignId": { "type": "string", "minLength": 1, "maxLength": 160 } },
+            "required": ["campaignId"],
+            "additionalProperties": false
+        }),
+        json!({ "type": "object", "required": ["campaign"], "additionalProperties": true }),
+    )
+}
+
+pub fn templates_list() -> ActionDefinition {
+    public_read_action(
+        "templates.list",
+        "List templates",
+        "List organization-scoped WhatsApp templates and approval status without message bodies.",
+        "templates.read",
+        "feature.templates.manage",
+        json!({
+            "type": "object",
+            "properties": { "status": { "type": "string", "enum": ["APPROVED", "PENDING", "REJECTED", "DISABLED"] } },
+            "additionalProperties": false
+        }),
+        json!({ "type": "object", "required": ["templates"], "additionalProperties": true }),
+    )
+}
+
 pub fn social_list_posts() -> ActionDefinition {
     let mut action = social_action(
         "content.posts.list",
@@ -205,6 +349,13 @@ pub fn content_delete() -> ActionDefinition {
 pub fn definitions() -> Vec<ActionDefinition> {
     vec![
         booking_list_services(),
+        contacts_list(),
+        inbox_conversations_list(),
+        inbox_messages_list(),
+        bookings_list(),
+        campaigns_list(),
+        campaign_get(),
+        templates_list(),
         social_list_posts(),
         content_create_draft(),
         content_update_draft(),
@@ -223,9 +374,9 @@ mod tests {
     use super::definitions;
 
     #[test]
-    fn built_in_content_actions_have_valid_policy_metadata() {
+    fn built_in_actions_have_valid_policy_metadata() {
         let actions = definitions();
-        assert_eq!(actions.len(), 7);
+        assert_eq!(actions.len(), 14);
         for action in &actions {
             action
                 .validate_metadata()
@@ -242,5 +393,21 @@ mod tests {
         assert!(draft
             .supported_actors
             .contains(&actions::ActorKind::ExternalAgent));
+        for public_read in [
+            "contacts.list",
+            "inbox.conversations.list",
+            "inbox.messages.list",
+            "bookings.list",
+            "campaigns.list",
+            "campaigns.get",
+            "templates.list",
+        ] {
+            let action = actions
+                .iter()
+                .find(|action| action.id.name() == public_read)
+                .expect("public read action is present");
+            assert_eq!(action.lifecycle, actions::ActionLifecycle::Public);
+            assert_eq!(action.risk, actions::RiskClass::Read);
+        }
     }
 }

@@ -6,7 +6,7 @@
     "description": "Versioned public core contracts. Business handlers reuse the shared action catalog and normalized request context."
   },
   "servers": [{ "url": "https://api.kasitek.co.za/v1" }],
-  "security": [{ "kasitekSession": [] }],
+  "security": [{ "kasitekSession": [] }, { "bearerInstallation": [] }],
   "paths": {
     "/health": {
       "get": {
@@ -67,6 +67,82 @@
           "404": { "description": "Content post not found" }
         }
       }
+    },
+    "/contacts": {
+      "get": {
+        "operationId": "listContacts",
+        "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200 } }],
+        "responses": {
+          "200": { "description": "Redacted organization-scoped contacts", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceEnvelope" } } } },
+          "401": { "description": "Missing or invalid principal" },
+          "403": { "description": "Capability unavailable for principal" }
+        }
+      }
+    },
+    "/inbox/conversations": {
+      "get": {
+        "operationId": "listInboxConversations",
+        "responses": {
+          "200": { "description": "Redacted organization-scoped inbox conversations", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceEnvelope" } } } },
+          "401": { "description": "Missing or invalid principal" },
+          "403": { "description": "Capability unavailable for principal" }
+        }
+      }
+    },
+    "/inbox/conversations/{id}/messages": {
+      "get": {
+        "operationId": "listInboxMessages",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } }],
+        "responses": {
+          "200": { "description": "Redacted conversation messages", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceEnvelope" } } } },
+          "401": { "description": "Missing or invalid principal" },
+          "403": { "description": "Capability unavailable for principal" },
+          "404": { "description": "Conversation not found" }
+        }
+      }
+    },
+    "/bookings": {
+      "get": {
+        "operationId": "listBookings",
+        "responses": {
+          "200": { "description": "Organization-scoped bookings", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceEnvelope" } } } },
+          "401": { "description": "Missing or invalid principal" },
+          "403": { "description": "Capability unavailable for principal" }
+        }
+      }
+    },
+    "/campaigns": {
+      "get": {
+        "operationId": "listCampaigns",
+        "responses": {
+          "200": { "description": "Redacted organization-scoped campaigns", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceEnvelope" } } } },
+          "401": { "description": "Missing or invalid principal" },
+          "403": { "description": "Capability unavailable for principal" }
+        }
+      }
+    },
+    "/campaigns/{id}": {
+      "get": {
+        "operationId": "getCampaignSummary",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } }],
+        "responses": {
+          "200": { "description": "Redacted campaign summary", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceEnvelope" } } } },
+          "401": { "description": "Missing or invalid principal" },
+          "403": { "description": "Capability unavailable for principal" },
+          "404": { "description": "Campaign not found" }
+        }
+      }
+    },
+    "/templates": {
+      "get": {
+        "operationId": "listTemplates",
+        "parameters": [{ "name": "status", "in": "query", "schema": { "type": "string", "enum": ["APPROVED", "PENDING", "REJECTED", "DISABLED"] } }],
+        "responses": {
+          "200": { "description": "Redacted organization-scoped templates", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceEnvelope" } } } },
+          "401": { "description": "Missing or invalid principal" },
+          "403": { "description": "Capability unavailable for principal" }
+        }
+      }
     }
   },
   "components": {
@@ -76,6 +152,12 @@
         "scheme": "bearer",
         "bearerFormat": "KasiTek session token or Agent Platform installation token",
         "description": "A KasiTek user session or an Agent Platform ES256 installation token with audience kasitek-public-api. Configure AGENTS_INSTALLATION_TOKEN_PUBLIC_KEY on core before accepting machine tokens."
+      },
+      "bearerInstallation": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Short-lived Agent Platform installation token with audience kasitek-public-api."
       }
     },
     "schemas": {
@@ -121,6 +203,11 @@
           "audit": { "type": "string" },
           "usage": { "type": "string" }
         }
+      },
+      "ResourceEnvelope": {
+        "type": "object",
+        "description": "Resource-specific envelope with sensitive provider and customer fields redacted by the core boundary.",
+        "additionalProperties": true
       }
     }
   }

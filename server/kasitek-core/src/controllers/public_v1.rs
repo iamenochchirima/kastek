@@ -11,10 +11,14 @@ use std::collections::HashSet;
 
 use crate::bootstrap::state::AppState;
 use crate::capabilities::content_adapter;
-use crate::db::models::SocialPostUpsertRequest;
+use crate::db::models::{
+    SocialPostUpsertRequest, WhatsappContactListQuery, WhatsappTemplateListQuery,
+};
+use crate::domains::bookings::transport::BookingListResponse;
 use crate::error::AppError;
 use crate::identity::{product_session, request_context::RequestContext};
 use crate::services::agent_platform::AgentPlatformClient;
+use crate::services::{inbox, whatsapp};
 
 pub async fn health(state: web::Data<AppState>) -> HttpResponse {
     HttpResponse::Ok().json(json!({
@@ -303,6 +307,31 @@ fn public_action(definition: &ActionDefinition) -> serde_json::Value {
     })
 }
 
+fn redact_keys(value: &mut serde_json::Value, keys: &[&str]) {
+    match value {
+        serde_json::Value::Object(object) => {
+            for key in keys {
+                object.remove(*key);
+            }
+            for child in object.values_mut() {
+                redact_keys(child, keys);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                redact_keys(item, keys);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn redacted(value: serde_json::Value, keys: &[&str]) -> serde_json::Value {
+    let mut value = value;
+    redact_keys(&mut value, keys);
+    value
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CapabilitiesQuery {
     pub limit: Option<usize>,
@@ -526,13 +555,127 @@ pub async fn update_content_draft(
     Ok(response_with_context(&context).json(json!({ "post": post })))
 }
 
+pub async fn list_contacts(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    query: web::Query<WhatsappContactListQuery>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "contacts.list").await?;
+    let contacts =
+        whatsapp::list_contacts(&state.pool, &context.organization_id, query.into_inner()).await?;
+    Ok(response_with_context(&context).json(redacted(
+        contacts,
+        &["phone", "metadata", "lastMarketingSent"],
+    )))
+}
+
+pub async fn list_inbox_conversations(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "inbox.conversations.list").await?;
+    let conversations =
+        inbox::list_inbox_conversations(&state.pool, &context.organization_id).await?;
+    Ok(response_with_context(&context).json(redacted(
+        conversations,
+        &["phone", "lastMessage", "customerIdentifier"],
+    )))
+}
+
+pub async fn list_inbox_messages(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "inbox.messages.list").await?;
+    let messages = inbox::list_conversation_messages(
+        &state.pool,
+        &context.organization_id,
+        &path.into_inner(),
+    )
+    .await?;
+    Ok(response_with_context(&context).json(redacted(
+        messages,
+        &["content", "attachments", "customerIdentifier"],
+    )))
+}
+
+pub async fn list_bookings(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "bookings.list").await?;
+    let bookings = crate::domains::bookings::queries::list_bookings(&state.pool, &context).await?;
+    let payload = serde_json::to_value(BookingListResponse::new(bookings))
+        .map_err(|_| AppError::Internal("Failed to serialize bookings".to_string()))?;
+    Ok(response_with_context(&context).json(redacted(payload, &["contactPhone", "notes"])))
+}
+
+pub async fn list_campaigns(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "campaigns.list").await?;
+    let campaigns = whatsapp::list_campaigns(&state.pool, &context.organization_id).await?;
+    Ok(response_with_context(&context).json(redacted(
+        campaigns,
+        &[
+            "templateBody",
+            "templateButtons",
+            "recipientPhone",
+            "contactMetadata",
+        ],
+    )))
+}
+
+pub async fn get_campaign_summary(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "campaigns.get").await?;
+    let campaign =
+        whatsapp::get_campaign_summary(&state.pool, &context.organization_id, &path.into_inner())
+            .await?;
+    Ok(response_with_context(&context).json(redacted(
+        campaign,
+        &[
+            "templateBody",
+            "templateButtons",
+            "recipientPhone",
+            "contactMetadata",
+        ],
+    )))
+}
+
+pub async fn list_templates(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+    query: web::Query<WhatsappTemplateListQuery>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    require_public_action(&state, &context, "templates.list").await?;
+    let templates =
+        whatsapp::list_templates(&state.pool, &context.organization_id, query.into_inner()).await?;
+    Ok(response_with_context(&context).json(redacted(
+        templates,
+        &["body", "buttons", "header", "footer"],
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
     use super::{
         installation_action_allowed, installation_bearer_token, is_public_action_for_actor,
-        public_action_allowed, verify_installation_token,
+        public_action_allowed, redacted, verify_installation_token,
     };
     use actions::{catalog::initial_registry, ActionLifecycle, ActorKind, ProductRuntime};
     use actix_web::test::TestRequest;
@@ -618,6 +761,13 @@ mod tests {
             "/capabilities",
             "/content/posts",
             "/content/posts/{id}",
+            "/contacts",
+            "/inbox/conversations",
+            "/inbox/conversations/{id}/messages",
+            "/bookings",
+            "/campaigns",
+            "/campaigns/{id}",
+            "/templates",
         ] {
             assert!(
                 document
@@ -687,6 +837,21 @@ mod tests {
             Some(&HashSet::from(["api:write".to_string()])),
             &entitlements,
         ));
+    }
+
+    #[test]
+    fn public_resource_redaction_removes_sensitive_nested_fields_without_changing_shape() {
+        let value = redacted(
+            serde_json::json!({
+                "contacts": [{ "fullName": "Ada", "phone": "+2711", "metadata": { "secret": "x" } }],
+                "stats": { "totalContacts": 1 }
+            }),
+            &["phone", "metadata"],
+        );
+        assert_eq!(value["contacts"][0]["fullName"], "Ada");
+        assert!(value["contacts"][0].get("phone").is_none());
+        assert!(value["contacts"][0].get("metadata").is_none());
+        assert_eq!(value["stats"]["totalContacts"], 1);
     }
 
     #[test]
