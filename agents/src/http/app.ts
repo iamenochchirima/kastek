@@ -437,8 +437,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const args = params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments) ? params.arguments as Record<string, unknown> : {};
       if (!name) return failure(-32602, "name is required");
       const toolCallId = typeof params.toolCallId === "string" && params.toolCallId.length <= 240 ? params.toolCallId : `mcp:${randomUUID()}`;
-      const idempotencyKey = typeof params.idempotencyKey === "string" && params.idempotencyKey.length >= 8 && params.idempotencyKey.length <= 240
-        ? `mcp:${auth.credentialId}:${params.idempotencyKey}`
+      const suppliedIdempotencyKey = params.idempotencyKey;
+      if (suppliedIdempotencyKey !== undefined
+        && (typeof suppliedIdempotencyKey !== "string"
+          || suppliedIdempotencyKey.trim().length < 8
+          || suppliedIdempotencyKey.trim().length > 240)) {
+        return failure(-32602, "idempotencyKey must be 8-240 characters when provided");
+      }
+      const idempotencyKey = typeof suppliedIdempotencyKey === "string"
+        ? `mcp:${auth.credentialId}:${suppliedIdempotencyKey.trim()}`
         : undefined;
       try {
         const invocation = await installationInvocations.accept({

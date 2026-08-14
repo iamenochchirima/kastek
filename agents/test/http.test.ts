@@ -447,6 +447,29 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("rejects malformed MCP idempotency keys instead of silently generating a new operation", async () => {
+    const accept = vi.fn();
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      installationInvocations: { accept } as never,
+      killSwitches: { isBlocked: async () => false } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+      toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/mcp",
+      headers: { authorization: `Bearer ${mcpToken()}` },
+      payload: { jsonrpc: "2.0", id: 32, method: "tools/call", params: { name: "platform.current_time", arguments: {}, idempotencyKey: "short" } },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ jsonrpc: "2.0", id: 32, error: { code: -32602, message: "idempotencyKey must be 8-240 characters when provided" } });
+    expect(accept).not.toHaveBeenCalled();
+    await app.close();
+  });
+
   it("discovers only the tools granted to an installation over the public API", async () => {
     const app = buildApp({
       config: mcpConfig,
