@@ -479,8 +479,12 @@ the first complete agent-capability domain in Slice 5.
   `41778a7` centralizes request normalization and typed list envelopes in the shared bookings
   transport; product and delegated handlers call the same query boundary and serialize identical
   service/booking response contracts, with focused parity tests in `domains/bookings/transport.rs`.
-- [ ] Run existing workspace, customer, connection, and billing database suites to detect unrelated
-  regressions caused by application-state or route restructuring.
+- [x] Run existing workspace, customer, connection, and billing database suites to detect unrelated
+  regressions caused by application-state or route restructuring. On 2026-08-14 the guarded
+  disposable-local wrappers for workspace, customers, connections, and billing all passed against
+  the cloned local schema; the connection fixture now seeds its projection rows inside a rollback
+  transaction so the ownership/capability/consumer assertions are repeatable. Clean empty-database
+  migration and the separately seeded inbox/Redis cases remain open in `BLOCKERS.md` B-008/B-010.
 - [x] Record the changed paths, preserved contracts, test commands, and commit for the slice.
   Evidence: the progress record lists the booking transport/internal capability, public content,
   identity, and policy slices with preserved envelopes, commits, and verification commands.

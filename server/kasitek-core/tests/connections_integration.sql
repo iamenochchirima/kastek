@@ -1,3 +1,59 @@
+-- Connection projection integration fixture. The source rows are seeded here
+-- because an empty local clone does not contain the application's backfill
+-- dataset. The transaction is rolled back so this remains safe to rerun.
+BEGIN;
+
+INSERT INTO "User" (id, email, "createdAt", "updatedAt") VALUES
+    ('connection-integration-owner-a', 'connection-integration-owner-a@example.test', NOW(), NOW()),
+    ('connection-integration-owner-b', 'connection-integration-owner-b@example.test', NOW(), NOW());
+
+INSERT INTO "Organization" (id, name, slug, "ownerId", "createdAt", "updatedAt") VALUES
+    ('org_connections_a', 'Connection Integration A', 'connection-integration-a', 'connection-integration-owner-a', NOW(), NOW()),
+    ('org_connections_b', 'Connection Integration B', 'connection-integration-b', 'connection-integration-owner-b', NOW(), NOW());
+
+INSERT INTO "ExternalConnection" (
+    id, "orgId", provider, "sourceType", "sourceId", "displayName", status,
+    "credentialStatus", "healthStatus", "webhookStatus", "createdAt", "updatedAt"
+) VALUES
+    (
+        'connection-integration-wa-a', 'org_connections_a', 'WHATSAPP', 'WHATSAPP',
+        'wa_connections_a', 'WhatsApp A', 'CONNECTED'::"ExternalConnectionStatus",
+        'ACTIVE', 'HEALTHY', 'UNKNOWN', NOW(), NOW()
+    ),
+    (
+        'connection-integration-social-a', 'org_connections_a', 'FACEBOOK', 'SOCIAL',
+        'social_connections_a', 'Facebook A', 'CONNECTED'::"ExternalConnectionStatus",
+        'ACTIVE', 'HEALTHY', 'UNKNOWN', NOW(), NOW()
+    ),
+    (
+        'connection-integration-social-b', 'org_connections_b', 'FACEBOOK', 'SOCIAL',
+        'social_connections_b', 'Facebook B', 'CONNECTED'::"ExternalConnectionStatus",
+        'ACTIVE', 'HEALTHY', 'UNKNOWN', NOW(), NOW()
+    );
+
+INSERT INTO "ExternalConnectionCapability" (
+    id, "connectionId", key, enabled, "createdAt", "updatedAt"
+)
+SELECT
+    'connection-integration-cap-' || row_number() OVER (), connection.id, capability.key,
+    true, NOW(), NOW()
+FROM "ExternalConnection" connection
+CROSS JOIN (VALUES
+    ('MESSAGING_INBOUND'), ('MESSAGING_OUTBOUND'), ('CAMPAIGNS_SEND'),
+    ('TEMPLATES_MANAGE'), ('AGENT_CHANNEL')
+) AS capability(key)
+WHERE connection.id = 'connection-integration-wa-a';
+
+INSERT INTO "ExternalConnectionConsumer" (
+    id, "connectionId", "productKey", "createdAt", "updatedAt"
+)
+SELECT
+    'connection-integration-consumer-' || row_number() OVER (), connection.id,
+    consumer.product_key, NOW(), NOW()
+FROM "ExternalConnection" connection
+CROSS JOIN (VALUES ('inbox'), ('social'), ('agents')) AS consumer(product_key)
+WHERE connection.id = 'connection-integration-social-a';
+
 DO $$
 DECLARE
     org_a_connections integer;
@@ -58,3 +114,5 @@ BEGIN
         NULL;
     END;
 END $$;
+
+ROLLBACK;

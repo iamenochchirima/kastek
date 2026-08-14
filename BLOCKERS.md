@@ -173,9 +173,10 @@ verified or completed. Work on independent items continues.
   `services::inbox::tests::conversation_reads_are_isolated_by_organization` could not find
   `conversation_meta_a`. The third failure is the separate Redis replay gate in B-008. On a
   disposable clone of the local schema, the workspace, customer, and billing SQL suites passed;
-  the connections fixture still fails with `org_a=0, org_b=0` because its expected backfill rows
-  are not seeded. `scripts/test-connections-db.sh` now provides the same guarded wrapper as the
-  other domain fixtures.
+  the workspace, customer, billing, and connection SQL suites now all pass on the disposable
+  clone. The connection fixture seeds its expected projection rows inside a rollback transaction
+  and verifies organization ownership, capabilities, consumers, and duplicate-source protection;
+  `scripts/test-connections-db.sh` provides the guarded wrapper.
 - **Impact:** core unit and contract coverage is green, but zero-failure seeded database
   verification cannot be claimed until the fixture dataset is loaded into an isolated test
   database. The run did confirm the current core library total is 118 passing tests.
