@@ -1,0 +1,184 @@
+import type { Pool } from "pg";
+import { isDeepStrictEqual } from "node:util";
+import { z } from "zod";
+import { query, withTransaction } from "../db/pool";
+import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
+import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
+import { RunRepository } from "../db/repositories/run-repository";
+
+export const operatorCommandInputSchema = z.object({
+  commandType: z.enum(["cancel_run", "reconcile_effect", "kill_switch_enable", "kill_switch_disable"]),
+  targetId: z.string().trim().min(1).max(240),
+  payload: z.record(z.string(), z.unknown()).default({}),
+}).strict();
+
+export type OperatorCommandInput = z.infer<typeof operatorCommandInputSchema>;
+
+export interface OperatorCommandRecord {
+  id: string;
+  command_type: OperatorCommandInput["commandType"];
+  target_id: string;
+  actor_id: string;
+  organization_id: string | null;
+  payload: Record<string, unknown>;
+  status: "awaiting_approval" | "executing" | "completed" | "failed";
+  required_approvals: number;
+  approvers: string[];
+  idempotency_key: string;
+  result: Record<string, unknown> | null;
+  error: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface OperatorCommandDependencies {
+  pool: Pool;
+  runs: RunRepository;
+  effectReceipts: EffectReceiptRepository;
+  killSwitches: KillSwitchRepository;
+  signalCancellation?: (runId: string, signal: { reason?: string }) => Promise<void>;
+}
+
+export function publicOperatorCommand(command: OperatorCommandRecord): Record<string, unknown> {
+  return {
+    id: command.id,
+    commandType: command.command_type,
+    targetId: command.target_id,
+    actorId: command.actor_id,
+    organizationId: command.organization_id,
+    status: command.status,
+    requiredApprovals: command.required_approvals,
+    approvers: command.approvers,
+    idempotencyKey: command.idempotency_key,
+    result: command.result ? { status: command.result.status, effectId: command.result.effectId, runId: command.result.runId, switchId: command.result.switchId } : null,
+    error: command.error ? { code: command.error.code, message: command.error.message } : null,
+    createdAt: command.created_at,
+    updatedAt: command.updated_at,
+    completedAt: command.completed_at,
+  };
+}
+
+export function requiredApprovals(commandType: OperatorCommandInput["commandType"]): number {
+  return commandType === "cancel_run" ? 1 : 2;
+}
+
+function requireIdempotencyKey(value: string | undefined): string {
+  const key = value?.trim() ?? "";
+  if (key.length < 8 || key.length > 240) {
+    throw Object.assign(new Error("idempotency-key must be 8-240 characters"), { statusCode: 400 });
+  }
+  return key;
+}
+
+async function auditCommand(pool: Pool, input: { organizationId?: string | null; actorId: string; action: string; commandId: string; metadata?: Record<string, unknown> }): Promise<void> {
+  await pool.query(
+    `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+     VALUES ($1, 'platform_admin', $2, $3, 'operator_command', $4, $5::jsonb)`,
+    [input.organizationId ?? null, input.actorId, input.action, input.commandId, JSON.stringify(input.metadata ?? {})],
+  );
+}
+
+async function executeCommand(command: OperatorCommandRecord, actorId: string, dependencies: OperatorCommandDependencies): Promise<Record<string, unknown>> {
+  if (command.command_type === "cancel_run") {
+    const run = await dependencies.runs.getRunById(command.target_id);
+    if (!run) throw Object.assign(new Error("Run not found"), { statusCode: 404 });
+    if (["completed", "failed", "cancelled", "expired"].includes(run.status)) return { status: run.status, runId: run.id };
+    if (!dependencies.signalCancellation) throw new Error("Temporal cancellation is unavailable");
+    const reason = typeof command.payload.reason === "string" ? command.payload.reason.trim().slice(0, 500) : "cancelled by platform operator";
+    await dependencies.signalCancellation(run.id, { reason: `${actorId}: ${reason}` });
+    await auditCommand(dependencies.pool, { organizationId: run.organization_id, actorId, action: "operator_command.run_cancelled", commandId: command.id, metadata: { runId: run.id } });
+    return { status: "cancellation_signalled", runId: run.id };
+  }
+
+  if (command.command_type === "reconcile_effect") {
+    const effect = (await query<{ organization_id: string }>(dependencies.pool, "SELECT organization_id FROM agent_effect_receipts WHERE id = $1", [command.target_id])).rows[0];
+    if (!effect) throw Object.assign(new Error("Effect receipt not found"), { statusCode: 404 });
+    const outcome = command.payload.outcome;
+    if (outcome !== "succeeded" && outcome !== "failed") throw Object.assign(new Error("Reconciliation outcome must be succeeded or failed"), { statusCode: 400 });
+    await dependencies.effectReceipts.reconcile({
+      organizationId: effect.organization_id,
+      effectId: command.target_id,
+      outcome,
+      providerReceipt: command.payload.providerReceipt,
+      error: command.payload.error,
+    });
+    await auditCommand(dependencies.pool, { organizationId: effect.organization_id, actorId, action: "operator_command.effect_reconciled", commandId: command.id, metadata: { effectId: command.target_id, outcome } });
+    return { status: outcome, effectId: command.target_id };
+  }
+
+  if (command.command_type === "kill_switch_enable") {
+    const scopeType = command.payload.scopeType;
+    const scopeId = typeof command.payload.scopeId === "string" ? command.payload.scopeId.trim() : "";
+    const reason = typeof command.payload.reason === "string" ? command.payload.reason.trim() : "";
+    if (!["global", "organization", "agent", "installation", "tool"].includes(String(scopeType)) || !scopeId || !reason) throw Object.assign(new Error("Kill-switch scope, id, and reason are required"), { statusCode: 400 });
+    const organizationId = typeof command.payload.organizationId === "string" && command.payload.organizationId.trim() ? command.payload.organizationId.trim() : undefined;
+    const record = await dependencies.killSwitches.set({ organizationId, scopeType: scopeType as "global" | "organization" | "agent" | "installation" | "tool", scopeId, reason, actorId });
+    await auditCommand(dependencies.pool, { organizationId, actorId, action: "operator_command.kill_switch_enabled", commandId: command.id, metadata: { scopeType, scopeId } });
+    return { status: "enabled", switchId: record.id };
+  }
+
+  const switchRow = (await query<{ organization_id: string | null }>(dependencies.pool, "SELECT organization_id FROM agent_kill_switches WHERE id = $1", [command.target_id])).rows[0];
+  if (!switchRow) throw Object.assign(new Error("Kill switch not found"), { statusCode: 404 });
+  await dependencies.killSwitches.disable(switchRow.organization_id ?? undefined, command.target_id, actorId);
+  await auditCommand(dependencies.pool, { organizationId: switchRow.organization_id, actorId, action: "operator_command.kill_switch_disabled", commandId: command.id, metadata: { switchId: command.target_id } });
+  return { status: "disabled", switchId: command.target_id };
+}
+
+async function completeCommand(command: OperatorCommandRecord, actorId: string, dependencies: OperatorCommandDependencies): Promise<OperatorCommandRecord> {
+  try {
+    const result = await executeCommand(command, actorId, dependencies);
+    return (await query<OperatorCommandRecord>(dependencies.pool, `UPDATE agent_operator_commands SET status = 'completed', result = $2::jsonb, updated_at = now(), completed_at = now() WHERE id = $1 RETURNING *`, [command.id, JSON.stringify(result)])).rows[0]!;
+  } catch (error) {
+    const failure = { code: "OPERATOR_COMMAND_FAILED", message: error instanceof Error ? error.message : "Operator command failed" };
+    await query(dependencies.pool, `UPDATE agent_operator_commands SET status = 'failed', error = $2::jsonb, updated_at = now(), completed_at = now() WHERE id = $1`, [command.id, JSON.stringify(failure)]);
+    throw error;
+  }
+}
+
+export async function createOperatorCommand(input: { actorId: string; idempotencyKey?: string; command: OperatorCommandInput; dependencies: OperatorCommandDependencies }): Promise<{ command: Record<string, unknown>; replayed: boolean }> {
+  const idempotencyKey = requireIdempotencyKey(input.idempotencyKey);
+  const required = requiredApprovals(input.command.commandType);
+  const inserted = await query<OperatorCommandRecord>(input.dependencies.pool, `INSERT INTO agent_operator_commands (command_type, target_id, actor_id, payload, status, required_approvals, approvers, idempotency_key) VALUES ($1, $2, $3, $4::jsonb, $5, $6, ARRAY[$3]::text[], $7) ON CONFLICT (idempotency_key) DO NOTHING RETURNING *`, [input.command.commandType, input.command.targetId, input.actorId, JSON.stringify(input.command.payload), required === 1 ? "executing" : "awaiting_approval", required, idempotencyKey]);
+  const command = inserted.rows[0] ?? (await query<OperatorCommandRecord>(input.dependencies.pool, "SELECT * FROM agent_operator_commands WHERE idempotency_key = $1", [idempotencyKey])).rows[0];
+  if (!command) throw Object.assign(new Error("Operator command could not be created"), { statusCode: 500 });
+  if (!inserted.rows[0]) {
+    if (
+      command.actor_id !== input.actorId
+      || command.command_type !== input.command.commandType
+      || command.target_id !== input.command.targetId
+      || !isDeepStrictEqual(command.payload, input.command.payload)
+    ) {
+      throw Object.assign(new Error("Idempotency key is already bound to a different operator command"), { statusCode: 409 });
+    }
+    return { command: publicOperatorCommand(command), replayed: true };
+  }
+  await auditCommand(input.dependencies.pool, {
+    organizationId: command.organization_id,
+    actorId: input.actorId,
+    action: "operator_command.requested",
+    commandId: command.id,
+    metadata: { commandType: command.command_type, targetId: command.target_id, requiredApprovals: command.required_approvals },
+  });
+  if (command.status !== "executing") return { command: publicOperatorCommand(command), replayed: false };
+  const completed = await completeCommand(command, input.actorId, input.dependencies);
+  return { command: publicOperatorCommand(completed), replayed: false };
+}
+
+export async function approveOperatorCommand(input: { actorId: string; commandId: string; dependencies: OperatorCommandDependencies }): Promise<Record<string, unknown>> {
+  const command = await withTransaction(input.dependencies.pool, async (client) => {
+    const current = (await client.query<OperatorCommandRecord>("SELECT * FROM agent_operator_commands WHERE id = $1 FOR UPDATE", [input.commandId])).rows[0];
+    if (!current) throw Object.assign(new Error("Operator command not found"), { statusCode: 404 });
+    if (current.status !== "awaiting_approval") throw Object.assign(new Error(`Operator command is ${current.status}`), { statusCode: 409 });
+    if (current.approvers.includes(input.actorId)) throw Object.assign(new Error("A second operator must approve this command"), { statusCode: 409 });
+    const updated = await client.query<OperatorCommandRecord>("UPDATE agent_operator_commands SET approvers = array_append(approvers, $2), status = 'executing', updated_at = now() WHERE id = $1 RETURNING *", [input.commandId, input.actorId]);
+    return updated.rows[0]!;
+  });
+  return publicOperatorCommand(await completeCommand(command, input.actorId, input.dependencies));
+}
+
+export async function getOperatorCommand(pool: Pool, commandId: string): Promise<Record<string, unknown>> {
+  const command = (await query<OperatorCommandRecord>(pool, "SELECT * FROM agent_operator_commands WHERE id = $1", [commandId])).rows[0];
+  if (!command) throw Object.assign(new Error("Operator command not found"), { statusCode: 404 });
+  return publicOperatorCommand(command);
+}

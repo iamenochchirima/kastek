@@ -1008,8 +1008,11 @@ agent type from one consistent product area.
 
 - [ ] Define operator roles/permissions, data classifications, redaction rules, support-access
   grants, dual-control actions, emergency access, and prohibited operations.
-- [ ] Implement a protected core operator API and short-lived signed core-to-agents operator
-  delegation; never allow the admin browser to query Agent storage or Temporal directly.
+- [x] Implement a protected core operator API and short-lived signed core-to-agents operator
+  delegation; never allow the admin browser to query Agent storage or Temporal directly. Evidence:
+  `server/kasitek-core/src/controllers/admin_operations.rs` authenticates the admin role before
+  delegating through short-lived scoped tokens in `services/agent_platform.rs`; the admin UI uses
+  only the `/api/operations` core proxy, and Agent operator routes reject non-platform principals.
 - [ ] Build rebuildable read models for agent health, runs/events, usage/cost, deliveries/webhooks,
   providers/workers, alerts, and projection lag.
 - [ ] Implement global search and investigation across organization/workspace, user, agent,
@@ -1044,9 +1047,15 @@ projections for summary, runs, health, reconciliation, audit, and identifier sea
 surface rejects non-platform or non-operator principals. Core now has an explicit viewer/support/
 operator/security/admin/superadmin/owner grant matrix and separates customer-content access from
 mutating operator commands. The admin Operations page consumes only the core proxy and deliberately
-exposes no customer content, prompts, secrets, or provider receipts. Dual-control commands,
-rebuildable projections, time-limited support grants, and incident runbooks remain open for the
-rest of Slice 12.
+exposes no customer content, prompts, secrets, or provider receipts. Migration
+`agents/migrations/037_operator_commands.sql` now persists bounded operator commands with global
+idempotency keys, immutable request/execution audit records, one-operator cancellation, and
+two-operator reconciliation/kill-switch approval. The core proxy forwards idempotency keys, command
+inspection uses a read-only delegation scope, and the reconciliation UI requires an explicit outcome
+before requesting a second approval. Focused command tests and the PostgreSQL-backed lifecycle test
+pass; the full Agent suite passes 51 files / 210 tests / 0 skips with local PostgreSQL and Temporal.
+Rebuildable projections, time-limited support grants, and incident runbooks remain open for the rest
+of Slice 12.
 
 ## Slice 13 — Security, observability, expansion, and production release
 

@@ -53,6 +53,7 @@ import { InstallationCapabilityError, InstallationCapabilityInvocationService } 
 import { InstallationImmediateReadService } from "../invocation/immediate-read";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
 import { ApprovalDecisionRateLimiter } from "./approval-rate-limit";
+import { approveOperatorCommand, createOperatorCommand, getOperatorCommand, operatorCommandInputSchema } from "./operator-commands";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -445,6 +446,31 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       [`%${q}%`, limit],
     );
     return { query: q, results: result.rows };
+  });
+
+  app.post("/v1/operator/commands", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:write");
+    const command = operatorCommandInputSchema.parse(request.body ?? {});
+    const result = await createOperatorCommand({
+      actorId: auth.actorId,
+      idempotencyKey: headerValue(request, "idempotency-key"),
+      command,
+      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, signalCancellation: dependencies.signalCancellation },
+    });
+    return reply.code(result.replayed ? 200 : result.command.status === "awaiting_approval" ? 202 : 201).send(result.command);
+  });
+
+  app.get<{ Params: { commandId: string } }>("/v1/operator/commands/:commandId", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    return getOperatorCommand(dependencies.pool, request.params.commandId);
+  });
+
+  app.post<{ Params: { commandId: string } }>("/v1/operator/commands/:commandId/approve", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:write");
+    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, signalCancellation: dependencies.signalCancellation } });
   });
 
   app.get("/.well-known/agent-installation-jwks.json", async () => {

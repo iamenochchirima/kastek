@@ -6,10 +6,12 @@
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde::Deserialize;
+use serde_json::Value;
 use sqlx::PgPool;
 
 use crate::config::AppConfig;
 use crate::error::AppError;
+use crate::identity::admin_session::can_execute_operator_command;
 use crate::middleware::{extract_admin, require_admin_role};
 use crate::services::agent_platform::AgentPlatformClient;
 
@@ -30,6 +32,19 @@ async fn operator(
             "owner",
         ],
     )?;
+    Ok(admin)
+}
+
+async fn command_operator(
+    req: &HttpRequest,
+    pool: &PgPool,
+) -> Result<crate::db::models::AdminUser, AppError> {
+    let admin = operator(req, pool).await?;
+    if !can_execute_operator_command(&admin.role) {
+        return Err(AppError::Forbidden(
+            "Operator command permission is required".to_string(),
+        ));
+    }
     Ok(admin)
 }
 
@@ -157,4 +172,57 @@ pub async fn search(
         .operator_search(&admin.id, value, query.limit)
         .await?;
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn create_command(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let admin = command_operator(&req, pool.get_ref()).await?;
+    let idempotency_key = req
+        .headers()
+        .get("idempotency-key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| value.len() >= 8 && value.len() <= 240)
+        .ok_or_else(|| {
+            AppError::BadRequest("idempotency-key must be 8-240 characters".to_string())
+        })?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Operator command body must be an object".to_string(),
+        ));
+    }
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_create_command(&admin.id, idempotency_key, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Accepted().json(response))
+}
+
+pub async fn get_command(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    command_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let admin = operator(&req, pool.get_ref()).await?;
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_get_command(&admin.id, command_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn approve_command(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    command_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let admin = command_operator(&req, pool.get_ref()).await?;
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_approve_command(&admin.id, command_id.trim())
+        .await?;
+    Ok(HttpResponse::Accepted().json(response))
 }

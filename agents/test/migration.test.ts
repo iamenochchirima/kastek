@@ -106,5 +106,9 @@ describe("foundation migration", () => {
     expect(clientAssertionsSql).toContain("client_public_key");
     expect(clientAssertionsSql).toContain("agent_client_assertion_replays");
     expect(clientAssertionsSql).toContain("ON agent_installation_credentials (installation_id, client_key_id)");
+    const operatorCommandsSql = await readFile(new URL("../migrations/037_operator_commands.sql", import.meta.url), "utf8");
+    expect(operatorCommandsSql).toContain("CREATE TABLE IF NOT EXISTS agent_operator_commands");
+    expect(operatorCommandsSql).toContain("required_approvals");
+    expect(operatorCommandsSql).toContain("idempotency_key TEXT NOT NULL UNIQUE");
   });
 });

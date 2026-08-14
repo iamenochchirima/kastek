@@ -320,6 +320,15 @@ export class RunRepository {
     return result.rows[0] ?? null;
   }
 
+  public async getRunById(runId: string): Promise<RunRecord | null> {
+    const result = await query<RunRecord>(
+      this.pool,
+      `SELECT * FROM agent_runs WHERE id = $1`,
+      [runId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   public async failRun(runId: string, error: Record<string, unknown>): Promise<RunRecord> {
     return withTransaction(this.pool, async (client) => {
       const current = await client.query<RunRecord>("SELECT * FROM agent_runs WHERE id = $1 FOR UPDATE", [runId]);

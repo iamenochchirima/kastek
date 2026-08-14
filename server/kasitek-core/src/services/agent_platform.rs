@@ -416,6 +416,58 @@ impl AgentPlatformClient {
             .await
     }
 
+    pub async fn operator_create_command(
+        &self,
+        operator_id: &str,
+        idempotency_key: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_operator_command(
+            Method::POST,
+            "/v1/operator/commands",
+            operator_id,
+            &["operator:write"],
+            Some(idempotency_key),
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn operator_get_command(
+        &self,
+        operator_id: &str,
+        command_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_operator_command(
+            Method::GET,
+            &format!("/v1/operator/commands/{}", urlencoding::encode(command_id)),
+            operator_id,
+            &["operator:read"],
+            None,
+            None,
+        )
+        .await
+    }
+
+    pub async fn operator_approve_command(
+        &self,
+        operator_id: &str,
+        command_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_operator_command(
+            Method::POST,
+            &format!(
+                "/v1/operator/commands/{}/approve",
+                urlencoding::encode(command_id)
+            ),
+            operator_id,
+            &["operator:write"],
+            None,
+            Some(json!({})),
+        )
+        .await
+    }
+
     pub async fn list_templates(
         &self,
         organization_id: &str,
@@ -1596,6 +1648,45 @@ impl AgentPlatformClient {
         }
         response.json::<Value>().await.map_err(|error| {
             log::error!("Agent Platform returned invalid operator JSON: {error}");
+            AppError::BadGateway("Agent Platform returned an invalid response".to_string())
+        })
+    }
+
+    async fn request_operator_command(
+        &self,
+        method: Method,
+        path: &str,
+        operator_id: &str,
+        scopes: &[&str],
+        idempotency_key: Option<&str>,
+        body: Option<Value>,
+    ) -> Result<Value, AppError> {
+        let correlation_id = new_correlation_id();
+        let token = self.operator_token(operator_id, scopes, &correlation_id)?;
+        let mut request = self
+            .client
+            .request(method, format!("{}{}", self.base_url, path))
+            .timeout(self.timeout)
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-organization-id", "platform")
+            .header("x-actor-id", operator_id)
+            .header("x-kasitek-operator", "true")
+            .header("x-correlation-id", &correlation_id);
+        if let Some(key) = idempotency_key {
+            request = request.header("idempotency-key", key);
+        }
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|error| self.map_request_error(error))?;
+        if !response.status().is_success() {
+            return Err(self.map_status(response).await);
+        }
+        response.json::<Value>().await.map_err(|error| {
+            log::error!("Agent Platform returned invalid operator command JSON: {error}");
             AppError::BadGateway("Agent Platform returned an invalid response".to_string())
         })
     }

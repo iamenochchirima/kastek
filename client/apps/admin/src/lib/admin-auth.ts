@@ -128,12 +128,16 @@ export async function proxyToCore(
 
   const url = new URL(req.url);
   const target = `${CORE_BACKEND_URL}${path}${url.search}`;
+  const idempotencyKey = req.headers.get("idempotency-key");
+  const correlationId = req.headers.get("x-correlation-id");
 
   return fetch(target, {
     method: req.method,
     headers: {
       "Content-Type": "application/json",
       ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      ...(correlationId ? { "X-Correlation-Id": correlationId } : {}),
     },
     body:
       req.method !== "GET" && req.method !== "HEAD"

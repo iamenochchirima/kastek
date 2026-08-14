@@ -126,6 +126,44 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("rejects operator commands without an idempotency key before touching storage", async () => {
+    const app = buildApp({ config, pool: fakePool });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/operator/commands",
+      headers: { "x-organization-id": "platform", "x-actor-id": "admin-1", "x-kasitek-operator": "true" },
+      payload: { commandType: "cancel_run", targetId: "run-1" },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "idempotency-key must be 8-240 characters" });
+    await app.close();
+  });
+
+  it("uses the read operator scope for command inspection", async () => {
+    const hmacConfig: AppConfig = {
+      ...config,
+      AUTH_MODE: "hmac",
+      INTERNAL_AUTH_SECRET: "test-secret",
+      INTERNAL_AUTH_AUDIENCE: "test",
+    };
+    const app = buildApp({ config: hmacConfig, pool: fakePool });
+    const token = signInternalToken({
+      organizationId: "platform",
+      actorId: "admin-1",
+      audience: "test",
+      expiresAt: Math.floor(Date.now() / 1000) + 60,
+      scopes: ["operator:read"],
+      operator: true,
+    }, "test-secret");
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/operator/commands/command-1",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(200);
+    await app.close();
+  });
+
   it("exchanges a registered client assertion once and rejects its replay", async () => {
     const getActiveForClientAssertion = vi.fn(async () => ({ ...mcpCredential(), client_key_id: "client-key-1", client_public_key: clientAssertionKeyPair.publicKey.export({ type: "spki", format: "pem" }).toString() }));
     const consumeClientAssertionReplay = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);

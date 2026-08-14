@@ -1,0 +1,49 @@
+import { describe, expect, it } from "vitest";
+import {
+  operatorCommandInputSchema,
+  publicOperatorCommand,
+  requiredApprovals,
+  type OperatorCommandRecord,
+} from "../src/http/operator-commands";
+
+describe("operator command contract", () => {
+  it("requires a second operator for effect and kill-switch mutations", () => {
+    expect(requiredApprovals("cancel_run")).toBe(1);
+    expect(requiredApprovals("reconcile_effect")).toBe(2);
+    expect(requiredApprovals("kill_switch_enable")).toBe(2);
+    expect(requiredApprovals("kill_switch_disable")).toBe(2);
+  });
+
+  it("defaults payloads but rejects unknown command fields", () => {
+    expect(operatorCommandInputSchema.parse({ commandType: "cancel_run", targetId: "run-1" })).toEqual({
+      commandType: "cancel_run",
+      targetId: "run-1",
+      payload: {},
+    });
+    expect(() => operatorCommandInputSchema.parse({ commandType: "cancel_run", targetId: "run-1", approvedBy: "spoofed" })).toThrow();
+  });
+
+  it("projects command status without payload or provider receipt material", () => {
+    const command: OperatorCommandRecord = {
+      id: "command-1",
+      command_type: "reconcile_effect",
+      target_id: "effect-1",
+      actor_id: "operator-1",
+      organization_id: "org-1",
+      payload: { providerReceipt: { accessToken: "secret" }, error: { raw: "customer content" } },
+      status: "completed",
+      required_approvals: 2,
+      approvers: ["operator-1", "operator-2"],
+      idempotency_key: "reconcile-effect-1",
+      result: { status: "succeeded", effectId: "effect-1", providerReceipt: { accessToken: "secret" } },
+      error: null,
+      created_at: "2026-08-14T00:00:00.000Z",
+      updated_at: "2026-08-14T00:00:01.000Z",
+      completed_at: "2026-08-14T00:00:01.000Z",
+    };
+    const projection = publicOperatorCommand(command);
+    expect(projection).toMatchObject({ id: "command-1", status: "completed", result: { status: "succeeded", effectId: "effect-1" } });
+    expect(JSON.stringify(projection)).not.toContain("accessToken");
+    expect(JSON.stringify(projection)).not.toContain("customer content");
+  });
+});

@@ -1,6 +1,7 @@
 import { fetchFromCore, requireAdminSession } from "@/lib/admin-auth";
 import { AdminMetric, AdminPageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { OperatorReconcileButton } from "@/components/admin/operator-command-button";
 
 type Summary = {
   scope: string;
@@ -57,7 +58,7 @@ export default async function OperationsPage() {
       </article>
       <article className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-semibold text-foreground">Effect reconciliation queue</h2><p className="mt-1 text-xs text-muted-foreground">Provider outcome is withheld from this projection; operators see only safe identifiers and state.</p></div>
-        {effects.effects.length === 0 ? <p className="px-5 py-10 text-sm text-muted-foreground">No effects currently require reconciliation.</p> : <div className="divide-y divide-border">{effects.effects.map((effect) => <div key={effect.id} className="flex items-center justify-between gap-4 px-5 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-foreground">{effect.capability}</p><p className="truncate text-xs text-muted-foreground">{effect.organization_id} · run {effect.run_id}</p></div><StatusBadge value={effect.status} /></div>)}</div>}
+        {effects.effects.length === 0 ? <p className="px-5 py-10 text-sm text-muted-foreground">No effects currently require reconciliation.</p> : <div className="divide-y divide-border">{effects.effects.map((effect) => <div key={effect.id} className="flex items-center justify-between gap-4 px-5 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-foreground">{effect.capability}</p><p className="truncate text-xs text-muted-foreground">{effect.organization_id} · run {effect.run_id}</p></div><div className="flex items-center gap-3"><StatusBadge value={effect.status} /><OperatorReconcileButton effectId={effect.id} /></div></div>)}</div>}
       </article>
     </section>
     <article className="rounded-lg border border-border bg-card">

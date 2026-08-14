@@ -34,7 +34,19 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         web::get().to(admin_operations::effects),
                     )
                     .route("/audit", web::get().to(admin_operations::audit))
-                    .route("/search", web::get().to(admin_operations::search)),
+                    .route("/search", web::get().to(admin_operations::search))
+                    .route(
+                        "/commands",
+                        web::post().to(admin_operations::create_command),
+                    )
+                    .route(
+                        "/commands/{commandId}",
+                        web::get().to(admin_operations::get_command),
+                    )
+                    .route(
+                        "/commands/{commandId}/approve",
+                        web::post().to(admin_operations::approve_command),
+                    ),
             )
             .route("/access", web::get().to(admin::list_launch_access))
             .route("/access", web::post().to(admin::provision_launch_user))
