@@ -14,6 +14,17 @@ describe("content capability contract", () => {
   const registry = createDefaultTools();
 
   it("exposes booking detail and channel delivery with explicit read/effect contracts", () => {
+    expect(registry.get("kasitek.core.workspace_report")?.manifest).toMatchObject({
+      ownerService: "kasitek-core",
+      requiredScope: "workspace.reporting.read",
+      execution: "immediate",
+      approval: "none",
+      idempotency: "not_applicable",
+      auditClassification: "restricted",
+    });
+    expect(registry.validateArguments("kasitek.core.workspace_report", {})).toBe(true);
+    expect(registry.validateArguments("kasitek.core.workspace_report", { limit: 10 })).toBe(false);
+
     const booking = registry.get("kasitek.core.booking_get");
     expect(booking?.manifest).toMatchObject({
       ownerService: "kasitek-core",

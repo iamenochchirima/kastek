@@ -116,6 +116,35 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     },
   });
   tools.register({
+    name: "kasitek.core.workspace_report",
+    version: "1.0.0",
+    description: "Read organization-scoped workspace reporting aggregates without contact values, message bodies, or provider credentials.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: { type: "object", additionalProperties: false },
+    outputSchema: {
+      type: "object",
+      properties: {
+        organizationId: { type: "string" },
+        connections: { type: "object" },
+        content: { type: "object" },
+        contacts: { type: "object" },
+        inbox: { type: "object" },
+        bookings: { type: "object" },
+        campaigns: { type: "object" },
+        templates: { type: "object" },
+      },
+      required: ["organizationId", "connections", "content", "contacts", "inbox", "bookings", "campaigns", "templates"],
+      additionalProperties: false,
+    },
+    manifest: { ownerService: "kasitek-core", requiredScope: "workspace.reporting.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["contacts.phone", "inbox.messageBody", "connections.credentials"] },
+    handler: async (context) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.getWorkspaceReport(context);
+    },
+  });
+  tools.register({
     name: "kasitek.core.booking_services_list",
     version: "1.0.0",
     description: "List the booking services configured for the current KasiTek workspace.",

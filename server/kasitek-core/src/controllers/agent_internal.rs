@@ -208,6 +208,27 @@ pub async fn get_workspace_status(
     })))
 }
 
+/// Return aggregate workspace reporting data without user/session coupling or
+/// provider payloads. The report is intentionally separate from the status
+/// endpoint so callers can grant health and reporting independently.
+pub async fn get_workspace_report(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, actor_id) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.workspace_report").await?;
+    let report =
+        crate::services::workspace_reporting::agent_report(pool.get_ref(), &organization_id)
+            .await?;
+    log::info!(
+        "agent core read tool=workspace.report org_id={} actor_id={}",
+        organization_id,
+        actor_id
+    );
+    Ok(HttpResponse::Ok().json(report))
+}
+
 /// List booking services through the same typed booking query used by the
 /// product API. The internal boundary contributes authentication and the
 /// normalized request context; it does not duplicate SQL or booking policy.
@@ -315,10 +336,32 @@ pub async fn list_contacts(
     let context =
         resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.contacts_list")
             .await?;
-    let result =
-        whatsapp::list_contacts(pool.get_ref(), &context.organization_id, query.into_inner())
-            .await?;
+    let mut query = query.into_inner();
+    let limit = bounded_agent_contact_limit(query.limit)?;
+    query.limit = Some(limit);
+    let mut result =
+        whatsapp::list_contacts(pool.get_ref(), &context.organization_id, query).await?;
+    let filtered_total = result
+        .get("stats")
+        .and_then(|stats| stats.get("filteredTotal"))
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    let object = result
+        .as_object_mut()
+        .ok_or_else(|| AppError::Internal("Core contacts projection is invalid".to_string()))?;
+    object.insert("total".to_string(), json!(filtered_total));
+    object.insert("hasMore".to_string(), json!(filtered_total > limit));
     Ok(HttpResponse::Ok().json(result))
+}
+
+fn bounded_agent_contact_limit(value: Option<i64>) -> Result<i64, AppError> {
+    match value {
+        None => Ok(100),
+        Some(value) if (1..=200).contains(&value) => Ok(value),
+        Some(_) => Err(AppError::BadRequest(
+            "limit must be between 1 and 200".to_string(),
+        )),
+    }
 }
 
 /// List the organisation's inbox conversations. Conversation records remain
@@ -615,7 +658,7 @@ pub async fn deliver_channel_message(
 
 #[cfg(test)]
 mod tests {
-    use super::AgentCollectionQuery;
+    use super::{bounded_agent_contact_limit, AgentCollectionQuery};
 
     #[test]
     fn agent_collection_limits_are_bounded_without_silent_clamping() {
@@ -637,5 +680,14 @@ mod tests {
         assert!(AgentCollectionQuery { limit: Some(201) }
             .bounded_limit()
             .is_err());
+    }
+
+    #[test]
+    fn agent_contact_limits_are_bounded_without_silent_clamping() {
+        assert_eq!(bounded_agent_contact_limit(None).unwrap(), 100);
+        assert_eq!(bounded_agent_contact_limit(Some(200)).unwrap(), 200);
+        assert!(bounded_agent_contact_limit(Some(0)).is_err());
+        assert!(bounded_agent_contact_limit(Some(201)).is_err());
+        assert!(bounded_agent_contact_limit(Some(-1)).is_err());
     }
 }

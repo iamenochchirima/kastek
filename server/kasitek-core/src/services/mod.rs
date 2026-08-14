@@ -36,3 +36,4 @@ pub mod whatsapp_contacts;
 pub mod whatsapp_inbox;
 pub mod whatsapp_templates;
 pub mod whatsapp_webhooks;
+pub mod workspace_reporting;

@@ -23,6 +23,17 @@ export interface CoreWorkspaceStatus {
   connections: Array<{ provider: string; status: string; count: number }>;
 }
 
+export interface CoreWorkspaceReport {
+  organizationId: string;
+  connections: { total: number; byStatus: Array<{ status: string; count: number }> };
+  content: { postCount: number };
+  contacts: { total: number; optedIn: number; excluded: number };
+  inbox: { conversationCount: number; unreadConversationCount: number };
+  bookings: { total: number; byStatus: Array<{ status: string; count: number }> };
+  campaigns: { total: number; byStatus: Array<{ status: string; count: number }> };
+  templates: { total: number; byStatus: Array<{ status: string; count: number }> };
+}
+
 export interface CoreBookingService {
   id: string;
   orgId?: string;
@@ -205,6 +216,10 @@ export class KasitekCoreReadClient {
 
   public async getWorkspaceStatus(context: ToolInvocationContext): Promise<CoreWorkspaceStatus> {
     return this.getJson<CoreWorkspaceStatus>(context, "/api/internal/agents/v1/workspace/status", "Workspace status");
+  }
+
+  public async getWorkspaceReport(context: ToolInvocationContext): Promise<CoreWorkspaceReport> {
+    return this.getJson<CoreWorkspaceReport>(context, "/api/internal/agents/v1/workspace/report", "Workspace report");
   }
 
   public async listBookingServices(context: ToolInvocationContext): Promise<CoreBookingServices> {
@@ -419,6 +434,7 @@ export class KasitekCoreReadClient {
   private capabilityFor(path: string, method?: string): string {
     const routePath = path.split("?", 1)[0] ?? path;
     if (routePath.includes("/customers/")) return "kasitek.core.customer_get";
+    if (routePath.includes("workspace/report")) return "kasitek.core.workspace_report";
     if (routePath.includes("workspace/status")) return "kasitek.core.workspace_status";
     if (routePath.includes("bookings/services")) return "kasitek.core.booking_services_list";
     if (routePath.includes("/bookings/") && !routePath.endsWith("/bookings/services")) return "kasitek.core.booking_get";

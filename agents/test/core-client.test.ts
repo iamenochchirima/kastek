@@ -56,6 +56,22 @@ describe("kasitek-core read boundary", () => {
     expect(fetch).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/workspace/status", expect.any(Object));
   });
 
+  it("reads aggregate workspace reporting through the scoped boundary", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      organizationId: "org-1",
+      connections: { total: 1, byStatus: [{ status: "CONNECTED", count: 1 }] },
+      content: { postCount: 2 },
+      contacts: { total: 3, optedIn: 2, excluded: 0 },
+      inbox: { conversationCount: 4, unreadConversationCount: 1 },
+      bookings: { total: 5, byStatus: [] },
+      campaigns: { total: 6, byStatus: [] },
+      templates: { total: 7, byStatus: [] },
+    }), { status: 200 })));
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).getWorkspaceReport(context)).resolves.toMatchObject({ contacts: { total: 3 }, campaigns: { total: 6 } });
+    expect(fetch).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/workspace/report", expect.any(Object));
+  });
+
   it("reads booking services through the typed internal capability", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ services: [{ id: "service-1", name: "Consultation", durationMinutes: 60, active: true }] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

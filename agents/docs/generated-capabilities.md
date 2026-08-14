@@ -117,6 +117,69 @@ Read connection providers and health statuses for the current KasiTek workspace.
   "additionalProperties": false
 }
 ```
+## kasitek.core.workspace_report (1.0.0)
+
+Read organization-scoped workspace reporting aggregates without contact values, message bodies, or provider credentials.
+
+- Owner: `kasitek-core`
+- Permission: `workspace.reporting.read` (Workspace Reporting Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Audit: `restricted`; redacts: `contacts.phone`, `inbox.messageBody`, `connections.credentials`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "organizationId": {
+      "type": "string"
+    },
+    "connections": {
+      "type": "object"
+    },
+    "content": {
+      "type": "object"
+    },
+    "contacts": {
+      "type": "object"
+    },
+    "inbox": {
+      "type": "object"
+    },
+    "bookings": {
+      "type": "object"
+    },
+    "campaigns": {
+      "type": "object"
+    },
+    "templates": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "organizationId",
+    "connections",
+    "content",
+    "contacts",
+    "inbox",
+    "bookings",
+    "campaigns",
+    "templates"
+  ],
+  "additionalProperties": false
+}
+```
 ## kasitek.core.booking_services_list (1.0.0)
 
 List the booking services configured for the current KasiTek workspace.
