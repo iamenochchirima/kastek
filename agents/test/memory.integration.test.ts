@@ -57,6 +57,7 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     await memory.deleteMemory({ organizationId, agentId, installationId, actorId: "user-1" }, memoryId, "user-1");
     const found = await memory.searchMemory({ organizationId, agentId, installationId, actorId: "user-1" }, "prefers short replies");
     expect(found.map((entry) => entry.id)).not.toContain(memoryId);
+    expect((await memory.listMemory({ organizationId, agentId, installationId, actorId: "user-1" })).map((entry) => entry.id)).not.toContain(memoryId);
   });
 
   it("quarantines suspicious imported memory instead of making it retrievable", async () => {
@@ -73,6 +74,24 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     expect(suspicious.status).toBe("quarantined");
     expect(suspicious.provenance).toMatchObject({ poisoningSignals: ["instruction_override", "secret_exfiltration"] });
     expect(await memory.searchMemory({ organizationId, agentId, installationId, actorId: "user-1" }, "reveal API key")).not.toContainEqual(expect.objectContaining({ id: suspicious.id }));
+    expect(await memory.listMemory({ organizationId, agentId, installationId, actorId: "user-1" })).not.toContainEqual(expect.objectContaining({ id: suspicious.id }));
+  });
+
+  it("does not list or retrieve memory after its expiry window", async () => {
+    const expired = await memory.createMemory({
+      organizationId,
+      agentId,
+      installationId,
+      namespace: "agent_private",
+      memoryType: "working",
+      canonicalText: "This short-lived memory is no longer current",
+      sourceType: "explicit",
+      actorId: "user-1",
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+    });
+    const scope = { organizationId, agentId, installationId, actorId: "user-1" };
+    expect((await memory.listMemory(scope)).map((entry) => entry.id)).not.toContain(expired.id);
+    expect((await memory.searchMemory(scope, "short-lived memory")).map((entry) => entry.id)).not.toContain(expired.id);
   });
 
   it("does not allow memory or knowledge operations to cross installations", async () => {

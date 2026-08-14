@@ -95,7 +95,7 @@ marked when the complete deliverable and its verification exist.
 ## Verification evidence
 
 On 2026-08-14, Agent Platform migrations through `035` applied to the local Agent PostgreSQL
-database. With an isolated local Temporal dev server, the complete suite passed 57 files / 243
+database. With an isolated local Temporal dev server, the complete suite passed 58 files / 249
 tests / 0 skips in the latest local run, and `pnpm --dir agents build` passed. Hosted-agent boundary
 integration now covers organization-scoped lifecycle, grants, schedules, and workflow validation.
 The hosted boundary regression now also locks the installation while accepting runs and rejects a
@@ -120,7 +120,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **175 checked and 51 unchecked items out of 226**. This is a
+The primary blueprint currently has **176 checked and 50 unchecked items out of 226**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds

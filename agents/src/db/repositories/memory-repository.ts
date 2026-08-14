@@ -122,7 +122,9 @@ export class MemoryRepository {
     const result = await query<MemoryRecord>(
       this.pool,
       `SELECT * FROM memory_records
-       WHERE organization_id = $1 AND (agent_definition_id IS NULL OR agent_definition_id = $2)
+       WHERE organization_id = $1 AND status = 'active'
+         AND (expires_at IS NULL OR expires_at > now())
+         AND (agent_definition_id IS NULL OR agent_definition_id = $2)
          AND (namespace <> 'agent_private' OR installation_id = $3)
          AND (namespace <> 'conversation' OR conversation_id = $4)
          AND (namespace <> 'user_private' OR owner_user_id = $5)
