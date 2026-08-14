@@ -179,7 +179,7 @@ verified or completed. Work on independent items continues.
   `scripts/test-connections-db.sh` provides the guarded wrapper.
 - **Impact:** core unit and contract coverage is green, but zero-failure seeded database
   verification cannot be claimed until the fixture dataset is loaded into an isolated test
-  database. The standard core library run now confirms 121 passing tests; the earlier
+  database. The standard core library run now confirms 123 passing tests; the earlier
   `--include-ignored` run still has the seeded inbox and Redis-gated failures described above.
 - **Additional environment evidence:** a fresh disposable database cannot currently be provisioned
   with `prisma migrate deploy`: migration `20260326143000_add_whatsapp_contact_list_memberships`

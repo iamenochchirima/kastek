@@ -314,7 +314,7 @@ Pending environment and pre-existing frontend verification gaps are tracked in [
 suite passed 56 files / 237 tests / 0 skipped with PostgreSQL and an isolated Temporal dev server
 (`RUN_AGENTS_DB_INTEGRATION_TESTS=true RUN_TEMPORAL_INTEGRATION_TESTS=true`). `pnpm build` passed;
 `cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core --lib` passed
-121 tests with three explicitly ignored seeded/infrastructure cases. Local Temporal recovery is
+123 tests with three explicitly ignored seeded/infrastructure cases. Local Temporal recovery is
 verified; authenticated browser, provider, hosted, Redis, and seeded-core gates remain open in
 `BLOCKERS.md`.
 
@@ -942,9 +942,22 @@ agent that safely combines KasiTek capabilities with approved external services.
 ### Verification
 
 - [ ] Add channel signature, replay, duplicate, ordering, reconnect, delivery retry, opt-out,
-  attachment, handoff, and identity-mapping tests.
-- [ ] Add cross-user, cross-organization, cross-installation, cross-channel, and customer/thread
-  isolation tests.
+  attachment, handoff, and identity-mapping tests. Local evidence now covers webhook signatures and
+  attachment normalization (`server/kasitek-core/src/services/inbox.rs`), WhatsApp opt-out keyword
+  handling (`server/kasitek-core/src/services/whatsapp_webhooks.rs`), signed webhook replay
+  protection (`agents/test/webhook-security.test.ts`), delivery retry/status ordering and pairing
+  replay (`agents/test/channel.integration.test.ts`), external identity/thread mapping and
+  duplicate delivery suppression (`agents/test/platform-chat.integration.test.ts`), handoff
+  resumption (`agents/test/workflow-graph.test.ts`, `agents/test/http.test.ts`), and monotonic
+  reconnect cursors (`agents/test/sse.test.ts`). Live provider reconnect and browser/end-to-end
+  channel matrix coverage remain open.
+- [x] Add cross-user, cross-organization, cross-installation, cross-channel, and customer/thread
+  isolation tests. Evidence: `agents/test/platform-chat.integration.test.ts` proves independent
+  user-owned chats, external WhatsApp thread routing, duplicate provider-message suppression,
+  owner binding revocation, and channel-specific delivery; `agents/test/channel.integration.test.ts`
+  proves organization/installation/binding/conversation boundaries; and
+  `agents/test/memory.integration.test.ts` proves installation and agent-private memory/knowledge
+  isolation. The full PostgreSQL + Temporal Agent suite passes 56 files / 237 tests / 0 skipped.
 - [ ] Add summary window, memory scope, provenance, consent, deletion, export, poisoning, and prompt
   injection tests/evaluations.
 - [ ] Run browser plus configured WhatsApp/Telegram/Discord end-to-end scenarios, service tests,
@@ -1229,7 +1242,7 @@ WhatsApp channel delivery. Each capability is registered once and projects into 
 Agent/MCP/permission/audit documentation; Core routes require the delegated capability and
 organization scope. The full local verification passes with `cd agents && pnpm test` (56 files,
 202 passed, 34 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
-`cargo test -p kasitek-core --lib` (121 passed, 3 infrastructure-gated ignores), and Core check.
+`cargo test -p kasitek-core --lib` (123 passed, 3 infrastructure-gated ignores), and Core check.
 Seeded database, Redis replay, provider sandbox, hosted, browser, and external-client gates remain
 open and are not represented as complete by this local evidence.
 

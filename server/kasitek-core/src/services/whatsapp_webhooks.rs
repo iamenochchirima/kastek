@@ -39,6 +39,14 @@ fn get_inbound_text(message: &Value) -> Option<String> {
         })
 }
 
+fn is_opt_out_message(text: Option<&str>) -> bool {
+    text.map(|value| {
+        ["stop", "unsubscribe", "cancel", "end", "optout", "opt-out"]
+            .contains(&value.trim().to_ascii_lowercase().as_str())
+    })
+    .unwrap_or(false)
+}
+
 struct IncomingWhatsappMedia {
     kind: String,
     media_id: String,
@@ -614,14 +622,7 @@ async fn handle_incoming_messages(
             );
         }
 
-        let stop = text
-            .as_deref()
-            .map(|t| {
-                ["stop", "unsubscribe", "cancel", "end", "optout", "opt-out"]
-                    .contains(&t.trim().to_lowercase().as_str())
-            })
-            .unwrap_or(false);
-        if stop {
+        if is_opt_out_message(text.as_deref()) {
             sqlx::query(r#"UPDATE "WhatsappContact" SET excluded = true, "optIn" = false, notes = $1, "updatedAt" = NOW() WHERE id = $2"#)
                 .bind(format!("Unsubscribed via STOP keyword on {}", Utc::now().to_rfc3339()))
                 .bind(&contact_id)
@@ -661,6 +662,35 @@ async fn handle_incoming_messages(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_opt_out_message;
+
+    #[test]
+    fn recognizes_case_insensitive_stop_keywords() {
+        for keyword in [
+            "STOP",
+            "unsubscribe",
+            " Cancel ",
+            "end",
+            "optout",
+            "opt-out",
+        ] {
+            assert!(
+                is_opt_out_message(Some(keyword)),
+                "{keyword} should opt out"
+            );
+        }
+    }
+
+    #[test]
+    fn ignores_empty_and_non_opt_out_messages() {
+        assert!(!is_opt_out_message(None));
+        assert!(!is_opt_out_message(Some("stop please")));
+        assert!(!is_opt_out_message(Some("hello")));
+    }
 }
 
 pub async fn process_webhook_payload(
