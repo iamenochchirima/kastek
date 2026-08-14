@@ -2118,6 +2118,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       }
     };
     request.raw.on("close", close);
+    request.raw.on("aborted", close);
+    request.raw.socket?.on("close", close);
+    response.on("close", close);
+    response.on("error", close);
     const timer = setInterval(() => void poll(), 1000);
     await poll();
   });

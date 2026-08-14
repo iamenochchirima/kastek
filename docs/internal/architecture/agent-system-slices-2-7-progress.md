@@ -394,8 +394,10 @@ and duplicate-decision coverage is in `agents/test/run.integration.test.ts` and
 
 The Agent event stream now advances reconnect cursors monotonically through
 `agents/src/http/sse.ts::advanceSseCursor`, ignoring malformed, duplicate, and out-of-order
-sequence values. The focused SSE suite passes three tests; live disconnect/reconciliation and
-worker/provider recovery remain separate gates.
+sequence values. The focused SSE suite passes three unit tests plus a real HTTP
+disconnect/reconnect regression in `agents/test/sse.integration.test.ts`; request abort, socket /
+response close, and stream error now stop the polling timer. Provider recovery remains a separate
+gate.
 
 ## Remaining work
 

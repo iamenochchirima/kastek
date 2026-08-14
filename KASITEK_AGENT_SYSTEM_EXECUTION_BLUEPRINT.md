@@ -603,8 +603,10 @@ domain commands and queries with no direct database or special-agent bypass.
   duplicate messages.
   Local resumable-stream evidence now uses `advanceSseCursor` in
   `agents/src/http/sse.ts`/`agents/src/http/app.ts`; `agents/test/sse.test.ts` proves malformed,
-  duplicate, and out-of-order event rows cannot move a reconnect cursor backwards. Full live
-  disconnect/reconciliation and worker/provider recovery remain open.
+  duplicate, and out-of-order event rows cannot move a reconnect cursor backwards. The real HTTP
+  stream has a local disconnect/reconnect regression in `agents/test/sse.integration.test.ts`, and
+  closes polling on request abort, socket/response close, or stream error. Full live
+  provider recovery remains open.
 - [ ] Run Agent Platform tests, Temporal tests, typecheck/build, and at least one configured live
   provider smoke test.
 
