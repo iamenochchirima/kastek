@@ -281,7 +281,7 @@ Agent build and core format/check/library tests pass. A checked
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 177 of 226 implementation/verification items are checked. The count
+At this reconciliation point, 178 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -1034,8 +1034,12 @@ Real campaign/booking write handlers remain disabled until their provider bounda
 
 ### Verification
 
-- [ ] Add approval hash/version/resource/expiry/single-use, self-approval, changed-permission,
-  cancellation, and concurrent-decision tests.
+- [x] Add approval hash/version/resource/expiry/single-use, self-approval, changed-permission,
+  cancellation, and concurrent-decision tests. Evidence: `agents/test/run.integration.test.ts`
+  exercises exact approval hashes, capability versions, resource/preview/policy revisions,
+  expiry, atomic consume-once behavior, changed approval fields, ambiguous effect recovery, and
+  concurrent decisions; `agents/test/http.test.ts` covers self-approval, revoked grants,
+  cancellation, approval idempotency, and authorization boundaries.
 - [x] Add effect idempotency, crash-after-provider-call, timeout, duplicate callback, reconciliation,
   compensation, and kill-switch tests.
 - [ ] Run end-to-end approved and denied actions from KasiAi, hosted agent, MCP, REST, and a channel.
