@@ -163,24 +163,21 @@ verified or completed. Work on independent items continues.
   Temporal, provider-side crash recovery, and external deployment smoke remain
   part of B-003 rather than this local environment blocker.
 
-## B-010 — Core seeded-database integration tests are unavailable in the current run
+## B-010 — Core seeded-database integration tests are unavailable in the current run (resolved)
 
 - **Blueprint:** Slice 0/1 core database verification.
-- **Evidence:** `cargo test -p kasitek-core --lib -- --include-ignored` on 2026-08-14 reached the
-  configured PostgreSQL database and passed **118 tests**, but the two seeded-data cases failed
-  because the expected fixtures were absent: `services::connections::tests::database_sync_preserves_organization_ownership`
-  expected two records for `org_connections_a` and found zero, while
-  `services::inbox::tests::conversation_reads_are_isolated_by_organization` could not find
-  `conversation_meta_a`. The third failure is the separate Redis replay gate in B-008. On a
-  disposable clone of the local schema, the workspace, customer, and billing SQL suites passed;
-  the workspace, customer, billing, and connection SQL suites now all pass on the disposable
-  clone. The connection fixture seeds its expected projection rows inside a rollback transaction
-  and verifies organization ownership, capabilities, consumers, and duplicate-source protection;
-  `scripts/test-connections-db.sh` provides the guarded wrapper.
-- **Impact:** core unit and contract coverage is green, but zero-failure seeded database
-  verification cannot be claimed until the fixture dataset is loaded into an isolated test
-  database. The standard core library run now confirms 123 passing tests; the earlier
-  `--include-ignored` run still has the seeded inbox and Redis-gated failures described above.
+- **Evidence:** the earlier `--include-ignored` run exposed missing fixtures for
+  `services::connections::tests::database_sync_preserves_organization_ownership` and
+  `services::inbox::tests::conversation_reads_are_isolated_by_organization`. The committed
+  `tests/seeded_core_integration.sql` fixture and guarded
+  `scripts/test-seeded-core-db.sh` now load those rows into a newly migrated disposable database;
+  both ignored ownership tests pass. The six Core SQL fixtures also pass against the same clean
+  schema. The remaining failure in the full ignored suite is the separate Redis replay gate in
+  B-008.
+- **Impact:** the seeded PostgreSQL ownership tests are reproducible and green. The standard Core
+  library run remains 123 passing tests with three intentionally ignored infrastructure tests;
+  zero-failure `--include-ignored` coverage still depends on the isolated Redis environment in
+  B-008.
 - **Additional environment evidence (resolved 2026-08-14):** the historical client-schema baseline
   is now committed as Prisma migration `20260301000000_initial_client_schema`. A newly-created
   local PostgreSQL database accepted all 50 client migrations with `prisma migrate deploy`; the
@@ -188,9 +185,9 @@ verified or completed. Work on independent items continues.
   baseline need a reviewed one-time `prisma migrate resolve --applied` step before deployment,
   documented in `docs/internal/architecture/client-database-migration-baseline.md`.
 - **Additional content evidence (2026-08-14):** the guarded rollback fixture
-  `scripts/test-social-content-db.sh` passed against the cloned local schema. It verifies content
+  `scripts/test-social-content-db.sh` passed against the clean migrated schema. It verifies content
   organization isolation, duplicate TikTok event-key ingestion, duplicate/late publish callbacks,
-  and usage-event idempotency. It does not replace the empty-migration, seeded-suite, or provider
-  sandbox gates.
-- **Next action:** provision/load the documented isolated core fixture dataset and rerun
-  `cargo test -p kasitek-core --lib -- --include-ignored`; provide an isolated Redis URL for B-008.
+  and usage-event idempotency. It does not replace the provider sandbox gate.
+- **Resolution:** PostgreSQL fixture provisioning and the two previously ignored seeded tests are
+  now repeatable. Provide an isolated Redis URL to close B-008 and make the complete ignored Core
+  suite zero-failure.
