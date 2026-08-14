@@ -281,7 +281,7 @@ local Temporal, and the Agent build and core format/check/library tests pass. A 
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 152 of 224 implementation/verification items are checked. The count
+At this reconciliation point, 162 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -1033,9 +1033,18 @@ agent type from one consistent product area.
   Operations page now renders each area from the core proxy using redacted summary, run-health,
   delivery, provider/worker, usage, projection-lag, notification, support-grant, and audit data;
   no browser route queries Agent storage or Temporal directly.
-- [ ] Implement idempotent, version-checked, audited commands for retry, cancel, reconcile, assign,
-  suspend/resume, credential revoke, safe webhook replay, scoped pause, feature flags, holds,
-  export/deletion workflow requests, and hierarchical kill switches.
+- [x] Implement idempotent, version-checked, audited commands for retry, cancel, reconcile, assign,
+  suspend/resume, credential revoke, safe webhook replay, scoped pause, export/deletion workflow
+  requests, and hierarchical kill switches. Evidence: Agent migrations `039`–`043`, the Core
+  webhook replay ledger, the protected Operations proxy, and the PostgreSQL operator lifecycle
+  integration cover dual-control, idempotency, expected state/resource checks, redacted audit, and
+  durable request/status projections.
+- [x] Enforce expected organization, installation, conversation, run, agent, and lifecycle identity
+  on the completed operator command families; stale or cross-organization approvals fail closed.
+  Evidence: `agents/src/http/operator-commands.ts`, protected Operations controls, and the operator
+  integration tests for stale status, stale organization, and cross-organization export rejection.
+- [ ] Implement feature flags and incident holds with explicit expiry, scope policy, and runtime
+  consumers; do not expose an administrative toggle until those semantics are approved.
 - [x] Require time-limited audited support access for customer content; never reveal secrets, raw
   tokens, hidden prompts, or unrestricted customer data. Evidence: core support grants are scoped
   to organization/conversation/customer/run, expire within 60 minutes, can be revoked, emit audit
@@ -1106,15 +1115,15 @@ changed deliveries fail closed. The core Operations UI exposes this recovery con
 URLs, secrets, or provider response data. Prisma migration
 `20260814180000_add_admin_webhook_replay` and the core SQL inventory are applied locally; core unit
 tests (112 passed / 3 infrastructure tests ignored), Prisma validation, and admin lint/typecheck pass.
-The broad admin command item remains open for the other command families (assign, flags, holds, export,
-and full version/resource checks).
+The remaining admin control gap is the separately scoped feature-flag and incident-hold policy;
+assignment, export workflow, and resource/version guard evidence is recorded below.
 
 The Agent admin command surface now also includes `assign_run`: migration
 `agents/migrations/042_operator_run_assignments.sql` persists the current assignee and revision per
 run, the command locks the run row, checks the expected lifecycle state, upserts the assignment, and
 records only safe run/assignee/revision metadata. The Operations page exposes the dual-control
-“Assign to me” action. Assignment integration and migration tests pass; the aggregate command item
-remains open for flags, holds, export workflow, and full version/resource checks.
+“Assign to me” action. Assignment integration and migration tests pass; the remaining control
+subitem is feature flags and incident holds with approved runtime consumers.
 
 **Admin command guard and export evidence (2026-08-14):** Existing Agent operator mutations now
 accept optional expected organization, installation, conversation, run, agent, and lifecycle values;

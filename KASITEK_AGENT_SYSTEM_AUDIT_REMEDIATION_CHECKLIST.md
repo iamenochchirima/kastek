@@ -694,7 +694,7 @@ limits, full Streamable HTTP lifecycle, and hosted smoke remain open.
   unchecked checklist item. Current entries are limited to unavailable infrastructure or explicit
   product/security policy decisions.
 - [x] Recount checked and unchecked primary-blueprint items and record the count in the handoff.
-  The current count is 160 checked / 64 unchecked of 224 in
+  The current count is 162 checked / 64 unchecked of 226 in
   `KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`.
 - [ ] Add evidence to primary-blueprint items only when their full deliverable and verification gate
   pass.
@@ -709,8 +709,8 @@ and resource guards; export requests persist as dual-control, organization-scope
 and the protected Core/Agent Operations surface exposes export and kill-switch status plus active
 run cancellation. Agent operator integration is 3/3, the default Agent suite is 54 files / 183
 passed / 33 expected integration skips, admin lint has zero errors (34 existing warnings), admin
-typecheck/build pass, and `cargo check -p kasitek-core` passes. The aggregate blueprint command item
-remains unchecked for the separately undefined feature-flag and incident-hold policy, and hosted,
+typecheck/build pass, and `cargo check -p kasitek-core` passes. The new feature-flag/incident-hold
+subitem remains unchecked for its separately undefined runtime policy, and hosted,
 Redis, seeded-core, provider, and browser gates remain explicit blockers rather than being claimed
 as complete.
 
