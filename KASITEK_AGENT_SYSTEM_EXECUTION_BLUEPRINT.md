@@ -281,7 +281,7 @@ local Temporal, and the Agent build and core format/check/library tests pass. A 
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 165 of 226 implementation/verification items are checked. The count
+At this reconciliation point, 166 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -323,7 +323,17 @@ verified; authenticated browser, provider, hosted, Redis, and seeded-core gates 
 - [x] Run the existing Agent Platform unit and database suites.
 - [x] Run Agent Platform typecheck/build, `kasitek-core` formatting/check/tests, and client/admin
   lint/typecheck/build baselines.
-- [ ] Run local authenticated KasiAi and Agents health smoke tests and record genuine failures.
+- [x] Run local authenticated KasiAi and Agents health smoke tests and record genuine failures.
+
+**Slice 0 smoke evidence (2026-08-14):** core `/health` and `/v1/health`, Agent `/health/live` and
+`/health/ready`, gateway `/health/ready`, client `/login`, and admin `/login`/`/dashboard` were
+checked on a local stack. `pnpm run test:e2e:local` passed on both isolated `4110/4210` and standard
+`4100/4200` Agent/gateway ports, covering installation credential exchange, filtered discovery,
+REST idempotency, durable execution, MCP authentication, negotiation, and tool acceptance. A
+temporary verified product session rendered `/agents` with HTTP 200 after fixing the SSR-only
+`window.location` access in `KasiAiChat`; a local admin principal rendered `/dashboard` with HTTP
+200. The temporary session was deleted after the check. Provider recovery, browser automation,
+hosted deployment, seeded core fixtures, and isolated Redis replay remain explicit blockers.
 
 **Complete when:** the team has a verified baseline, every remaining item maps to this blueprint,
 and agents can implement without relying on a superseded checklist.

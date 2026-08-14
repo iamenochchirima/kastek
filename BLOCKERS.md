@@ -51,7 +51,8 @@ verified or completed. Work on independent items continues.
   MCP gateways (`:4210` and standard `:4200`), client (`:3000`), and admin
   (`:3001`). Core, Agent, gateway, client, and admin liveness/readiness or
   route checks returned successfully. The real smoke passed on the isolated
-  ports. A temporary verified local product session rendered the authenticated
+  ports, and the standard `4100/4200` topology also passed
+  `pnpm run test:e2e:local`. A temporary verified local product session rendered the authenticated
   `/agents` page with HTTP 200, and a local admin principal rendered
   `/dashboard` with HTTP 200. The smoke used an ephemeral ES256 key and
   deleted its temporary product session after the request.

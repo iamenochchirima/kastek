@@ -68,3 +68,18 @@ for this reconciliation.
 Every completed slice records: migration or schema change, API/contract path,
 test/verification command and result, and commit hash. A checkbox is checked
 only when that evidence exists.
+
+## Follow-up verification — 2026-08-14
+
+The local stack was started with core, Agent API, Temporal worker, MCP gateway,
+client, and admin processes. Core and Agent/gateway health endpoints returned
+successfully. `pnpm run test:e2e:local` passed on isolated `4110/4210` and
+standard `4100/4200` Agent/gateway ports, covering credential exchange,
+filtered discovery, REST idempotency, durable execution, MCP authentication,
+protocol negotiation, and tool acceptance. A temporary verified product
+session rendered `/agents` with HTTP 200 and a local admin principal rendered
+`/dashboard` with HTTP 200; the temporary product session was deleted after
+the check. The authenticated route exposed and fixed a server-rendering bug in
+`KasiAiChat` where `window.location` was read during SSR. Browser automation,
+provider recovery, seeded core fixtures, and isolated Redis replay remain
+open in `BLOCKERS.md`.
