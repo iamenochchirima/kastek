@@ -276,12 +276,12 @@ provider coupling does not complete the reorganization.
 
 The checked items below were reconciled against the current repository, migrations, focused tests,
 and the commits listed in `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
-The Agent Platform suite now passes 56 files / 201 tests / 34 expected integration skips, and the
+The Agent Platform suite now passes 56 files / 202 tests / 34 expected integration skips, and the
 Agent build and core format/check/library tests pass. A checked
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 169 of 226 implementation/verification items are checked. The count
+At this reconciliation point, 171 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -311,10 +311,10 @@ and `BLOCKERS.md`; they must not be converted to checked items merely because a 
 Pending environment and pre-existing frontend verification gaps are tracked in [`BLOCKERS.md`](BLOCKERS.md).
 
 **Reconciliation evidence:** Agent migrations `027`–`035` applied locally and the complete Agent
-suite passed 49 files / 204 tests / 0 skipped with PostgreSQL and an isolated Temporal dev server
+suite passed 56 files / 237 tests / 0 skipped with PostgreSQL and an isolated Temporal dev server
 (`RUN_AGENTS_DB_INTEGRATION_TESTS=true RUN_TEMPORAL_INTEGRATION_TESTS=true`). `pnpm build` passed;
 `cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core --lib` passed
-105 tests with three explicitly ignored seeded/infrastructure cases. Local Temporal recovery is
+121 tests with three explicitly ignored seeded/infrastructure cases. Local Temporal recovery is
 verified; authenticated browser, provider, hosted, Redis, and seeded-core gates remain open in
 `BLOCKERS.md`.
 
@@ -652,8 +652,14 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
 ### Verification
 
 - [x] Add contract tests for every content manifest and core handler. Evidence: `agents/test/content-capability-contract.test.ts` validates all eight content manifests, argument schemas, grant/approval gates, and redaction metadata; `agents/test/core-client.test.ts` covers every typed Agent-to-core content route; `server/kasitek-core/src/capabilities/content_adapter.rs` covers invalid publish/schedule and missing-idempotency guards without database access.
-- [ ] Add authorization/isolation tests across organizations, installations, connected accounts,
-  platforms, and content ownership.
+- [x] Add authorization/isolation tests across organizations, installations, connected accounts,
+  platforms, and content ownership. Evidence: `server/kasitek-core/tests/social_content_integration.sql`
+  now verifies workspace-member ownership, organization-matched primary accounts, platform-matched
+  publish jobs, and cross-organization content visibility; `agents/test/hosted-agent-boundaries.integration.test.ts`
+  covers installation/resource/connector isolation; and `agents/test/http.test.ts` plus
+  `agents/test/run.integration.test.ts` cover installation-bound capability and approval scopes.
+  The guarded social fixture passes against the cloned local schema and the full Agent PostgreSQL
+  suite passes 56 files / 237 tests / 0 skipped.
 - [x] Add idempotency, duplicate provider callback, delayed/out-of-order callback, partial batch,
   ambiguous outcome, reconciliation, and approval mutation tests. The rollback fixture
   `server/kasitek-core/tests/social_content_integration.sql`, executed by
@@ -899,7 +905,7 @@ REST where permitted, and equivalent operations share business behavior without 
   installation status/settings, resource and connector grants, schedules, and workflow validation;
   `agent-lifecycle.integration.test.ts`, `template.integration.test.ts`, `credential.integration.test.ts`,
   and `workflow-graph.test.ts` cover rollback/template/credential/workflow-handoff paths. The full
-  PostgreSQL + Temporal suite passed 49 files / 204 tests / 0 skipped.
+  PostgreSQL + Temporal suite passed 56 files / 237 tests / 0 skipped.
 - [ ] Add tests proving hosted agents cannot escape declared capabilities, resources, connectors,
   budgets, concurrency, or approval policy.
 - [ ] Run a complete template scenario from creation through test, publish, channel/connector use,
@@ -949,8 +955,8 @@ namespace-specific installation, conversation, and user ownership; `KnowledgeRep
 lookup, ingestion, listing, and deletion now enforce agent/installation scope; and channel delivery
 attempt creation verifies the message's organization and conversation before inserting a retry. The
 new cross-scope regressions live in `agents/test/memory.integration.test.ts` and
-`agents/test/channel.integration.test.ts`. The full PostgreSQL + Temporal suite passed 49 files /
-204 tests / 0 skipped. Browser/provider scenarios, opt-out, reconnect, and the complete channel
+`agents/test/channel.integration.test.ts`. The full PostgreSQL + Temporal suite passed 56 files /
+237 tests / 0 skipped. Browser/provider scenarios, opt-out, reconnect, and the complete channel
 matrix remain open.
 
 **Complete when:** every supported channel reaches the same durable agent runtime while identity,
@@ -1222,7 +1228,7 @@ idempotent contact updates, conversation starring, provider-backed mark-read, an
 WhatsApp channel delivery. Each capability is registered once and projects into the generated
 Agent/MCP/permission/audit documentation; Core routes require the delegated capability and
 organization scope. The full local verification passes with `cd agents && pnpm test` (56 files,
-201 passed, 34 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
+202 passed, 34 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
 `cargo test -p kasitek-core --lib` (121 passed, 3 infrastructure-gated ignores), and Core check.
 Seeded database, Redis replay, provider sandbox, hosted, browser, and external-client gates remain
 open and are not represented as complete by this local evidence.

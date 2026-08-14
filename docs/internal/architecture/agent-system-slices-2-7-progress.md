@@ -95,12 +95,12 @@ marked when the complete deliverable and its verification exist.
 ## Verification evidence
 
 On 2026-08-14, Agent Platform migrations through `035` applied to the local Agent PostgreSQL
-database. With an isolated local Temporal dev server, the complete suite passed 49 files / 199
-tests / 0 skips under Node 22.22.2, and `pnpm --dir agents build` passed. Hosted-agent boundary
+database. With an isolated local Temporal dev server, the complete suite passed 56 files / 237
+tests / 0 skips in the latest local run, and `pnpm --dir agents build` passed. Hosted-agent boundary
 integration now covers organization-scoped lifecycle, grants, schedules, and workflow validation.
 Gateway tests now cover
 body/timeout/disconnect/upstream/kill-switch behavior and two independent replicas. `cargo
-fmt --check`, `cargo check -p kasitek-core`, and the core library suite passed 105 tests with three
+fmt --check`, `cargo check -p kasitek-core`, and the core library suite passed 121 tests with three
 explicitly ignored seeded-database/Redis cases.
 Client and admin lint/typecheck/build verification also passed under Node 22.22.2 (one client lint
 warning and 34 admin lint warnings, zero errors). External Redis, Temporal, browser, provider, and
@@ -378,9 +378,10 @@ switches through the Rust core proxy (`4e63f82`, `c05e506`).
 The content verification slice now includes a guarded disposable-DB fixture at
 `server/kasitek-core/tests/social_content_integration.sql` (runner:
 `server/kasitek-core/scripts/test-social-content-db.sh`). Against the cloned local schema it
-passed organization-scoped content checks, duplicate TikTok webhook event-key insertion,
-terminal publish-state protection from duplicate/late callbacks, usage-event idempotency, mixed
-partial-batch outcomes, and ambiguous-state reconciliation. Approval-field mutation, changed-grant,
+passed organization-scoped content checks, workspace-member ownership, organization- and
+platform-matched connected accounts, duplicate TikTok webhook event-key insertion, terminal
+publish-state protection from duplicate/late callbacks, usage-event idempotency, mixed partial-batch
+outcomes, and ambiguous-state reconciliation. Approval-field mutation, changed-grant,
 and duplicate-decision coverage is in `agents/test/run.integration.test.ts` and
 `agents/test/http.test.ts`; provider sandbox execution remains a separate release gate.
 

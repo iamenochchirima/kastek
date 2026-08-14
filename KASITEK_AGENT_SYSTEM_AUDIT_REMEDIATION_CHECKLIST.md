@@ -455,10 +455,11 @@ inputs and missing idempotency before database access. Grounding provenance is p
 run output as a redacted summary; it contains only workspace scope, reviewed-source counts, tool
 names, unavailable actions, and an explicit no-unsupported-certainty marker.
 The local content database fixture (`server/kasitek-core/tests/social_content_integration.sql`,
-run by `scripts/test-social-content-db.sh`) additionally verifies organization isolation, duplicate
-TikTok webhook event-key handling, terminal publish transitions against duplicate/late callbacks,
-and usage idempotency. It is intentionally recorded as local evidence only; provider sandbox,
-partial-batch/ambiguous-outcome, and full approval-mutation proof remain open.
+run by `scripts/test-social-content-db.sh`) additionally verifies organization and workspace-member
+ownership, connected-account/platform matching, duplicate TikTok webhook event-key handling,
+terminal publish transitions against duplicate/late callbacks, usage idempotency, mixed
+partial-batch outcomes, and ambiguous-outcome reconciliation. It is intentionally recorded as local
+evidence only; provider sandbox and full approval-mutation proof remain open.
 - [ ] Real Codex, Claude Code, and a generic MCP client are verified before checking the relevant
   primary-blueprint item.
 
@@ -729,7 +730,7 @@ destructive, and later-domain projections without provider credentials.
 
 **Post-remediation local capability evidence (2026-08-14):** Commits `720a47c`, `81d0284`,
 `3b26830`, `1b2eee9`, `d422444`, and `0631818` add bounded, organization-scoped workspace/reporting, contact, template,
-and inbox capability paths. The local Agent suite passes 201 tests with 34 expected integration
+and inbox capability paths. The local Agent suite passes 202 tests with 34 expected integration
 skips and the Core library suite passes 121 tests with 3 infrastructure-gated ignores. These
 results improve the executable local surface but do not close the audit's seeded-core, Redis,
 hosted/provider, browser, MCP/REST conformance, or public-principal gates.
@@ -763,7 +764,7 @@ runtime verification.
 - [ ] Run the complete Temporal approval, retry, worker-restart, crash-after-provider-call,
   cancellation, and replay recovery matrix. Local approval continuation, worker replacement,
   signal recovery, cancellation, and durable-run coverage now pass in the full Agent suite
-  (49 files / 204 tests / 0 skipped) against isolated Temporal; provider crash and Redis replay
+  (56 files / 237 tests / 0 skipped) against isolated Temporal; provider crash and Redis replay
   recovery remain open.
 - [ ] Run MCP authentication, protocol, filtering, approval, cancellation, idempotency, isolation,
   and parity tests through the separate gateway.
@@ -796,7 +797,7 @@ runtime verification.
   whitespace; the generated directory was restored after verification.
 - [x] Record every skipped/ignored test with an explicit blocker; do not summarize a suite as fully
   passing while required integration tests are skipped. Agent Temporal recovery is locally resolved
-  (204 tests / 0 skips); core seeded-database/Redis ignores remain B-008/B-010, and the evidence
+ (237 tests / 0 skips); core seeded-database/Redis ignores remain B-008/B-010, and the evidence
   documents the exact commands.
 
 ## 15. Resume the primary blueprint after remediation

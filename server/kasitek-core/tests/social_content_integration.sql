@@ -10,6 +10,10 @@ INSERT INTO "Organization" (id, name, slug, "ownerId", "createdAt", "updatedAt")
   ('social-integration-org-a', 'Social Integration A', 'social-integration-a', 'social-integration-owner-a', NOW(), NOW()),
   ('social-integration-org-b', 'Social Integration B', 'social-integration-b', 'social-integration-owner-b', NOW(), NOW());
 
+INSERT INTO "OrganizationMember" (id, "orgId", "userId", role, "joinedAt", "createdAt", "updatedAt") VALUES
+  ('social-integration-member-a', 'social-integration-org-a', 'social-integration-owner-a', 'OWNER', NOW(), NOW(), NOW()),
+  ('social-integration-member-b', 'social-integration-org-b', 'social-integration-owner-b', 'OWNER', NOW(), NOW(), NOW());
+
 INSERT INTO "SocialChannelConnection" (
   id, "userId", "orgId", platform, status, "displayName", "externalAccountId", "createdAt", "updatedAt"
 ) VALUES
@@ -101,6 +105,40 @@ BEGIN
   FROM "SocialPost" WHERE "orgId" = 'social-integration-org-b';
   IF org_a_posts <> 3 OR org_b_posts <> 1 THEN
     RAISE EXCEPTION 'content list is not organization scoped: org_a=%, org_b=%', org_a_posts, org_b_posts;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM "SocialPost" post
+    LEFT JOIN "OrganizationMember" member
+      ON member."orgId" = post."orgId" AND member."userId" = post."userId"
+    WHERE post.id LIKE 'social-integration-%' AND member.id IS NULL
+  ) THEN
+    RAISE EXCEPTION 'content ownership is not tied to a workspace member';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM "SocialPost" post
+    JOIN "SocialChannelConnection" channel ON channel.id = post."primaryChannelId"
+    WHERE post.id LIKE 'social-integration-%'
+      AND (channel."orgId" IS DISTINCT FROM post."orgId"
+        OR NOT (channel.platform::text = ANY (SELECT unnest(post.channels)::text)))
+  ) THEN
+    RAISE EXCEPTION 'content primary account is outside the workspace or platform set';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM "SocialPublishJob" job
+    JOIN "SocialPost" post ON post.id = job."postId"
+    LEFT JOIN "SocialChannelConnection" channel ON channel.id = job."channelConnectionId"
+    WHERE job.id LIKE 'social-integration-%'
+      AND (job."orgId" IS DISTINCT FROM post."orgId"
+        OR channel."orgId" IS DISTINCT FROM job."orgId"
+        OR channel.platform::text IS DISTINCT FROM job.platform::text)
+  ) THEN
+    RAISE EXCEPTION 'publish job account, content, and platform scopes diverged';
   END IF;
 
   IF EXISTS (
