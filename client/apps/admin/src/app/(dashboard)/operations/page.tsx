@@ -6,6 +6,7 @@ import { SupportAccessPanel } from "@/components/admin/support-access-panel";
 import { ProjectionRebuildButton } from "@/components/admin/projection-rebuild-button";
 import { OperatorSearch } from "@/components/admin/operator-search";
 import { OperatorNotifications } from "@/components/admin/operator-notifications";
+import { OperatorRunbooks } from "@/components/admin/operator-runbooks";
 
 type Summary = {
   scope: string;
@@ -77,6 +78,7 @@ export default async function OperationsPage() {
     </section>
     <OperatorSearch />
     <OperatorNotifications initialNotifications={notifications.notifications} />
+    <OperatorRunbooks />
     <section className="rounded-lg border border-border bg-card">
       <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-semibold text-foreground">Support access</h2><p className="mt-1 text-xs text-muted-foreground">Customer content access requires a short-lived, organization or resource-scoped grant. Secrets, prompts, and tokens remain prohibited.</p></div>
       <div className="p-5"><SupportAccessPanel initialGrants={grants.grants} adminId={admin.id} canManage={["admin", "superadmin", "owner"].includes(admin.role.toLowerCase())} /></div>

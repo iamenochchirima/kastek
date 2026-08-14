@@ -432,59 +432,77 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (q.length < 2 || q.length > 160) throw new Error("Operator search requires 2-160 characters");
     const limit = request.query.limit === undefined ? 50 : Number(request.query.limit);
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error("Invalid operator search limit");
+    const escapedQuery = q.replace(/[\\%_]/g, "\\$&");
     const result = await dependencies.pool.query(
-      `SELECT 'run' AS kind, id::text AS id, organization_id, status AS state,
+      `SELECT 'organization' AS kind, organization_id AS id, organization_id, 'active' AS state,
+              'organization' AS resource_type, MIN(created_at) AS created_at
+       FROM agent_definitions
+       WHERE organization_id ILIKE $1 ESCAPE '\\'
+       GROUP BY organization_id
+       UNION ALL
+       SELECT 'workspace' AS kind, organization_id AS id, organization_id, 'active' AS state,
+              'workspace' AS resource_type, MIN(created_at) AS created_at
+       FROM agent_definitions
+       WHERE organization_id ILIKE $1 ESCAPE '\\'
+       GROUP BY organization_id
+       UNION ALL
+       SELECT 'user' AS kind, COALESCE(external_id, id::text) AS id, organization_id,
+              participant_type AS state, 'user' AS resource_type, created_at
+       FROM participants
+       WHERE external_id ILIKE $1 ESCAPE '\\' OR display_name ILIKE $1 ESCAPE '\\'
+       UNION ALL
+       SELECT 'run' AS kind, id::text AS id, organization_id, status AS state,
               'agent_run' AS resource_type, created_at
        FROM agent_runs
-       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR correlation_id::text ILIKE $1
+       WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\' OR correlation_id::text ILIKE $1 ESCAPE '\\'
        UNION ALL
        SELECT 'agent' AS kind, id::text AS id, organization_id, status AS state,
               'agent_definition' AS resource_type, created_at
        FROM agent_definitions
-       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR name ILIKE $1 OR slug ILIKE $1
+       WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\' OR name ILIKE $1 ESCAPE '\\' OR slug ILIKE $1 ESCAPE '\\'
        UNION ALL
        SELECT 'installation' AS kind, id::text AS id, organization_id, status AS state,
               'agent_installation' AS resource_type, created_at
        FROM agent_installations
-       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR agent_definition_id::text ILIKE $1
+       WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\' OR agent_definition_id::text ILIKE $1 ESCAPE '\\'
        UNION ALL
        SELECT 'approval' AS kind, id::text AS id, organization_id, status AS state,
               'agent_approval' AS resource_type, created_at
        FROM agent_approval_records
-       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR run_id::text ILIKE $1
-          OR provider_tool_call_id ILIKE $1 OR capability ILIKE $1
+       WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\' OR run_id::text ILIKE $1 ESCAPE '\\'
+          OR provider_tool_call_id ILIKE $1 ESCAPE '\\' OR capability ILIKE $1 ESCAPE '\\'
        UNION ALL
        SELECT 'effect' AS kind, id::text AS id, organization_id, status AS state,
               'agent_effect_receipt' AS resource_type, created_at
        FROM agent_effect_receipts
-       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR run_id::text ILIKE $1
-          OR provider_tool_call_id ILIKE $1 OR capability ILIKE $1
+       WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\' OR run_id::text ILIKE $1 ESCAPE '\\'
+          OR provider_tool_call_id ILIKE $1 ESCAPE '\\' OR capability ILIKE $1 ESCAPE '\\'
        UNION ALL
        SELECT 'delivery' AS kind, id::text AS id, organization_id, status AS state,
               'delivery_attempt' AS resource_type, created_at
        FROM delivery_attempts
-       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR conversation_id::text ILIKE $1
-          OR message_id::text ILIKE $1 OR provider_message_id ILIKE $1
+       WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\' OR conversation_id::text ILIKE $1 ESCAPE '\\'
+          OR message_id::text ILIKE $1 ESCAPE '\\' OR provider_message_id ILIKE $1 ESCAPE '\\'
        UNION ALL
        SELECT 'conversation' AS kind, id::text AS id, organization_id, status AS state,
               'conversation' AS resource_type, created_at
        FROM conversations
-       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR installation_id::text ILIKE $1
-          OR owner_actor_id ILIKE $1 OR title ILIKE $1
+       WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\' OR installation_id::text ILIKE $1 ESCAPE '\\'
+          OR owner_actor_id ILIKE $1 ESCAPE '\\' OR external_conversation_id ILIKE $1 ESCAPE '\\' OR title ILIKE $1 ESCAPE '\\'
        UNION ALL
        SELECT 'message' AS kind, id::text AS id, organization_id, delivery_status AS state,
               'provider_message' AS resource_type, created_at
        FROM messages
-       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR conversation_id::text ILIKE $1
-          OR provider_message_id ILIKE $1 OR participant_id::text ILIKE $1
+       WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\' OR conversation_id::text ILIKE $1 ESCAPE '\\'
+          OR provider_message_id ILIKE $1 ESCAPE '\\' OR participant_id::text ILIKE $1 ESCAPE '\\'
        UNION ALL
        SELECT 'audit' AS kind, id::text AS id, organization_id, action AS state,
               resource_type, created_at
        FROM audit_records
-       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR actor_id ILIKE $1
-          OR resource_id ILIKE $1 OR action ILIKE $1
+       WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\' OR actor_id ILIKE $1 ESCAPE '\\'
+          OR resource_id ILIKE $1 ESCAPE '\\' OR action ILIKE $1 ESCAPE '\\'
        ORDER BY created_at DESC LIMIT $2`,
-      [`%${q}%`, limit],
+      [`%${escapedQuery}%`, limit],
     );
     return { query: q, results: result.rows };
   });

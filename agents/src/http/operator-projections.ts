@@ -80,14 +80,29 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
     return { generatedAt: new Date().toISOString(), projections: result.rows.map((row) => ({ projectionKey: row.projection_key, updatedAt: row.updated_at, ageSeconds: Math.max(0, Math.round((now - new Date(row.updated_at).getTime()) / 1000)) })) };
   }
 
-  const [reconciliation, failedRuns, auditFailures, failedDeliveries, failedModelCalls] = await Promise.all([
+  const [reconciliation, failedRuns, queuedRuns, auditFailures, failedDeliveries, failedModelCalls, providerFailures, credentialRevocations, dataAccessEvents] = await Promise.all([
     query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM agent_effect_receipts WHERE reconciliation_required = true"),
     query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM agent_runs WHERE status = 'failed' AND updated_at > now() - interval '24 hours'"),
+    query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM agent_runs WHERE status = 'queued' AND created_at < now() - interval '15 minutes'"),
     query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM audit_records WHERE action LIKE '%failed%' AND created_at > now() - interval '24 hours'"),
     query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM delivery_attempts WHERE status IN ('failed', 'unknown') AND created_at > now() - interval '24 hours'"),
-    query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM model_calls WHERE status IN ('failed', 'error') AND created_at > now() - interval '24 hours'"),
+    query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM model_calls WHERE status = 'failed' AND created_at > now() - interval '24 hours'"),
+    query<{ provider: string; count: string }>(pool, "SELECT provider, COUNT(*)::text AS count FROM model_calls WHERE status = 'failed' AND created_at > now() - interval '24 hours' GROUP BY provider ORDER BY provider"),
+    query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM audit_records WHERE action LIKE 'agent_installation_credential.%' AND action IN ('agent_installation_credential.revoked', 'agent_installation_credential.rotated') AND created_at > now() - interval '24 hours'"),
+    query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM audit_records WHERE (action ILIKE '%support%' OR action ILIKE '%data_access%' OR resource_type = 'customer_content') AND created_at > now() - interval '24 hours'"),
   ]);
-  return { generatedAt: new Date().toISOString(), reconciliationRequired: Number(reconciliation.rows[0]?.count ?? 0), failedRunsLast24h: Number(failedRuns.rows[0]?.count ?? 0), failedAuditEventsLast24h: Number(auditFailures.rows[0]?.count ?? 0), failedDeliveriesLast24h: Number(failedDeliveries.rows[0]?.count ?? 0), failedModelCallsLast24h: Number(failedModelCalls.rows[0]?.count ?? 0) };
+  return {
+    generatedAt: new Date().toISOString(),
+    reconciliationRequired: Number(reconciliation.rows[0]?.count ?? 0),
+    failedRunsLast24h: Number(failedRuns.rows[0]?.count ?? 0),
+    queuedRunsOver15m: Number(queuedRuns.rows[0]?.count ?? 0),
+    failedAuditEventsLast24h: Number(auditFailures.rows[0]?.count ?? 0),
+    failedDeliveriesLast24h: Number(failedDeliveries.rows[0]?.count ?? 0),
+    failedModelCallsLast24h: Number(failedModelCalls.rows[0]?.count ?? 0),
+    providerFailuresLast24h: Object.fromEntries(providerFailures.rows.map((row) => [row.provider, Number(row.count)])),
+    credentialRevocationsLast24h: Number(credentialRevocations.rows[0]?.count ?? 0),
+    dataAccessEventsLast24h: Number(dataAccessEvents.rows[0]?.count ?? 0),
+  };
 }
 
 export async function rebuildOperatorProjections(pool: Pool, keys: string[] = [...OPERATOR_PROJECTION_KEYS]): Promise<Array<Record<string, unknown>>> {
@@ -105,18 +120,33 @@ export async function rebuildOperatorProjections(pool: Pool, keys: string[] = [.
   return projections;
 }
 
-async function emitAlertNotifications(pool: Pool, payload: Record<string, unknown>): Promise<void> {
+export type OperatorNotificationSeed = { eventKey: string; severity: "warning" | "critical"; kind: string; title: string; body: string; metadata: Record<string, unknown> };
+
+export function buildOperatorAlertNotificationSeeds(payload: Record<string, unknown>): OperatorNotificationSeed[] {
   const reconciliation = Number(payload.reconciliationRequired ?? 0);
   const failedRuns = Number(payload.failedRunsLast24h ?? 0);
+  const queuedRuns = Number(payload.queuedRunsOver15m ?? 0);
   const failedDeliveries = Number(payload.failedDeliveriesLast24h ?? 0);
   const failedModelCalls = Number(payload.failedModelCallsLast24h ?? 0);
-  type OperatorNotificationSeed = { eventKey: string; severity: "warning" | "critical"; kind: string; title: string; body: string; metadata: Record<string, unknown> };
+  const credentialRevocations = Number(payload.credentialRevocationsLast24h ?? 0);
+  const dataAccessEvents = Number(payload.dataAccessEventsLast24h ?? 0);
+  const providerFailures = payload.providerFailuresLast24h && typeof payload.providerFailuresLast24h === "object"
+    ? Object.entries(payload.providerFailuresLast24h as Record<string, unknown>).filter(([, count]) => Number(count) > 0)
+    : [];
   const notifications: OperatorNotificationSeed[] = [];
   if (reconciliation > 0) notifications.push({ eventKey: `reconciliation:${reconciliation}`, severity: "critical", kind: "duplicate_effect", title: "Effect reconciliation required", body: `${reconciliation} effect receipt(s) require operator reconciliation.`, metadata: { count: reconciliation } });
   if (failedRuns > 0) notifications.push({ eventKey: `failed-runs:24h:${failedRuns}`, severity: "warning", kind: "stuck_run", title: "Failed runs need review", body: `${failedRuns} run(s) failed in the last 24 hours.`, metadata: { count: failedRuns } });
+  if (queuedRuns > 0) notifications.push({ eventKey: `queued-runs:15m:${queuedRuns}`, severity: "warning", kind: "queue_backlog", title: "Queued runs are aging", body: `${queuedRuns} run(s) have remained queued for more than 15 minutes.`, metadata: { count: queuedRuns } });
   if (failedDeliveries > 0) notifications.push({ eventKey: `delivery-failures:24h:${failedDeliveries}`, severity: "warning", kind: "webhook_storm", title: "Delivery failures need review", body: `${failedDeliveries} delivery attempt(s) failed or have unknown outcome in the last 24 hours.`, metadata: { count: failedDeliveries } });
   if (failedModelCalls > 0) notifications.push({ eventKey: `model-failures:24h:${failedModelCalls}`, severity: "critical", kind: "model_outage", title: "Model failures need review", body: `${failedModelCalls} model call(s) failed in the last 24 hours.`, metadata: { count: failedModelCalls } });
-  for (const notification of notifications) {
+  for (const [provider, count] of providerFailures) notifications.push({ eventKey: `provider-failure:${provider}:24h:${count}`, severity: "critical", kind: "provider_outage", title: `${provider} provider failures`, body: `${Number(count)} ${provider} model call(s) failed in the last 24 hours.`, metadata: { provider, count: Number(count) } });
+  if (credentialRevocations > 0) notifications.push({ eventKey: `credential-revocations:24h:${credentialRevocations}`, severity: "critical", kind: "credential_compromise", title: "Credential revocations need review", body: `${credentialRevocations} installation credential revocation or rotation event(s) occurred in the last 24 hours.`, metadata: { count: credentialRevocations } });
+  if (dataAccessEvents > 0) notifications.push({ eventKey: `data-access:24h:${dataAccessEvents}`, severity: "critical", kind: "data_access", title: "Sensitive data access needs review", body: `${dataAccessEvents} support or sensitive-data access event(s) occurred in the last 24 hours.`, metadata: { count: dataAccessEvents } });
+  return notifications;
+}
+
+async function emitAlertNotifications(pool: Pool, payload: Record<string, unknown>): Promise<void> {
+  for (const notification of buildOperatorAlertNotificationSeeds(payload)) {
     await query(pool, `INSERT INTO agent_operator_notifications (event_key, severity, kind, title, body, metadata) VALUES ($1, $2, $3, $4, $5, $6::jsonb) ON CONFLICT (event_key) DO NOTHING`, [notification.eventKey, notification.severity, notification.kind, notification.title, notification.body, JSON.stringify(notification.metadata)]);
   }
 }

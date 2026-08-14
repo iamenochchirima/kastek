@@ -1021,8 +1021,12 @@ agent type from one consistent product area.
   `agents/migrations/038_operator_projections.sql` persists versioned safe projections; the Agent
   projection service rebuilds all eight keys with monotonic revisions, and its PostgreSQL-backed
   integration test verifies rebuild/read/notification acknowledgement behavior.
-- [ ] Implement global search and investigation across organization/workspace, user, agent,
+- [x] Implement global search and investigation across organization/workspace, user, agent,
   installation, conversation, run, approval, effect, delivery, provider message, and correlation IDs.
+  Evidence: the protected Agent operator search covers each safe identifier projection, escapes
+  wildcard input, and returns only kind/id/organization/state/resource/timestamp fields; the
+  PostgreSQL integration test exercises organization, workspace, user, agent, installation,
+  conversation, run, delivery, message, and audit results without payload leakage.
 - [ ] Build admin Operations pages for overview, organizations, agents/installations, runs/workflows,
   conversations/channels, approvals/effects, providers/connectors, queues/workers, usage/cost,
   alerts/incidents, audit/security, support access, and controls.
@@ -1034,8 +1038,11 @@ agent type from one consistent product area.
   to organization/conversation/customer/run, expire within 60 minutes, can be revoked, emit audit
   events, and are required by admin conversation list/read routes; projection fields are explicitly
   allow-listed and secret/content fields are prohibited.
-- [ ] Add operator notifications and runbooks for provider outage, queue backlog, stuck run,
+- [x] Add operator notifications and runbooks for provider outage, queue backlog, stuck run,
   duplicate effect, webhook storm, model outage, credential compromise, and data access incidents.
+  Evidence: alert projections generate deduplicated safe notifications for all eight local incident
+  categories; the Operations UI labels each notification with its response runbook and exposes
+  the redaction-aware runbook guidance for operators.
 
 ### Verification
 
@@ -1069,7 +1076,7 @@ enforcement on customer conversation reads, eight persisted Agent operator proje
 operator search over the Agent investigation entities, deduplicated alert notifications, and an
 admin Operations UI for projection rebuilds, support access, search, and incident notifications.
 Runbooks cover the provider/model, queue/stuck-run, duplicate-effect, credential/data-access, and
-delivery-storm response paths. Verification passes the full Agent suite (52 files / 212 tests / 0
+delivery-storm response paths. Verification passes the full Agent suite (54 files / 214 tests / 0
 skips with local PostgreSQL and Temporal), core library tests (110 passed / 3 infrastructure tests
 ignored), Prisma validation/migrations, and the admin lint/typecheck/build. Full cross-role E2E,
 external hosted checks, and the remaining broad admin pages/commands remain open.
