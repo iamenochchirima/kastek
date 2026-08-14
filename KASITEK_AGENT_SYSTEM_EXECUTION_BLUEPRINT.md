@@ -807,7 +807,7 @@ REST where permitted, and equivalent operations share business behavior without 
 - [x] Run Agent Platform/core/client suites, typechecks, lint/format, and production builds. Current
   verification: Agent suite 156 passed with 24 environment-gated integration skips, Agent build and
   client typecheck/lint/production build pass, and `kasitek-core` format/check/unit suite is green
-  (94 passed, 3 seeded/infrastructure skips).
+  (95 passed, 3 seeded/infrastructure skips).
 
 **Complete when:** a user can create, test, publish, observe, pause, update, and roll back a hosted
 agent that safely combines KasiTek capabilities with approved external services.
