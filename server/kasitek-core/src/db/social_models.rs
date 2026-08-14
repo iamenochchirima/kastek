@@ -281,3 +281,21 @@ pub struct SocialPublishRequest {
 pub struct SocialPublishJobActionRequest {
     pub action: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::SocialPostUpsertRequest;
+
+    #[test]
+    fn content_write_input_has_no_body_owned_organization_scope() {
+        let parsed: SocialPostUpsertRequest = serde_json::from_value(serde_json::json!({
+            "organizationId": "attacker-org",
+            "content": "draft",
+            "status": "DRAFT"
+        }))
+        .expect("content input should deserialize");
+
+        assert_eq!(parsed.content.as_deref(), Some("draft"));
+        assert_eq!(parsed.status.as_deref(), Some("DRAFT"));
+    }
+}
