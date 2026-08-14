@@ -1166,6 +1166,16 @@ lint, and production build pass. Temporal heartbeat, Redis cross-instance replay
 and legal-hold execution remain explicit external release gates rather than being represented as
 ready by the local projection.
 
+**Retention control evidence (2026-08-14):** Migration `045_retention_legal_holds.sql` adds
+organization-scoped retention policy rows and installation/conversation/organization legal holds.
+`RetentionRepository` provides bounded policy writes, safe redacted previews, hold-aware memory
+expiry, and queued deletion jobs; the operator command boundary requires dual approval and records
+immutable audit metadata for policy changes, retention application, and hold create/release. Agent
+and Core operator routes plus the Operations page expose only policy/count/state projections and
+provide controls for policy updates, retention application, and legal-hold release. The focused
+retention integration passes against PostgreSQL. Backup/restore execution and periodic external
+access-review evidence remain release gates, so the broad Slice 13 retention checkbox stays open.
+
 ## Slice 13 — Security, observability, expansion, and production release
 
 **Layers covered:** 12, 13, and 14

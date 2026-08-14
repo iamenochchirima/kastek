@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { query } from "../db/pool";
+import { DEFAULT_RETENTION_POLICY, RetentionRepository } from "../db/repositories/retention-repository";
 
 export const OPERATOR_PROJECTION_KEYS = [
   "summary",
@@ -87,7 +88,8 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
   }
 
   if (key === "retention") {
-    const [audit, events, messages, runs, memory, attachments, deletionJobs, exports, holds] = await Promise.all([
+    const retention = new RetentionRepository(pool);
+    const [audit, events, messages, runs, memory, attachments, deletionJobs, exports, holds, policies, legalHolds] = await Promise.all([
       query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM audit_records"),
       query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM agent_events"),
       query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM messages"),
@@ -97,10 +99,12 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM memory_deletion_jobs GROUP BY status ORDER BY status"),
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_export_requests GROUP BY status ORDER BY status"),
       query<{ active: string }>(pool, "SELECT COUNT(*)::text AS active FROM agent_operator_holds WHERE status = 'active' AND expires_at > now()"),
+      retention.listPolicies(500),
+      retention.listLegalHolds(500),
     ]);
     return {
       generatedAt: new Date().toISOString(),
-      policy: { version: "agent-lifecycle-v1", redaction: "projection fields are allow-listed; payloads and secrets are excluded", deletion: "explicit jobs only", export: "dual-control request queue", backupRestore: "external deployment gate", legalHold: "operator hold readiness" },
+      policy: { version: "agent-lifecycle-v1", defaults: DEFAULT_RETENTION_POLICY, configuredOrganizations: policies.length, redaction: "projection fields are allow-listed; payloads and secrets are excluded", deletion: "explicit jobs only", export: "dual-control request queue", backupRestore: "external deployment gate", legalHold: "scoped legal-hold table with release audit" },
       datasets: [
         { key: "audit_records", count: Number(audit.rows[0]?.count ?? 0), oldestAt: audit.rows[0]?.oldest ?? null, immutable: true },
         { key: "agent_events", count: Number(events.rows[0]?.count ?? 0), oldestAt: events.rows[0]?.oldest ?? null, immutable: false },
@@ -112,6 +116,8 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
       deletionJobs: Object.fromEntries(deletionJobs.rows.map((row) => [row.status, Number(row.count)])),
       exportRequests: Object.fromEntries(exports.rows.map((row) => [row.status, Number(row.count)])),
       activeIncidentHolds: Number(holds.rows[0]?.active ?? 0),
+      configuredPolicies: policies.map((policy) => ({ organizationId: policy.organization_id, revision: policy.revision, memoryDays: policy.memory_days, conversationDays: policy.conversation_days, eventDays: policy.event_days, auditDays: policy.audit_days, attachmentDays: policy.attachment_days, updatedAt: policy.updated_at })),
+      legalHolds: legalHolds.map((hold) => ({ id: hold.id, organizationId: hold.organization_id, scopeType: hold.scope_type, scopeId: hold.scope_id, status: hold.status, expiresAt: hold.expires_at, revision: hold.revision })),
     };
   }
 

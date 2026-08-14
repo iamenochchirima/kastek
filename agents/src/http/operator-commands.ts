@@ -11,9 +11,10 @@ import { ScheduleRepository } from "../db/repositories/schedule-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
 import { OperatorControlRepository, type OperatorFlagKey, type OperatorFlagScope, type OperatorHoldScope, type OperatorHoldType } from "../db/repositories/operator-control-repository";
+import { RetentionRepository } from "../db/repositories/retention-repository";
 
 export const operatorCommandInputSchema = z.object({
-  commandType: z.enum(["cancel_run", "retry_run", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
+  commandType: z.enum(["cancel_run", "retry_run", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "set_retention_policy", "apply_retention_policy", "create_legal_hold", "release_legal_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
   targetId: z.string().trim().min(1).max(240),
   payload: z.record(z.string(), z.unknown()).default({}),
 }).strict();
@@ -49,6 +50,7 @@ export interface OperatorCommandDependencies {
   channels?: ChannelRepository;
   memory?: MemoryRepository;
   controls?: OperatorControlRepository;
+  retention?: RetentionRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalCancellation?: (runId: string, signal: { reason?: string }) => Promise<void>;
 }
@@ -83,6 +85,9 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
       scopeId: command.result.scopeId,
       featureFlagId: command.result.featureFlagId,
       holdId: command.result.holdId,
+      retentionPolicyId: command.result.retentionPolicyId,
+      legalHoldId: command.result.legalHoldId,
+      expired: command.result.expired,
     } : null,
     error: command.error ? { code: command.error.code, message: command.error.message } : null,
     createdAt: command.created_at,
@@ -143,6 +148,14 @@ function boundedExpiry(command: OperatorCommandRecord, maximumDays: number): str
     throw Object.assign(new Error(`expiresAt must be in the future and no more than ${maximumDays} days away`), { statusCode: 400 });
   }
   return expiresAt.toISOString();
+}
+
+function retentionDays(command: OperatorCommandRecord, key: string, minimum: number, maximum: number): number {
+  const value = command.payload[key];
+  if (!Number.isInteger(value) || Number(value) < minimum || Number(value) > maximum) {
+    throw Object.assign(new Error(`${key} must be an integer between ${minimum} and ${maximum}`), { statusCode: 400 });
+  }
+  return Number(value);
 }
 
 function operatorFlagKey(command: OperatorCommandRecord): OperatorFlagKey {
@@ -468,6 +481,65 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
       metadata: { exportRequestId: exportRequest.id, scopeType, scopeId: scopeId ?? null },
     });
     return { status: "requested", exportRequestId: exportRequest.id, scopeType, scopeId: scopeId ?? null };
+  }
+
+  if (command.command_type === "set_retention_policy") {
+    if (!dependencies.retention) throw Object.assign(new Error("Retention controls are unavailable"), { statusCode: 503 });
+    const organizationId = command.target_id.trim();
+    const actorOrganizationId = expectedResource(command, "expectedOrganizationId");
+    if (actorOrganizationId && actorOrganizationId !== organizationId) throw Object.assign(new Error("Retention policy organization does not match expected organization"), { statusCode: 409 });
+    const record = await dependencies.retention.setPolicy({
+      organizationId,
+      memoryDays: retentionDays(command, "memoryDays", 1, 3650),
+      conversationDays: retentionDays(command, "conversationDays", 1, 3650),
+      eventDays: retentionDays(command, "eventDays", 1, 3650),
+      auditDays: retentionDays(command, "auditDays", 30, 3650),
+      attachmentDays: retentionDays(command, "attachmentDays", 1, 3650),
+      actorId,
+    });
+    await auditCommand(dependencies.pool, { organizationId, actorId, action: "operator_command.retention_policy_updated", commandId: command.id, metadata: { retentionPolicyId: record.id, revision: record.revision } });
+    return { status: "updated", retentionPolicyId: record.id };
+  }
+
+  if (command.command_type === "apply_retention_policy") {
+    if (!dependencies.retention) throw Object.assign(new Error("Retention controls are unavailable"), { statusCode: 503 });
+    const organizationId = command.target_id.trim();
+    assertExpectedResource(command, "expectedOrganizationId", organizationId, "Retention organization");
+    const result = await dependencies.retention.applyMemoryRetention(organizationId, actorId);
+    await auditCommand(dependencies.pool, { organizationId, actorId, action: "operator_command.retention_applied", commandId: command.id, metadata: result });
+    return { status: "applied", expired: result.expired };
+  }
+
+  if (command.command_type === "create_legal_hold") {
+    if (!dependencies.retention) throw Object.assign(new Error("Legal holds are unavailable"), { statusCode: 503 });
+    const organizationId = typeof command.payload.organizationId === "string" ? command.payload.organizationId.trim() : "";
+    const scopeType = command.payload.scopeType;
+    const scopeId = typeof command.payload.scopeId === "string" ? command.payload.scopeId.trim() : "";
+    const reason = typeof command.payload.reason === "string" ? command.payload.reason.trim() : "";
+    if (!organizationId || !reason || reason.length < 8 || reason.length > 500) throw Object.assign(new Error("organizationId and a reason of 8-500 characters are required"), { statusCode: 400 });
+    if (scopeType !== "organization" && scopeType !== "installation" && scopeType !== "conversation") throw Object.assign(new Error("scopeType must be organization, installation, or conversation"), { statusCode: 400 });
+    if (!scopeId || (scopeType === "organization" && scopeId !== organizationId) || (scopeType !== "organization" && scopeId !== command.target_id)) throw Object.assign(new Error("Legal hold scope must match targetId"), { statusCode: 400 });
+    if (scopeType !== "organization") {
+      const table = scopeType === "installation" ? "agent_installations" : "conversations";
+      const resource = (await query<{ organization_id: string }>(dependencies.pool, `SELECT organization_id FROM ${table} WHERE id = $1`, [scopeId])).rows[0];
+      if (!resource) throw Object.assign(new Error(`${scopeType} not found`), { statusCode: 404 });
+      if (resource.organization_id !== organizationId) throw Object.assign(new Error("Legal hold resource belongs to a different organization"), { statusCode: 409 });
+    }
+    const expiresAt = command.payload.expiresAt === undefined ? null : boundedExpiry(command, 3650);
+    const record = await dependencies.retention.createLegalHold({ organizationId, scopeType, scopeId, reason, expiresAt, actorId });
+    await auditCommand(dependencies.pool, { organizationId, actorId, action: "operator_command.legal_hold_created", commandId: command.id, metadata: { legalHoldId: record.id, scopeType, scopeId } });
+    return { status: "active", legalHoldId: record.id };
+  }
+
+  if (command.command_type === "release_legal_hold") {
+    if (!dependencies.retention) throw Object.assign(new Error("Legal holds are unavailable"), { statusCode: 503 });
+    const hold = await dependencies.retention.getLegalHold(command.target_id);
+    if (!hold) throw Object.assign(new Error("Legal hold not found"), { statusCode: 404 });
+    assertExpectedResource(command, "expectedOrganizationId", hold.organization_id, "Legal hold organization");
+    assertExpectedStatus(command, hold.status);
+    const record = await dependencies.retention.releaseLegalHold(command.target_id, actorId);
+    await auditCommand(dependencies.pool, { organizationId: record.organization_id, actorId, action: "operator_command.legal_hold_released", commandId: command.id, metadata: { legalHoldId: record.id, revision: record.revision } });
+    return { status: "released", legalHoldId: record.id };
   }
 
   if (command.command_type === "set_feature_flag" || command.command_type === "clear_feature_flag") {

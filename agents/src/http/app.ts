@@ -29,6 +29,7 @@ import { AuditRepository } from "../db/repositories/audit-repository";
 import { ScheduleRepository } from "../db/repositories/schedule-repository";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
+import { RetentionRepository } from "../db/repositories/retention-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
@@ -89,6 +90,7 @@ export interface AppDependencies {
   schedules?: ScheduleRepository;
   killSwitches?: KillSwitchRepository;
   controls?: OperatorControlRepository;
+  retention?: RetentionRepository;
   kasiaiPreferences?: KasiAiPreferenceRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
@@ -291,6 +293,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const schedules = dependencies.schedules ?? new ScheduleRepository(dependencies.pool);
   const killSwitches = dependencies.killSwitches ?? new KillSwitchRepository(dependencies.pool);
   const controls = dependencies.controls ?? new OperatorControlRepository(dependencies.pool);
+  const retention = dependencies.retention ?? new RetentionRepository(dependencies.pool);
   const kasiaiPreferences = dependencies.kasiaiPreferences ?? new KasiAiPreferenceRepository(dependencies.pool);
   const approvalDecisionRateLimiter = new ApprovalDecisionRateLimiter(
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW,
@@ -423,6 +426,28 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator hold limit");
     return { holds: await controls.listHolds(limit) };
+  });
+
+  app.get<{ Querystring: { limit?: string } }>("/v1/operator/retention/policies", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid retention policy limit");
+    return { policies: await retention.listPolicies(limit) };
+  });
+
+  app.get<{ Querystring: { limit?: string } }>("/v1/operator/retention/legal-holds", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid legal hold limit");
+    return { legalHolds: await retention.listLegalHolds(limit) };
+  });
+
+  app.get<{ Params: { organizationId: string } }>("/v1/operator/retention/preview/:organizationId", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    return retention.preview(request.params.organizationId);
   });
 
   app.get("/v1/operator/health", async (request) => {
@@ -580,7 +605,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       actorId: auth.actorId,
       idempotencyKey: headerValue(request, "idempotency-key"),
       command,
-      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
+      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
     });
     return reply.code(result.replayed ? 200 : result.command.status === "awaiting_approval" ? 202 : 201).send(result.command);
   });
@@ -594,7 +619,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { commandId: string } }>("/v1/operator/commands/:commandId/approve", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:write");
-    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
+    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
   });
 
   app.get<{ Params: { projectionKey: string } }>("/v1/operator/projections/:projectionKey", async (request) => {

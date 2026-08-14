@@ -186,6 +186,61 @@ pub async fn holds(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn retention_policies(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<LimitQuery>,
+) -> Result<HttpResponse, AppError> {
+    let admin = operator(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=500).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Retention policy limit must be between 1 and 500".to_string(),
+        ));
+    }
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_retention_policies(&admin.id, query.limit)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn legal_holds(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<LimitQuery>,
+) -> Result<HttpResponse, AppError> {
+    let admin = operator(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=500).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Legal hold limit must be between 1 and 500".to_string(),
+        ));
+    }
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_legal_holds(&admin.id, query.limit)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn retention_preview(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    organization_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let admin = operator(&req, pool.get_ref()).await?;
+    let organization_id = organization_id.trim();
+    if organization_id.is_empty() || organization_id.len() > 240 {
+        return Err(AppError::BadRequest(
+            "Retention preview organization id is invalid".to_string(),
+        ));
+    }
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_retention_preview(&admin.id, organization_id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn health(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

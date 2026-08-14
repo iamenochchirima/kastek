@@ -38,6 +38,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         web::get().to(admin_operations::feature_flags),
                     )
                     .route("/holds", web::get().to(admin_operations::holds))
+                    .route(
+                        "/retention/policies",
+                        web::get().to(admin_operations::retention_policies),
+                    )
+                    .route(
+                        "/retention/legal-holds",
+                        web::get().to(admin_operations::legal_holds),
+                    )
+                    .route(
+                        "/retention/preview/{organizationId}",
+                        web::get().to(admin_operations::retention_preview),
+                    )
                     .route("/health", web::get().to(admin_operations::health))
                     .route(
                         "/effects/reconciliation",

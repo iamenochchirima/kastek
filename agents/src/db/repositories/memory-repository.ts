@@ -162,6 +162,14 @@ export class MemoryRepository {
        WHERE id IN (
          SELECT id FROM memory_records
          WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= now()
+           AND NOT EXISTS (
+             SELECT 1 FROM agent_legal_holds h
+             WHERE h.organization_id = memory_records.organization_id
+               AND h.status = 'active' AND (h.expires_at IS NULL OR h.expires_at > now())
+               AND ((h.scope_type = 'organization' AND h.scope_id = memory_records.organization_id)
+                 OR (h.scope_type = 'installation' AND h.scope_id = memory_records.installation_id::text)
+                 OR (h.scope_type = 'conversation' AND h.scope_id = memory_records.conversation_id::text))
+           )
          ORDER BY expires_at ASC LIMIT $1
        )
        RETURNING id`,

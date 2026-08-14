@@ -133,5 +133,9 @@ describe("foundation migration", () => {
     expect(operatorControlsSql).toContain("agent_operator_holds");
     expect(operatorControlsSql).toContain("set_feature_flag");
     expect(operatorControlsSql).toContain("release_hold");
+    const retentionSql = await readFile(new URL("../migrations/045_retention_legal_holds.sql", import.meta.url), "utf8");
+    expect(retentionSql).toContain("agent_retention_policies");
+    expect(retentionSql).toContain("agent_legal_holds");
+    expect(retentionSql).toContain("apply_retention_policy");
   });
 });

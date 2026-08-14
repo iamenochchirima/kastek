@@ -109,7 +109,7 @@ export function OperatorReconcileButton({ effectId, expectedOrganizationId, expe
 }
 
 function OperatorRecoveryCommandButton({ commandType, targetId, label, completedMessage, payload = {}, confirmMessage }: {
-  commandType: "cancel_run" | "retry_run" | "replay_delivery" | "delete_memory" | "request_export" | "kill_switch_disable" | "release_hold";
+  commandType: "cancel_run" | "retry_run" | "replay_delivery" | "delete_memory" | "request_export" | "kill_switch_disable" | "release_hold" | "apply_retention_policy" | "release_legal_hold";
   targetId: string;
   label: string;
   completedMessage: string;
@@ -251,7 +251,7 @@ export function OperatorKillSwitchEnableButton({ organizationId }: { organizatio
   return <div className="flex flex-wrap items-center justify-end gap-2"><select value={scopeType} onChange={(event) => setScopeType(event.target.value as typeof scopeType)} disabled={busy} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"><option value="organization">Organization</option><option value="agent">Agent</option><option value="installation">Installation</option><option value="tool">Tool</option></select><input value={scopeId} onChange={(event) => setScopeId(event.target.value)} disabled={busy} placeholder="Scope ID" className="h-8 w-36 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy} placeholder="Reason" className="h-8 w-40 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><button type="button" disabled={busy || Boolean(command && command.status !== "failed")} onClick={() => void start()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Submitting…" : "Enable kill switch"}</button>{command?.status === "awaiting_approval" ? <button type="button" disabled={busy} onClick={() => void approve()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Approving…" : "Approve"}</button> : null}{message ? <span className="w-full text-right text-[11px] text-muted-foreground">{message}</span> : null}</div>;
 }
 
-function OperatorDualControlForm({ commandType, targetId, payload, label, completedMessage }: { commandType: "set_feature_flag" | "create_hold"; targetId: string; payload: Record<string, unknown>; label: string; completedMessage: string }) {
+function OperatorDualControlForm({ commandType, targetId, payload, label, completedMessage }: { commandType: "set_feature_flag" | "create_hold" | "set_retention_policy" | "create_legal_hold"; targetId: string; payload: Record<string, unknown>; label: string; completedMessage: string }) {
   const [command, setCommand] = useState<Command | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -302,6 +302,34 @@ export function OperatorHoldForm() {
 
 export function OperatorHoldReleaseButton({ holdId, expectedOrganizationId }: { holdId: string; expectedOrganizationId: string }) {
   return <OperatorRecoveryCommandButton commandType="release_hold" targetId={holdId} label="Release" completedMessage="Incident hold released." payload={{ expectedOrganizationId, expectedStatus: "active" }} confirmMessage="Release this incident hold?" />;
+}
+
+export function OperatorRetentionPolicyForm() {
+  const [organizationId, setOrganizationId] = useState("");
+  const [memoryDays, setMemoryDays] = useState("365");
+  const [conversationDays, setConversationDays] = useState("365");
+  const [eventDays, setEventDays] = useState("365");
+  const [auditDays, setAuditDays] = useState("2555");
+  const [attachmentDays, setAttachmentDays] = useState("30");
+  return <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><input value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} placeholder="Organization ID" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input type="number" min={1} max={3650} value={memoryDays} onChange={(event) => setMemoryDays(event.target.value)} placeholder="Memory days" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input type="number" min={1} max={3650} value={conversationDays} onChange={(event) => setConversationDays(event.target.value)} placeholder="Conversation days" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input type="number" min={1} max={3650} value={eventDays} onChange={(event) => setEventDays(event.target.value)} placeholder="Event days" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input type="number" min={30} max={3650} value={auditDays} onChange={(event) => setAuditDays(event.target.value)} placeholder="Audit days" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input type="number" min={1} max={3650} value={attachmentDays} onChange={(event) => setAttachmentDays(event.target.value)} placeholder="Attachment days" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><OperatorDualControlForm commandType="set_retention_policy" targetId={organizationId} payload={{ memoryDays: Number(memoryDays), conversationDays: Number(conversationDays), eventDays: Number(eventDays), auditDays: Number(auditDays), attachmentDays: Number(attachmentDays) }} label="Save policy" completedMessage="Retention policy saved." /></div>;
+}
+
+export function OperatorRetentionApplyButton({ organizationId }: { organizationId: string }) {
+  return <OperatorRecoveryCommandButton commandType="apply_retention_policy" targetId={organizationId} label="Apply memory retention" completedMessage="Retention policy applied; eligible memory is queued for deletion." payload={{ expectedOrganizationId: organizationId }} confirmMessage="Expire eligible memory for this organization and queue deletion jobs? A second operator must approve." />;
+}
+
+export function OperatorLegalHoldForm() {
+  const [organizationId, setOrganizationId] = useState("");
+  const [scopeType, setScopeType] = useState<"organization" | "installation" | "conversation">("organization");
+  const [scopeId, setScopeId] = useState("");
+  const [reason, setReason] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const expires = expiresAt ? new Date(expiresAt).toISOString() : undefined;
+  return <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><input value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} placeholder="Organization ID" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><select value={scopeType} onChange={(event) => { const value = event.target.value as typeof scopeType; setScopeType(value); if (value === "organization") setScopeId(organizationId); }} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"><option value="organization">Organization</option><option value="installation">Installation</option><option value="conversation">Conversation</option></select><input value={scopeId} onChange={(event) => setScopeId(event.target.value)} placeholder="Scope ID" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason (8+ chars)" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><OperatorDualControlForm commandType="create_legal_hold" targetId={scopeId} payload={{ organizationId, scopeType, scopeId, reason, ...(expires ? { expiresAt: expires } : {}) }} label="Create legal hold" completedMessage="Legal hold created." /></div>;
+}
+
+export function OperatorLegalHoldReleaseButton({ holdId, expectedOrganizationId }: { holdId: string; expectedOrganizationId: string }) {
+  return <OperatorRecoveryCommandButton commandType="release_legal_hold" targetId={holdId} label="Release legal hold" completedMessage="Legal hold released." payload={{ expectedOrganizationId, expectedStatus: "active" }} confirmMessage="Release this legal hold? A second operator must approve." />;
 }
 
 export function OperatorAssignRunButton({ runId, expectedStatus, assigneeId, expectedOrganizationId, expectedInstallationId, expectedConversationId }: { runId: string; expectedStatus: string; assigneeId: string; expectedOrganizationId?: string; expectedInstallationId?: string; expectedConversationId?: string | null }) {
