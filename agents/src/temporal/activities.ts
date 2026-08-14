@@ -688,7 +688,7 @@ export async function buildApprovalResourceSnapshotFromCore(
     return buildDomainApprovalSnapshot(capability, argumentsValue);
   }
   if (!contentPreviewCapabilities.has(capability) && !campaignPreviewCapabilities.has(capability) && !bookingPreviewCapabilities.has(capability)) {
-    return buildApprovalResourceSnapshot(capability, argumentsValue);
+    return capability.startsWith("kasitek.core.") ? buildDomainApprovalSnapshot(capability, argumentsValue) : buildApprovalResourceSnapshot(capability, argumentsValue);
   }
   try {
     if (contentPreviewCapabilities.has(capability)) {
