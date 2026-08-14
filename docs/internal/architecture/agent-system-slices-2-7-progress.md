@@ -182,8 +182,9 @@ The current slice evidence is recorded as follows:
   Product and delegated booking list handlers now use the same typed service/booking response
   envelopes, preventing drift in wire shape while retaining their distinct authentication paths.
   The focused booking suite passes 11 tests and the full core library suite passes 90 tests with
-  three explicitly ignored infrastructure-gated cases; seeded transactional overlap and
-  organization-isolation coverage remains open under `BLOCKERS.md` B-010.
+  three explicitly ignored infrastructure-gated cases; the seeded transactional overlap and
+  organization-isolation fixture path was subsequently made repeatable by
+  `scripts/test-seeded-core-db.sh` (the remaining full-suite infrastructure gate is Redis B-008).
 
 - Booking transport/internal capability and product response parity: `15d3f77`, `21317c0`,
   `7f4d89c`; verified with `cargo fmt --check`, `cargo check -p kasitek-core`, `cargo test -p
