@@ -164,6 +164,17 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("keeps projection rebuild and notification reads behind the operator boundary", async () => {
+    const app = buildApp({ config, pool: fakePool });
+    const denied = await app.inject({ method: "GET", url: "/v1/operator/projections/summary", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(denied.statusCode).toBe(403);
+    const invalid = await app.inject({ method: "GET", url: "/v1/operator/projections/not-a-projection", headers: { "x-organization-id": "platform", "x-actor-id": "admin-1", "x-kasitek-operator": "true" } });
+    expect(invalid.statusCode).toBe(400);
+    const notifications = await app.inject({ method: "GET", url: "/v1/operator/notifications", headers: { "x-organization-id": "platform", "x-actor-id": "admin-1", "x-kasitek-operator": "true" } });
+    expect(notifications.statusCode).toBe(200);
+    await app.close();
+  });
+
   it("exchanges a registered client assertion once and rejects its replay", async () => {
     const getActiveForClientAssertion = vi.fn(async () => ({ ...mcpCredential(), client_key_id: "client-key-1", client_public_key: clientAssertionKeyPair.publicKey.export({ type: "spki", format: "pem" }).toString() }));
     const consumeClientAssertionReplay = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);

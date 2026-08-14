@@ -694,8 +694,8 @@ limits, full Streamable HTTP lifecycle, and hosted smoke remain open.
   unchecked checklist item. Current entries are limited to unavailable infrastructure or explicit
   product/security policy decisions.
 - [x] Recount checked and unchecked primary-blueprint items and record the count in the handoff.
-  The current count is 154 checked / 70 unchecked of 224 in
-  `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
+  The current count is 157 checked / 67 unchecked of 224 in
+  `KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`.
 - [ ] Add evidence to primary-blueprint items only when their full deliverable and verification gate
   pass.
 - [x] Ensure documentation describes actual authentication, approval, effect, MCP, and public API

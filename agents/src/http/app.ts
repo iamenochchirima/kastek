@@ -54,6 +54,7 @@ import { InstallationImmediateReadService } from "../invocation/immediate-read";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
 import { ApprovalDecisionRateLimiter } from "./approval-rate-limit";
 import { approveOperatorCommand, createOperatorCommand, getOperatorCommand, operatorCommandInputSchema } from "./operator-commands";
+import { acknowledgeOperatorNotification, getOperatorProjection, listOperatorNotifications, rebuildOperatorProjections } from "./operator-projections";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -437,11 +438,51 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
        FROM agent_runs
        WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR correlation_id::text ILIKE $1
        UNION ALL
+       SELECT 'agent' AS kind, id::text AS id, organization_id, status AS state,
+              'agent_definition' AS resource_type, created_at
+       FROM agent_definitions
+       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR name ILIKE $1 OR slug ILIKE $1
+       UNION ALL
+       SELECT 'installation' AS kind, id::text AS id, organization_id, status AS state,
+              'agent_installation' AS resource_type, created_at
+       FROM agent_installations
+       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR agent_definition_id::text ILIKE $1
+       UNION ALL
+       SELECT 'approval' AS kind, id::text AS id, organization_id, status AS state,
+              'agent_approval' AS resource_type, created_at
+       FROM agent_approval_records
+       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR run_id::text ILIKE $1
+          OR provider_tool_call_id ILIKE $1 OR capability ILIKE $1
+       UNION ALL
+       SELECT 'effect' AS kind, id::text AS id, organization_id, status AS state,
+              'agent_effect_receipt' AS resource_type, created_at
+       FROM agent_effect_receipts
+       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR run_id::text ILIKE $1
+          OR provider_tool_call_id ILIKE $1 OR capability ILIKE $1
+       UNION ALL
+       SELECT 'delivery' AS kind, id::text AS id, organization_id, status AS state,
+              'delivery_attempt' AS resource_type, created_at
+       FROM delivery_attempts
+       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR conversation_id::text ILIKE $1
+          OR message_id::text ILIKE $1 OR provider_message_id ILIKE $1
+       UNION ALL
+       SELECT 'conversation' AS kind, id::text AS id, organization_id, status AS state,
+              'conversation' AS resource_type, created_at
+       FROM conversations
+       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR installation_id::text ILIKE $1
+          OR owner_actor_id ILIKE $1 OR title ILIKE $1
+       UNION ALL
+       SELECT 'message' AS kind, id::text AS id, organization_id, delivery_status AS state,
+              'provider_message' AS resource_type, created_at
+       FROM messages
+       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR conversation_id::text ILIKE $1
+          OR provider_message_id ILIKE $1 OR participant_id::text ILIKE $1
+       UNION ALL
        SELECT 'audit' AS kind, id::text AS id, organization_id, action AS state,
               resource_type, created_at
        FROM audit_records
-       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR resource_id ILIKE $1
-          OR action ILIKE $1
+       WHERE id::text ILIKE $1 OR organization_id ILIKE $1 OR actor_id ILIKE $1
+          OR resource_id ILIKE $1 OR action ILIKE $1
        ORDER BY created_at DESC LIMIT $2`,
       [`%${q}%`, limit],
     );
@@ -471,6 +512,31 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:write");
     return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, signalCancellation: dependencies.signalCancellation } });
+  });
+
+  app.get<{ Params: { projectionKey: string } }>("/v1/operator/projections/:projectionKey", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    return getOperatorProjection(dependencies.pool, request.params.projectionKey);
+  });
+
+  app.post("/v1/operator/projections/rebuild", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:write");
+    const body = z.object({ keys: z.array(z.string().trim().min(1).max(80)).max(20).default([]) }).parse(request.body ?? {});
+    return { projections: await rebuildOperatorProjections(dependencies.pool, body.keys.length ? body.keys : undefined) };
+  });
+
+  app.get("/v1/operator/notifications", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    return { notifications: await listOperatorNotifications(dependencies.pool) };
+  });
+
+  app.post<{ Params: { notificationId: string } }>("/v1/operator/notifications/:notificationId/acknowledge", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:write");
+    return acknowledgeOperatorNotification(dependencies.pool, request.params.notificationId);
   });
 
   app.get("/.well-known/agent-installation-jwks.json", async () => {

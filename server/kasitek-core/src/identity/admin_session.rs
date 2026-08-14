@@ -89,9 +89,26 @@ pub fn can_execute_operator_command(role: &str) -> bool {
     grants_for_role(role).contains("admin:operate")
 }
 
+pub fn can_manage_support_access(role: &str) -> bool {
+    matches!(
+        role.trim().to_ascii_lowercase().as_str(),
+        "admin" | "superadmin" | "owner"
+    )
+}
+
+pub fn can_view_support_access(role: &str) -> bool {
+    matches!(
+        role.trim().to_ascii_lowercase().as_str(),
+        "support" | "security" | "operator" | "admin" | "superadmin" | "owner"
+    )
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{can_execute_operator_command, can_view_customer_content, grants_for_role};
+    use super::{
+        can_execute_operator_command, can_manage_support_access, can_view_customer_content,
+        can_view_support_access, grants_for_role,
+    };
 
     #[test]
     fn maps_admin_roles_to_narrow_platform_grants() {
@@ -113,5 +130,8 @@ mod tests {
         assert!(can_view_customer_content("OWNER"));
         assert!(!can_execute_operator_command("support"));
         assert!(can_execute_operator_command("operator"));
+        assert!(can_manage_support_access("admin"));
+        assert!(!can_manage_support_access("support"));
+        assert!(can_view_support_access("security"));
     }
 }

@@ -468,6 +468,40 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn operator_projection(
+        &self,
+        operator_id: &str,
+        projection_key: &str,
+    ) -> Result<Value, AppError> {
+        self.request_operator_json(
+            Method::GET,
+            &format!(
+                "/v1/operator/projections/{}",
+                urlencoding::encode(projection_key)
+            ),
+            operator_id,
+            &["operator:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn operator_rebuild_projections(
+        &self,
+        operator_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_operator_command(
+            Method::POST,
+            "/v1/operator/projections/rebuild",
+            operator_id,
+            &["operator:write"],
+            None,
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn list_templates(
         &self,
         organization_id: &str,

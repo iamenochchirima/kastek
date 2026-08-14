@@ -110,5 +110,9 @@ describe("foundation migration", () => {
     expect(operatorCommandsSql).toContain("CREATE TABLE IF NOT EXISTS agent_operator_commands");
     expect(operatorCommandsSql).toContain("required_approvals");
     expect(operatorCommandsSql).toContain("idempotency_key TEXT NOT NULL UNIQUE");
+    const operatorProjectionsSql = await readFile(new URL("../migrations/038_operator_projections.sql", import.meta.url), "utf8");
+    expect(operatorProjectionsSql).toContain("CREATE TABLE IF NOT EXISTS agent_operator_projections");
+    expect(operatorProjectionsSql).toContain("projection_key TEXT PRIMARY KEY");
+    expect(operatorProjectionsSql).toContain("CREATE TABLE IF NOT EXISTS agent_operator_notifications");
   });
 });

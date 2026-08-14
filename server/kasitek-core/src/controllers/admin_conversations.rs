@@ -3,11 +3,17 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 
-use crate::{error::AppError, middleware::extract_admin};
+use crate::{error::AppError, middleware::extract_admin, services::admin_support_access};
 
 #[derive(Debug, FromRow, Serialize)]
 struct ConversationRow {
     id: String,
+    #[sqlx(rename = "orgId")]
+    #[serde(skip)]
+    org_id: Option<String>,
+    #[sqlx(rename = "customerId")]
+    #[serde(skip)]
+    customer_id: Option<String>,
     channel: String,
     #[sqlx(rename = "customerIdentifier")]
     customer_identifier: String,
@@ -34,6 +40,8 @@ struct MessageRow {
 pub struct ListQuery {
     channel: Option<String>,
     search: Option<String>,
+    #[serde(rename = "organizationId")]
+    organization_id: Option<String>,
 }
 
 pub async fn list_conversations(
@@ -41,17 +49,40 @@ pub async fn list_conversations(
     req: HttpRequest,
     query: web::Query<ListQuery>,
 ) -> Result<HttpResponse, AppError> {
-    let _admin = extract_admin(&req, pool.get_ref()).await?;
+    let admin = extract_admin(&req, pool.get_ref()).await?;
+    let organization_id = query
+        .organization_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            AppError::BadRequest("organizationId is required for support access".to_string())
+        })?;
+    if !admin_support_access::allows(
+        pool.get_ref(),
+        &admin.id,
+        organization_id,
+        "organization",
+        None,
+    )
+    .await?
+    {
+        return Err(AppError::Forbidden(
+            "An active organization-scoped support grant is required".to_string(),
+        ));
+    }
 
     let conversations = sqlx::query_as::<_, ConversationRow>(
         r#"
-        SELECT id, channel, "customerIdentifier", "customerName", status,
+        SELECT id, "orgId", "customerId", channel, "customerIdentifier", "customerName", status,
                "lastMessageAt" AT TIME ZONE 'UTC' AS "lastMessageAt",
                "createdAt" AT TIME ZONE 'UTC' AS "createdAt"
         FROM "Conversation"
+        WHERE "orgId" = $1
         ORDER BY "lastMessageAt" DESC
         "#,
     )
+    .bind(organization_id)
     .fetch_all(pool.get_ref())
     .await?;
 
@@ -88,12 +119,12 @@ pub async fn get_conversation(
     req: HttpRequest,
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
-    let _admin = extract_admin(&req, pool.get_ref()).await?;
+    let admin = extract_admin(&req, pool.get_ref()).await?;
     let id = path.into_inner();
 
     let conversation = sqlx::query_as::<_, ConversationRow>(
         r#"
-        SELECT id, channel, "customerIdentifier", "customerName", status,
+        SELECT id, "orgId", "customerId", channel, "customerIdentifier", "customerName", status,
                "lastMessageAt" AT TIME ZONE 'UTC' AS "lastMessageAt",
                "createdAt" AT TIME ZONE 'UTC' AS "createdAt"
         FROM "Conversation"
@@ -105,6 +136,36 @@ pub async fn get_conversation(
     .fetch_optional(pool.get_ref())
     .await?
     .ok_or_else(|| AppError::NotFound("conversation not found".to_string()))?;
+
+    let organization_id = conversation
+        .org_id
+        .as_deref()
+        .ok_or_else(|| AppError::Forbidden("Conversation has no organization scope".to_string()))?;
+    let conversation_granted = admin_support_access::allows(
+        pool.get_ref(),
+        &admin.id,
+        organization_id,
+        "conversation",
+        Some(&conversation.id),
+    )
+    .await?;
+    let customer_granted = if let Some(customer_id) = conversation.customer_id.as_deref() {
+        admin_support_access::allows(
+            pool.get_ref(),
+            &admin.id,
+            organization_id,
+            "customer",
+            Some(customer_id),
+        )
+        .await?
+    } else {
+        false
+    };
+    if !conversation_granted && !customer_granted {
+        return Err(AppError::Forbidden(
+            "An active support grant is required for this conversation".to_string(),
+        ));
+    }
 
     let messages = sqlx::query_as::<_, MessageRow>(
         r#"

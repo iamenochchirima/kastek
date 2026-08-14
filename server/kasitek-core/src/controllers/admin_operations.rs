@@ -11,8 +11,12 @@ use sqlx::PgPool;
 
 use crate::config::AppConfig;
 use crate::error::AppError;
-use crate::identity::admin_session::can_execute_operator_command;
+use crate::identity::admin_session::{
+    can_execute_operator_command, can_manage_support_access, can_view_support_access,
+};
 use crate::middleware::{extract_admin, require_admin_role};
+use crate::services::admin_policy::can_use_emergency_access;
+use crate::services::admin_support_access::{self, CreateSupportAccessRequest};
 use crate::services::agent_platform::AgentPlatformClient;
 
 async fn operator(
@@ -43,6 +47,32 @@ async fn command_operator(
     if !can_execute_operator_command(&admin.role) {
         return Err(AppError::Forbidden(
             "Operator command permission is required".to_string(),
+        ));
+    }
+    Ok(admin)
+}
+
+async fn support_viewer(
+    req: &HttpRequest,
+    pool: &PgPool,
+) -> Result<crate::db::models::AdminUser, AppError> {
+    let admin = operator(req, pool).await?;
+    if !can_view_support_access(&admin.role) {
+        return Err(AppError::Forbidden(
+            "Support access visibility permission is required".to_string(),
+        ));
+    }
+    Ok(admin)
+}
+
+async fn support_manager(
+    req: &HttpRequest,
+    pool: &PgPool,
+) -> Result<crate::db::models::AdminUser, AppError> {
+    let admin = operator(req, pool).await?;
+    if !can_manage_support_access(&admin.role) {
+        return Err(AppError::Forbidden(
+            "Support access management permission is required".to_string(),
         ));
     }
     Ok(admin)
@@ -195,6 +225,21 @@ pub async fn create_command(
             "Operator command body must be an object".to_string(),
         ));
     }
+    let emergency_global_kill_switch = body
+        .get("commandType")
+        .and_then(Value::as_str)
+        .is_some_and(|command_type| command_type == "kill_switch_enable")
+        && body
+            .get("payload")
+            .and_then(Value::as_object)
+            .and_then(|payload| payload.get("scopeType"))
+            .and_then(Value::as_str)
+            .is_some_and(|scope_type| scope_type == "global");
+    if emergency_global_kill_switch && !can_use_emergency_access(&admin.role) {
+        return Err(AppError::Forbidden(
+            "Global kill-switch commands require emergency owner access".to_string(),
+        ));
+    }
     let response = AgentPlatformClient::from_config(config.get_ref())?
         .operator_create_command(&admin.id, idempotency_key, body.into_inner())
         .await?;
@@ -225,4 +270,75 @@ pub async fn approve_command(
         .operator_approve_command(&admin.id, command_id.trim())
         .await?;
     Ok(HttpResponse::Accepted().json(response))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SupportGrantQuery {
+    #[serde(rename = "organizationId")]
+    pub organization_id: Option<String>,
+}
+
+pub async fn list_support_grants(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<SupportGrantQuery>,
+) -> Result<HttpResponse, AppError> {
+    let _admin = support_viewer(&req, pool.get_ref()).await?;
+    let grants = admin_support_access::list(
+        pool.get_ref(),
+        query.organization_id.as_deref().map(str::trim),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "grants": grants })))
+}
+
+pub async fn create_support_grant(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    body: web::Json<CreateSupportAccessRequest>,
+) -> Result<HttpResponse, AppError> {
+    let admin = support_manager(&req, pool.get_ref()).await?;
+    let grant = admin_support_access::create(pool.get_ref(), &admin, body.into_inner()).await?;
+    Ok(HttpResponse::Created().json(grant))
+}
+
+pub async fn revoke_support_grant(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    grant_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let admin = support_manager(&req, pool.get_ref()).await?;
+    let grant = admin_support_access::revoke(pool.get_ref(), &admin, grant_id.as_str()).await?;
+    Ok(HttpResponse::Ok().json(grant))
+}
+
+pub async fn projection(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    projection_key: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let admin = operator(&req, pool.get_ref()).await?;
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_projection(&admin.id, projection_key.as_str())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn rebuild_projections(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let admin = command_operator(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Projection rebuild body must be an object".to_string(),
+        ));
+    }
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_rebuild_projections(&admin.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
 }

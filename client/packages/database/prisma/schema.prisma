@@ -44,6 +44,7 @@ model Organization {
   billingCheckouts               BillingCheckout[]
   billingInvoices                BillingInvoice[]
   billingIssues                  BillingReconciliationIssue[]
+  supportAccessGrants            AdminSupportAccessGrant[]
   bookingServices                BookingService[]
   bookings                       Booking[]
   onboardingProfile              OrganizationOnboardingProfile?
@@ -594,9 +595,45 @@ model AdminUser {
   role     String @default("admin") // superadmin | admin | viewer
 
   assignedLeads QuoteRequest[] @relation("AssignedLeads")
+  supportAccessGrants AdminSupportAccessGrant[] @relation("SupportAccessAdmin")
+  supportAccessGrantsIssued AdminSupportAccessGrant[] @relation("SupportAccessIssuer")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model AdminSupportAccessGrant {
+  id             String    @id @default(cuid())
+  adminId        String
+  organizationId String
+  resourceType   String
+  resourceId     String?
+  reason         String    @db.Text
+  grantedById    String
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  admin        AdminUser     @relation("SupportAccessAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+  grantedBy    AdminUser     @relation("SupportAccessIssuer", fields: [grantedById], references: [id], onDelete: Restrict)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  auditEvents  AdminSupportAccessAuditEvent[]
+
+  @@index([adminId, expiresAt])
+  @@index([organizationId, expiresAt])
+}
+
+model AdminSupportAccessAuditEvent {
+  id        String                 @id @default(cuid())
+  grantId   String
+  actorId   String
+  action    String
+  metadata  Json                   @default("{}")
+  createdAt DateTime               @default(now())
+
+  grant AdminSupportAccessGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+
+  @@index([grantId, createdAt])
 }
 
 // ─── KasiTek Domain Tables ──────────────────────────────────

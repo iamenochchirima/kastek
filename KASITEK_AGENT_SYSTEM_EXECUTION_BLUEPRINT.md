@@ -1006,15 +1006,21 @@ agent type from one consistent product area.
 
 ### Deliverables
 
-- [ ] Define operator roles/permissions, data classifications, redaction rules, support-access
-  grants, dual-control actions, emergency access, and prohibited operations.
+- [x] Define operator roles/permissions, data classifications, redaction rules, support-access
+  grants, dual-control actions, emergency access, and prohibited operations. Evidence:
+  `server/kasitek-core/src/services/admin_policy.rs` defines the classification, allow-list, and
+  emergency-role policy; `services/admin_support_access.rs` enforces bounded grants and immutable
+  grant/revoke audit events; operator commands retain dual-control and kill-switch enforcement.
 - [x] Implement a protected core operator API and short-lived signed core-to-agents operator
   delegation; never allow the admin browser to query Agent storage or Temporal directly. Evidence:
   `server/kasitek-core/src/controllers/admin_operations.rs` authenticates the admin role before
   delegating through short-lived scoped tokens in `services/agent_platform.rs`; the admin UI uses
   only the `/api/operations` core proxy, and Agent operator routes reject non-platform principals.
-- [ ] Build rebuildable read models for agent health, runs/events, usage/cost, deliveries/webhooks,
-  providers/workers, alerts, and projection lag.
+- [x] Build rebuildable read models for agent health, runs/events, usage/cost, deliveries/webhooks,
+  providers/workers, alerts, and projection lag. Evidence: migration
+  `agents/migrations/038_operator_projections.sql` persists versioned safe projections; the Agent
+  projection service rebuilds all eight keys with monotonic revisions, and its PostgreSQL-backed
+  integration test verifies rebuild/read/notification acknowledgement behavior.
 - [ ] Implement global search and investigation across organization/workspace, user, agent,
   installation, conversation, run, approval, effect, delivery, provider message, and correlation IDs.
 - [ ] Build admin Operations pages for overview, organizations, agents/installations, runs/workflows,
@@ -1023,8 +1029,11 @@ agent type from one consistent product area.
 - [ ] Implement idempotent, version-checked, audited commands for retry, cancel, reconcile, assign,
   suspend/resume, credential revoke, safe webhook replay, scoped pause, feature flags, holds,
   export/deletion workflow requests, and hierarchical kill switches.
-- [ ] Require time-limited audited support access for customer content; never reveal secrets, raw
-  tokens, hidden prompts, or unrestricted customer data.
+- [x] Require time-limited audited support access for customer content; never reveal secrets, raw
+  tokens, hidden prompts, or unrestricted customer data. Evidence: core support grants are scoped
+  to organization/conversation/customer/run, expire within 60 minutes, can be revoked, emit audit
+  events, and are required by admin conversation list/read routes; projection fields are explicitly
+  allow-listed and secret/content fields are prohibited.
 - [ ] Add operator notifications and runbooks for provider outage, queue backlog, stuck run,
   duplicate effect, webhook storm, model outage, credential compromise, and data access incidents.
 
@@ -1054,8 +1063,16 @@ two-operator reconciliation/kill-switch approval. The core proxy forwards idempo
 inspection uses a read-only delegation scope, and the reconciliation UI requires an explicit outcome
 before requesting a second approval. Focused command tests and the PostgreSQL-backed lifecycle test
 pass; the full Agent suite passes 51 files / 210 tests / 0 skips with local PostgreSQL and Temporal.
-Rebuildable projections, time-limited support grants, and incident runbooks remain open for the rest
-of Slice 12.
+**Slice 12 implementation evidence (2026-08-14):** The admin chunk now includes durable support
+grants and audit tables in both the client database schema and core SQL inventory, active-grant
+enforcement on customer conversation reads, eight persisted Agent operator projections, expanded
+operator search over the Agent investigation entities, deduplicated alert notifications, and an
+admin Operations UI for projection rebuilds, support access, search, and incident notifications.
+Runbooks cover the provider/model, queue/stuck-run, duplicate-effect, credential/data-access, and
+delivery-storm response paths. Verification passes the full Agent suite (52 files / 212 tests / 0
+skips with local PostgreSQL and Temporal), core library tests (110 passed / 3 infrastructure tests
+ignored), Prisma validation/migrations, and the admin lint/typecheck/build. Full cross-role E2E,
+external hosted checks, and the remaining broad admin pages/commands remain open.
 
 ## Slice 13 — Security, observability, expansion, and production release
 

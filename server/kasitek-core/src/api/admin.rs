@@ -46,6 +46,26 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route(
                         "/commands/{commandId}/approve",
                         web::post().to(admin_operations::approve_command),
+                    )
+                    .route(
+                        "/support-grants",
+                        web::get().to(admin_operations::list_support_grants),
+                    )
+                    .route(
+                        "/support-grants",
+                        web::post().to(admin_operations::create_support_grant),
+                    )
+                    .route(
+                        "/support-grants/{grantId}/revoke",
+                        web::post().to(admin_operations::revoke_support_grant),
+                    )
+                    .route(
+                        "/projections/rebuild",
+                        web::post().to(admin_operations::rebuild_projections),
+                    )
+                    .route(
+                        "/projections/{projectionKey}",
+                        web::get().to(admin_operations::projection),
                     ),
             )
             .route("/access", web::get().to(admin::list_launch_access))
