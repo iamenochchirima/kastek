@@ -137,7 +137,11 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     riskClass: "read",
     requiresApproval: false,
     timeoutMs: 15_000,
-    inputSchema: { type: "object", additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { limit: { type: "integer", minimum: 1, maximum: 200 } },
+      additionalProperties: false,
+    },
     outputSchema: { type: "object", required: ["bookings"], additionalProperties: false },
     manifest: {
       ownerService: "kasitek-core",
@@ -148,9 +152,9 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       auditClassification: "restricted",
       redaction: ["bookings.contactPhone", "bookings.notes"],
     },
-    handler: async (context) => {
+    handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
-      return coreClient.listBookings(context);
+      return coreClient.listBookings(context, { limit: typeof args.limit === "number" ? args.limit : undefined });
     },
   });
   tools.register({
@@ -189,7 +193,11 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     riskClass: "read",
     requiresApproval: false,
     timeoutMs: 15_000,
-    inputSchema: { type: "object", additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { limit: { type: "integer", minimum: 1, maximum: 200 } },
+      additionalProperties: false,
+    },
     outputSchema: { type: "object", required: ["campaigns"], additionalProperties: false },
     manifest: {
       ownerService: "kasitek-core",
@@ -200,9 +208,9 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       auditClassification: "restricted",
       redaction: ["campaigns.templateBody", "campaigns.recipientPhone"],
     },
-    handler: async (context) => {
+    handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
-      return coreClient.listCampaigns(context);
+      return coreClient.listCampaigns(context, { limit: typeof args.limit === "number" ? args.limit : undefined });
     },
   });
   tools.register({

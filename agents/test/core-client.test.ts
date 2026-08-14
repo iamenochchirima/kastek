@@ -82,6 +82,20 @@ describe("kasitek-core read boundary", () => {
     expect(fetchMock).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/bookings", expect.any(Object));
   });
 
+  it("passes bounded booking and campaign inventory limits", async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string) => new Response(
+      JSON.stringify(input.includes("/campaigns") ? { campaigns: [], total: 4, hasMore: true } : { bookings: [], total: 4, hasMore: true }),
+      { status: 200 },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    const client = new KasitekCoreReadClient(config);
+    await expect(client.listBookings(context, { limit: 25 })).resolves.toMatchObject({ total: 4, hasMore: true });
+    await expect(client.listCampaigns(context, { limit: 50 })).resolves.toMatchObject({ total: 4, hasMore: true });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/bookings?limit=25");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/campaigns?limit=50");
+  });
+
   it("reads one booking for an immutable approval preview", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ booking: { id: "booking-1", status: "SCHEDULED" } }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

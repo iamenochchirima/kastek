@@ -167,6 +167,13 @@ List the current KasiTek workspace's upcoming and historical bookings.
 ```json
 {
   "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
   "additionalProperties": false
 }
 ```
@@ -238,6 +245,13 @@ List the current KasiTek workspace's WhatsApp campaign status and delivery metri
 ```json
 {
   "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
   "additionalProperties": false
 }
 ```

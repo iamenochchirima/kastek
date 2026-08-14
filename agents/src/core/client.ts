@@ -40,6 +40,8 @@ export interface CoreBookingServices {
 
 export interface CoreBookings {
   bookings: CoreBooking[];
+  total?: number;
+  hasMore?: boolean;
 }
 
 export interface CoreBooking {
@@ -58,6 +60,8 @@ export interface CoreBooking {
 
 export interface CoreCampaigns {
   campaigns: unknown[];
+  total?: number;
+  hasMore?: boolean;
 }
 
 export interface CoreCampaignSummary {
@@ -207,16 +211,18 @@ export class KasitekCoreReadClient {
     return this.getJson<CoreBookingServices>(context, "/api/internal/agents/v1/bookings/services", "Booking services");
   }
 
-  public async listBookings(context: ToolInvocationContext): Promise<CoreBookings> {
-    return this.getJson<CoreBookings>(context, "/api/internal/agents/v1/bookings", "Bookings");
+  public async listBookings(context: ToolInvocationContext, input: { limit?: number } = {}): Promise<CoreBookings> {
+    const suffix = input.limit ? `?limit=${encodeURIComponent(String(input.limit))}` : "";
+    return this.getJson<CoreBookings>(context, `/api/internal/agents/v1/bookings${suffix}`, "Bookings");
   }
 
   public async getBooking(context: ToolInvocationContext, bookingId: string): Promise<{ booking: CoreBooking }> {
     return this.getJson<{ booking: CoreBooking }>(context, `/api/internal/agents/v1/bookings/${encodeURIComponent(bookingId)}`, "Booking");
   }
 
-  public async listCampaigns(context: ToolInvocationContext): Promise<CoreCampaigns> {
-    return this.getJson<CoreCampaigns>(context, "/api/internal/agents/v1/campaigns", "Campaigns");
+  public async listCampaigns(context: ToolInvocationContext, input: { limit?: number } = {}): Promise<CoreCampaigns> {
+    const suffix = input.limit ? `?limit=${encodeURIComponent(String(input.limit))}` : "";
+    return this.getJson<CoreCampaigns>(context, `/api/internal/agents/v1/campaigns${suffix}`, "Campaigns");
   }
 
   public async getCampaignSummary(
@@ -411,26 +417,27 @@ export class KasitekCoreReadClient {
   }
 
   private capabilityFor(path: string, method?: string): string {
-    if (path.includes("/customers/")) return "kasitek.core.customer_get";
-    if (path.includes("workspace/status")) return "kasitek.core.workspace_status";
-    if (path.includes("bookings/services")) return "kasitek.core.booking_services_list";
-    if (path.includes("/bookings/") && !path.endsWith("/bookings/services")) return "kasitek.core.booking_get";
-    if (path.endsWith("/bookings")) return "kasitek.core.bookings_list";
-    if (path.includes("/campaigns/")) return "kasitek.core.campaign_summary";
-    if (path.endsWith("/campaigns")) return "kasitek.core.campaigns_list";
-    if (path.startsWith("/api/internal/agents/v1/templates")) return "kasitek.core.templates_list";
-    if (path.includes("/inbox/conversations/") && path.endsWith("/messages")) return "kasitek.core.inbox_messages_list";
-    if (path.includes("/inbox/conversations")) return "kasitek.core.inbox_conversations_list";
-    if (path.includes("/contacts")) return "kasitek.core.contacts_list";
-    if (method === "POST" && path.endsWith("/content/posts")) return "kasitek.core.content_post_draft";
-    if (path.endsWith("/content/posts")) return "kasitek.core.content_posts_list";
-    if (method === "PATCH" && path.includes("/content/posts/")) return "kasitek.core.content_post_update";
-    if (path.includes("/content/posts/") && path.endsWith("/publish")) return "kasitek.core.content_post_publish";
-    if (path.includes("/content/posts/") && path.endsWith("/schedule")) return "kasitek.core.content_post_schedule";
-    if (path.includes("/content/posts/") && path.endsWith("/unschedule")) return "kasitek.core.content_post_unschedule";
-    if (method === "DELETE" && path.includes("/content/posts/")) return "kasitek.core.content_post_delete";
-    if (path.includes("/content/posts/")) return "kasitek.core.content_post_get";
-    if (path.includes("channels/deliver")) return "kasitek.core.channel_deliver";
+    const routePath = path.split("?", 1)[0] ?? path;
+    if (routePath.includes("/customers/")) return "kasitek.core.customer_get";
+    if (routePath.includes("workspace/status")) return "kasitek.core.workspace_status";
+    if (routePath.includes("bookings/services")) return "kasitek.core.booking_services_list";
+    if (routePath.includes("/bookings/") && !routePath.endsWith("/bookings/services")) return "kasitek.core.booking_get";
+    if (routePath.endsWith("/bookings")) return "kasitek.core.bookings_list";
+    if (routePath.includes("/campaigns/")) return "kasitek.core.campaign_summary";
+    if (routePath.endsWith("/campaigns")) return "kasitek.core.campaigns_list";
+    if (routePath.startsWith("/api/internal/agents/v1/templates")) return "kasitek.core.templates_list";
+    if (routePath.includes("/inbox/conversations/") && routePath.endsWith("/messages")) return "kasitek.core.inbox_messages_list";
+    if (routePath.includes("/inbox/conversations")) return "kasitek.core.inbox_conversations_list";
+    if (routePath.includes("/contacts")) return "kasitek.core.contacts_list";
+    if (method === "POST" && routePath.endsWith("/content/posts")) return "kasitek.core.content_post_draft";
+    if (routePath.endsWith("/content/posts")) return "kasitek.core.content_posts_list";
+    if (method === "PATCH" && routePath.includes("/content/posts/")) return "kasitek.core.content_post_update";
+    if (routePath.includes("/content/posts/") && routePath.endsWith("/publish")) return "kasitek.core.content_post_publish";
+    if (routePath.includes("/content/posts/") && routePath.endsWith("/schedule")) return "kasitek.core.content_post_schedule";
+    if (routePath.includes("/content/posts/") && routePath.endsWith("/unschedule")) return "kasitek.core.content_post_unschedule";
+    if (method === "DELETE" && routePath.includes("/content/posts/")) return "kasitek.core.content_post_delete";
+    if (routePath.includes("/content/posts/")) return "kasitek.core.content_post_get";
+    if (routePath.includes("channels/deliver")) return "kasitek.core.channel_deliver";
     throw new CoreToolError("CORE_INVALID_REQUEST", "Unknown kasitek-core capability route");
   }
 

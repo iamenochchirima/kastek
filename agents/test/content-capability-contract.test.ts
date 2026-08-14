@@ -43,6 +43,8 @@ describe("content capability contract", () => {
     expect(registry.validateArguments("kasitek.core.inbox_conversations_list", { limit: 201 })).toBe(false);
     expect(registry.validateArguments("kasitek.core.inbox_messages_list", { conversationId: "conversation-1", limit: 100 })).toBe(true);
     expect(registry.validateArguments("kasitek.core.inbox_messages_list", { conversationId: "conversation-1", limit: 0 })).toBe(false);
+    expect(registry.validateArguments("kasitek.core.bookings_list", { limit: 200 })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.campaigns_list", { limit: 201 })).toBe(false);
   });
 
   it("keeps every content capability owned, scoped, redacted, and classified", () => {

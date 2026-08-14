@@ -16,7 +16,7 @@ use crate::config::AppConfig;
 use crate::db::models::{
     SocialPostUpsertRequest, WhatsappContactListQuery, WhatsappTemplateListQuery,
 };
-use crate::domains::bookings::transport::{BookingListResponse, BookingServicesResponse};
+use crate::domains::bookings::transport::BookingServicesResponse;
 use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
@@ -230,12 +230,20 @@ pub async fn list_bookings(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
     req: HttpRequest,
+    query: web::Query<AgentCollectionQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context =
         resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.bookings_list")
             .await?;
-    let bookings = core_adapter::list_bookings(pool.get_ref(), &context).await?;
-    Ok(HttpResponse::Ok().json(BookingListResponse::new(bookings)))
+    let mut bookings = core_adapter::list_bookings(pool.get_ref(), &context).await?;
+    let total = bookings.len();
+    let limit = query.bounded_limit();
+    bookings.truncate(limit);
+    Ok(HttpResponse::Ok().json(json!({
+        "bookings": bookings,
+        "total": total,
+        "hasMore": total > limit,
+    })))
 }
 
 pub async fn get_booking(
@@ -256,11 +264,16 @@ pub async fn list_campaigns(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
     req: HttpRequest,
+    query: web::Query<AgentCollectionQuery>,
 ) -> Result<HttpResponse, AppError> {
     let (organization_id, _) =
         require_internal_agent(config.get_ref(), &req, "kasitek.core.campaigns_list").await?;
     let campaigns = whatsapp::list_campaigns(pool.get_ref(), &organization_id).await?;
-    Ok(HttpResponse::Ok().json(campaigns))
+    Ok(HttpResponse::Ok().json(bound_collection_payload(
+        campaigns,
+        "campaigns",
+        query.bounded_limit(),
+    )?))
 }
 
 pub async fn get_campaign_summary(
@@ -311,21 +324,40 @@ pub async fn list_contacts(
 /// List the organisation's inbox conversations. Conversation records remain
 /// owned by core; this boundary only returns the redacted list projection.
 #[derive(Debug, Deserialize)]
-pub struct AgentInboxListQuery {
+pub struct AgentCollectionQuery {
     pub limit: Option<u16>,
 }
 
-impl AgentInboxListQuery {
+impl AgentCollectionQuery {
     fn bounded_limit(&self) -> usize {
         self.limit.unwrap_or(100).clamp(1, 200) as usize
     }
+}
+
+fn bound_collection_payload(
+    mut payload: serde_json::Value,
+    key: &str,
+    limit: usize,
+) -> Result<serde_json::Value, AppError> {
+    let object = payload
+        .as_object_mut()
+        .ok_or_else(|| AppError::Internal("Core collection projection is invalid".to_string()))?;
+    let values = object
+        .get_mut(key)
+        .and_then(serde_json::Value::as_array_mut)
+        .ok_or_else(|| AppError::Internal("Core collection projection is invalid".to_string()))?;
+    let total = values.len();
+    values.truncate(limit);
+    object.insert("total".to_string(), json!(total));
+    object.insert("hasMore".to_string(), json!(total > limit));
+    Ok(payload)
 }
 
 pub async fn list_inbox_conversations(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
     req: HttpRequest,
-    query: web::Query<AgentInboxListQuery>,
+    query: web::Query<AgentCollectionQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = resolve_internal_agent_context(
         config.get_ref(),
@@ -349,7 +381,7 @@ pub async fn list_inbox_messages(
     config: web::Data<AppConfig>,
     req: HttpRequest,
     path: web::Path<String>,
-    query: web::Query<AgentInboxListQuery>,
+    query: web::Query<AgentCollectionQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context =
         resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.inbox_messages_list")
