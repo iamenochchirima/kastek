@@ -240,6 +240,7 @@
       },
       "post": {
         "operationId": "createWebhookSubscription",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WebhookSubscriptionInput" } } } },
         "responses": {
           "201": { "description": "Subscription created; the signing secret is returned once", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WebhookSubscriptionCreated" } } } },
@@ -307,7 +308,7 @@
       "CampaignId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
       "TemplateStatus": { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["APPROVED", "PENDING", "REJECTED", "DISABLED"] } },
       "WebhookSubscriptionId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
-      "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "description": "Stable client-generated key used to safely retry draft creation.", "schema": { "type": "string", "minLength": 1, "maxLength": 240 } }
+      "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "description": "Stable client-generated key used to safely retry a mutating public operation.", "schema": { "type": "string", "minLength": 1, "maxLength": 240 } }
     },
     "responses": {
       "BadRequest": { "description": "Invalid request", "headers": { "ApiVersion": { "$ref": "#/components/headers/ApiVersion" }, "CorrelationId": { "$ref": "#/components/headers/CorrelationId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
@@ -334,7 +335,7 @@
       "WebhookSubscriptionInput": { "type": "object", "required": ["url"], "properties": { "url": { "type": "string", "format": "uri" }, "eventTypes": { "type": "array", "maxItems": 8, "items": { "type": "string", "enum": ["public_api.request.completed", "content.post.created", "content.post.updated"] } }, "secret": { "type": "string", "minLength": 32, "maxLength": 512 } }, "additionalProperties": false },
       "WebhookSubscriptionUpdate": { "type": "object", "properties": { "url": { "type": "string", "format": "uri" }, "eventTypes": { "type": "array", "maxItems": 8, "items": { "type": "string", "enum": ["public_api.request.completed", "content.post.created", "content.post.updated"] } }, "enabled": { "type": "boolean" } }, "additionalProperties": false },
       "WebhookSubscriptionResponse": { "type": "object", "required": ["subscription"], "properties": { "subscription": { "$ref": "#/components/schemas/WebhookSubscription" } }, "additionalProperties": false },
-      "WebhookSubscriptionCreated": { "type": "object", "required": ["subscription", "secret", "secretDelivery"], "properties": { "subscription": { "$ref": "#/components/schemas/WebhookSubscription" }, "secret": { "type": "string" }, "secretDelivery": { "const": "returned_once" } }, "additionalProperties": false },
+      "WebhookSubscriptionCreated": { "type": "object", "required": ["subscription", "secret", "secretDelivery"], "properties": { "subscription": { "$ref": "#/components/schemas/WebhookSubscription" }, "secret": { "type": "string" }, "secretDelivery": { "type": "string", "enum": ["returned_once", "idempotency_replay"] } }, "additionalProperties": false },
       "WebhookDelivery": { "type": "object", "required": ["id", "subscriptionId", "eventId", "eventType", "status", "attemptCount", "nextAttemptAt", "createdAt", "updatedAt"], "properties": { "id": { "type": "string" }, "subscriptionId": { "type": "string" }, "eventId": { "type": "string" }, "eventType": { "type": "string" }, "status": { "type": "string", "enum": ["PENDING", "DELIVERING", "DELIVERED", "FAILED"] }, "attemptCount": { "type": "integer", "minimum": 0 }, "nextAttemptAt": { "type": "string", "format": "date-time" }, "lastStatusCode": { "type": ["integer", "null"] }, "lastError": { "type": ["string", "null"] }, "deliveredAt": { "type": ["string", "null"], "format": "date-time" }, "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" } }, "additionalProperties": false },
       "WebhookSubscriptionPage": { "type": "object", "required": ["subscriptions", "pagination"], "properties": { "subscriptions": { "type": "array", "items": { "$ref": "#/components/schemas/WebhookSubscription" } }, "pagination": { "$ref": "#/components/schemas/Pagination" } }, "additionalProperties": false },
       "WebhookDeliveryPage": { "type": "object", "required": ["deliveries", "pagination"], "properties": { "deliveries": { "type": "array", "items": { "$ref": "#/components/schemas/WebhookDelivery" } }, "pagination": { "$ref": "#/components/schemas/Pagination" } }, "additionalProperties": false }

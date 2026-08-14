@@ -134,11 +134,13 @@ pub async fn create_webhook_subscription(
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_webhook_scope(&req, &state, &context, true).await?;
-    let (subscription, secret) = public_webhooks::create_subscription(
+    require_idempotency(&context, "webhook subscription creation")?;
+    let (subscription, secret, replayed) = public_webhooks::create_subscription(
         &state.pool,
         &context.organization_id,
         body.into_inner(),
         &state.config,
+        context.idempotency_key.as_deref(),
     )
     .await?;
     Ok(response_with_context(&context)
@@ -146,7 +148,7 @@ pub async fn create_webhook_subscription(
         .json(json!({
             "subscription": subscription,
             "secret": secret,
-            "secretDelivery": "returned_once"
+            "secretDelivery": if replayed { "idempotency_replay" } else { "returned_once" }
         })))
 }
 
@@ -1335,6 +1337,13 @@ mod tests {
             .as_array()
             .expect("draft creation headers");
         assert!(create_parameters
+            .iter()
+            .any(|parameter| { parameter["$ref"] == "#/components/parameters/IdempotencyKey" }));
+        let webhook_create_parameters = document["paths"]["/webhooks/subscriptions"]["post"]
+            ["parameters"]
+            .as_array()
+            .expect("webhook creation headers");
+        assert!(webhook_create_parameters
             .iter()
             .any(|parameter| { parameter["$ref"] == "#/components/parameters/IdempotencyKey" }));
         assert_eq!(

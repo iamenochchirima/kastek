@@ -363,6 +363,7 @@ model PublicApiWebhookSubscription {
   orgId            String
   org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   url              String
+  idempotencyKey   String?
   secretCiphertext String   @db.Text
   eventTypes       Json
   status           String   @default("ACTIVE")
@@ -376,6 +377,7 @@ model PublicApiWebhookSubscription {
   updatedAt        DateTime @updatedAt
 
   @@index([orgId, status])
+  @@unique([orgId, idempotencyKey])
 }
 
 model PublicApiWebhookDelivery {

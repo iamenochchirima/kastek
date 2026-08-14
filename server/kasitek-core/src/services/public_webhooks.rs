@@ -204,7 +204,26 @@ pub async fn create_subscription(
     organization_id: &str,
     input: CreateSubscriptionInput,
     config: &AppConfig,
-) -> Result<(SubscriptionRow, String), AppError> {
+    idempotency_key: Option<&str>,
+) -> Result<(SubscriptionRow, String, bool), AppError> {
+    if idempotency_key.is_some_and(|key| key.trim().is_empty()) {
+        return Err(AppError::BadRequest(
+            "idempotency-key must not be empty".to_string(),
+        ));
+    }
+    if let Some(idempotency_key) = idempotency_key {
+        if let Some(subscription_id) = sqlx::query_scalar::<_, String>(
+            r#"SELECT "id" FROM "PublicApiWebhookSubscription"
+               WHERE "orgId" = $1 AND "idempotencyKey" = $2"#,
+        )
+        .bind(organization_id)
+        .bind(idempotency_key)
+        .fetch_optional(pool)
+        .await?
+        {
+            return replay_created_subscription(pool, &subscription_id).await;
+        }
+    }
     let url = validate_destination_url(&input.url, config).await?;
     let event_types = supported_event_types(input.event_types)?;
     let secret = input.secret.unwrap_or_else(generate_secret);
@@ -218,8 +237,9 @@ pub async fn create_subscription(
     let row = sqlx::query_as::<_, SubscriptionRow>(
         r#"
         INSERT INTO "PublicApiWebhookSubscription"
-            ("id", "orgId", "url", "secretCiphertext", "eventTypes", "status")
-        VALUES ($1, $2, $3, $4, $5, 'ACTIVE')
+            ("id", "orgId", "url", "idempotencyKey", "secretCiphertext", "eventTypes", "status")
+        VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE')
+        ON CONFLICT ("orgId", "idempotencyKey") WHERE "idempotencyKey" IS NOT NULL DO NOTHING
         RETURNING "id", "orgId", "url", "eventTypes", "status", "failureCount",
                   "lastDeliveredAt", "lastFailureAt", "disabledAt", "disabledReason",
                   "createdAt", "updatedAt"
@@ -228,11 +248,50 @@ pub async fn create_subscription(
     .bind(&id)
     .bind(organization_id)
     .bind(url.as_str())
+    .bind(idempotency_key)
     .bind(ciphertext)
     .bind(json!(event_types))
+    .fetch_optional(pool)
+    .await?;
+    if let Some(row) = row {
+        return Ok((row, secret, false));
+    }
+    let Some(idempotency_key) = idempotency_key else {
+        return Err(AppError::Conflict(
+            "Webhook subscription could not be created".to_string(),
+        ));
+    };
+    let subscription_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT "id" FROM "PublicApiWebhookSubscription"
+           WHERE "orgId" = $1 AND "idempotencyKey" = $2"#,
+    )
+    .bind(organization_id)
+    .bind(idempotency_key)
     .fetch_one(pool)
     .await?;
-    Ok((row, secret))
+    replay_created_subscription(pool, &subscription_id).await
+}
+
+async fn replay_created_subscription(
+    pool: &PgPool,
+    subscription_id: &str,
+) -> Result<(SubscriptionRow, String, bool), AppError> {
+    let row = sqlx::query_as::<_, SubscriptionRow>(
+        r#"SELECT "id", "orgId", "url", "eventTypes", "status", "failureCount",
+                   "lastDeliveredAt", "lastFailureAt", "disabledAt", "disabledReason",
+                   "createdAt", "updatedAt"
+            FROM "PublicApiWebhookSubscription" WHERE "id" = $1"#,
+    )
+    .bind(subscription_id)
+    .fetch_one(pool)
+    .await?;
+    let ciphertext = sqlx::query_scalar::<_, String>(
+        r#"SELECT "secretCiphertext" FROM "PublicApiWebhookSubscription" WHERE "id" = $1"#,
+    )
+    .bind(subscription_id)
+    .fetch_one(pool)
+    .await?;
+    Ok((row, decrypt_secret(&ciphertext)?, true))
 }
 
 pub async fn list_subscriptions(
