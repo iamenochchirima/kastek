@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-editor";
+import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
 import {
   archiveAgent,
   setAgentInstallationStatus,
@@ -111,7 +112,16 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const [instructions, setInstructions] = useState(baseVersion?.instructions ?? "");
   const [modelProvider, setModelProvider] = useState(String(basePrimary.provider ?? baseConfiguration.provider ?? "openrouter"));
   const [model, setModel] = useState(String(basePrimary.model ?? baseConfiguration.model ?? "openai/gpt-oss-20b:free"));
-  const [maxTokensPerRun, setMaxTokensPerRun] = useState(String(basePolicy.maxTokensPerRun ?? baseConfiguration.maxTotalTokens ?? 4096));
+  const [runtimeLimits, setRuntimeLimits] = useState<AgentRuntimeLimitsValue>({
+    ...defaultAgentRuntimeLimits,
+    maxIterations: String(baseConfiguration.maxIterations ?? defaultAgentRuntimeLimits.maxIterations),
+    maxToolCalls: String(baseConfiguration.maxToolCalls ?? defaultAgentRuntimeLimits.maxToolCalls),
+    maxModelCalls: String(baseConfiguration.maxModelCalls ?? defaultAgentRuntimeLimits.maxModelCalls),
+    maxTotalTokens: String(basePolicy.maxTokensPerRun ?? baseConfiguration.maxTotalTokens ?? defaultAgentRuntimeLimits.maxTotalTokens),
+    maxContextMessages: String(baseConfiguration.maxContextMessages ?? defaultAgentRuntimeLimits.maxContextMessages),
+    maxContextTokens: String(baseConfiguration.maxContextTokens ?? defaultAgentRuntimeLimits.maxContextTokens),
+    maxWallTimeMs: String(baseConfiguration.maxWallTimeMs ?? defaultAgentRuntimeLimits.maxWallTimeMs),
+  });
   const [creatingVersion, setCreatingVersion] = useState(false);
   const [workflow, setWorkflow] = useState<WorkflowGraphValue | null>(null);
   const [workflowValid, setWorkflowValid] = useState(true);
@@ -192,12 +202,11 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
     setCreatingVersion(true);
     setError(null);
     try {
-      const parsedMaxTokens = Number(maxTokensPerRun);
-      if (!Number.isSafeInteger(parsedMaxTokens) || parsedMaxTokens < 256 || parsedMaxTokens > 1_000_000) throw new Error("Max tokens per run must be between 256 and 1,000,000");
+      const parsedLimits = parseAgentRuntimeLimits(runtimeLimits);
       const created = await createAgentVersion(agent.id, {
         instructions: instructions.trim(),
-        configuration: { provider: modelProvider, model: model.trim(), maxIterations: 8, maxToolCalls: 8, maxTotalTokens: parsedMaxTokens, maxContextMessages: 30, maxContextTokens: 12_000, ...(workflow ? { workflow } : {}) },
-        policy: { modelPolicy: { version: "hosted-agent-v1", primary: { provider: modelProvider, model: model.trim() }, fallback: [], allowUserFundedFallbackToKasiTek: false, maxTokensPerRun: parsedMaxTokens } },
+        configuration: { provider: modelProvider, model: model.trim(), ...parsedLimits, ...(workflow ? { workflow } : {}) },
+        policy: { modelPolicy: { version: "hosted-agent-v1", primary: { provider: modelProvider, model: model.trim() }, fallback: [], allowUserFundedFallbackToKasiTek: false, maxTokensPerRun: parsedLimits.maxTotalTokens }, runLimits: parsedLimits },
       });
       setVersions((current) => [created, ...current]);
     } catch (cause) {
@@ -263,7 +272,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {!protectedAgent ? <AgentWorkflowEditor configuration={baseConfiguration} onChange={handleWorkflowChange} onValidityChange={handleWorkflowValidity} onTestRun={agent.installation_id && installationStatus === "active" ? runWorkflowTest : undefined} /> : null}
 
-        {!protectedAgent ? <Card><CardContent className="space-y-4 p-6"><div><h2 className="text-lg font-semibold text-foreground">Create a draft version</h2><p className="mt-1 text-sm text-muted-foreground">Drafts are immutable after creation. Publish the new version from the version history once you are ready.</p></div><div className="rounded-xl border border-border bg-secondary/20 p-4"><h3 className="text-sm font-semibold text-foreground">Model policy</h3><div className="mt-3 grid gap-3 sm:grid-cols-[0.65fr_1.35fr_0.7fr]"><label className="text-xs font-medium text-foreground">Provider<select value={modelProvider} onChange={(event) => setModelProvider(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></label><label className="text-xs font-medium text-foreground">Model<input value={model} onChange={(event) => setModel(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground">Max tokens<input value={maxTokensPerRun} onChange={(event) => setMaxTokensPerRun(event.target.value)} inputMode="numeric" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label></div></div><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm leading-6" aria-label="Agent instructions" /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">The draft will include the current workflow graph and model policy.</p><Button type="button" disabled={creatingVersion || !instructions.trim() || !model.trim() || !workflowReady || !workflowValid || !workflow} onClick={() => void createVersion()}>{creatingVersion ? "Creating draft…" : "Create draft version"}</Button></div></CardContent></Card> : null}
+        {!protectedAgent ? <Card><CardContent className="space-y-4 p-6"><div><h2 className="text-lg font-semibold text-foreground">Create a draft version</h2><p className="mt-1 text-sm text-muted-foreground">Drafts are immutable after creation. Publish the new version from the version history once you are ready.</p></div><div className="rounded-xl border border-border bg-secondary/20 p-4"><h3 className="text-sm font-semibold text-foreground">Model policy</h3><div className="mt-3 grid gap-3 sm:grid-cols-[0.65fr_1.35fr_0.7fr]"><label className="text-xs font-medium text-foreground">Provider<select value={modelProvider} onChange={(event) => setModelProvider(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></label><label className="text-xs font-medium text-foreground">Model<input value={model} onChange={(event) => setModel(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground">Max tokens<input value={runtimeLimits.maxTotalTokens} onChange={(event) => setRuntimeLimits((current) => ({ ...current, maxTotalTokens: event.target.value }))} inputMode="numeric" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label></div></div><AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} /><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm leading-6" aria-label="Agent instructions" /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">The draft will include the current workflow graph, model policy, and runtime limits.</p><Button type="button" disabled={creatingVersion || !instructions.trim() || !model.trim() || !workflowReady || !workflowValid || !workflow} onClick={() => void createVersion()}>{creatingVersion ? "Creating draft…" : "Create draft version"}</Button></div></CardContent></Card> : null}
 
         <section className="space-y-3" aria-labelledby="agent-versions-title">
           <div><h2 id="agent-versions-title" className="text-lg font-semibold text-foreground">Version history</h2><p className="text-sm text-muted-foreground">Published versions are immutable. Drafts can be published; retired versions can be rolled back.</p></div>

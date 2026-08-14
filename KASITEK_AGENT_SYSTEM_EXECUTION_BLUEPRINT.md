@@ -280,7 +280,7 @@ The Agent Platform database suite passed locally with 39 files / 113 tests, and 
 core format/check/library tests passed. A checked implementation item does **not** assert that its
 slice completion gate or production-release verification has passed.
 
-At this reconciliation point, 126 of 224 implementation/verification items are checked. The count
+At this reconciliation point, 148 of 224 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -770,8 +770,16 @@ REST where permitted, and equivalent operations share business behavior without 
 
 ### Deliverables
 
-- [ ] Implement general hosted agent definitions with instructions, model policy, capability grants,
+- [x] Implement general hosted agent definitions with instructions, model policy, capability grants,
   connector grants, knowledge/memory, channels, schedules, workflow graph, limits, and handoff.
+  Evidence: the hosted-agent create and draft-version flows persist validated runtime ceilings in
+  `client/apps/client/src/components/dashboard/agents/agent-runtime-limits.tsx`,
+  `client/apps/client/src/components/dashboard/agents/create-agent-page-client.tsx`, and
+  `client/apps/client/src/components/dashboard/agents/agent-detail-page-client.tsx`; the existing
+  Agent detail UI covers grants, connectors, knowledge/memory, channels, schedules, runs, and
+  workflow editing. Durable handoff is implemented across `agents/src/workflows/executor.ts`,
+  `agents/src/temporal/workflows.ts`, and the external-event API (commit `5f4aeed`). Agent build,
+  client typecheck/lint/production build, and core checks passed.
 - [x] Implement guided creation for a small set of real templates; templates create ordinary
   versioned definitions and do not introduce template-specific runtime paths.
 - [x] Implement draft/publish/rollback/retire versioning and safe installation updates.
