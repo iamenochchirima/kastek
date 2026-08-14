@@ -51,6 +51,7 @@ const PUBLIC_PAGE_MAX_LIMIT: usize = 100;
 pub struct PublicPageQuery {
     pub cursor: Option<usize>,
     pub limit: Option<usize>,
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,12 +59,21 @@ pub struct PublicTemplateQuery {
     pub status: Option<String>,
     pub cursor: Option<usize>,
     pub limit: Option<usize>,
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PublicContactQuery {
+    #[serde(flatten)]
+    pub filters: WhatsappContactListQuery,
+    pub version: Option<String>,
 }
 
 fn page_window(
     query: PublicPageQuery,
     total: usize,
 ) -> Result<(usize, usize, Option<usize>), AppError> {
+    validate_public_version(query.version.as_deref())?;
     let cursor = query.cursor.unwrap_or(0);
     if cursor > total {
         return Err(AppError::BadRequest(
@@ -78,6 +88,15 @@ fn page_window(
     }
     let next_cursor = (cursor + limit < total).then_some(cursor + limit);
     Ok((cursor, limit, next_cursor))
+}
+
+fn validate_public_version(version: Option<&str>) -> Result<(), AppError> {
+    if version.is_some_and(|version| version != "v1") {
+        return Err(AppError::BadRequest(
+            "unsupported public API version".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn paginate_collection(
@@ -712,11 +731,14 @@ pub async fn update_content_draft(
 pub async fn list_contacts(
     req: HttpRequest,
     state: web::Data<AppState>,
-    query: web::Query<WhatsappContactListQuery>,
+    query: web::Query<PublicContactQuery>,
 ) -> Result<HttpResponse, AppError> {
     let context = public_context(&req, &state).await?;
     require_public_action(&req, &state, &context, "contacts.list").await?;
-    let mut query = query.into_inner();
+    let query = query.into_inner();
+    let version = query.version.clone();
+    validate_public_version(version.as_deref())?;
+    let mut query = query.filters;
     let requested_limit = match query.limit {
         Some(value) if value > 0 => value as usize,
         Some(_) => {
@@ -739,6 +761,7 @@ pub async fn list_contacts(
         PublicPageQuery {
             cursor: Some(cursor),
             limit: Some(requested_limit),
+            version,
         },
         total,
     )?;
@@ -864,6 +887,7 @@ pub async fn list_templates(
         PublicPageQuery {
             cursor: query.cursor,
             limit: query.limit,
+            version: query.version,
         },
     )?;
     Ok(response_with_context(&context).json(redacted(
@@ -957,6 +981,7 @@ mod tests {
             PublicPageQuery {
                 cursor: Some(2),
                 limit: Some(2),
+                version: None,
             },
             5,
         )
@@ -968,6 +993,7 @@ mod tests {
             PublicPageQuery {
                 cursor: Some(2),
                 limit: Some(2),
+                version: None,
             },
         )
         .expect("page envelope");
@@ -981,7 +1007,8 @@ mod tests {
         assert!(page_window(
             PublicPageQuery {
                 cursor: Some(6),
-                limit: Some(10)
+                limit: Some(10),
+                version: None,
             },
             5
         )
@@ -989,7 +1016,8 @@ mod tests {
         assert!(page_window(
             PublicPageQuery {
                 cursor: Some(0),
-                limit: Some(101)
+                limit: Some(101),
+                version: None,
             },
             5
         )
@@ -997,7 +1025,17 @@ mod tests {
         assert!(page_window(
             PublicPageQuery {
                 cursor: Some(0),
-                limit: Some(0)
+                limit: Some(0),
+                version: None,
+            },
+            5
+        )
+        .is_err());
+        assert!(page_window(
+            PublicPageQuery {
+                cursor: Some(0),
+                limit: Some(10),
+                version: Some("v2".to_string()),
             },
             5
         )
@@ -1036,6 +1074,10 @@ mod tests {
                 refs.contains(&"#/components/parameters/Cursor"),
                 "{path} is missing cursor"
             );
+            assert!(
+                refs.contains(&"#/components/parameters/Version"),
+                "{path} is missing version"
+            );
         }
     }
 
@@ -1059,9 +1101,9 @@ mod tests {
         let create_parameters = document["paths"]["/content/posts"]["post"]["parameters"]
             .as_array()
             .expect("draft creation headers");
-        assert!(create_parameters.iter().any(|parameter| {
-            parameter["$ref"] == "#/components/parameters/IdempotencyKey"
-        }));
+        assert!(create_parameters
+            .iter()
+            .any(|parameter| { parameter["$ref"] == "#/components/parameters/IdempotencyKey" }));
         assert_eq!(
             document.get("openapi").and_then(|value| value.as_str()),
             Some("3.1.0")
@@ -1070,7 +1112,7 @@ mod tests {
             ("/health", "get", &["200"][..]),
             ("/capabilities", "get", &["200", "400", "401", "403"][..]),
             ("/metrics", "get", &["200", "401"][..]),
-            ("/content/posts", "get", &["200", "401", "403"][..]),
+            ("/content/posts", "get", &["200", "400", "401", "403"][..]),
             ("/content/posts", "post", &["201", "400", "401", "403"][..]),
             (
                 "/content/posts/{id}",
@@ -1087,17 +1129,21 @@ mod tests {
                 "get",
                 &["200", "401", "403", "404"][..],
             ),
-            ("/contacts", "get", &["200", "401", "403"][..]),
-            ("/inbox/conversations", "get", &["200", "401", "403"][..]),
+            ("/contacts", "get", &["200", "400", "401", "403"][..]),
+            (
+                "/inbox/conversations",
+                "get",
+                &["200", "400", "401", "403"][..],
+            ),
             (
                 "/inbox/conversations/{id}/messages",
                 "get",
-                &["200", "401", "403", "404"][..],
+                &["200", "400", "401", "403", "404"][..],
             ),
-            ("/bookings", "get", &["200", "401", "403"][..]),
-            ("/campaigns", "get", &["200", "401", "403"][..]),
+            ("/bookings", "get", &["200", "400", "401", "403"][..]),
+            ("/campaigns", "get", &["200", "400", "401", "403"][..]),
             ("/campaigns/{id}", "get", &["200", "401", "403", "404"][..]),
-            ("/templates", "get", &["200", "401", "403"][..]),
+            ("/templates", "get", &["200", "400", "401", "403"][..]),
         ];
         for (path, method, statuses) in operations {
             let operation = document

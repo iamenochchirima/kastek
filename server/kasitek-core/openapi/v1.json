@@ -45,10 +45,12 @@
         "operationId": "listContentPosts",
         "parameters": [
           { "$ref": "#/components/parameters/Limit" },
-          { "$ref": "#/components/parameters/Cursor" }
+          { "$ref": "#/components/parameters/Cursor" },
+          { "$ref": "#/components/parameters/Version" }
         ],
         "responses": {
           "200": { "description": "Organization-scoped content posts", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PostList" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" }
         }
@@ -106,10 +108,12 @@
         "operationId": "listContacts",
         "parameters": [
           { "$ref": "#/components/parameters/Limit" },
-          { "$ref": "#/components/parameters/Cursor" }
+          { "$ref": "#/components/parameters/Cursor" },
+          { "$ref": "#/components/parameters/Version" }
         ],
         "responses": {
           "200": { "description": "Redacted organization-scoped contacts", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" }
         }
@@ -120,10 +124,12 @@
         "operationId": "listInboxConversations",
         "parameters": [
           { "$ref": "#/components/parameters/Limit" },
-          { "$ref": "#/components/parameters/Cursor" }
+          { "$ref": "#/components/parameters/Cursor" },
+          { "$ref": "#/components/parameters/Version" }
         ],
         "responses": {
           "200": { "description": "Redacted organization-scoped conversations", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" }
         }
@@ -135,10 +141,12 @@
         "parameters": [
           { "$ref": "#/components/parameters/ConversationId" },
           { "$ref": "#/components/parameters/Limit" },
-          { "$ref": "#/components/parameters/Cursor" }
+          { "$ref": "#/components/parameters/Cursor" },
+          { "$ref": "#/components/parameters/Version" }
         ],
         "responses": {
           "200": { "description": "Redacted conversation messages", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" }
@@ -150,10 +158,12 @@
         "operationId": "listBookings",
         "parameters": [
           { "$ref": "#/components/parameters/Limit" },
-          { "$ref": "#/components/parameters/Cursor" }
+          { "$ref": "#/components/parameters/Cursor" },
+          { "$ref": "#/components/parameters/Version" }
         ],
         "responses": {
           "200": { "description": "Organization-scoped bookings", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" }
         }
@@ -164,10 +174,12 @@
         "operationId": "listCampaigns",
         "parameters": [
           { "$ref": "#/components/parameters/Limit" },
-          { "$ref": "#/components/parameters/Cursor" }
+          { "$ref": "#/components/parameters/Cursor" },
+          { "$ref": "#/components/parameters/Version" }
         ],
         "responses": {
           "200": { "description": "Redacted organization-scoped campaigns", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" }
         }
@@ -191,10 +203,12 @@
         "parameters": [
           { "$ref": "#/components/parameters/TemplateStatus" },
           { "$ref": "#/components/parameters/Limit" },
-          { "$ref": "#/components/parameters/Cursor" }
+          { "$ref": "#/components/parameters/Cursor" },
+          { "$ref": "#/components/parameters/Version" }
         ],
         "responses": {
           "200": { "description": "Redacted organization-scoped templates", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResourceList" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" }
         }
