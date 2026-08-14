@@ -14,6 +14,7 @@ describe("operator command contract", () => {
     expect(requiredApprovals("delete_memory")).toBe(2);
     expect(requiredApprovals("assign_run")).toBe(2);
     expect(requiredApprovals("reconcile_effect")).toBe(2);
+    expect(requiredApprovals("request_export")).toBe(2);
     expect(requiredApprovals("kill_switch_enable")).toBe(2);
     expect(requiredApprovals("kill_switch_disable")).toBe(2);
     expect(requiredApprovals("suspend_installation")).toBe(2);

@@ -256,6 +256,27 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     expect((await pool.query<{ status: string }>("SELECT status FROM memory_records WHERE id = $1", [memoryRecord.id])).rows[0]?.status).toBe("deleted");
     expect((await pool.query<{ status: string }>("SELECT status FROM memory_deletion_jobs WHERE target_type = 'memory' AND target_id = $1 ORDER BY created_at DESC LIMIT 1", [memoryRecord.id])).rows[0]?.status).toBe("completed");
 
+    const exportCommand = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `export-run-${randomUUID()}`,
+      command: { commandType: "request_export", targetId: failed.id, payload: { organizationId, scopeType: "run", scopeId: failed.id } },
+      dependencies,
+    });
+    runCommandIds.push(String(exportCommand.command.id));
+    const exportResult = await approveOperatorCommand({ actorId: secondActorId, commandId: String(exportCommand.command.id), dependencies });
+    const exportRequestId = String((exportResult.result as { exportRequestId: string }).exportRequestId);
+    expect(exportResult).toMatchObject({ status: "completed", result: { status: "requested", exportRequestId, scopeType: "run", scopeId: failed.id } });
+    expect((await pool.query<{ organization_id: string; scope_type: string; scope_id: string; status: string }>("SELECT organization_id, scope_type, scope_id, status FROM agent_export_requests WHERE id = $1", [exportRequestId])).rows[0]).toMatchObject({ organization_id: organizationId, scope_type: "run", scope_id: failed.id, status: "requested" });
+
+    const crossOrgExport = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `export-cross-org-${randomUUID()}`,
+      command: { commandType: "request_export", targetId: failed.id, payload: { organizationId: "different-organization", scopeType: "run", scopeId: failed.id } },
+      dependencies,
+    });
+    runCommandIds.push(String(crossOrgExport.command.id));
+    await expect(approveOperatorCommand({ actorId: secondActorId, commandId: String(crossOrgExport.command.id), dependencies })).rejects.toThrow("different organization");
+
     await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [runCommandIds]);
     await pool.query("DELETE FROM delivery_attempts WHERE message_id = $1", [message.id]);

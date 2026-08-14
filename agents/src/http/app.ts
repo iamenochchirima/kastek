@@ -370,6 +370,21 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { runs: result.rows };
   });
 
+  app.get<{ Querystring: { limit?: string } }>("/v1/operator/exports", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator export limit");
+    const result = await dependencies.pool.query(
+      `SELECT id, command_id, organization_id, requested_by, scope_type, scope_id,
+              status, created_at, updated_at, completed_at
+       FROM agent_export_requests
+       ORDER BY created_at DESC LIMIT $1`,
+      [limit],
+    );
+    return { exports: result.rows };
+  });
+
   app.get("/v1/operator/health", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:read");

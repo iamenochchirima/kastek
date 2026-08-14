@@ -77,6 +77,8 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
       assignmentId: command.result.assignmentId,
       assigneeId: command.result.assigneeId,
       exportRequestId: command.result.exportRequestId,
+      scopeType: command.result.scopeType,
+      scopeId: command.result.scopeId,
     } : null,
     error: command.error ? { code: command.error.code, message: command.error.message } : null,
     createdAt: command.created_at,
@@ -365,6 +367,65 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
     await dependencies.schedules.setStatus(target.organization_id, command.target_id, status, actorId);
     await auditCommand(dependencies.pool, { organizationId: target.organization_id, actorId, action: `operator_command.schedule_${status}`, commandId: command.id, metadata: { scheduleId: command.target_id } });
     return { status, scheduleId: command.target_id };
+  }
+
+  if (command.command_type === "request_export") {
+    const organizationId = typeof command.payload.organizationId === "string" ? command.payload.organizationId.trim() : "";
+    const scopeType = typeof command.payload.scopeType === "string" ? command.payload.scopeType.trim() : "";
+    const scopeId = typeof command.payload.scopeId === "string" ? command.payload.scopeId.trim() : undefined;
+    if (!organizationId || organizationId.length > 240) {
+      throw Object.assign(new Error("organizationId is required and must be at most 240 characters"), { statusCode: 400 });
+    }
+    if (!["organization", "installation", "run", "conversation", "memory"].includes(scopeType)) {
+      throw Object.assign(new Error("scopeType must be organization, installation, run, conversation, or memory"), { statusCode: 400 });
+    }
+    if (scopeType === "organization" && scopeId) {
+      throw Object.assign(new Error("Organization exports must not include scopeId"), { statusCode: 400 });
+    }
+    if (scopeType !== "organization" && (!scopeId || scopeId.length > 240 || scopeId !== command.target_id)) {
+      throw Object.assign(new Error("Resource exports require scopeId to match targetId"), { statusCode: 400 });
+    }
+    const exportRequest = await withTransaction(dependencies.pool, async (client) => {
+      let actualOrganizationId: string | null = null;
+      if (scopeType === "organization") {
+        const found = (await client.query<{ present: boolean }>(
+          `SELECT EXISTS (
+             SELECT 1 FROM agent_definitions WHERE organization_id = $1
+             UNION ALL SELECT 1 FROM agent_installations WHERE organization_id = $1
+             UNION ALL SELECT 1 FROM agent_runs WHERE organization_id = $1
+             UNION ALL SELECT 1 FROM conversations WHERE organization_id = $1
+             UNION ALL SELECT 1 FROM memory_records WHERE organization_id = $1
+           ) AS present`,
+          [organizationId],
+        )).rows[0]?.present;
+        if (!found) throw Object.assign(new Error("Organization not found"), { statusCode: 404 });
+        actualOrganizationId = organizationId;
+      } else {
+        const table = scopeType === "installation" ? "agent_installations" : scopeType === "run" ? "agent_runs" : scopeType === "conversation" ? "conversations" : "memory_records";
+        const target = (await client.query<{ organization_id: string }>(`SELECT organization_id FROM ${table} WHERE id = $1 FOR SHARE`, [scopeId])).rows[0];
+        if (!target) throw Object.assign(new Error(`${scopeType} not found`), { statusCode: 404 });
+        actualOrganizationId = target.organization_id;
+        if (actualOrganizationId !== organizationId) {
+          throw Object.assign(new Error("Export resource belongs to a different organization"), { statusCode: 409 });
+        }
+      }
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO agent_export_requests
+          (command_id, organization_id, requested_by, scope_type, scope_id, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+         RETURNING id`,
+        [command.id, actualOrganizationId, actorId, scopeType, scopeId ?? null, JSON.stringify({ scopeType, scopeId: scopeId ?? null })],
+      );
+      return { id: inserted.rows[0]!.id, organizationId: actualOrganizationId };
+    });
+    await auditCommand(dependencies.pool, {
+      organizationId: exportRequest.organizationId,
+      actorId,
+      action: "operator_command.export_requested",
+      commandId: command.id,
+      metadata: { exportRequestId: exportRequest.id, scopeType, scopeId: scopeId ?? null },
+    });
+    return { status: "requested", exportRequestId: exportRequest.id, scopeType, scopeId: scopeId ?? null };
   }
 
   if (command.command_type === "kill_switch_enable") {

@@ -125,5 +125,8 @@ describe("foundation migration", () => {
     expect(memoryDeletionCommandsSql).toContain("delete_memory");
     const runAssignmentsSql = await readFile(new URL("../migrations/042_operator_run_assignments.sql", import.meta.url), "utf8");
     expect(runAssignmentsSql).toContain("agent_operator_run_assignments");
+    const exportRequestsSql = await readFile(new URL("../migrations/043_operator_export_requests.sql", import.meta.url), "utf8");
+    expect(exportRequestsSql).toContain("agent_export_requests");
+    expect(exportRequestsSql).toContain("request_export");
   });
 });

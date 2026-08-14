@@ -109,7 +109,7 @@ export function OperatorReconcileButton({ effectId, expectedOrganizationId, expe
 }
 
 function OperatorRecoveryCommandButton({ commandType, targetId, label, completedMessage, payload = {}, confirmMessage }: {
-  commandType: "retry_run" | "replay_delivery" | "delete_memory";
+  commandType: "retry_run" | "replay_delivery" | "delete_memory" | "request_export";
   targetId: string;
   label: string;
   completedMessage: string;
@@ -167,6 +167,17 @@ function OperatorRecoveryCommandButton({ commandType, targetId, label, completed
 
 export function OperatorRetryButton({ runId, expectedOrganizationId, expectedInstallationId, expectedConversationId }: { runId: string; expectedOrganizationId?: string; expectedInstallationId?: string; expectedConversationId?: string | null }) {
   return <OperatorRecoveryCommandButton commandType="retry_run" targetId={runId} label="Retry run" completedMessage="Run retry dispatched." payload={{ ...(expectedOrganizationId ? { expectedOrganizationId } : {}), ...(expectedInstallationId ? { expectedInstallationId } : {}), ...(expectedConversationId ? { expectedConversationId } : {}) }} />;
+}
+
+export function OperatorExportRequestButton({ runId, organizationId }: { runId: string; organizationId: string }) {
+  return <OperatorRecoveryCommandButton
+    commandType="request_export"
+    targetId={runId}
+    label="Request run export"
+    completedMessage="Export request queued."
+    payload={{ scopeType: "run", scopeId: runId, organizationId }}
+    confirmMessage="Queue a metadata export request for this run? A second operator must approve the request."
+  />;
 }
 
 export function OperatorAssignRunButton({ runId, expectedStatus, assigneeId, expectedOrganizationId, expectedInstallationId, expectedConversationId }: { runId: string; expectedStatus: string; assigneeId: string; expectedOrganizationId?: string; expectedInstallationId?: string; expectedConversationId?: string | null }) {
