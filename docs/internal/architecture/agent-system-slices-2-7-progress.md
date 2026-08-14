@@ -379,9 +379,10 @@ The content verification slice now includes a guarded disposable-DB fixture at
 `server/kasitek-core/tests/social_content_integration.sql` (runner:
 `server/kasitek-core/scripts/test-social-content-db.sh`). Against the cloned local schema it
 passed organization-scoped content checks, duplicate TikTok webhook event-key insertion,
-terminal publish-state protection from duplicate/late callbacks, and usage-event idempotency.
-This is local state-transition evidence only; partial-batch/ambiguous-outcome approval tests and
-provider sandbox execution remain release gates.
+terminal publish-state protection from duplicate/late callbacks, usage-event idempotency, mixed
+partial-batch outcomes, and ambiguous-state reconciliation. Approval-field mutation, changed-grant,
+and duplicate-decision coverage is in `agents/test/run.integration.test.ts` and
+`agents/test/http.test.ts`; provider sandbox execution remains a separate release gate.
 
 The Agent event stream now advances reconnect cursors monotonically through
 `agents/src/http/sse.ts::advanceSseCursor`, ignoring malformed, duplicate, and out-of-order

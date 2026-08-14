@@ -654,13 +654,15 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
 - [x] Add contract tests for every content manifest and core handler. Evidence: `agents/test/content-capability-contract.test.ts` validates all eight content manifests, argument schemas, grant/approval gates, and redaction metadata; `agents/test/core-client.test.ts` covers every typed Agent-to-core content route; `server/kasitek-core/src/capabilities/content_adapter.rs` covers invalid publish/schedule and missing-idempotency guards without database access.
 - [ ] Add authorization/isolation tests across organizations, installations, connected accounts,
   platforms, and content ownership.
-- [ ] Add idempotency, duplicate provider callback, delayed/out-of-order callback, partial batch,
-  ambiguous outcome, reconciliation, and approval mutation tests.
-  Local disposable-DB evidence now covers the organization-scoped content projection, duplicate
-  TikTok event-key insertion, terminal publish transitions rejecting duplicate/late callbacks, and
-  usage idempotency in `server/kasitek-core/tests/social_content_integration.sql`, executed by
-  `server/kasitek-core/scripts/test-social-content-db.sh`; partial-batch, ambiguous-outcome,
-  approval-mutation, and provider-sandbox coverage remain open.
+- [x] Add idempotency, duplicate provider callback, delayed/out-of-order callback, partial batch,
+  ambiguous outcome, reconciliation, and approval mutation tests. The rollback fixture
+  `server/kasitek-core/tests/social_content_integration.sql`, executed by
+  `server/kasitek-core/scripts/test-social-content-db.sh`, covers organization-scoped content,
+  duplicate TikTok event-key insertion, terminal duplicate/late callback protection, usage
+  idempotency, mixed partial-batch outcomes, and reconciliation of an ambiguous provider state.
+  `agents/test/run.integration.test.ts` and `agents/test/http.test.ts` cover exact approval-field
+  mutation rejection, concurrent approval decisions, changed-grant/installation rejection, and
+  duplicate approval submissions. Provider sandbox execution remains a separate verification gate.
 - [ ] Run database migrations, TypeScript/Rust suites, typechecks, lint/format, builds, and provider
   sandbox smoke tests for each configured social platform.
 

@@ -34,6 +34,16 @@ INSERT INTO "SocialPost" (
     'social-integration-post-b', 'social-integration-owner-b', 'social-integration-org-b',
     'social-integration-channel-b', 'Org B post', ARRAY['TIKTOK']::"SocialPlatform"[],
     'DRAFT', NOW(), NOW()
+  ),
+  (
+    'social-integration-post-a2', 'social-integration-owner-a', 'social-integration-org-a',
+    'social-integration-channel-a', 'Org A partial batch post', ARRAY['TIKTOK']::"SocialPlatform"[],
+    'PROCESSING', NOW(), NOW()
+  ),
+  (
+    'social-integration-post-a3', 'social-integration-owner-a', 'social-integration-org-a',
+    'social-integration-channel-a', 'Org A ambiguous post', ARRAY['TIKTOK']::"SocialPlatform"[],
+    'PROCESSING', NOW(), NOW()
   );
 
 INSERT INTO "SocialPublishJob" (
@@ -41,6 +51,12 @@ INSERT INTO "SocialPublishJob" (
 ) VALUES (
   'social-integration-job-a', 'social-integration-owner-a', 'social-integration-org-a',
   'social-integration-post-a', 'social-integration-channel-a', 'TIKTOK', 'PROCESSING', NOW(), NOW()
+), (
+  'social-integration-job-a2', 'social-integration-owner-a', 'social-integration-org-a',
+  'social-integration-post-a2', 'social-integration-channel-a', 'TIKTOK', 'PROCESSING', NOW(), NOW()
+), (
+  'social-integration-job-a3', 'social-integration-owner-a', 'social-integration-org-a',
+  'social-integration-post-a3', 'social-integration-channel-a', 'TIKTOK', 'PROCESSING', NOW(), NOW()
 );
 
 -- The webhook event key is the raw-body digest in the service. A retried body
@@ -73,13 +89,17 @@ DECLARE
   completed integer;
   duplicate_completion integer;
   late_failure integer;
+  partial_published integer;
+  partial_failed integer;
+  ambiguous_pending integer;
+  reconciled integer;
   usage_rows integer;
 BEGIN
   SELECT count(*) INTO org_a_posts
   FROM "SocialPost" WHERE "orgId" = 'social-integration-org-a';
   SELECT count(*) INTO org_b_posts
   FROM "SocialPost" WHERE "orgId" = 'social-integration-org-b';
-  IF org_a_posts <> 1 OR org_b_posts <> 1 THEN
+  IF org_a_posts <> 3 OR org_b_posts <> 1 THEN
     RAISE EXCEPTION 'content list is not organization scoped: org_a=%, org_b=%', org_a_posts, org_b_posts;
   END IF;
 
@@ -121,6 +141,42 @@ BEGIN
   IF completed <> 1 OR duplicate_completion <> 0 OR late_failure <> 0 THEN
     RAISE EXCEPTION 'publish callback transitions were not idempotent: completed=%, duplicate=%, late_failure=%',
       completed, duplicate_completion, late_failure;
+  END IF;
+
+  -- A batch may have mixed provider outcomes. A failed item must not reopen or
+  -- overwrite the sibling that already completed successfully.
+  UPDATE "SocialPublishJob"
+  SET status = 'FAILED'::"SocialPublishJobStatus", "errorMessage" = 'provider rejected', "updatedAt" = NOW()
+  WHERE id = 'social-integration-job-a2'
+    AND status = 'PROCESSING'::"SocialPublishJobStatus";
+  UPDATE "SocialPost"
+  SET status = 'FAILED'::"SocialPostStatus", "updatedAt" = NOW()
+  WHERE id = 'social-integration-post-a2' AND status = 'PROCESSING'::"SocialPostStatus";
+  SELECT count(*) FILTER (WHERE status = 'PUBLISHED'::"SocialPublishJobStatus"),
+         count(*) FILTER (WHERE status = 'FAILED'::"SocialPublishJobStatus")
+    INTO partial_published, partial_failed
+  FROM "SocialPublishJob"
+  WHERE "orgId" = 'social-integration-org-a';
+  IF partial_published <> 1 OR partial_failed <> 1 THEN
+    RAISE EXCEPTION 'partial batch outcomes were not isolated: published=%, failed=%', partial_published, partial_failed;
+  END IF;
+
+  -- A provider timeout leaves the item explicitly ambiguous until a later
+  -- reconciliation result resolves the PROCESSING row.
+  SELECT count(*) INTO ambiguous_pending
+  FROM "SocialPublishJob"
+  WHERE id = 'social-integration-job-a3' AND status = 'PROCESSING'::"SocialPublishJobStatus";
+  IF ambiguous_pending <> 1 THEN
+    RAISE EXCEPTION 'ambiguous provider outcome was not retained for reconciliation';
+  END IF;
+  UPDATE "SocialPublishJob"
+  SET status = 'PUBLISHED'::"SocialPublishJobStatus",
+      "publishedAt" = NOW(), "externalPostId" = 'provider-post-a3', "updatedAt" = NOW()
+  WHERE id = 'social-integration-job-a3'
+    AND status = 'PROCESSING'::"SocialPublishJobStatus";
+  GET DIAGNOSTICS reconciled = ROW_COUNT;
+  IF reconciled <> 1 THEN
+    RAISE EXCEPTION 'provider reconciliation did not resolve the ambiguous job';
   END IF;
 
   INSERT INTO "UsageEvent" (
