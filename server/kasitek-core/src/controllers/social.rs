@@ -1,4 +1,6 @@
+use actix_multipart::Multipart;
 use actix_web::{web, HttpRequest, HttpResponse};
+use serde::Deserialize;
 use sqlx::PgPool;
 
 use crate::config::AppConfig;
@@ -10,14 +12,20 @@ use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
 use crate::services::{bluesky_oauth, connections, orgs, social, social_posts};
 
+#[derive(Debug, Deserialize)]
+pub struct PublicMediaQuery {
+    pub expires: i64,
+    pub signature: String,
+}
+
 async fn require_social_access(
     pool: &PgPool,
     req: &HttpRequest,
     user_id: &str,
 ) -> Result<String, AppError> {
-    let org_id = resolve_active_org_id(req, pool, user_id).await?;
-    billing::require_capability(pool, &org_id, billing::capabilities::CONTENT_MANAGE).await?;
-    Ok(org_id)
+    // Content is temporarily available to every authenticated workspace while
+    // product packaging is being finalised. Keep workspace isolation intact.
+    resolve_active_org_id(req, pool, user_id).await
 }
 
 async fn require_social_publish_access(
@@ -25,9 +33,8 @@ async fn require_social_publish_access(
     req: &HttpRequest,
     user_id: &str,
 ) -> Result<String, AppError> {
-    let org_id = resolve_active_org_id(req, pool, user_id).await?;
-    billing::require_capability(pool, &org_id, billing::capabilities::CONTENT_PUBLISH).await?;
-    Ok(org_id)
+    // Publishing is included with the temporary open-access content rollout.
+    resolve_active_org_id(req, pool, user_id).await
 }
 
 async fn require_social_connection_admin(
@@ -216,6 +223,58 @@ pub async fn list_posts(
     Ok(HttpResponse::Ok().json(serde_json::json!({ "posts": posts })))
 }
 
+pub async fn upload_media(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    payload: Multipart,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let asset = crate::services::content_media::upload_content_media(
+        pool.get_ref(),
+        config.get_ref(),
+        &user.id,
+        &org_id,
+        payload,
+    )
+    .await?;
+    Ok(HttpResponse::Created().json(serde_json::json!({ "asset": asset })))
+}
+
+pub async fn download_media(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    crate::services::content_media::download_content_media(
+        pool.get_ref(),
+        config.get_ref(),
+        &org_id,
+        &path,
+    )
+    .await
+}
+
+pub async fn download_public_media(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    path: web::Path<String>,
+    query: web::Query<PublicMediaQuery>,
+) -> Result<HttpResponse, AppError> {
+    crate::services::content_media::download_public_content_media(
+        pool.get_ref(),
+        config.get_ref(),
+        &path,
+        query.expires,
+        &query.signature,
+    )
+    .await
+}
+
 pub async fn create_post(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -289,10 +348,10 @@ pub async fn publish_post(
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_publish_access(pool.get_ref(), &req, &user.id).await?;
     let requested_platform = body.platform.as_deref().unwrap_or("X");
-    if requested_platform != "X"
-        && requested_platform != "LINKEDIN"
-        && requested_platform != "FACEBOOK"
-    {
+    if !matches!(
+        requested_platform,
+        "FACEBOOK" | "INSTAGRAM" | "THREADS" | "TIKTOK" | "BLUESKY" | "LINKEDIN" | "X"
+    ) {
         return Err(AppError::BadRequest(format!(
             "Manual publishing is not available yet for {}",
             requested_platform
@@ -367,9 +426,12 @@ pub async fn update_publish_job(
         r#"
         SELECT id, "userId" AS user_id, "postId" AS post_id, "variantId" AS variant_id,
                "channelConnectionId" AS channel_connection_id, platform::text AS platform,
-               status::text AS status, "scheduledFor" AS scheduled_for, "publishedAt" AS published_at,
+               status::text AS status, "scheduledFor" AT TIME ZONE 'UTC' AS scheduled_for,
+               "publishedAt" AT TIME ZONE 'UTC' AS published_at,
                "externalPostId" AS external_post_id, "errorMessage" AS error_message,
-               metadata, "createdAt" AS created_at, "updatedAt" AS updated_at
+               metadata, "deliverySnapshot" AS delivery_snapshot,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at,
+               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "SocialPublishJob"
         WHERE id = $1 AND "orgId" = $2
         LIMIT 1
@@ -1248,6 +1310,21 @@ pub async fn bluesky_client_metadata(
     Ok(HttpResponse::Ok()
         .content_type("application/json")
         .json(bluesky_oauth::client_metadata(config.get_ref())?))
+}
+
+pub async fn bluesky_oauth_readiness(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    bluesky_oauth::verify_public_client_metadata(config.get_ref()).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "ready": true,
+        "clientMetadataUrl": bluesky_oauth::client_id(config.get_ref()),
+        "callbackUrl": bluesky_oauth::callback_url(config.get_ref()),
+    })))
 }
 
 pub async fn start_bluesky_oauth(

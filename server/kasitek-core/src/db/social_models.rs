@@ -69,6 +69,38 @@ pub struct SocialPostVariant {
     pub updated_at: DateTime<Utc>,
 }
 
+/// A workspace-owned media asset attached to a social post. Storage keys are
+/// deliberately not exposed here; clients receive a media URL only through a
+/// later authorized delivery endpoint.
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct SocialPostMedia {
+    pub id: String,
+    #[sqlx(rename = "post_id")]
+    pub post_id: String,
+    #[sqlx(rename = "asset_id")]
+    pub asset_id: String,
+    pub kind: String,
+    #[sqlx(rename = "mime_type")]
+    pub mime_type: String,
+    #[sqlx(rename = "file_name")]
+    pub file_name: Option<String>,
+    #[sqlx(rename = "byte_size")]
+    pub byte_size: i64,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    #[sqlx(rename = "duration_ms")]
+    pub duration_ms: Option<i32>,
+    #[sqlx(rename = "sort_order")]
+    pub sort_order: i32,
+    #[sqlx(rename = "alt_text")]
+    pub alt_text: Option<String>,
+    #[sqlx(rename = "processing_status")]
+    pub processing_status: String,
+    #[sqlx(rename = "scan_status")]
+    pub scan_status: String,
+    pub metadata: Option<Value>,
+}
+
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct SocialPublishJobRow {
     pub id: String,
@@ -91,6 +123,9 @@ pub struct SocialPublishJobRow {
     #[sqlx(rename = "error_message")]
     pub error_message: Option<String>,
     pub metadata: Option<Value>,
+    #[sqlx(rename = "delivery_snapshot")]
+    #[serde(rename = "deliverySnapshot")]
+    pub delivery_snapshot: Option<Value>,
     #[sqlx(rename = "created_at")]
     pub created_at: DateTime<Utc>,
     #[sqlx(rename = "updated_at")]
@@ -104,6 +139,7 @@ pub struct SocialPost {
     #[serde(rename = "primaryChannel")]
     pub primary_channel: Option<SocialChannel>,
     pub variants: Vec<SocialPostVariant>,
+    pub media: Vec<SocialPostMedia>,
     #[serde(rename = "publishJobs")]
     pub publish_jobs: Vec<SocialPublishJobRow>,
 }
@@ -113,6 +149,7 @@ impl SocialPost {
         row: SocialPostRow,
         channels: &HashMap<String, SocialChannel>,
         variants: Vec<SocialPostVariant>,
+        media: Vec<SocialPostMedia>,
         publish_jobs: Vec<SocialPublishJobRow>,
     ) -> Self {
         let primary_channel = row
@@ -125,6 +162,7 @@ impl SocialPost {
             row,
             primary_channel,
             variants,
+            media,
             publish_jobs,
         }
     }
@@ -205,6 +243,17 @@ pub struct SocialPostVariantInput {
     pub metadata: Option<Value>,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct SocialPostMediaInput {
+    #[serde(rename = "assetId")]
+    pub asset_id: String,
+    #[serde(rename = "sortOrder")]
+    pub sort_order: Option<i32>,
+    #[serde(rename = "altText")]
+    pub alt_text: Option<String>,
+    pub metadata: Option<Value>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SocialPostUpsertRequest {
     pub title: Option<String>,
@@ -219,6 +268,7 @@ pub struct SocialPostUpsertRequest {
     #[serde(rename = "channelSelections")]
     pub channel_selections: Option<HashMap<String, String>>,
     pub variants: Option<Vec<SocialPostVariantInput>>,
+    pub media: Option<Vec<SocialPostMediaInput>>,
     pub metadata: Option<Value>,
 }
 

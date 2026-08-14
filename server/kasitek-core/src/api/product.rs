@@ -232,6 +232,12 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route("/{id}/publish", web::post().to(social::publish_post)),
             )
             .service(
+                web::scope("/media")
+                    .route("", web::post().to(social::upload_media))
+                    .route("/{id}/public", web::get().to(social::download_public_media))
+                    .route("/{id}", web::get().to(social::download_media)),
+            )
+            .service(
                 web::scope("/publish-jobs")
                     .route("/{id}", web::patch().to(social::update_publish_job)),
             ),

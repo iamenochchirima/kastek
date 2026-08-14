@@ -4,8 +4,8 @@ use sqlx::{PgPool, Postgres, Transaction};
 use std::collections::HashMap;
 
 use crate::db::models::{
-    SocialChannel, SocialPost, SocialPostRow, SocialPostUpsertRequest, SocialPostVariant,
-    SocialPostVariantInput, SocialPublishJobRow,
+    SocialChannel, SocialPost, SocialPostMedia, SocialPostMediaInput, SocialPostRow,
+    SocialPostUpsertRequest, SocialPostVariant, SocialPostVariantInput, SocialPublishJobRow,
 };
 use crate::error::AppError;
 
@@ -56,7 +56,8 @@ async fn load_posts(
             r#"
             SELECT id, "userId" AS user_id, "primaryChannelId" AS primary_channel_id, title, prompt, content,
                    ARRAY(SELECT unnest(channels)::text) AS channels,
-                   status::text AS status, "scheduledFor" AS scheduled_for, "publishedAt" AS published_at,
+                   status::text AS status, "scheduledFor" AT TIME ZONE 'UTC' AS scheduled_for,
+                   "publishedAt" AT TIME ZONE 'UTC' AS published_at,
                    metadata, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "SocialPost"
             WHERE "orgId" = $1 AND id = $2
@@ -71,7 +72,8 @@ async fn load_posts(
             r#"
             SELECT id, "userId" AS user_id, "primaryChannelId" AS primary_channel_id, title, prompt, content,
                    ARRAY(SELECT unnest(channels)::text) AS channels,
-                   status::text AS status, "scheduledFor" AS scheduled_for, "publishedAt" AS published_at,
+                   status::text AS status, "scheduledFor" AT TIME ZONE 'UTC' AS scheduled_for,
+                   "publishedAt" AT TIME ZONE 'UTC' AS published_at,
                    metadata, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
             FROM "SocialPost"
             WHERE "orgId" = $1
@@ -110,12 +112,41 @@ async fn load_posts(
         r#"
         SELECT id, "userId" AS user_id, "postId" AS post_id, "variantId" AS variant_id,
                "channelConnectionId" AS channel_connection_id, platform::text AS platform,
-               status::text AS status, "scheduledFor" AS scheduled_for, "publishedAt" AS published_at,
+               status::text AS status, "scheduledFor" AT TIME ZONE 'UTC' AS scheduled_for,
+               "publishedAt" AT TIME ZONE 'UTC' AS published_at,
                "externalPostId" AS external_post_id, "errorMessage" AS error_message,
-               metadata, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
+               metadata, "deliverySnapshot" AS delivery_snapshot,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "SocialPublishJob"
         WHERE "postId" = ANY($1)
         ORDER BY "createdAt" DESC
+        "#,
+    )
+    .bind(&post_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let media = sqlx::query_as::<_, SocialPostMedia>(
+        r#"
+        SELECT post_media.id,
+               post_media."postId" AS post_id,
+               post_media."assetId" AS asset_id,
+               asset.kind::text AS kind,
+               asset."mimeType" AS mime_type,
+               asset."fileName" AS file_name,
+               asset."byteSize" AS byte_size,
+               asset.width,
+               asset.height,
+               asset."durationMs" AS duration_ms,
+               post_media."sortOrder" AS sort_order,
+               post_media."altText" AS alt_text,
+               asset."processingStatus"::text AS processing_status,
+               asset."scanStatus"::text AS scan_status,
+               post_media.metadata
+        FROM "SocialPostMedia" post_media
+        JOIN "ContentMediaAsset" asset ON asset.id = post_media."assetId"
+        WHERE post_media."postId" = ANY($1)
+        ORDER BY post_media."sortOrder" ASC
         "#,
     )
     .bind(&post_ids)
@@ -155,6 +186,14 @@ async fn load_posts(
             .push(job);
     }
 
+    let mut media_by_post: HashMap<String, Vec<SocialPostMedia>> = HashMap::new();
+    for item in media {
+        media_by_post
+            .entry(item.post_id.clone())
+            .or_default()
+            .push(item);
+    }
+
     let channels_by_id = channels
         .into_iter()
         .map(|channel| (channel.id.clone(), channel))
@@ -167,6 +206,7 @@ async fn load_posts(
                 row.clone(),
                 &channels_by_id,
                 variants_by_post.remove(&row.id).unwrap_or_default(),
+                media_by_post.remove(&row.id).unwrap_or_default(),
                 jobs_by_post.remove(&row.id).unwrap_or_default(),
             )
         })
@@ -312,6 +352,7 @@ async fn create_variants_and_jobs(
     post_id: &str,
     variants: &[SocialPostVariantInput],
     channel_selections: &HashMap<String, String>,
+    media: &[SocialPostMediaInput],
     post_status: &str,
     scheduled_for: Option<DateTime<Utc>>,
 ) -> Result<(), AppError> {
@@ -340,11 +381,11 @@ async fn create_variants_and_jobs(
         sqlx::query(
             r#"
             INSERT INTO "SocialPublishJob" (
-                id, "userId", "orgId", "postId", "variantId", "channelConnectionId", platform, status, "scheduledFor", "createdAt", "updatedAt"
+                id, "userId", "orgId", "postId", "variantId", "channelConnectionId", platform, status, "scheduledFor", "deliverySnapshot", "createdAt", "updatedAt"
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6, CAST($7 AS "SocialPlatform"),
-                CAST($8 AS "SocialPublishJobStatus"), $9, NOW(), NOW()
+                CAST($8 AS "SocialPublishJobStatus"), $9, $10, NOW(), NOW()
             )
             "#,
         )
@@ -357,6 +398,15 @@ async fn create_variants_and_jobs(
         .bind(&variant.platform)
         .bind(if post_status == "SCHEDULED" { "QUEUED" } else { "PENDING" })
         .bind(scheduled_for)
+        .bind(json!({
+            "schema": "kasitek-content-delivery-v1",
+            "platform": variant.platform,
+            "media": media.iter().map(|item| json!({
+                "assetId": item.asset_id,
+                "sortOrder": item.sort_order,
+                "altText": item.alt_text,
+            })).collect::<Vec<_>>(),
+        }))
         .execute(tx.as_mut())
         .await?;
     }
@@ -398,6 +448,89 @@ async fn validate_channel_selections(
     }
 
     Ok(validated)
+}
+
+async fn validate_media(
+    pool: &PgPool,
+    org_id: &str,
+    requested: &Option<Vec<SocialPostMediaInput>>,
+) -> Result<Vec<SocialPostMediaInput>, AppError> {
+    let mut media = requested.clone().unwrap_or_default();
+    media.retain(|item| !item.asset_id.trim().is_empty());
+    if media.is_empty() {
+        return Ok(Vec::new());
+    }
+    if media.len() > 10 {
+        return Err(AppError::BadRequest(
+            "A post can include at most 10 media assets".to_string(),
+        ));
+    }
+    let ids = media
+        .iter()
+        .map(|item| item.asset_id.trim().to_string())
+        .collect::<Vec<_>>();
+    let available = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT id
+        FROM "ContentMediaAsset"
+        WHERE "orgId" = $1 AND id = ANY($2)
+          AND "processingStatus" = 'READY'::"ContentMediaProcessingStatus"
+          AND "scanStatus" = 'CLEAN'::"ContentMediaScanStatus"
+        "#,
+    )
+    .bind(org_id)
+    .bind(&ids)
+    .fetch_all(pool)
+    .await?;
+    for asset_id in &ids {
+        if !available
+            .iter()
+            .any(|available_id| available_id == asset_id)
+        {
+            return Err(AppError::BadRequest(
+                "Every attached media asset must belong to this workspace and be ready".to_string(),
+            ));
+        }
+    }
+    media.dedup_by(|left, right| left.asset_id == right.asset_id);
+    for (index, item) in media.iter_mut().enumerate() {
+        item.asset_id = item.asset_id.trim().to_string();
+        item.sort_order = Some(item.sort_order.unwrap_or(index as i32).max(0));
+        item.alt_text = item
+            .alt_text
+            .take()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+    }
+    media.sort_by_key(|item| item.sort_order.unwrap_or(0));
+    for (index, item) in media.iter_mut().enumerate() {
+        item.sort_order = Some(index as i32);
+    }
+    Ok(media)
+}
+
+async fn persist_post_media(
+    tx: &mut Transaction<'_, Postgres>,
+    post_id: &str,
+    media: &[SocialPostMediaInput],
+) -> Result<(), AppError> {
+    for item in media {
+        sqlx::query(
+            r#"
+            INSERT INTO "SocialPostMedia" (id, "postId", "assetId", "sortOrder", "altText", metadata)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            "#,
+        )
+        .bind(cuid2::create_id())
+        .bind(post_id)
+        .bind(&item.asset_id)
+        .bind(item.sort_order.unwrap_or(0))
+        .bind(item.alt_text.as_deref())
+        .bind(&item.metadata)
+        .execute(tx.as_mut())
+        .await?;
+    }
+    Ok(())
 }
 
 pub async fn create_social_post(
@@ -449,6 +582,7 @@ pub async fn create_social_post_idempotent(
         validate_primary_channel(pool, org_id, &request.primary_channel_id).await?;
     let channel_selections =
         validate_channel_selections(pool, org_id, &channels, &request.channel_selections).await?;
+    let media = validate_media(pool, org_id, &request.media).await?;
     let variants = normalize_variants(&request.variants, &channels, &content);
 
     let idempotency_key = idempotency_key
@@ -548,6 +682,7 @@ pub async fn create_social_post_idempotent(
     .bind(&metadata)
     .execute(tx.as_mut())
     .await?;
+    persist_post_media(&mut tx, &post_id, &media).await?;
     create_variants_and_jobs(
         &mut tx,
         user_id,
@@ -555,6 +690,7 @@ pub async fn create_social_post_idempotent(
         &post_id,
         &variants,
         &channel_selections,
+        &media,
         &status,
         scheduled_for,
     )
@@ -578,6 +714,7 @@ pub async fn update_social_post(
         .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
 
     let row = existing.row;
+    let existing_media = existing.media;
     let content = match request.content.as_ref() {
         Some(value) => {
             let trimmed = value.trim();
@@ -624,6 +761,19 @@ pub async fn update_social_post(
         validate_primary_channel(pool, org_id, &primary_channel_request).await?;
     let channel_selections =
         validate_channel_selections(pool, org_id, &channels, &request.channel_selections).await?;
+    let media = if request.media.is_some() {
+        validate_media(pool, org_id, &request.media).await?
+    } else {
+        existing_media
+            .into_iter()
+            .map(|item| SocialPostMediaInput {
+                asset_id: item.asset_id,
+                sort_order: Some(item.sort_order),
+                alt_text: item.alt_text,
+                metadata: item.metadata,
+            })
+            .collect()
+    };
     let variants = normalize_variants(&request.variants, &channels, &content);
 
     let mut tx = pool.begin().await?;
@@ -677,6 +827,12 @@ pub async fn update_social_post(
         .bind(post_id)
         .execute(tx.as_mut())
         .await?;
+    sqlx::query(r#"DELETE FROM "SocialPostMedia" WHERE "postId" = $1"#)
+        .bind(post_id)
+        .execute(tx.as_mut())
+        .await?;
+
+    persist_post_media(&mut tx, post_id, &media).await?;
 
     create_variants_and_jobs(
         &mut tx,
@@ -685,6 +841,7 @@ pub async fn update_social_post(
         post_id,
         &variants,
         &channel_selections,
+        &media,
         &status,
         scheduled_for,
     )

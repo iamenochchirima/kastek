@@ -53,6 +53,10 @@ export type PlatformCapabilities = {
   supportsAnalytics: boolean;
   supportsInbox: boolean;
   supportsVariants: boolean;
+  media: {
+    images: { supported: boolean; maxCount: number };
+    videos: { supported: boolean; maxCount: number };
+  };
 };
 
 export type SocialChannelConnection = {
@@ -82,6 +86,7 @@ export type SocialPublishJob = {
   externalPostId: string | null;
   errorMessage: string | null;
   metadata: Record<string, unknown> | null;
+  deliverySnapshot: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -96,6 +101,24 @@ export type SocialPostVariant = {
   metadata: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type SocialPostMedia = {
+  id: string;
+  postId: string;
+  assetId: string;
+  kind: "IMAGE" | "VIDEO";
+  mimeType: string;
+  fileName: string | null;
+  byteSize: number;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  sortOrder: number;
+  altText: string | null;
+  processingStatus: "PENDING" | "PROCESSING" | "READY" | "FAILED";
+  scanStatus: "PENDING" | "CLEAN" | "REJECTED" | "FAILED";
+  metadata: Record<string, unknown> | null;
 };
 
 export type SocialPost = {
@@ -114,6 +137,7 @@ export type SocialPost = {
   updatedAt: string;
   primaryChannel?: SocialChannelConnection | null;
   variants?: SocialPostVariant[];
+  media?: SocialPostMedia[];
   publishJobs?: SocialPublishJob[];
 };
 
@@ -138,6 +162,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: true,
     supportsInbox: true,
     supportsVariants: true,
+    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
   },
   INSTAGRAM: {
     canPublish: true,
@@ -148,6 +173,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: true,
     supportsInbox: true,
     supportsVariants: true,
+    media: { images: { supported: true, maxCount: 1 }, videos: { supported: false, maxCount: 0 } },
   },
   THREADS: {
     canPublish: true,
@@ -158,6 +184,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: false,
     supportsInbox: false,
     supportsVariants: true,
+    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
   },
   TIKTOK: {
     canPublish: true,
@@ -168,6 +195,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: false,
     supportsInbox: false,
     supportsVariants: true,
+    media: { images: { supported: true, maxCount: 1 }, videos: { supported: true, maxCount: 1 } },
   },
   BLUESKY: {
     canPublish: true,
@@ -178,6 +206,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: false,
     supportsInbox: false,
     supportsVariants: true,
+    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
   },
   LINKEDIN: {
     canPublish: true,
@@ -188,6 +217,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: true,
     supportsInbox: false,
     supportsVariants: true,
+    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
   },
   X: {
     canPublish: true,
@@ -198,6 +228,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: true,
     supportsInbox: false,
     supportsVariants: true,
+    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
   },
   WHATSAPP_STATUS: {
     canPublish: true,
@@ -208,6 +239,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: false,
     supportsInbox: false,
     supportsVariants: false,
+    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
   },
 };
 

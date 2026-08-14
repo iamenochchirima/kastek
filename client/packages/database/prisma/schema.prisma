@@ -23,6 +23,7 @@ model Organization {
   socialChannelConnections       SocialChannelConnection[]
   socialPosts                    SocialPost[]
   socialPublishJobs              SocialPublishJob[]
+  contentMediaAssets             ContentMediaAsset[]
   whatsappConnections            WhatsappConnection[]
   whatsappContacts               WhatsappContact[]
   whatsappContactListMemberships WhatsappContactListMembership[]
@@ -513,6 +514,7 @@ model User {
   socialChannelConnections       SocialChannelConnection[]
   socialPosts                    SocialPost[]
   socialPublishJobs              SocialPublishJob[]
+  uploadedContentMediaAssets     ContentMediaAsset[] @relation("UploadedContentMediaAssets")
   whatsappConnections            WhatsappConnection[]
   whatsappContacts               WhatsappContact[]
   whatsappContactListMemberships WhatsappContactListMembership[]
@@ -1357,6 +1359,25 @@ enum SocialPlatform {
   WHATSAPP_STATUS
 }
 
+enum ContentMediaKind {
+  IMAGE
+  VIDEO
+}
+
+enum ContentMediaProcessingStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum ContentMediaScanStatus {
+  PENDING
+  CLEAN
+  REJECTED
+  FAILED
+}
+
 enum SocialChannelStatus {
   CONNECTED
   DISCONNECTED
@@ -1607,6 +1628,7 @@ model SocialPost {
 
   variants    SocialPostVariant[]
   publishJobs SocialPublishJob[]
+  media       SocialPostMedia[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1629,6 +1651,7 @@ model SocialPostVariant {
   metadata    Json?
 
   publishJobs SocialPublishJob[]
+  media       SocialPostVariantMedia[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1660,6 +1683,7 @@ model SocialPublishJob {
   externalPostId String?
   errorMessage   String?                @db.Text
   metadata       Json?
+  deliverySnapshot Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1670,6 +1694,96 @@ model SocialPublishJob {
   @@index([variantId])
   @@index([channelConnectionId])
   @@index([scheduledFor])
+}
+
+model ContentMediaAsset {
+  id          String                       @id @default(cuid())
+  orgId       String
+  org         Organization                 @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User                        @relation("UploadedContentMediaAssets", fields: [uploadedById], references: [id], onDelete: Restrict)
+  kind        ContentMediaKind
+  fileName    String?
+  mimeType    String
+  byteSize    BigInt
+  checksum    String?
+  width       Int?
+  height      Int?
+  durationMs  Int?
+  storageKey  String                       @unique
+  previewStorageKey String?
+  processingStatus ContentMediaProcessingStatus @default(PENDING)
+  scanStatus  ContentMediaScanStatus       @default(PENDING)
+  metadata    Json?
+
+  postMedia   SocialPostMedia[]
+  renditions  ContentMediaRendition[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, processingStatus, scanStatus])
+  @@index([orgId, checksum])
+  @@index([uploadedById])
+}
+
+model ContentMediaRendition {
+  id          String            @id @default(cuid())
+  assetId     String
+  asset       ContentMediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  purpose     String
+  platform    SocialPlatform?
+  storageKey  String            @unique
+  mimeType    String
+  byteSize    BigInt
+  width       Int?
+  height      Int?
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assetId, purpose])
+  @@index([assetId, platform])
+}
+
+model SocialPostMedia {
+  id       String            @id @default(cuid())
+  postId   String
+  post     SocialPost        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  assetId  String
+  asset    ContentMediaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  sortOrder Int
+  altText  String?           @db.Text
+  metadata Json?
+
+  variantMedia SocialPostVariantMedia[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([postId, assetId])
+  @@unique([postId, sortOrder])
+  @@index([assetId])
+}
+
+model SocialPostVariantMedia {
+  id          String          @id @default(cuid())
+  variantId   String
+  variant     SocialPostVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  postMediaId String
+  postMedia   SocialPostMedia @relation(fields: [postMediaId], references: [id], onDelete: Cascade)
+  sortOrder   Int
+  altText     String?         @db.Text
+  crop        Json?
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([variantId, postMediaId])
+  @@unique([variantId, sortOrder])
+  @@index([postMediaId])
 }
 
 model WhatsappContact {

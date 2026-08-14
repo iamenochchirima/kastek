@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::config::AppConfig;
 use crate::db::models::SocialChannel;
 use crate::error::AppError;
-use crate::services::{billing, bluesky_oauth, connections};
+use crate::services::{billing, bluesky_oauth, connections, content_media};
 
 const X_TOKEN_URL: &str = "https://api.x.com/2/oauth2/token";
 const X_ME_URL: &str =
@@ -191,6 +191,22 @@ struct PublishJobLoad {
     #[sqlx(rename = "post_primary_channel_id")]
     post_primary_channel_id: Option<String>,
     variant_content: Option<String>,
+    media: Value,
+}
+
+fn attached_media_url(media: &Value, config: &AppConfig, kind: Option<&str>) -> Option<String> {
+    media.as_array()?.iter().find_map(|item| {
+        let item_kind = item.get("kind").and_then(Value::as_str);
+        if kind.is_some_and(|requested| item_kind != Some(requested)) {
+            return None;
+        }
+        let asset_id = item.get("assetId").and_then(Value::as_str)?;
+        Some(content_media::public_media_url(config, asset_id))
+    })
+}
+
+fn has_attached_media(media: &Value) -> bool {
+    media.as_array().is_some_and(|items| !items.is_empty())
 }
 
 pub fn is_valid_platform(value: &str) -> bool {
@@ -1895,7 +1911,18 @@ async fn load_publish_job(pool: &PgPool, job_id: &str) -> Result<Option<PublishJ
                j.status::text AS status, j."externalPostId" AS external_post_id,
                p.content AS post_content, p.metadata AS post_metadata,
                p."primaryChannelId" AS post_primary_channel_id,
-               v.content AS variant_content
+               v.content AS variant_content,
+               COALESCE((
+                   SELECT jsonb_agg(jsonb_build_object(
+                       'assetId', pm."assetId",
+                       'kind', a.kind::text,
+                       'mimeType', a."mimeType",
+                       'sortOrder', pm."sortOrder"
+                   ) ORDER BY pm."sortOrder" ASC)
+                   FROM "SocialPostMedia" pm
+                   JOIN "ContentMediaAsset" a ON a.id = pm."assetId"
+                   WHERE pm."postId" = p.id
+               ), '[]'::jsonb) AS media
         FROM "SocialPublishJob" j
         JOIN "SocialPost" p ON p.id = j."postId"
         LEFT JOIN "SocialPostVariant" v ON v.id = j."variantId"
@@ -1948,6 +1975,9 @@ pub async fn execute_social_publish_job(
             "Social publish job does not have an organisation assignment".to_string(),
         )
     })?;
+    let config = AppConfig::from_env().map_err(|_| {
+        AppError::Internal("Failed to load content media configuration".to_string())
+    })?;
 
     if job.status == "CANCELED" {
         return Err(AppError::BadRequest("Publish job is canceled".to_string()));
@@ -1973,6 +2003,11 @@ pub async fn execute_social_publish_job(
 
     let result = async {
         if job.platform == "FACEBOOK" {
+            if has_attached_media(&job.media) {
+                return Err(AppError::BadRequest(
+                    "Facebook media publishing is not enabled for this connection yet; remove the attachment or use a text-only version".to_string(),
+                ));
+            }
             let channel = resolve_connected_channel_for_platform(
                 pool,
                 org_id,
@@ -2000,11 +2035,9 @@ pub async fn execute_social_publish_job(
                 .and_then(Value::as_str)
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
-                .ok_or_else(|| {
-                    AppError::BadRequest(
-                        "Add a public HTTPS image URL before publishing to Instagram".to_string(),
-                    )
-                })?;
+                .map(str::to_string)
+                .or_else(|| attached_media_url(&job.media, &config, Some("IMAGE")))
+                .ok_or_else(|| AppError::BadRequest("Attach an image or add a public HTTPS image URL before publishing to Instagram".to_string()))?;
             let channel = resolve_connected_channel_for_platform(
                 pool,
                 org_id,
@@ -2019,7 +2052,7 @@ pub async fn execute_social_publish_job(
                 access,
                 &channel.external_account_id,
                 &channel.metadata,
-                image_url,
+                &image_url,
                 &publish_text,
             )
             .await?;
@@ -2030,6 +2063,11 @@ pub async fn execute_social_publish_job(
                 published_text,
             ))
         } else if job.platform == "THREADS" {
+            if has_attached_media(&job.media) {
+                return Err(AppError::BadRequest(
+                    "Threads media publishing is not enabled for this connection yet; remove the attachment or use a text-only version".to_string(),
+                ));
+            }
             let channel = resolve_connected_channel_for_platform(
                 pool,
                 org_id,
@@ -2073,6 +2111,15 @@ pub async fn execute_social_publish_job(
                 published_text,
             ))
         } else if job.platform == "TIKTOK" {
+            if job
+                .media
+                .as_array()
+                .is_some_and(|items| items.len() > 1)
+            {
+                return Err(AppError::BadRequest(
+                    "The current TikTok adapter accepts one uploaded image or video per post".to_string(),
+                ));
+            }
             let channel = resolve_connected_channel_for_platform(
                 pool,
                 org_id,
@@ -2106,8 +2153,29 @@ pub async fn execute_social_publish_job(
                     AppError::BadRequest("Connect a TikTok account before publishing".to_string())
                 })?)?
             };
+            let mut tiktok_metadata = job.post_metadata.clone().unwrap_or_else(|| json!({}));
+            let tiktok_metadata_object = tiktok_metadata.as_object_mut().ok_or_else(|| {
+                AppError::BadRequest("TikTok post metadata must be an object".to_string())
+            })?;
+            if tiktok_metadata_object
+                .get("tiktokMediaUrl")
+                .and_then(Value::as_str)
+                .is_none_or(|value| value.trim().is_empty())
+            {
+                let media_kind = tiktok_metadata_object
+                    .get("tiktokMediaType")
+                    .and_then(Value::as_str)
+                    .map(|value| if value == "PHOTO" { "IMAGE" } else { "VIDEO" });
+                if let Some(media_url) = attached_media_url(&job.media, &config, media_kind) {
+                    tiktok_metadata_object.insert("tiktokMediaUrl".to_string(), Value::String(media_url));
+                    tiktok_metadata_object.insert(
+                        "tiktokMediaType".to_string(),
+                        Value::String(if media_kind == Some("IMAGE") { "PHOTO" } else { "VIDEO" }.to_string()),
+                    );
+                }
+            }
             let (external_post_id, published_text) =
-                publish_post_to_tiktok(&access, &job.post_metadata, &publish_text).await?;
+                publish_post_to_tiktok(&access, &Some(tiktok_metadata), &publish_text).await?;
             Ok((
                 channel.id,
                 Some(external_post_id),
@@ -2115,6 +2183,11 @@ pub async fn execute_social_publish_job(
                 published_text,
             ))
         } else if job.platform == "BLUESKY" {
+            if has_attached_media(&job.media) {
+                return Err(AppError::BadRequest(
+                    "Bluesky media publishing is not enabled for this connection yet; remove the attachment or use a text-only version".to_string(),
+                ));
+            }
             if publish_text.chars().count() > 300 {
                 return Err(AppError::BadRequest("Bluesky posts are limited to 300 characters".to_string()));
             }
@@ -2136,7 +2209,6 @@ pub async fn execute_social_publish_job(
             let authorization_server=metadata.get("authorizationServer").and_then(Value::as_str).ok_or_else(||AppError::BadRequest("Bluesky connection is missing its authorization server".to_string()))?;
             let dpop_private_key=decrypt_social_secret(metadata.get("dpopPrivateKey").and_then(Value::as_str).ok_or_else(||AppError::BadRequest("Bluesky connection is missing its DPoP key".to_string()))?)?;
             let auth_nonce=metadata.get("dpopAuthorizationNonce").and_then(Value::as_str);
-            let config=AppConfig::from_env().map_err(|_|AppError::Internal("Failed to load Bluesky OAuth configuration".to_string()))?;
             let session = bluesky_oauth::refresh(&config,&refresh,authorization_server,&dpop_private_key,auth_nonce).await?;
             save_rotated_tokens(
                 pool,
@@ -2160,6 +2232,11 @@ pub async fn execute_social_publish_job(
                 publish_text,
             ))
         } else if job.platform == "X" {
+            if has_attached_media(&job.media) {
+                return Err(AppError::BadRequest(
+                    "X media publishing is not enabled for this connection yet; remove the attachment or use a text-only version".to_string(),
+                ));
+            }
             if publish_text.chars().count() > 280 {
                 return Err(AppError::BadRequest(
                     "X posts are currently limited to 280 characters".to_string(),
@@ -2184,6 +2261,11 @@ pub async fn execute_social_publish_job(
                 published_text,
             ))
         } else if job.platform == "LINKEDIN" {
+            if has_attached_media(&job.media) {
+                return Err(AppError::BadRequest(
+                    "LinkedIn media publishing is not enabled for this connection yet; remove the attachment or use a text-only version".to_string(),
+                ));
+            }
             if publish_text.chars().count() > 3000 {
                 return Err(AppError::BadRequest(
                     "LinkedIn posts are currently limited to 3000 characters".to_string(),

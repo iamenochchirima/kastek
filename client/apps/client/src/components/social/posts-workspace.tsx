@@ -1,9 +1,8 @@
 "use client";
 
 import { apiUrl } from "@/lib/server-api";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, ArrowLeft, ArrowRight, BarChart3, CalendarDays, CalendarClock, Check, CircleAlert, FileClock, Pencil, Plus, RotateCcw, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, BarChart3, CalendarDays, CalendarClock, Check, CircleAlert, FileClock, FileImage, Pencil, Play, Plus, RotateCcw, Search, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,12 +10,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
 import {
   SOCIAL_PLATFORM_ORDER,
-  SOCIAL_POST_STATUSES,
   type SocialChannelConnection,
   type SocialPlatform,
   type SocialPost,
+  type SocialPostMedia,
   type SocialPostStatus,
   type SocialPostVariant,
   type SocialPublishJob,
@@ -38,6 +38,11 @@ type ComposerVariant = {
   aiGenerated: boolean;
 };
 
+type ComposerMedia = Pick<SocialPostMedia, "assetId" | "kind" | "mimeType" | "fileName" | "byteSize" | "width" | "height" | "durationMs" | "altText"> & {
+  id?: string;
+  sortOrder: number;
+};
+
 type ComposerState = {
   id: string | null;
   title: string;
@@ -53,6 +58,7 @@ type ComposerState = {
   tiktokMediaType: "VIDEO" | "PHOTO";
   tiktokPrivacyLevel: "SELF_ONLY" | "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR";
   tiktokConsent: boolean;
+  media: ComposerMedia[];
   variants: ComposerVariant[];
 };
 
@@ -97,6 +103,7 @@ const emptyComposer: ComposerState = {
   tiktokMediaType: "VIDEO",
   tiktokPrivacyLevel: "SELF_ONLY",
   tiktokConsent: false,
+  media: [],
   variants: defaultChannels.map((platform) => ({
     platform,
     content: "",
@@ -139,21 +146,28 @@ function buildComposerVariants(channels: SocialPlatform[], variants?: SocialPost
   });
 }
 
-type PostsWorkspaceProps = {
-  view?: "posts" | "history";
-};
+function mediaUrl(assetId: string) {
+  return apiUrl(`/api/social/media/${encodeURIComponent(assetId)}`);
+}
 
-const workspaceNavigation: Array<{ href: string; label: string; icon: typeof Pencil; view?: "posts" | "history" }> = [
-  { href: "/content", label: "Posts", icon: Pencil, view: "posts" },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/content/history", label: "History", icon: FileClock, view: "history" },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-];
+function formatMediaSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDuration(durationMs: number | null) {
+  if (!durationMs) return "";
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
+}
+
+type PostsWorkspaceProps = { view?: "posts" | "history" };
 
 export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [channels, setChannels] = useState<SocialChannelConnection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [activeFilter, setActiveFilter] = useState<"ALL" | SocialPostStatus>(view === "history" ? "PUBLISHED" : "ALL");
@@ -176,6 +190,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState<string | null>(null);
   const refreshedChannelIdentities = useRef(new Set<string>());
+  const mediaInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     void loadData();
@@ -222,9 +237,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }
   }, []);
 
-  async function loadData() {
-    setLoading(true);
-    setError("");
+  async function loadData({ showLoading = true, clearError = true } = {}) {
+    if (showLoading) setLoading(true);
+    else setRefreshing(true);
+    if (clearError) setError("");
 
     try {
       const [postsResponse, channelsResponse] = await Promise.all([
@@ -254,7 +270,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load posts");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
+      else setRefreshing(false);
     }
   }
 
@@ -325,6 +342,23 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     [composer.channels, composer.variants],
   );
 
+  const mediaPublishIssues = useMemo(() => {
+    if (!composer.media.length) return [];
+    return composer.channels.flatMap((platform) => {
+      const capabilities = getPlatformCapabilities(platform).media;
+      const images = composer.media.filter((item) => item.kind === "IMAGE").length;
+      const videos = composer.media.filter((item) => item.kind === "VIDEO").length;
+      const issues: string[] = [];
+      if (images && (!capabilities.images.supported || images > capabilities.images.maxCount)) {
+        issues.push(`${getPlatformLabel(platform)} does not accept ${images > capabilities.images.maxCount ? `that many images (maximum ${capabilities.images.maxCount})` : "these uploaded images"}`);
+      }
+      if (videos && (!capabilities.videos.supported || videos > capabilities.videos.maxCount)) {
+        issues.push(`${getPlatformLabel(platform)} does not accept ${videos > capabilities.videos.maxCount ? `that many videos (maximum ${capabilities.videos.maxCount})` : "uploaded videos"}`);
+      }
+      return issues;
+    });
+  }, [composer.channels, composer.media]);
+
   function openNewComposer() {
     setComposer(emptyComposer);
     setActiveVariantPlatform("FACEBOOK");
@@ -355,6 +389,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       tiktokMediaType: "VIDEO",
       tiktokPrivacyLevel: "SELF_ONLY",
       tiktokConsent: false,
+      media: [],
       variants: nextVariants.map((variant) => ({
         ...variant,
         status: variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT",
@@ -388,6 +423,19 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       tiktokPrivacyLevel: typeof post.metadata?.tiktokPrivacyLevel === "string"
         ? post.metadata.tiktokPrivacyLevel as ComposerState["tiktokPrivacyLevel"] : "SELF_ONLY",
       tiktokConsent: post.metadata?.tiktokConsent === true,
+      media: (post.media || []).map((item) => ({
+        id: item.id,
+        assetId: item.assetId,
+        kind: item.kind,
+        mimeType: item.mimeType,
+        fileName: item.fileName,
+        byteSize: item.byteSize,
+        width: item.width,
+        height: item.height,
+        durationMs: item.durationMs,
+        altText: item.altText,
+        sortOrder: item.sortOrder,
+      })),
       variants: buildComposerVariants(post.channels, post.variants, post.content),
     });
     setActiveVariantPlatform(post.channels[0] || "FACEBOOK");
@@ -468,6 +516,84 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       variants: current.variants.map((variant) =>
         variant.platform === platform ? { ...variant, ...patch } : variant,
       ),
+    }));
+  }
+
+  async function uploadMedia(file: File) {
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      setError("Choose an image or video file.");
+      return;
+    }
+    const isVideo = file.type.startsWith("video/");
+    if ((!isVideo && file.size > 20 * 1024 * 1024) || (isVideo && file.size > 512 * 1024 * 1024)) {
+      setError(isVideo ? "Videos must be 512 MB or smaller." : "Images must be 20 MB or smaller.");
+      return;
+    }
+
+    let width: number | undefined;
+    let height: number | undefined;
+    let durationMs: number | undefined;
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      if (isVideo) {
+        const metadata = await new Promise<{ width: number; height: number; durationMs: number }>((resolve, reject) => {
+          const element = document.createElement("video");
+          element.preload = "metadata";
+          element.onloadedmetadata = () => resolve({ width: element.videoWidth, height: element.videoHeight, durationMs: Math.round(element.duration * 1000) });
+          element.onerror = () => reject(new Error("Could not read video metadata"));
+          element.src = objectUrl;
+        });
+        width = metadata.width;
+        height = metadata.height;
+        durationMs = metadata.durationMs;
+      } else {
+        const metadata = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+          const element = new Image();
+          element.onload = () => resolve({ width: element.naturalWidth, height: element.naturalHeight });
+          element.onerror = () => reject(new Error("Could not read image metadata"));
+          element.src = objectUrl;
+        });
+        width = metadata.width;
+        height = metadata.height;
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not read media metadata");
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+    URL.revokeObjectURL(objectUrl);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    if (width) formData.append("width", String(width));
+    if (height) formData.append("height", String(height));
+    if (durationMs) formData.append("durationMs", String(durationMs));
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch(apiUrl("/api/social/media"), {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const payload = await response.json() as { asset?: { id: string; kind: "IMAGE" | "VIDEO"; mimeType: string; fileName: string | null; byteSize: number; width: number | null; height: number | null; durationMs: number | null }; error?: string };
+      if (!response.ok || !payload.asset) throw new Error(payload.error || "Failed to upload media");
+      setComposer((current) => ({
+        ...current,
+        media: [...current.media, { ...payload.asset!, assetId: payload.asset!.id, altText: null, sortOrder: current.media.length }],
+      }));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to upload media");
+    } finally {
+      setSaving(false);
+      if (mediaInputRef.current) mediaInputRef.current.value = "";
+    }
+  }
+
+  function removeMedia(assetId: string) {
+    setComposer((current) => ({
+      ...current,
+      media: current.media.filter((item) => item.assetId !== assetId).map((item, index) => ({ ...item, sortOrder: index })),
     }));
   }
 
@@ -578,7 +704,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }
   }
 
-  async function savePost() {
+  async function savePost(publishNow = false, requestedStatus?: "DRAFT" | "SCHEDULED") {
     if (!composer.channels.length) {
       setError("Choose at least one connected destination first.");
       setComposerStep(1);
@@ -591,12 +717,19 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       return;
     }
 
+    if ((publishNow || requestedStatus === "SCHEDULED") && mediaPublishIssues.length) {
+      setError(`${mediaPublishIssues.join(". ")}. Save a draft or adjust the selected media.`);
+      setComposerStep(4);
+      return;
+    }
+
     if (!composer.content.trim()) {
       setError("Add a master post summary before saving.");
       return;
     }
-    if (composer.channels.includes("TIKTOK") && (!composer.tiktokMediaUrl.trim() || !composer.tiktokConsent)) {
-      setError("TikTok requires a verified media URL and explicit publishing consent.");
+    const hasTikTokMedia = Boolean(composer.tiktokMediaUrl.trim() || composer.media.some((item) => item.kind === "VIDEO" || item.kind === "IMAGE"));
+    if (composer.channels.includes("TIKTOK") && (!hasTikTokMedia || !composer.tiktokConsent)) {
+      setError("TikTok requires an attached image/video or verified media URL and explicit publishing consent.");
       setComposerStep(2);
       return;
     }
@@ -604,6 +737,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     const activeVariants = composer.variants.filter((variant) =>
       composer.channels.includes(variant.platform),
     );
+    // An immediate post starts in-flight. It becomes PUBLISHED when a destination
+    // succeeds, rather than being persisted as a draft while provider jobs run.
+    const postStatus = publishNow ? "PROCESSING" : requestedStatus ?? composer.status;
 
     if (activeVariants.some((variant) => !variant.content.trim())) {
       setError("Each selected platform needs its own variant content.");
@@ -612,6 +748,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
 
     setSaving(true);
     setError("");
+
+    let savedPost: SocialPost | null = null;
 
     try {
       const response = await fetch(
@@ -625,11 +763,16 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
             prompt: composer.prompt || null,
             content: composer.content,
             channels: composer.channels,
-            status: composer.status,
-            scheduledFor: composer.scheduledFor || null,
+            status: postStatus,
+            scheduledFor: postStatus === "SCHEDULED" ? composer.scheduledFor || "" : "",
             primaryChannelId: composer.primaryChannelId || Object.values(composer.channelSelections).find(Boolean) || null,
             channelSelections: composer.channelSelections,
             variants: activeVariants,
+            media: composer.media.map((item) => ({
+              assetId: item.assetId,
+              sortOrder: item.sortOrder,
+              altText: item.altText,
+            })),
             metadata: {
               createdFrom: "social-posts-workspace",
               aiAssistUsed: activeVariants.some((variant) => variant.aiGenerated),
@@ -649,6 +792,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         throw new Error(payload.error || "Failed to save post");
       }
 
+      savedPost = payload.post;
+
       setPosts((current) => {
         if (composer.id) {
           return current.map((post) => (post.id === payload.post?.id ? payload.post : post));
@@ -657,12 +802,49 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         return [payload.post as SocialPost, ...current];
       });
 
+      if (publishNow) {
+        const failedPlatforms: string[] = [];
+        for (const platform of composer.channels) {
+          try {
+            const publishResponse = await fetch(apiUrl(`/api/social/posts/${savedPost.id}/publish`), {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ platform }),
+            });
+            const publishPayload = (await publishResponse.json()) as { post?: SocialPost; error?: string };
+            if (!publishResponse.ok || !publishPayload.post) {
+              failedPlatforms.push(getPlatformLabel(platform));
+              continue;
+            }
+            const publishedPost = publishPayload.post;
+            savedPost = publishedPost;
+            setPosts((current) => current.map((post) => (post.id === publishedPost.id ? publishedPost : post)));
+          } catch {
+            failedPlatforms.push(getPlatformLabel(platform));
+          }
+        }
+
+        if (failedPlatforms.length) {
+          setError(`Could not publish to ${failedPlatforms.join(", ")}. The post is saved; retry those destinations from post history.`);
+        }
+      }
+
+      await loadData({ showLoading: false, clearError: !publishNow });
+
       setComposer(emptyComposer);
       setActiveVariantPlatform("FACEBOOK");
       setComposerStep(1);
       setIsComposerOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save post");
+      if (savedPost) {
+        setComposer(emptyComposer);
+        setActiveVariantPlatform("FACEBOOK");
+        setComposerStep(1);
+        setIsComposerOpen(false);
+      }
+      const message = err instanceof Error ? err.message : "Failed to save post";
+      setError(savedPost ? `${message}. The post was saved; retry any failed destination from post history.` : message);
     } finally {
       setSaving(false);
     }
@@ -682,6 +864,16 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     if (composerStep === 2 && !composer.content.trim()) {
       setError("Add the post copy before continuing.");
       return;
+    }
+    if (composerStep === 2) {
+      setComposer((current) => ({
+        ...current,
+        variants: current.variants.map((variant) =>
+          current.channels.includes(variant.platform) && !variant.content.trim()
+            ? { ...variant, content: current.content }
+            : variant,
+        ),
+      }));
     }
     setError("");
     setComposerStep((current) => Math.min(current + 1, 4) as ComposerStep);
@@ -734,6 +926,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       setActivityPost((current) => current && current.post.id === payload.post?.id
         ? { ...current, post: payload.post }
         : current);
+      await loadData({ showLoading: false, clearError: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to publish post");
     } finally {
@@ -764,6 +957,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       setActivityPost((current) => current && current.post.id === payload.post?.id
         ? { ...current, post: payload.post }
         : current);
+      await loadData({ showLoading: false, clearError: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update publish job");
     } finally {
@@ -812,26 +1006,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
             </div>
           </div>
 
-          <nav aria-label="Content navigation" className="flex gap-1 overflow-x-auto">
-            {workspaceNavigation.map((item) => {
-              const Icon = item.icon;
-              const active = item.view === view;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                    active
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <ContentWorkspaceNavigation active={view} />
         </div>
 
         {error ? (
@@ -874,8 +1049,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                 <option value="ALL">All channels</option>
                 {SOCIAL_PLATFORM_ORDER.map((platform) => <option key={platform} value={platform}>{getPlatformLabel(platform)}</option>)}
               </select>
-              <Button variant="outline" size="icon" onClick={() => void loadData()} aria-label="Refresh posts">
-                <CalendarClock className="h-4 w-4" />
+              <Button variant="outline" className="gap-2" onClick={() => void loadData({ showLoading: false })} disabled={refreshing} aria-label="Refresh posts">
+                <RotateCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                {refreshing ? "Refreshing..." : "Refresh"}
               </Button>
             </div>
             {loading ? (
@@ -929,6 +1105,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                         <p className="max-w-3xl whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
                           {post.content}
                         </p>
+                        {post.media?.length ? <div className="flex flex-wrap gap-2">{post.media.slice(0, 4).map((item) => item.kind === "VIDEO" ? <div key={item.id} className="relative overflow-hidden rounded-lg border border-border"><video className="h-20 w-28 object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /><span className="absolute bottom-1 left-1 inline-flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white"><Play className="h-2.5 w-2.5" />{formatDuration(item.durationMs)}</span></div> : <img key={item.id} className="h-20 w-28 rounded-lg border border-border object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />)}</div> : null}
                         <div className="flex flex-wrap gap-2">
                           {post.variants?.map((variant) => {
                             const Icon = getPlatformIcon(variant.platform);
@@ -946,29 +1123,35 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                             : `Saved ${formatDateTime(post.createdAt)}`}
                         </div>
                         {publishJobs.length ? (
-                          <div className="grid gap-2 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Destinations</p>
+                            <div className="grid gap-2 md:grid-cols-2">
                             {publishJobs.map((job) => {
                               const jobMeta = getPublishJobStatusMeta(job.status);
                               const JobIcon = jobMeta.icon;
+                              const PlatformIcon = getPlatformIcon(job.platform);
                               return (
-                                <div key={job.id} className="rounded-xl border border-border/60 bg-background/30 p-3">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge className={jobMeta.className}>
+                                <div key={job.id} className="rounded-lg border border-border/60 bg-background/45 px-3 py-2.5">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                                      <PlatformIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                      <span className="truncate">{getPlatformLabel(job.platform)}</span>
+                                    </div>
+                                    <Badge className={`shrink-0 ${jobMeta.className}`}>
                                       {JobIcon ? <JobIcon className="mr-1 h-3.5 w-3.5" /> : null}
-                                      {getPlatformLabel(job.platform)}: {jobMeta.label}
+                                      {jobMeta.label}
                                     </Badge>
-                                    {job.scheduledFor ? (
-                                      <span className="text-xs text-muted-foreground">
-                                        {formatDateTime(job.scheduledFor)}
-                                      </span>
-                                    ) : null}
                                   </div>
+                                  {job.scheduledFor ? (
+                                    <p className="mt-2 text-xs text-muted-foreground">{formatDateTime(job.scheduledFor)}</p>
+                                  ) : null}
                                   {job.errorMessage ? (
                                     <p className="mt-2 text-xs text-destructive">{job.errorMessage}</p>
                                   ) : null}
                                 </div>
                               );
                             })}
+                            </div>
                           </div>
                         ) : null}
                       </div>
@@ -980,21 +1163,24 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                             post.publishJobs?.find((job) => job.platform === platform) || null;
                           const platformKey = `${post.id}:${platform}`;
                           const connectedChannel = connectedChannelsByPlatform.get(platform)?.[0];
+                          const alreadyPublished = platformJob?.status === "PUBLISHED";
 
                           return (
                             <div key={`${post.id}-${platform}`} className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
-                                disabled={!connectedChannel || publishingKey === platformKey}
-                                onClick={() => void publishPostToPlatform(post.id, platform)}
-                              >
-                                <Sparkles className="h-4 w-4" />
-                                {publishingKey === platformKey
-                                  ? "Publishing..."
-                                  : `Publish to ${getPlatformLabel(platform)}`}
-                              </Button>
+                              {!alreadyPublished ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-2"
+                                  disabled={!connectedChannel || publishingKey === platformKey}
+                                  onClick={() => void publishPostToPlatform(post.id, platform)}
+                                >
+                                  <Sparkles className="h-4 w-4" />
+                                  {publishingKey === platformKey
+                                    ? "Publishing..."
+                                    : `Publish to ${getPlatformLabel(platform)}`}
+                                </Button>
+                              ) : null}
                               {platformJob?.status === "FAILED" ? (
                                 <Button
                                   variant="outline"
@@ -1109,6 +1295,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
             </div>
             <div className="space-y-3 px-5 py-5">
               {activityError ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{activityError}</p> : null}
+              {activityPost.post.publishJobs?.length ? <div className="space-y-2 rounded-lg border border-border bg-secondary/20 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Provider recovery</p>{activityPost.post.publishJobs.map((job) => { const meta = getPublishJobStatusMeta(job.status); const JobIcon = meta.icon; const actionable = job.status === "FAILED" || job.status === "QUEUED" || job.status === "PENDING"; return <div key={job.id} className="flex flex-col gap-2 rounded-lg border border-border bg-background/40 p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge className={meta.className}>{JobIcon ? <JobIcon className="mr-1 h-3.5 w-3.5" /> : null}{getPlatformLabel(job.platform)}: {meta.label}</Badge>{job.scheduledFor ? <span className="text-xs text-muted-foreground">{formatDateTime(job.scheduledFor)}</span> : null}</div>{job.errorMessage ? <p className="mt-1 text-xs text-destructive">{job.errorMessage}</p> : null}</div>{actionable ? <div className="flex shrink-0 flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={jobActionId === job.id} onClick={() => void runPublishJobAction(job, job.status === "FAILED" ? "retry" : "run_now")}>{jobActionId === job.id ? "Working…" : job.status === "FAILED" ? <><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Retry</> : "Run now"}</Button><Button type="button" size="sm" variant="ghost" disabled={jobActionId === job.id} onClick={() => void runPublishJobAction(job, "cancel")}>Cancel</Button></div> : null}</div>; })}</div> : null}
               {activityLoading ? <p className="text-sm text-muted-foreground">Loading durable activity…</p> : activityPost.events.length ? activityPost.events.map((event) => (
                 <div key={event.id} className="flex gap-3 rounded-lg border border-border p-3">
                   <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${event.status === "FAILED" ? "bg-destructive" : event.status === "PUBLISHED" ? "bg-accent" : "bg-primary"}`} aria-hidden="true" />
@@ -1175,7 +1362,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                               {options.map((channel) => {
                                 const isSelected = selectedId === channel.id;
                                 return (
-                                  <button type="button" key={channel.id} onClick={() => selectChannel(channel)} className={`flex min-w-0 items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors ${isSelected ? "border-primary bg-primary/10 text-foreground" : "border-border bg-background hover:border-primary/50"}`}>
+                                  <button type="button" key={channel.id} onClick={() => isSelected ? removeChannel(platform) : selectChannel(channel)} className={`flex min-w-0 items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors ${isSelected ? "border-primary bg-primary/10 text-foreground" : "border-border bg-background hover:border-primary/50"}`}>
                                     <Avatar className="h-8 w-8 border border-border bg-muted">
                                       <AvatarImage src={channelAvatarUrl(channel) || undefined} alt="" referrerPolicy="no-referrer" />
                                       <AvatarFallback className="text-[10px] font-semibold text-muted-foreground">{channelInitials(channel)}</AvatarFallback>
@@ -1203,9 +1390,17 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                   <div><h2 className="text-xl font-semibold text-foreground">Write the post</h2><p className="mt-1 text-sm text-muted-foreground">Start with the shared copy. You can tailor it next.</p></div>
                   <label className="block space-y-2"><span className="text-sm text-muted-foreground">Title</span><Input value={composer.title} onChange={(event) => setComposer((current) => ({ ...current, title: event.target.value }))} placeholder="Post title" /></label>
                   <label className="block space-y-2"><span className="text-sm text-muted-foreground">Post copy</span><textarea value={composer.content} onChange={(event) => setComposer((current) => ({ ...current, content: event.target.value }))} placeholder="Write your post..." className="min-h-[180px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary" /></label>
+                  <div className="space-y-3 rounded-xl border border-border p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div><p className="text-sm font-medium text-foreground">Media</p><p className="text-xs text-muted-foreground">Attach images or videos to this post.</p></div>
+                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="h-3.5 w-3.5" />Add media</Button>
+                      <input ref={mediaInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple className="hidden" onChange={(event) => { const files = Array.from(event.target.files || []); void files.reduce((chain, file) => chain.then(() => uploadMedia(file)), Promise.resolve()); }} />
+                    </div>
+                    {composer.media.length ? <div className="grid gap-3 sm:grid-cols-2">{composer.media.map((item) => <div key={item.assetId} className="group relative overflow-hidden rounded-lg border border-border bg-secondary/20">{item.kind === "VIDEO" ? <video className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /> : <img className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />}{item.kind === "VIDEO" ? <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] text-white"><Play className="h-3 w-3" />{formatDuration(item.durationMs)}</span> : null}<div className="flex items-center gap-2 p-2"><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.fileName || (item.kind === "VIDEO" ? "Video" : "Image")} · {formatMediaSize(item.byteSize)}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMedia(item.assetId)} aria-label="Remove media"><X className="h-3.5 w-3.5" /></Button></div></div>)}</div> : <p className="text-xs text-muted-foreground">No media attached yet. You can still publish text-only versions.</p>}
+                  </div>
                   <div className="rounded-xl border border-border bg-secondary/20 p-4"><label className="block space-y-2"><span className="text-sm font-medium text-foreground">Generate a draft</span><textarea value={composer.prompt} onChange={(event) => setComposer((current) => ({ ...current, prompt: event.target.value }))} placeholder="Optional prompt" className="min-h-[86px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" /></label><Button variant="outline" className="mt-3 gap-2" disabled={generatingCaption} onClick={() => void generateWithAi()}><Sparkles className="h-4 w-4" />{generatingCaption ? "Generating..." : "Generate versions"}</Button></div>
                   {composer.channels.includes("INSTAGRAM") ? <label className="block space-y-2"><span className="text-sm text-muted-foreground">Instagram image URL</span><Input type="url" value={composer.instagramImageUrl} onChange={(event) => setComposer((current) => ({ ...current, instagramImageUrl: event.target.value }))} placeholder="https://example.com/image.jpg" /><span className="block text-xs text-muted-foreground">Required when publishing to Instagram.</span></label> : null}
-                  {composer.channels.includes("TIKTOK") ? <div className="space-y-3 rounded-xl border border-border p-4"><p className="text-sm font-medium">TikTok media</p><label className="block space-y-2"><span className="text-sm text-muted-foreground">Verified media URL</span><Input type="url" value={composer.tiktokMediaUrl} onChange={(event) => setComposer((current) => ({ ...current, tiktokMediaUrl: event.target.value, tiktokConsent: false }))} placeholder="https://media.your-domain.com/post.mp4" /><span className="block text-xs text-muted-foreground">Must be HTTPS, not redirect, and use a domain or URL prefix verified in TikTok.</span></label><div className="grid gap-3 sm:grid-cols-2"><label className="block space-y-2"><span className="text-sm text-muted-foreground">Media type</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={composer.tiktokMediaType} onChange={(event) => setComposer((current) => ({ ...current, tiktokMediaType: event.target.value as ComposerState["tiktokMediaType"], tiktokConsent: false }))}><option value="VIDEO">Video</option><option value="PHOTO">Photo</option></select></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Privacy</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={composer.tiktokPrivacyLevel} disabled={!tiktokPrivacyOptions.length} onChange={(event) => setComposer((current) => ({ ...current, tiktokPrivacyLevel: event.target.value as ComposerState["tiktokPrivacyLevel"], tiktokConsent: false }))}>{tiktokPrivacyOptions.map((option) => <option key={option} value={option}>{option === "SELF_ONLY" ? "Only me" : option === "PUBLIC_TO_EVERYONE" ? "Public" : option === "MUTUAL_FOLLOW_FRIENDS" ? "Friends" : "Followers"}</option>)}</select><span className="block text-xs text-muted-foreground">Options are loaded from the connected TikTok creator account.</span></label></div><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={composer.tiktokConsent} onChange={(event) => setComposer((current) => ({ ...current, tiktokConsent: event.target.checked }))} /><span>I consent to send this media and caption to TikTok for direct publishing.</span></label></div> : null}
+                  {composer.channels.includes("TIKTOK") ? <div className="space-y-3 rounded-xl border border-border p-4"><p className="text-sm font-medium">TikTok publishing</p><label className="block space-y-2"><span className="text-sm text-muted-foreground">Optional verified media URL</span><Input type="url" value={composer.tiktokMediaUrl} onChange={(event) => setComposer((current) => ({ ...current, tiktokMediaUrl: event.target.value, tiktokConsent: false }))} placeholder="https://media.your-domain.com/post.mp4" /><span className="block text-xs text-muted-foreground">Use this only when the media is hosted on a TikTok-verified HTTPS domain. Uploaded media can be used instead.</span></label><div className="grid gap-3 sm:grid-cols-2"><label className="block space-y-2"><span className="text-sm text-muted-foreground">Media type for URL</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={composer.tiktokMediaType} onChange={(event) => setComposer((current) => ({ ...current, tiktokMediaType: event.target.value as ComposerState["tiktokMediaType"], tiktokConsent: false }))}><option value="VIDEO">Video</option><option value="PHOTO">Photo</option></select></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Privacy</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={composer.tiktokPrivacyLevel} disabled={!tiktokPrivacyOptions.length} onChange={(event) => setComposer((current) => ({ ...current, tiktokPrivacyLevel: event.target.value as ComposerState["tiktokPrivacyLevel"], tiktokConsent: false }))}>{tiktokPrivacyOptions.map((option) => <option key={option} value={option}>{option === "SELF_ONLY" ? "Only me" : option === "PUBLIC_TO_EVERYONE" ? "Public" : option === "MUTUAL_FOLLOW_FRIENDS" ? "Friends" : "Followers"}</option>)}</select><span className="block text-xs text-muted-foreground">Options are loaded from the connected TikTok creator account.</span></label></div><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={composer.tiktokConsent} onChange={(event) => setComposer((current) => ({ ...current, tiktokConsent: event.target.checked }))} /><span>I consent to send the selected media and caption to TikTok for direct publishing.</span></label></div> : null}
                 </section>
               ) : null}
 
@@ -1216,22 +1411,29 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                     <TabsList className="flex w-full flex-wrap bg-secondary/50">{activeComposerVariants.map((variant) => <TabsTrigger key={variant.platform} value={variant.platform}>{getPlatformLabel(variant.platform)}</TabsTrigger>)}</TabsList>
                     {activeComposerVariants.map((variant) => <TabsContent key={variant.platform} value={variant.platform}><div className="space-y-3 rounded-xl border border-border p-4"><label className="block space-y-2"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} copy</span><textarea value={variant.content} onChange={(event) => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[260px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" /></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Status</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" value={variant.status} onChange={(event) => updateVariant(variant.platform, { status: event.target.value as SocialVariantStatus })}><option value="DRAFT">Draft</option><option value="APPROVED">Approved</option><option value="NEEDS_EDITS">Needs edits</option></select></label></div></TabsContent>)}
                   </Tabs>
+                  <div className="rounded-xl border border-border bg-secondary/20 p-4"><div className="flex items-center gap-2"><Smartphone className="h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">Mobile composition preview</p><p className="text-xs text-muted-foreground">A layout preview using the exact copy and media. Provider UI may differ.</p></div></div><div className="mt-4 flex justify-center"><div className="w-[250px] overflow-hidden rounded-[2rem] border-[6px] border-foreground/80 bg-background shadow-xl"><div className="flex items-center justify-between border-b border-border px-4 py-2 text-[10px] text-muted-foreground"><span>9:41</span><span>{getPlatformLabel(activeVariantPlatform)}</span><span>•••</span></div><div className="p-3"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-[10px] font-semibold text-primary">KT</span><span className="text-[11px] font-medium">KasiTek</span></div><p className="mt-3 whitespace-pre-wrap break-words text-[11px] leading-4 text-foreground">{activeComposerVariants.find((variant) => variant.platform === activeVariantPlatform)?.content || composer.content}</p>{composer.media.length ? <div className="mt-3 space-y-2">{composer.media.slice(0, 4).map((item) => item.kind === "VIDEO" ? <div key={item.assetId} className="relative overflow-hidden rounded-lg bg-black"><video className="h-36 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /><span className="absolute inset-0 flex items-center justify-center"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white"><Play className="h-4 w-4 fill-current" /></span></span></div> : <img key={item.assetId} className="max-h-40 w-full rounded-lg object-cover" src={mediaUrl(item.assetId)} alt={item.altText || "Attached image"} />)}</div> : <div className="mt-3 flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[10px] text-muted-foreground"><FileImage className="mr-1.5 h-3.5 w-3.5" />No media</div>}<div className="mt-3 flex gap-4 text-[10px] text-muted-foreground"><span>♡ 24</span><span>◌ 8</span><span>↗ Share</span></div></div></div></div></div>
                 </section>
               ) : null}
 
               {composerStep === 4 ? (
                 <section className="space-y-5">
-                  <div><h2 className="text-xl font-semibold text-foreground">Review and schedule</h2><p className="mt-1 text-sm text-muted-foreground">Save as a draft or schedule the selected versions.</p></div>
+                  <div><h2 className="text-xl font-semibold text-foreground">Review and publish</h2><p className="mt-1 text-sm text-muted-foreground">Save as a draft, schedule, or publish the selected versions now.</p></div>
                   <div className="rounded-xl border border-border p-4"><p className="text-sm font-medium text-foreground">Destinations</p><div className="mt-3 space-y-2">{composer.channels.map((platform) => { const channel = connectedChannels.find((item) => item.id === composer.channelSelections[platform]); return <div key={platform} className="flex items-center justify-between gap-3 text-sm"><span>{getPlatformLabel(platform)}</span><span className="text-muted-foreground">{channel?.displayName || "Not selected"}</span></div>; })}</div></div>
-                  <div className="grid gap-4 sm:grid-cols-2"><label className="block space-y-2"><span className="text-sm text-muted-foreground">Save as</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" value={composer.status} onChange={(event) => setComposer((current) => ({ ...current, status: event.target.value as SocialPostStatus }))}>{SOCIAL_POST_STATUSES.filter((status) => status === "DRAFT" || status === "SCHEDULED").map((status) => <option key={status} value={status}>{getPostStatusMeta(status).label}</option>)}</select></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Schedule</span><Input type="datetime-local" disabled={composer.status !== "SCHEDULED"} value={composer.scheduledFor} onChange={(event) => setComposer((current) => ({ ...current, scheduledFor: event.target.value }))} /></label></div>
-                  {composer.status === "SCHEDULED" && !composer.scheduledFor ? <div className="flex gap-2 rounded-md border border-status-warning/30 bg-status-warning-soft p-3 text-sm text-status-warning"><CircleAlert className="h-4 w-4 shrink-0" />Choose a date and time before scheduling.</div> : null}
+                  {mediaPublishIssues.length ? <div className="rounded-xl border border-status-warning/30 bg-status-warning-soft px-3 py-2 text-sm text-status-warning"><p className="font-medium">Media needs an adjustment before publishing</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs">{mediaPublishIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul><p className="mt-2 text-xs">You can still save this as a draft.</p></div> : null}
+                  <label className="block space-y-2"><span className="text-sm text-muted-foreground">Schedule for</span><Input type="datetime-local" value={composer.scheduledFor} onChange={(event) => setComposer((current) => ({ ...current, scheduledFor: event.target.value }))} /><span className="block text-xs text-muted-foreground">Choose a date and time only when scheduling this post.</span></label>
                 </section>
               ) : null}
             </div>
 
             <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-4 sm:px-6">
               <Button variant="ghost" onClick={() => composerStep === 1 ? setIsComposerOpen(false) : setComposerStep((current) => (current - 1) as ComposerStep)}>{composerStep === 1 ? "Cancel" : <><ArrowLeft className="mr-2 h-4 w-4" />Back</>}</Button>
-              {composerStep < 4 ? <Button onClick={advanceComposerStep}>Continue<ArrowRight className="ml-2 h-4 w-4" /></Button> : <Button disabled={saving || (composer.status === "SCHEDULED" && !composer.scheduledFor)} onClick={() => void savePost()}>{saving ? "Saving..." : composer.id ? "Update post" : composer.status === "SCHEDULED" ? "Schedule post" : "Save draft"}</Button>}
+              {composerStep < 4 ? <Button onClick={advanceComposerStep}>Continue<ArrowRight className="ml-2 h-4 w-4" /></Button> : (
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" disabled={saving} onClick={() => void savePost(false, "DRAFT")}>{saving ? "Saving..." : "Save draft"}</Button>
+                  <Button variant="outline" disabled={saving || !composer.scheduledFor || mediaPublishIssues.length > 0} onClick={() => void savePost(false, "SCHEDULED")}>{saving ? "Saving..." : "Schedule post"}</Button>
+                  <Button disabled={saving || mediaPublishIssues.length > 0} onClick={() => void savePost(true)}>{saving ? "Publishing..." : "Post now"}</Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

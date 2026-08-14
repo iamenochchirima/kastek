@@ -14,6 +14,9 @@ pub struct AppConfig {
     pub frontend_url: String,
     pub admin_frontend_url: String,
     pub public_api_url: String,
+    /// Local development media root. Production deployments should point this
+    /// at the mounted/object-storage adapter used by the deployment.
+    pub media_storage_path: String,
     /// Durable per-principal request budget for the public `/v1` API.
     pub public_api_rate_limit_per_minute: u32,
     pub auth_url: String,
@@ -110,6 +113,7 @@ impl AppConfig {
             frontend_url: frontend_url.clone(),
             admin_frontend_url,
             public_api_url,
+            media_storage_path: env_string_or("KASITEK_MEDIA_STORAGE_PATH", ".data/media"),
             public_api_rate_limit_per_minute: env_u32_or(
                 "KASITEK_PUBLIC_API_RATE_LIMIT_PER_MINUTE",
                 120,
