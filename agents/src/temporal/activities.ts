@@ -522,6 +522,37 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
   return tools;
 }
 
+const approvalPreviewKeys = new Set([
+  "postId",
+  "platform",
+  "scheduledFor",
+  "conversationId",
+  "contactId",
+  "bookingId",
+  "campaignId",
+  "channelType",
+  "externalConversationId",
+  "templateName",
+  "action",
+]);
+
+/**
+ * Build the immutable, safe portion of an approval preview. Provider payloads,
+ * credentials, message bodies, and arbitrary metadata never enter the approval
+ * record; the exact arguments hash still binds the eventual effect.
+ */
+export function buildApprovalResourceSnapshot(capability: string, argumentsValue: Record<string, unknown>): Record<string, unknown> {
+  const request = Object.fromEntries(
+    Object.entries(argumentsValue)
+      .filter(([key, value]) => approvalPreviewKeys.has(key) && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"))
+      .map(([key, value]) => [key, typeof value === "string" ? value.slice(0, 256) : value]),
+  );
+  return {
+    capability,
+    request,
+  };
+}
+
 function restrictiveLimit(...values: unknown[]): number | undefined {
   const numbers = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0);
   return numbers.length ? Math.min(...numbers) : undefined;
@@ -767,6 +798,7 @@ async function executeMcpToolRun(
   const manifest = tools.get(invocation.name);
   if (!manifest) throw new Error(`Tool is not registered: ${invocation.name}`);
   const argumentsHash = hashToolArguments(invocation.arguments);
+  const resourceSnapshot = buildApprovalResourceSnapshot(invocation.name, invocation.arguments);
   const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
   // New direct calls must be granted before a proposal is created. Resumed
   // approvals are re-authorized in the guarded path below so revocation closes
@@ -816,7 +848,7 @@ async function executeMcpToolRun(
         capability: invocation.name,
         capabilityVersion: manifest.version,
         argumentsHash,
-        resourceSnapshot: {},
+        resourceSnapshot,
         previewRevision: argumentsHash,
         policyRevision: "v1",
         permittedEffectKey: `${run.id}:${invocation.id}`,
@@ -865,7 +897,7 @@ async function executeMcpToolRun(
         capability: invocation.name,
         capabilityVersion: manifest.version,
         argumentsHash,
-        resourceSnapshot: {},
+        resourceSnapshot,
         previewRevision: argumentsHash,
         policyRevision: "v1",
         permittedEffectKey: `${run.id}:${invocation.id}`,
@@ -886,7 +918,7 @@ async function executeMcpToolRun(
             capability: invocation.name,
             capabilityVersion: manifest.version,
             argumentsHash,
-            resourceSnapshot: {},
+            resourceSnapshot,
             previewRevision: argumentsHash,
             policyRevision: "v1",
             permittedEffectKey: `${run.id}:${invocation.id}`,
@@ -1185,6 +1217,7 @@ async function executeLoopForRun(
     }),
     onToolProposed: async (proposal) => {
       usedTools.add(proposal.name);
+      const resourceSnapshot = buildApprovalResourceSnapshot(proposal.name, proposal.arguments);
       await toolInvocations.recordProposal({
         organizationId: run.organization_id,
         runId: run.id,
@@ -1206,7 +1239,7 @@ async function executeLoopForRun(
           capability: proposal.name,
           capabilityVersion: proposal.version,
           argumentsHash: proposal.argumentsHash,
-          resourceSnapshot: {},
+          resourceSnapshot,
           previewRevision: proposal.argumentsHash,
           policyRevision: "v1",
           permittedEffectKey: `${run.id}:${proposal.toolCallId}`,
@@ -1230,6 +1263,7 @@ async function executeLoopForRun(
     },
     onToolExecuting: async (execution) => {
       if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
+      const resourceSnapshot = buildApprovalResourceSnapshot(execution.name, execution.arguments);
       await assertCurrentCapabilityPolicy({
         organizationId: run.organization_id,
         installationId: run.installation_id,
@@ -1249,7 +1283,7 @@ async function executeLoopForRun(
           capability: execution.name,
           capabilityVersion: execution.version,
           argumentsHash: execution.argumentsHash,
-          resourceSnapshot: {},
+          resourceSnapshot,
           previewRevision: execution.argumentsHash,
           policyRevision: "v1",
           permittedEffectKey: `${run.id}:${execution.toolCallId}`,
@@ -1386,6 +1420,7 @@ async function executeConfiguredWorkflow(input: {
       approved: Boolean(request.approved),
     });
     const argumentsHash = hashToolArguments(request.arguments);
+    const resourceSnapshot = buildApprovalResourceSnapshot(request.name, request.arguments);
     const providerToolCallId = `workflow:${request.nodeId}`;
     const step = await input.runSteps.startStep({ runId: input.run.id, organizationId: input.run.organization_id, stepType: "tool", input: { toolCallId: providerToolCallId, name: request.name, argumentsHash } });
     await input.toolInvocations.recordProposal({
@@ -1410,7 +1445,7 @@ async function executeConfiguredWorkflow(input: {
           capability: request.name,
           capabilityVersion: manifest.version,
           argumentsHash,
-          resourceSnapshot: {},
+          resourceSnapshot,
           previewRevision: argumentsHash,
           policyRevision: "v1",
           permittedEffectKey: `${input.run.id}:${providerToolCallId}`,
@@ -1439,7 +1474,7 @@ async function executeConfiguredWorkflow(input: {
             capability: request.name,
             capabilityVersion: manifest.version,
             argumentsHash,
-            resourceSnapshot: {},
+            resourceSnapshot,
             previewRevision: argumentsHash,
             policyRevision: "v1",
             permittedEffectKey: `${input.run.id}:${providerToolCallId}`,
@@ -1487,7 +1522,7 @@ async function executeConfiguredWorkflow(input: {
     const manifest = input.tools.get(pending.name);
     if (!manifest) return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: 0, error: { code: "WORKFLOW_TOOL_NOT_FOUND", message: `Workflow tool is not registered: ${pending.name}` } };
     await input.toolInvocations.recordProposal({ organizationId: input.run.organization_id, runId: input.run.id, providerToolCallId: pending.id, sequenceNumber: toolSequence.value + 1, toolName: pending.name, toolVersion: manifest.version, riskClass: manifest.riskClass, argumentsHash: pending.argumentsHash, arguments: pending.arguments, requiresApproval: true });
-    await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: {}, previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
+    await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: buildApprovalResourceSnapshot(pending.name, pending.arguments), previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
     if (manifest.riskClass === "external-effect") await input.effectReceipts.reserve({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, idempotencyKey: `${input.run.id}:${pending.name}:${pending.argumentsHash}` });
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
     await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.approval.pending", payload: { nodeId: result.pausedAt, capability: pending.name, providerToolCallId: pending.id } });
