@@ -558,6 +558,62 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("keeps content draft calls on the shared MCP and REST acceptance contract", async () => {
+    const accept = vi.fn().mockResolvedValue({
+      accepted: { id: "run-content-parity-1", status: "received" },
+      manifest: { requiresApproval: false },
+    });
+    const app = buildApp({
+      config: { ...mcpConfig, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      installationInvocations: { accept } as never,
+      killSwitches: { isBlocked: async () => false } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
+      toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
+    });
+    const argumentsValue = { content: "Draft from both adapters", channels: ["threads"] };
+
+    const mcp = await app.inject({
+      method: "POST",
+      url: "/mcp",
+      headers: { authorization: `Bearer ${mcpToken()}` },
+      payload: { jsonrpc: "2.0", id: 32, method: "tools/call", params: { name: "kasitek.core.content_post_draft", arguments: argumentsValue, toolCallId: "content-shared-call", idempotencyKey: "content-shared-key" } },
+    });
+    const rest = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/tools/call",
+      headers: { authorization: `Bearer ${publicApiToken()}` },
+      payload: { name: "kasitek.core.content_post_draft", arguments: argumentsValue, toolCallId: "content-shared-call", idempotencyKey: "content-shared-key" },
+    });
+
+    expect(mcp.statusCode).toBe(200);
+    expect(rest.statusCode).toBe(202);
+    expect(mcp.json()).toMatchObject({ result: { structuredContent: { runId: "run-content-parity-1", status: "received" } } });
+    expect(rest.json()).toMatchObject({ operationId: "run-content-parity-1", runId: "run-content-parity-1", status: "received" });
+    expect(accept).toHaveBeenCalledTimes(2);
+    const [mcpInput, restInput] = accept.mock.calls.map(([input]) => input as Record<string, unknown>);
+    expect(mcpInput).toMatchObject({
+      organizationId: "org-1",
+      actorId: "installation:install-1",
+      installationId: "install-1",
+      name: "kasitek.core.content_post_draft",
+      argumentsValue,
+      toolCallId: "content-shared-call",
+    });
+    expect(restInput).toMatchObject({
+      organizationId: mcpInput?.organizationId,
+      actorId: mcpInput?.actorId,
+      installationId: mcpInput?.installationId,
+      name: mcpInput?.name,
+      argumentsValue: mcpInput?.argumentsValue,
+      toolCallId: mcpInput?.toolCallId,
+    });
+    expect(mcpInput?.idempotencyKey).toBe("mcp:credential-1:content-shared-key");
+    expect(restInput?.idempotencyKey).toBe("api:credential-1:content-shared-key");
+    await app.close();
+  });
+
   it("rejects malformed MCP idempotency keys instead of silently generating a new operation", async () => {
     const accept = vi.fn();
     const app = buildApp({

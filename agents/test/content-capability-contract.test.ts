@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultTools } from "../src/temporal/activities";
+import { KASIAI_ALLOWED_TOOLS } from "../src/system/kasiai";
 
 const context = {
   organizationId: "org-test",
@@ -122,6 +123,21 @@ describe("content capability contract", () => {
         expect(manifest.requiresApproval).toBe(false);
       }
     }
+  });
+
+  it("uses the shared registry for the protected KasiAi content grants", () => {
+    const registered = new Set(registry.manifests().map((manifest) => manifest.name));
+    const kasiaiContentTools = KASIAI_ALLOWED_TOOLS.filter((name) => name.startsWith("kasitek.core.content_"));
+
+    expect(kasiaiContentTools).toEqual([
+      "kasitek.core.content_posts_list",
+      "kasitek.core.content_post_get",
+      "kasitek.core.content_post_draft",
+      "kasitek.core.content_post_update",
+      "kasitek.core.content_post_publish",
+      "kasitek.core.content_post_schedule",
+    ]);
+    for (const name of kasiaiContentTools) expect(registered.has(name)).toBe(true);
   });
 
   it("validates the public content argument contract before handlers run", () => {
