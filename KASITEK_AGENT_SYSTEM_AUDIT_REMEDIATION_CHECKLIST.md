@@ -722,6 +722,13 @@ routes and the structured MCP response when a scoped runtime flag disables the t
 projection shape is preserved. Domain-preview tests cover channel send/reply, campaign, booking,
 destructive, and later-domain projections without provider credentials.
 
+**Post-remediation local capability evidence (2026-08-14):** Commits `720a47c`, `81d0284`,
+`3b26830`, and `1b2eee9` add bounded, organization-scoped workspace/reporting, contact, template,
+and inbox capability paths. The local Agent suite passes 197 tests with 34 expected integration
+skips and the Core library suite passes 118 tests with 3 infrastructure-gated ignores. These
+results improve the executable local surface but do not close the audit's seeded-core, Redis,
+hosted/provider, browser, MCP/REST conformance, or public-principal gates.
+
 ## 14. Required verification matrix
 
 Run targeted tests after each section, then run this full matrix before declaring audit remediation

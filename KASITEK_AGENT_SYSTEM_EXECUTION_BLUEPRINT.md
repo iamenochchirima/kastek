@@ -1176,6 +1176,18 @@ provide controls for policy updates, retention application, and legal-hold relea
 retention integration passes against PostgreSQL. Backup/restore execution and periodic external
 access-review evidence remain release gates, so the broad Slice 13 retention checkbox stays open.
 
+**Local capability expansion evidence (2026-08-14):** Commits `720a47c`, `81d0284`, `3b26830`,
+and `1b2eee9` extend the organization-scoped Agent/Core boundary with aggregate workspace
+reporting, bounded contacts/templates/bookings/campaigns/inbox projections, approval-gated
+idempotent contact updates, conversation starring, provider-backed mark-read, and approved
+WhatsApp channel delivery. Each capability is registered once and projects into the generated
+Agent/MCP/permission/audit documentation; Core routes require the delegated capability and
+organization scope. The full local verification passes with `cd agents && pnpm test` (40 files,
+197 passed, 34 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
+`cargo test -p kasitek-core --lib` (118 passed, 3 infrastructure-gated ignores), and Core check.
+Seeded database, Redis replay, provider sandbox, hosted, browser, and external-client gates remain
+open and are not represented as complete by this local evidence.
+
 ## Slice 13 — Security, observability, expansion, and production release
 
 **Layers covered:** 12, 13, and 14
