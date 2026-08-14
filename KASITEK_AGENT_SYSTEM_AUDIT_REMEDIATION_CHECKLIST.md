@@ -730,7 +730,7 @@ destructive, and later-domain projections without provider credentials.
 
 **Post-remediation local capability evidence (2026-08-14):** Commits `720a47c`, `81d0284`,
 `3b26830`, `1b2eee9`, `d422444`, and `0631818` add bounded, organization-scoped workspace/reporting, contact, template,
-and inbox capability paths. The local Agent suite passes 205 tests with 34 expected integration
+and inbox capability paths. The local Agent suite passes 206 tests with 35 expected integration
 skips and the Core library suite passes 123 tests with 3 infrastructure-gated ignores. These
 results improve the executable local surface but do not close the audit's seeded-core, Redis,
 hosted/provider, browser, MCP/REST conformance, or public-principal gates.
@@ -769,7 +769,7 @@ runtime verification.
 - [ ] Run the complete Temporal approval, retry, worker-restart, crash-after-provider-call,
   cancellation, and replay recovery matrix. Local approval continuation, worker replacement,
   signal recovery, cancellation, and durable-run coverage now pass in the full Agent suite
-  (56 files / 240 tests / 0 skipped) against isolated Temporal; provider crash and Redis replay
+  (57 files / 241 tests / 0 skipped) against isolated Temporal; provider crash and Redis replay
   recovery remain open.
 - [ ] Run MCP authentication, protocol, filtering, approval, cancellation, idempotency, isolation,
   and parity tests through the separate gateway.
@@ -802,7 +802,7 @@ runtime verification.
   whitespace; the generated directory was restored after verification.
 - [x] Record every skipped/ignored test with an explicit blocker; do not summarize a suite as fully
   passing while required integration tests are skipped. Agent Temporal recovery is locally resolved
-  (240 tests / 0 skips); the seeded Core ownership tests are now repeatable, while the remaining
+  (241 tests / 0 skips); the seeded Core ownership tests are now repeatable, while the remaining
   Core ignored gate is Redis replay in B-008, and the evidence documents the exact commands.
 
 ## 15. Resume the primary blueprint after remediation

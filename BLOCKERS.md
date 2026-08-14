@@ -32,7 +32,7 @@ verified or completed. Work on independent items continues.
 - **Resolved evidence:** `agents/.env` supplies a local Agent PostgreSQL
   database at `localhost:5433`; migrations are applied. With the isolated local
   Temporal dev server running at `127.0.0.1:7233`, the complete Agent suite
-  passed **56 files / 240 tests / 0 skipped** in the latest local run:
+  passed **57 files / 241 tests / 0 skipped** in the latest local run:
   `RUN_AGENTS_DB_INTEGRATION_TESTS=true RUN_TEMPORAL_INTEGRATION_TESTS=true
   TEMPORAL_TEST_ADDRESS=127.0.0.1:7233 pnpm --dir agents test`.
 - **Current evidence:** a controlled local stack using Agent API, PostgreSQL,
@@ -155,7 +155,7 @@ verified or completed. Work on independent items continues.
 - **Evidence:** an isolated Temporal dev server was started with the local
   Temporal CLI on `127.0.0.1:7233`, and the recovery integration was run
   directly and as part of the full Agent suite. The worker-replacement approval
-  wait resumed exactly once; the full suite passed **56 files / 240 tests / 0
+  wait resumed exactly once; the full suite passed **57 files / 241 tests / 0
   skipped** with `RUN_AGENTS_DB_INTEGRATION_TESTS=true
   RUN_TEMPORAL_INTEGRATION_TESTS=true`.
 - **Resolution:** local approval continuation, worker replacement, signal
