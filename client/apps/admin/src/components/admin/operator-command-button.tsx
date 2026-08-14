@@ -109,7 +109,7 @@ export function OperatorReconcileButton({ effectId }: { effectId: string }) {
 }
 
 function OperatorRecoveryCommandButton({ commandType, targetId, label, completedMessage, payload = {} }: {
-  commandType: "retry_run" | "replay_delivery";
+  commandType: "retry_run" | "replay_delivery" | "delete_memory";
   targetId: string;
   label: string;
   completedMessage: string;
@@ -174,5 +174,15 @@ export function OperatorDeliveryReplayButton({ attemptId, status }: { attemptId:
     label={status === "unknown" ? "Confirm & replay" : "Replay delivery"}
     completedMessage="Delivery replay queued."
     payload={status === "unknown" ? { confirmUnknown: true } : {}}
+  />;
+}
+
+export function OperatorDeleteMemoryButton({ memoryId }: { memoryId: string }) {
+  return <OperatorRecoveryCommandButton
+    commandType="delete_memory"
+    targetId={memoryId}
+    label="Request deletion"
+    completedMessage="Memory deletion completed."
+    payload={{ expectedStatus: "active" }}
   />;
 }

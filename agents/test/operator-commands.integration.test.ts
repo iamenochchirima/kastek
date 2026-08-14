@@ -8,6 +8,7 @@ import { ScheduleRepository } from "../src/db/repositories/schedule-repository";
 import { RunRepository } from "../src/db/repositories/run-repository";
 import { ChannelRepository } from "../src/db/repositories/channel-repository";
 import { ConversationRepository } from "../src/db/repositories/conversation-repository";
+import { MemoryRepository } from "../src/db/repositories/memory-repository";
 import { createOperatorCommand, approveOperatorCommand } from "../src/http/operator-commands";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
@@ -22,6 +23,7 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
   const runs = new RunRepository(pool);
   const channels = new ChannelRepository(pool);
   const conversations = new ConversationRepository(pool);
+  const memory = new MemoryRepository(pool);
   const actorId = `operator-${randomUUID()}`;
   const secondActorId = `operator-${randomUUID()}`;
   const organizationId = `operator-test-${randomUUID()}`;
@@ -37,6 +39,7 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     installationCredentials,
     schedules,
     channels,
+    memory,
   };
 
   it("persists a dual-control command, executes once, and binds idempotency to its actor and payload", async () => {
@@ -222,6 +225,27 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     ]));
     expect(JSON.stringify(recoveryAudit)).not.toContain("replay me");
 
+    const memoryRecord = await memory.createMemory({
+      organizationId,
+      agentId: definitionId,
+      installationId,
+      namespace: "agent_private",
+      memoryType: "semantic",
+      canonicalText: "operator deletion test secret-like content",
+      sourceType: "explicit",
+      actorId,
+    });
+    const deleteMemoryCommand = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `delete-memory-${randomUUID()}`,
+      command: { commandType: "delete_memory", targetId: memoryRecord.id, payload: { expectedStatus: "active" } },
+      dependencies,
+    });
+    runCommandIds.push(String(deleteMemoryCommand.command.id));
+    expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(deleteMemoryCommand.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "deleted", memoryId: memoryRecord.id } });
+    expect((await pool.query<{ status: string }>("SELECT status FROM memory_records WHERE id = $1", [memoryRecord.id])).rows[0]?.status).toBe("deleted");
+    expect((await pool.query<{ status: string }>("SELECT status FROM memory_deletion_jobs WHERE target_type = 'memory' AND target_id = $1 ORDER BY created_at DESC LIMIT 1", [memoryRecord.id])).rows[0]?.status).toBe("completed");
+
     await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [runCommandIds]);
     await pool.query("DELETE FROM delivery_attempts WHERE message_id = $1", [message.id]);
@@ -230,6 +254,8 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM memory_deletion_jobs WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM memory_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_installations WHERE id = $1", [installationId]);
     await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
     await pool.query("DELETE FROM agent_definitions WHERE id = $1", [definitionId]);

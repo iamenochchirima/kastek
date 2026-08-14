@@ -9,9 +9,10 @@ import { AgentRepository } from "../db/repositories/agent-repository";
 import { InstallationCredentialRepository } from "../db/repositories/installation-credential-repository";
 import { ScheduleRepository } from "../db/repositories/schedule-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
+import { MemoryRepository } from "../db/repositories/memory-repository";
 
 export const operatorCommandInputSchema = z.object({
-  commandType: z.enum(["cancel_run", "retry_run", "replay_delivery", "reconcile_effect", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
+  commandType: z.enum(["cancel_run", "retry_run", "replay_delivery", "delete_memory", "reconcile_effect", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
   targetId: z.string().trim().min(1).max(240),
   payload: z.record(z.string(), z.unknown()).default({}),
 }).strict();
@@ -45,6 +46,7 @@ export interface OperatorCommandDependencies {
   installationCredentials?: InstallationCredentialRepository;
   schedules?: ScheduleRepository;
   channels?: ChannelRepository;
+  memory?: MemoryRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalCancellation?: (runId: string, signal: { reason?: string }) => Promise<void>;
 }
@@ -71,6 +73,7 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
       scheduleId: command.result.scheduleId,
       deliveryAttemptId: command.result.deliveryAttemptId,
       originalDeliveryAttemptId: command.result.originalDeliveryAttemptId,
+      memoryId: command.result.memoryId,
     } : null,
     error: command.error ? { code: command.error.code, message: command.error.message } : null,
     createdAt: command.created_at,
@@ -214,6 +217,37 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
       deliveryAttemptId: replay.replay.id,
       originalDeliveryAttemptId: replay.previous.id,
     };
+  }
+
+  if (command.command_type === "delete_memory") {
+    if (!dependencies.memory) throw Object.assign(new Error("Memory deletion is unavailable"), { statusCode: 503 });
+    const target = (await query<{
+      organization_id: string;
+      agent_definition_id: string | null;
+      installation_id: string | null;
+      conversation_id: string | null;
+      owner_user_id: string | null;
+      status: string;
+    }>(dependencies.pool, `SELECT organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id, status
+      FROM memory_records WHERE id = $1`, [command.target_id])).rows[0];
+    if (!target) throw Object.assign(new Error("Memory not found"), { statusCode: 404 });
+    assertExpectedStatus(command, target.status);
+    if (target.status !== "active") throw Object.assign(new Error("Only active memory records can be deleted"), { statusCode: 409 });
+    await dependencies.memory.deleteMemory({
+      organizationId: target.organization_id,
+      agentId: target.agent_definition_id ?? "",
+      installationId: target.installation_id ?? undefined,
+      conversationId: target.conversation_id ?? undefined,
+      actorId: target.owner_user_id ?? undefined,
+    }, command.target_id, actorId);
+    await auditCommand(dependencies.pool, {
+      organizationId: target.organization_id,
+      actorId,
+      action: "operator_command.memory_deleted",
+      commandId: command.id,
+      metadata: { memoryId: command.target_id },
+    });
+    return { status: "deleted", memoryId: command.target_id };
   }
 
   if (command.command_type === "suspend_installation" || command.command_type === "resume_installation") {

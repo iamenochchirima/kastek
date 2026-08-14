@@ -1089,9 +1089,12 @@ sent/superseded attempts, requires explicit confirmation for unknown outcomes, a
 expected-state guard so stale operator requests fail closed. The Operations UI now exposes
 terminal-run retry and redacted failed-delivery replay controls. Verification passes the
 full Agent suite (54 files / 216 tests / 0 skips with local PostgreSQL and Temporal), core library tests (110 passed / 3 infrastructure tests
-ignored), Prisma validation/migrations, and the admin lint/typecheck/build. Full cross-role E2E,
-external hosted checks, and the remaining broad admin command matrix (assign, safe webhook replay,
-feature flags, holds, export/deletion workflow, and full version/resource checks) remain open.
+ignored), Prisma validation/migrations, and the admin lint/typecheck/build. Migration
+`agents/migrations/041_operator_memory_deletion.sql` adds a dual-control `delete_memory` command
+over the existing organization/install-scoped memory deletion job; operator search exposes only the
+memory identifier and lifecycle state, with the deletion action hidden from read-only roles. Full
+cross-role E2E, external hosted checks, and the remaining broad admin command matrix (assign, safe
+webhook replay, feature flags, holds, export workflow, and full version/resource checks) remain open.
 
 ## Slice 13 — Security, observability, expansion, and production release
 

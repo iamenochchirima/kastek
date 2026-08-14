@@ -496,6 +496,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
        WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\' OR conversation_id::text ILIKE $1 ESCAPE '\\'
           OR provider_message_id ILIKE $1 ESCAPE '\\' OR participant_id::text ILIKE $1 ESCAPE '\\'
        UNION ALL
+       SELECT 'memory' AS kind, id::text AS id, organization_id, status AS state,
+              'memory_record' AS resource_type, created_at
+       FROM memory_records
+       WHERE id::text ILIKE $1 ESCAPE '\\' OR organization_id ILIKE $1 ESCAPE '\\'
+          OR agent_definition_id::text ILIKE $1 ESCAPE '\\' OR installation_id::text ILIKE $1 ESCAPE '\\'
+       UNION ALL
        SELECT 'audit' AS kind, id::text AS id, organization_id, action AS state,
               resource_type, created_at
        FROM audit_records
@@ -515,7 +521,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       actorId: auth.actorId,
       idempotencyKey: headerValue(request, "idempotency-key"),
       command,
-      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, agents, installationCredentials, schedules, channels, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
+      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
     });
     return reply.code(result.replayed ? 200 : result.command.status === "awaiting_approval" ? 202 : 201).send(result.command);
   });
@@ -529,7 +535,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { commandId: string } }>("/v1/operator/commands/:commandId/approve", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:write");
-    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, agents, installationCredentials, schedules, channels, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
+    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
   });
 
   app.get<{ Params: { projectionKey: string } }>("/v1/operator/projections/:projectionKey", async (request) => {
