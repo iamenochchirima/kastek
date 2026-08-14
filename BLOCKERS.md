@@ -171,7 +171,11 @@ verified or completed. Work on independent items continues.
   because the expected fixtures were absent: `services::connections::tests::database_sync_preserves_organization_ownership`
   expected two records for `org_connections_a` and found zero, while
   `services::inbox::tests::conversation_reads_are_isolated_by_organization` could not find
-  `conversation_meta_a`. The third failure is the separate Redis replay gate in B-008.
+  `conversation_meta_a`. The third failure is the separate Redis replay gate in B-008. On a
+  disposable clone of the local schema, the workspace, customer, and billing SQL suites passed;
+  the connections fixture still fails with `org_a=0, org_b=0` because its expected backfill rows
+  are not seeded. `scripts/test-connections-db.sh` now provides the same guarded wrapper as the
+  other domain fixtures.
 - **Impact:** core unit and contract coverage is green, but zero-failure seeded database
   verification cannot be claimed until the fixture dataset is loaded into an isolated test
   database. The run did confirm the current core library total is 118 passing tests.
