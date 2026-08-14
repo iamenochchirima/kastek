@@ -153,9 +153,17 @@ async function authenticateInstallationRequest(input: {
     organizationId: claims.organizationId,
     installationId: claims.sub,
   });
-  if (!credential) throw Object.assign(new Error(`${audience === "mcp" ? "MCP" : "Public API"} installation credential is no longer active`), { statusCode: 401 });
+  if (!credential
+    || credential.id !== claims.credentialId
+    || credential.organization_id !== claims.organizationId
+    || credential.installation_id !== claims.sub) {
+    throw Object.assign(new Error(`${audience === "mcp" ? "MCP" : "Public API"} installation credential is no longer active`), { statusCode: 401 });
+  }
   const installation = await input.agents.getInstallation(claims.organizationId, claims.sub);
-  if (!installation || installation.status !== "active") {
+  if (!installation
+    || installation.id !== claims.sub
+    || installation.organization_id !== claims.organizationId
+    || installation.status !== "active") {
     throw Object.assign(new Error(`${audience === "mcp" ? "MCP" : "Public API"} installation is no longer active`), { statusCode: 401 });
   }
   return {

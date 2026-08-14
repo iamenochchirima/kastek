@@ -555,6 +555,18 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("rejects a credential or installation record whose ownership disagrees with token claims", async () => {
+    const app = buildApp({
+      config: mcpConfig,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-2", status: "active" }) } as unknown as AgentRepository,
+      installationCredentials: { getActiveForToken: async () => ({ ...mcpCredential(), organization_id: "org-2" }) } as never,
+    });
+    const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 34, method: "initialize" } });
+    expect(response.json()).toMatchObject({ error: { code: -32003, message: "MCP installation credential is no longer active" } });
+    await app.close();
+  });
+
   it("lists an installation's durable runs without crossing installation boundaries", async () => {
     const runs = { listInstallationRuns: vi.fn().mockResolvedValue([{ id: "run-1", installation_id: "install-1", status: "completed" }]), listOrganizationRuns: vi.fn().mockResolvedValue([{ id: "run-1", organization_id: "org-1", installation_id: "install-1", status: "completed" }]) } as unknown as RunRepository;
     const app = buildApp({
