@@ -95,9 +95,12 @@ marked when the complete deliverable and its verification exist.
 ## Verification evidence
 
 On 2026-08-14, Agent Platform migrations through `035` applied to the local Agent PostgreSQL
-database. With an isolated local Temporal dev server, the complete suite passed 56 files / 237
+database. With an isolated local Temporal dev server, the complete suite passed 56 files / 240
 tests / 0 skips in the latest local run, and `pnpm --dir agents build` passed. Hosted-agent boundary
 integration now covers organization-scoped lifecycle, grants, schedules, and workflow validation.
+The hosted boundary regression now also locks the installation while accepting runs and rejects a
+third active run beyond the published `maxConcurrentRuns` policy; the focused integration passes
+all four tests.
 Gateway tests now cover
 body/timeout/disconnect/upstream/kill-switch behavior and two independent replicas. `cargo
 fmt --check`, `cargo check -p kasitek-core`, and the core library suite passed 123 tests with three

@@ -60,14 +60,32 @@ export class RunRepository {
         agent_definition_id: string;
         agent_version_id: string;
         status: string;
+        policy: Record<string, unknown>;
       }>(
-        `SELECT agent_definition_id, agent_version_id, status
-         FROM agent_installations
-         WHERE id = $1 AND organization_id = $2`,
+        `SELECT ai.agent_definition_id, ai.agent_version_id, ai.status, av.policy
+         FROM agent_installations ai
+         JOIN agent_versions av ON av.id = ai.agent_version_id
+         WHERE ai.id = $1 AND ai.organization_id = $2
+         FOR UPDATE OF ai`,
         [input.installationId, organizationId],
       );
       const target = installation.rows[0];
       if (!target || target.status !== "active") throw new Error("Active installation not found");
+      const maxConcurrentRuns = typeof target.policy.maxConcurrentRuns === "number"
+        ? Math.trunc(target.policy.maxConcurrentRuns)
+        : Number(target.policy.maxConcurrentRuns);
+      if (Number.isSafeInteger(maxConcurrentRuns) && maxConcurrentRuns > 0) {
+        const active = await client.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count
+           FROM agent_runs
+           WHERE organization_id = $1 AND installation_id = $2
+             AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')`,
+          [organizationId, input.installationId],
+        );
+        if (Number(active.rows[0]?.count ?? 0) >= maxConcurrentRuns) {
+          throw new Error("AGENT_CONCURRENCY_LIMIT");
+        }
+      }
       const flag = await client.query<{ enabled: boolean }>(
         `SELECT enabled
          FROM agent_operator_feature_flags

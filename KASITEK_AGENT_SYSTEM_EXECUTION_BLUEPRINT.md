@@ -276,12 +276,12 @@ provider coupling does not complete the reorganization.
 
 The checked items below were reconciled against the current repository, migrations, focused tests,
 and the commits listed in `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
-The Agent Platform suite now passes 56 files / 202 tests / 34 expected integration skips, and the
+The Agent Platform suite now passes 56 files / 205 tests / 34 expected integration skips, and the
 Agent build and core format/check/library tests pass. A checked
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 171 of 226 implementation/verification items are checked. The count
+At this reconciliation point, 174 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -311,7 +311,7 @@ and `BLOCKERS.md`; they must not be converted to checked items merely because a 
 Pending environment and pre-existing frontend verification gaps are tracked in [`BLOCKERS.md`](BLOCKERS.md).
 
 **Reconciliation evidence:** Agent migrations `027`–`035` applied locally and the complete Agent
-suite passed 56 files / 237 tests / 0 skipped with PostgreSQL and an isolated Temporal dev server
+suite passed 56 files / 240 tests / 0 skipped with PostgreSQL and an isolated Temporal dev server
 (`RUN_AGENTS_DB_INTEGRATION_TESTS=true RUN_TEMPORAL_INTEGRATION_TESTS=true`). `pnpm build` passed;
 `cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core --lib` passed
 123 tests with three explicitly ignored seeded/infrastructure cases. Local Temporal recovery is
@@ -659,7 +659,7 @@ effects, leaking credentials, or leaving the UI unable to determine its true sta
   covers installation/resource/connector isolation; and `agents/test/http.test.ts` plus
   `agents/test/run.integration.test.ts` cover installation-bound capability and approval scopes.
   The guarded social fixture passes against the cloned local schema and the full Agent PostgreSQL
-  suite passes 56 files / 237 tests / 0 skipped.
+  suite passes 56 files / 240 tests / 0 skipped.
 - [x] Add idempotency, duplicate provider callback, delayed/out-of-order callback, partial batch,
   ambiguous outcome, reconciliation, and approval mutation tests. The rollback fixture
   `server/kasitek-core/tests/social_content_integration.sql`, executed by
@@ -905,9 +905,14 @@ REST where permitted, and equivalent operations share business behavior without 
   installation status/settings, resource and connector grants, schedules, and workflow validation;
   `agent-lifecycle.integration.test.ts`, `template.integration.test.ts`, `credential.integration.test.ts`,
   and `workflow-graph.test.ts` cover rollback/template/credential/workflow-handoff paths. The full
-  PostgreSQL + Temporal suite passed 56 files / 237 tests / 0 skipped.
-- [ ] Add tests proving hosted agents cannot escape declared capabilities, resources, connectors,
-  budgets, concurrency, or approval policy.
+  PostgreSQL + Temporal suite passed 56 files / 240 tests / 0 skipped.
+- [x] Add tests proving hosted agents cannot escape declared capabilities, resources, connectors,
+  budgets, concurrency, or approval policy. Evidence: `agents/test/hosted-agent-boundaries.integration.test.ts`
+  now verifies organization-scoped installation/resource/connector grants and rejects a third active
+  run beyond the published `maxConcurrentRuns` policy; `agents/test/installation-capability-invocation.test.ts`
+  covers capability/resource/kill-switch gates; `agents/test/run.integration.test.ts` covers model
+  request budgets and exact approval bindings; and `agents/test/runtime.test.ts` covers bounded
+  tool-call and iteration limits. The focused hosted-boundary integration passes all four tests.
 - [ ] Run a complete template scenario from creation through test, publish, channel/connector use,
   approval, effect, activity, and rollback.
 - [x] Run Agent Platform/core/client suites, typechecks, lint/format, and production builds. Current
@@ -957,7 +962,7 @@ agent that safely combines KasiTek capabilities with approved external services.
   owner binding revocation, and channel-specific delivery; `agents/test/channel.integration.test.ts`
   proves organization/installation/binding/conversation boundaries; and
   `agents/test/memory.integration.test.ts` proves installation and agent-private memory/knowledge
-  isolation. The full PostgreSQL + Temporal Agent suite passes 56 files / 237 tests / 0 skipped.
+  isolation. The full PostgreSQL + Temporal Agent suite passes 56 files / 240 tests / 0 skipped.
 - [ ] Add summary window, memory scope, provenance, consent, deletion, export, poisoning, and prompt
   injection tests/evaluations.
 - [ ] Run browser plus configured WhatsApp/Telegram/Discord end-to-end scenarios, service tests,
@@ -969,7 +974,7 @@ lookup, ingestion, listing, and deletion now enforce agent/installation scope; a
 attempt creation verifies the message's organization and conversation before inserting a retry. The
 new cross-scope regressions live in `agents/test/memory.integration.test.ts` and
 `agents/test/channel.integration.test.ts`. The full PostgreSQL + Temporal suite passed 56 files /
-237 tests / 0 skipped. Browser/provider scenarios, opt-out, reconnect, and the complete channel
+240 tests / 0 skipped. Browser/provider scenarios, opt-out, reconnect, and the complete channel
 matrix remain open.
 
 **Complete when:** every supported channel reaches the same durable agent runtime while identity,
@@ -1241,7 +1246,7 @@ idempotent contact updates, conversation starring, provider-backed mark-read, an
 WhatsApp channel delivery. Each capability is registered once and projects into the generated
 Agent/MCP/permission/audit documentation; Core routes require the delegated capability and
 organization scope. The full local verification passes with `cd agents && pnpm test` (56 files,
-202 passed, 34 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
+205 passed, 34 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
 `cargo test -p kasitek-core --lib` (123 passed, 3 infrastructure-gated ignores), and Core check.
 Seeded database, Redis replay, provider sandbox, hosted, browser, and external-client gates remain
 open and are not represented as complete by this local evidence.

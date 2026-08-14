@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AgentRepository } from "../src/db/repositories/agent-repository";
 import { InstallationGrantRepository } from "../src/db/repositories/installation-grant-repository";
 import { ScheduleRepository } from "../src/db/repositories/schedule-repository";
+import { RunRepository } from "../src/db/repositories/run-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -13,6 +14,7 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
   const agents = new AgentRepository(pool);
   const grants = new InstallationGrantRepository(pool);
   const schedules = new ScheduleRepository(pool);
+  const runs = new RunRepository(pool);
   const organizationA = `hosted-boundary-a-${randomUUID()}`;
   const organizationB = `hosted-boundary-b-${randomUUID()}`;
   let agentId = "";
@@ -93,6 +95,30 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
     await expect(schedules.setStatus(organizationB, schedule.id, "disabled", "owner-b")).rejects.toThrow("Schedule not found");
   });
 
+  it("enforces the published version concurrency budget per installation", async () => {
+    expect(installationId).toBeTruthy();
+    const first = await runs.createRun(organizationA, "owner-a", {
+      installationId,
+      idempotencyKey: `concurrency-first-${randomUUID()}`,
+      input: { message: "first" },
+      triggerType: "manual",
+    });
+    const second = await runs.createRun(organizationA, "owner-a", {
+      installationId,
+      idempotencyKey: `concurrency-second-${randomUUID()}`,
+      input: { message: "second" },
+      triggerType: "manual",
+    });
+    expect(first.created).toBe(true);
+    expect(second.created).toBe(true);
+    await expect(runs.createRun(organizationA, "owner-a", {
+      installationId,
+      idempotencyKey: `concurrency-third-${randomUUID()}`,
+      input: { message: "third" },
+      triggerType: "manual",
+    })).rejects.toThrow("AGENT_CONCURRENCY_LIMIT");
+  });
+
   it("rejects invalid workflow configuration before persisting a version", async () => {
     expect(agentId).toBeTruthy();
     await expect(agents.createVersion(organizationA, "owner-a", agentId, {
@@ -115,6 +141,10 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
 
   afterAll(async () => {
     if (installationId) {
+      await pool.query("DELETE FROM run_workflow_state WHERE organization_id = $1", [organizationA]);
+      await pool.query("DELETE FROM run_attempts WHERE organization_id = $1", [organizationA]);
+      await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationA]);
+      await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationA]);
       await pool.query("DELETE FROM agent_schedules WHERE organization_id = $1", [organizationA]);
       await pool.query("DELETE FROM agent_installation_resource_grants WHERE organization_id = $1", [organizationA]);
       await pool.query("DELETE FROM agent_installation_connector_grants WHERE organization_id = $1", [organizationA]);

@@ -142,4 +142,72 @@ describe("Tool Gateway and bounded runtime", () => {
     expect(result.toolCalls).toBe(1);
     expect(result.messages.at(-1)).toMatchObject({ role: "assistant", content: "done" });
   });
+
+  it("stops before invoking a tool when the run tool-call budget is exhausted", async () => {
+    const registry = new ToolRegistry();
+    let invoked = 0;
+    registry.register({
+      name: "platform.echo",
+      version: "1.0.0",
+      description: "Echo",
+      riskClass: "read",
+      requiresApproval: false,
+      timeoutMs: 1000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => { invoked += 1; return { ok: true }; },
+    });
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => response([{ id: "call-budget", name: "platform.echo", arguments: {} }]),
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "echo" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(["platform.echo"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      limits: { maxToolCalls: 0 },
+    });
+    expect(result.status).toBe("limited");
+    expect(result.toolCalls).toBe(1);
+    expect(result.error).toBeUndefined();
+    expect(invoked).toBe(0);
+  });
+
+  it("returns a bounded result when the iteration budget is reached", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "platform.echo",
+      version: "1.0.0",
+      description: "Echo",
+      riskClass: "read",
+      requiresApproval: false,
+      timeoutMs: 1000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => ({ ok: true }),
+    });
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => response([{ id: "call-iteration", name: "platform.echo", arguments: {} }]),
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "keep going" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(["platform.echo"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      limits: { maxIterations: 1, maxToolCalls: 10 },
+    });
+    expect(result.status).toBe("limited");
+    expect(result.iterations).toBe(1);
+    expect(result.toolCalls).toBe(1);
+  });
 });
