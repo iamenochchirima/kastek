@@ -517,8 +517,14 @@ pub async fn deliver_channel_message(
     req: HttpRequest,
     body: web::Json<AgentChannelDeliveryRequest>,
 ) -> Result<HttpResponse, AppError> {
-    let (organization_id, actor_id) =
-        require_internal_agent(config.get_ref(), &req, "kasitek.core.channel_deliver").await?;
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.channel_deliver")
+            .await?;
+    let organization_id = context.organization_id.clone();
+    let actor_id = context.principal.id.clone();
+    let idempotency_key = context.idempotency_key.as_deref().ok_or_else(|| {
+        AppError::BadRequest("idempotency-key is required for agent channel delivery".to_string())
+    })?;
     let channel_type = body.channel_type.trim().to_ascii_lowercase();
     let text = body.text.trim();
     if text.is_empty() || text.len() > 20_000 {
@@ -533,6 +539,7 @@ pub async fn deliver_channel_message(
                 &organization_id,
                 body.external_conversation_id.trim(),
                 text,
+                idempotency_key,
             )
             .await?
         }

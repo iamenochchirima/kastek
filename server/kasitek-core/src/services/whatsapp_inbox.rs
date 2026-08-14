@@ -8,7 +8,7 @@ use actix_multipart::Multipart;
 use chrono::Utc;
 use futures_util::StreamExt;
 use serde_json::{json, Value};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::collections::HashSet;
 
 use crate::db::models::{
@@ -33,10 +33,44 @@ pub async fn deliver_agent_message(
     org_id: &str,
     conversation_id: &str,
     text: &str,
+    idempotency_key: &str,
 ) -> Result<Value, AppError> {
+    let idempotency_key = validate_agent_delivery_idempotency_key(idempotency_key)?;
     let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("WhatsApp conversation not found".to_string()))?;
+    if let Some(existing) = sqlx::query(
+        r#"
+        SELECT "whatsappMessageId" AS provider_message_id, "whatsappStatus" AS status
+        FROM "Message"
+        WHERE "conversationId" = $1
+          AND "providerMetadata"->>'_kasitek_agent_idempotency_key' = $2
+        ORDER BY timestamp DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(&conversation.id)
+    .bind(idempotency_key)
+    .fetch_optional(pool)
+    .await?
+    {
+        let provider_message_id = existing
+            .try_get::<Option<String>, _>("provider_message_id")
+            .ok()
+            .flatten();
+        if provider_message_id.is_some() {
+            return Ok(json!({
+                "providerMessageId": provider_message_id,
+                "status": "sent",
+                "idempotentReplay": true,
+            }));
+        }
+        return Ok(json!({
+            "status": "unknown",
+            "idempotentReplay": true,
+            "providerStatus": existing.try_get::<Option<String>, _>("status").ok().flatten(),
+        }));
+    }
     let (connection_id, phone) =
         parse_conversation_identifier(&conversation.customer_identifier)
             .ok_or_else(|| AppError::BadRequest("Invalid WhatsApp conversation".to_string()))?;
@@ -44,18 +78,86 @@ pub async fn deliver_agent_message(
         .await?
         .ok_or_else(|| AppError::NotFound("WhatsApp connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
-    let (provider_message_id, _) = send_text_message(
+    let message_id = cuid2::create_id();
+    sqlx::query(
+        r#"
+        INSERT INTO "Message" (id, "conversationId", sender, content, "contentType", "whatsappStatus", "providerMetadata", timestamp)
+        VALUES ($1, $2, 'bot', $3, 'TEXT', 'SENDING', $4::jsonb, NOW())
+        "#,
+    )
+    .bind(&message_id)
+    .bind(&conversation.id)
+    .bind(text)
+    .bind(json!({ "_kasitek_agent_idempotency_key": idempotency_key }))
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW() WHERE id = $1 AND "orgId" = $2"#,
+    )
+    .bind(&conversation.id)
+    .bind(org_id)
+    .execute(pool)
+    .await?;
+    let send_result = send_text_message(
         &connection.phone_number_id,
         &access_token,
         &phone,
         text,
         None,
     )
-    .await?;
-    Ok(json!({
-        "providerMessageId": provider_message_id,
-        "status": "sent",
-    }))
+    .await;
+    match send_result {
+        Ok((provider_message_id, _)) => {
+            sqlx::query(
+                r#"UPDATE "Message" SET "whatsappMessageId" = $1, "providerMessageId" = $1, "providerStatus" = 'sent', "whatsappStatus" = 'SENT' WHERE id = $2 AND "conversationId" = $3"#,
+            )
+            .bind(&provider_message_id)
+            .bind(&message_id)
+            .bind(&conversation.id)
+            .execute(pool)
+            .await?;
+            Ok(json!({
+                "providerMessageId": provider_message_id,
+                "status": "sent",
+            }))
+        }
+        Err(error) => {
+            sqlx::query(
+                r#"UPDATE "Message" SET "providerStatus" = 'unknown', "whatsappStatus" = 'UNKNOWN', "errorCode" = 'AGENT_DELIVERY_UNKNOWN', "errorMessage" = $1 WHERE id = $2 AND "conversationId" = $3"#,
+            )
+            .bind(error.to_string())
+            .bind(&message_id)
+            .bind(&conversation.id)
+            .execute(pool)
+            .await?;
+            Err(error)
+        }
+    }
+}
+
+fn validate_agent_delivery_idempotency_key(value: &str) -> Result<&str, AppError> {
+    let value = value.trim();
+    if value.is_empty() || value.len() > 240 {
+        return Err(AppError::BadRequest(
+            "A valid agent delivery idempotency key is required".to_string(),
+        ));
+    }
+    Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_agent_delivery_idempotency_key;
+
+    #[test]
+    fn agent_delivery_requires_a_bounded_idempotency_key() {
+        assert_eq!(
+            validate_agent_delivery_idempotency_key("  run-1:channel  ").unwrap(),
+            "run-1:channel"
+        );
+        assert!(validate_agent_delivery_idempotency_key(" ").is_err());
+        assert!(validate_agent_delivery_idempotency_key(&"x".repeat(241)).is_err());
+    }
 }
 
 async fn upload_whatsapp_media(
