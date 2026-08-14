@@ -112,6 +112,8 @@ verified or completed. Work on independent items continues.
   entitlement, API-scope, and Agent availability metadata. It does not define a product-owned
   feature-flag namespace or a safe resource-policy query that can be evaluated without a requested
   resource. Direct-user request contexts also do not yet resolve an approved action-grant mapping.
+  The public REST transport now has deployment-level exact-route flags and standard deprecation
+  headers (`8a68bab`), but those controls intentionally do not substitute for action-level policy.
 - **Impact:** Discovery safely denies non-public lifecycle entries and filters installation grants,
   scopes, entitlements, and availability, but resource-level and feature-flag filtering cannot be
   claimed without inventing policy. The affected AR-006 items remain unchecked.
