@@ -276,12 +276,12 @@ provider coupling does not complete the reorganization.
 
 The checked items below were reconciled against the current repository, migrations, focused tests,
 and the commits listed in `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
-The Agent Platform suite now passes 58 files / 213 tests / 35 expected integration skips, and the
+The Agent Platform suite now passes 58 files / 213 tests / 36 expected integration skips, and the
 Agent build and core format/check/library tests pass. A checked
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At this reconciliation point, 176 of 226 implementation/verification items are checked. The count
+At this reconciliation point, 177 of 226 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -599,13 +599,15 @@ domain commands and queries with no direct database or special-agent bypass.
   cancellation, worker restart, approval wait, and effect recovery.
 - [x] Add model gateway contract tests for each configured provider, fallback, errors, metering, and
   secret redaction.
-- [ ] Test stream interruption followed by polling/reconciliation without false network errors or
+- [x] Test stream interruption followed by polling/reconciliation without false network errors or
   duplicate messages.
   Local resumable-stream evidence now uses `advanceSseCursor` in
   `agents/src/http/sse.ts`/`agents/src/http/app.ts`; `agents/test/sse.test.ts` proves malformed,
   duplicate, and out-of-order event rows cannot move a reconnect cursor backwards. The real HTTP
-  stream has a local disconnect/reconnect regression in `agents/test/sse.integration.test.ts`, and
-  closes polling on request abort, socket/response close, or stream error. Full live
+  stream has a local disconnect/reconnect regression in `agents/test/sse.integration.test.ts`; the
+  same test polls `GET /v1/runs/:runId` after reconnect and verifies terminal status plus the
+  original ordered events without duplication. The handler closes polling on request abort,
+  socket/response close, or stream error. Full live
   provider recovery remains open.
 - [ ] Run Agent Platform tests, Temporal tests, typecheck/build, and at least one configured live
   provider smoke test.
@@ -920,7 +922,7 @@ REST where permitted, and equivalent operations share business behavior without 
 - [ ] Run a complete template scenario from creation through test, publish, channel/connector use,
   approval, effect, activity, and rollback.
 - [x] Run Agent Platform/core/client suites, typechecks, lint/format, and production builds. Current
-  verification: normal Agent suite 213 passed with 35 expected integration skips; the full
+  verification: normal Agent suite 213 passed with 36 expected integration skips; the full
   PostgreSQL + Temporal matrix passed 249 tests with zero skips. Agent build and client
   typecheck/lint/production build pass, and `kasitek-core`
   format/check/unit suite is green (123 passed, 3 seeded/infrastructure ignores).
@@ -1260,7 +1262,7 @@ idempotent contact updates, conversation starring, provider-backed mark-read, an
 WhatsApp channel delivery. Each capability is registered once and projects into the generated
 Agent/MCP/permission/audit documentation; Core routes require the delegated capability and
 organization scope. The full local verification passes with `cd agents && pnpm test` (58 files,
-213 passed, 35 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
+213 passed, 36 expected integration skips), Agent typecheck, `cd server && cargo fmt` plus
 `cargo test -p kasitek-core --lib` (123 passed, 3 infrastructure-gated ignores), and Core check.
 Seeded database, Redis replay, provider sandbox, hosted, browser, and external-client gates remain
 open and are not represented as complete by this local evidence.

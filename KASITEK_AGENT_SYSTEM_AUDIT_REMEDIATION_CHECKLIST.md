@@ -700,7 +700,7 @@ limits, full Streamable HTTP lifecycle, and hosted smoke remain open.
   unchecked checklist item. Current entries are limited to unavailable infrastructure or explicit
   product/security policy decisions.
 - [x] Recount checked and unchecked primary-blueprint items and record the count in the handoff.
-  The current count is 176 checked / 50 unchecked of 226 in
+  The current count is 177 checked / 49 unchecked of 226 in
   `KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`.
 - [ ] Add evidence to primary-blueprint items only when their full deliverable and verification gate
   pass.
@@ -730,7 +730,7 @@ destructive, and later-domain projections without provider credentials.
 
 **Post-remediation local capability evidence (2026-08-14):** Commits `720a47c`, `81d0284`,
 `3b26830`, `1b2eee9`, `d422444`, and `0631818` add bounded, organization-scoped workspace/reporting, contact, template,
-and inbox capability paths. The local Agent suite passes 213 tests with 35 expected integration
+and inbox capability paths. The local Agent suite passes 213 tests with 36 expected integration
 skips and the Core library suite passes 123 tests with 3 infrastructure-gated ignores. These
 results improve the executable local surface but do not close the audit's seeded-core, Redis,
 hosted/provider, browser, MCP/REST conformance, or public-principal gates.

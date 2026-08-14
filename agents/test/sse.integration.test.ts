@@ -41,6 +41,7 @@ describe("live run-event SSE recovery", () => {
       getRun: async (_organizationId: string, runId: string) => runId === "run-sse-1"
         ? { id: runId, organization_id: "org-sse", status: runStatus }
         : null,
+      listEvents: async () => events,
       listEventsAfter: async (_organizationId: string, runId: string, after: number) => {
         expect(runId).toBe("run-sse-1");
         cursors.push(after);
@@ -77,6 +78,12 @@ describe("live run-event SSE recovery", () => {
     resumedController.abort();
 
     runStatus = "completed";
+    const polled = await fetch(url.replace("/events/stream", ""), { headers: { "x-organization-id": "org-sse", "x-actor-id": "user-sse" } });
+    expect(polled.status).toBe(200);
+    const polledPayload = await polled.json() as { run: { status: string }; events: Array<{ sequence_number: string }> };
+    expect(polledPayload.run.status).toBe("completed");
+    expect(polledPayload.events.map((event) => event.sequence_number)).toEqual(["1", "2"]);
+
     const terminal = await fetch(`${url}?after=2`, { headers: { "x-organization-id": "org-sse", "x-actor-id": "user-sse" } });
     expect(terminal.status).toBe(200);
     await expect(terminal.text()).resolves.toContain(": keep-alive");
